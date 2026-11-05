@@ -13,7 +13,7 @@ import { canViewPost, canViewUserContent } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { serializeUpload } from "../lib/serialize";
 import { now } from "../lib/time";
-import { r2Key, removeUploads, sniffImage } from "../lib/uploads";
+import { imageMetadataCheck, r2Key, removeUploads, sniffImage } from "../lib/uploads";
 import { vQuery } from "../lib/validate";
 import type { PostRow, StoryRow, UploadRow } from "../types/rows";
 
@@ -59,6 +59,10 @@ uploadRoutes.post("/uploads", requireAuth, limit("RL_UPLOAD"), vQuery(UploadQuer
 
   const sniffed = sniffImage(bytes);
   if (sniffed === null || sniffed.contentType !== mediaType(c.req.header("Content-Type"))) throw unsupported();
+  // Pending item 12: WebP/GIF metadata (EXIF GPS, XMP, ICC, comments) is refused, broken containers too.
+  const meta = imageMetadataCheck(bytes, sniffed.ext);
+  if (meta === "metadata") throw err.invalid({ body: "not_allowed" });
+  if (meta === "malformed") throw err.invalid({ body: "invalid" });
 
   // Cheap pre-check so a user at the cap does not write to R2; the INSERT below re-checks atomically.
   const pending = await first<{ n: number }>(

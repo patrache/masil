@@ -93,3 +93,25 @@ test("media of attached uploads: avatar anyone, post by 3.4 rules, story only wh
   await env.DB.prepare("UPDATE stories SET expires_at = ? WHERE id = ?").bind(t - 1, storyId).run();
   expect((await media(b.token, storyImg.id)).status).toBe(404);
 });
+test("pending item 12: webp with EXIF chunk / gif with comment -> 400 not_allowed, clean ones -> 201", async () => {
+  const a = await signup();
+  const enc = (s: string) => [...new TextEncoder().encode(s)];
+  const le32 = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff];
+  const webp = (extra: number[]) => {
+    const body = [...enc("WEBP"), ...enc("VP8L"), ...le32(5), 0x2f, 0, 0, 0, 0, 0, ...extra];
+    return new Uint8Array([...enc("RIFF"), ...le32(body.length), ...body]);
+  };
+  const exif = [...enc("EXIF"), ...le32(2), 1, 2];
+  const bad = await post(a.token, "post", webp(exif), "image/webp");
+  expect(bad.status).toBe(400);
+  expect((await bad.json() as any).error.details.fields).toEqual({ body: "not_allowed" });
+  expect((await post(a.token, "post", webp([]), "image/webp")).status).toBe(201);
+  const head = [...enc("GIF89a"), 1, 0, 1, 0, 0, 0, 0];
+  const img = [0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 0x4c, 0x01, 0];
+  const g = await post(a.token, "post", new Uint8Array([...head, 0x21, 0xfe, 1, 0x41, 0, ...img, 0x3b]), "image/gif");
+  expect(g.status).toBe(400);
+  expect((await post(a.token, "post", new Uint8Array([...head, ...img, 0x3b]), "image/gif")).status).toBe(201);
+  const trunc = await post(a.token, "post", new Uint8Array([...head, ...img]), "image/gif");
+  expect(trunc.status).toBe(400);
+  expect((await trunc.json() as any).error.details.fields).toEqual({ body: "invalid" });
+});

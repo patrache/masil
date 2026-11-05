@@ -143,3 +143,90 @@ export function sniffImage(head: Uint8Array): SniffedImage | null {
   }
   return null;
 }
+
+/** Result of the upload metadata check: clean, carries metadata (or a block we cannot vouch for), or a broken container. */
+export type MetadataCheck = "ok" | "metadata" | "malformed";
+
+/** WebP chunks that carry pixels or animation only; EXIF, "XMP ", ICCP and anything unknown are refused. */
+const WEBP_ALLOWED = new Set(["VP8 ", "VP8L", "VP8X", "ALPH", "ANIM", "ANMF"]);
+/** GIF application extensions that only control looping. */
+const GIF_APP_ALLOWED = new Set(["NETSCAPE2.0", "ANIMEXTS1.0"]);
+
+const fourcc = (b: Uint8Array, i: number): string => String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]);
+const le32 = (b: Uint8Array, i: number): number => (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0;
+
+function webpCheck(b: Uint8Array): MetadataCheck {
+  if (b.length < 12 || le32(b, 4) + 8 !== b.length) return "malformed";
+  let i = 12;
+  let chunks = 0;
+  let verdict: MetadataCheck = "ok";
+  while (i < b.length) {
+    if (i + 8 > b.length) return "malformed";
+    const id = fourcc(b, i);
+    const size = le32(b, i + 4);
+    const end = i + 8 + size + (size & 1);
+    if (end > b.length) return "malformed";
+    if (!WEBP_ALLOWED.has(id)) verdict = "metadata";
+    chunks++;
+    i = end;
+  }
+  return chunks === 0 ? "malformed" : verdict;
+}
+
+/** Skips GIF data sub-blocks starting at i; returns the index after the 0 terminator, or -1 when truncated. */
+function gifSkipSubBlocks(b: Uint8Array, i: number): number {
+  while (i < b.length) {
+    const n = b[i];
+    if (n === 0) return i + 1;
+    i += 1 + n;
+  }
+  return -1;
+}
+
+function gifCheck(b: Uint8Array): MetadataCheck {
+  if (b.length < 13) return "malformed";
+  let i = 13;
+  if (b[10] & 0x80) i += 3 * (1 << ((b[10] & 7) + 1)); // global colour table
+  let verdict: MetadataCheck = "ok";
+  while (i < b.length) {
+    const t = b[i];
+    if (t === 0x3b) return i + 1 === b.length ? verdict : "malformed"; // trailer must end the file
+    if (t === 0x2c) {
+      if (i + 10 > b.length) return "malformed";
+      const packed = b[i + 9];
+      i += 10;
+      if (packed & 0x80) i += 3 * (1 << ((packed & 7) + 1)); // local colour table
+      i += 1; // LZW minimum code size
+      if (i > b.length) return "malformed";
+      i = gifSkipSubBlocks(b, i);
+      if (i < 0) return "malformed";
+      continue;
+    }
+    if (t === 0x21) {
+      if (i + 2 > b.length) return "malformed";
+      const label = b[i + 1];
+      if (label === 0xff) {
+        if (i + 3 + 11 > b.length || b[i + 2] !== 11) return "malformed";
+        const app = String.fromCharCode(...b.subarray(i + 3, i + 14));
+        if (!GIF_APP_ALLOWED.has(app)) verdict = "metadata";
+      } else if (label !== 0xf9 && label !== 0x01) {
+        verdict = "metadata"; // 0xFE comment, or an extension we cannot vouch for
+      }
+      i = gifSkipSubBlocks(b, i + 2);
+      if (i < 0) return "malformed";
+      continue;
+    }
+    return "malformed";
+  }
+  return "malformed"; // no trailer
+}
+
+/**
+ * Pending item 12: the server stores bytes as-is, so a WebP/GIF that still carries EXIF/XMP/ICC (or a comment /
+ * unknown block) is refused rather than trusted to the client. PNG/JPEG are re-encoded by the client (api.md 5.14).
+ */
+export function imageMetadataCheck(b: Uint8Array, ext: SniffedImage["ext"]): MetadataCheck {
+  if (ext === "webp") return webpCheck(b);
+  if (ext === "gif") return gifCheck(b);
+  return "ok";
+}
