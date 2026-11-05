@@ -28,4 +28,5 @@ import (
 	_ "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 	_ "golang.org/x/sys/windows/registry"
+	_ "golang.org/x/text/unicode/norm"
 )
