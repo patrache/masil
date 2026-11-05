@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
 import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
-import { all, batch, first, stmt } from "../lib/db";
+import { all, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId, newId, newInviteCode } from "../lib/ids";
 import { notify } from "../lib/notify";
@@ -14,7 +14,14 @@ import { publishEvent } from "../lib/realtime";
 import { loadUserSummaries, serializeDirectInvites, serializeInvitePreview, serializeInvites } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vJson, zUserRef } from "../lib/validate";
-import { inviteInvalidReason, joinSpace, linkIssuerCanInvite, type InviteCheckRow } from "../services/membership";
+import {
+  D_INVITER_IS_MEMBER,
+  insertDirectInvite,
+  inviteInvalidReason,
+  joinSpace,
+  linkIssuerCanInvite,
+  type InviteCheckRow,
+} from "../services/membership";
 import type { SpaceDirectInviteRow, SpaceInviteRow, SpaceRow } from "../types/rows";
 
 /** api.md 5.8: expires_in_sec omitted -> 7 days. */
@@ -56,13 +63,6 @@ async function loadDirectInvite(db: D1Database, id: string): Promise<SpaceDirect
   if (row === null) throw err.notFound("invite");
   return row;
 }
-
-/**
- * For a statement over space_direct_invites (aliased `d`): its inviter is still a member of its space. A pending invite
- * whose inviter is gone cannot be accepted (joinSpace), so it is left out of the invitee's list and does not count as
- * the pending invite that blocks a fresh one (pending item 9).
- */
-const D_INVITER_IS_MEMBER = "EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = d.space_id AND im.user_id = d.inviter_id)";
 
 export const inviteRoutes = new Hono<AppEnv>();
 
@@ -166,9 +166,11 @@ inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
  * Any member invites one of their own friends (api.md 3.5, any role). 403 action_not_allowed (not friends / blocked
  * either way / invitee currently suspended), 403 banned_from_space, 409 already_member, 409 already_exists (a pending invite to this space).
  * After the insert: space.invite_received{invite} to the invitee + inbox space_invite + alert invite (Task 15 table).
- * One batch (pending item 9): a stale pending invite to the same person whose inviter is no longer a member becomes
- * canceled (space.invite_removed canceled after commit), then the INSERT — both gated on the inviter still being a
- * member, so an inviter removed after requireSpaceRole writes nothing and gets 404.
+ * One batch (insertDirectInvite, pending item 9): a stale pending invite to the same person whose inviter is no longer
+ * a member becomes canceled (space.invite_removed canceled after commit), then the INSERT — both gated on the inviter
+ * still being a member, so an inviter removed after requireSpaceRole writes nothing and gets 404, and on the relation
+ * rules above (pending item 10), so an unfriend / block / suspension landing after the pre-checks writes nothing and
+ * gets 403 action_not_allowed.
  */
 inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOCIAL"), vJson(DirectInviteBody), async (c) => {
   const auth = getAuth(c);
@@ -195,40 +197,9 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
   if (facts?.pending) throw err.conflict("already_exists");
 
   const t = now();
-  const inviterIsMember = "EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2)";
-  let results: D1Result[];
-  try {
-    results = await batch(db, [
-      stmt(
-        db,
-        `UPDATE space_direct_invites AS d SET status = 'canceled', responded_at = ?4
-          WHERE d.space_id = ?1 AND d.invitee_id = ?3 AND d.status = 'pending' AND NOT ${D_INVITER_IS_MEMBER} AND ${inviterIsMember}
-         RETURNING id, inviter_id`,
-        spaceId,
-        me,
-        target.id,
-        t,
-      ),
-      stmt(
-        db,
-        `INSERT INTO space_direct_invites (id, space_id, inviter_id, invitee_id, status, created_at, responded_at)
-         SELECT ?5, ?1, ?2, ?3, 'pending', ?4, NULL WHERE ${inviterIsMember}
-         RETURNING *`,
-        spaceId,
-        me,
-        target.id,
-        t,
-        newId(t),
-      ),
-    ]);
-  } catch (e) {
-    if (isUniqueViolation(e)) throw err.conflict("already_exists"); // a concurrent invite to the same person
-    throw e;
-  }
-  const row = (results[1]!.results as SpaceDirectInviteRow[])[0] ?? null;
-  if (row === null) throw err.notFound("space"); // the inviter left / was removed after requireSpaceRole
-  for (const stale of results[0]!.results as Array<{ id: string; inviter_id: string }>) {
-    await publishEvent(rt(c), { users: [target.id, stale.inviter_id] }, "space.invite_removed", { invite_id: stale.id, reason: "canceled" });
+  const { row, stale } = await insertDirectInvite(db, spaceId, me, target.id, t, newId(t));
+  for (const old of stale) {
+    await publishEvent(rt(c), { users: [target.id, old.inviter_id] }, "space.invite_removed", { invite_id: old.id, reason: "canceled" });
   }
   const [[invite], space, users] = await Promise.all([
     serializeDirectInvites(db, [row]),

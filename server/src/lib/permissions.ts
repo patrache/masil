@@ -35,6 +35,36 @@ export async function isBlockedEither(db: D1Database, a: string, b: string): Pro
   return row !== null;
 }
 
+/** A bound parameter (`?3`) or a plain column reference (`u.id`) — the only things the write-side fragments take. */
+const SQL_OPERAND = /^(\?\d+|[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?)$/;
+
+function operand(fn: string, x: string): string {
+  if (!SQL_OPERAND.test(x)) throw new Error(`${fn}: invalid operand ${JSON.stringify(x)}`);
+  return x;
+}
+
+/**
+ * SQL: a block row either way between users `a` and `b` (bound params or columns). The write-side twin of
+ * isBlockedEither (pending item 10): a write that the block cleanup (api.md 3.2 — friendship, pending friend requests,
+ * follows, pending direct invites) would remove puts `NOT ${blockedEitherSql(..)}` into the statement itself, so a
+ * block committing between the pre-check read and the write leaves nothing behind.
+ */
+export function blockedEitherSql(a: string, b: string): string {
+  const x = operand("blockedEitherSql", a);
+  const y = operand("blockedEitherSql", b);
+  return `EXISTS (SELECT 1 FROM blocks wb WHERE (wb.blocker_id = ${x} AND wb.blocked_id = ${y}) OR (wb.blocker_id = ${y} AND wb.blocked_id = ${x}))`;
+}
+
+/**
+ * SQL: user `u` is suspended at `nowExpr` — the write-side twin of isSuspendedNow, same boundary as postVisibilitySql
+ * (suspended_until <= now counts as active again). Pending item 10.
+ */
+export function suspendedNowSql(u: string, nowExpr: string): string {
+  const id = operand("suspendedNowSql", u);
+  const t = operand("suspendedNowSql", nowExpr);
+  return `EXISTS (SELECT 1 FROM users wsu WHERE wsu.id = ${id} AND wsu.suspended_at IS NOT NULL AND (wsu.suspended_until IS NULL OR wsu.suspended_until > ${t}))`;
+}
+
 export async function hasBlocked(db: D1Database, blocker: string, blocked: string): Promise<boolean> {
   return (await first(db, "SELECT 1 AS x FROM blocks WHERE blocker_id = ?1 AND blocked_id = ?2", blocker, blocked)) !== null;
 }

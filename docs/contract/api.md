@@ -652,6 +652,7 @@ interface AdminAction {
 
 차단 순간(같은 batch):
 - 친구 관계 삭제, 양방향 대기 친구 요청 `canceled`, 양방향 팔로우(대기 포함) 삭제, 양방향 대기 직접 초대 `canceled`.
+- 위 정리가 지우는 관계를 새로 만드는 쓰기 — 팔로우(카운터 포함), 친구 요청, 친구 요청 수락(친구 관계), 방 직접 초대 — 는 차단(어느 방향이든)·상대 정지(3.9, `suspended_until <= 지금` 이면 정지 아님) 확인을 사전 확인뿐 아니라 **쓰기 문 자체에도** 넣는다(직접 초대는 친구 관계도). 사전 확인과 쓰기 사이에 차단·정지가 끼어들면 아무것도 만들어지지 않고(카운터도 그대로) `403 action_not_allowed`. 이미 팔로우 중이던 멱등 경우는 지금 상태를 그대로 돌려준다. 메시지·리액션·DM 생성·방명록·글 상호작용처럼 차단 정리가 지우지 않는 쓰기는 사전 확인만 한다(끼어든 차단 직전에 쓴 것과 결과가 같다).
 
 이후:
 - B → A: DM·그룹 DM 초대·친구 요청·팔로우·방 직접 초대·방명록 작성·글에 답글/인용/리포스트/좋아요 불가(`403 action_not_allowed` 또는 `dm_not_allowed`). 1:1 DM 은 양쪽 모두 읽기 전용.
@@ -858,6 +859,7 @@ interface AdminAction {
 
 #### `POST /v1/friends/requests/{request_id}/accept`
 - 받는 사람만. `200 { "friend": Friend }` · 이벤트: `friend.request_accepted`(보낸 사람), `friend.added`(양쪽) · 알림 `friend_accepted`(보낸 사람)
+- 오류: `404`(대기 중이 아님), `403 action_not_allowed`(어느 방향이든 차단 — 수락 batch 안에서도 다시 확인, 3.2)
 
 #### `POST /v1/friends/requests/{request_id}/decline`
 - 받는 사람만. `204` · 이벤트: `friend.request_removed`(양쪽, `reason:"declined"`). 보낸 사람에게 알림 없음.
@@ -996,7 +998,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `POST /v1/spaces/{space_id}/direct-invites`
 - 방 멤버 누구나(owner·admin 도 같은 조건), `RL_SOCIAL`. 요청: `{ "user": "@hana" }` — **역할과 무관하게 초대하는 사람의 친구**여야 함(3.5 표), 상대가 이미 멤버/밴/차단 관계면 실패. 친구가 아닌 사람은 초대 링크로 들인다.
 - `201 { "invite": DirectInvite }` · 이벤트: `space.invite_received`(상대) · 알림 `space_invite` · alert `invite`
-- 오류: `403 action_not_allowed`(친구 아님·차단), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
+- 오류: `403 action_not_allowed`(친구 아님·차단·상대 정지 — 확인 뒤 INSERT 전에 그렇게 돼도 같고, 아무것도 만들어지지 않음, 3.2), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
 - 같은 사람에게 온 대기 초대라도 초대한 사람이 이미 방 멤버가 아니면(수락 불가) `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
 
 #### `GET /v1/me/direct-invites`

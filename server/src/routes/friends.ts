@@ -14,7 +14,7 @@ import { publishEvent } from "../lib/realtime";
 import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vJson, vQuery, zUserRef } from "../lib/validate";
-import { makeFriends, unfriend } from "../services/relations";
+import { insertFriendRequest, makeFriends, unfriend } from "../services/relations";
 import type { FriendRequestRow } from "../types/rows";
 
 const PENDING_OUTGOING_MAX = 100; // api.md 5.3: 422 limit_exceeded pending_friend_requests
@@ -145,26 +145,8 @@ friendRoutes.post("/friends/requests", requireAuth, limit("RL_SOCIAL"), vJson(Re
     return c.json({ request, friend }, 200);
   }
 
-  // Count check and insert in one statement: a concurrent request cannot slip past the 100 cap.
   const row: FriendRequestRow = { id: newId(t), from_user_id: me, to_user_id: target.id, status: "pending", created_at: t, responded_at: null };
-  const inserted = await first<{ id: string }>(
-    db,
-    `INSERT INTO friend_requests (id, from_user_id, to_user_id, status, created_at)
-     SELECT ?1, ?2, ?3, 'pending', ?4
-      WHERE (SELECT COUNT(*) FROM friend_requests WHERE from_user_id = ?2 AND status = 'pending') < ?5
-     ON CONFLICT DO NOTHING
-     RETURNING id`,
-    row.id,
-    me,
-    target.id,
-    t,
-    PENDING_OUTGOING_MAX,
-  );
-  if (inserted === null) {
-    const dup = await first(db, "SELECT 1 AS x FROM friend_requests WHERE from_user_id = ?1 AND to_user_id = ?2 AND status = 'pending'", me, target.id);
-    if (dup !== null) throw err.conflict("already_exists", "pending");
-    throw err.limit("pending_friend_requests", PENDING_OUTGOING_MAX);
-  }
+  await insertFriendRequest(db, row, PENDING_OUTGOING_MAX);
 
   const [[request], users] = await Promise.all([serializeFriendRequests(db, [row]), loadUserSummaries(db, [me])]);
   const name = users.get(me)?.display_name ?? auth.handle;

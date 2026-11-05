@@ -6,7 +6,7 @@ import { batch, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { isSuspendedNow } from "../lib/auth";
 import { notify, notifyMany } from "../lib/notify";
-import { isBlockedEither } from "../lib/permissions";
+import { blockedEitherSql, isBlockedEither, suspendedNowSql } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "../lib/serialize";
 import { now } from "../lib/time";
@@ -23,7 +23,8 @@ function friendPair(a: string, b: string): [string, string] {
  * (simultaneous crossing requests), and the friendships row — inserted only if this batch really accepted the request.
  * After commit: `friend.request_accepted{request}` + `friend.added{friend: accepter}` to the sender,
  * `friend.added{friend: sender}` to the accepter, inbox `friend_accepted` (no alert) to the sender.
- * 404 when the request is not (any longer) pending between a and b.
+ * 404 when the request is not (any longer) pending between a and b; 403 action_not_allowed when a block either way is
+ * in place at the accept (checked inside the batch — pending item 10).
  */
 export async function makeFriends(rt: Runtime, a: string, b: string, requestId: string): Promise<void> {
   const db = rt.env.DB;
@@ -43,7 +44,17 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
   const t = now();
 
   const [accepted] = await batch(db, [
-    stmt(db, "UPDATE friend_requests SET status = 'accepted', responded_at = ?2 WHERE id = ?1 AND status = 'pending'", requestId, t),
+    // The block rule is part of the accept (pending item 10): a block committing after the caller's pre-check either
+    // canceled the request (status guard) or, at least, is seen here — and everything after is gated on this row.
+    stmt(
+      db,
+      `UPDATE friend_requests SET status = 'accepted', responded_at = ?2
+        WHERE id = ?1 AND status = 'pending' AND NOT ${blockedEitherSql("?3", "?4")}`,
+      requestId,
+      t,
+      senderId,
+      accepterId,
+    ),
     stmt(
       db,
       `UPDATE friend_requests SET status = 'accepted', responded_at = ?3
@@ -67,7 +78,12 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
       requestId,
     ),
   ]);
-  if (accepted!.meta.changes === 0) throw err.notFound("friend request"); // accepted/declined/canceled meanwhile
+  if (accepted!.meta.changes === 0) {
+    // a block landed after the pre-check (its cleanup may also have canceled the request) -> 403 like the pre-check;
+    // otherwise the request was accepted / declined / canceled meanwhile -> 404
+    if (await isBlockedEither(db, senderId, accepterId)) throw err.forbidden("action_not_allowed");
+    throw err.notFound("friend request");
+  }
 
   const friendship = await first<FriendshipRow>(db, "SELECT * FROM friendships WHERE user_a = ?1 AND user_b = ?2", lo, hi);
   const since = friendship?.created_at ?? t;
@@ -97,6 +113,43 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
       alert: null,
     }),
   ]);
+}
+
+/**
+ * Inserts pending friend request `row` (from_user_id -> to_user_id). The pending-outgoing cap is checked in the INSERT
+ * itself, so a concurrent request cannot slip past `maxPending`; so are the block rule (either way) and the target's
+ * suspension (pending item 10: the caller's pre-check is a plain read, and a block committing after it would leave a
+ * pending request its cleanup is meant to cancel). When nothing went in: 403 action_not_allowed (blocked / target
+ * suspended now), 409 already_exists `pending` (the sender already has one pending to this user), else 422
+ * limit_exceeded `pending_friend_requests`.
+ */
+export async function insertFriendRequest(db: D1Database, row: FriendRequestRow, maxPending: number): Promise<void> {
+  const inserted = await first<{ id: string }>(
+    db,
+    `INSERT INTO friend_requests (id, from_user_id, to_user_id, status, created_at)
+     SELECT ?1, ?2, ?3, 'pending', ?4
+      WHERE (SELECT COUNT(*) FROM friend_requests WHERE from_user_id = ?2 AND status = 'pending') < ?5
+        AND NOT ${blockedEitherSql("?2", "?3")} AND NOT ${suspendedNowSql("?3", "?4")}
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    row.id,
+    row.from_user_id,
+    row.to_user_id,
+    row.created_at,
+    maxPending,
+  );
+  if (inserted !== null) return;
+  const why = await first<{ blocked: number; suspended: number; dup: number }>(
+    db,
+    `SELECT ${blockedEitherSql("?1", "?2")} AS blocked, ${suspendedNowSql("?2", "?3")} AS suspended,
+            EXISTS (SELECT 1 FROM friend_requests WHERE from_user_id = ?1 AND to_user_id = ?2 AND status = 'pending') AS dup`,
+    row.from_user_id,
+    row.to_user_id,
+    row.created_at,
+  );
+  if (why?.blocked || why?.suspended) throw err.forbidden("action_not_allowed");
+  if (why?.dup) throw err.conflict("already_exists", "pending");
+  throw err.limit("pending_friend_requests", maxPending);
 }
 
 /**
@@ -240,6 +293,9 @@ function userTarget(id: string) {
  * A new row is `pending` for a private followee, else `active` (accepted_at = now). The status is decided inside the
  * batch from the followee's current is_private, and the counter statements come before the INSERT, guarded so they
  * move only when this batch really inserts an active row (data-model 7: counters count active rows only).
+ * The block / suspension rule is in the INSERT and the counter guards too (pending item 10): one landing between the
+ * pre-check and the batch writes nothing -> 403 action_not_allowed, while a concurrent follow of the same pair that
+ * won the race is reported as its current state (idempotent).
  * After commit: inbox `follow` (dedupe `follow:<followee>:<follower>`) or `follow_request`
  * (dedupe `follow_request:<followee>:<follower>`), alert kind `social`.
  */
@@ -254,18 +310,23 @@ export async function follow(rt: Runtime, followerId: string, followeeId: string
   const existing = await first<Pick<FollowRow, "status">>(db, "SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = ?2", followerId, followeeId);
   if (existing !== null) return existing.status;
 
+  // The block / suspension rule is part of every write (pending item 10): the pre-check above is a plain read, and a
+  // block committing after it would otherwise leave the follow (and the counter bump) that its cleanup is meant to
+  // remove. Params: ?1 follower, ?2 followee, ?3 now.
+  const allowed = `NOT ${blockedEitherSql("?1", "?2")} AND NOT ${suspendedNowSql("?2", "?3")}`;
   // "No row for the pair yet" covers the active guard (NOT EXISTS ... status='active') and also keeps the counters
   // still when a concurrent request already inserted a row this INSERT will skip.
   const willInsertActive = `EXISTS (SELECT 1 FROM users fe WHERE fe.id = ?2 AND fe.is_private = 0)
-    AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ?1 AND followee_id = ?2)`;
+    AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ?1 AND followee_id = ?2)
+    AND ${allowed}`;
   const results = await batch(db, [
-    stmt(db, `UPDATE users SET following_count = following_count + 1 WHERE id = ?1 AND ${willInsertActive}`, followerId, followeeId),
-    stmt(db, `UPDATE users SET follower_count = follower_count + 1 WHERE id = ?2 AND ${willInsertActive}`, followerId, followeeId),
+    stmt(db, `UPDATE users SET following_count = following_count + 1 WHERE id = ?1 AND ${willInsertActive}`, followerId, followeeId, t),
+    stmt(db, `UPDATE users SET follower_count = follower_count + 1 WHERE id = ?2 AND ${willInsertActive}`, followerId, followeeId, t),
     stmt(
       db,
       `INSERT INTO follows (follower_id, followee_id, status, created_at, accepted_at)
        SELECT ?1, ?2, CASE WHEN u.is_private = 1 THEN 'pending' ELSE 'active' END, ?3, CASE WHEN u.is_private = 1 THEN NULL ELSE ?3 END
-         FROM users u WHERE u.id = ?2
+         FROM users u WHERE u.id = ?2 AND ${allowed}
        ON CONFLICT (follower_id, followee_id) DO NOTHING
        RETURNING status`,
       followerId,
@@ -275,9 +336,17 @@ export async function follow(rt: Runtime, followerId: string, followeeId: string
   ]);
   const inserted = (results[2]!.results as Array<Pick<FollowRow, "status">>)[0];
   if (inserted === undefined) {
-    // lost a race with a concurrent follow of the same pair: report what is there now
-    const current = await first<Pick<FollowRow, "status">>(db, "SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = ?2", followerId, followeeId);
-    if (current === null) throw err.forbidden("action_not_allowed"); // removed meanwhile (e.g. a block)
+    // Nothing went in: either a block / suspension landed after the pre-check (403, whatever the pre-check said), or a
+    // concurrent follow of the same pair won the race (idempotent: report the row that is there now).
+    const current = await first<{ status: FollowRow["status"] | null; blocked: number; suspended: number }>(
+      db,
+      `SELECT (SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = ?2) AS status,
+              ${blockedEitherSql("?1", "?2")} AS blocked, ${suspendedNowSql("?2", "?3")} AS suspended`,
+      followerId,
+      followeeId,
+      t,
+    );
+    if (current === null || current.blocked || current.suspended || current.status === null) throw err.forbidden("action_not_allowed");
     return current.status;
   }
 

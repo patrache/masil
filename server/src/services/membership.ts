@@ -6,7 +6,7 @@
 import type { Runtime } from "../env";
 import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
-import { canDmMany, getChannelAccess } from "../lib/permissions";
+import { blockedEitherSql, canDmMany, getChannelAccess, suspendedNowSql } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { loadUserSummaries, serializeChannels, serializeSpaceDetail, serializeSpaceMembers } from "../lib/serialize";
 import { now } from "../lib/time";
@@ -303,6 +303,74 @@ export function inviteInvalidReason(row: InviteCheckRow, nowMs: number = now()):
  * For a statement over space_direct_invites whose space id is bound as ?2.
  */
 const INVITER_IS_MEMBER = "EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = ?2 AND im.user_id = space_direct_invites.inviter_id)";
+
+/**
+ * For a statement over space_direct_invites aliased `d`: its inviter is still a member of its space. A pending invite
+ * whose inviter is gone cannot be accepted (joinSpace), so it is left out of the invitee's list and does not count as
+ * the pending invite that blocks a fresh one (pending item 9).
+ */
+export const D_INVITER_IS_MEMBER = "EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = d.space_id AND im.user_id = d.inviter_id)";
+
+/**
+ * Writes a pending direct invite `inviterId` -> `inviteeId` into `spaceId`, in one batch (pending item 9): a stale
+ * pending invite to the same person whose inviter is no longer a member becomes canceled, then the INSERT — both gated
+ * on the inviter still being a member, so an inviter removed after the caller's role check writes nothing (404).
+ * Both are also gated on the relation rules (pending item 10, api.md 3.2 / 3.5 / 3.9): the two are still friends, no
+ * block either way, the invitee not suspended now. The caller's pre-checks are plain reads, and a block committing
+ * after them (its cleanup deletes the friendship and cancels pending invites both ways) would otherwise leave a fresh
+ * pending invite behind -> 403 action_not_allowed, nothing written.
+ * A concurrent invite to the same person fails the unique index -> 409 already_exists.
+ * Returns the new row and the stale invites it canceled (the caller publishes space.invite_removed for those).
+ */
+export async function insertDirectInvite(
+  db: D1Database,
+  spaceId: string,
+  inviterId: string,
+  inviteeId: string,
+  t: number,
+  id: string,
+): Promise<{ row: SpaceDirectInviteRow; stale: Array<{ id: string; inviter_id: string }> }> {
+  const inviterIsMember = "EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2)";
+  const related = `EXISTS (SELECT 1 FROM friendships f WHERE f.user_a = MIN(?2, ?3) AND f.user_b = MAX(?2, ?3))
+    AND NOT ${blockedEitherSql("?2", "?3")} AND NOT ${suspendedNowSql("?3", "?4")}`;
+  const gate = `${inviterIsMember} AND ${related}`;
+  let results: D1Result[];
+  try {
+    results = await batch(db, [
+      stmt(
+        db,
+        `UPDATE space_direct_invites AS d SET status = 'canceled', responded_at = ?4
+          WHERE d.space_id = ?1 AND d.invitee_id = ?3 AND d.status = 'pending' AND NOT ${D_INVITER_IS_MEMBER} AND ${gate}
+         RETURNING id, inviter_id`,
+        spaceId,
+        inviterId,
+        inviteeId,
+        t,
+      ),
+      stmt(
+        db,
+        `INSERT INTO space_direct_invites (id, space_id, inviter_id, invitee_id, status, created_at, responded_at)
+         SELECT ?5, ?1, ?2, ?3, 'pending', ?4, NULL WHERE ${gate}
+         RETURNING *`,
+        spaceId,
+        inviterId,
+        inviteeId,
+        t,
+        id,
+      ),
+    ]);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw err.conflict("already_exists"); // a concurrent invite to the same person
+    throw e;
+  }
+  const row = (results[1]!.results as SpaceDirectInviteRow[])[0] ?? null;
+  if (row === null) {
+    const member = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviterId);
+    if (member === null) throw err.notFound("space"); // the inviter left / was removed after the role check
+    throw err.forbidden("action_not_allowed"); // unfriended / blocked / invitee suspended after the pre-checks
+  }
+  return { row, stale: results[0]!.results as Array<{ id: string; inviter_id: string }> };
+}
 
 /** The invite link `code` of `spaceId` with its issuer check; 404 when missing. */
 async function loadInviteOf(db: D1Database, spaceId: string, code: string): Promise<InviteCheckRow> {
