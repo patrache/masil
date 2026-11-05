@@ -117,6 +117,10 @@ type Model struct {
 	watchGen  int
 	watched   []string // topics of the last Watch
 	watchSent bool
+
+	// Alerts (Task 31, alerts.go).
+	termFocused bool     // the last focus report was FocusMsg (meaningful once Caps.FocusReports)
+	summaries   []string // focus-summary alert ids opened in this process, oldest first (last 50)
 }
 
 var _ tea.Model = (*Model)(nil)
@@ -282,6 +286,12 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.cols, m.rows, m.sized = msg.Width, msg.Height, true
 		return m, m.relayout()
+	case tea.FocusMsg:
+		m.onTerminalFocus(true)
+		return m, m.broadcast(msg)
+	case tea.BlurMsg:
+		m.onTerminalFocus(false)
+		return m, m.broadcast(msg)
 	case tea.ModeReportMsg:
 		if msg.Mode == ansi.ModeUnicodeCore {
 			m.ctx.Caps.UnicodeCore = msg.Value.IsSet()

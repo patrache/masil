@@ -177,7 +177,7 @@ func (m *Model) setUpgradeRequired() tea.Cmd {
 	return m.toasts.push(m.ctx, ui.ToastMsg{Text: upgradeText, Kind: ui.ToastError})
 }
 
-// onEvent is CA 5.3.4 step 5: Store.Apply → broadcast → (alerts: Task 31) →
+// onEvent is CA 5.3.4 step 5: Store.Apply → broadcast → alert handling (CA 9.1) →
 // MarkProcessed. Store.Viewing already holds this projection's set (SetViewing runs
 // right after every Project), and an event never changes the projection. ready also
 // drives the bootstrap / resync (CA 5.4, events.md 5.3). Events reaching a logged-out
@@ -191,6 +191,9 @@ func (m *Model) onEvent(msg ui.EventMsg) tea.Cmd {
 	cmds := []tea.Cmd{m.broadcast(msg)}
 	if ev.Type == "ready" {
 		cmds = append(cmds, m.onReady(ev))
+	}
+	if a, ok := alertOf(ev); ok {
+		cmds = append(cmds, m.handleAlert(ev, a))
 	}
 	if ev.Seq != nil {
 		if pm, ok := m.ctx.RT.(processedMarker); ok {
