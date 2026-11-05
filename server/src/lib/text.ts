@@ -1,8 +1,7 @@
 // Text utilities (server-architecture.md 4.10, api.md 2.1): input normalization, code-point length,
 // @mention / @here / #hashtag extraction (code spans and fenced blocks excluded), dice, plain snippets, emoji checks.
 
-// Local until Task 5 defines it in types/api.ts (api.md RollResult).
-export type RollResult = { expr: string; rolls: number[]; modifier: number; total: number };
+import type { RollResult } from "../types/api";
 
 const MAX_MENTIONS = 50;
 const MAX_HASHTAGS = 10;

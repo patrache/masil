@@ -2,6 +2,7 @@
 // - `undefined` params bind as `null` (D1 rejects undefined).
 // - Variable-length ID lists go through `jsonList` as ONE param: `IN (SELECT value FROM json_each(?))`
 //   (D1 caps bound params at 100 per query).
+import { err } from "./errors";
 
 function bindParams(params: unknown[]): unknown[] {
   return params.map((p) => (p === undefined ? null : p));
@@ -45,13 +46,12 @@ export interface Page<T> {
   next_cursor: string | null;
 }
 
-// TODO(Task 5): replace with err.invalid({ cursor: "invalid" }) / err.invalid({ limit: ... }).
 function invalidCursor(): never {
-  throw new Error("invalid_cursor");
+  throw err.invalid({ cursor: "invalid" });
 }
 
 function invalidLimit(): never {
-  throw new Error("invalid_limit");
+  throw err.invalid({ limit: "invalid" });
 }
 
 function toBase64Url(text: string): string {
