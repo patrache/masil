@@ -1,6 +1,7 @@
 // Space / channel membership services (server-architecture.md 4.14 membership.ts).
 // Task 19: addChannelMembers / removeChannelMember for group_dm (api.md 3.1, 5.6). The private text branch is Task 23;
-// joinSpace / removeFromSpace are Task 21. group_dm system messages (group_member_added/removed) are wired in Task 20.
+// joinSpace / removeFromSpace are Task 21. group_dm system messages (group_member_added/removed) come from Task 20's
+// postSystemMessage after the membership batch committed.
 // Each write is one db.batch, then publish (server-architecture.md 3.5).
 import type { Runtime } from "../env";
 import { all, batch, first, jsonList, stmt } from "../lib/db";
@@ -9,6 +10,7 @@ import { canDmMany, getChannelAccess } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { loadUserSummaries, serializeChannels } from "../lib/serialize";
 import { now } from "../lib/time";
+import { postSystemMessage } from "./messages";
 import type { Channel } from "../types/api";
 import type { ChannelRow } from "../types/rows";
 
@@ -36,7 +38,7 @@ async function loadChannel(db: D1Database, channelId: string): Promise<ChannelRo
  * the total would pass 10; 403 dm_not_allowed (details.user_ids) for every X with !can_dm(actor, X) or a block either way
  * with any current member. 1:1 dm and public text -> 409 conflict not_supported.
  * Events after commit: channel.member_added{channel_id, user} per new member to the existing members,
- * channel.created{channel} to the new members.
+ * channel.created{channel} to the new members; then one system message group_member_added per new member.
  */
 export async function addChannelMembers(rt: Runtime, channelId: string, actorId: string, userIds: string[]): Promise<Channel> {
   const db = rt.env.DB;
@@ -108,6 +110,10 @@ export async function addChannelMembers(rt: Runtime, channelId: string, actorId:
   });
   await publishEvents(rt, { users: current }, added);
   await publishEvent(rt, { users: ids }, "channel.created", { channel: forEvent! });
+  for (const id of ids) {
+    if (!users.has(id)) continue;
+    await postSystemMessage(rt, ch.id, actorId, { event: "group_member_added", actor_id: actorId, target_user_id: id, data: {} });
+  }
   return forActor!;
 }
 
@@ -116,7 +122,8 @@ export async function addChannelMembers(rt: Runtime, channelId: string, actorId:
  * group_dm: the owner (owner_id) may remove anyone, everyone may remove themselves; otherwise 403 forbidden.
  * 1:1 dm and public text -> 409 conflict not_supported.
  * Events after commit: channel.member_removed{channel_id, user_id} to the remaining members,
- * channel.deleted{channel_id, space_id, reason:"removed"} to the removed user.
+ * channel.deleted{channel_id, space_id, reason:"removed"} to the removed user; then (group_dm) the system message
+ * group_member_removed (actor = who removed, target = who left; the same id when leaving) for the remaining members.
  */
 export async function removeChannelMember(rt: Runtime, channelId: string, actorId: string, userId: string): Promise<void> {
   const db = rt.env.DB;
@@ -136,4 +143,7 @@ export async function removeChannelMember(rt: Runtime, channelId: string, actorI
 
   await publishEvent(rt, { channel: ch.id }, "channel.member_removed", { channel_id: ch.id, user_id: userId });
   await publishEvent(rt, { users: [userId] }, "channel.deleted", { channel_id: ch.id, space_id: ch.space_id, reason: "removed" });
+  if (ch.kind === "group_dm") {
+    await postSystemMessage(rt, ch.id, actorId, { event: "group_member_removed", actor_id: actorId, target_user_id: userId, data: {} });
+  }
 }

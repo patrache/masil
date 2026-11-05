@@ -12,6 +12,7 @@ import { channelRoutes } from "./routes/channels";
 import { dmRoutes } from "./routes/dms";
 import { friendRoutes } from "./routes/friends";
 import { meRoutes } from "./routes/me";
+import { messageRoutes } from "./routes/messages";
 import { metaRoutes } from "./routes/meta";
 import { presenceRoutes } from "./routes/presence";
 import { userRoutes } from "./routes/users";
@@ -96,6 +97,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", blockRoutes);
   app.route("/v1", dmRoutes);
   app.route("/v1", channelRoutes);
+  app.route("/v1", messageRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }

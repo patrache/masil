@@ -8,18 +8,36 @@ import type {
   Friend,
   FriendRequest,
   Me,
+  MentionRef,
+  Message,
   Notification,
+  Poll,
   PresenceState,
   Profile,
+  ReactionSummary,
   Relationship,
+  RollResult,
   Session,
   Settings,
+  SystemEvent,
   UnreadState,
   UserStatus,
   UserSummary,
 } from "../types/api";
 import type { PresenceItem } from "../types/events";
-import type { ChannelPrefsRow, ChannelRow, FriendRequestRow, NotificationRow, SessionRow, UserPresenceRow, UserRow, UserSettingsRow } from "../types/rows";
+import type {
+  ChannelPrefsRow,
+  ChannelRow,
+  FriendRequestRow,
+  MessageRow,
+  NotificationRow,
+  PollOptionRow,
+  PollRow,
+  SessionRow,
+  UserPresenceRow,
+  UserRow,
+  UserSettingsRow,
+} from "../types/rows";
 import { isSuspendedNow } from "./auth";
 import { all, batch, jsonList, stmt } from "./db";
 import { err } from "./errors";
@@ -481,5 +499,172 @@ export async function serializeChannels(db: D1Database, viewerId: string | null,
         mention_count: st?.mention_count ?? 0,
       },
     };
+  });
+}
+
+// ---- messages and polls (plan 01 Task 20) ----
+
+const THREAD_PARTICIPANTS_MAX = 5;
+
+/** Poll is closed when closed manually or its closes_at has passed (api.md Poll.closed). */
+function pollClosed(row: PollRow, nowMs: number): boolean {
+  return row.closed_at !== null || (row.closes_at !== null && row.closes_at <= nowMs);
+}
+
+/**
+ * Poll per id (api.md 2), loaded in three queries at most (polls, options, the viewer's votes). Missing ids are absent.
+ * my_votes = the viewer's option idx list, ascending; [] when viewerId is null (event payloads). Access is the caller's job.
+ */
+export async function serializePolls(db: D1Database, viewerId: string | null, pollIds: string[]): Promise<Map<string, Poll>> {
+  const out = new Map<string, Poll>();
+  const ids = [...new Set(pollIds)];
+  if (ids.length === 0) return out;
+  const list = jsonList(ids);
+  const [polls, options, votes] = await Promise.all([
+    all<PollRow>(db, "SELECT * FROM polls WHERE id IN (SELECT value FROM json_each(?1))", list),
+    all<PollOptionRow>(db, "SELECT * FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?1)) ORDER BY poll_id, idx", list),
+    viewerId === null
+      ? Promise.resolve([] as Array<{ poll_id: string; option_idx: number }>)
+      : all<{ poll_id: string; option_idx: number }>(
+          db,
+          "SELECT poll_id, option_idx FROM poll_votes WHERE user_id = ?1 AND poll_id IN (SELECT value FROM json_each(?2)) ORDER BY poll_id, option_idx",
+          viewerId,
+          list,
+        ),
+  ]);
+  const t = now();
+  for (const p of polls) {
+    out.set(p.id, {
+      id: p.id,
+      context_type: p.context_type,
+      context_id: p.context_id,
+      creator_id: p.creator_id,
+      question: p.question,
+      multi: p.multi === 1,
+      options: [],
+      voter_count: p.voter_count,
+      closes_at: isoOrNull(p.closes_at),
+      closed: pollClosed(p, t),
+      my_votes: [],
+    });
+  }
+  for (const o of options) out.get(o.poll_id)?.options.push({ idx: o.idx, text: o.text, vote_count: o.vote_count });
+  for (const v of votes) out.get(v.poll_id)?.my_votes.push(v.option_idx);
+  return out;
+}
+
+function parseMeta<T>(meta: string | null): T | null {
+  if (meta === null) return null;
+  try {
+    const v: unknown = JSON.parse(meta);
+    return v !== null && typeof v === "object" ? (v as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * messages rows -> Message (api.md 2), in row order. Batch-loads (one query each, json_each): authors, reactions
+ * (per emoji, ordered by first reaction time then the first row's rowid; `me` for the viewer), pins, polls, explicit
+ * mentions (is_here = 0, insertion order), thread participants (roots with reply_count >= 1; most recent first, <= 5).
+ * roll / system come from `meta`. A deleted row is a tombstone: body "", deleted true, no poll/roll/system.
+ * With viewerId === null (event payloads) reactions[].me is false and poll.my_votes is [].
+ * A row whose author no longer exists is dropped.
+ */
+export async function serializeMessages(db: D1Database, viewerId: string | null, rows: MessageRow[]): Promise<Message[]> {
+  if (rows.length === 0) return [];
+  const ids = jsonList(rows.map((r) => r.id));
+  const roots = rows.filter((r) => r.thread_root_id === null && r.reply_count > 0).map((r) => r.id);
+  const pollIds = rows.flatMap((r) => (r.poll_id !== null && r.deleted_at === null ? [r.poll_id] : []));
+
+  const [users, reactionRows, pinRows, mentionRows, participantRows, polls] = await Promise.all([
+    loadUserSummaries(
+      db,
+      rows.map((r) => r.author_id),
+    ),
+    all<{ message_id: string; emoji: string; n: number; me: number | null }>(
+      db,
+      `SELECT message_id, emoji, COUNT(*) AS n, MAX(user_id = ?2) AS me, MIN(created_at) AS first_at, MIN(rowid) AS first_rowid
+         FROM message_reactions
+        WHERE message_id IN (SELECT value FROM json_each(?1))
+        GROUP BY message_id, emoji
+        ORDER BY message_id, first_at, first_rowid`,
+      ids,
+      viewerId,
+    ),
+    all<{ message_id: string }>(db, "SELECT message_id FROM message_pins WHERE message_id IN (SELECT value FROM json_each(?1))", ids),
+    all<{ message_id: string; user_id: string; handle: string }>(
+      db,
+      `SELECT mm.message_id, mm.user_id, u.handle
+         FROM message_mentions mm JOIN users u ON u.id = mm.user_id
+        WHERE mm.message_id IN (SELECT value FROM json_each(?1)) AND mm.is_here = 0
+        ORDER BY mm.message_id, mm.rowid`,
+      ids,
+    ),
+    roots.length === 0
+      ? Promise.resolve([] as Array<{ root_id: string; user_id: string }>)
+      : all<{ root_id: string; user_id: string }>(
+          db,
+          `SELECT root_id, user_id FROM (
+             SELECT root_id, user_id,
+                    ROW_NUMBER() OVER (PARTITION BY root_id ORDER BY last_reply_at DESC, user_id) AS rn
+               FROM thread_participants
+              WHERE root_id IN (SELECT value FROM json_each(?1)))
+            WHERE rn <= ${THREAD_PARTICIPANTS_MAX}
+            ORDER BY root_id, rn`,
+          jsonList(roots),
+        ),
+    serializePolls(db, viewerId, pollIds),
+  ]);
+
+  const reactions = new Map<string, ReactionSummary[]>();
+  for (const r of reactionRows) {
+    const list = reactions.get(r.message_id) ?? [];
+    list.push({ emoji: r.emoji, count: r.n, me: r.me === 1 });
+    reactions.set(r.message_id, list);
+  }
+  const pinned = new Set(pinRows.map((p) => p.message_id));
+  const mentions = new Map<string, MentionRef[]>();
+  for (const m of mentionRows) {
+    const list = mentions.get(m.message_id) ?? [];
+    list.push({ user_id: m.user_id, handle: m.handle });
+    mentions.set(m.message_id, list);
+  }
+  const participants = new Map<string, string[]>();
+  for (const p of participantRows) {
+    const list = participants.get(p.root_id) ?? [];
+    list.push(p.user_id);
+    participants.set(p.root_id, list);
+  }
+
+  return rows.flatMap((r): Message[] => {
+    const author = users.get(r.author_id);
+    if (!author) return [];
+    const deleted = r.deleted_at !== null;
+    return [
+      {
+        id: r.id,
+        channel_id: r.channel_id,
+        author,
+        kind: r.kind,
+        body: deleted ? "" : r.body,
+        mentions: deleted ? [] : (mentions.get(r.id) ?? []),
+        mention_here: !deleted && r.mention_here === 1,
+        thread_root_id: r.thread_root_id,
+        thread:
+          r.thread_root_id === null && r.reply_count > 0
+            ? { reply_count: r.reply_count, last_reply_at: isoOrNull(r.last_reply_at), participant_ids: participants.get(r.id) ?? [] }
+            : null,
+        reactions: deleted ? [] : (reactions.get(r.id) ?? []),
+        pinned: !deleted && pinned.has(r.id),
+        poll: deleted || r.poll_id === null ? null : (polls.get(r.poll_id) ?? null),
+        roll: !deleted && r.kind === "roll" ? parseMeta<RollResult>(r.meta) : null,
+        system: !deleted && r.kind === "system" ? parseMeta<SystemEvent>(r.meta) : null,
+        client_nonce: r.client_nonce,
+        created_at: iso(r.created_at),
+        edited_at: isoOrNull(r.edited_at),
+        deleted,
+      },
+    ];
   });
 }

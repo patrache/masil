@@ -97,3 +97,11 @@ export function zText(min: number, max: number): z.ZodType<string, string> {
     return s;
   });
 }
+
+/** PollInput (api.md 2, 0.3): question 1..200, 2..10 options of 1..80, multi default false, duration_sec 60..604800 | null. */
+export const zPollInput = z.object({
+  question: zText(1, 200),
+  options: z.array(zText(1, 80)).min(2).max(10),
+  multi: z.boolean().optional(),
+  duration_sec: z.number().int().min(60).max(604_800).nullable().optional(),
+});
