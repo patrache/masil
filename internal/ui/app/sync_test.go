@@ -584,6 +584,30 @@ func TestLogoutCommand(t *testing.T) {
 			t.Errorf("LoggedOutMsg reasons = %v, want [logout] once", r)
 		}
 	})
+	t.Run("socket 4001 before the 204", func(t *testing.T) {
+		// The server revokes the session and closes the socket with 4001 before it
+		// answers POST /v1/auth/logout, so the realtime stop usually arrives first.
+		h := uitest.New(t, uitest.WithRoute(channelRoute(fixtures.ChDev)))
+		cred := saveCreds(t, h)
+		got := observe(h)
+		h.API.Handle("POST /v1/auth/logout", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+		post := app.ConfirmLogoutForTest(h.Model)
+		if post == nil {
+			t.Fatal("the confirmed logout must return the POST Cmd")
+		}
+		h.Send(ui.RealtimeStateMsg{State: realtime.State{Phase: realtime.PhaseStopped, Err: realtime.ErrUnauthorized, LastClose: 4001}})
+		h.Send(post())
+		if r := h.Model.Frame().Routes[layout.SlotMain]; len(r.Query) != 0 {
+			t.Errorf("login route %+v: the user's own logout has no notice", r)
+		}
+		if strings.Contains(h.Screen(), unauthorizedNotice) {
+			t.Errorf("the user's own logout must not say \"logged out elsewhere\":\n%s", h.Screen())
+		}
+		assertLoggedOut(t, h, cred, "")
+		if r := loggedOutReasons(*got); !slices.Equal(r, []string{"logout"}) {
+			t.Errorf("LoggedOutMsg reasons = %v, want [logout] once", r)
+		}
+	})
 }
 
 func TestIdleDetection(t *testing.T) {

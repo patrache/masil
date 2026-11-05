@@ -51,3 +51,11 @@ func WriteStateForTest(m *Model) error {
 func RunProgramForTest(ctx context.Context, o Options, opts ...tea.ProgramOption) error {
 	return runProgram(ctx, New(o), opts...)
 }
+
+// ConfirmLogoutForTest delivers the confirmed "logout" to m and returns the
+// POST /v1/auth/logout Cmd without running it, so a test can deliver other msgs
+// while the request is in flight.
+func ConfirmLogoutForTest(m *Model) tea.Cmd {
+	_, cmd := m.Update(logoutConfirmedMsg{})
+	return cmd
+}

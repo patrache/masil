@@ -159,6 +159,11 @@ func (m *Model) onRealtimeState(st realtime.State) tea.Cmd {
 	}
 	switch {
 	case errors.Is(st.Err, realtime.ErrUnauthorized):
+		// Our own logout revokes the session and the server closes the socket with
+		// 4001 before it answers the POST, so this usually lands first.
+		if m.loggingOut {
+			return m.logout(reasonLogout)
+		}
 		return m.logout(reasonUnauthorized)
 	case errors.Is(st.Err, realtime.ErrSuspended):
 		return m.logout(reasonSuspended)
