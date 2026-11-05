@@ -62,6 +62,7 @@ const (
 	itemDelete      = "삭제"
 	itemReport      = "신고"
 	itemBlockAuthor = "작성자 차단"
+	itemAuthor      = "작성자"
 )
 
 // ---- landing action results ----
@@ -430,7 +431,8 @@ func (p *msgPane) actionKey(ctx *ui.Context, msg tea.KeyPressMsg, edit func(api.
 // messageActions is the msg.actions menu of m in ch (CA 6.1): 스레드로 답글 t,
 // 리액션 r, 리액션 누른 사람 (when reacted), the poll items (투표: <선택지>, 투표
 // 취소, 투표 마감 for its creator), 수정 e (mine), 고정 / 고정 해제 p (disabled
-// without permission), 복사 y, 삭제 d (permission), 신고 and 작성자 차단 (others').
+// without permission), 복사 y, 삭제 d (permission), and on others' messages
+// 작성자 · <이름> (the author menu: memberActions), 신고 and 작성자 차단.
 func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem {
 	var items []menuItem
 	if m.Kind != "system" {
@@ -498,12 +500,18 @@ func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem 
 		}})
 	}
 	if m.Kind != "system" && !isMe(ctx, m.Author.ID) && m.Author.ID != "" {
-		label := textwidth.Sanitize(displayName(m.Author)) + reportSuffix
+		name := textwidth.Sanitize(displayName(m.Author))
+		author := m.Author
+		// the author menu (CA 6.1 / 5.8): DM, profile, 사용자 신고 ("user"), 차단 —
+		// the only way to report a non-friend outside a members list as a user
+		items = append(items, menuItem{Label: itemAuthor + " · " + name, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			return nil, newMenu(name, memberActions(ctx, author))
+		}})
+		label := name + reportSuffix
 		items = append(items, menuItem{Label: itemReport, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.ReportDialog("message", m.ID, label)
 		}})
 		if ctx == nil || ctx.Store == nil || !ctx.Store.IsBlocked(m.Author.ID) {
-			author := m.Author
 			items = append(items, menuItem{Label: itemBlockAuthor, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return nil, blockConfirm(ctx, author)
 			}})

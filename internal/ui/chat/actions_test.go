@@ -404,7 +404,7 @@ func TestActionsMenu(t *testing.T) {
 	if overlays(h) != 1 {
 		t.Fatal("m opens the menu")
 	}
-	want := []string{"스레드로 답글", "리액션", "리액션 누른 사람", "고정", "복사", "신고", "작성자 차단"}
+	want := []string{"스레드로 답글", "리액션", "리액션 누른 사람", "고정", "복사", "작성자 · 민지", "신고", "작성자 차단"}
 	if labels := menuLabels(t, h); !slices.Equal(labels, want) {
 		t.Fatalf("items %q, want %q", labels, want)
 	}
@@ -417,6 +417,33 @@ func TestActionsMenu(t *testing.T) {
 		t.Fatalf("신고 morphs into the report dialog (depth 1):\n%s", h.Screen())
 	}
 	h.Press("esc")
+
+	// 작성자 · 민지: the author menu (CA 6.1) reports the author as a user
+	selectText(t, h, "오늘 배포 몇 시에 해요?")
+	h.Press("m")
+	clickOn(t, h, "작성자 · 민지", tea.MouseLeft)
+	if want := []string{"DM 보내기", "프로필 보기", "사용자 신고", "차단"}; !slices.Equal(menuLabels(t, h), want) {
+		t.Fatalf("author menu %q, want %q", menuLabels(t, h), want)
+	}
+	clickOn(t, h, "사용자 신고", tea.MouseLeft)
+	if overlays(h) != 1 || !strings.Contains(h.Screen(), "신고 · 민지") || strings.Contains(h.Screen(), "민지의 메시지") {
+		t.Fatalf("사용자 신고 morphs into the user report dialog:\n%s", h.Screen())
+	}
+	h.Press("enter") // reason → note
+	h.Type("도배")
+	h.Press("enter") // submit
+	var report []byte
+	for _, r := range h.API.Requests() {
+		if r.Method == "POST" && r.Path == "/v1/reports" {
+			report = r.Body
+		}
+	}
+	if jsonField(report, "target_type") != "user" || jsonField(report, "target_id") != fixtures.UserMinji {
+		t.Fatalf("the author is reported as a user: %s", report)
+	}
+	if overlays(h) != 0 {
+		h.Press("esc")
+	}
 
 	selectText(t, h, "오늘 배포 몇 시에 해요?")
 	h.Press("m")
