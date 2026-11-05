@@ -325,6 +325,13 @@ func (f *FeedStore) PruneStories(now time.Time) {
 	f.filterStories(func(st api.Story) bool { return st.ExpiresAt.After(now) })
 }
 
+// RemoveStory is the story.deleted rule for a story I deleted myself: the UI
+// runs it right after DELETE /v1/stories/{id} succeeds, without waiting for the
+// event (which then changes nothing). The stale flag is kept.
+func (f *FeedStore) RemoveStory(storyID string) {
+	f.filterStories(func(st api.Story) bool { return st.ID != storyID })
+}
+
 // StoriesStale reports that a story.created arrived for a group the ring does
 // not have: the ring must refetch (GET /v1/stories/feed).
 func (f *FeedStore) StoriesStale() bool { return f.storiesStale }

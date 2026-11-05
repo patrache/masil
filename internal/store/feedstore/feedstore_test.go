@@ -631,3 +631,37 @@ func TestEventPostKeepsViewer(t *testing.T) {
 		t.Fatalf("new event post = %#v", got)
 	}
 }
+
+func TestRemoveStory(t *testing.T) {
+	s, f := newFeed(t)
+	exp := base.Add(24 * time.Hour)
+	f.RemoveStory("01JSTRY000000000000000001") // nil ring: no-op
+	if f.Stories() != nil {
+		t.Fatal("RemoveStory on a nil ring must keep it nil")
+	}
+	f.SetStories([]api.StoryGroup{
+		{User: hana, Stories: []api.Story{{ID: "01JSTRY000000000000000001", Author: hana, ExpiresAt: exp, Seen: true}}, LatestAt: base},
+		{User: minji, Stories: []api.Story{
+			{ID: "01JSTRY000000000000000002", Author: minji, ExpiresAt: exp, Seen: false},
+			{ID: "01JSTRY000000000000000003", Author: minji, ExpiresAt: exp, Seen: true},
+		}, HasUnseen: true, LatestAt: base},
+	})
+	s.Apply(ev(t, "story.created", map[string]any{"user_id": devKim.ID, "story_id": "01JSTRY000000000000000009", "expires_at": exp}))
+	if !f.StoriesStale() {
+		t.Fatal("story.created for an unknown group must mark the ring stale")
+	}
+
+	// a removed story leaves its group (has_unseen recomputed) and keeps the stale flag
+	f.RemoveStory("01JSTRY000000000000000002")
+	if gs := f.Stories(); len(gs) != 2 || len(gs[1].Stories) != 1 || gs[1].HasUnseen {
+		t.Fatalf("after removing minji's unseen story: %+v", gs)
+	}
+	if !f.StoriesStale() {
+		t.Fatal("RemoveStory must not clear the stale flag")
+	}
+	// the last story of a group drops the group
+	f.RemoveStory("01JSTRY000000000000000001")
+	if gs := f.Stories(); len(gs) != 1 || gs[0].User.ID != minji.ID {
+		t.Fatalf("after removing hana's only story: %+v", gs)
+	}
+}

@@ -317,6 +317,12 @@ func storyGroups() []api.StoryGroup {
 	}
 }
 
+// devKimStories is dev_kim's one story: dev_kim is not in storyGroups() (not
+// followed), so RouteStories{dev_kim} reads it from GET /v1/users/{user}/stories.
+func devKimStories() []api.Story {
+	return []api.Story{{ID: sid(65), Author: userOf("dev_kim"), Body: "배포 끝 #golang", BG: "accent3", CreatedAt: at(10), ExpiresAt: storyExpiry}}
+}
+
 func trendsTop10() *api.Trends {
 	type row struct {
 		tag            string

@@ -269,6 +269,15 @@ func snsAPI(t *testing.T, hostile bool, opts ...snsOpt) *apitest.Server {
 		}
 		writeJSON(w, pageOf(profilePosts(h, filter)))
 	})
+	srv.Handle("GET /v1/users/{user}/stories", func(w http.ResponseWriter, r *http.Request) {
+		h, ok := userRef(r.PathValue("user"))
+		if !ok {
+			notFound(w)
+			return
+		}
+		writeJSON(w, itemsOf(userStories(h)))
+	})
+	srv.Handle("POST /v1/stories/{id}/view", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	srv.Handle("GET /v1/users/{user}/guestbook", func(w http.ResponseWriter, r *http.Request) {
 		h, ok := userRef(r.PathValue("user"))
 		if !ok {
@@ -302,6 +311,20 @@ func snsAPI(t *testing.T, hostile bool, opts ...snsOpt) *apitest.Server {
 		notFound(w)
 	})
 	return srv
+}
+
+// userStories is GET /v1/users/{user}/stories of handle: its storyGroups()
+// group, devKimStories() for dev_kim, else none.
+func userStories(handle string) []api.Story {
+	if handle == "dev_kim" {
+		return devKimStories()
+	}
+	for _, g := range storyGroups() {
+		if g.User.Handle == handle {
+			return g.Stories
+		}
+	}
+	return []api.Story{}
 }
 
 // registerBootstrap answers the events.md 5.3 step-1 GETs from s.

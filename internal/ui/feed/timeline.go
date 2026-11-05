@@ -707,6 +707,9 @@ func (t *timeline) View(ctx *ui.Context, _ bool) string {
 		t.tabY, t.tabHit = len(out), hit
 		out = append(out, line)
 	}
+	if fs := t.fs(ctx); fs != nil {
+		fs.PruneStories(ctx.Now()) // an idle feed gets no Update when a story expires
+	}
 	if fs := t.fs(ctx); fs != nil && len(fs.Stories()) > 0 && d != ui.DensityMinimal {
 		lines, hit := storyRing(ctx, fs.Stories(), w)
 		t.ringY, t.ringHit = len(out), hit

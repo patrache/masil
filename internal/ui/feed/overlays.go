@@ -67,6 +67,7 @@ const (
 // Overlay sizes (outer, border included; the app clamps them to the body).
 const (
 	menuW         = 30
+	menuMinH      = 6 // outer: the app draws a shorter overlay full screen without a border (CA 5.3.7)
 	userListW     = 48
 	userListH     = 20
 	quotesW       = 60
@@ -186,7 +187,7 @@ func (m *menu) Bounds(body layout.Rect) layout.Rect {
 	if m.inner != nil {
 		return m.inner.Bounds(body)
 	}
-	return centeredIn(body, min(m.width, body.W-4), len(m.items)+2)
+	return centeredIn(body, min(m.width, body.W-4), max(len(m.items)+2, menuMinH))
 }
 
 func (m *menu) Modal() bool {
