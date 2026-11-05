@@ -413,7 +413,7 @@ func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem 
 			chID = ch.ID
 		}
 		items = append(items, menuItem{Label: itemThread, Hint: "t", Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
-			return ui.Navigate(ui.Route{Kind: ui.RouteThread, ID: root, Arg: chID}), nil
+			return openThread(chID, root), nil
 		}})
 	}
 	live := actionable(m)

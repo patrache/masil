@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,13 @@ type msgPane struct {
 	// click on the already selected row (nil = none).
 	older, newer func(ctx *ui.Context) tea.Cmd
 	open         func(r row) tea.Cmd
+
+	// head returns rows drawn above the list's own rows (a thread's root and
+	// its replies divider); dens overrides ctx.Density() (a narrow thread
+	// column); rootExpanded lifts the root's line cap (nil / false = none).
+	head         func(ctx *ui.Context) []row
+	dens         func(ctx *ui.Context) ui.Density
+	rootExpanded bool
 }
 
 // newMsgPane creates the list of a channel (rootID "") or of a thread's replies.
@@ -58,6 +66,14 @@ func newMsgPane(channelID, rootID string) *msgPane {
 	p.list = widgets.NewList(func(r row) string { return r.ID }, p.render)
 	p.list.Follow(true)
 	return p
+}
+
+// density is the density the pane draws with (ctx.Density() unless overridden).
+func (p *msgPane) density(ctx *ui.Context) ui.Density {
+	if p.dens != nil {
+		return p.dens(ctx)
+	}
+	return ctx.Density()
 }
 
 // selectable rows are messages and pending sends (never dividers or notices).
@@ -114,14 +130,28 @@ func (p *msgPane) refresh(ctx *ui.Context) {
 		p.failed = ""
 	}
 	p.loading = !loaded && p.failed == ""
-	p.built = ctx.Density()
+	p.built = p.density(ctx)
 	rows := buildRows(ctx, msgs, pendingFor(ctx, p.channelID, p.rootID), rowOpts{
 		LastRead: p.lastRead,
 		Loading:  p.loading || p.loadingOlder,
 		InThread: p.rootID != "",
 	})
+	if p.built != ui.DensityFull && ctx.Density() == ui.DensityFull { // date dividers are full-only
+		rows = slices.DeleteFunc(rows, func(r row) bool { return r.Kind == rowDay })
+	}
 	if p.failed != "" {
 		rows = append([]row{{Kind: rowNotice, ID: "load-failed", Text: p.failed}}, rows...)
+	}
+	if p.head != nil {
+		head := p.head(ctx)
+		// the first date divider repeats the day the root (drawn above it) was sent
+		if len(head) > 0 && head[0].Msg != nil {
+			day := "day:" + head[0].Msg.CreatedAt.In(locOf(ctx)).Format("20060102")
+			if i := slices.IndexFunc(rows, func(r row) bool { return r.Kind == rowDay }); i >= 0 && rows[i].ID == day {
+				rows = slices.Delete(rows, i, i+1)
+			}
+		}
+		rows = append(head, rows...)
 	}
 
 	prev, hadSel := p.selected()
@@ -167,7 +197,7 @@ func (p *msgPane) refresh(ctx *ui.Context) {
 // sync rebuilds the rows when the density changed since they were built (a mode
 // switch adds or drops the date dividers).
 func (p *msgPane) sync(ctx *ui.Context) {
-	if ctx != nil && ctx.Density() != p.built {
+	if ctx != nil && p.density(ctx) != p.built {
 		p.refresh(ctx)
 	}
 }
@@ -417,16 +447,33 @@ func (p *msgPane) stopLoading() {
 
 // render draws one row (selection painted only while the pane is focused).
 func (p *msgPane) render(ctx *ui.Context, r row, selected bool, width int) []string {
-	if r.Kind == rowLoading {
+	switch r.Kind {
+	case rowLoading:
 		return []string{p.loadingLine(ctx, width)}
+	case rowReplies:
+		if width <= 0 {
+			return nil
+		}
+		t := themeOf(ctx)
+		return []string{rule(t, t.S.Dim, "── "+textwidth.Truncate(r.Text, max(1, width-4), "…")+" ", width, false)}
 	}
-	return renderRow(ctx, r, p.style(ctx, r, selected, width))
+	st := p.style(ctx, r, selected, width)
+	lines := renderRow(ctx, r, st)
+	if p.rootID != "" && r.ID == p.rootID && !p.rootExpanded && len(lines) > rootMaxLines {
+		t := themeOf(ctx)
+		more := []string{fit(t.S.Dim.Render(textwidth.Truncate(rootMoreText, width, "…")), width)}
+		if st.Selected {
+			more = paint(t, more, t.S.Cursorline, width)
+		}
+		lines = append(lines[:rootMaxLines:rootMaxLines], more...)
+	}
+	return lines
 }
 
 // style is the msgStyle row r is drawn with at width.
 func (p *msgPane) style(ctx *ui.Context, r row, selected bool, width int) msgStyle {
 	st := msgStyle{
-		Density:  ctx.Density(),
+		Density:  p.density(ctx),
 		Width:    width,
 		Selected: selected && p.focused && r.selectable(),
 		InThread: p.rootID != "",

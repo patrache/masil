@@ -493,7 +493,12 @@ func (v *channelView) View(ctx *ui.Context, focused bool) string {
 // readOnlyText is the line drawn instead of the composer in a read-only
 // conversation (ok=false: the conversation takes input).
 func (v *channelView) readOnlyText(ctx *ui.Context) (string, bool) {
-	ch := v.channel(ctx)
+	return readOnlyLine(v.channel(ctx))
+}
+
+// readOnlyLine is the line a read-only conversation (and its threads) draws
+// instead of the composer (ok=false: ch takes input, or is unknown).
+func readOnlyLine(ch *api.Channel) (string, bool) {
 	if ch == nil || !ch.ReadOnly {
 		return "", false
 	}
@@ -598,7 +603,7 @@ func (v *channelView) openThread(r row) tea.Cmd {
 	if r.Kind != rowMessage || r.Msg == nil {
 		return nil
 	}
-	return ui.Navigate(ui.Route{Kind: ui.RouteThread, ID: r.Msg.ID, Arg: v.id()})
+	return openThread(v.id(), r.Msg.ID)
 }
 
 func (v *channelView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {

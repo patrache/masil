@@ -29,6 +29,7 @@ const (
 	rowUnread                 // "── 새 메시지 ──"
 	rowLoading                // older page loading
 	rowNotice                 // a centered notice (Text)
+	rowReplies                // a thread's "── 답글 N개 ───" divider under its root (Text)
 )
 
 // row is one item of a message list. ID: the message id, "pending:"+nonce,
