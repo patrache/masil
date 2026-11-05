@@ -1,0 +1,3 @@
+오늘 배포 몇 시에 해요? 급함 make deploy 진짜
+▎$ wrangler deploy --env prod                                                                                                                                                                           
+@minji @nobody @here 링크 문서 https://example.com/very/long/path, #golang snake_case

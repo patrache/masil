@@ -1,0 +1,296 @@
+package markup_test
+
+import (
+	"fmt"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/exp/golden"
+
+	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/markup"
+	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/theme"
+	"github.com/patrache/masil/internal/ui/uitest"
+)
+
+const sample = "오늘 배포 몇 시에 해요? **급함** `make deploy` _진짜_\n```bash\n$ wrangler deploy --env prod\n```\n@minji @nobody @here 링크 [문서](https://example.com/docs) https://example.com/very/long/path, #golang snake_case"
+
+var amber = theme.Get(theme.Amber)
+
+var minji = api.MentionRef{UserID: "01JBMINJI", Handle: "minji"}
+
+// nonText returns the non-Text inlines of every paragraph, in order.
+func nonText(d markup.Doc) []markup.Inline {
+	var out []markup.Inline
+	for _, b := range d.Blocks {
+		for _, in := range b.Inline {
+			if in.Kind != markup.Text {
+				out = append(out, in)
+			}
+		}
+	}
+	return out
+}
+
+func allText(d markup.Doc) string {
+	var b strings.Builder
+	for _, bl := range d.Blocks {
+		for _, in := range bl.Inline {
+			if in.Kind == markup.Text {
+				b.WriteString(in.Text)
+			}
+		}
+	}
+	return b.String()
+}
+
+func TestParse(t *testing.T) {
+	d := markup.Parse(sample, markup.ParseOptions{})
+	if len(d.Blocks) != 3 {
+		t.Fatalf("blocks = %d (%+v), want 3", len(d.Blocks), d.Blocks)
+	}
+	kinds := []markup.BlockKind{d.Blocks[0].Kind, d.Blocks[1].Kind, d.Blocks[2].Kind}
+	if !reflect.DeepEqual(kinds, []markup.BlockKind{markup.Paragraph, markup.Code, markup.Paragraph}) {
+		t.Fatalf("block kinds = %v", kinds)
+	}
+	if c := d.Blocks[1]; c.Lang != "bash" || c.Code != "$ wrangler deploy --env prod" {
+		t.Fatalf("code block = %+v", c)
+	}
+	want := []markup.Inline{
+		{Kind: markup.Bold, Text: "급함"},
+		{Kind: markup.InlineCode, Text: "make deploy"},
+		{Kind: markup.Italic, Text: "진짜"},
+		{Kind: markup.Mention, Text: "@minji", Handle: "minji"},
+		{Kind: markup.Mention, Text: "@nobody", Handle: "nobody"},
+		{Kind: markup.Here, Text: "@here"},
+		{Kind: markup.Link, Text: "문서", URL: "https://example.com/docs"},
+		{Kind: markup.Link, Text: "https://example.com/very/long/path", URL: "https://example.com/very/long/path"},
+	}
+	if got := nonText(d); !reflect.DeepEqual(got, want) {
+		t.Fatalf("inlines =\n%+v\nwant\n%+v", got, want)
+	}
+	txt := allText(d)
+	for _, s := range []string{"오늘 배포 몇 시에 해요? ", ", #golang snake_case"} {
+		if !strings.Contains(txt, s) {
+			t.Errorf("text %q missing %q", txt, s)
+		}
+	}
+
+	// Hashtags only when enabled.
+	h := nonText(markup.Parse(sample, markup.ParseOptions{Hashtags: true}))
+	last := h[len(h)-1]
+	if last.Kind != markup.Hashtag || last.Text != "#golang" || last.Handle != "golang" {
+		t.Fatalf("hashtag = %+v", last)
+	}
+
+	// "@x" inside code spans is not a mention.
+	in := nonText(markup.Parse("see `@minji` here", markup.ParseOptions{}))
+	if len(in) != 1 || in[0].Kind != markup.InlineCode || in[0].Text != "@minji" {
+		t.Fatalf("code span mention = %+v", in)
+	}
+
+	// Unclosed fence => code to end.
+	u := markup.Parse("hi\n```go\nfunc a() {}\n@minji", markup.ParseOptions{})
+	if len(u.Blocks) != 2 || u.Blocks[1].Kind != markup.Code || u.Blocks[1].Lang != "go" || u.Blocks[1].Code != "func a() {}\n@minji" {
+		t.Fatalf("unclosed fence = %+v", u.Blocks)
+	}
+}
+
+func TestParseEdges(t *testing.T) {
+	cases := []struct {
+		body string
+		want []markup.Inline
+	}{
+		{"snake_case and _진짜_ ok", []markup.Inline{{Kind: markup.Italic, Text: "진짜"}}},
+		{"*기울임* x", []markup.Inline{{Kind: markup.Italic, Text: "기울임"}}},
+		{"**열림만", nil},
+		{"a@minji @ab @abcdefghijklmnopqrstu @MinJi", []markup.Inline{{Kind: markup.Mention, Text: "@MinJi", Handle: "minji"}}},
+		{"[x](ftp://a.b) [y](https://a.b)", []markup.Inline{{Kind: markup.Link, Text: "y", URL: "https://a.b"}}},
+		{"(see https://a.b/c).", []markup.Inline{{Kind: markup.Link, Text: "https://a.b/c", URL: "https://a.b/c"}}},
+		{"``a`b``", []markup.Inline{{Kind: markup.InlineCode, Text: "a`b"}}},
+	}
+	for _, c := range cases {
+		got := nonText(markup.Parse(c.body, markup.ParseOptions{}))
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Parse(%q) = %+v, want %+v", c.body, got, c.want)
+		}
+	}
+	// Text is preserved exactly when nothing matches.
+	body := "**열림만 snake_case a@b.c ftp://x"
+	if got := allText(markup.Parse(body, markup.ParseOptions{})); got != body {
+		t.Errorf("text = %q, want %q", got, body)
+	}
+}
+
+func checkLines(t *testing.T, lines []string, w int) {
+	t.Helper()
+	for i, l := range lines {
+		if got := ansi.StringWidth(l); got > w {
+			t.Errorf("w=%d line %d width %d: %q", w, i, got, ansi.Strip(l))
+		}
+		if ansi.StringWidth(l) != ansi.StringWidthWc(l) {
+			t.Errorf("w=%d line %d width mismatch %d/%d: %q", w, i, ansi.StringWidth(l), ansi.StringWidthWc(l), ansi.Strip(l))
+		}
+	}
+}
+
+func TestRenderWidthAndSanitize(t *testing.T) {
+	body := sample + "\n눈 ❄️ 와 👨‍👩‍👧 그리고 \x1b[31m빨강\x1b[0m\x07"
+	d := markup.Parse(body, markup.ParseOptions{Hashtags: true})
+	for _, w := range []int{200, 120, 80, 50, 20, 1} {
+		lines := markup.Render(d, amber, markup.RenderOptions{Width: w, MyHandle: "sam", Mentions: []api.MentionRef{minji}, Hyperlinks: true})
+		if len(lines) == 0 {
+			t.Fatalf("w=%d no lines", w)
+		}
+		checkLines(t, lines, w)
+		if w >= 50 {
+			all := ansi.Strip(strings.Join(lines, "\n"))
+			if !strings.Contains(all, "❄") || strings.Contains(all, "️") || strings.Contains(all, "‍") || strings.Contains(all, "\x07") || strings.Contains(all, "[31m") {
+				t.Errorf("w=%d not sanitized: %q", w, all)
+			}
+		}
+	}
+}
+
+func TestRenderMentions(t *testing.T) {
+	sam := api.MentionRef{UserID: "01JBSAM", Handle: "sam"}
+	d := markup.Parse("@minji @nobody @sam", markup.ParseOptions{})
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 80, MyHandle: "sam", Mentions: []api.MentionRef{minji, sam}})
+	if len(lines) != 1 {
+		t.Fatalf("lines = %q", lines)
+	}
+	want := amber.S.Mention.Render("@minji") + amber.S.Base.Render(" @nobody ") + amber.S.MentionMe.Render("@sam")
+	if lines[0] != want {
+		t.Fatalf("got  %q\nwant %q", lines[0], want)
+	}
+	// @here is bold (MentionMe) only when the message mentions here.
+	here := markup.Parse("@here", markup.ParseOptions{})
+	if got := markup.Render(here, amber, markup.RenderOptions{Width: 80, MentionHere: true})[0]; got != amber.S.MentionMe.Render("@here") {
+		t.Errorf("here = %q", got)
+	}
+	if got := markup.Render(here, amber, markup.RenderOptions{Width: 80})[0]; got != amber.S.Base.Render("@here") {
+		t.Errorf("plain here = %q", got)
+	}
+}
+
+func TestRenderCompact(t *testing.T) {
+	d := markup.Parse(sample, markup.ParseOptions{})
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 200, Compact: true})
+	if len(lines) != 1 {
+		t.Fatalf("compact lines = %d: %q", len(lines), lines)
+	}
+	got := ansi.Strip(lines[0])
+	if !strings.Contains(got, "_진짜_ ‹코드 1줄› @minji") && !strings.Contains(got, "진짜 ‹코드 1줄› @minji") {
+		t.Fatalf("compact = %q", got)
+	}
+	if strings.Contains(got, "wrangler") {
+		t.Fatalf("compact shows code: %q", got)
+	}
+	narrow := markup.Render(d, amber, markup.RenderOptions{Width: 30, Compact: true})
+	if len(narrow) != 1 || ansi.StringWidth(narrow[0]) > 30 || !strings.HasSuffix(ansi.Strip(narrow[0]), "…") {
+		t.Fatalf("narrow compact = %q", narrow)
+	}
+	multi := markup.Render(markup.Parse("a\nb\n\nc", markup.ParseOptions{}), amber, markup.RenderOptions{Width: 80, Compact: true})
+	if len(multi) != 1 || ansi.Strip(multi[0]) != "a b  c" {
+		t.Fatalf("newlines compact = %q", multi)
+	}
+}
+
+func TestRenderMaxLines(t *testing.T) {
+	d := markup.Parse("줄1\n줄2\n줄3\n줄4\n줄5", markup.ParseOptions{})
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 40, MaxLines: 2})
+	if len(lines) != 2 {
+		t.Fatalf("lines = %q", lines)
+	}
+	if ansi.Strip(lines[0]) != "줄1" || !strings.HasSuffix(ansi.Strip(lines[1]), "… 더 보기") {
+		t.Fatalf("lines = %q", lines)
+	}
+	checkLines(t, lines, 40)
+	// Exactly MaxLines => no marker.
+	exact := markup.Render(markup.Parse("a\nb", markup.ParseOptions{}), amber, markup.RenderOptions{Width: 40, MaxLines: 2})
+	if len(exact) != 2 || strings.Contains(ansi.Strip(exact[1]), "더 보기") {
+		t.Fatalf("exact = %q", exact)
+	}
+	// Narrow width still fits.
+	narrow := markup.Render(d, amber, markup.RenderOptions{Width: 6, MaxLines: 2})
+	checkLines(t, narrow, 6)
+	if len(narrow) != 2 {
+		t.Fatalf("narrow = %q", narrow)
+	}
+}
+
+func TestHighlightFallback(t *testing.T) {
+	for _, lang := range []string{"nope", "", "go", "bash"} {
+		lines := markup.Highlight(lang, "x := 1\n\tfoo()\n", amber, 20)
+		if len(lines) != 3 {
+			t.Fatalf("lang %q: lines = %q", lang, lines)
+		}
+		for i, l := range lines {
+			s := ansi.Strip(l)
+			if !strings.HasPrefix(s, "▎") {
+				t.Errorf("lang %q line %d no bar: %q", lang, i, s)
+			}
+			if w := ansi.StringWidth(l); w != 20 {
+				t.Errorf("lang %q line %d width %d", lang, i, w)
+			}
+		}
+		if s := ansi.Strip(lines[1]); !strings.HasPrefix(s, "▎    foo()") {
+			t.Errorf("lang %q tab line = %q", lang, s)
+		}
+	}
+	// Long lines are hard-wrapped at width-1.
+	long := markup.Highlight("nope", strings.Repeat("가", 15), amber, 10)
+	if len(long) != 4 {
+		t.Fatalf("long = %q", long)
+	}
+	for _, l := range long {
+		if ansi.StringWidth(l) != 10 {
+			t.Errorf("long line width %d: %q", ansi.StringWidth(l), ansi.Strip(l))
+		}
+	}
+	if got := markup.Highlight("go", "x", amber, 0); len(got) != 0 {
+		t.Errorf("width 0 = %q", got)
+	}
+}
+
+func TestPlain(t *testing.T) {
+	p := markup.Plain(sample, 30)
+	if strings.Contains(p, "\n") || strings.Contains(p, "**") || strings.Contains(p, "`") {
+		t.Fatalf("plain = %q", p)
+	}
+	if w := textwidth.Width(p); w > 30 {
+		t.Fatalf("plain width %d: %q", w, p)
+	}
+	if !strings.HasSuffix(p, "…") {
+		t.Fatalf("plain = %q", p)
+	}
+	if !strings.HasPrefix(p, "오늘 배포 몇 시에 해요? 급함") {
+		t.Fatalf("plain = %q", p)
+	}
+	full := markup.Plain(sample, 1<<16)
+	for _, s := range []string{"make deploy 진짜 ‹코드 1줄› @minji", "링크 문서 https://example.com/very/long/path, #golang snake_case"} {
+		if !strings.Contains(full, s) {
+			t.Errorf("full plain %q missing %q", full, s)
+		}
+	}
+	if got := markup.Plain("a ❄️\x1b[1mb", 80); got != "a ❄b" {
+		t.Errorf("sanitized plain = %q", got)
+	}
+}
+
+func TestRenderGolden(t *testing.T) {
+	if len(uitest.Required) != 4 {
+		t.Fatal("uitest.Required empty — Phase 0 must fill it")
+	}
+	d := markup.Parse(sample, markup.ParseOptions{Hashtags: true})
+	for _, sz := range uitest.Required {
+		t.Run(fmt.Sprint(sz.W), func(t *testing.T) {
+			lines := markup.Render(d, amber, markup.RenderOptions{Width: sz.W, MyHandle: "sam", Mentions: []api.MentionRef{minji}})
+			checkLines(t, lines, sz.W)
+			golden.RequireEqual(t, ansi.Strip(strings.Join(lines, "\n")))
+		})
+	}
+}
