@@ -352,14 +352,89 @@ func TestRunConfigServerChangeMidSession(t *testing.T) {
 	}
 }
 
-// An unparsable config.toml keeps the daemon on its defaults (ErrPartial values) and running.
+// An unparsable config.toml at startup keeps the daemon on the config it was
+// given (here Defaults()) and running.
 func TestRunBrokenConfigKeepsRunning(t *testing.T) {
-	p, hub, _ := setupRun(t)
+	p, hub, logs := setupRun(t)
 	if err := os.WriteFile(p.Config, []byte("server = [broken"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	saveCreds(t, p, "http://localhost:8787", "msl_test_token_A")
 	waitDial(t, hub)
+	expectNoDial(t, hub, 200*time.Millisecond)
+	if n := strings.Count(logs.String(), `level=WARN msg="config reload failed"`); n != 1 {
+		t.Fatalf("want exactly one reload WARN, got %d:\n%s", n, logs.String())
+	}
+}
+
+// A config.toml broken mid-session (syntax error, or unreadable) is a reload
+// failure: the previous config stays in force (server, [notify] desktop), the
+// live session is kept, and the failure is WARNed once. Fixing the file
+// resumes reloading.
+func TestRunConfigBrokenMidSessionKeepsPrevious(t *testing.T) {
+	for name, breakIt := range map[string]func(t *testing.T, p config.Paths){
+		"syntax_error": func(t *testing.T, p config.Paths) {
+			if err := os.WriteFile(p.Config, []byte("server = \"http://127.0.0.1:9999\"\n[notify\ndesktop = false\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"unreadable": func(t *testing.T, p config.Paths) {
+			if err := os.Remove(p.Config); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(p.Config, 0o700); err != nil { // ReadFile fails with a non-ErrNotExist error
+				t.Fatal(err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p, hub, logs, rec, _ := setupRunWithBackend(t)
+			good := "server = \"http://127.0.0.1:9999\"\n\n[notify]\ndesktop = false\n"
+			if err := os.WriteFile(p.Config, []byte(good), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			saveCreds(t, p, "http://127.0.0.1:9999", "msl_test_token_A")
+			if d := waitDial(t, hub); !strings.HasPrefix(d.URL, "ws://127.0.0.1:9999/") {
+				t.Fatalf("dial %+v", d)
+			}
+			waitFor(t, func() bool { return strings.Contains(logs.String(), `msg="desktop setting changed" desktop=false`) })
+
+			breakIt(t, p)
+			waitFor(t, func() bool { return strings.Contains(logs.String(), `level=WARN msg="config reload failed"`) })
+			hub.Push(alertFrame(5, "01JC9ZA0000000000000000005", "dm"))
+			expectNoDial(t, hub, 300*time.Millisecond) // several poll rounds
+			out := logs.String()
+			if n := strings.Count(out, `level=WARN msg="config reload failed"`); n != 1 {
+				t.Fatalf("want exactly one reload WARN, got %d:\n%s", n, out)
+			}
+			if strings.Contains(out, "credentials server mismatch") {
+				t.Fatalf("server must stay on the previous config:\n%s", out)
+			}
+			if strings.Contains(out, `msg="desktop setting changed" desktop=true`) {
+				t.Fatalf("desktop must stay false:\n%s", out)
+			}
+			if len(rec.ids()) != 0 {
+				t.Fatalf("desktop=false must not pop up: %v", rec.ids())
+			}
+			if len(hub.Dials()) != 1 {
+				t.Fatalf("broken config must not reconnect: %d dials", len(hub.Dials()))
+			}
+			rs, err := readRunStatus(p)
+			if err != nil || rs == nil || rs.ConfigServer != "http://127.0.0.1:9999" || rs.ServerMismatch {
+				t.Fatalf("run status %+v, %v", rs, err)
+			}
+
+			// Fixed again (desktop now on): reloading resumes.
+			_ = os.Remove(p.Config)
+			if err := os.WriteFile(p.Config, []byte("server = \"http://127.0.0.1:9999\"\n\n[notify]\ndesktop = true\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, func() bool { return strings.Contains(logs.String(), `msg="desktop setting changed" desktop=true`) })
+			if len(hub.Dials()) != 1 {
+				t.Fatalf("fixing config must not reconnect: %d dials", len(hub.Dials()))
+			}
+		})
+	}
 }
 
 func TestRunStatusFile(t *testing.T) {

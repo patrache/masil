@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
@@ -218,11 +220,14 @@ func (dm *daemon) restart() error {
 	return ErrRestartRequired
 }
 
-// reloadConfig re-reads config.toml. ErrPartial values are used as they are;
-// any other error keeps the previous config and warns once.
+// reloadConfig re-reads config.toml. Per-field ErrPartial values (a wrong-typed
+// or invalid key reset to its default) are used as they are. A file that
+// cannot be read or does not parse at all — config.Load then returns plain
+// Defaults() wrapped in ErrPartial (CA 3.2) — and any other error keep the
+// previous config and warn once until a reload succeeds again.
 func (dm *daemon) reloadConfig() {
-	c, err := config.Load(dm.p)
-	if err != nil && !errors.Is(err, config.ErrPartial) {
+	c, err := loadConfigFile(dm.p)
+	if err != nil {
 		if !dm.reloadWarned {
 			dm.log.Warn("config reload failed", "err", err)
 			dm.reloadWarned = true
@@ -234,6 +239,38 @@ func (dm *daemon) reloadConfig() {
 	if old := dm.desktop.Swap(c.Notify.Desktop); old != c.Notify.Desktop {
 		dm.log.Info("desktop setting changed", "desktop", c.Notify.Desktop)
 	}
+}
+
+// loadConfigFile is config.Load minus its whole-file fallback: it returns an
+// error when config.toml exists but cannot be read or is not valid TOML, so the
+// caller keeps what it had instead of silently reverting to Defaults(). The
+// file is read before and after Load; if the bytes differ (saved mid-reload)
+// the result is reported as an error and the next round tries again.
+func loadConfigFile(p config.Paths) (*config.Config, error) {
+	before, err := os.ReadFile(p.Config)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		before = nil // missing file => Defaults() is the real config
+	case err != nil:
+		return nil, fmt.Errorf("read %s: %w", p.Config, err)
+	default:
+		var raw map[string]any
+		if _, err := toml.Decode(string(before), &raw); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", p.Config, err)
+		}
+	}
+	c, err := config.Load(p)
+	if err != nil && !errors.Is(err, config.ErrPartial) {
+		return nil, err
+	}
+	after, rerr := os.ReadFile(p.Config)
+	if errors.Is(rerr, os.ErrNotExist) {
+		after, rerr = nil, nil
+	}
+	if rerr != nil || !bytes.Equal(before, after) {
+		return nil, fmt.Errorf("%s changed while reloading", p.Config)
+	}
+	return c, nil
 }
 
 // recordStatus writes daemon-status.json when what the daemon sees changed
