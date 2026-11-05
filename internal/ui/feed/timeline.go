@@ -106,7 +106,7 @@ type timeline struct {
 	storiesLoading bool
 	storiesFails   int       // failed story-ring loads in a row
 	storiesRetryAt time.Time // no stale-ring refetch before this
-	selectFirst    bool // after a banner refresh: select the first card once the items are in
+	selectFirst    bool      // after a banner refresh: select the first card once the items are in
 	bannerSel      bool
 	gPending       bool
 	pending        *timelineState
@@ -974,6 +974,10 @@ func (t *timeline) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 				if hit.Line == line && local.X >= hit.X0 && local.X < hit.X1 {
 					return handlePostHit(ctx, hit, t.post(ctx, it))
 				}
+			}
+			// a click on the selected card opens it, like enter (CA 5.5)
+			if sel, ok := t.list.Selected(); ok && !t.bannerSel && sel.ID == it.ID {
+				return t.navigate(ui.Route{Kind: ui.RoutePost, ID: it.Post.ID})
 			}
 		}
 		t.list.HandleMouse(ctx, msg, ui.Point{X: local.X, Y: ly})

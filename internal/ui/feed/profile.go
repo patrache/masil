@@ -1443,6 +1443,10 @@ func (p *profile) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 					return handlePostHit(ctx, hit, p.post(ctx, it))
 				}
 			}
+			// a click on the selected card opens it, like enter (CA 5.5)
+			if sel, ok := l.list.Selected(); ok && sel.ID == it.ID {
+				return ui.Navigate(ui.Route{Kind: ui.RoutePost, ID: it.Post.ID})
+			}
 		}
 		l.list.HandleMouse(ctx, msg, ui.Point{X: local.X, Y: ly})
 		return tea.Batch(p.maybeMore(ctx, l), p.requestImages(ctx))

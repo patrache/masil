@@ -310,8 +310,11 @@ func (l *cardList) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 }
 
 // handleMouse is a wheel or a click at list row local.Y: a card region runs its
-// action, any other row selects the card.
-func (l *cardList) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
+// action, a click elsewhere on the selected card opens it (RoutePost, like
+// enter; CA 5.5) when canOpen, and any other row selects the card. canOpen is
+// false while the selection is not shown as such (trends: the search input
+// has the focus).
+func (l *cardList) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point, canOpen bool) tea.Cmd {
 	switch m := msg.(type) {
 	case tea.MouseWheelMsg:
 		l.list.HandleMouse(ctx, msg, local)
@@ -329,6 +332,9 @@ func (l *cardList) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 			if hit.Line == line && local.X >= hit.X0 && local.X < hit.X1 {
 				return handlePostHit(ctx, hit, l.post(ctx, it))
 			}
+		}
+		if sel, ok := l.list.Selected(); ok && canOpen && sel.ID == it.ID {
+			return ui.Navigate(ui.Route{Kind: ui.RoutePost, ID: it.Post.ID})
 		}
 	}
 	l.list.HandleMouse(ctx, msg, local)
@@ -519,7 +525,7 @@ func (h *hashtag) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 	if h.listY < 0 || local.Y < h.listY || local.Y >= h.listY+h.listH {
 		return nil
 	}
-	cmd := h.cards.handleMouse(ctx, msg, ui.Point{X: local.X, Y: local.Y - h.listY})
+	cmd := h.cards.handleMouse(ctx, msg, ui.Point{X: local.X, Y: local.Y - h.listY}, true)
 	return tea.Batch(cmd, h.maybeMore(ctx))
 }
 

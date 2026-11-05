@@ -606,11 +606,7 @@ func (l *userList) maybeMore(ctx *ui.Context) tea.Cmd {
 
 func (l *userList) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if ctx.Keys.Matches(msg, keymap.ListOpen) {
-		u, ok := l.list.Selected()
-		if !ok {
-			return true, nil
-		}
-		return true, tea.Batch(closeOverlay, ui.Navigate(ui.Route{Kind: ui.RouteProfile, ID: u.ID}))
+		return true, l.openSelected()
 	}
 	if msg.String() == "x" {
 		u, ok := l.list.Selected()
@@ -634,7 +630,25 @@ func (l *userList) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 	return true, tea.Batch(cmd, l.maybeMore(ctx))
 }
 
+// openSelected is enter: close the list and open the selected person's profile.
+func (l *userList) openSelected() tea.Cmd {
+	u, ok := l.list.Selected()
+	if !ok {
+		return nil
+	}
+	return tea.Batch(closeOverlay, ui.Navigate(ui.Route{Kind: ui.RouteProfile, ID: u.ID}))
+}
+
+// HandleMouse: a click selects a person; a click on the selected one opens
+// the profile, like enter (CA 5.5).
 func (l *userList) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
+	if m, ok := msg.(tea.MouseClickMsg); ok && m.Button == tea.MouseLeft {
+		if u, ok := l.list.At(local.Y); ok {
+			if sel, ok := l.list.Selected(); ok && sel.ID == u.ID {
+				return l.openSelected()
+			}
+		}
+	}
 	return tea.Batch(l.list.HandleMouse(ctx, msg, local), l.maybeMore(ctx))
 }
 
@@ -833,11 +847,7 @@ func (q *quotes) maybeMore(ctx *ui.Context) tea.Cmd {
 
 func (q *quotes) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if ctx.Keys.Matches(msg, keymap.ListOpen) {
-		p, ok := q.list.Selected()
-		if !ok {
-			return true, nil
-		}
-		return true, tea.Batch(closeOverlay, ui.Navigate(ui.Route{Kind: ui.RoutePost, ID: p.ID}))
+		return true, q.openSelected()
 	}
 	handled, cmd := q.list.HandleKey(ctx, msg)
 	if !handled {
@@ -846,7 +856,25 @@ func (q *quotes) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd)
 	return true, tea.Batch(cmd, q.maybeMore(ctx))
 }
 
+// openSelected is enter: close the list and open the selected quote.
+func (q *quotes) openSelected() tea.Cmd {
+	p, ok := q.list.Selected()
+	if !ok {
+		return nil
+	}
+	return tea.Batch(closeOverlay, ui.Navigate(ui.Route{Kind: ui.RoutePost, ID: p.ID}))
+}
+
+// HandleMouse: a click selects a quote; a click on the selected one opens it,
+// like enter (CA 5.5).
 func (q *quotes) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
+	if m, ok := msg.(tea.MouseClickMsg); ok && m.Button == tea.MouseLeft {
+		if p, ok := q.list.At(local.Y); ok {
+			if sel, ok := q.list.Selected(); ok && sel.ID == p.ID {
+				return q.openSelected()
+			}
+		}
+	}
 	return tea.Batch(q.list.HandleMouse(ctx, msg, local), q.maybeMore(ctx))
 }
 

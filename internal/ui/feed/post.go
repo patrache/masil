@@ -923,7 +923,8 @@ func (v *postView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 	}
 	v.touched = true
 	if r, line, ok := v.rowAt(ctx, local.Y); ok {
-		rv := v.view(ctx, r, r.key() == v.selectedKey(), v.size.W)
+		selected := r.key() == v.selectedKey()
+		rv := v.view(ctx, r, selected, v.size.W)
 		x := local.X - rv.DX
 		for _, h := range rv.Hits {
 			if h.Line == line && x >= h.X0 && x < h.X1 {
@@ -932,6 +933,10 @@ func (v *postView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 		}
 		if r.Kind == rowMore || r.Kind == rowDeep {
 			v.list.Select(r.key())
+			return v.open(ctx, r)
+		}
+		// a click on the selected ancestor / reply opens it, like enter (CA 5.5)
+		if selected && (r.Kind == rowAncestor || r.Kind == rowReply) {
 			return v.open(ctx, r)
 		}
 	}

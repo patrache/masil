@@ -880,7 +880,7 @@ func (t *trends) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) 
 			l.HandleMouse(ctx, msg, lp)
 			return nil
 		}
-		return tea.Batch(t.posts.handleMouse(ctx, msg, lp), t.maybeMorePosts(ctx))
+		return tea.Batch(t.posts.handleMouse(ctx, msg, lp, false), t.maybeMorePosts(ctx))
 	}
 	if m, ok := msg.(tea.MouseClickMsg); !ok || m.Button != tea.MouseLeft {
 		return nil
@@ -913,10 +913,11 @@ func (t *trends) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) 
 			}
 			return nil
 		}
-		if t.searchOpen && t.inputFocus {
+		canOpen := !(t.searchOpen && t.inputFocus) // the first click only leaves the input
+		if !canOpen {
 			t.setFocus(false)
 		}
-		cmd := t.posts.handleMouse(ctx, msg, ui.Point{X: local.X, Y: ly})
+		cmd := t.posts.handleMouse(ctx, msg, ui.Point{X: local.X, Y: ly}, canOpen)
 		return tea.Batch(cmd, t.maybeMorePosts(ctx))
 	}
 	return nil
