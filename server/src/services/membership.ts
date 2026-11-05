@@ -27,6 +27,30 @@ export function dmNotAllowed(userIds: string[]): ApiError {
   return err.forbidden("dm_not_allowed", "dm not allowed", { user_ids: userIds });
 }
 
+/**
+ * Group DM eligibility (api.md 3.1), shared by create (`existing` = [creator]) and member add (`existing` = the current
+ * members). A user X in `newIds` fails when !can_dm(actor, X), or when a block (either direction) links X with anyone
+ * else who would be in the room: an existing member or another of `newIds` — every pair, so the actor cannot put two
+ * people who blocked each other into one conversation. Returns the failing ids in `newIds` order (empty = allowed).
+ */
+export async function groupDmDenied(db: D1Database, actorId: string, newIds: string[], existing: string[]): Promise<string[]> {
+  const ids = [...new Set(newIds)];
+  if (ids.length === 0) return [];
+  const { denied } = await canDmMany(db, actorId, ids);
+  const blocked = await all<{ id: string }>(
+    db,
+    `SELECT j.value AS id FROM json_each(?1) j
+      WHERE EXISTS (SELECT 1 FROM blocks b, json_each(?2) m
+                     WHERE m.value <> j.value
+                       AND ((b.blocker_id = j.value AND b.blocked_id = m.value)
+                         OR (b.blocker_id = m.value AND b.blocked_id = j.value)))`,
+    jsonList(ids),
+    jsonList([...new Set([...existing, ...ids])]),
+  );
+  const failed = new Set([...denied, ...blocked.map((r) => r.id)]);
+  return ids.filter((id) => failed.has(id));
+}
+
 async function loadChannel(db: D1Database, channelId: string): Promise<ChannelRow> {
   const row = await first<ChannelRow>(db, "SELECT * FROM channels WHERE id = ?1", channelId);
   if (row === null) throw err.notFound("channel");
@@ -39,7 +63,7 @@ async function loadChannel(db: D1Database, channelId: string): Promise<ChannelRo
  * member): see addPrivateTextMembers.
  * group_dm (any member may add): 409 already_member if anyone is already in; 422 limit_exceeded group_dm_members when
  * the total would pass 10; 403 dm_not_allowed (details.user_ids) for every X with !can_dm(actor, X) or a block either way
- * with any current member. 1:1 dm and public text -> 409 conflict not_supported.
+ * with any current member or with another user being added (groupDmDenied). 1:1 dm and public text -> 409 conflict not_supported.
  * Events after commit: channel.member_added{channel_id, user} per new member to the existing members,
  * channel.created{channel} to the new members; then one system message group_member_added per new member.
  */
@@ -58,18 +82,8 @@ export async function addChannelMembers(rt: Runtime, channelId: string, actorId:
   if (ids.some((id) => currentSet.has(id))) throw err.conflict("already_member");
   if (current.length + ids.length > GROUP_DM_MAX_MEMBERS) throw err.limit("group_dm_members", GROUP_DM_MAX_MEMBERS);
 
-  const { denied } = await canDmMany(db, actorId, ids);
-  const blockedWithMember = await all<{ id: string }>(
-    db,
-    `SELECT j.value AS id FROM json_each(?1) j
-      WHERE EXISTS (SELECT 1 FROM blocks b, json_each(?2) m
-                     WHERE (b.blocker_id = j.value AND b.blocked_id = m.value)
-                        OR (b.blocker_id = m.value AND b.blocked_id = j.value))`,
-    jsonList(ids),
-    jsonList(current),
-  );
-  const failed = new Set([...denied, ...blockedWithMember.map((r) => r.id)]);
-  if (failed.size > 0) throw dmNotAllowed(ids.filter((id) => failed.has(id)));
+  const failed = await groupDmDenied(db, actorId, ids, current);
+  if (failed.length > 0) throw dmNotAllowed(failed);
 
   const t = now();
   // The insert re-checks capacity and membership inside the transaction (concurrent adds cannot pass 10).

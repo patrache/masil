@@ -130,6 +130,60 @@ describe("dms", () => {
     for (const c of [co, cz, cy]) c.close();
   });
 
+  // ---- pending-fixes item 8: a block between two participants (not just creator <-> participant) refuses the group ----
+
+  /** group_dm channels created by `userId` (to prove a refused create left nothing behind). */
+  async function groupDmsBy(userId: string): Promise<number> {
+    const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM channels WHERE kind = 'group_dm' AND created_by = ?1").bind(userId).first<{ n: number }>();
+    return r?.n ?? 0;
+  }
+
+  it("group dm create: a block between two participants (either direction) -> 403 dm_not_allowed with both ids, nothing created", async () => {
+    const [c, a, b, d] = await Promise.all([signup(), signup(), signup(), signup()]);
+    for (const f of [a, b, d]) await makeFriends(c, f);
+    // a blocks b: c may DM both, but must not be able to put them in one room (b could then message a)
+    expect((await api(a.token).put(`/v1/blocks/@${b.handle}`)).status).toBeLessThan(300);
+    const r1 = await api(c.token).post<any>("/v1/dms", { users: [`@${a.handle}`, `@${b.handle}`, `@${d.handle}`] });
+    expect(r1.status).toBe(403);
+    expect(r1.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [a.user.id, b.user.id] } });
+    // request order is kept in user_ids, and the reverse block direction is caught the same way
+    const r2 = await api(c.token).post<any>("/v1/dms", { users: [`@${d.handle}`, `@${b.handle}`, `@${a.handle}`] });
+    expect(r2.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [b.user.id, a.user.id] } });
+    expect(await groupDmsBy(c.user.id)).toBe(0);
+    // participants with no block between them still pass
+    const ok = await api(c.token).post<any>("/v1/dms", { users: [`@${a.handle}`, `@${d.handle}`] });
+    expect(ok.status).toBe(201);
+    expect(ok.body.channel.members.map((m: any) => m.id).sort()).toEqual([c.user.id, a.user.id, d.user.id].sort());
+    expect(await groupDmsBy(c.user.id)).toBe(1);
+  });
+
+  it("group dm create: a block from the second participant toward the first is refused too", async () => {
+    const [c, a, b] = await Promise.all([signup(), signup(), signup()]);
+    await makeFriends(c, a);
+    await makeFriends(c, b);
+    await api(b.token).put(`/v1/blocks/@${a.handle}`);
+    const r = await api(c.token).post<any>("/v1/dms", { users: [`@${a.handle}`, `@${b.handle}`] });
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [a.user.id, b.user.id] } });
+    expect(await groupDmsBy(c.user.id)).toBe(0);
+  });
+
+  it("group dm add: a block between two of the users being added -> 403 with both ids; each alone passes", async () => {
+    const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    for (const f of [x, y, p, q]) await makeFriends(o, f);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    await api(p.token).put(`/v1/blocks/@${q.handle}`);
+    const both = await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${q.handle}`, `@${p.handle}`] });
+    expect(both.status).toBe(403);
+    expect(both.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [q.user.id, p.user.id] } });
+    const cnt = await env.DB.prepare("SELECT COUNT(*) AS n FROM channel_members WHERE channel_id = ?1").bind(g.id).first<{ n: number }>();
+    expect(cnt?.n).toBe(3);
+    // p alone has no block with any current member -> added; then q is refused against p, now a member
+    expect((await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${p.handle}`] })).status).toBe(200);
+    const qAfter = await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${q.handle}`] });
+    expect(qAfter.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [q.user.id] } });
+  });
+
   it("GET /dms lists newest activity first and pages with a cursor", async () => {
     const [me, p, q, r] = await Promise.all([signup(), signup(), signup(), signup()]);
     for (const f of [p, q, r]) await makeFriends(me, f);
