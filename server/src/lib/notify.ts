@@ -125,17 +125,32 @@ async function alertAllowed(db: D1Database, items: Array<{ userId: string; kind:
   return items.map((it, idx) => switchOn(it.kind, settings.get(it.userId)) && (channelOk.get(idx) ?? true));
 }
 
-/** Unread inbox count per recipient, hiding rows whose actor the recipient blocked (same rule as the inbox list). */
+/**
+ * The one definition of "unread inbox count" (api.md 5.18): unread rows of `userExpr`, hiding rows whose actor that
+ * user blocked (same rule as the inbox list). Rides idx_notifications_unread. Both unreadNotificationCount and the
+ * per-recipient batch below are built from this, so the badge never differs between events and REST.
+ */
+function unreadCountSql(userExpr: string): string {
+  return `SELECT COUNT(*) FROM notifications n
+           WHERE n.user_id = ${userExpr} AND n.read_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ${userExpr} AND b.blocked_id = n.actor_id)`;
+}
+
+/** Unread inbox count of one user (single source for the inbox routes, notification.created, notifications.read). */
+export async function unreadNotificationCount(db: D1Database, userId: string): Promise<number> {
+  const row = await first<{ n: number }>(db, `SELECT (${unreadCountSql("?1")}) AS n`, userId);
+  return row?.n ?? 0;
+}
+
+/** unreadNotificationCount for many recipients in one json_each query (same SQL). */
 async function unreadCounts(db: D1Database, userIds: string[]): Promise<Map<string, number>> {
-  if (userIds.length === 0) return new Map();
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Map();
+  if (ids.length === 1) return new Map([[ids[0]!, await unreadNotificationCount(db, ids[0]!)]]);
   const rows = await all<{ user_id: string; n: number }>(
     db,
-    `SELECT r.value AS user_id,
-            (SELECT COUNT(*) FROM notifications n
-              WHERE n.user_id = r.value AND n.read_at IS NULL
-                AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = r.value AND b.blocked_id = n.actor_id)) AS n
-       FROM json_each(?1) r`,
-    jsonList([...new Set(userIds)]),
+    `SELECT r.value AS user_id, (${unreadCountSql("r.value")}) AS n FROM json_each(?1) r`,
+    jsonList(ids),
   );
   return new Map(rows.map((r) => [r.user_id, r.n]));
 }
