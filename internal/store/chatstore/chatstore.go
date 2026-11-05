@@ -40,6 +40,12 @@ type ChatStore struct {
 
 	selectedSpace string
 	activeChannel string
+
+	// Resync generations and the in-flight event journal (resync.go). gen is
+	// never reset, so results of a refetch started before Reset are ignored.
+	gen, applied uint64
+	flight       *chatFlight
+	replaying    bool
 }
 
 type threadState struct {
@@ -74,6 +80,9 @@ func (c *ChatStore) clear() {
 	c.missing = map[string][]string{}
 	c.selectedSpace = ""
 	c.activeChannel = ""
+	c.flight = nil
+	c.replaying = false
+	c.applied = c.gen
 }
 
 // Get returns the chat reducer registered on s (s.Reducer("chat")).
@@ -87,7 +96,10 @@ func (c *ChatStore) Name() string { return name }
 
 // Apply applies a realtime event to chat state (events.md 4.2-4.4; rules in apply.go).
 // The core store has already applied the event when reducers run.
-func (c *ChatStore) Apply(s *store.Store, ev realtime.Event) { c.apply(s, ev) }
+func (c *ChatStore) Apply(s *store.Store, ev realtime.Event) {
+	c.record(ev)
+	c.apply(s, ev)
+}
 
 // Reset clears everything (logout / user switch); the instance is kept.
 func (c *ChatStore) Reset() { c.clear() }
