@@ -68,6 +68,18 @@ export function extractHashtags(body: string): string[] {
   return [...seen];
 }
 
+const TAG_RE = /^[\p{L}\p{N}_]{1,50}$/u;
+
+/**
+ * Normalizes a hashtag given as a value (URL path segment, search input): drops one leading '#', NFC + trim, then the
+ * same rule extractHashtags stores (match [\p{L}\p{N}_]{1,50} on the NFC form, lowercase, NFC). null if not a valid tag.
+ */
+export function normalizeTag(raw: string): string | null {
+  const s = normalizeText(raw.startsWith("#") ? raw.slice(1) : raw);
+  if (!TAG_RE.test(s)) return null;
+  return s.toLowerCase().normalize("NFC");
+}
+
 export function parseDice(expr: string): { count: number; sides: number; modifier: number } | null {
   const m = DICE_RE.exec(expr);
   if (!m) return null;
