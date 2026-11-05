@@ -146,10 +146,13 @@ func (c *ChatStore) messageCreated(m api.Message) {
 		}
 		w = c.windows[m.ChannelID]
 	}
-	if old, ok := w.Get(m.ID); ok { // REST send result landed first
-		m = mergeLive(old, m)
+	// Any copy we already hold (the REST send result, a later edit or a
+	// tombstone, a resync snapshot) is at least as new as its creation, and
+	// events from different requests can arrive out of order (events.md 6.4):
+	// a late creation payload must never regress it.
+	if _, ok := w.Get(m.ID); !ok {
+		w.Upsert(m)
 	}
-	w.Upsert(m)
 	c.removeMissing(m.ChannelID, m.ID)
 }
 

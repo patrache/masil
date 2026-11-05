@@ -493,3 +493,38 @@ func TestResetClearsPinsAndMissing(t *testing.T) {
 		t.Fatal("pins and missing cleared on reset")
 	}
 }
+
+// events.md 6.4: events from different requests can arrive out of order, so a
+// late creation payload must not regress a copy we already hold.
+func TestCreatedAfterUpdatedKeepsEdit(t *testing.T) {
+	s, c := loadedStore(t)
+	orig := msg("m40", "ME")
+	orig.ClientNonce = strp("N1")
+	edited := orig
+	edited.Body = "edited"
+	at := t0.Add(time.Minute)
+	edited.EditedAt = &at
+	apply(t, s, "message.updated", realtime.MessageEvent{Message: edited}) // unknown: recorded missing
+	if got := c.TakeMissing("C1"); !slices.Equal(got, []string{"m40"}) {
+		t.Fatalf("missing %v", got)
+	}
+	c.UpsertMessage(edited) // the UI's GetMessage of the missing id
+	c.AddPending("C1", PendingMessage{Nonce: "N1", Body: "body m40", Kind: "text", SentAt: t0})
+	apply(t, s, "message.created", realtime.MessageEvent{Message: orig}) // late creation
+	got := get(t, c, "C1", "m40")
+	if got.Body != "edited" || got.EditedAt == nil {
+		t.Fatalf("late message.created regressed the edit: %+v", got)
+	}
+	if len(c.Pending("C1")) != 0 {
+		t.Fatal("pending send still dropped by nonce")
+	}
+}
+
+func TestCreatedAfterTombstoneKeepsTombstone(t *testing.T) {
+	s, c := loadedStore(t)
+	apply(t, s, "message.deleted", realtime.MessageDeleted{ChannelID: "C1", MessageID: "m20", Tombstone: true})
+	apply(t, s, "message.created", realtime.MessageEvent{Message: msg("m20", "U2")})
+	if got := get(t, c, "C1", "m20"); !got.Deleted || got.Body != "" {
+		t.Fatalf("late message.created revived a tombstone: %+v", got)
+	}
+}

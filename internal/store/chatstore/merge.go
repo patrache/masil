@@ -72,10 +72,12 @@ func (c *ChatStore) ApplyThreadPage(rootID string, q api.ThreadQuery, w *api.Thr
 }
 
 // UpsertMessage lands a single REST message (send / reply / edit result,
-// GetMessage of a missing id). It replaces the copy we hold, or is inserted
-// when it belongs in the loaded range (never opening a gap past a window that
-// has more after); a reply goes to its thread's reply window only. The pending
-// send with its client_nonce is dropped either way.
+// GetMessage of a missing id). It replaces the copy we hold unless that copy is
+// newer (heldNewer: a tombstone, or a later edit, applied before a slower
+// response landed), or is inserted when it belongs in the loaded range (never
+// opening a gap past a window that has more after); a reply goes to its
+// thread's reply window only. The pending send with its client_nonce is
+// dropped either way.
 func (c *ChatStore) UpsertMessage(m api.Message) {
 	c.mergePending(m)
 	defer c.removeMissing(m.ChannelID, m.ID)
@@ -84,8 +86,10 @@ func (c *ChatStore) UpsertMessage(m api.Message) {
 		if th == nil {
 			return
 		}
-		if _, ok := th.replies.Get(m.ID); ok || c.replyInRange(*m.ThreadRootID, m.ID) {
-			th.replies.Upsert(m)
+		if old, ok := th.replies.Get(m.ID); ok || c.replyInRange(*m.ThreadRootID, m.ID) {
+			if !ok || !heldNewer(old, m) {
+				th.replies.Upsert(m)
+			}
 			if th.channelID == "" {
 				th.channelID = m.ChannelID
 			}
@@ -93,11 +97,31 @@ func (c *ChatStore) UpsertMessage(m api.Message) {
 		return
 	}
 	if w := c.windows[m.ChannelID]; w != nil {
-		if _, ok := w.Get(m.ID); ok || c.inRange(m.ChannelID, m.ID) {
-			w.Upsert(m)
+		if old, ok := w.Get(m.ID); ok || c.inRange(m.ChannelID, m.ID) {
+			if !ok || !heldNewer(old, m) {
+				w.Upsert(m)
+			}
 		}
 	}
-	c.refreshCopies(m)
+	if th := c.threads[m.ID]; th != nil && th.root != nil && !heldNewer(*th.root, m) {
+		r := m
+		th.root = &r
+	}
+	for i := range c.pins[m.ChannelID] {
+		if p := &c.pins[m.ChannelID][i]; p.ID == m.ID && !heldNewer(*p, m) {
+			*p = m
+		}
+	}
+}
+
+// heldNewer reports whether the stored copy old is newer than the incoming m
+// (events.md 6.4: responses and events of different requests can cross): old
+// is a tombstone, or carries a later edited_at.
+func heldNewer(old, m api.Message) bool {
+	if old.Deleted {
+		return true
+	}
+	return old.EditedAt != nil && (m.EditedAt == nil || old.EditedAt.After(*m.EditedAt))
 }
 
 // mergePending drops the optimistic send whose client_nonce m carries.

@@ -3,6 +3,7 @@ package chatstore
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/realtime"
@@ -256,4 +257,35 @@ func TestSetPollAuthoritative(t *testing.T) {
 		t.Fatal("post polls are not chat polls")
 	}
 	c.SetPoll(api.Poll{ID: "P3", ContextType: "message", ContextID: "nope"}, true) // unknown: no panic
+}
+
+func TestUpsertDoesNotRegressEditOrTombstone(t *testing.T) {
+	s, c := loadedStore(t)
+	c.SetPins("C1", []api.Message{msg("m20", "U2")})
+	edited := msg("m20", "U2")
+	edited.Body = "edited"
+	at := t0.Add(time.Minute)
+	edited.EditedAt = &at
+	c.UpsertMessage(edited)
+	c.UpsertMessage(msg("m20", "U2")) // send result landing after the edit
+	if got := get(t, c, "C1", "m20"); got.Body != "edited" {
+		t.Fatalf("older send result regressed the edit: %+v", got)
+	}
+	if p, _ := c.Pins("C1"); p[0].Body != "edited" {
+		t.Fatalf("pin copy regressed: %+v", p[0])
+	}
+	newer := edited
+	later := t0.Add(2 * time.Minute)
+	newer.EditedAt = &later
+	newer.Body = "edited again"
+	c.UpsertMessage(newer)
+	if got := get(t, c, "C1", "m20"); got.Body != "edited again" {
+		t.Fatalf("a newer edit result must replace: %+v", got)
+	}
+
+	apply(t, s, "message.deleted", realtime.MessageDeleted{ChannelID: "C1", MessageID: "m30", Tombstone: true})
+	c.UpsertMessage(msg("m30", "U1"))
+	if got := get(t, c, "C1", "m30"); !got.Deleted || got.Body != "" {
+		t.Fatalf("send result revived a tombstone: %+v", got)
+	}
 }
