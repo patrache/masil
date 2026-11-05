@@ -64,6 +64,8 @@ type chatComposer struct {
 	// onEmptyEdit runs when an edit is submitted with an empty body (Task 12:
 	// the delete confirmation); nil = ignored.
 	onEmptyEdit func(ctx *ui.Context, m api.Message) tea.Cmd
+
+	comp completer // the @mention / :emoji / /command popup (complete.go)
 }
 
 // newChatComposer creates the composer of channelID (rootID nil) or of the thread rootID.
@@ -79,12 +81,16 @@ func newChatComposer(channelID string, rootID *string, placeholder string) *chat
 		rootID:      root,
 		placeholder: placeholder,
 		maxRows:     1,
+		comp:        completer{rows: completionRows},
 	}
 }
 
 func (cc *chatComposer) focused() bool  { return cc.c.Focused() }
 func (cc *chatComposer) focus() tea.Cmd { return cc.c.Focus() }
-func (cc *chatComposer) blur()          { cc.c.Blur() }
+func (cc *chatComposer) blur() {
+	cc.closeCompletion()
+	cc.c.Blur()
+}
 
 // draft is the text to keep for later: the put-aside draft while editing.
 func (cc *chatComposer) draft() string {
@@ -99,14 +105,25 @@ func (cc *chatComposer) setDraft(s string) {
 	cc.editing, cc.savedDraft, cc.editBusy = nil, "", false
 	if s == "" {
 		cc.c.Reset()
-		return
+	} else {
+		cc.c.SetValue(s)
 	}
-	cc.c.SetValue(s)
+	cc.closeCompletion()
 }
 
 // handleKey handles a key while the composer has the focus. Everything is
 // consumed except ctrl+c on an empty input (it reaches the app's quit arming).
+// An open completion popup takes its keys first; any text change refreshes it.
 func (cc *chatComposer) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	if cc.completing() && cc.popupKey(ctx, msg) {
+		return true, nil
+	}
+	handled, cmd := cc.key(ctx, msg)
+	return handled, tea.Batch(cmd, cc.recomplete(ctx))
+}
+
+// key is handleKey without the completion popup.
+func (cc *chatComposer) key(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	km := ctx.Keys
 	switch {
 	case km.Matches(msg, keymap.AppQuit):
@@ -137,7 +154,7 @@ func (cc *chatComposer) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, t
 // update handles the non-key input routed to the composer (pastes).
 func (cc *chatComposer) update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	if _, ok := msg.(tea.PasteMsg); ok && cc.focused() {
-		return cc.input(ctx, msg)
+		return tea.Batch(cc.input(ctx, msg), cc.recomplete(ctx))
 	}
 	return nil
 }
@@ -183,6 +200,7 @@ func (cc *chatComposer) startEdit(m api.Message) {
 	cc.editing = &m
 	cc.editBusy = false
 	cc.c.SetValue(m.Body)
+	cc.closeCompletion()
 }
 
 // cancelEdit ends editing and restores the put-aside draft.
@@ -191,9 +209,10 @@ func (cc *chatComposer) cancelEdit() {
 	cc.editing, cc.savedDraft, cc.editBusy = nil, "", false
 	if draft == "" {
 		cc.c.Reset()
-		return
+	} else {
+		cc.c.SetValue(draft)
 	}
-	cc.c.SetValue(draft)
+	cc.closeCompletion()
 }
 
 // submit sends the input (compose.send): whitespace only is ignored; while
@@ -344,6 +363,11 @@ func (cc *chatComposer) height(width int) int {
 		h++
 	}
 	return h
+}
+
+// boxHeight is height without the completion popup (edit label + box).
+func (cc *chatComposer) boxHeight(width int) int {
+	return max(0, cc.height(width)-len(cc.comp.shown))
 }
 
 // view draws the edit label (while editing) above the composer box, every line

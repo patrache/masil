@@ -70,6 +70,7 @@ var (
 	_ ui.MouseHandler  = (*channelView)(nil)
 	_ ui.InputCapturer = (*channelView)(nil)
 	_ ui.Cursorer      = (*channelView)(nil)
+	_ ui.Completer     = (*channelView)(nil)
 	_ ui.ChannelViewer = (*channelView)(nil)
 	_ ui.Titled        = (*channelView)(nil)
 	_ ui.Helper        = (*channelView)(nil)
@@ -334,6 +335,8 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			v.pane.refresh(ctx)
 			cmds = append(cmds, v.maybeArmRead(ctx))
 		}
+	case ui.ResultMsg[*api.Page[api.ChannelMember]]:
+		v.composer.onMembers(ctx, m)
 	case ui.ResultMsg[*api.UnreadState]:
 		if m.Tag != "chat.read:"+v.id() {
 			break
@@ -395,8 +398,10 @@ func (v *channelView) View(ctx *ui.Context, focused bool) string {
 		if cc.editing != nil {
 			label = 1
 		}
-		// the box (border 2) keeps at least one list line above it
+		// the box (border 2) keeps at least one list line above it; the popup
+		// gets the rows left between that line and the box
 		cc.maxRows = max(1, min(composerMaxRows(ctx.Density()), v.size.H-1-2-label))
+		cc.fitPopup(v.size.H - 1 - cc.boxHeight(w))
 		bottom, bh = cc.view(ctx, w), cc.height(w)
 	}
 	listH := max(0, v.size.H-bh)
@@ -540,6 +545,10 @@ func (v *channelView) afterSend(ctx *ui.Context) tea.Cmd {
 
 // CapturesInput: while the composer has the sub-focus.
 func (v *channelView) CapturesInput() bool { return v.composer.focused() }
+
+// Completing (ui.Completer, CR-1/CR-A): the composer has the focus and its
+// completion popup shows at least one item.
+func (v *channelView) Completing() bool { return v.composer.completing() }
 
 // Cursor: the composer's real cursor (IME) inside the pane, nil while it is blurred.
 func (v *channelView) Cursor() *tea.Cursor {
