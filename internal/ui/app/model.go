@@ -24,6 +24,7 @@ import (
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/palette"
+	_ "github.com/patrache/masil/internal/ui/settings" // registers RouteSettings (CA 2.2)
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
