@@ -2,17 +2,18 @@
 // requireAuth as a per-route argument (a `.use("/auth/*", requireAuth)` would also gate signup/login).
 import { Hono } from "hono";
 import * as z from "zod";
-import type { AppContext, AppEnv } from "../env";
+import { rt, type AppContext, type AppEnv } from "../env";
 import { getAuth, isSuspendedNow, requireAuth, SESSION_TTL_MS } from "../lib/auth";
 import { dummyVerify, hashPassword, newSessionToken, sha256Hex, verifyPassword } from "../lib/crypto";
-import { all, batch, first, stmt } from "../lib/db";
+import { all, batch, first, run, stmt } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
-import { newId } from "../lib/ids";
+import { isId, newId } from "../lib/ids";
 import { checkLimit, clientIp, limit } from "../lib/ratelimit";
 import { serializeMe, serializeSession } from "../lib/serialize";
 import { charCount, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
 import { vJson, zText } from "../lib/validate";
+import { revokeSessions } from "../services/users";
 import type { SessionRow, UserRow } from "../types/rows";
 
 export const authRoutes = new Hono<AppEnv>();
@@ -72,6 +73,13 @@ const LoginBody = z.object({
   password: z.string().min(1).max(1024).transform((s) => s.normalize("NFC")),
   client: zClient.optional(),
   device_name: zText(0, 64).optional(),
+});
+
+// current_password is only compared (any string, like login); new_password follows the signup rules (incl. != handle,
+// checked in the handler since the handle comes from the session).
+const PasswordBody = z.object({
+  current_password: z.string().min(1).max(1024).transform((s) => s.normalize("NFC")),
+  new_password: zNewPassword,
 });
 
 function invalidCredentials(): ApiError {
@@ -178,7 +186,7 @@ authRoutes.post("/auth/login", vJson(LoginBody), async (c) => {
   return c.json({ token: session.token, session: serializeSession(session.row, session.row.id), user: me }, 200);
 });
 
-/** My active sessions, newest first (no pagination). Revocation paths are added by Task 14. */
+/** My active sessions, newest first (no pagination). */
 authRoutes.get("/auth/sessions", requireAuth, async (c) => {
   const auth = getAuth(c);
   const rows = await all<SessionRow>(
@@ -189,4 +197,43 @@ authRoutes.get("/auth/sessions", requireAuth, async (c) => {
     now(),
   );
   return c.json({ items: rows.map((r) => serializeSession(r, auth.sessionId)) });
+});
+
+/** Revokes the current session (logout); its sockets get session.revoked and close 4001. */
+authRoutes.post("/auth/logout", requireAuth, async (c) => {
+  const auth = getAuth(c);
+  await revokeSessions(rt(c), auth.userId, [auth.sessionId], "logout");
+  return c.body(null, 204);
+});
+
+/** Revokes one of my active sessions (the current one too); someone else's, unknown or already dead -> 404. */
+authRoutes.delete("/auth/sessions/:session_id", requireAuth, async (c) => {
+  const auth = getAuth(c);
+  const id = c.req.param("session_id");
+  if (!isId(id)) throw err.notFound("session");
+  const row = await first<{ id: string }>(
+    c.env.DB,
+    "SELECT id FROM sessions WHERE id = ?1 AND user_id = ?2 AND revoked_at IS NULL AND expires_at > ?3",
+    id,
+    auth.userId,
+    now(),
+  );
+  if (row === null) throw err.notFound("session");
+  await revokeSessions(rt(c), auth.userId, [row.id], "revoked");
+  return c.body(null, 204);
+});
+
+/** Password change: verify the current one (401 invalid_credentials), store the new hash, revoke every other session. */
+authRoutes.post("/auth/password", requireAuth, vJson(PasswordBody), async (c) => {
+  const auth = getAuth(c);
+  const body = c.req.valid("json");
+  const db = c.env.DB;
+  if (body.new_password.toLowerCase() === auth.handle) throw err.invalid({ new_password: "invalid" });
+  const user = await first<Pick<UserRow, "password_hash">>(db, "SELECT password_hash FROM users WHERE id = ?1", auth.userId);
+  if (user === null) throw err.unauthorized();
+  if (!(await verifyPassword(body.current_password, user.password_hash))) throw invalidCredentials();
+  const passwordHash = await hashPassword(body.new_password);
+  await run(db, "UPDATE users SET password_hash = ?1, updated_at = ?2 WHERE id = ?3", passwordHash, now(), auth.userId);
+  await revokeSessions(rt(c), auth.userId, "all", "password_changed", auth.sessionId);
+  return c.body(null, 204);
 });

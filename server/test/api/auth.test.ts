@@ -1,7 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { env, SELF } from "cloudflare:test";
 import { createApp } from "../../src/app";
-import { api, BASE, login, signup, uniqueHandle } from "../helpers";
+import { api, BASE, connectWs, login, signup, uniqueHandle } from "../helpers";
+
+function waitClose(ws: WebSocket, timeoutMs = 3000): Promise<{ code: number; reason: string }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("socket did not close")), timeoutMs);
+    ws.addEventListener("close", (e) => {
+      clearTimeout(timer);
+      resolve({ code: e.code, reason: e.reason });
+    }, { once: true });
+  });
+}
 
 describe("app shell", () => {
   it("meta and health", async () => {
@@ -110,5 +120,29 @@ describe("app wiring", () => {
   it("signup and login stay reachable without a token", async () => {
     const r = await api().post<any>("/v1/auth/login", { handle: uniqueHandle(), password: "nope nope" });
     expect(r.body.error.code).toBe("invalid_credentials"); // not "unauthorized": no auth middleware in front of login
+  });
+});
+describe("sessions", () => {
+  it("logout -> 401 and socket closed 4001 after session.revoked", async () => {
+    const u = await signup(); const c = await connectWs(u.token); const cl = waitClose(c.ws);
+    expect((await api(u.token).post("/v1/auth/logout")).status).toBe(204);
+    expect((await c.next("session.revoked")).data.reason).toBe("logout"); expect((await cl).code).toBe(4001);
+    expect((await api(u.token).get("/v1/auth/sessions")).status).toBe(401);
+  });
+  it("list and revoke other session; foreign session 404", async () => {
+    const u = await signup(); const t2 = (await login(u.handle, u.password)).token; const other = await signup();
+    const list = (await api(u.token).get<any>("/v1/auth/sessions")).body.items;
+    expect(list).toHaveLength(2); expect(list.filter((s: any) => s.current)).toHaveLength(1);
+    const target = list.find((s: any) => !s.current).id;
+    expect((await api(other.token).del(`/v1/auth/sessions/${target}`)).status).toBe(404);
+    expect((await api(u.token).del(`/v1/auth/sessions/${target}`)).status).toBe(204);
+    expect((await api(t2).get("/v1/auth/sessions")).status).toBe(401);
+  });
+  it("password change revokes all other sessions only", async () => {
+    const u = await signup(); const t2 = (await login(u.handle, u.password)).token;
+    expect((await api(u.token).post<any>("/v1/auth/password", { current_password: "bad bad bad", new_password: "brand new pass" })).body.error.code).toBe("invalid_credentials");
+    expect((await api(u.token).post("/v1/auth/password", { current_password: u.password, new_password: "brand new pass" })).status).toBe(204);
+    expect((await api(u.token).get("/v1/auth/sessions")).status).toBe(200); expect((await api(t2).get("/v1/auth/sessions")).status).toBe(401);
+    expect((await api().post("/v1/auth/login", { handle: u.handle, password: "brand new pass" })).status).toBe(200);
   });
 });

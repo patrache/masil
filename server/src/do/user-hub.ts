@@ -5,6 +5,7 @@
 // Task 12: presence (events.md 6.3) recomputed on connect/close/idle/mode/focus/alarm, presence.snapshot after ready,
 // alert suppression (focus/dnd) with focus_alerts, focus mode start/end (one finishFocus for early and natural end).
 // Task 13: `watch` frames (TopicHub join/leave, topic events only to sockets watching them).
+// Task 14: revokeSessions (session.revoked then 4001/4003).
 // Typing (Task 27) builds on this.
 import { DurableObject } from "cloudflare:workers";
 import type { AuthContext, Runtime } from "../env";
@@ -1013,6 +1014,47 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       return null;
     }
     return this.finishFocus(t);
+  }
+
+  // ---------------------------------------------------------------- sessions
+
+  /**
+   * Called by services/users.ts revokeSessions after D1 revoked the sessions: each target socket (all of them for "all",
+   * otherwise those tagged `sess:<id>`) gets `session.revoked{session_id, reason}` (volatile, also before `ready` and on
+   * notify sockets) and is then closed with 4001, or 4003 for "suspended".
+   */
+  async revokeSessions(userId: string, sessionIds: string[] | "all", reason: "logout" | "revoked" | "password_changed" | "suspended"): Promise<void> {
+    this.ensureUser(userId);
+    const code = reason === "suspended" ? CloseCode.suspended : CloseCode.unauthorized;
+    const targets = sessionIds === "all" ? this.liveSockets() : [...new Set(sessionIds)].flatMap((id) => this.liveSockets(`sess:${id}`));
+    if (targets.length === 0) return;
+    const t = this.now();
+    const closedFullDevices = new Set<string>();
+    for (const ws of targets) {
+      const a = this.att(ws);
+      if (a !== null) this.sendFrame(ws, "session.revoked", { session_id: a.sessionId, reason }, null, t);
+      this.closeWs(ws, code, reason);
+      if (a?.mode === "full") closedFullDevices.add(a.deviceId);
+    }
+    for (const dev of closedFullDevices) this.signalTuiGone(dev);
+    // Same bookkeeping as webSocketClose, without waiting for the peer's close (the alarm would catch it otherwise).
+    await this.ctx.blockConcurrencyWhile(async () => {
+      try {
+        const now = this.now();
+        const live = this.liveSockets().map((s) => this.att(s));
+        const full = live.some((x) => x?.mode === "full");
+        const notify = live.some((x) => x?.mode === "notify");
+        await this.markDisconnected(userId, now, {
+          full: !full && this.getMetaNum("full_until") > now + CLOSE_GRACE_MS,
+          notify: !notify && this.getMetaNum("notify_until") > now + CLOSE_GRACE_MS,
+          zero: live.length === 0 && (this.getMeta("zero_since") ?? "") === "",
+        });
+      } catch (e) {
+        console.error("UserHub: revoke bookkeeping failed", e); // never throw inside blockConcurrencyWhile
+      }
+    });
+    await this.recomputePresence();
+    await this.scheduleAlarm();
   }
 
   // ---------------------------------------------------------------- debug
