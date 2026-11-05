@@ -1,4 +1,5 @@
-import { env, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
+import { env, runInDurableObject, runDurableObjectAlarm, createScheduledController, createExecutionContext } from "cloudflare:test";
+import { handleScheduled } from "../../src/cron";
 import { describe, it, expect } from "vitest";
 import type { Runtime } from "../../src/env";
 import { newId } from "../../src/lib/ids";
@@ -107,5 +108,42 @@ describe("focus", () => {
     expect((await api(a.token).del<any>("/v1/me/focus")).status).toBe(409); // already ended: no second summary path
     await settle();
     expect(c.frames.filter((f) => f.type === "alert" && f.data.alert.kind === "focus_summary")).toHaveLength(1);
+  });
+});
+
+describe("presence regressions", () => {
+  it("Me.presence.focus (GET /me, login) matches GET /me/focus even after a connect rewrites user_presence.updated_at", async () => {
+    const a = await signup();
+    const started = (await api(a.token).post<any>("/v1/me/focus", { duration_sec: 600 })).body.focus;
+    await settle(30); // the connect below must land on a later millisecond than the focus start
+    const c = await connectWs(a.token);
+    const focus = (await api(a.token).get<any>("/v1/me/focus")).body.focus;
+    expect(focus).toEqual(started);
+    const me = (await api(a.token).get<any>("/v1/me")).body.user;
+    expect(me.presence).toEqual({ status: "dnd", mode: "auto", focus });
+    const relogin = await api().post<any>("/v1/auth/login", { handle: a.handle, password: a.password });
+    expect(relogin.body.user.presence.focus).toEqual(focus);
+    const patched = await api(a.token).patch<any>("/v1/me/profile", { bio: "x" });
+    expect(patched.body.user.presence.focus).toEqual(focus);
+    c.close();
+  });
+
+  it("manual dnd: cleanup marks D1 offline while disconnected; the reconnect restores D1 dnd and re-announces it", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await makeFriendsSql(a, b);
+    const c1 = await connectWs(a.token);
+    expect((await api(a.token).put<any>("/v1/me/presence", { mode: "dnd" })).body.presence.status).toBe("dnd");
+    c1.close();
+    await settle();
+    // grace passed + cron task 9 (data-model.md 6) ran while no socket was connected
+    await env.DB.prepare("UPDATE user_presence SET online_until = ?1 WHERE user_id = ?2").bind(Date.now() - 1000, a.user.id).run();
+    await handleScheduled(createScheduledController({ cron: "17 * * * *", scheduledTime: Date.now() }), env, createExecutionContext());
+    expect((await env.DB.prepare("SELECT status FROM user_presence WHERE user_id = ?1").bind(a.user.id).first<any>()).status).toBe("offline");
+
+    const cb = await connectWs(b.token);
+    await connectWs(a.token);
+    await cb.next("presence.updated", (d) => d.user_id === a.user.id && d.status === "dnd");
+    expect(await env.DB.prepare("SELECT status, mode FROM user_presence WHERE user_id = ?1").bind(a.user.id).first()).toEqual({ status: "dnd", mode: "dnd" });
+    expect((await api(b.token).get<any>(`/v1/presence?user_ids=${a.user.id}`)).body.items[0].status).toBe("dnd");
   });
 });

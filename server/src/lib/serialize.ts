@@ -42,6 +42,7 @@ import type {
   UserStatus,
   UserSummary,
 } from "../types/api";
+import type { Env } from "../env";
 import type { PresenceItem } from "../types/events";
 import type {
   AdminActionRow,
@@ -126,8 +127,9 @@ function toPresenceState(p: UserPresenceRow | null, nowMs: number): PresenceStat
   if (p === null) return { status: "offline", mode: "auto", focus: null };
   let focus: Focus | null = null;
   if (p.focus_ends_at !== null && p.focus_ends_at > nowMs) {
-    // D1 keeps only the end time; the start lives in UserHub storage. updated_at is the row's last write,
-    // which is the focus start unless presence changed since (then it is later than the true start).
+    // D1 keeps only the end time; the start lives in UserHub storage only. updated_at (the row's last write) is just a
+    // stand-in: connects, liveness extensions and disconnects rewrite it. Routes returning Me use serializeMeLive, which
+    // takes the whole PresenceState from the hub; this fallback only serves when the hub is unreachable.
     focus = { started_at: iso(Math.min(p.updated_at, p.focus_ends_at)), ends_at: iso(p.focus_ends_at) };
   }
   return { status: p.status, mode: p.mode, focus };
@@ -179,6 +181,26 @@ export async function serializeMe(db: D1Database, userId: string): Promise<Me> {
     settings: toSettings(user, settings),
     presence: toPresenceState(presence, t),
   };
+}
+
+/**
+ * serializeMe with `presence` from the authoritative UserHub state (the one GET /me/focus and focus.started report):
+ * D1 has no focus start, and its status can lag the hub. Falls back to the D1 mirror when the hub RPC fails.
+ */
+export async function serializeMeLive(env: Env, userId: string): Promise<Me> {
+  const [me, live] = await Promise.all([
+    serializeMe(env.DB, userId),
+    env.USER_HUB.getByName(userId)
+      .getPresenceState(userId)
+      .then(
+        (p): PresenceState | null => p,
+        (e: unknown) => {
+          console.error("serializeMeLive: UserHub presence read failed, using the D1 mirror", e);
+          return null;
+        },
+      ),
+  ]);
+  return live === null ? me : { ...me, presence: live };
 }
 
 const SHARED_SPACES_MAX = 10;

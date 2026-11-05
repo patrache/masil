@@ -10,7 +10,7 @@ import { err } from "../lib/errors";
 import { isId } from "../lib/ids";
 import { accessibleChannelIds } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
-import { loadUnreadStates, serializeMe, toUserSummary } from "../lib/serialize";
+import { loadUnreadStates, serializeMe, serializeMeLive, toUserSummary } from "../lib/serialize";
 import { isSingleEmoji, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
 import { removeUploads } from "../lib/uploads";
@@ -81,7 +81,7 @@ function updateStmt(db: D1Database, table: "users" | "user_settings", key: "id" 
 }
 
 meRoutes.get("/me", requireAuth, async (c) => {
-  return c.json({ user: await serializeMe(c.env.DB, getAuth(c).userId) });
+  return c.json({ user: await serializeMeLive(c.env, getAuth(c).userId) });
 });
 
 meRoutes.patch("/me/profile", requireAuth, vJson(ProfileBody), async (c) => {
@@ -116,7 +116,7 @@ meRoutes.patch("/me/profile", requireAuth, vJson(ProfileBody), async (c) => {
       `avatar_upload_id = COALESCE((SELECT u.id FROM uploads u WHERE u.id = ${p(id)} AND u.status = 'attached' AND u.attached_to = ${p(tag)}), avatar_upload_id)`,
     );
   }
-  if (sets.length === 0) return c.json({ user: await serializeMe(db, me) });
+  if (sets.length === 0) return c.json({ user: await serializeMeLive(c.env, me) });
   sets.push(`updated_at = ${p(now())}`);
   stmts.push(stmt(db, `UPDATE users SET ${sets.join(", ")} WHERE id = ${p(me)} RETURNING *`, ...binds));
   const results = await batch(db, stmts);
@@ -126,7 +126,7 @@ meRoutes.patch("/me/profile", requireAuth, vJson(ProfileBody), async (c) => {
   if (cur.avatar_upload_id !== null && row.avatar_upload_id !== cur.avatar_upload_id) await removeUploads(c.env, [cur.avatar_upload_id]);
   await publishUserUpdated(c, row);
   if (attachId !== null && row.avatar_upload_id !== attachId) throw err.invalid({ avatar_upload_id: "invalid" });
-  return c.json({ user: await serializeMe(db, me) });
+  return c.json({ user: await serializeMeLive(c.env, me) });
 });
 
 meRoutes.get("/me/settings", requireAuth, async (c) => {

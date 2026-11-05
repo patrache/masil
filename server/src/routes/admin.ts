@@ -38,10 +38,13 @@ const ResolveBody = z.object({
   note: zText(0, ADMIN_REASON_MAX).optional(),
 });
 
+/** Longest timed suspension. "Forever" is null; an unbounded value would push suspended_until past the Date range. */
+const SUSPEND_MAX_SEC = 10 * 365 * 86_400;
+
 /** api.md 5.22: duration_sec null / omitted = indefinite. */
 const SuspendBody = z.object({
   reason: zText(0, ADMIN_REASON_MAX),
-  duration_sec: z.number().int().min(1).nullable().optional(),
+  duration_sec: z.number().int().min(1).max(SUSPEND_MAX_SEC).nullable().optional(),
   report_id: zId.optional(),
 });
 

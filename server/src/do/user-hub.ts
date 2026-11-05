@@ -263,22 +263,24 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     }
 
     // 3-4. epoch check + D1 liveness write, serialized so concurrent connects don't rotate an epoch twice.
-    const accepted = await this.ctx.blockConcurrencyWhile(async () => {
+    // `d1Status` is the D1 mirror's status as the liveness upsert saw it (null when the write failed).
+    const d1Status = await this.ctx.blockConcurrencyWhile(async (): Promise<PresenceStatus | null> => {
       const t = this.now();
       const fullUntil = this.getMetaNum("full_until");
       const notifyUntil = this.getMetaNum("notify_until");
       if (this.epochOf("full") === "" || t >= fullUntil) this.setMeta("epoch_full", newId());
       if (this.epochOf("notify") === "" || t >= Math.max(fullUntil, notifyUntil)) this.setMeta("epoch_notify", newId());
       try {
-        const until = await this.extendLiveness(auth.userId, mode, t);
+        const { until, status } = await this.extendLiveness(auth.userId, mode, t);
         this.setMeta(mode === "full" ? "full_until" : "notify_until", until); // raise only after D1 succeeded
         this.setMeta("zero_since", ""); // a socket is connected from here on
-        return true;
+        return status;
       } catch (e) {
         console.error("UserHub: presence write failed on connect", e);
-        return false; // never throw inside blockConcurrencyWhile (it would reset the object)
+        return null; // never throw inside blockConcurrencyWhile (it would reset the object)
       }
     });
+    const accepted = d1Status !== null;
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
@@ -327,24 +329,27 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     // full 0->1 on this device: tell its daemons (events.md 7). Replaced full sockets may have been a device's last one.
     if (mode === "full" && !localTui) this.sendTuiState(deviceId, true);
     for (const dev of new Set(replacedFullDevices)) this.signalTuiGone(dev);
-    await this.recomputePresence();
+    await this.recomputePresence(d1Status);
     await this.scheduleAlarm();
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  /** D1 liveness for one mode: never shortens (MAX); returns the stored value (the new watermark). Throws on D1 failure. */
-  protected async extendLiveness(userId: string, mode: ConnMode, t: number): Promise<number> {
+  /**
+   * D1 liveness for one mode: never shortens (MAX); returns the stored value (the new watermark) and the row's status
+   * (the mirror the hub last wrote, unless cron cleanup task 9 rewrote it). Throws on D1 failure.
+   */
+  protected async extendLiveness(userId: string, mode: ConnMode, t: number): Promise<{ until: number; status: PresenceStatus }> {
     const col = mode === "full" ? "online_until" : "notify_online_until";
     const target = t + (mode === "full" ? FULL_ONLINE_MS : NOTIFY_ONLINE_MS);
     const row = await this.env.DB.prepare(
       `INSERT INTO user_presence (user_id, ${col}, updated_at) VALUES (?1, ?2, ?3)
        ON CONFLICT (user_id) DO UPDATE SET ${col} = MAX(${col}, excluded.${col}), updated_at = excluded.updated_at
-       RETURNING ${col} AS until`,
+       RETURNING ${col} AS until, status`,
     )
       .bind(userId, target, t)
-      .first<{ until: number }>();
+      .first<{ until: number; status: PresenceStatus }>();
     if (row === null) throw new Error("user_presence upsert returned no row");
-    return row.until;
+    return row;
   }
 
   // ---------------------------------------------------------------- delivery
@@ -856,7 +861,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
   /** One liveness extension; failures are logged and leave the watermark alone (step 3 of the alarm handles expiry). */
   protected async tryExtend(userId: string, mode: ConnMode, t: number): Promise<void> {
     try {
-      const until = await this.extendLiveness(userId, mode, t);
+      const { until } = await this.extendLiveness(userId, mode, t);
       this.setMeta(mode === "full" ? "full_until" : "notify_until", until);
     } catch (e) {
       console.error(`UserHub: ${mode} liveness extension failed`, e);
@@ -945,12 +950,28 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       .run();
   }
 
-  /** Recompute; on change: presence.self to my sockets (local), D1, presence.updated to my presence watchers. */
-  protected async recomputePresence(): Promise<void> {
+  /**
+   * Recompute; on change: presence.self to my sockets (local), D1, presence.updated to my presence watchers.
+   * `d1Status` (connect path) is what the D1 mirror says now: when the hub sees no change but D1 disagrees — cron
+   * cleanup task 9 marked a dnd user (dnd holds with zero sockets, events.md 6.3) offline while disconnected — D1 is
+   * rewritten and the hub's status re-announced, since watchers reading D1 (snapshot, GET /presence) saw it offline.
+   */
+  protected async recomputePresence(d1Status?: PresenceStatus): Promise<void> {
     const plan = this.planPresence();
-    if (plan === null) return;
-    await this.deliver({ userId: plan.userId, events: [plan.self] });
-    await this.finishPresence(plan);
+    if (plan !== null) {
+      await this.deliver({ userId: plan.userId, events: [plan.self] });
+      await this.finishPresence(plan);
+      return;
+    }
+    const userId = this.getMeta("user_id");
+    const status = (this.getMeta("last_status") ?? "offline") as PresenceStatus;
+    if (d1Status === undefined || userId === null || d1Status === status) return;
+    const lastSeen = this.getMetaNum("last_seen_at");
+    await this.finishPresence({
+      userId,
+      self: { type: "presence.self", data: { presence: this.presenceState() }, ts: this.now(), logged: false }, // not delivered: unchanged for me
+      watchers: { user_id: userId, status, last_seen_at: lastSeen > 0 ? iso(lastSeen) : null },
+    });
   }
 
   /** `presence.snapshot` (events.md 4.6): friends + dm/group_dm co-members, to this connection only, right after ready. */

@@ -9,7 +9,7 @@ import { all, batch, first, run, stmt } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
 import { isId, newId } from "../lib/ids";
 import { checkLimit, clientIp, limit } from "../lib/ratelimit";
-import { serializeMe, serializeSession } from "../lib/serialize";
+import { serializeMe, serializeMeLive, serializeSession } from "../lib/serialize";
 import { charCount, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
 import { vJson, zText } from "../lib/validate";
@@ -182,7 +182,7 @@ authRoutes.post("/auth/login", vJson(LoginBody), async (c) => {
   if (isSuspendedNow(user, t)) throw err.suspended(user.suspended_until, user.suspend_reason ?? "");
   const session = await newSession(c, user.id, body.client ?? "tui", body.device_name ?? "", t);
   await session.insert.run();
-  const me = await serializeMe(db, user.id);
+  const me = await serializeMeLive(c.env, user.id);
   return c.json({ token: session.token, session: serializeSession(session.row, session.row.id), user: me }, 200);
 });
 

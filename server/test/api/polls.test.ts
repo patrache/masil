@@ -1,7 +1,7 @@
 // test/api/polls.test.ts
 import { env } from "cloudflare:test";
 import { expect, test } from "vitest";
-import { api, signup, createPost, connectWs, makeSpace, watch } from "../helpers";
+import { api, signup, createPost, connectWs, follow, makeSpace, watch } from "../helpers";
 
 test("chat poll: vote replaces, poll.updated to channel with empty my_votes, non-member 404", async () => {
   const a = await signup(); const b = await signup(); const x = await signup();
@@ -49,4 +49,30 @@ test("concurrent double vote keeps voter_count 1", async () => {
   const poll = (await api(a.token).get<any>(`/v1/polls/${p.poll!.id}`)).body.poll;
   expect(poll.voter_count).toBe(1);
   expect(poll.options.reduce((s: number, o: any) => s + o.vote_count, 0)).toBe(1);
+});
+test("post poll.updated reaches only watchers who can view the post (blocked / non-follower of a private author get none)", async () => {
+  const settle = () => new Promise<void>((r) => setTimeout(r, 150));
+  // private author P: follower F gets it, stranger S does not
+  const p = await signup(); const f = await signup(); const s = await signup();
+  expect((await api(p.token).patch(`/v1/me/settings`, { is_private: true })).status).toBe(200);
+  expect(await follow(f, p)).toBe("pending");
+  expect((await api(p.token).post(`/v1/me/follow-requests/@${f.handle}/accept`)).status).toBeLessThan(300);
+  const pp = await createPost(p, "", { poll: { question: "비밀 질문?", options: ["x", "y"] } });
+  const wf = await connectWs(f.token); await watch(wf, [`post:${pp.id}`]);
+  const ws = await connectWs(s.token); await watch(ws, [`post:${pp.id}`]);
+  expect((await api(s.token).get(`/v1/polls/${pp.poll!.id}`)).status).toBe(404);
+  await api(p.token).put(`/v1/polls/${pp.poll!.id}/vote`, { option_idxs: [0] });
+  expect((await wf.next("poll.updated")).data.poll.question).toBe("비밀 질문?");
+  // public author A blocked by B, and C blocked by A: neither sees updates; an unrelated watcher W does
+  const a = await signup(); const b = await signup(); const c = await signup(); const w = await signup();
+  const ap = await createPost(a, "", { poll: { question: "공개?", options: ["x", "y"] } });
+  const wb = await connectWs(b.token); await watch(wb, [`post:${ap.id}`]);
+  const wc = await connectWs(c.token); await watch(wc, [`post:${ap.id}`]);
+  const ww = await connectWs(w.token); await watch(ww, [`post:${ap.id}`]);
+  expect((await api(b.token).put(`/v1/blocks/@${a.handle}`)).status).toBe(204);
+  expect((await api(a.token).put(`/v1/blocks/@${c.handle}`)).status).toBe(204);
+  await api(a.token).put(`/v1/polls/${ap.poll!.id}/vote`, { option_idxs: [1] });
+  await ww.next("poll.updated");
+  await settle();
+  for (const cl of [ws, wb, wc]) expect(cl.frames.filter((fr) => fr.type === "poll.updated")).toEqual([]);
 });

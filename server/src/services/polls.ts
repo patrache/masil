@@ -5,7 +5,7 @@ import { batch, first, stmt } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
 import { isId } from "../lib/ids";
 import { canViewPost, requireChannelRead } from "../lib/permissions";
-import { publishEvent } from "../lib/realtime";
+import { publishEvent, type VisibilitySpec } from "../lib/realtime";
 import { serializePolls } from "../lib/serialize";
 import { now } from "../lib/time";
 import type { Poll, PollInput } from "../types/api";
@@ -60,8 +60,12 @@ function isClosed(row: PollRow, nowMs: number): boolean {
   return row.closed_at !== null || (row.closes_at !== null && row.closes_at <= nowMs);
 }
 
-/** Where poll.updated goes: message polls -> the channel audience (logged); post polls -> topic post:<id> (ephemeral). */
-type PollTarget = { kind: "message"; channelId: string } | { kind: "post"; postId: string };
+/**
+ * Where poll.updated goes: message polls -> the channel audience (logged); post polls -> topic post:<id> (ephemeral),
+ * filtered like post.reply_created by the post author's visibility (api.md 3.4 can_view_post): watching a topic is not
+ * an access check, so blocked users and non-followers of a private author must be dropped by TopicHub.
+ */
+type PollTarget = { kind: "message"; channelId: string } | { kind: "post"; postId: string; authorId: string; authorPrivate: boolean };
 
 /**
  * The poll row and its event target when userId may read the message / post it belongs to (api.md 5.19: same as the
@@ -88,7 +92,9 @@ async function requirePollAccess(db: D1Database, pollId: string, userId: string)
   }
   const post = await first<PostRow>(db, "SELECT * FROM posts WHERE id = ?1 AND poll_id = ?2", poll.context_id, poll.id);
   if (post === null || !(await canViewPost(db, userId, post))) throw err.notFound("poll");
-  return { poll, target: { kind: "post", postId: post.id } };
+  const author = await first<{ is_private: number }>(db, "SELECT is_private FROM users WHERE id = ?1", post.author_id);
+  // a missing author row reads as private: the filter then keeps only the author (gone) and their followers
+  return { poll, target: { kind: "post", postId: post.id, authorId: post.author_id, authorPrivate: author === null || author.is_private === 1 } };
 }
 
 /** poll.updated with my_votes [] (events.md 4.2 / 4.8), published after the batch committed. */
@@ -96,7 +102,10 @@ async function publishPollUpdated(rt: Runtime, pollId: string, target: PollTarge
   const poll = (await serializePolls(rt.env.DB, null, [pollId])).get(pollId);
   if (poll === undefined) return;
   if (target.kind === "message") await publishEvent(rt, { channel: target.channelId }, "poll.updated", { poll });
-  else await publishEvent(rt, { topic: `post:${target.postId}` }, "poll.updated", { poll }, { ephemeral: true });
+  else {
+    const visibleTo: VisibilitySpec = { authors: [target.authorId], privateAuthors: target.authorPrivate ? [target.authorId] : [] };
+    await publishEvent(rt, { topic: `post:${target.postId}` }, "poll.updated", { poll }, { ephemeral: true, visibleTo });
+  }
 }
 
 async function viewerPoll(db: D1Database, pollId: string, userId: string): Promise<Poll> {

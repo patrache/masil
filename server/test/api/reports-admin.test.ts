@@ -84,6 +84,20 @@ test("suspend: socket 4003, login 403, admin target 409, report resolved user_su
   expect((await api(adm.token).post<any>(`/v1/admin/users/@${u.handle}/unsuspend`)).body.user).toMatchObject({ suspended: false, suspended_at: null });
   expect((await api().post("/v1/auth/login", { handle: u.handle, password: u.password })).status).toBe(200);
 });
+test("suspend duration_sec is bounded (10 years): an out-of-range value is 400 and suspends nobody; the max works", async () => {
+  const adm = await signup(); await makeAdmin(adm);
+  const u = await signup();
+  const big = await api(adm.token).post<any>(`/v1/admin/users/@${u.handle}/suspend`, { reason: "x", duration_sec: 10_000_000_000_000 });
+  expect(big.status).toBe(400);
+  expect(big.body.error.details.fields).toHaveProperty("duration_sec");
+  expect((await env.DB.prepare("SELECT suspended_at FROM users WHERE id = ?1").bind(u.user.id).first<any>()).suspended_at).toBeNull();
+  expect((await api().post("/v1/auth/login", { handle: u.handle, password: u.password })).status).toBe(200);
+  const max = await api(adm.token).post<any>(`/v1/admin/users/@${u.handle}/suspend`, { reason: "x", duration_sec: 10 * 365 * 86400 });
+  expect(max.status).toBe(200);
+  expect(max.body.user.suspended).toBe(true);
+  expect((await api(adm.token).get(`/v1/admin/users`)).status).toBe(200);
+  expect((await api().post<any>("/v1/auth/login", { handle: u.handle, password: u.password })).body.error.code).toBe("account_suspended");
+});
 test("suspension hides posts and media, unsuspend restores", async () => {
   const adm = await signup(); await makeAdmin(adm);
   const u = await signup(); const v = await signup();
