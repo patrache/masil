@@ -9,7 +9,7 @@ import { newId } from "../lib/ids";
 import { notifyMany, type NotifyInput } from "../lib/notify";
 import { canViewPost } from "../lib/permissions";
 import { publishEvent, type VisibilitySpec } from "../lib/realtime";
-import { serializePosts } from "../lib/serialize";
+import { loadUserSummaries, serializePosts } from "../lib/serialize";
 import { charCount, extractHashtags, extractMentions, normalizeText, plainSnippet } from "../lib/text";
 import { iso, now } from "../lib/time";
 import { removeUploads } from "../lib/uploads";
@@ -391,4 +391,140 @@ export async function deletePost(rt: Runtime, postId: string, actorId: string, o
   await publishEvent(rt, { followers: row.author_id }, "post.deleted", { post_id: row.id }, { ephemeral: true, includeSelf: row.author_id });
   if (row.reply_to_id !== null) await publishStats(rt, row.reply_to_id);
   if (row.quote_of_id !== null) await publishStats(rt, row.quote_of_id);
+}
+
+// ---------------------------------------------------------------------------
+// Likes and reposts (plan 02 Task 6, api.md 5.15). The caller (routes/posts.ts) has already checked that the post is
+// live and viewable (404 otherwise). Counters use the guard pattern inside one batch so a concurrent duplicate toggle
+// moves them once; the returned count is read in the same batch, after the write.
+
+export interface LikeState {
+  post_id: string;
+  liked: boolean;
+  like_count: number;
+}
+
+export interface RepostState {
+  post_id: string;
+  reposted: boolean;
+  repost_count: number;
+}
+
+const LIKED = "EXISTS (SELECT 1 FROM post_likes WHERE post_id = ?1 AND user_id = ?2)";
+const REPOSTED = "EXISTS (SELECT 1 FROM reposts WHERE post_id = ?1 AND user_id = ?2)";
+const POST_LIVE = "EXISTS (SELECT 1 FROM posts WHERE id = ?1 AND deleted_at IS NULL)";
+
+/** post_like / post_repost to the post author (notify skips self and block pairs); deduped per (post, actor). */
+function reactionNotification(post: PostRow, actor: UserRow, type: "post_like" | "post_repost"): NotifyInput {
+  const snippet = plainSnippet(post.body, 200);
+  return {
+    userId: post.author_id,
+    type,
+    actorId: actor.id,
+    subject: { type: "post", id: post.id },
+    preview: snippet,
+    context: { post_id: post.id },
+    dedupeKey: `${type}:${post.id}:${actor.id}`,
+    alert: {
+      kind: "social",
+      title: type === "post_like" ? `${actor.display_name} 님이 글을 좋아해요` : `${actor.display_name} 님이 글을 리포스트했어요`,
+      body: snippet,
+      target: postTarget(post.id),
+    },
+  };
+}
+
+/**
+ * PUT (on = true) / DELETE (on = false) /posts/:id/like. Only a real state change publishes post.stats on the post topic
+ * and (on like) the post_like notification; unliking never removes that notification.
+ */
+export async function setLike(rt: Runtime, post: PostRow, userId: string, on: boolean): Promise<LikeState> {
+  const db = rt.env.DB;
+  const t = now();
+  const stmts = on
+    ? [
+        stmt(db, `UPDATE posts SET like_count = like_count + 1 WHERE id = ?1 AND deleted_at IS NULL AND NOT ${LIKED}`, post.id, userId),
+        stmt(db, `INSERT OR IGNORE INTO post_likes (post_id, user_id, created_at) SELECT ?1, ?2, ?3 WHERE ${POST_LIVE}`, post.id, userId, t),
+      ]
+    : [
+        stmt(db, `UPDATE posts SET like_count = MAX(like_count - 1, 0) WHERE id = ?1 AND ${LIKED}`, post.id, userId),
+        stmt(db, "DELETE FROM post_likes WHERE post_id = ?1 AND user_id = ?2", post.id, userId),
+      ];
+  const results = await batch(db, [...stmts, stmt(db, "SELECT like_count FROM posts WHERE id = ?1", post.id)]);
+  const changed = results[1]!.meta.changes > 0;
+  const like_count = (results[2]!.results[0] as { like_count: number } | undefined)?.like_count ?? 0;
+
+  if (changed) {
+    await publishStats(rt, post.id);
+    if (on) {
+      const actor = await first<UserRow>(db, "SELECT * FROM users WHERE id = ?1", userId);
+      if (actor !== null) await scheduleNotifications(rt, "like notification", () => notifyMany(rt, [reactionNotification(post, actor, "post_like")]));
+    }
+  }
+  return { post_id: post.id, liked: on, like_count };
+}
+
+/**
+ * PUT (on = true) / DELETE (on = false) /posts/:id/repost. Reposting a private account's post -> 403 action_not_allowed
+ * (anyone, the author included); undoing an existing repost is always allowed. A new repost row (id = newId) publishes
+ * timeline.item_created (type "repost", ephemeral) to the reposter's active followers + the reposter through the
+ * visibility filter (authors = reposter + post author + quoted author), post.stats on the post topic and post_repost.
+ */
+export async function setRepost(rt: Runtime, post: PostRow, userId: string, on: boolean): Promise<RepostState> {
+  const db = rt.env.DB;
+  const t = now();
+  let author: UserRow | null = null;
+  if (on) {
+    author = await first<UserRow>(db, "SELECT * FROM users WHERE id = ?1", post.author_id);
+    if (author === null) throw err.notFound("post");
+    if (author.is_private === 1) throw err.forbidden("action_not_allowed", "posts of private accounts cannot be reposted");
+  }
+  const repostId = newId(t);
+  const stmts = on
+    ? [
+        stmt(db, `UPDATE posts SET repost_count = repost_count + 1 WHERE id = ?1 AND deleted_at IS NULL AND NOT ${REPOSTED}`, post.id, userId),
+        stmt(
+          db,
+          `INSERT OR IGNORE INTO reposts (id, post_id, user_id, created_at) SELECT ?3, ?1, ?2, ?4 WHERE ${POST_LIVE}`,
+          post.id,
+          userId,
+          repostId,
+          t,
+        ),
+      ]
+    : [
+        stmt(db, `UPDATE posts SET repost_count = MAX(repost_count - 1, 0) WHERE id = ?1 AND ${REPOSTED}`, post.id, userId),
+        stmt(db, "DELETE FROM reposts WHERE post_id = ?1 AND user_id = ?2", post.id, userId),
+      ];
+  const results = await batch(db, [...stmts, stmt(db, "SELECT * FROM posts WHERE id = ?1", post.id)]);
+  const changed = results[1]!.meta.changes > 0;
+  const fresh = (results[2]!.results[0] as PostRow | undefined) ?? post;
+  const repost_count = fresh.repost_count;
+
+  if (changed) {
+    if (on) {
+      const quotedAuthorId =
+        post.quote_of_id === null
+          ? null
+          : ((await first<{ author_id: string }>(db, "SELECT author_id FROM posts WHERE id = ?1", post.quote_of_id))?.author_id ?? null);
+      const relatedIds = [...new Set([userId, post.author_id, ...(quotedAuthorId !== null ? [quotedAuthorId] : [])])];
+      const [related, [eventPost], summaries] = await Promise.all([
+        all<Pick<UserRow, "id" | "is_private">>(db, "SELECT id, is_private FROM users WHERE id IN (SELECT value FROM json_each(?1))", jsonList(relatedIds)),
+        serializePosts(db, null, [fresh]),
+        loadUserSummaries(db, [userId]),
+      ]);
+      const reposter = summaries.get(userId);
+      if (eventPost !== undefined && reposter !== undefined) {
+        const item: TimelineItem = { id: repostId, type: "repost", post: eventPost, reposted_by: reposter, at: iso(t) };
+        const visibleTo: VisibilitySpec = { authors: relatedIds, privateAuthors: related.filter((u) => u.is_private === 1).map((u) => u.id) };
+        await publishEvent(rt, { followers: userId }, "timeline.item_created", { item }, { ephemeral: true, includeSelf: userId, visibleTo });
+      }
+    }
+    await publishStats(rt, post.id);
+    if (on) {
+      const actor = await first<UserRow>(db, "SELECT * FROM users WHERE id = ?1", userId);
+      if (actor !== null) await scheduleNotifications(rt, "repost notification", () => notifyMany(rt, [reactionNotification(post, actor, "post_repost")]));
+    }
+  }
+  return { post_id: post.id, reposted: on, repost_count };
 }

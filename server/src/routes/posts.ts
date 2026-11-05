@@ -1,5 +1,6 @@
 // Posts (api.md 5.15): POST /posts, GET /posts/:post_id, DELETE /posts/:post_id (plan 02 Task 4),
-// GET /posts/:post_id/context, /replies, /quotes (Task 5). Task 6 adds likes and reposts. requireAuth is a per-route argument.
+// GET /posts/:post_id/context, /replies, /quotes (Task 5), PUT|DELETE /like, /repost and GET /likes, /reposts (Task 6).
+// requireAuth is a per-route argument.
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
@@ -9,10 +10,10 @@ import { err } from "../lib/errors";
 import { isId } from "../lib/ids";
 import { canViewPost, postVisibilitySql } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
-import { serializePosts } from "../lib/serialize";
+import { loadUserSummaries, serializePosts } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vJson, zId, zNonce, zPollInput } from "../lib/validate";
-import { createPost, deletePost } from "../services/posts";
+import { createPost, deletePost, setLike, setRepost } from "../services/posts";
 import type { PostRow } from "../types/rows";
 
 // Lengths, the 4-image limit (422) and upload ownership are checked in services/posts.ts (createPost).
@@ -172,4 +173,85 @@ postRoutes.get("/posts/:post_id/quotes", requireAuth, async (c) => {
   );
   const pg = page(rows, n);
   return c.json({ items: await serializePosts(db, me, pg.rows), next_cursor: pg.next_cursor });
+});
+
+// ---- likes and reposts (plan 02 Task 6) ----
+
+postRoutes.put("/posts/:post_id/like", requireAuth, limit("RL_REACT"), async (c) => {
+  const me = getAuth(c).userId;
+  const row = await requireVisiblePost(c.env.DB, me, c.req.param("post_id"));
+  return c.json(await setLike(rt(c), row, me, true));
+});
+
+postRoutes.delete("/posts/:post_id/like", requireAuth, limit("RL_REACT"), async (c) => {
+  const me = getAuth(c).userId;
+  const row = await requireVisiblePost(c.env.DB, me, c.req.param("post_id"));
+  return c.json(await setLike(rt(c), row, me, false));
+});
+
+postRoutes.put("/posts/:post_id/repost", requireAuth, limit("RL_REACT"), async (c) => {
+  const me = getAuth(c).userId;
+  const row = await requireVisiblePost(c.env.DB, me, c.req.param("post_id"));
+  return c.json(await setRepost(rt(c), row, me, true));
+});
+
+postRoutes.delete("/posts/:post_id/repost", requireAuth, limit("RL_REACT"), async (c) => {
+  const me = getAuth(c).userId;
+  const row = await requireVisiblePost(c.env.DB, me, c.req.param("post_id"));
+  return c.json(await setRepost(rt(c), row, me, false));
+});
+
+/** Users in a block relation with the viewer (either way) are left out of /likes and /reposts. */
+const NOT_BLOCKED_WITH_VIEWER = (col: string) =>
+  `NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ?2 AND b.blocked_id = ${col}) OR (b.blocker_id = ${col} AND b.blocked_id = ?2))`;
+
+/** Likers, newest first (cursor {k: created_at, i: user_id}). Post not viewable -> 404. */
+postRoutes.get("/posts/:post_id/likes", requireAuth, async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const post = await requireVisiblePost(db, me, c.req.param("post_id"));
+  const n = parseLimit(c.req.query("limit"), 30, 100);
+  const cur = decodeCursor(c.req.query("cursor"));
+  if (cur !== null && (typeof cur.k !== "number" || !isId(cur.i))) throw err.invalid({ cursor: "invalid" });
+  const rows = await all<{ user_id: string; created_at: number }>(
+    db,
+    `SELECT l.user_id, l.created_at FROM post_likes l
+      WHERE l.post_id = ?1 AND ${NOT_BLOCKED_WITH_VIEWER("l.user_id")}
+        AND (?3 IS NULL OR l.created_at < ?3 OR (l.created_at = ?3 AND l.user_id < ?4))
+      ORDER BY l.created_at DESC, l.user_id DESC
+      LIMIT ?5`,
+    post.id,
+    me,
+    cur?.k ?? null,
+    cur?.i ?? null,
+    n + 1,
+  );
+  const kept = rows.slice(0, n);
+  const users = await loadUserSummaries(db, kept.map((r) => r.user_id));
+  const last = kept[kept.length - 1];
+  const next_cursor = rows.length > n && last ? encodeCursor({ k: last.created_at, i: last.user_id }) : null;
+  return c.json({ items: kept.flatMap((r) => users.get(r.user_id) ?? []), next_cursor });
+});
+
+/** Reposters, newest first (cursor {k: i: reposts.id}). Post not viewable -> 404. */
+postRoutes.get("/posts/:post_id/reposts", requireAuth, async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const post = await requireVisiblePost(db, me, c.req.param("post_id"));
+  const n = parseLimit(c.req.query("limit"), 30, 100);
+  const before = cursorId(c.req.query("cursor"));
+  const rows = await all<{ id: string; user_id: string }>(
+    db,
+    `SELECT r.id, r.user_id FROM reposts r
+      WHERE r.post_id = ?1 AND ${NOT_BLOCKED_WITH_VIEWER("r.user_id")} AND (?3 IS NULL OR r.id < ?3)
+      ORDER BY r.id DESC
+      LIMIT ?4`,
+    post.id,
+    me,
+    before,
+    n + 1,
+  );
+  const pg = page(rows, n);
+  const users = await loadUserSummaries(db, pg.rows.map((r) => r.user_id));
+  return c.json({ items: pg.rows.flatMap((r) => users.get(r.user_id) ?? []), next_cursor: pg.next_cursor });
 });
