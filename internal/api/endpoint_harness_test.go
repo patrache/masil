@@ -18,17 +18,20 @@ import (
 // epCase is one endpoint method exercised against the fake server (plan 03
 // Task 10/11 shared harness): one table row per endpoint.
 type epCase struct {
-	name      string // method name; "Method/variant" for extra rows of the same method
-	route     string // apitest pattern, e.g. "POST /v1/friends/requests"
-	status    int    // response status (0 => 200, or 204 when resp is "")
-	resp      string // canned JSON ("" for 204)
-	call      func(c *api.Client) (any, error)
-	wantPath  string // exact escaped path (Recorded.Path == r.URL.EscapedPath()); "" => route path
-	wantQuery string // url.Values.Encode() of the expected query ("" if none); compared semantically
-	wantBody  string // expected JSON body (semantic compare) or "" for no body
-	noAuth    bool   // the request must NOT carry Authorization
-	limiter   string // dedicated api.md 0.7 limiter ("" => only RL_API)
-	check     func(t *testing.T, got any)
+	name       string // method name; "Method/variant" for extra rows of the same method
+	route      string // apitest pattern, e.g. "POST /v1/friends/requests"
+	status     int    // response status (0 => 200, or 204 when resp is "")
+	resp       string // canned JSON ("" for 204)
+	call       func(c *api.Client) (any, error)
+	wantPath   string            // exact escaped path (Recorded.Path == r.URL.EscapedPath()); "" => route path
+	wantQuery  string            // url.Values.Encode() of the expected query ("" if none); compared semantically
+	wantBody   string            // expected JSON body (semantic compare) or "" for no body
+	wantRaw    string            // expected exact non-JSON body (uploads); wins over wantBody
+	reqHeader  map[string]string // request headers that must be present with these values
+	respHeader map[string]string // response headers to set (Content-Type overrides the JSON default)
+	noAuth     bool              // the request must NOT carry Authorization
+	limiter    string            // dedicated api.md 0.7 limiter ("" => only RL_API)
+	check      func(t *testing.T, got any)
 }
 
 // dedicatedLimiters are every api.md 0.7 limiter an endpoint can name
@@ -81,11 +84,16 @@ func runCase(t *testing.T, c epCase) {
 		mu.Lock()
 		hdr = r.Header.Clone()
 		mu.Unlock()
+		for k, v := range c.respHeader {
+			w.Header().Set(k, v)
+		}
 		if c.resp == "" {
 			w.WriteHeader(status)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if w.Header().Get("Content-Type") == "" {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		}
 		w.WriteHeader(status)
 		w.Write([]byte(c.resp))
 	})
@@ -124,15 +132,25 @@ func runCase(t *testing.T, c epCase) {
 			t.Errorf("query = %q, want %q", rec.Query, c.wantQuery)
 		}
 	}
-	if c.wantBody == "" {
+	switch {
+	case c.wantRaw != "":
+		if string(rec.Body) != c.wantRaw {
+			t.Errorf("raw body = %q, want %q", rec.Body, c.wantRaw)
+		}
+	case c.wantBody == "":
 		if len(rec.Body) != 0 {
 			t.Errorf("body = %s, want none", rec.Body)
 		}
-	} else {
+	default:
 		jsonEqual(t, rec.Body, c.wantBody)
 	}
 	mu.Lock()
 	auth := hdr.Get("Authorization")
+	for k, want := range c.reqHeader {
+		if got := hdr.Get(k); got != want {
+			t.Errorf("request header %s = %q, want %q", k, got, want)
+		}
+	}
 	mu.Unlock()
 	switch {
 	case c.noAuth && auth != "":

@@ -24,6 +24,7 @@ const (
 	mediaTimeout   = 120 * time.Second // uploads and media fetches
 	maxErrorBody   = 1 << 20           // error envelopes are tiny; never buffer more
 	maxRetryWait   = 10 * time.Second  // SendMessage/ReplyThread auto-retry ceiling
+	maxMediaBody   = 32 << 20          // media bodies (uploads are <= 5 MiB); never buffer more
 )
 
 // Client talks to the masil REST API. It is safe for concurrent use.
@@ -168,6 +169,7 @@ func (c *Client) AuthHeader() http.Header {
 // request is one REST call, built by the endpoint methods (ep_*.go).
 type request struct {
 	Method, Path  string     // Path is already escaped: build it with escPath
+	URL           string     // absolute URL used instead of base+Path (FetchMedia); Path still names the call in errors
 	Query         url.Values // encoded with Encode (sorted keys)
 	Body          any        // JSON body (Content-Type application/json; charset=utf-8)
 	RawBody       io.Reader  // non-JSON body (uploads); wins over Body
@@ -187,6 +189,15 @@ func escPath(segs ...string) string {
 		b.WriteString(url.PathEscape(s))
 	}
 	return b.String()
+}
+
+// rawResponse is an out value for call that receives a non-JSON body
+// (GET /v1/media/{id}): a 2xx body is read as bytes (at most maxMediaBody)
+// and a 304 Not Modified counts as success. Other statuses are *Error as usual.
+type rawResponse struct {
+	Status int
+	Header http.Header
+	Data   []byte // nil for 204/304
 }
 
 // errEnvelope is the api.md 0.5 error body.
@@ -262,8 +273,15 @@ func (c *Client) do(ctx context.Context, r request, out any, checkCooldown bool)
 	}
 
 	u := c.base + r.Path
+	if r.URL != "" {
+		u = r.URL
+	}
 	if len(r.Query) > 0 {
-		u += "?" + r.Query.Encode()
+		sep := "?"
+		if strings.Contains(u, "?") {
+			sep = "&"
+		}
+		u += sep + r.Query.Encode()
 	}
 	var body io.Reader
 	contentType := ""
@@ -312,6 +330,10 @@ func (c *Client) do(ctx context.Context, r request, out any, checkCooldown bool)
 	}
 	defer resp.Body.Close()
 
+	if rr, ok := out.(*rawResponse); ok && (resp.StatusCode == http.StatusNotModified || resp.StatusCode >= 200 && resp.StatusCode < 300) {
+		return c.readRaw(parent, r, resp, rr)
+	}
+
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		if out == nil || resp.StatusCode == http.StatusNoContent {
 			io.Copy(io.Discard, io.LimitReader(resp.Body, maxErrorBody))
@@ -358,6 +380,30 @@ func (c *Client) do(ctx context.Context, r request, out any, checkCooldown bool)
 		}
 	}
 	return e.Status, e
+}
+
+// readRaw fills rr from a 2xx/304 response (see rawResponse).
+func (c *Client) readRaw(parent context.Context, r request, resp *http.Response, rr *rawResponse) (int, error) {
+	rr.Status = resp.StatusCode
+	rr.Header = resp.Header.Clone()
+	rr.Data = nil
+	if resp.StatusCode == http.StatusNotModified || resp.StatusCode == http.StatusNoContent {
+		return resp.StatusCode, nil
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxMediaBody+1))
+	if err != nil {
+		if parent.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+			return resp.StatusCode, fmt.Errorf("api: %s %s: %w", r.Method, r.Path, errRequestTimeout)
+		}
+		return resp.StatusCode, fmt.Errorf("api: %s %s: read body: %w", r.Method, r.Path, err)
+	}
+	if len(data) > maxMediaBody {
+		e := decodeError(resp.StatusCode, fmt.Sprintf("response body exceeds %d bytes", maxMediaBody))
+		e.RequestID = resp.Header.Get("X-Request-Id")
+		return resp.StatusCode, e
+	}
+	rr.Data = data
+	return resp.StatusCode, nil
 }
 
 // parseError builds *Error from a non-2xx response. A body that is not the

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/patrache/masil/internal/ids"
@@ -45,91 +46,126 @@ func (c *Client) CreatePost(ctx context.Context, r CreatePostRequest) (p *Post, 
 	return &out.Post, st == http.StatusCreated, nil
 }
 
+// GetPost: GET /v1/posts/{id}
 func (c *Client) GetPost(ctx context.Context, postID string) (*Post, error) {
-	// TODO(core): Task 11
-	return nil, nil
+	v, _, err := one[Post](ctx, c, request{Method: "GET", Path: escPath("v1", "posts", postID), Auth: true}, "post")
+	return v, err
 }
 
+// GetPostContext: GET /v1/posts/{id}/context (ancestors from the root, max 20).
 func (c *Client) GetPostContext(ctx context.Context, postID string) (*PostContext, error) {
-	// TODO(core): Task 11
-	return nil, nil
+	var out PostContext
+	if _, err := c.call(ctx, request{Method: "GET", Path: escPath("v1", "posts", postID, "context"), Auth: true}, &out); err != nil {
+		return nil, err
+	}
+	if out.Ancestors == nil {
+		out.Ancestors = []Post{}
+	}
+	return &out, nil
 }
 
+// ListReplies: GET /v1/posts/{id}/replies?cursor=&limit= (direct replies, ID ascending).
 func (c *Client) ListReplies(ctx context.Context, postID string, p PageOpts) (*Page[Post], error) {
-	// TODO(core): Task 11
-	return nil, nil
+	return page[Post](ctx, c, request{Method: "GET", Path: escPath("v1", "posts", postID, "replies"), Query: p.values(nil), Auth: true})
 }
 
+// DeletePost: DELETE /v1/posts/{id} (204).
 func (c *Client) DeletePost(ctx context.Context, postID string) error {
-	// TODO(core): Task 11
-	return nil
+	_, err := c.call(ctx, request{Method: "DELETE", Path: escPath("v1", "posts", postID), Auth: true}, nil)
+	return err
 }
 
-// Like: PUT /v1/posts/{id}/like.
-func (c *Client) Like(ctx context.Context, postID string) (*LikeResult, error) {
-	var out LikeResult
-	if _, err := c.call(ctx, request{Method: "PUT", Path: escPath("v1", "posts", postID, "like"), Limiter: rlReact, Auth: true}, &out); err != nil {
+// likeOrRepost performs PUT/DELETE /v1/posts/{id}/<what> (RL_REACT) into T.
+func likeOrRepost[T any](ctx context.Context, c *Client, method, postID, what string) (*T, error) {
+	var out T
+	if _, err := c.call(ctx, request{Method: method, Path: escPath("v1", "posts", postID, what), Limiter: rlReact, Auth: true}, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
+// Like: PUT /v1/posts/{id}/like.
+func (c *Client) Like(ctx context.Context, postID string) (*LikeResult, error) {
+	return likeOrRepost[LikeResult](ctx, c, "PUT", postID, "like")
+}
+
+// Unlike: DELETE /v1/posts/{id}/like.
 func (c *Client) Unlike(ctx context.Context, postID string) (*LikeResult, error) {
-	// TODO(core): Task 11
-	return nil, nil
+	return likeOrRepost[LikeResult](ctx, c, "DELETE", postID, "like")
 }
 
+// ListLikes: GET /v1/posts/{id}/likes?cursor=&limit=
 func (c *Client) ListLikes(ctx context.Context, postID string, p PageOpts) (*Page[UserSummary], error) {
-	// TODO(core): Task 11
-	return nil, nil
+	return page[UserSummary](ctx, c, request{Method: "GET", Path: escPath("v1", "posts", postID, "likes"), Query: p.values(nil), Auth: true})
 }
 
+// Repost: PUT /v1/posts/{id}/repost.
 func (c *Client) Repost(ctx context.Context, postID string) (*RepostResult, error) {
-	// TODO(core): Task 11
-	return nil, nil
+	return likeOrRepost[RepostResult](ctx, c, "PUT", postID, "repost")
 }
 
+// Unrepost: DELETE /v1/posts/{id}/repost.
 func (c *Client) Unrepost(ctx context.Context, postID string) (*RepostResult, error) {
-	// TODO(core): Task 11
-	return nil, nil
+	return likeOrRepost[RepostResult](ctx, c, "DELETE", postID, "repost")
 }
 
+// ListReposts: GET /v1/posts/{id}/reposts?cursor=&limit=
 func (c *Client) ListReposts(ctx context.Context, postID string, p PageOpts) (*Page[UserSummary], error) {
-	// TODO(core): Task 11
-	return nil, nil
+	return page[UserSummary](ctx, c, request{Method: "GET", Path: escPath("v1", "posts", postID, "reposts"), Query: p.values(nil), Auth: true})
 }
 
+// ListQuotes: GET /v1/posts/{id}/quotes?cursor=&limit=
 func (c *Client) ListQuotes(ctx context.Context, postID string, p PageOpts) (*Page[Post], error) {
-	// TODO(core): Task 11
-	return nil, nil
+	return page[Post](ctx, c, request{Method: "GET", Path: escPath("v1", "posts", postID, "quotes"), Query: p.values(nil), Auth: true})
 }
 
+// ---- 5.16 timelines / hashtags / trends ----
+
+// TimelineQuery is the shared timeline query (api.md 5.16): cursor/limit, and
+// Since = a TimelineItem.id to fetch only newer items (Gap when more than limit).
 type TimelineQuery struct {
 	PageOpts
 	Since string
 }
 
-func (c *Client) FollowingTimeline(ctx context.Context, q TimelineQuery) (*TimelinePage, error) {
-	// TODO(core): Task 11
-	return nil, nil
-}
-
-func (c *Client) DiscoverTimeline(ctx context.Context, q TimelineQuery) (*TimelinePage, error) {
-	// TODO(core): Task 11
-	return nil, nil
-}
-
-// HashtagPosts: GET /v1/hashtags/{tag}/posts; tag without "#" (a leading "#" is dropped), path-escaped.
-func (c *Client) HashtagPosts(ctx context.Context, tag string, p PageOpts) (*Page[Post], error) {
-	var out Page[Post]
-	path := escPath("v1", "hashtags", strings.TrimPrefix(tag, "#"), "posts")
-	if _, err := c.call(ctx, request{Method: "GET", Path: path, Query: p.values(nil), Auth: true}, &out); err != nil {
+// timeline performs GET <path>?cursor=&limit=&since=.
+func (c *Client) timeline(ctx context.Context, path string, q TimelineQuery) (*TimelinePage, error) {
+	query := url.Values{}
+	setIf(query, "since", q.Since)
+	var out TimelinePage
+	if _, err := c.call(ctx, request{Method: "GET", Path: path, Query: q.PageOpts.values(query), Auth: true}, &out); err != nil {
 		return nil, err
+	}
+	if out.Items == nil {
+		out.Items = []TimelineItem{}
 	}
 	return &out, nil
 }
 
+// FollowingTimeline: GET /v1/timeline/following
+func (c *Client) FollowingTimeline(ctx context.Context, q TimelineQuery) (*TimelinePage, error) {
+	return c.timeline(ctx, "/v1/timeline/following", q)
+}
+
+// DiscoverTimeline: GET /v1/timeline/discover
+func (c *Client) DiscoverTimeline(ctx context.Context, q TimelineQuery) (*TimelinePage, error) {
+	return c.timeline(ctx, "/v1/timeline/discover", q)
+}
+
+// HashtagPosts: GET /v1/hashtags/{tag}/posts; tag without "#" (a leading "#" is dropped), path-escaped.
+func (c *Client) HashtagPosts(ctx context.Context, tag string, p PageOpts) (*Page[Post], error) {
+	path := escPath("v1", "hashtags", strings.TrimPrefix(tag, "#"), "posts")
+	return page[Post](ctx, c, request{Method: "GET", Path: path, Query: p.values(nil), Auth: true})
+}
+
+// Trends: GET /v1/trends
 func (c *Client) Trends(ctx context.Context) (*Trends, error) {
-	// TODO(core): Task 11
-	return nil, nil
+	var out Trends
+	if _, err := c.call(ctx, request{Method: "GET", Path: "/v1/trends", Auth: true}, &out); err != nil {
+		return nil, err
+	}
+	if out.Items == nil {
+		out.Items = []Trend{}
+	}
+	return &out, nil
 }
