@@ -81,24 +81,20 @@ type ResyncDoneMsg struct{ Err error }
 
 // Toast emits a ToastMsg.
 func Toast(text string, kind ToastKind) tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	return func() tea.Msg { return ToastMsg{Text: text, Kind: kind} }
 }
 
 // RunCommand emits a RunCommandMsg.
 func RunCommand(id, args string) tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	return func() tea.Msg { return RunCommandMsg{ID: id, Args: args} }
 }
 
 // OpenOverlay emits OpenOverlayMsg{Overlay: o}.
 func OpenOverlay(o Overlay) tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	return func() tea.Msg { return OpenOverlayMsg{Overlay: o} }
 }
 
 // OpenRegisteredOverlay emits OpenOverlayMsg{ID: id, Args: args}.
 func OpenRegisteredOverlay(id, args string) tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	return func() tea.Msg { return OpenOverlayMsg{ID: id, Args: args} }
 }

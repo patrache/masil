@@ -38,8 +38,7 @@ type Route struct {
 
 // Key is Kind + "/" + ID + "/" + Arg (Anchor/Query excluded => same instance).
 func (r Route) Key() string {
-	// TODO(core): Task 19
-	return ""
+	return string(r.Kind) + "/" + r.ID + "/" + r.Arg
 }
 
 // Target selects the destination stack for pushable kinds.
@@ -67,18 +66,15 @@ type RouteUpdatedMsg struct{ Route Route }
 
 // Navigate emits NavigateMsg{Route: r}.
 func Navigate(r Route) tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	return func() tea.Msg { return NavigateMsg{Route: r} }
 }
 
 // NavigateTo emits NavigateMsg{Route: r, Target: t}.
 func NavigateTo(r Route, t Target) tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	return func() tea.Msg { return NavigateMsg{Route: r, Target: t} }
 }
 
 // Back emits BackMsg.
 func Back() tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	return func() tea.Msg { return BackMsg{} }
 }

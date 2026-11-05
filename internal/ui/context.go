@@ -40,15 +40,26 @@ type Realtime interface {
 }
 
 // Me returns the logged-in user.
+// It is Store.Me: nil before login, without a store, or on a nil Context.
 func (c *Context) Me() *api.Me {
-	// TODO(core): Task 19
-	return nil
+	if c == nil || c.Store == nil {
+		return nil
+	}
+	return c.Store.Me
 }
 
 // Density is derived from Mode.
 func (c *Context) Density() Density {
-	// TODO(core): Task 19
-	return DensityFull
+	switch c.Mode {
+	case layout.ModeCommand, layout.ModeStandard:
+		return DensityFull
+	case layout.ModeCompact:
+		return DensityLine
+	case layout.ModeWidget:
+		return DensityBubble
+	default: // ModeTiny, ModeTooSmall
+		return DensityMinimal
+	}
 }
 
 // Density is the message rendering density.

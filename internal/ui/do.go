@@ -17,7 +17,15 @@ type ResultMsg[T any] struct {
 
 // Do runs fn off the UI goroutine and returns ResultMsg[T]{Tag, Value, Err}.
 // In the uitest harness the returned Cmd runs synchronously (apitest server).
+// The client is captured when Do is called; fn runs with context.Background()
+// (timeouts are the api client's defaults).
 func Do[T any](c *Context, tag string, fn func(ctx context.Context, api *api.Client) (T, error)) tea.Cmd {
-	// TODO(core): Task 19
-	return nil
+	var client *api.Client
+	if c != nil {
+		client = c.API
+	}
+	return func() tea.Msg {
+		v, err := fn(context.Background(), client)
+		return ResultMsg[T]{Tag: tag, Value: v, Err: err}
+	}
 }
