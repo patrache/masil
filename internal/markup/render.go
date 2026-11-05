@@ -147,7 +147,7 @@ func inlineSegs(ins []Inline, o RenderOptions) []seg {
 			k.kind = kInlineCode
 		case Link:
 			k.kind = kLink
-			if o.Hyperlinks {
+			if o.Hyperlinks && SafeURL(in.URL) {
 				k.url = in.URL
 			}
 		case Mention:
@@ -347,7 +347,7 @@ func style(t *theme.Theme, k styleKey) lipgloss.Style {
 	case kInlineCode:
 		return t.S.InlineCode
 	case kLink:
-		if k.url != "" {
+		if k.url != "" && SafeURL(k.url) { // second guard: never put control bytes in OSC 8
 			return t.S.Link.Hyperlink(k.url)
 		}
 		return t.S.Link

@@ -294,3 +294,102 @@ func TestRenderGolden(t *testing.T) {
 		})
 	}
 }
+
+// hasControl reports a control rune (C0, DEL, C1) or an invalid UTF-8 byte.
+func hasControl(s string) bool {
+	for _, r := range s {
+		if r < 0x20 || r >= 0x7f && r <= 0x9f || r == '�' {
+			return true
+		}
+	}
+	return false
+}
+
+func TestParseURLControlBytes(t *testing.T) {
+	for _, body := range []string{
+		"go https://a.com/\x07XXXX\x1b[8m",
+		"https://a.com/x\x07\x1b]0;PWNED\x07",
+		"https://a.com/x\x1b\\y \u009b31m https://b.com/\x9b31m",
+		"[t](https://a.com/\x07x) [u](https://a.com/\u009bx) [v](https://a.com/\x9bx)",
+		"https://a.com/\x7fz",
+	} {
+		for _, in := range nonText(markup.Parse(body, markup.ParseOptions{})) {
+			if in.Kind == markup.Link && hasControl(in.URL) {
+				t.Errorf("Parse(%q): link URL has control bytes: %q", body, in.URL)
+			}
+		}
+	}
+	// The bare-URL scan ends at the first control rune.
+	got := nonText(markup.Parse("go https://a.com/x\x07y", markup.ParseOptions{}))
+	want := []markup.Inline{{Kind: markup.Link, Text: "https://a.com/x", URL: "https://a.com/x"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("bare URL with BEL = %+v, want %+v", got, want)
+	}
+	// A [t](u) link whose URL holds a control rune is not a link; only the
+	// clean prefix may still match as a bare URL.
+	got = nonText(markup.Parse("[t](https://a.com/\x1bx)", markup.ParseOptions{}))
+	want = []markup.Inline{{Kind: markup.Link, Text: "https://a.com/", URL: "https://a.com/"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("bracket link with ESC = %+v, want %+v", got, want)
+	}
+}
+
+// checkOnlyOSC8 fails if out contains an OSC sequence other than OSC 8 or any
+// escape sequence that is not SGR / OSC 8.
+func checkOnlyOSC8(t *testing.T, out string) {
+	t.Helper()
+	var state byte
+	for len(out) > 0 {
+		seq, _, n, ns := ansi.DecodeSequence(out, state, nil)
+		state = ns
+		switch {
+		case ansi.HasOscPrefix(seq):
+			if !strings.HasPrefix(seq, "\x1b]8;") {
+				t.Errorf("non-OSC-8 sequence %q", seq)
+			}
+		case ansi.HasCsiPrefix(seq):
+			if !strings.HasSuffix(seq, "m") {
+				t.Errorf("non-SGR CSI %q", seq)
+			}
+		case strings.HasPrefix(seq, "\x1b") || hasControl(seq):
+			t.Errorf("stray control sequence %q", seq)
+		}
+		out = out[n:]
+	}
+}
+
+func TestRenderHyperlinkControlBytes(t *testing.T) {
+	bodies := []string{
+		"go https://a.com/\x07" + strings.Repeat("X", 80) + "\x1b[8m",
+		"https://a.com/x\x07\x1b]0;PWNED\x07",
+		"https://a.com/x\x1b]52;c;cHduZWQ=\x07 [t](https://a.com/\u009b31m) https://b.com/\x9b31m",
+		"[t](https://a.com/\x1b\\x) https://c.com/\x1b\\" + strings.Repeat("Y", 40),
+	}
+	for _, body := range bodies {
+		d := markup.Parse(body, markup.ParseOptions{Hashtags: true})
+		for _, w := range []int{80, 20, 5} {
+			lines := markup.Render(d, amber, markup.RenderOptions{Width: w, Hyperlinks: true})
+			checkLines(t, lines, w)
+			for _, l := range lines {
+				checkOnlyOSC8(t, l)
+			}
+		}
+		compact := markup.Render(d, amber, markup.RenderOptions{Width: 20, Compact: true, Hyperlinks: true})
+		checkLines(t, compact, 20)
+		for _, l := range compact {
+			checkOnlyOSC8(t, l)
+		}
+	}
+	// Second guard: a hand-built Link with a control rune in URL renders without OSC 8.
+	d := markup.Doc{Blocks: []markup.Block{{Kind: markup.Paragraph, Inline: []markup.Inline{
+		{Kind: markup.Link, Text: "t", URL: "https://a.com/\x07\x1b]0;X\x07"},
+	}}}}
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 20, Hyperlinks: true})
+	checkLines(t, lines, 20)
+	for _, l := range lines {
+		checkOnlyOSC8(t, l)
+		if strings.Contains(l, "\x1b]8;") {
+			t.Errorf("unsafe URL still hyperlinked: %q", l)
+		}
+	}
+}

@@ -310,11 +310,31 @@ func (p *inlineParser) link(i int) int {
 		return p.literal(i, 1)
 	}
 	url := s[j+2 : j+2+k]
-	if !isWebURL(url) || strings.IndexFunc(url, unicode.IsSpace) >= 0 {
+	if !isWebURL(url) || strings.IndexFunc(url, unicode.IsSpace) >= 0 || !SafeURL(url) {
 		return p.literal(i, 1)
 	}
 	p.emit(Inline{Kind: Link, Text: text, URL: url})
 	return j + 2 + k + 1 - i
+}
+
+// unsafeURLRune reports a control rune (C0, DEL, C1) or an invalid UTF-8
+// byte: either could end or forge a terminal escape sequence (OSC 8 link
+// target, CA 10.2 hostile bodies), so URLs never contain one.
+func unsafeURLRune(r rune, size int) bool {
+	return unicode.IsControl(r) || r == utf8.RuneError && size <= 1
+}
+
+// SafeURL reports whether u is valid UTF-8 without control runes, i.e. safe
+// to embed in an OSC 8 hyperlink or hand to a link opener.
+func SafeURL(u string) bool {
+	for i := 0; i < len(u); {
+		r, size := utf8.DecodeRuneInString(u[i:])
+		if unsafeURLRune(r, size) {
+			return false
+		}
+		i += size
+	}
+	return true
 }
 
 const urlTrailing = ".,)!?:;"
@@ -328,7 +348,7 @@ func (p *inlineParser) bareURL(i int) int {
 	end := i
 	for end < len(s) {
 		r, size := utf8.DecodeRuneInString(s[end:])
-		if unicode.IsSpace(r) || strings.ContainsRune("<>\"`", r) {
+		if unicode.IsSpace(r) || strings.ContainsRune("<>\"`", r) || unsafeURLRune(r, size) {
 			break
 		}
 		end += size
