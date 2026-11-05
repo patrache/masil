@@ -44,15 +44,20 @@ const (
 // pickerSpec describes a user picker. Candidates are offered without a query
 // (filtered by the query); with Search the server is asked too (2+ runes, 300ms
 // debounce). Exclude hides users (I am always hidden). Max caps the picks (0 =
-// no cap). NameField adds the "대화 이름(선택)" field (tab). Query is the first
-// query. OnPick/OnDone follow the form's tag and morph rules (formSpec).
+// no cap). NameField adds the "대화 이름(선택)" field (tab), shown once at least
+// NameFrom users are picked (0 = always). Order sorts the offered Candidates
+// (nil = by display name). Query is the first query. OnPick/OnDone follow the
+// form's tag and morph rules (formSpec); OnPick gets the name only while the name
+// field is shown.
 type pickerSpec struct {
 	Title, Submit string
 	Max           int
 	Search        bool
 	Candidates    func(ctx *ui.Context) []api.UserSummary
 	Exclude       func(ctx *ui.Context, id string) bool
+	Order         func(ctx *ui.Context, a, b api.UserSummary) int
 	NameField     bool
+	NameFrom      int
 	Query         string
 	OnPick        func(ctx *ui.Context, users []api.UserSummary, name string) (tag string, cmd tea.Cmd)
 	OnDone        func(ctx *ui.Context, result tea.Msg) (tea.Cmd, ui.Overlay)
@@ -179,7 +184,7 @@ func (p *userPicker) Help(ctx *ui.Context) []key.Binding {
 		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "고르기·"+p.submitText())),
 		key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "이동")),
 	}
-	if p.spec.NameField {
+	if p.nameShown() {
 		hs = append(hs, key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "이름 칸")))
 	}
 	return append(hs, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")))
@@ -251,7 +256,11 @@ func (p *userPicker) refresh(ctx *ui.Context) {
 		}
 	}
 	slices.SortFunc(local, func(a, b api.UserSummary) int {
-		return cmp.Or(strings.Compare(displayName(a), displayName(b)), strings.Compare(a.ID, b.ID))
+		byName := cmp.Or(strings.Compare(displayName(a), displayName(b)), strings.Compare(a.ID, b.ID))
+		if p.spec.Order != nil {
+			return cmp.Or(p.spec.Order(ctx, a, b), byName)
+		}
+		return byName
 	})
 	if p.spec.Search && q != "" {
 		for _, u := range p.remote {
@@ -318,7 +327,11 @@ func (p *userPicker) submit(ctx *ui.Context) tea.Cmd {
 	if p.spec.OnPick == nil {
 		return p.done(ctx, nil)
 	}
-	tag, cmd := p.spec.OnPick(ctx, slices.Clone(p.chips), strings.TrimSpace(p.name.Value()))
+	name := ""
+	if p.nameShown() {
+		name = strings.TrimSpace(p.name.Value())
+	}
+	tag, cmd := p.spec.OnPick(ctx, slices.Clone(p.chips), name)
 	if tag == "" {
 		return tea.Batch(cmd, p.done(ctx, nil))
 	}
@@ -336,6 +349,11 @@ func (p *userPicker) done(ctx *ui.Context, result tea.Msg) tea.Cmd {
 }
 
 // ---- input ----
+
+// nameShown reports whether the name field is shown (NameField, NameFrom picks).
+func (p *userPicker) nameShown() bool {
+	return p.spec.NameField && len(p.chips) >= p.spec.NameFrom
+}
 
 func (p *userPicker) setNameFocus(on bool) {
 	p.onName = on
@@ -361,7 +379,7 @@ func (p *userPicker) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.
 	}
 	switch s {
 	case "tab", "shift+tab":
-		if p.spec.NameField {
+		if p.nameShown() {
 			p.setNameFocus(!p.onName)
 		}
 		return true, nil
@@ -510,9 +528,9 @@ const (
 	rowName
 )
 
-// fixedRows are the always-present rows: query, chips, (name).
+// fixedRows are the field rows: query, chips, (name).
 func (p *userPicker) fixedRows() []int {
-	if p.spec.NameField {
+	if p.nameShown() {
 		return []int{rowQuery, rowChips, rowName}
 	}
 	return []int{rowQuery, rowChips}

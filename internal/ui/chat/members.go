@@ -596,11 +596,8 @@ func openDMCmd(ctx *ui.Context, users []api.UserRef, name string) tea.Cmd {
 	if len(refs) > 0 {
 		first = string(refs[0])
 	}
-	req := api.OpenDMRequest{Users: refs}
-	if name != "" {
-		req.Name = api.Some(name)
-	}
-	return doAction(ctx, "chat.dm_open:"+first, func(c context.Context, cl *api.Client) (*api.Channel, error) {
+	req := dmRequest(refs, name)
+	return doAction(ctx, tagDMOpen+first, func(c context.Context, cl *api.Client) (*api.Channel, error) {
 		ch, _, err := cl.OpenDM(c, req)
 		return ch, err
 	}, func(ctx *ui.Context, ch *api.Channel, err error) tea.Cmd {

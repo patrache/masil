@@ -139,6 +139,12 @@ var chatRouteTable = []chatRoute{
 	{"DELETE /v1/friends/requests/{id}", "DELETE /v1/friends/requests/01JFPROBE00000000000000000", noContent},
 	{"DELETE /v1/friends/{user}", "DELETE /v1/friends/@probe", noContent},
 	{"POST /v1/dms", "POST /v1/dms", echoOpenDM},
+	{"PUT /v1/channels/{id}/prefs", "PUT /v1/channels/01JBPROBE00000000000000000/prefs", echoPrefs},
+	{"PATCH /v1/channels/{id}", "PATCH /v1/channels/01JBPROBE00000000000000000", echoUpdateChannel},
+	{"DELETE /v1/channels/{id}", "DELETE /v1/channels/01JBPROBE00000000000000000", noContent},
+	{"POST /v1/channels/{id}/members", "POST /v1/channels/01JBPROBE00000000000000000/members", echoAddMembers},
+	{"DELETE /v1/channels/{id}/members/{user}", "DELETE /v1/channels/01JBPROBE00000000000000000/members/@me", noContent},
+	{"GET /v1/spaces/{id}/members", "GET /v1/spaces/01JBPROBE00000000000000000/members", spaceMembers},
 }
 
 // newAPI is apitest.New + fixtures.RegisterAPI + chatRoutes, in this order (tests overlay after it).
@@ -378,6 +384,83 @@ func echoOpenDM(w http.ResponseWriter, r *http.Request) {
 	}
 	ch.MemberCount = len(ch.Members)
 	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch})
+}
+
+// channelOrStub is knownChannel(id), else a stub text channel with that id.
+func channelOrStub(id string) api.Channel {
+	if ch, ok := knownChannel(id); ok {
+		return ch
+	}
+	return api.Channel{ID: id, Kind: api.ChannelText, CreatedAt: routeNow(), My: api.ChannelMyState{Notify: "all"}}
+}
+
+// echoPrefs answers PUT /v1/channels/{id}/prefs with the channel's my state changed by the body.
+func echoPrefs(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Notify *string `json:"notify"`
+		Muted  *bool   `json:"muted"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	my := channelOrStub(r.PathValue("id")).My
+	if in.Notify != nil {
+		my.Notify = *in.Notify
+	}
+	if in.Muted != nil {
+		my.Muted = *in.Muted
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"my": my})
+}
+
+// echoUpdateChannel answers PATCH /v1/channels/{id} with the channel renamed / re-topiced by the body.
+func echoUpdateChannel(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name  *string `json:"name"`
+		Topic *string `json:"topic"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	ch := channelOrStub(r.PathValue("id"))
+	if in.Name != nil {
+		ch.Name = in.Name
+	}
+	if in.Topic != nil {
+		ch.Topic = *in.Topic
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channel": ch})
+}
+
+// echoAddMembers answers POST /v1/channels/{id}/members with the users added
+// (to Members for a DM-like channel; the count always).
+func echoAddMembers(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Users []string `json:"users"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	ch := channelOrStub(r.PathValue("id"))
+	for _, ref := range in.Users {
+		if ch.Kind == api.ChannelGroupDM || ch.Kind == api.ChannelDM {
+			ch.Members = append(ch.Members, userByRef(ref))
+		}
+		ch.MemberCount++
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channel": ch})
+}
+
+// spaceMembers answers GET /v1/spaces/{id}/members with every seeded user (me = owner).
+func spaceMembers(w http.ResponseWriter, _ *http.Request) {
+	s := seeded()
+	items := []api.SpaceMember{}
+	for _, h := range memberHandles {
+		for _, u := range s.Users {
+			if u.Handle == h {
+				role := api.RoleMember
+				if s.IsMe(u.ID) {
+					role = api.RoleOwner
+				}
+				items = append(items, api.SpaceMember{User: *u, Role: role, JoinedAt: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)})
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": nil})
 }
 
 // ---- harness helpers ----
