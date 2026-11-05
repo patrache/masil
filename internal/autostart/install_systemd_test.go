@@ -17,6 +17,7 @@ import (
 // so these tests run on every OS.
 
 var systemdInstallCalls = []string{
+	"systemctl --user show-environment", // probe: is there a user manager at all?
 	"systemctl --user daemon-reload",
 	"systemctl --user enable masil-daemon.service",
 	"systemctl --user restart masil-daemon.service",
@@ -88,24 +89,83 @@ func TestInstallLinuxNoSystemctl(t *testing.T) {
 	}
 }
 
+// A failing systemctl step after the unit was written rolls the registration
+// back, so `masil daemon status` never reports an autostart that will not run.
 func TestInstallLinuxCommandFails(t *testing.T) {
 	t.Setenv("MASIL_CONFIG_DIR", "")
-	_, calls := fakeEnv(t, map[string]string{
-		"systemctl --user daemon-reload": "",
-		"systemctl --user enable ":       "",
+	home, calls := fakeEnv(t, map[string]string{
+		"systemctl --user show-environment": "",
+		"systemctl --user daemon-reload":    "",
+		"systemctl --user enable ":          "",
 	})
 	err := systemdInstall(writeExe(t), config.Paths{})
 	if err == nil || !strings.Contains(err.Error(), "systemctl --user restart masil-daemon.service") {
 		t.Fatalf("err = %v", err)
 	}
-	if !slices.Equal(*calls, systemdInstallCalls) {
+	want := append(slices.Clone(systemdInstallCalls),
+		"systemctl --user disable masil-daemon.service", // rollback, best effort
+		"systemctl --user daemon-reload",
+	)
+	if !slices.Equal(*calls, want) {
 		t.Fatalf("calls %q", *calls)
+	}
+	if _, err := os.Stat(unitPath(home)); !os.IsNotExist(err) {
+		t.Fatal("unit left behind after a failed install")
+	}
+	if st, err := systemdQuery(); err != nil || st.Installed {
+		t.Fatalf("status after failed install: %+v, %v", st, err)
+	}
+}
+
+// systemctl on PATH but no systemd user manager (WSL without systemd,
+// containers, SSH without a user bus): the guidance error, nothing written.
+func TestInstallLinuxNoUserManager(t *testing.T) {
+	t.Setenv("MASIL_CONFIG_DIR", "")
+	home, calls := fakeEnv(t, map[string]string{}) // every systemctl call fails
+	err := systemdInstall(writeExe(t), config.Paths{})
+	if !errors.Is(err, errNoSystemd) {
+		t.Fatalf("err = %v, want errNoSystemd", err)
+	}
+	if !slices.Equal(*calls, []string{"systemctl --user show-environment"}) {
+		t.Fatalf("calls %q", *calls)
+	}
+	if _, err := os.Stat(unitPath(home)); !os.IsNotExist(err) {
+		t.Fatal("unit written without a user manager")
+	}
+}
+
+// Uninstall without a reachable user manager still removes the unit file and
+// does not fail on daemon-reload.
+func TestUninstallLinuxNoUserManager(t *testing.T) {
+	t.Setenv("MASIL_CONFIG_DIR", "")
+	home, calls := fakeEnv(t, map[string]string{"systemctl --user ": ""})
+	if err := systemdInstall(writeExe(t), config.Paths{}); err != nil {
+		t.Fatal(err)
+	}
+	run = func(name string, args ...string) ([]byte, error) {
+		*calls = append(*calls, strings.Join(append([]string{name}, args...), " "))
+		return []byte("Failed to connect to bus: No medium found"), errors.New("exit status 1")
+	}
+	*calls = nil
+	if err := systemdUninstall(); err != nil {
+		t.Fatal("uninstall without a user manager must still succeed:", err)
+	}
+	if _, err := os.Stat(unitPath(home)); !os.IsNotExist(err) {
+		t.Fatal("unit left behind")
+	}
+	if !slices.Equal(*calls, []string{"systemctl --user show-environment"}) {
+		t.Fatalf("calls %q", *calls)
+	}
+	*calls = nil
+	if err := systemdUninstall(); err != nil {
+		t.Fatal("second uninstall must be a no-op:", err)
 	}
 }
 
 func TestQueryLinux(t *testing.T) {
 	t.Setenv("MASIL_CONFIG_DIR", "")
 	home, calls := fakeEnv(t, map[string]string{
+		"systemctl --user show-environment":               "",
 		"systemctl --user daemon-reload":                  "",
 		"systemctl --user enable ":                        "",
 		"systemctl --user restart ":                       "",
@@ -131,9 +191,10 @@ func TestQueryLinux(t *testing.T) {
 func TestQueryLinuxInactiveAndMissingExe(t *testing.T) {
 	t.Setenv("MASIL_CONFIG_DIR", "")
 	fakeEnv(t, map[string]string{
-		"systemctl --user daemon-reload": "",
-		"systemctl --user enable ":       "",
-		"systemctl --user restart ":      "",
+		"systemctl --user show-environment": "",
+		"systemctl --user daemon-reload":    "",
+		"systemctl --user enable ":          "",
+		"systemctl --user restart ":         "",
 	})
 	prevRun := run
 	run = func(name string, args ...string) ([]byte, error) {
@@ -157,9 +218,10 @@ func TestQueryLinuxInactiveAndMissingExe(t *testing.T) {
 func TestUninstallLinux(t *testing.T) {
 	t.Setenv("MASIL_CONFIG_DIR", "")
 	home, calls := fakeEnv(t, map[string]string{
-		"systemctl --user daemon-reload": "",
-		"systemctl --user enable ":       "",
-		"systemctl --user restart ":      "",
+		"systemctl --user show-environment": "",
+		"systemctl --user daemon-reload":    "",
+		"systemctl --user enable ":          "",
+		"systemctl --user restart ":         "",
 	})
 	if err := systemdInstall(writeExe(t), config.Paths{}); err != nil {
 		t.Fatal(err)
@@ -173,14 +235,20 @@ func TestUninstallLinux(t *testing.T) {
 		t.Fatal("unit left behind")
 	}
 	want := []string{
+		"systemctl --user show-environment",
 		"systemctl --user disable --now masil-daemon.service",
 		"systemctl --user daemon-reload",
 	}
 	if !slices.Equal(*calls, want) {
 		t.Fatalf("calls %q", *calls)
 	}
+	*calls = nil
 	if err := systemdUninstall(); err != nil {
 		t.Fatal("second uninstall must be a no-op:", err)
+	}
+	// The unit file is already gone: nothing to reload.
+	if !slices.Equal(*calls, want[:2]) {
+		t.Fatalf("second uninstall calls %q", *calls)
 	}
 }
 
