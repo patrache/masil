@@ -131,7 +131,7 @@ function loadChannel(db: D1Database, channelId: string): Promise<ChannelRow | nu
 
 /** Notification fan-out after commit + publish: awaited in tests, waitUntil otherwise; failures are logged only. */
 function scheduleNotifications(rt: Runtime, label: string, work: () => Promise<void>): Promise<void> {
-  const p = work().catch((e) => console.error("messages background task failed", { label, err: errFields(e) }));
+  const p = work().catch((e) => console.error({ msg: "messages background task failed", label, err: errFields(e) }));
   if (rt.env.APP_ENV === "test") return p;
   rt.waitUntil(p);
   return Promise.resolve();

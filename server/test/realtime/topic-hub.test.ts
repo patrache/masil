@@ -48,7 +48,7 @@ describe("TopicHub", () => {
     expect(await stub.inspect()).toEqual({ watchers: 0 });
   });
 
-  it("a failed deliver logs a constant message with topic/target/err as fields (pending item 7)", async () => {
+  it("a failed deliver logs one object: constant msg plus topic/target/err as fields (pending item 7)", async () => {
     const topic = `post:${newId()}`; const target = "u_x\nFAKE LOG LINE %s"; const stub = env.TOPIC_HUB.getByName(topic);
     await stub.join(target, 300_000);
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -60,10 +60,10 @@ describe("TopicHub", () => {
       });
       expect(n).toBe(0);
       expect(spy).toHaveBeenCalledTimes(1);
-      const [msg, fields] = spy.mock.calls[0];
-      expect(msg).toBe("TopicHub deliver failed");
-      expect(spy.mock.calls[0]).toHaveLength(2);
-      expect(fields).toMatchObject({ topic, target, err: { name: "Error", message: "deliver boom" } });
+      expect(spy.mock.calls[0]).toHaveLength(1);
+      const [fields] = spy.mock.calls[0];
+      expect(fields).toMatchObject({ msg: "TopicHub deliver failed", topic, target, err: { name: "Error", message: "deliver boom" } });
+      expect(Object.keys(fields)[0]).toBe("msg");
     } finally {
       spy.mockRestore();
     }

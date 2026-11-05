@@ -13,6 +13,6 @@ export async function handleScheduled(controller: ScheduledController, env: Env,
       await runCleanup(env);
       return;
     default:
-      console.warn("unknown cron", { cron: controller.cron });
+      console.warn({ msg: "unknown cron", cron: controller.cron });
   }
 }

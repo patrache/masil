@@ -43,7 +43,7 @@ function isUniqueViolation(e: unknown): boolean {
 
 /** Notifications after commit: awaited in tests, waitUntil otherwise; failures are logged only. */
 function scheduleNotifications(rt: Runtime, label: string, work: () => Promise<void>): Promise<void> {
-  const p = work().catch((e) => console.error("posts background task failed", { label, err: errFields(e) }));
+  const p = work().catch((e) => console.error({ msg: "posts background task failed", label, err: errFields(e) }));
   if (rt.env.APP_ENV === "test") return p;
   rt.waitUntil(p);
   return Promise.resolve();
@@ -390,7 +390,7 @@ export async function deletePost(rt: Runtime, postId: string, actorId: string, o
   try {
     await removeUploads(rt.env, media.map((m) => m.upload_id));
   } catch (e) {
-    console.error("posts: media removal failed", { post_id: row.id, err: errFields(e) }); // rows stay non-removed; retried by cleanup
+    console.error({ msg: "posts: media removal failed", post_id: row.id, err: errFields(e) }); // rows stay non-removed; retried by cleanup
   }
 
   await publishEvent(rt, { topic: `post:${row.id}` }, "post.deleted", { post_id: row.id }, { ephemeral: true });

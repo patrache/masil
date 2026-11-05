@@ -196,7 +196,7 @@ export async function serializeMeLive(env: Env, userId: string): Promise<Me> {
       .then(
         (p): PresenceState | null => p,
         (e: unknown) => {
-          console.error("serializeMeLive: UserHub presence read failed, using the D1 mirror", { err: errFields(e) });
+          console.error({ msg: "serializeMeLive: UserHub presence read failed, using the D1 mirror", err: errFields(e) });
           return null;
         },
       ),

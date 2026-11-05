@@ -48,7 +48,7 @@ export async function revokeSessions(
   try {
     await rt.env.USER_HUB.getByName(userId).revokeSessions(userId, targets, reason);
   } catch (e) {
-    console.error("revokeSessions: UserHub call failed", { err: errFields(e) });
+    console.error({ msg: "revokeSessions: UserHub call failed", err: errFields(e) });
   }
 }
 

@@ -66,7 +66,7 @@ export class TopicHub extends DurableObject<Cloudflare.Env> {
       const results = await Promise.allSettled(chunk.map((userId) => this.env.USER_HUB.getByName(userId).deliver({ userId, events: tagged })));
       results.forEach((r, j) => {
         if (r.status === "fulfilled") delivered++;
-        else console.error("TopicHub deliver failed", { topic, target: chunk[j], err: errFields(r.reason) });
+        else console.error({ msg: "TopicHub deliver failed", topic, target: chunk[j], err: errFields(r.reason) });
       });
     }
     return delivered;

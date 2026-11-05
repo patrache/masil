@@ -269,7 +269,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       try {
         dead = await this.sessionDeadReason(auth, t);
       } catch (e) {
-        console.error("UserHub: session check failed on connect", { err: errFields(e) });
+        console.error({ msg: "UserHub: session check failed on connect", err: errFields(e) });
         return { d1Status: null, dead: null }; // never throw inside blockConcurrencyWhile (it would reset the object)
       }
       if (dead !== null) return { d1Status: null, dead };
@@ -283,7 +283,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         this.setMeta("zero_since", ""); // a socket is connected from here on
         return { d1Status: status, dead: null };
       } catch (e) {
-        console.error("UserHub: presence write failed on connect", { err: errFields(e) });
+        console.error({ msg: "UserHub: presence write failed on connect", err: errFields(e) });
         return { d1Status: null, dead: null };
       }
     });
@@ -626,7 +626,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     try {
       ok = await this.canTypeIn(a.userId, data.channel_id);
     } catch (e) {
-      console.error("UserHub: typing access check failed", { err: errFields(e) });
+      console.error({ msg: "UserHub: typing access check failed", err: errFields(e) });
       ok = false;
     }
     if (!ok) {
@@ -677,7 +677,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       ];
       const results = await Promise.allSettled(calls.map((c) => c.p));
       results.forEach((r, i) => {
-        if (r.status === "rejected") console.error("UserHub: TopicHub watch call failed", { op: calls[i].op, topic: calls[i].t, err: errFields(r.reason) });
+        if (r.status === "rejected") console.error({ msg: "UserHub: TopicHub watch call failed", op: calls[i].op, topic: calls[i].t, err: errFields(r.reason) });
       });
     };
     const p = this.watchQueue.then(run, run);
@@ -737,7 +737,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
-    console.error("UserHub: websocket error", { err: errFields(error) });
+    console.error({ msg: "UserHub: websocket error", err: errFields(error) });
     this.closeWs(ws, CloseCode.internal, "socket error");
     await this.onSocketGone(ws);
     await this.recomputePresence();
@@ -764,7 +764,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
           zero: others.length === 0 && (this.getMeta("zero_since") ?? "") === "",
         });
       } catch (e) {
-        console.error("UserHub: close handling failed", { err: errFields(e) }); // never throw inside blockConcurrencyWhile
+        console.error({ msg: "UserHub: close handling failed", err: errFields(e) }); // never throw inside blockConcurrencyWhile
       }
     });
   }
@@ -799,7 +799,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         .bind(...binds, t, this.getMeta("user_id") ?? userId)
         .run();
     } catch (e) {
-      console.error("UserHub: presence write failed on disconnect", { err: errFields(e) });
+      console.error({ msg: "UserHub: presence write failed on disconnect", err: errFields(e) });
     }
   }
 
@@ -813,7 +813,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       try {
         await this.runAlarm();
       } catch (e) {
-        console.error("UserHub: alarm failed", { err: errFields(e) }); // never throw inside blockConcurrencyWhile
+        console.error({ msg: "UserHub: alarm failed", err: errFields(e) }); // never throw inside blockConcurrencyWhile
       }
     });
     // Outside blockConcurrencyWhile: these publish (RPCs to other hubs). Natural focus end, then whatever the
@@ -822,7 +822,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       await this.catchUpFocus();
       await this.recomputePresence();
     } catch (e) {
-      console.error("UserHub: alarm presence/focus failed", { err: errFields(e) });
+      console.error({ msg: "UserHub: alarm presence/focus failed", err: errFields(e) });
     }
     await this.scheduleAlarm();
   }
@@ -909,7 +909,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       const { until } = await this.extendLiveness(userId, mode, t);
       this.setMeta(mode === "full" ? "full_until" : "notify_until", until);
     } catch (e) {
-      console.error("UserHub: liveness extension failed", { mode, err: errFields(e) });
+      console.error({ msg: "UserHub: liveness extension failed", mode, err: errFields(e) });
     }
   }
 
@@ -975,7 +975,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     try {
       await write;
     } catch (e) {
-      console.error("UserHub: presence write failed", { err: errFields(e) });
+      console.error({ msg: "UserHub: presence write failed", err: errFields(e) });
     }
     if (plan.watchers !== null) {
       await publishEvent(this.runtime(), { presenceWatchers: plan.userId }, "presence.updated", plan.watchers, { ephemeral: true });
@@ -1040,7 +1040,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         rows.map((r) => r.id),
       );
     } catch (e) {
-      console.error("UserHub: presence snapshot failed", { err: errFields(e) }); // still send one: the client waits for it after ready
+      console.error({ msg: "UserHub: presence snapshot failed", err: errFields(e) }); // still send one: the client waits for it after ready
     }
     if (ws.readyState === WebSocket.OPEN) this.sendFrame(ws, "presence.snapshot", { items });
   }
@@ -1191,7 +1191,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
           zero: live.length === 0 && (this.getMeta("zero_since") ?? "") === "",
         });
       } catch (e) {
-        console.error("UserHub: revoke bookkeeping failed", { err: errFields(e) }); // never throw inside blockConcurrencyWhile
+        console.error({ msg: "UserHub: revoke bookkeeping failed", err: errFields(e) }); // never throw inside blockConcurrencyWhile
       }
     });
     await this.recomputePresence();

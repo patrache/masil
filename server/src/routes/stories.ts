@@ -304,7 +304,7 @@ storyRoutes.delete("/stories/:story_id", requireAuth, async (c) => {
     try {
       await removeUploads(c.env, [story.media_upload_id]);
     } catch (e) {
-      console.error("stories: media removal failed", { story_id: story.id, err: errFields(e) });
+      console.error({ msg: "stories: media removal failed", story_id: story.id, err: errFields(e) });
     }
   }
   await publishEvent(

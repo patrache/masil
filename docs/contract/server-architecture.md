@@ -275,14 +275,21 @@ export class TopicHub extends DurableObject<Env> {
 
 ### 3.6 로그 형식
 
-- 모든 `console.*` 호출은 **상수 메시지 + 구조화 필드 객체 하나(선택)** 다:
-  `console.error("TopicHub deliver failed", { topic, target, err: errFields(e) })`.
-- 값(토픽·사용자 ID·요청 경로·라벨·오류 문자열)을 메시지에 넣지 않는다 — 템플릿 리터럴·문자열 연결·메시지 뒤 위치 인자 모두 금지.
-  메시지에 섞인 값은 줄바꿈 등으로 로그 줄을 위조·분할할 수 있고, 첫 인자의 `%` 는 console 서식 지시자가 되어 다음 인자를 먹는다.
-  메시지에는 `%` 도 쓰지 않는다.
+- 모든 `console.*` 호출은 **구조화 객체 하나**만 넘기고, 그 첫 키는 상수 메시지 `msg` 다:
+  `console.error({ msg: "TopicHub deliver failed", topic, target, err: errFields(e) })`.
+  Workers Logs 문서가 필드로 색인된다고 보여 주는 모양이 이 단일 객체 형식이다(workers-logs 문서 "log in JSON format").
+  `console.error("msg", {...})` 같은 두 인자 형식이 어떻게 색인되는지는 문서에 없으므로 쓰지 않는다.
+- 값(토픽·사용자 ID·요청 경로·라벨·오류 문자열)을 `msg` 에 넣지 않는다 — 템플릿 리터럴·문자열 연결·객체 뒤 위치 인자 모두 금지.
+  메시지에 섞인 값은 줄바꿈 등으로 로그 줄을 위조·분할할 수 있다. `msg` 는 이스케이프 없는 큰따옴표 상수 문자열이고,
+  객체에 `msg` 를 다시 쓰거나 펼침(`...`)·계산된 키를 쓰지 않는다(`msg` 를 덮어쓸 수 있으므로).
+- `console` 은 `console.<log|info|warn|error|debug>(` 호출로만 쓴다 — 별칭(`const log = console.error`, `const { error } = console`),
+  `.call`/`.apply`, `console?.`, `console["error"]` 금지(검사기가 모양을 볼 수 없다).
 - 오류는 `err: errFields(e)` 로 넣는다(`src/lib/log.ts`). Error 의 name·message·stack 은 열거되지 않는 속성이라 필드 객체 안에
-  그대로 두면 JSON 으로 `{}` 가 된다. Workers Logs 는 객체의 키를 필드로 색인한다.
-- `test/unit/log-format.test.ts` 가 `src/**/*.ts` 전체를 훑어 이 형식을 강제한다.
+  그대로 두면 JSON 으로 `{}` 가 된다. `errFields` 는 **절대 던지지 않는다** — `blockConcurrencyWhile` 안의 catch 와 `.catch`
+  처리기에서 불리므로, 문자열 변환이 실패하는 값(`Object.create(null)` 등)은 `"[unprintable thrown value]"` 로 남긴다.
+- `test/unit/log-format.test.ts` 가 `src/**/*.ts` 전체를 (주석·문자열을 걷어 낸 코드에서) 훑어 이 형식을 강제한다.
+- 범위: Workers 로그로 가는 `server/src` 만이다. `server/scripts/`(예: `smoke.mjs`)는 개발자 터미널에 사람이 읽을 출력을 내는
+  로컬 Node CLI 라 Workers Logs 에 닿지 않으므로 이 규칙에서 뺀다.
 
 ## 4. 공유 헬퍼 시그니처
 

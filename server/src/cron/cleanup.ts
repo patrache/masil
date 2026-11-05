@@ -112,7 +112,7 @@ export async function runCleanup(env: Env): Promise<void> {
     try {
       await fn();
     } catch (e) {
-      console.error("cleanup task failed", { task: name, err: errFields(e) });
+      console.error({ msg: "cleanup task failed", task: name, err: errFields(e) });
     }
   }
 }

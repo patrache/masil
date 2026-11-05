@@ -161,14 +161,14 @@ async function rpcDeliver(env: Env, userIds: string[], events: OutboundEvent[] |
     const chunk = userIds.slice(i, i + RPC_CHUNK);
     const results = await Promise.allSettled(chunk.map((userId) => env.USER_HUB.getByName(userId).deliver({ userId, events: eventsFor(userId) })));
     results.forEach((r, j) => {
-      if (r.status === "rejected") console.error("realtime: deliver failed", { target: chunk[j], err: errFields(r.reason) });
+      if (r.status === "rejected") console.error({ msg: "realtime: deliver failed", target: chunk[j], err: errFields(r.reason) });
     });
   }
 }
 
 /** Test env: run to completion so tests are deterministic; otherwise hand to waitUntil and return at once. */
 function schedule(rt: Runtime, label: string, work: () => Promise<void>): Promise<void> {
-  const p = work().catch((e) => console.error("realtime background task failed", { label, err: errFields(e) }));
+  const p = work().catch((e) => console.error({ msg: "realtime background task failed", label, err: errFields(e) }));
   if (rt.env.APP_ENV === "test") return p;
   rt.waitUntil(p);
   return Promise.resolve();

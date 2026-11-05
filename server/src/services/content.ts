@@ -63,7 +63,7 @@ async function removeUploadsLogged(rt: Runtime, ids: string[], what: string): Pr
   try {
     await removeUploads(rt.env, ids);
   } catch (e) {
-    console.error("content: media removal failed", { what, err: errFields(e) }); // rows stay non-removed; retried by cleanup
+    console.error({ msg: "content: media removal failed", what, err: errFields(e) }); // rows stay non-removed; retried by cleanup
   }
 }
 
