@@ -111,6 +111,7 @@ const (
 	leaveSpaceBody    = "다시 들어오려면 초대를 받아야 해요"
 	leaveSpaceYes     = "나가기"
 	spaceLeftText     = "방에서 나왔어요"
+	leavingSpaceText  = "나가는 중…"
 	spaceLeaveFailed  = "방에서 나가지 못했어요"
 	ownerLeaveText    = "방장은 방장을 넘긴 뒤에 나갈 수 있어요"
 
@@ -804,7 +805,8 @@ func leaveSpaceConfirm(ctx *ui.Context, spaceID string, fromSettings bool) ui.Ov
 	if sd := ctx.Store.Spaces[spaceID]; sd != nil {
 		name = textwidth.Sanitize(sd.Name)
 	}
-	return widgets.Confirm(name+leaveSpaceAsk, leaveSpaceBody, leaveSpaceYes, cancelText, leaveSpaceCmd(ctx, spaceID, fromSettings))
+	// it stays open until the result lands: space.leave runs from any route
+	return confirmAndAwait(name+leaveSpaceAsk, leaveSpaceBody, leaveSpaceYes, cancelText, leavingSpaceText, tagSpaceLeave+spaceID, leaveSpaceCmd(ctx, spaceID, fromSettings))
 }
 
 // leaveSpaceCmd leaves the space; on success it is gone and home opens.

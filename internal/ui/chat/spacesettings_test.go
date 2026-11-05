@@ -917,3 +917,47 @@ func TestSpaceSettingsHostileIntegrity(t *testing.T) {
 		})
 	}
 }
+
+// TestPaletteLeaveLandsAnywhere: space.leave from a route with no conversation,
+// members pane or settings route alive still lands its result (store, toast,
+// home), and a failure is toasted.
+func TestPaletteLeaveLandsAnywhere(t *testing.T) {
+	member := func(s *store.Store) {
+		bootstrappedSeed(s)
+		s.Spaces[fixtures.SpaceNova].MyRole = api.RoleMember
+	}
+	for _, sz := range []uitest.Size{{W: 120, H: 30}, {W: 80, H: 24}, {W: 120, H: 40}} {
+		h := open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(member))
+		h.Send(ui.RunCommandMsg{ID: "space.leave"})
+		if !strings.Contains(h.Screen(), "나갈까요?") {
+			t.Fatalf("%v: leave asks first:\n%s", sz, h.Screen())
+		}
+		h.Press("enter")
+		if n := len(reqs(h.API, "DELETE", "/v1/spaces/"+fixtures.SpaceNova+"/members/@me")); n != 1 {
+			t.Fatalf("%v: one leave, got %d", sz, n)
+		}
+		if h.Context().Store.Spaces[fixtures.SpaceNova] != nil || slices.Contains(h.Context().Store.SpaceOrder, fixtures.SpaceNova) {
+			t.Fatalf("%v: the space I left leaves the store", sz)
+		}
+		mustContain(t, toastText(t, h), "방에서 나왔어요")
+		if overlays(h) != 0 {
+			t.Fatalf("%v: the confirmation is closed:\n%s", sz, h.Screen())
+		}
+		if tr := top(h); tr.Kind != ui.RouteHome {
+			t.Fatalf("%v: home after leave: %+v", sz, tr)
+		}
+	}
+
+	srv := newAPI(t)
+	srv.Error("DELETE /v1/spaces/"+fixtures.SpaceNova+"/members/@me", http.StatusInternalServerError, "internal")
+	h := openWith(t, uitest.Size{W: 120, H: 30}, ui.Route{Kind: ui.RouteHome}, srv, uitest.WithSeed(member))
+	h.Send(ui.RunCommandMsg{ID: "space.leave"})
+	h.Press("y")
+	if h.Context().Store.Spaces[fixtures.SpaceNova] == nil {
+		t.Fatal("a failed leave keeps the space")
+	}
+	mustContain(t, toastText(t, h), "방에서 나가지 못했어요")
+	if overlays(h) != 0 {
+		t.Fatalf("the confirmation is closed after a failure:\n%s", h.Screen())
+	}
+}
