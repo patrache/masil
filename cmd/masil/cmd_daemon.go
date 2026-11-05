@@ -156,8 +156,9 @@ func daemonRun(ctx context.Context, env *Env, args []string) error {
 }
 
 // daemonInstall registers the stable executable path with the OS supervisor and
-// warns about what would keep alerts from arriving (not logged in, desktop off,
-// a shell MASIL_SERVER the autostarted daemon cannot see).
+// warns about what would keep alerts from arriving (not logged in, credentials
+// for another server, desktop off, a shell MASIL_SERVER the autostarted daemon
+// cannot see).
 func daemonInstall(env *Env) error {
 	exe, err := executableFn()
 	if err != nil {
@@ -178,18 +179,31 @@ func daemonInstall(env *Env) error {
 		detail = st.Detail
 	}
 	fmt.Fprintf(env.Stdout, "자동 시작을 등록했습니다: %s\n", textwidth.Sanitize(detail))
-	if _, err := auth.Load(env.Paths); err != nil {
+	daemonServer := daemon.AutostartServer(env.Config)
+	creds, err := auth.Load(env.Paths)
+	switch {
+	case err != nil:
 		fmt.Fprintln(env.Stdout, "아직 로그인하지 않았습니다 — 'masil login' 뒤부터 알림이 옵니다.")
+	case !creds.Matches(daemonServer):
+		// e.g. `MASIL_SERVER=… masil login` (inline): the daemon would never connect.
+		writeServerMismatch(env.Stdout, "", creds.Server, daemonServer)
 	}
 	if !env.Config.Notify.Desktop {
 		fmt.Fprintln(env.Stdout, "config.toml 의 [notify] desktop 이 꺼져 있어 알림이 뜨지 않습니다.")
 	}
-	daemonServer := daemon.AutostartServer(env.Config)
 	if shell := strings.TrimRight(strings.TrimSpace(os.Getenv("MASIL_SERVER")), "/"); shell != "" && shell != daemonServer {
 		fmt.Fprintf(env.Stdout, "⚠ 셸의 MASIL_SERVER(%s)는 자동 시작된 데몬에 전달되지 않습니다 — 데몬은 %s 에 접속합니다. config.toml 의 server 를 같은 주소로 맞추세요.\n",
 			textwidth.Sanitize(shell), textwidth.Sanitize(daemonServer))
 	}
 	return nil
+}
+
+// writeServerMismatch tells that the credentials belong to another server than
+// the one the daemon uses, and how to fix it (shared by install and status).
+func writeServerMismatch(w io.Writer, indent, credServer, daemonServer string) {
+	s := textwidth.Sanitize
+	fmt.Fprintf(w, "%s⚠ 로그인한 서버(%s)와 데몬이 쓰는 서버(%s)가 달라 알림을 받지 않습니다.\n", indent, s(credServer), s(daemonServer))
+	fmt.Fprintf(w, "%s  같은 서버로 다시 로그인하거나 config.toml 의 server 를 맞추세요.\n", indent)
 }
 
 // daemonUninstall removes the autostart registration.
@@ -258,8 +272,7 @@ func renderStatus(w io.Writer, r daemon.Report, as autostart.Status, asErr error
 	}
 
 	if r.ServerMismatch {
-		fmt.Fprintf(w, "  ⚠ 로그인한 서버(%s)와 데몬이 쓰는 서버(%s)가 달라 알림을 받지 않습니다.\n", s(r.CredServer), s(r.ConfigServer))
-		fmt.Fprintln(w, "    같은 서버로 다시 로그인하거나 config.toml 의 server 를 맞추세요.")
+		writeServerMismatch(w, "  ", r.CredServer, r.ConfigServer)
 	}
 	if r.ShellServer != "" {
 		fmt.Fprintf(w, "  ⚠ 이 셸의 MASIL_SERVER(%s)는 자동 시작된 데몬에 전달되지 않습니다.\n", s(r.ShellServer))

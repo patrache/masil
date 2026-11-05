@@ -14,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/autostart"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/daemon"
@@ -304,6 +305,51 @@ func TestDaemonInstall(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "MASIL_SERVER") {
 		t.Fatalf("trailing slash must not warn: %q", stdout.String())
+	}
+}
+
+// README's `MASIL_SERVER=… masil login` (inline, not exported) saves
+// credentials for another server; a later install from a plain shell must warn
+// that the autostarted daemon will never connect, like `masil daemon status`.
+func TestDaemonInstallWarnsCredentialsServerMismatch(t *testing.T) {
+	stubDaemonFns(t)
+	t.Setenv("MASIL_SERVER", "")
+	env, stdout, _ := daemonTestEnv(t)
+	if err := auth.Save(env.Paths, &auth.Credentials{
+		Version: 1, Server: "http://127.0.0.1:9999", Token: "msl_test_token_A", SessionID: "01JA7000000000000000000000",
+		UserID: "01JA0000000000000000000SAM", Handle: "sam", SavedAt: time.Date(2026, 11, 5, 2, 5, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := daemonCmd(t.Context(), env, []string{"install"}); err != nil {
+		t.Fatal(err)
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		"⚠ 로그인한 서버(http://127.0.0.1:9999)와 데몬이 쓰는 서버(http://localhost:8787)가 달라 알림을 받지 않습니다.",
+		"같은 서버로 다시 로그인하거나 config.toml 의 server 를 맞추세요.",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "masil login' 뒤부터") || strings.Contains(out, "msl_test_token_") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+
+	// Matching server: no warning.
+	env, stdout, _ = daemonTestEnv(t)
+	if err := auth.Save(env.Paths, &auth.Credentials{
+		Version: 1, Server: "http://localhost:8787", Token: "msl_test_token_A", SessionID: "01JA7000000000000000000000",
+		UserID: "01JA0000000000000000000SAM", Handle: "sam", SavedAt: time.Date(2026, 11, 5, 2, 5, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := daemonCmd(t.Context(), env, []string{"install"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stdout.String(), "⚠") {
+		t.Fatalf("matching server must not warn:\n%s", stdout.String())
 	}
 }
 
