@@ -2,7 +2,7 @@
 // Constraints). Task 19: GET /channels/:channel_id and the group_dm member routes; Task 23: PATCH/DELETE
 // /channels/:channel_id, GET /channels/:channel_id/members, PUT /channels/:channel_id/prefs and the private text member
 // branch (services/membership.ts); POST /spaces/:space_id/channels lives in routes/spaces.ts. Task 27 adds
-// PUT /channels/:channel_id/read.
+// PUT /channels/:channel_id/read. Task 26: GET /channels/:channel_id/pins.
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
@@ -11,14 +11,14 @@ import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from 
 import { err, type FieldError } from "../lib/errors";
 import { requireChannelRead } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
-import { loadUserSummaries, serializeChannels } from "../lib/serialize";
+import { loadUserSummaries, serializeChannels, serializeMessages } from "../lib/serialize";
 import { charCount, normalizeText } from "../lib/text";
 import { iso, now } from "../lib/time";
 import { CHANNEL_NAME_RE, vJson, vQuery, zText, zUserRef } from "../lib/validate";
 import { addChannelMembers, GROUP_DM_MAX_MEMBERS, removeChannelMember } from "../services/membership";
 import { postSystemMessage } from "../services/messages";
 import type { SystemEvent } from "../types/api";
-import type { ChannelRow } from "../types/rows";
+import type { ChannelRow, MessageRow } from "../types/rows";
 
 /** api.md 0.3: group_dm name 0..50 ("" / null clears it). */
 const GROUP_DM_NAME_MAX = 50;
@@ -294,4 +294,20 @@ channelRoutes.put("/channels/:channel_id/prefs", requireAuth, vJson(PrefsBody), 
   const my = channel!.my;
   await publishEvent(rt(c), { users: [me] }, "channel.prefs_updated", { channel_id: ch.id, my });
   return c.json({ my });
+});
+
+/** Pinned live messages of a channel I can read, most recently pinned first (api.md 5.12; at most 50, no paging). */
+channelRoutes.get("/channels/:channel_id/pins", requireAuth, async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const ch = (await requireChannelRead(db, c.req.param("channel_id"), me)).channel;
+  const rows = await all<MessageRow>(
+    db,
+    `SELECT m.* FROM message_pins p JOIN messages m ON m.id = p.message_id AND m.deleted_at IS NULL
+      WHERE p.channel_id = ?1
+      ORDER BY p.pinned_at DESC, p.rowid DESC`,
+    ch.id,
+  );
+  const items = await serializeMessages(db, me, rows);
+  return c.json({ items });
 });
