@@ -32,7 +32,8 @@ type msgPane struct {
 	spinner *widgets.Spinner
 
 	lastRead     string // unread divider pointer, frozen when the pane is created
-	loading      bool   // the first page is not in yet
+	loading      bool   // the first page is not in yet (and no first request failed)
+	failed       string // notice of a failed first page ("" = none); cleared once a page lands or the owner retries
 	loadingOlder bool   // an older page is in flight
 	newBelow     int    // new messages that arrived below while not following
 	noFollow     bool   // the next refresh appends a newer page: never follow nor count it
@@ -109,13 +110,19 @@ func (p *msgPane) refresh(ctx *ui.Context) {
 		msgs = w.Items()
 	}
 	loaded := p.loaded(ctx)
-	p.loading = !loaded
+	if loaded {
+		p.failed = ""
+	}
+	p.loading = !loaded && p.failed == ""
 	p.built = ctx.Density()
 	rows := buildRows(ctx, msgs, pendingFor(ctx, p.channelID, p.rootID), rowOpts{
 		LastRead: p.lastRead,
 		Loading:  p.loading || p.loadingOlder,
 		InThread: p.rootID != "",
 	})
+	if p.failed != "" {
+		rows = append([]row{{Kind: rowNotice, ID: "load-failed", Text: p.failed}}, rows...)
+	}
 
 	prev, hadSel := p.selected()
 	wasLast := !hadSel || prev.ID == p.lastRow

@@ -28,6 +28,8 @@ const (
 	afterOverlap = 5 * time.Second // newer-page overlap (events.md 5.3)
 	goneTitle    = "삭제되었거나 볼 수 없는 채널이에요"
 	goneHint     = "esc 뒤로"
+	loadFailed   = "메시지를 불러오지 못했어요"
+	retryDesc    = "다시 시도"
 )
 
 // readTickMsg fires a read arming (gen = the arming it belongs to).
@@ -139,6 +141,39 @@ func (v *channelView) request(ctx *ui.Context, q api.MessageQuery) tea.Cmd {
 	})
 }
 
+// loadFirst requests the first page (latest, or around anchor) with the loading
+// row shown again, dropping a failed-first-page notice.
+func (v *channelView) loadFirst(ctx *ui.Context, anchor string) tea.Cmd {
+	v.pane.failed = ""
+	cmd := v.fetchHistory(ctx, anchor)
+	v.pane.refresh(ctx)
+	if v.pane.loading {
+		cmd = tea.Batch(cmd, v.pane.startLoading(ctx))
+	}
+	return cmd
+}
+
+// retryHistory re-requests the first page after it failed (nil while none failed,
+// so a loaded conversation or one with its first request in flight is left alone).
+func (v *channelView) retryHistory(ctx *ui.Context) tea.Cmd {
+	if v.pane.failed == "" || v.gone(ctx) {
+		return nil
+	}
+	return v.loadFirst(ctx, v.jump)
+}
+
+// failedNotice is the row shown instead of the loading row once the first page
+// failed: "메시지를 불러오지 못했어요 · r 다시 시도" (the retry key is msg.react's).
+func failedNotice(ctx *ui.Context) string {
+	k := "r"
+	if ctx != nil && ctx.Keys != nil {
+		if hk := ctx.Keys.Binding(keymap.MsgReact).Help().Key; hk != "" {
+			k = hk
+		}
+	}
+	return loadFailed + " · " + k + " " + retryDesc
+}
+
 // loadOlder requests the page before the first loaded message (one at a time).
 func (v *channelView) loadOlder(ctx *ui.Context) tea.Cmd {
 	w := v.pane.window(ctx)
@@ -175,9 +210,14 @@ func (v *channelView) onHistory(ctx *ui.Context, m ui.ResultMsg[historyPage]) te
 		v.newerBusy = false
 	}
 	if m.Err != nil {
+		// a failed first page (latest or around) of a conversation that holds none:
+		// the loading row becomes a retry notice (v.jump keeps the anchor to retry)
+		if c := chatOf(ctx); q.Before == "" && q.After == "" && c != nil && !c.Loaded(v.id()) {
+			v.pane.failed = failedNotice(ctx)
+		}
 		v.pane.refresh(ctx)
 		v.pane.stopLoading()
-		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: "메시지를 불러오지 못했어요"} }
+		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: loadFailed} }
 	}
 	c := chatOf(ctx)
 	if c == nil {
@@ -301,8 +341,13 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if c := chatOf(ctx); c != nil {
 			c.SetActiveChannel(v.id())
 		}
-		if m.Route.Anchor != "" {
+		switch {
+		case m.Route.Anchor != "" && v.pane.failed != "":
+			cmds = append(cmds, v.loadFirst(ctx, m.Route.Anchor))
+		case m.Route.Anchor != "":
 			cmds = append(cmds, v.fetchHistory(ctx, m.Route.Anchor))
+		default:
+			cmds = append(cmds, v.retryHistory(ctx))
 		}
 		cmds = append(cmds, v.maybeArmRead(ctx))
 	case ui.FocusChangedMsg:
@@ -310,6 +355,7 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			if c := chatOf(ctx); c != nil {
 				c.SetActiveChannel(v.id())
 			}
+			cmds = append(cmds, v.retryHistory(ctx))
 		}
 		cmds = append(cmds, v.maybeArmRead(ctx))
 	case ui.ModeChangedMsg:
@@ -481,6 +527,9 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 			return false, nil
 		}
 		return true, v.composer.focus()
+	}
+	if v.pane.failed != "" && ctx.Keys.Matches(msg, keymap.MsgReact) {
+		return true, v.retryHistory(ctx)
 	}
 	if r, ok := v.pane.selected(); ok && r.Kind == rowPending && r.Pending != nil && r.Pending.Failed != nil {
 		switch {

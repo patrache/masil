@@ -15,6 +15,7 @@ import (
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/ui/uitest/fixtures"
+	"github.com/patrache/masil/internal/ui/widgets"
 )
 
 const testChan = "01JBTESTCHAN0000000000000A"
@@ -351,5 +352,79 @@ func TestChannelTitleHelpViewing(t *testing.T) {
 	st, ok := v.SaveState().(channelSaved)
 	if !ok || st.Selected == "" {
 		t.Fatalf("saved %#v", v.SaveState())
+	}
+}
+
+func TestChannelHistoryFailureRetries(t *testing.T) {
+	srv := newAPI(t)
+	ch := testChan
+	calls := 0
+	srv.Handle("GET /v1/channels/"+ch+"/messages", func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		if calls <= 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": "unavailable", "message": "down"}})
+			return
+		}
+		json.NewEncoder(w).Encode(pageBody(genMsgs(ch, 1, 5), false, false))
+	})
+	gets := func() int { return len(reqs(srv, "GET", "/v1/channels/"+ch+"/messages")) }
+	h := openWith(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteChannel, ID: ch}, srv, uitest.WithSeed(withTestChannel(ch, 0)))
+	if gets() != 1 {
+		t.Fatalf("first GET: %d", gets())
+	}
+	v := channelOf(t, h)
+	h.Advance(5 * time.Second) // the error toast (4s) no longer covers the pane
+	scr := h.Screen()
+	if v.pane.loading || strings.Contains(scr, loadingText) {
+		t.Fatalf("a failed first page leaves no loading row:\n%s", scr)
+	}
+	mustContain(t, scr, "메시지를 불러오지 못했어요", "r 다시 시도")
+
+	// retry key: a second GET (failing again, this time with the spinner animated)
+	h.Context().Config.UI.Animations = true
+	h.Press("r")
+	if gets() != 2 {
+		t.Fatalf("r retries: %d GETs", gets())
+	}
+	h.Advance(5 * time.Second)
+	th := h.Context().Theme
+	if got, idle := v.pane.spinner.View(th), widgets.NewSpinner().View(th); got != idle {
+		t.Fatal("the spinner stopped after the retry failed")
+	}
+	scr = h.Screen()
+	if strings.Contains(scr, loadingText) || !strings.Contains(scr, "메시지를 불러오지 못했어요 · r 다시 시도") {
+		t.Fatalf("failed again: error row, no spinner:\n%s", scr)
+	}
+
+	// coming back to the conversation (focus) retries too, and this time it loads
+	h.Send(ui.FocusChangedMsg{Slot: layout.SlotMain, RouteKey: v.route.Key()})
+	if gets() != 3 {
+		t.Fatalf("focus retries: %d GETs", gets())
+	}
+	scr = h.Screen()
+	if strings.Contains(scr, "메시지를 불러오지 못했어요") || !strings.Contains(scr, "메시지 5") {
+		t.Fatalf("loaded after the retry:\n%s", scr)
+	}
+	h.Send(ui.FocusChangedMsg{Slot: layout.SlotMain, RouteKey: v.route.Key()})
+	h.Press("r")
+	if gets() != 3 {
+		t.Fatalf("a loaded conversation does not refetch: %d GETs", gets())
+	}
+}
+
+func TestChannelAroundFailureRetriesAnchor(t *testing.T) {
+	srv := newAPI(t)
+	ch := testChan
+	srv.Error("GET /v1/channels/"+ch+"/messages", http.StatusServiceUnavailable, "unavailable")
+	h := openWith(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteChannel, ID: ch, Anchor: msgID(3)}, srv, uitest.WithSeed(withTestChannel(ch, 0)))
+	if channelOf(t, h).pane.failed == "" {
+		t.Fatal("a failed around request shows the retry notice")
+	}
+	h.Press("r")
+	r := reqs(srv, "GET", "/v1/channels/"+ch+"/messages")
+	if len(r) != 2 || r[1].Query != "around="+msgID(3)+"&limit=50" {
+		t.Fatalf("the retry asks for the same anchor: %+v", r)
 	}
 }
