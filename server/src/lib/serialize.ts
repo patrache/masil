@@ -4,6 +4,7 @@
 import type {
   Channel,
   ChannelMyState,
+  ChannelRef,
   DirectInvite,
   Focus,
   Friend,
@@ -400,6 +401,27 @@ export async function loadUnreadStates(db: D1Database, userId: string, channelId
     if (!st) continue;
     st.unread_count = Math.min(r.unread, UNREAD_CAP);
     st.mention_count = Math.min(r.mentions, UNREAD_CAP);
+  }
+  return out;
+}
+
+/**
+ * channel IDs -> ChannelRef (api.md 2) in one query (json_each). name: text = channel name, group_dm = its optional
+ * name, dm = null; space_id/space_name only for text. Missing IDs are absent from the map. Access is the caller's job.
+ */
+export async function loadChannelRefs(db: D1Database, channelIds: string[]): Promise<Map<string, ChannelRef>> {
+  const out = new Map<string, ChannelRef>();
+  const ids = [...new Set(channelIds)];
+  if (ids.length === 0) return out;
+  const rows = await all<{ id: string; kind: ChannelRef["kind"]; name: string | null; space_id: string | null; space_name: string | null }>(
+    db,
+    `SELECT c.id, c.kind, c.name, c.space_id, s.name AS space_name
+       FROM channels c LEFT JOIN spaces s ON s.id = c.space_id
+      WHERE c.id IN (SELECT value FROM json_each(?1))`,
+    jsonList(ids),
+  );
+  for (const r of rows) {
+    out.set(r.id, { id: r.id, kind: r.kind, name: r.kind === "dm" ? null : r.name, space_id: r.space_id, space_name: r.space_name });
   }
   return out;
 }
