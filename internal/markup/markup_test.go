@@ -393,3 +393,67 @@ func TestRenderHyperlinkControlBytes(t *testing.T) {
 		}
 	}
 }
+
+// Hangul such as 한 (ED 95 9C) and 서 (EC 84 9C) contains the byte 0x9C, which
+// x/ansi reads as String Terminator: a raw non-ASCII OSC 8 target ends early,
+// leaks the rest of the URL as text and breaks the width.
+func TestRenderHyperlinkNonASCII(t *testing.T) {
+	cases := []struct{ body, visible, target string }{
+		{"보세요 https://ko.wikipedia.org/wiki/대한민국 끝", "보세요 https://ko.wikipedia.org/wiki/대한민국 끝",
+			"https://ko.wikipedia.org/wiki/%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD"},
+		{"https://namu.wiki/w/서울", "https://namu.wiki/w/서울", "https://namu.wiki/w/%EC%84%9C%EC%9A%B8"},
+		{"[한글 문서](https://a.com/서 울?q=한&x=%20) 끝", "[한글 문서](https://a.com/서 울?q=한&x=%20) 끝", ""},
+		{"[한글 문서](https://a.com/서?q=한&x=%20#f) 끝", "한글 문서 끝", "https://a.com/%EC%84%9C?q=%ED%95%9C&x=%20#f"},
+	}
+	for _, c := range cases {
+		d := markup.Parse(c.body, markup.ParseOptions{})
+		lines := markup.Render(d, amber, markup.RenderOptions{Width: 60, Hyperlinks: true})
+		if len(lines) != 1 {
+			t.Fatalf("%q: lines = %q", c.body, lines)
+		}
+		l := lines[0]
+		if got := ansi.Strip(l); got != c.visible {
+			t.Errorf("%q: visible = %q, want %q", c.body, got, c.visible)
+		}
+		if w := ansi.StringWidth(l); w > 60 || w != ansi.StringWidth(c.visible) {
+			t.Errorf("%q: width = %d, want %d", c.body, w, ansi.StringWidth(c.visible))
+		}
+		checkOnlyOSC8(t, l)
+		if c.target != "" && !strings.Contains(l, ";"+c.target+"\x1b\\") && !strings.Contains(l, ";"+c.target+"\x07") {
+			t.Errorf("%q: OSC 8 target %q not in %q", c.body, c.target, l)
+		}
+		for rest := l; ; {
+			i := strings.Index(rest, "\x1b]8;;")
+			if i < 0 {
+				break
+			}
+			rest = rest[i+len("\x1b]8;;"):]
+			end := strings.IndexAny(rest, "\x07\x1b")
+			if end < 0 {
+				t.Fatalf("%q: unterminated OSC 8 in %q", c.body, l)
+			}
+			for _, b := range []byte(rest[:end]) {
+				if b >= 0x80 || b < 0x21 {
+					t.Fatalf("%q: byte %#x inside OSC 8 target %q", c.body, b, rest[:end])
+				}
+			}
+			rest = rest[end:]
+		}
+	}
+}
+
+func TestHyperlinkTarget(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://a.com/x?q=1&r=a,b;c#f":  "https://a.com/x?q=1&r=a,b;c#f",
+		"https://a.com/%20%e2":           "https://a.com/%20%e2",
+		"https://a.com/100%":             "https://a.com/100%25",
+		"https://a.com/%zz":              "https://a.com/%25zz",
+		"https://namu.wiki/w/서울":         "https://namu.wiki/w/%EC%84%9C%EC%9A%B8",
+		"https://a.com/a b\"<>\\^`{|}":   "https://a.com/a%20b%22%3C%3E%5C%5E%60%7B%7C%7D",
+		"https://a.com/\x07\x1b\x9c\x7f": "https://a.com/%07%1B%9C%7F",
+	} {
+		if got := markup.HyperlinkTarget(in); got != want {
+			t.Errorf("HyperlinkTarget(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

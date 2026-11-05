@@ -348,7 +348,7 @@ func style(t *theme.Theme, k styleKey) lipgloss.Style {
 		return t.S.InlineCode
 	case kLink:
 		if k.url != "" && SafeURL(k.url) { // second guard: never put control bytes in OSC 8
-			return t.S.Link.Hyperlink(k.url)
+			return t.S.Link.Hyperlink(HyperlinkTarget(k.url))
 		}
 		return t.S.Link
 	case kMention:
@@ -384,4 +384,43 @@ func renderLine(l line, t *theme.Theme) string {
 		i = j
 	}
 	return b.String()
+}
+
+// HyperlinkTarget percent-encodes u for an OSC 8 target: every byte outside
+// the RFC 3986 unreserved and reserved sets (all bytes >= 0x80 included) and a
+// "%" that does not start a %XX escape become %XX. Raw UTF-8 must never reach
+// the escape: a continuation byte 0x9C (e.g. in 한 = ED 95 9C) is read as
+// String Terminator and would end the sequence early. The visible link text is
+// not affected.
+func HyperlinkTarget(u string) string {
+	const hex = "0123456789ABCDEF"
+	var b strings.Builder
+	b.Grow(len(u))
+	for i := 0; i < len(u); i++ {
+		c := u[i]
+		switch {
+		case c == '%' && i+2 < len(u) && isHex(u[i+1]) && isHex(u[i+2]):
+			b.WriteByte(c)
+		case c != '%' && uriByte(c):
+			b.WriteByte(c)
+		default:
+			b.WriteByte('%')
+			b.WriteByte(hex[c>>4])
+			b.WriteByte(hex[c&15])
+		}
+	}
+	return b.String()
+}
+
+func isHex(c byte) bool {
+	return '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F'
+}
+
+// uriByte reports an RFC 3986 unreserved or reserved character.
+func uriByte(c byte) bool {
+	switch {
+	case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9':
+		return true
+	}
+	return strings.IndexByte("-._~:/?#[]@!$&'()*+,;=", c) >= 0
 }
