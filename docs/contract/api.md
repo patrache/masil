@@ -695,6 +695,7 @@ interface AdminAction {
 | 메시지 작성·리액션·스레드 | ✓ | ✓ | ✓ |
 | 방 나가기 | 위임 후 | ✓ | ✓ |
 
+- 초대는 낸 사람의 권한이 남아 있는 동안만 유효하다. 방에서 빠지면(**나가기·강퇴·밴 모두**) 같은 batch 안에서 그 사람이 그 방에 보낸 대기 중 직접 초대는 `canceled`, 만든 초대 링크는 폐기(`revoked`)된다. admin→member 로 강등되면(링크 권한 상실) 그 사람이 만든 링크도 같은 batch 에서 폐기된다(다시 admin 이 돼도 되살아나지 않음). 직접 초대 수락은 초대한 사람이 아직 방 멤버인지 사전 확인과 조건부 UPDATE 양쪽에서 다시 본다.
 - 방 멤버가 아니면(또는 방이 삭제됐으면) 방·채널·메시지 모두 `404 not_found`. text 채널의 읽기 검사는 비공개 채널이라도 **방 멤버십과 방 미삭제를 함께** 확인한다(`channel_members` 행만으로 통과하지 않음). 실시간 청중도 같다(`events.md` 6.1).
 - 비공개 채널은 그 채널 멤버만 보고(방장·관리자라도 멤버가 아니면 목록에 안 보임), 공개 채널은 방 멤버 전원.
 - 방에서 빠지면(**스스로 나가기·강퇴·밴 모두**) 같은 batch 안에서 그 방의 모든 비공개 채널의 `channel_members` 행도 지운다(`channels.member_count` 감소 포함). 밴은 강퇴 + 초대 수락 차단.
@@ -953,13 +954,14 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `PATCH /v1/spaces/{space_id}/members/{user}`
 - owner. 요청: `{ "role": "admin" | "member" }` (owner 로 바꾸려면 transfer)
+- 부수효과(같은 batch): 대상이 owner·admin 이 아니게 되면 그 사람이 만든 초대 링크 폐기(3.5). 직접 초대는 그대로(멤버 누구나 보낼 수 있음).
 - `200 { "member": SpaceMember }` · 이벤트: `space.member_updated`(방 멤버)
 
 #### `DELETE /v1/spaces/{space_id}/members/{user}?ban=<bool>&reason=<text>`
 - `{user}=@me`: 나가기(owner 는 `409 conflict`, `reason:"owner_cannot_leave"`).
 - 남: 강퇴(3.5 권한). `ban=true` 면 `space_bans` 추가.
-- 부수효과(한 batch, 나가기·강퇴·밴 공통): `space_members` 삭제 + 그 방 **모든 비공개 채널의 `channel_members` 행 삭제**(3.5) + 카운터.
-- `204` · 이벤트: `space.member_left`(방 멤버 + 나간 사람, `reason:"left"|"kicked"|"banned"`), 나간 사람에게 `space.removed`, 빠진 비공개 채널마다 남은 채널 멤버에게 `channel.member_removed` · 시스템 메시지(기본 채널) `member_left`/`member_kicked`
+- 부수효과(한 batch, 나가기·강퇴·밴 공통): `space_members` 삭제 + 그 방 **모든 비공개 채널의 `channel_members` 행 삭제**(3.5) + 그 사람이 그 방에 보낸 **대기 중 직접 초대 `canceled`** + 그 사람이 만든 **초대 링크 폐기** + 카운터.
+- `204` · 이벤트: `space.member_left`(방 멤버 + 나간 사람, `reason:"left"|"kicked"|"banned"`), 나간 사람에게 `space.removed`, 빠진 비공개 채널마다 남은 채널 멤버에게 `channel.member_removed`, 취소된 직접 초대마다 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 나간 사람) · 시스템 메시지(기본 채널) `member_left`/`member_kicked`
 
 #### `GET /v1/spaces/{space_id}/bans`
 - owner·admin. `200 { "items": [ { "user": UserSummary, "banned_by": UserSummary, "reason": string, "created_at": Timestamp } ] }`
@@ -979,6 +981,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `DELETE /v1/invites/{code}`
 - 그 방 owner·admin. `204`
+- 만든 사람이 방에서 빠지거나 member 로 강등되면 링크는 자동 폐기된다(3.5) — 이후 조회·수락은 `410 invite_invalid`(`reason:"revoked"`).
 
 #### `GET /v1/invites/{code}`
 - 로그인한 누구나. 무효 코드 → `410 invite_invalid`, 없는 코드 → `404`.
@@ -999,6 +1002,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `POST /v1/direct-invites/{invite_id}/accept`
 - 초대받은 사람. `200 { "space": SpaceDetail }` · 이벤트는 초대 링크 수락과 같음 + `space.invite_removed`(`reason:"accepted"`).
+- 초대한 사람이 더 이상 방 멤버가 아니면 `404`(3.5 — 빠질 때 이미 `canceled` 로 바뀌지만, 수락 쪽도 사전 확인과 조건부 UPDATE 에서 다시 본다).
 
 #### `POST /v1/direct-invites/{invite_id}/decline`
 - `204` · 이벤트: `space.invite_removed`(`reason:"declined"`)

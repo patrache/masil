@@ -307,7 +307,11 @@ spaceRoutes.get("/spaces/:space_id/members", requireAuth, vQuery(MembersQuery), 
   return c.json({ items, next_cursor: next });
 });
 
-/** owner; role admin|member (owner only through transfer). */
+/**
+ * owner; role admin|member (owner only through transfer). One batch: the role UPDATE, then the target's invite links
+ * are revoked when they no longer hold owner·admin (links need that role, api.md 3.5; pending item 9). Direct invites
+ * stay: any member may send those.
+ */
 spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody), async (c) => {
   const auth = getAuth(c);
   const db = c.env.DB;
@@ -316,13 +320,19 @@ spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody
   const target = await resolveUserRef(db, c.req.param("user"), auth);
   if (target.id === auth.userId) throw err.conflict("conflict", "self");
   const role = c.req.valid("json").role;
-  const row = await first<SpaceMemberRow>(
-    db,
-    "UPDATE space_members SET role = ?3 WHERE space_id = ?1 AND user_id = ?2 AND role <> 'owner' RETURNING *",
-    spaceId,
-    target.id,
-    role,
-  );
+  const [upd] = await batch(db, [
+    stmt(db, "UPDATE space_members SET role = ?3 WHERE space_id = ?1 AND user_id = ?2 AND role <> 'owner' RETURNING *", spaceId, target.id, role),
+    stmt(
+      db,
+      `UPDATE space_invites SET revoked_at = ?3
+        WHERE space_id = ?1 AND created_by = ?2 AND revoked_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2 AND role IN ('owner', 'admin'))`,
+      spaceId,
+      target.id,
+      now(),
+    ),
+  ]);
+  const row = (upd!.results as SpaceMemberRow[])[0] ?? null;
   if (row === null) throw err.notFound("member");
   const [member] = await serializeSpaceMembers(db, [row]);
   await publishEvent(rt(c), { space: spaceId }, "space.member_updated", { space_id: spaceId, member: member! });

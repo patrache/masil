@@ -228,3 +228,125 @@ describe("invites", () => {
     expect((await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(di.id).first<any>()).status).toBe("accepted");
   });
 });
+
+// pending item 9: an invite only counts while the person behind it could still issue it.
+describe("invites whose inviter lost the right to invite", () => {
+  /** A link's state as seen by a stranger: GET status + reason, accept status + reason. */
+  async function linkState(code: string): Promise<{ get: number; reason?: string; accept: number; acceptReason?: string }> {
+    const u = await signup();
+    const g = await api(u.token).get<any>(`/v1/invites/${code}`);
+    const a = await api(u.token).post<any>(`/v1/invites/${code}/accept`);
+    return { get: g.status, reason: g.body?.error?.details?.reason, accept: a.status, acceptReason: a.body?.error?.details?.reason };
+  }
+
+  for (const how of ["kicked", "banned", "left"] as const) {
+    it(`direct invite from a member who was ${how}: canceled with the removal, accept 404, nobody joins`, async () => {
+      const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+      const { space } = await makeSpace(o, [m]);
+      await makeFriends(m, f);
+      const di = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+      const cf = await connectWs(f.token);
+      const path = how === "left" ? `/v1/spaces/${space.id}/members/@me` : `/v1/spaces/${space.id}/members/@${m.handle}${how === "banned" ? "?ban=true" : ""}`;
+      expect((await api(how === "left" ? m.token : o.token).del(path)).status).toBe(204);
+      expect((await cf.next("space.invite_removed")).data).toEqual({ invite_id: di.id, reason: "canceled" });
+      expect((await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(di.id).first<any>()).status).toBe("canceled");
+      expect((await api(f.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+      expect((await api(f.token).post(`/v1/direct-invites/${di.id}/accept`)).status).toBe(404);
+      const row = await env.DB.prepare("SELECT member_count, (SELECT COUNT(*) FROM space_members WHERE space_id=?1) n FROM spaces WHERE id=?1").bind(space.id).first<any>();
+      expect(row).toEqual({ member_count: 1, n: 1 });
+    });
+  }
+
+  it("direct invite still pending although its inviter is gone (no cancel ran): accept 404, invite untouched", async () => {
+    const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m]);
+    await makeFriends(m, f);
+    const di = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+    // the inviter's membership disappears without going through removeFromSpace (rows from before the fix, a future path)
+    await env.DB.prepare("DELETE FROM space_members WHERE space_id=?1 AND user_id=?2").bind(space.id, m.user.id).run();
+    expect((await api(f.token).post(`/v1/direct-invites/${di.id}/accept`)).status).toBe(404);
+    expect((await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(di.id).first<any>()).status).toBe("pending");
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM space_members WHERE space_id=?1 AND user_id=?2").bind(space.id, f.user.id).first<any>()).n).toBe(0);
+  });
+
+  it("direct invite: the inviter leaves between the pre-check and the batch -> the conditional UPDATE refuses it", async () => {
+    const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m]);
+    await makeFriends(m, f);
+    const di = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+    // A DB whose batch() first drops the inviter's membership (no cancel): only the in-batch EXISTS can stop the join.
+    const db = env.DB;
+    const racing = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "batch") {
+          return async (stmts: D1PreparedStatement[]) => {
+            await target.prepare("DELETE FROM space_members WHERE space_id=?1 AND user_id=?2").bind(space.id, m.user.id).run();
+            return target.batch(stmts);
+          };
+        }
+        const v = Reflect.get(target, prop, target);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    const rt = { env: { ...env, DB: racing } as typeof env, waitUntil: () => {} };
+    await expect(joinSpace(rt, space.id, f.user.id, { directInviteId: di.id })).rejects.toMatchObject({ status: 404 });
+    expect((await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(di.id).first<any>()).status).toBe("pending");
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM space_members WHERE space_id=?1 AND user_id=?2").bind(space.id, f.user.id).first<any>()).n).toBe(0);
+  });
+
+  it("removing one member cancels only their own pending invites in that space", async () => {
+    const [o, m, k, f, g, h] = await Promise.all([signup(), signup(), signup(), signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m, k]);
+    const { space: other } = await makeSpace(o, [k]);
+    await Promise.all([makeFriends(m, f), makeFriends(k, g), makeFriends(k, h)]);
+    const fromM = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+    const fromK = (await api(k.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${g.handle}` })).body.invite;
+    const fromKElsewhere = (await api(k.token).post<any>(`/v1/spaces/${other.id}/direct-invites`, { user: `@${h.handle}` })).body.invite;
+    expect((await api(o.token).del(`/v1/spaces/${space.id}/members/@${k.handle}`)).status).toBe(204);
+    expect((await api(g.token).post(`/v1/direct-invites/${fromK.id}/accept`)).status).toBe(404);
+    expect((await api(f.token).post(`/v1/direct-invites/${fromM.id}/accept`)).status).toBe(200); // m is still a member
+    expect((await api(h.token).post(`/v1/direct-invites/${fromKElsewhere.id}/accept`)).status).toBe(200); // k is still in the other space
+  });
+
+  for (const how of ["kicked", "banned", "left"] as const) {
+    it(`invite link of an admin who was ${how}: revoked with the removal`, async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { space } = await makeSpace(o, [a]);
+      expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+      const link = (await api(a.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+      const ownerLink = (await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+      const path = how === "left" ? `/v1/spaces/${space.id}/members/@me` : `/v1/spaces/${space.id}/members/@${a.handle}${how === "banned" ? "?ban=true" : ""}`;
+      expect((await api(how === "left" ? a.token : o.token).del(path)).status).toBe(204);
+      expect(await linkState(link.code)).toEqual({ get: 410, reason: "revoked", accept: 410, acceptReason: "revoked" });
+      const listed = (await api(o.token).get<any>(`/v1/spaces/${space.id}/invites`)).body.items.map((i: any) => i.code);
+      expect(listed).toContain(ownerLink.code); // makeSpace's own owner link is listed too
+      expect(listed).not.toContain(link.code);
+      expect((await linkState(ownerLink.code)).accept).toBe(200); // the owner's link is not touched
+    });
+  }
+
+  it("invite link of an admin demoted to member: revoked; links of admins who keep the role survive", async () => {
+    const [o, a, b] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [a, b]);
+    for (const u of [a, b]) expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${u.handle}`, { role: "admin" })).status).toBe(200);
+    const la = (await api(a.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+    const lb = (await api(b.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+    // re-setting the same role keeps the link
+    expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+    expect((await linkState(la.code)).get).toBe(200);
+    expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "member" })).status).toBe(200);
+    expect(await linkState(la.code)).toEqual({ get: 410, reason: "revoked", accept: 410, acceptReason: "revoked" });
+    expect((await linkState(lb.code)).accept).toBe(200);
+    // promoted back: the old link stays revoked
+    expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+    expect((await linkState(la.code)).get).toBe(410);
+  });
+
+  it("ownership transfer: the previous owner (now admin) keeps their links", async () => {
+    const [o, n] = await Promise.all([signup(), signup()]);
+    const { space } = await makeSpace(o, [n]);
+    const lo = (await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+    expect((await api(o.token).post(`/v1/spaces/${space.id}/transfer`, { user: `@${n.handle}` })).status).toBe(200);
+    expect((await linkState(lo.code)).accept).toBe(200);
+  });
+});

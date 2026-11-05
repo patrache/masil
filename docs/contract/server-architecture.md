@@ -604,7 +604,7 @@ export const clientVersionGate: MiddlewareHandler<AppEnv>;   // UA "masil/x.y.z"
 ```ts
 // membership.ts
 export function joinSpace(rt: Runtime, spaceId: string, userId: string, via: { inviteCode?: string; directInviteId?: string }): Promise<SpaceDetail>;
-/** One batch for every reason: delete space_members row + this user's channel_members rows in all private channels of the space (+ counters). */
+/** One batch for every reason: delete space_members row + this user's channel_members rows in all private channels of the space + cancel this user's pending direct invites to the space + revoke their invite links (+ counters). */
 export function removeFromSpace(rt: Runtime, spaceId: string, userId: string, actorId: string, reason: "left" | "kicked" | "banned", banReason?: string): Promise<void>;
 export function addChannelMembers(rt: Runtime, channelId: string, actorId: string, userIds: string[]): Promise<Channel>;
 export function removeChannelMember(rt: Runtime, channelId: string, actorId: string, userId: string): Promise<void>;
