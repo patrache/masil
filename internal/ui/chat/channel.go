@@ -442,7 +442,7 @@ func (v *channelView) onEvent(ctx *ui.Context, ev realtime.Event) tea.Cmd {
 		}
 	}
 	v.syncOpen(ctx)
-	cmds = append(cmds, v.fetchMissing(ctx), v.maybeArmRead(ctx))
+	cmds = append(cmds, v.fetchMissing(ctx), v.maybeArmRead(ctx), typingTick(ctx, ev, v.id(), ""))
 	return tea.Batch(cmds...)
 }
 
@@ -478,13 +478,22 @@ func (v *channelView) View(ctx *ui.Context, focused bool) string {
 		cc.fitPopup(v.size.H - 1 - cc.boxHeight(w))
 		bottom, bh = cc.view(ctx, w), cc.height(w)
 	}
-	listH := max(0, v.size.H-bh)
-	v.inputY = listH
+	// the typing line sits right above the composer while it keeps one list line
+	typing := typingLine(ctx, v.id(), "")
+	th := 0
+	if typing != "" && v.size.H-bh-1 >= 1 {
+		th = 1
+	}
+	listH := max(0, v.size.H-bh-th)
+	v.inputY = listH + th
 	var out []string
 	if listH > 0 {
 		out = append(out, strings.Split(v.pane.view(ctx, ui.Size{W: w, H: listH}, focused && !v.composer.focused()), "\n")...)
 	} else {
 		v.pane.view(ctx, ui.Size{}, false)
+	}
+	if th > 0 {
+		out = append(out, renderTypingLine(ctx, typing, w))
 	}
 	out = append(out, strings.Split(bottom, "\n")...)
 	return strings.Join(textwidth.Fit(out, w, v.size.H), "\n")
