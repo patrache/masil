@@ -8,6 +8,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/ids"
+	"github.com/patrache/masil/internal/slash"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -66,6 +67,8 @@ type chatComposer struct {
 	onEmptyEdit func(ctx *ui.Context, m api.Message) tea.Cmd
 
 	comp completer // the @mention / :emoji / /command popup (complete.go)
+
+	awaiting map[string]int // slash requests in flight by result tag (slashexec.go)
 }
 
 // newChatComposer creates the composer of channelID (rootID nil) or of the thread rootID.
@@ -216,7 +219,8 @@ func (cc *chatComposer) cancelEdit() {
 }
 
 // submit sends the input (compose.send): whitespace only is ignored; while
-// editing it saves the edit; otherwise it adds a pending send and posts it.
+// editing it saves the edit; a slash command runs (runSlash), a usage error is
+// toasted with the draft kept; otherwise it adds a pending send and posts it.
 func (cc *chatComposer) submit(ctx *ui.Context) tea.Cmd {
 	body := cc.c.Value()
 	if cc.editing != nil {
@@ -225,15 +229,27 @@ func (cc *chatComposer) submit(ctx *ui.Context) tea.Cmd {
 	if strings.TrimSpace(body) == "" {
 		return nil
 	}
+	cmd, ok, err := slash.Parse(body)
+	switch {
+	case err != nil: // a usage error: the draft stays for a fix
+		return ui.Toast(err.Error(), ui.ToastError)
+	case ok:
+		return runSlash(ctx, cc, body, cmd)
+	}
+	return cc.send(ctx, "text", body, nil)
+}
+
+// send adds a pending send of kind with body (and the poll input of a /poll),
+// clears the input and posts it.
+func (cc *chatComposer) send(ctx *ui.Context, kind, body string, poll *api.PollInput) tea.Cmd {
 	c := chatOf(ctx)
 	if c == nil {
 		return nil
 	}
-	// Task 11: slash.Parse branches here; this is its ok=false path (plain text).
-	p := chatstore.PendingMessage{Nonce: ids.New(), Body: body, Kind: "text", ThreadRootID: cc.rootID, SentAt: ctx.Now()}
+	p := chatstore.PendingMessage{Nonce: ids.New(), Body: body, Kind: kind, ThreadRootID: cc.rootID, SentAt: ctx.Now()}
 	c.AddPending(cc.channelID, p)
 	cc.c.Reset()
-	return sendCmd(ctx, cc.channelID, cc.rootID, p, nil)
+	return sendCmd(ctx, cc.channelID, cc.rootID, p, poll)
 }
 
 // submitEdit saves the edited body (PATCH). An unchanged body just ends the edit.

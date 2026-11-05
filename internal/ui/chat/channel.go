@@ -383,6 +383,10 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.ResultMsg[*api.Page[api.ChannelMember]]:
 		v.composer.onMembers(ctx, m)
+	case ui.ResultMsg[*api.Invite]:
+		cmds = append(cmds, v.composer.onInviteCreated(m))
+	case ui.ResultMsg[*api.DirectInvite]:
+		cmds = append(cmds, v.composer.onDirectInvite(ctx, m))
 	case ui.ResultMsg[*api.UnreadState]:
 		if m.Tag != "chat.read:"+v.id() {
 			break

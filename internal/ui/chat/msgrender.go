@@ -515,8 +515,13 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 		me = m.UserSummary
 	}
 	body := textwidth.Sanitize(p.Body)
-	if p.Kind == "me" {
+	switch p.Kind {
+	case "me":
 		body = "* " + textwidth.Sanitize(displayName(me)) + " " + body
+	case "poll": // Body = the question (plainBody's form)
+		body = "📊 " + body
+	case "roll": // Body = the dice expression
+		body = "🎲 " + body
 	}
 	stStyle := t.S.Dim
 	if p.Failed != nil {

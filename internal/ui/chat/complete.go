@@ -366,7 +366,7 @@ func (cc *chatComposer) pushCompletion() {
 
 // popupKey handles a key while the popup is open, before the Composer sees it:
 // up/down (shift+tab) move the selection, enter/tab accept, esc closes. Other
-// keys are not consumed.
+// keys are not consumed, nor is enter on a fully typed token (it is sent).
 func (cc *chatComposer) popupKey(ctx *ui.Context, msg tea.KeyPressMsg) bool {
 	km := ctx.Keys
 	switch {
@@ -374,6 +374,11 @@ func (cc *chatComposer) popupKey(ctx *ui.Context, msg tea.KeyPressMsg) bool {
 		cc.comp.idx = max(cc.comp.idx-1, 0)
 	case msg.String() == "down":
 		cc.comp.idx = min(cc.comp.idx+1, len(cc.comp.items)-1)
+	case km.Matches(msg, keymap.ComposeSend) && cc.exactToken():
+		// the token is typed in full already ("/shrug", "/invite @hana"):
+		// enter sends instead of only adding a space
+		cc.closeCompletion()
+		return false
 	case km.Matches(msg, keymap.ComposeSend) || km.Matches(msg, keymap.ComposeComplete):
 		cc.acceptCompletion()
 		return true
@@ -385,6 +390,15 @@ func (cc *chatComposer) popupKey(ctx *ui.Context, msg tea.KeyPressMsg) bool {
 	}
 	cc.pushCompletion()
 	return true
+}
+
+// exactToken: the popup's token is exactly the selected item's text, so
+// accepting would only add a space (a fully typed /command or @handle).
+func (cc *chatComposer) exactToken() bool {
+	if cc.comp.kind == 0 || cc.comp.idx < 0 || cc.comp.idx >= len(cc.comp.items) {
+		return false
+	}
+	return strings.EqualFold(cc.comp.items[cc.comp.idx].Insert, cc.comp.token+" ")
 }
 
 // acceptCompletion replaces the end token with the selected item's Insert.

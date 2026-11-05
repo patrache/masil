@@ -266,3 +266,23 @@ func TestCompletionGolden(t *testing.T) {
 		h.Golden("mention_popup")
 	})
 }
+
+func TestCompletionEnterOnExactTokenSends(t *testing.T) {
+	// accepting a fully typed token would only add a space: enter sends instead
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	h.Press("i")
+	h.Type("@minji")
+	if !channelOf(t, h).Completing() {
+		t.Fatal("the @mention popup is open")
+	}
+	h.Press("enter")
+	r := reqs(h.API, "POST", "/v1/channels/"+devID(t, h)+"/messages")
+	if len(r) != 1 || jsonField(r[0].Body, "body") != "@minji" {
+		t.Fatalf("enter on a full @handle sends it: %+v", r)
+	}
+	h.Type("@mi") // a prefix still completes
+	h.Press("enter")
+	if v := channelOf(t, h).composer.c.Value(); v != "@minji " {
+		t.Fatalf("got %q", v)
+	}
+}
