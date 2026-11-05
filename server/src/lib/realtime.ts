@@ -150,12 +150,14 @@ function splitByNotify<E extends { type: ServerEventType }>(events: E[]): { noti
   return out;
 }
 
-/** One UserHub.deliver per user, RPC_CHUNK at a time; failures are logged only (clients resync). */
-async function rpcDeliver(env: Env, userIds: string[], events: OutboundEvent[]): Promise<void> {
-  if (userIds.length === 0 || events.length === 0) return;
+/** One UserHub.deliver per user, RPC_CHUNK at a time with Promise.allSettled; failures are logged only (clients resync).
+ *  `events` is either one batch for everyone or a per-user lookup. */
+async function rpcDeliver(env: Env, userIds: string[], events: OutboundEvent[] | ((userId: string) => OutboundEvent[])): Promise<void> {
+  if (userIds.length === 0 || (Array.isArray(events) && events.length === 0)) return;
+  const eventsFor = Array.isArray(events) ? () => events : events;
   for (let i = 0; i < userIds.length; i += RPC_CHUNK) {
     const chunk = userIds.slice(i, i + RPC_CHUNK);
-    const results = await Promise.allSettled(chunk.map((userId) => env.USER_HUB.getByName(userId).deliver({ userId, events })));
+    const results = await Promise.allSettled(chunk.map((userId) => env.USER_HUB.getByName(userId).deliver({ userId, events: eventsFor(userId) })));
     results.forEach((r, j) => {
       if (r.status === "rejected") console.error(`realtime: deliver to ${chunk[j]} failed`, r.reason);
     });
@@ -220,5 +222,21 @@ export function deliverToUsers(rt: Runtime, userIds: string[], events: OutboundE
       const ids = await resolveOnlineAudience(rt.env, { users: userIds }, { notifyOk: part.notifyOk });
       await rpcDeliver(rt.env, ids, part.events);
     }
+  });
+}
+
+/**
+ * Per-user event lists (each user gets its own batch, e.g. inbox rows + alerts) in one scheduled task:
+ * one online-audience query over all users, then one UserHub.deliver per online user via rpcDeliver
+ * (RPC_CHUNK at a time, Promise.allSettled; server-architecture.md 2, 4.11). Users with an empty list are skipped.
+ * Online rule: notifyOk when every event is notify-allowed (events.md 7); otherwise full-online users only.
+ */
+export function deliverPerUser(rt: Runtime, byUser: Map<string, OutboundEvent[]>): Promise<void> {
+  const lists = new Map([...byUser].filter(([, evs]) => evs.length > 0));
+  if (lists.size === 0) return Promise.resolve();
+  return schedule(rt, `deliver per-user x${lists.size}`, async () => {
+    const notifyOk = [...lists.values()].every((evs) => evs.every(notifyAllowed));
+    const online = await resolveOnlineAudience(rt.env, { users: [...lists.keys()] }, { notifyOk });
+    await rpcDeliver(rt.env, online, (userId) => lists.get(userId) ?? []);
   });
 }

@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import type { Runtime } from "../../src/env";
 import { deliverToUsers, publishEvent, publishEvents, resolveOnlineAudience } from "../../src/lib/realtime";
 import { newId } from "../../src/lib/ids";
-import { notify, sendAlerts } from "../../src/lib/notify";
+import { notify, notifyMany, sendAlerts } from "../../src/lib/notify";
 import type { Alert } from "../../src/types/api";
 import { connectWs, signup, uniqueHandle } from "../helpers";
 
@@ -335,6 +335,67 @@ describe("notify", () => {
     await blockSql(b, a);
     await notify(rtFor(env), { ...inp, dedupeKey: "other" });
     expect((await env.DB.prepare("SELECT COUNT(*) n FROM notifications WHERE user_id=?").bind(b.user.id).first<any>()).n).toBe(1);
+  });
+
+  it("notifyMany to more than 50 online recipients in production mode: one scheduled fan-out, one presence query, at most 50 RPCs in flight", async () => {
+    const actor = await signup();
+    const members = await seedUsers(60);
+    for (const u of members) await online(u, { full: true });
+
+    // Production-like runtime: APP_ENV != 'test' hands work to waitUntil; count presence queries and in-flight RPCs.
+    let presenceQueries = 0;
+    const db = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === "prepare")
+          return (sql: string) => {
+            if (sql.includes("user_presence")) presenceQueries++;
+            return t.prepare(sql);
+          };
+        const v = (t as any)[k];
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let delivers = 0;
+    const hub = {
+      getByName(name: string) {
+        const stub = env.USER_HUB.getByName(name);
+        return {
+          async deliver(arg: any) {
+            delivers++;
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            try {
+              await settle(20);
+              return await stub.deliver(arg);
+            } finally {
+              inFlight--;
+            }
+          },
+        };
+      },
+    };
+    const pending: Promise<unknown>[] = [];
+    const prodRt: Runtime = { env: { ...env, APP_ENV: "production", DB: db, USER_HUB: hub } as any, waitUntil: (p) => void pending.push(p) };
+
+    await notifyMany(
+      prodRt,
+      members.map((m) => ({
+        userId: m.user.id,
+        type: "friend_request" as const,
+        actorId: actor.user.id,
+        subject: { type: "friend_request" as const, id: newId() },
+        alert: { kind: "friend_request" as const, title: "t", body: "b", target: target("user", actor.user.id) },
+      })),
+    );
+    expect(pending).toHaveLength(1); // a single schedule()
+    await Promise.all(pending);
+    expect(presenceQueries).toBe(1); // notifyMany + its fan-out: one online-audience query in total
+    expect(delivers).toBe(60); // one RPC per recipient, carrying both events
+    expect(maxInFlight).toBeLessThanOrEqual(50);
+    const seqs = await Promise.all(members.map((u) => env.USER_HUB.getByName(u.user.id).inspect().then((x) => x.seq)));
+    expect(seqs.every((n) => n === 2)).toBe(true); // notification.created + alert
   });
 
   it("sendAlerts respects muted / notify:none channel prefs", async () => {

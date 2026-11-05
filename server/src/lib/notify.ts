@@ -9,7 +9,8 @@ import type { Alert, AlertKind, Notification, NotificationType } from "../types/
 import type { NotificationRow, UserSettingsRow } from "../types/rows";
 import { all, batch, jsonList, stmt } from "./db";
 import { newId } from "./ids";
-import { publishEvents, resolveOnlineAudience } from "./realtime";
+import type { OutboundEvent } from "../do/user-hub";
+import { deliverPerUser } from "./realtime";
 import { type NotificationExtra, loadUserSummaries, serializeNotifications } from "./serialize";
 import { iso, now } from "./time";
 
@@ -37,9 +38,6 @@ export interface AlertItem {
 const TITLE_MAX = 80;
 const BODY_MAX = 200;
 const PREVIEW_MAX = 100;
-
-/** RPC fan-out of per-recipient batches runs this many recipients at a time. */
-const PUBLISH_CHUNK = 50;
 
 /** Cut to at most n code points. */
 function clip(s: string, n: number): string {
@@ -160,13 +158,12 @@ function buildAlert(
 
 type Outbound = { type: "notification.created" | "alert"; data: unknown };
 
-/** One publishEvents (one UserHub RPC) per online recipient; offline recipients cost nothing past one query. */
-async function publishPerRecipient(rt: Runtime, byUser: Map<string, Outbound[]>): Promise<void> {
-  if (byUser.size === 0) return;
-  const online = await resolveOnlineAudience(rt.env, { users: [...byUser.keys()] }, { notifyOk: true });
-  for (let i = 0; i < online.length; i += PUBLISH_CHUNK) {
-    await Promise.all(online.slice(i, i + PUBLISH_CHUNK).map((u) => publishEvents(rt, { users: [u] }, byUser.get(u) ?? [])));
-  }
+/** One scheduled fan-out for all recipients: one online query, one UserHub RPC per online recipient, 50 at a time. */
+function publishPerRecipient(rt: Runtime, byUser: Map<string, Outbound[]>): Promise<void> {
+  const ts = Date.now();
+  const out = new Map<string, OutboundEvent[]>();
+  for (const [uid, evs] of byUser) out.set(uid, evs.map((e) => ({ type: e.type, data: e.data, ts, logged: true })));
+  return deliverPerUser(rt, out);
 }
 
 function push(byUser: Map<string, Outbound[]>, userId: string, e: Outbound): void {
