@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/patrache/masil/internal/api"
@@ -96,6 +97,28 @@ type PinEvent struct {
 	ChannelID string `json:"channel_id"`
 	MessageID string `json:"message_id"`
 	By        string `json:"-"` // pinned_by | unpinned_by
+}
+
+// UnmarshalJSON reads `pinned_by` (message.pinned) or `unpinned_by`
+// (message.unpinned) into By.
+func (p *PinEvent) UnmarshalJSON(b []byte) error {
+	var w struct {
+		ChannelID  string  `json:"channel_id"`
+		MessageID  string  `json:"message_id"`
+		PinnedBy   *string `json:"pinned_by"`
+		UnpinnedBy *string `json:"unpinned_by"`
+	}
+	if err := json.Unmarshal(b, &w); err != nil {
+		return err
+	}
+	*p = PinEvent{ChannelID: w.ChannelID, MessageID: w.MessageID}
+	switch {
+	case w.PinnedBy != nil:
+		p.By = *w.PinnedBy
+	case w.UnpinnedBy != nil:
+		p.By = *w.UnpinnedBy
+	}
+	return nil
 }
 
 // PollUpdated is `poll.updated` (message and post polls; Poll.ContextType tells them apart).
@@ -316,4 +339,103 @@ type StoryDeleted struct {
 type DeviceTUIState struct {
 	DeviceID     string `json:"device_id"`
 	TUIConnected bool   `json:"tui_connected"`
+}
+
+// decodeAs unmarshals raw into a T and returns it as a value.
+func decodeAs[T any](raw json.RawMessage) (any, error) {
+	var v T
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+// decoders maps every events.md 8장 server type (except payload-less `pong`)
+// to its CA 4.4 Go type.
+var decoders = map[string]func(json.RawMessage) (any, error){
+	"hello":           decodeAs[Hello],
+	"ready":           decodeAs[Ready],
+	"reply":           decodeAs[Reply],
+	"session.revoked": decodeAs[SessionRevoked],
+
+	"message.created":  decodeAs[MessageEvent],
+	"message.updated":  decodeAs[MessageEvent],
+	"message.deleted":  decodeAs[MessageDeleted],
+	"thread.updated":   decodeAs[ThreadUpdated],
+	"reaction.added":   decodeAs[ReactionEvent],
+	"reaction.removed": decodeAs[ReactionEvent],
+	"message.pinned":   decodeAs[PinEvent],
+	"message.unpinned": decodeAs[PinEvent],
+	"poll.updated":     decodeAs[PollUpdated],
+
+	"typing":             decodeAs[Typing],
+	"read_state.updated": decodeAs[ReadStateUpdated],
+
+	"channel.created":        decodeAs[ChannelEvent],
+	"channel.updated":        decodeAs[ChannelEvent],
+	"channel.deleted":        decodeAs[ChannelDeleted],
+	"channel.member_added":   decodeAs[ChannelMemberAdded],
+	"channel.member_removed": decodeAs[ChannelMemberRemoved],
+	"channel.prefs_updated":  decodeAs[ChannelPrefsUpdated],
+
+	"space.joined":          decodeAs[SpaceJoined],
+	"space.updated":         decodeAs[SpaceUpdated],
+	"space.deleted":         decodeAs[SpaceDeleted],
+	"space.removed":         decodeAs[SpaceRemoved],
+	"space.member_joined":   decodeAs[SpaceMemberEvent],
+	"space.member_left":     decodeAs[SpaceMemberLeft],
+	"space.member_updated":  decodeAs[SpaceMemberEvent],
+	"space.invite_received": decodeAs[InviteReceived],
+	"space.invite_removed":  decodeAs[InviteRemoved],
+
+	"friend.request_received": decodeAs[FriendRequestEvent],
+	"friend.request_accepted": decodeAs[FriendRequestEvent],
+	"friend.request_removed":  decodeAs[FriendRequestRemoved],
+	"friend.added":            decodeAs[FriendAdded],
+	"friend.removed":          decodeAs[FriendRemoved],
+	"block.updated":           decodeAs[BlockUpdated],
+	"user.updated":            decodeAs[UserUpdated],
+	"settings.updated":        decodeAs[SettingsUpdated],
+
+	"presence.snapshot": decodeAs[PresenceSnapshot],
+	"presence.updated":  decodeAs[PresenceUpdated],
+	"presence.self":     decodeAs[PresenceSelf],
+	"focus.started":     decodeAs[FocusStarted],
+	"focus.ended":       decodeAs[FocusEnded],
+
+	"notification.created": decodeAs[NotificationCreated],
+	"notifications.read":   decodeAs[NotificationsRead],
+	"alert":                decodeAs[AlertEvent],
+
+	"timeline.item_created": decodeAs[TimelineItemCreated],
+	"post.deleted":          decodeAs[PostDeleted],
+	"post.stats":            decodeAs[PostStats],
+	"post.reply_created":    decodeAs[PostReplyCreated],
+	"story.created":         decodeAs[StoryCreated],
+	"story.deleted":         decodeAs[StoryDeleted],
+
+	"device.tui_state": decodeAs[DeviceTUIState],
+}
+
+// loggedTypes are the types events.md 4장 marks 기록 (logged, carry a seq).
+// poll.updated is logged for message polls (4.2) but ephemeral for post polls
+// (4.8); the frame's own seq (nil or not) is authoritative per event.
+var loggedTypes = map[string]bool{
+	"message.created": true, "message.updated": true, "message.deleted": true, "thread.updated": true,
+	"reaction.added": true, "reaction.removed": true, "message.pinned": true, "message.unpinned": true,
+	"poll.updated": true, "read_state.updated": true,
+
+	"channel.created": true, "channel.updated": true, "channel.deleted": true, "channel.member_added": true,
+	"channel.member_removed": true, "channel.prefs_updated": true,
+
+	"space.joined": true, "space.updated": true, "space.deleted": true, "space.removed": true,
+	"space.member_joined": true, "space.member_left": true, "space.member_updated": true,
+	"space.invite_received": true, "space.invite_removed": true,
+
+	"friend.request_received": true, "friend.request_accepted": true, "friend.request_removed": true,
+	"friend.added": true, "friend.removed": true, "block.updated": true, "user.updated": true, "settings.updated": true,
+
+	"focus.started": true, "focus.ended": true,
+
+	"notification.created": true, "notifications.read": true, "alert": true,
 }
