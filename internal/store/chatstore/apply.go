@@ -124,15 +124,16 @@ func mergeLive(old, ev api.Message) api.Message {
 	return out
 }
 
+// messageCreated inserts a new message in range. Its pending send (client_nonce)
+// is dropped, unless the message found no place and its window still awaits a
+// page that will show it (pages.go: the event is logged and re-applied then).
 func (c *ChatStore) messageCreated(m api.Message) {
-	if m.ClientNonce != nil && *m.ClientNonce != "" && c.pendingIndex(m.ChannelID, *m.ClientNonce) >= 0 {
-		c.DropPending(m.ChannelID, *m.ClientNonce)
-	}
 	c.clearTyper(m.ChannelID, m.ThreadRootID, m.Author.ID)
 
 	var w *store.Window[api.Message]
 	if m.ThreadRootID != nil {
 		if !c.replyInRange(*m.ThreadRootID, m.ID) {
+			c.settlePending(m, false)
 			return
 		}
 		th := c.threads[*m.ThreadRootID]
@@ -142,10 +143,12 @@ func (c *ChatStore) messageCreated(m api.Message) {
 		w = th.replies
 	} else {
 		if !c.inRange(m.ChannelID, m.ID) {
+			c.settlePending(m, false)
 			return
 		}
 		w = c.windows[m.ChannelID]
 	}
+	c.settlePending(m, true)
 	// Any copy we already hold (the REST send result, a later edit or a
 	// tombstone, a resync snapshot) is at least as new as its creation, and
 	// events from different requests can arrive out of order (events.md 6.4):
@@ -398,14 +401,12 @@ func (t *threadState) channel() string {
 // typing, open state, missing ids and its threads. The active channel id is
 // kept so the conversation view can tell the user the channel is gone.
 func (c *ChatStore) dropChannel(channelID string) {
-	delete(c.windows, channelID)
-	delete(c.loaded, channelID)
+	c.dropWindow(channelID)
 	delete(c.open, channelID)
 	delete(c.pending, channelID)
 	delete(c.polls, channelID)
 	delete(c.pins, channelID)
 	delete(c.pinsLoaded, channelID)
-	delete(c.missing, channelID)
 	for k := range c.typing {
 		if k.channelID == channelID {
 			delete(c.typing, k)

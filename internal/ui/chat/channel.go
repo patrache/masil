@@ -38,10 +38,12 @@ type readTickMsg struct {
 	gen uint64
 }
 
-// historyPage is the result of one ListMessages request of the view.
+// historyPage is the result of one ListMessages request of the view; T is the
+// chatstore ticket taken when the request was built.
 type historyPage struct {
 	Q api.MessageQuery
 	W *api.MessageWindow
+	T chatstore.PageTicket
 }
 
 // channelSaved is the Persistent state of a conversation.
@@ -62,8 +64,12 @@ type channelView struct {
 	readGen  uint64 // latest read arming
 	readSent string // message id of the read request in flight / done
 
+	firstBusy bool   // a first page (latest / around) is in flight
 	newerBusy bool   // a newer page is in flight
 	jump      string // anchor to select once its page lands
+
+	chat *chatstore.ChatStore // the store this view marked open (SetClosed on release)
+	gen  chatstore.PageTicket // window the older / newer flags belong to (syncGen)
 }
 
 var (
@@ -122,9 +128,11 @@ func (v *channelView) Init(ctx *ui.Context) tea.Cmd {
 	if c == nil {
 		return nil
 	}
+	v.chat = c
 	c.SetActiveChannel(v.id())
 	var cmds []tea.Cmd
-	if !c.Loaded(v.id()) || v.route.Anchor != "" {
+	// a window a resync never refreshed (no live view applied it) is refetched
+	if !c.Fresh(v.id()) || v.route.Anchor != "" {
 		cmds = append(cmds, v.fetchHistory(ctx, v.route.Anchor))
 	}
 	v.pane.refresh(ctx)
@@ -140,15 +148,39 @@ func (v *channelView) Init(ctx *ui.Context) tea.Cmd {
 // fetchHistory requests the latest page (anchor "") or the page around anchor.
 func (v *channelView) fetchHistory(ctx *ui.Context, anchor string) tea.Cmd {
 	v.jump = anchor
+	v.firstBusy = true
 	return v.request(ctx, api.MessageQuery{Around: anchor, Limit: historyLimit})
 }
 
+// request builds a ListMessages request with the chatstore ticket of now: a
+// replacing page re-applies what happened while it was in flight, an older /
+// newer page of a window replaced meanwhile is discarded.
 func (v *channelView) request(ctx *ui.Context, q api.MessageQuery) tea.Cmd {
 	ch := v.id()
+	var t chatstore.PageTicket
+	if c := chatOf(ctx); c != nil {
+		t = c.Ticket(ch)
+	}
 	return ui.Do(ctx, "chat.history:"+ch, func(c context.Context, cl *api.Client) (historyPage, error) {
 		w, err := cl.ListMessages(c, ch, q)
-		return historyPage{Q: q, W: w}, err
+		return historyPage{Q: q, W: w, T: t}, err
 	})
+}
+
+// syncGen drops the older / newer in-flight flags once the window they were
+// requested for was replaced (their pages will be discarded), so the new
+// window can page at once.
+func (v *channelView) syncGen(ctx *ui.Context) {
+	c := chatOf(ctx)
+	if c == nil || c.Current(v.id(), v.gen) {
+		return
+	}
+	v.gen = c.Ticket(v.id())
+	if v.pane.loadingOlder || v.newerBusy {
+		v.pane.loadingOlder, v.newerBusy = false, false
+		v.pane.refresh(ctx)
+		v.pane.stopLoading()
+	}
 }
 
 // loadFirst requests the first page (latest, or around anchor) with the loading
@@ -186,6 +218,7 @@ func failedNotice(ctx *ui.Context) string {
 
 // loadOlder requests the page before the first loaded message (one at a time).
 func (v *channelView) loadOlder(ctx *ui.Context) tea.Cmd {
+	v.syncGen(ctx)
 	w := v.pane.window(ctx)
 	if v.pane.loadingOlder || w == nil || w.Len() == 0 || !w.HasMoreBefore() {
 		return nil
@@ -198,6 +231,7 @@ func (v *channelView) loadOlder(ctx *ui.Context) tea.Cmd {
 // loadNewer requests the page after the overlap anchor of a window that is not
 // the latest (one at a time).
 func (v *channelView) loadNewer(ctx *ui.Context) tea.Cmd {
+	v.syncGen(ctx)
 	w := v.pane.window(ctx)
 	if v.newerBusy || w == nil || w.Len() == 0 || !w.HasMoreAfter() {
 		return nil
@@ -213,11 +247,21 @@ func (v *channelView) loadNewer(ctx *ui.Context) tea.Cmd {
 // onHistory lands a page of this view.
 func (v *channelView) onHistory(ctx *ui.Context, m ui.ResultMsg[historyPage]) tea.Cmd {
 	q := m.Value.Q
+	c := chatOf(ctx)
+	// an older / newer page of a replaced window is not this window's: its
+	// flag was dropped when the window changed (syncGen)
+	current := c == nil || c.Current(v.id(), m.Value.T)
 	switch {
 	case q.Before != "":
-		v.pane.loadingOlder = false
+		if current {
+			v.pane.loadingOlder = false
+		}
 	case q.After != "":
-		v.newerBusy = false
+		if current {
+			v.newerBusy = false
+		}
+	default:
+		v.firstBusy = false
 	}
 	if m.Err != nil {
 		// a failed first page (latest or around) of a conversation that holds none:
@@ -229,11 +273,15 @@ func (v *channelView) onHistory(ctx *ui.Context, m ui.ResultMsg[historyPage]) te
 		v.pane.stopLoading()
 		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: loadFailed} }
 	}
-	c := chatOf(ctx)
 	if c == nil {
 		return nil
 	}
-	c.ApplyPage(v.id(), q, m.Value.W)
+	if !c.ApplyPageFor(v.id(), m.Value.T, q, m.Value.W) {
+		v.pane.refresh(ctx)
+		v.pane.stopLoading()
+		return nil
+	}
+	v.syncGen(ctx)
 	if q.After != "" {
 		v.pane.noFollow = true
 	}
@@ -245,6 +293,33 @@ func (v *channelView) onHistory(ctx *ui.Context, m ui.ResultMsg[historyPage]) te
 	}
 	v.syncOpen(ctx)
 	return tea.Batch(v.fetchMissing(ctx), v.maybeArmRead(ctx))
+}
+
+// onResyncErr: the resync refetch of this window failed and chatstore dropped
+// it — the failed-first-page notice offers the retry (and, when the
+// conversation is on screen, the error is toasted).
+func (v *channelView) onResyncErr(ctx *ui.Context, err error) tea.Cmd {
+	c := chatOf(ctx)
+	if err == nil || c == nil || c.Loaded(v.id()) || v.firstBusy || v.gone(ctx) {
+		return nil
+	}
+	v.pane.failed = failedNotice(ctx)
+	v.pane.stopLoading()
+	if ctx.Store != nil && ctx.Store.Viewing(v.id()) {
+		return errorCmd(err, loadFailed)
+	}
+	return nil
+}
+
+// refetchDropped (after a resync) loads the first page again when the window
+// was dropped (this channel was not open when the resync started, e.g. the
+// instance had been released) and nothing is in flight or failed.
+func (v *channelView) refetchDropped(ctx *ui.Context) tea.Cmd {
+	c := chatOf(ctx)
+	if c == nil || c.Loaded(v.id()) || v.firstBusy || v.pane.failed != "" || v.gone(ctx) {
+		return nil
+	}
+	return v.loadFirst(ctx, v.jump)
 }
 
 // fetchMissing fetches every in-range message an event referred to that we hold no copy of.
@@ -320,6 +395,7 @@ func (v *channelView) syncOpen(ctx *ui.Context) {
 }
 
 func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
+	v.syncGen(ctx)
 	cmds := []tea.Cmd{v.pane.update(ctx, msg)}
 	defer v.syncComposer(ctx)
 	switch m := msg.(type) {
@@ -354,9 +430,13 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if c := chatOf(ctx); c != nil {
 			c.ApplyResync(m)
 		}
+		v.syncGen(ctx)
+		cmds = append(cmds, v.onResyncErr(ctx, m.ChannelErr(v.id())))
 		v.pane.refresh(ctx)
 		v.syncOpen(ctx)
 		cmds = append(cmds, v.maybeArmRead(ctx))
+	case ui.ResyncDoneMsg:
+		cmds = append(cmds, v.refetchDropped(ctx))
 	case ui.RouteUpdatedMsg:
 		if m.Route.Key() != v.route.Key() {
 			break
@@ -674,7 +754,12 @@ func (v *channelView) Help(ctx *ui.Context) []key.Binding {
 	return ctx.Keys.Help(keymap.MsgThread, keymap.MsgReact, keymap.ComposeFocus, keymap.ChannelSearch)
 }
 
+// SaveState is called when the app releases the instance (CA 5.3.3): the
+// window stops being open, so a resync no longer refetches it.
 func (v *channelView) SaveState() any {
+	if v.chat != nil {
+		v.chat.SetClosed(v.id())
+	}
 	st := channelSaved{Anchor: v.pane.list.Anchor(), Draft: v.composer.draft()}
 	if r, ok := v.pane.selected(); ok {
 		st.Selected = r.ID

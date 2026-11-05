@@ -10,14 +10,27 @@ import (
 // copies (mergeLive), they carry the caller's own reactions[].me and
 // poll.my_votes, so they replace the stored copies as they are.
 
-// ApplyPage merges a ListMessages page into the channel window: no anchor or
+// ApplyPage is ApplyPageFor with a ticket taken now (nothing to replay, the
+// current window): the page is treated as read at this instant.
+func (c *ChatStore) ApplyPage(channelID string, q api.MessageQuery, w *api.MessageWindow) {
+	c.ApplyPageFor(channelID, c.Ticket(channelID), q, w)
+}
+
+// ApplyPageFor merges a ListMessages page into the channel window: no anchor or
 // Around replaces the window, Before prepends an older page and After appends a
 // newer one (both merged by ID). An anchored page into a window that holds no
-// REST page yet replaces it, so both has-more flags come from the server. The
-// window becomes Loaded, and sends whose client_nonce came back leave Pending.
-func (c *ChatStore) ApplyPage(channelID string, q api.MessageQuery, w *api.MessageWindow) {
+// REST page yet replaces it, so both has-more flags come from the server; an
+// anchored page built from a window that was replaced since (t not Current) is
+// discarded (false). The window becomes Loaded (and Fresh), sends whose
+// client_nonce came back leave Pending, and everything logged since t was taken
+// is re-applied over the page (pages.go).
+func (c *ChatStore) ApplyPageFor(channelID string, t PageTicket, q api.MessageQuery, w *api.MessageWindow) bool {
 	if w == nil {
-		return
+		return false
+	}
+	anchored := q.Before != "" || q.After != ""
+	if anchored && !c.Current(channelID, t) {
+		return false
 	}
 	win := c.Window(channelID)
 	switch {
@@ -27,6 +40,8 @@ func (c *ChatStore) ApplyPage(channelID string, q api.MessageQuery, w *api.Messa
 		win.AppendNewer(w.Items, w.HasMoreAfter)
 	default:
 		win.Replace(w.Items, w.HasMoreBefore, w.HasMoreAfter)
+		c.wgen[channelID] = c.bump()
+		delete(c.stale, channelID)
 	}
 	c.loaded[channelID] = true
 	for _, m := range w.Items {
@@ -34,14 +49,25 @@ func (c *ChatStore) ApplyPage(channelID string, q api.MessageQuery, w *api.Messa
 		c.refreshCopies(m)
 		c.removeMissing(channelID, m.ID)
 	}
+	c.replaySince(t.since)
+	return true
 }
 
-// ApplyThreadPage merges a GetThread page: the root copy is replaced (also in
-// the channel window and pin list), replies follow ApplyPage's anchor rules
-// (a first page always replaces).
+// ApplyThreadPage is ApplyThreadPageFor with a ticket taken now.
 func (c *ChatStore) ApplyThreadPage(rootID string, q api.ThreadQuery, w *api.ThreadWindow) {
+	c.ApplyThreadPageFor(rootID, c.ThreadTicket(rootID), q, w)
+}
+
+// ApplyThreadPageFor merges a GetThread page: the root copy is replaced (also
+// in the channel window and pin list), replies follow ApplyPageFor's rules (a
+// first page always replaces; a stale anchored page is discarded).
+func (c *ChatStore) ApplyThreadPageFor(rootID string, t PageTicket, q api.ThreadQuery, w *api.ThreadWindow) bool {
 	if w == nil {
-		return
+		return false
+	}
+	anchored := q.Before != "" || q.After != ""
+	if anchored && !c.ThreadCurrent(rootID, t) {
+		return false
 	}
 	th := c.thread(rootID)
 	had := th.root != nil
@@ -57,6 +83,7 @@ func (c *ChatStore) ApplyThreadPage(rootID string, q api.ThreadQuery, w *api.Thr
 		th.replies.AppendNewer(w.Items, w.HasMoreAfter)
 	default:
 		th.replies.Replace(w.Items, w.HasMoreBefore, w.HasMoreAfter)
+		th.gen = c.bump()
 	}
 	if root.ID != "" {
 		if win := c.windows[root.ChannelID]; win != nil {
@@ -69,6 +96,8 @@ func (c *ChatStore) ApplyThreadPage(rootID string, q api.ThreadQuery, w *api.Thr
 		c.mergePending(m)
 		c.removeMissing(m.ChannelID, m.ID)
 	}
+	c.replaySince(t.since)
+	return true
 }
 
 // UpsertMessage lands a single REST message (send / reply / edit result,
@@ -76,15 +105,26 @@ func (c *ChatStore) ApplyThreadPage(rootID string, q api.ThreadQuery, w *api.Thr
 // newer (heldNewer: a tombstone, or a later edit, applied before a slower
 // response landed), or is inserted when it belongs in the loaded range (never
 // opening a gap past a window that has more after); a reply goes to its
-// thread's reply window only. The pending send with its client_nonce is
-// dropped either way.
+// thread's reply window only. A message that found no window place is logged
+// for page replay, and its pending send (client_nonce) stays while its window
+// awaits a page that will show it (pages.go); otherwise the pending send is
+// dropped.
 func (c *ChatStore) UpsertMessage(m api.Message) {
-	c.mergePending(m)
+	placed := c.upsert(m)
+	c.settlePending(m, placed)
+	if !placed {
+		c.recordMessage(m)
+	}
+}
+
+// upsert is UpsertMessage without the pending / log rules; it reports whether
+// the window (or reply window) now holds m's id.
+func (c *ChatStore) upsert(m api.Message) bool {
 	defer c.removeMissing(m.ChannelID, m.ID)
 	if m.ThreadRootID != nil {
 		th := c.threads[*m.ThreadRootID]
 		if th == nil {
-			return
+			return false
 		}
 		if old, ok := th.replies.Get(m.ID); ok || c.replyInRange(*m.ThreadRootID, m.ID) {
 			if !ok || !heldNewer(old, m) {
@@ -93,14 +133,17 @@ func (c *ChatStore) UpsertMessage(m api.Message) {
 			if th.channelID == "" {
 				th.channelID = m.ChannelID
 			}
+			return true
 		}
-		return
+		return false
 	}
+	placed := false
 	if w := c.windows[m.ChannelID]; w != nil {
 		if old, ok := w.Get(m.ID); ok || c.inRange(m.ChannelID, m.ID) {
 			if !ok || !heldNewer(old, m) {
 				w.Upsert(m)
 			}
+			placed = true
 		}
 	}
 	if th := c.threads[m.ID]; th != nil && th.root != nil && !heldNewer(*th.root, m) {
@@ -112,6 +155,7 @@ func (c *ChatStore) UpsertMessage(m api.Message) {
 			*p = m
 		}
 	}
+	return placed
 }
 
 // heldNewer reports whether the stored copy old is newer than the incoming m

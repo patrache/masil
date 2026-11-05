@@ -41,16 +41,24 @@ type ChatStore struct {
 	selectedSpace string
 	activeChannel string
 
-	// Resync generations and the in-flight event journal (resync.go). gen is
-	// never reset, so results of a refetch started before Reset are ignored.
+	// Resync generations (resync.go). gen is never reset, so results of a
+	// refetch started before Reset are ignored.
 	gen, applied uint64
-	flight       *chatFlight
-	replaying    bool
+
+	// Page replay log and window generations (pages.go). logSeq and genSeq are
+	// never reset, so tickets taken before Reset never match the new session.
+	log       []logEntry
+	logSeq    uint64
+	replaying bool
+	wgen      map[string]uint64 // channel id -> window generation
+	genSeq    uint64
+	stale     map[string]bool // channel id -> a refetch was started and its result has not landed
 }
 
 type threadState struct {
 	root      *api.Message
 	replies   *store.Window[api.Message]
+	gen       uint64 // reply window generation (pages.go)
 	open      bool
 	channelID string // learned from the root or a reply ("" until then)
 }
@@ -80,8 +88,10 @@ func (c *ChatStore) clear() {
 	c.missing = map[string][]string{}
 	c.selectedSpace = ""
 	c.activeChannel = ""
-	c.flight = nil
+	c.log = nil
 	c.replaying = false
+	c.wgen = map[string]uint64{}
+	c.stale = map[string]bool{}
 	c.applied = c.gen
 }
 
@@ -160,7 +170,8 @@ func (c *ChatStore) SetOpen(channelID, anchorMessageID string, atBottom bool) {
 	c.open[channelID] = openState{anchor: anchorMessageID, atBottom: atBottom}
 }
 
-// SetClosed marks the channel window not open (its cache is dropped on resync).
+// SetClosed marks the channel window not open (its cache is dropped on resync);
+// the conversation view calls it when the app releases the instance.
 func (c *ChatStore) SetClosed(channelID string) { delete(c.open, channelID) }
 
 // SetThreadOpen marks a thread open or closed (replies are only kept live while open).

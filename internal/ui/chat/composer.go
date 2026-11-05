@@ -348,7 +348,9 @@ func resendCmd(ctx *ui.Context, channelID, nonce string) tea.Cmd {
 
 // applySend lands a send result: failure marks the pending send failed (it
 // stays listed for enter = resend / d = discard; the client already retried a
-// short 429 once); success stores the message and drops the pending send.
+// short 429 once); success stores the message, which drops the pending send
+// — unless the message is past the shown window, then the pending row stays
+// until the page being fetched shows it (chatstore.UpsertMessage).
 func applySend(ctx *ui.Context, m ui.ResultMsg[sendOutcome]) {
 	c := chatOf(ctx)
 	if c == nil {
@@ -359,14 +361,18 @@ func applySend(ctx *ui.Context, m ui.ResultMsg[sendOutcome]) {
 		c.FailPending(o.ChannelID, o.Nonce, m.Err)
 		return
 	}
-	if o.Msg != nil {
-		msg := *o.Msg
-		if msg.ChannelID == "" {
-			msg.ChannelID = o.ChannelID
-		}
-		c.UpsertMessage(msg)
+	if o.Msg == nil {
+		c.DropPending(o.ChannelID, o.Nonce)
+		return
 	}
-	c.DropPending(o.ChannelID, o.Nonce) // also when the echo carried no client_nonce
+	msg := *o.Msg
+	if msg.ChannelID == "" {
+		msg.ChannelID = o.ChannelID
+	}
+	if msg.ClientNonce == nil || *msg.ClientNonce != o.Nonce { // the echo carried no (or another) client_nonce
+		c.DropPending(o.ChannelID, o.Nonce)
+	}
+	c.UpsertMessage(msg)
 }
 
 // height is the drawn height for width (edit label + composer box).

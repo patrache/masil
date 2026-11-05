@@ -35,10 +35,12 @@ const (
 	repliesRowID       = "replies"
 )
 
-// threadPage is the result of one GetThread request of a thread view.
+// threadPage is the result of one GetThread request of a thread view; T is
+// the chatstore ticket taken when the request was built.
 type threadPage struct {
 	Q api.ThreadQuery
 	W *api.ThreadWindow
+	T chatstore.PageTicket
 }
 
 // threadView is RouteThread: a thread's root, its replies and a reply composer.
@@ -58,6 +60,9 @@ type threadView struct {
 	anchorDone string // last anchor handled (never applied twice)
 	jump       string // anchor being paged toward ("" = none)
 	jumpPages  int    // pages turned for jump
+
+	chat *chatstore.ChatStore // the store this view marked the thread open in
+	gen  chatstore.PageTicket // reply window the older / newer flags belong to (syncGen)
 }
 
 var (
@@ -172,6 +177,7 @@ func (v *threadView) Init(ctx *ui.Context) tea.Cmd {
 	if c == nil {
 		return nil
 	}
+	v.chat = c
 	c.SetThreadOpen(v.rootID(), true)
 	v.firstBusy = true
 	cmds := []tea.Cmd{v.request(ctx, api.ThreadQuery{Limit: historyLimit})}
@@ -185,12 +191,33 @@ func (v *threadView) Init(ctx *ui.Context) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// request builds a GetThread request with the chatstore ticket of now (see
+// channelView.request).
 func (v *threadView) request(ctx *ui.Context, q api.ThreadQuery) tea.Cmd {
 	root := v.rootID()
+	var t chatstore.PageTicket
+	if c := chatOf(ctx); c != nil {
+		t = c.ThreadTicket(root)
+	}
 	return ui.Do(ctx, "chat.thread:"+root, func(c context.Context, cl *api.Client) (threadPage, error) {
 		w, err := cl.GetThread(c, root, q)
-		return threadPage{Q: q, W: w}, err
+		return threadPage{Q: q, W: w, T: t}, err
 	})
+}
+
+// syncGen drops the older / newer in-flight flags once the reply window they
+// were requested for was replaced (their pages will be discarded).
+func (v *threadView) syncGen(ctx *ui.Context) {
+	c := chatOf(ctx)
+	if c == nil || c.ThreadCurrent(v.rootID(), v.gen) {
+		return
+	}
+	v.gen = c.ThreadTicket(v.rootID())
+	if v.pane.loadingOlder || v.newerBusy {
+		v.pane.loadingOlder, v.newerBusy = false, false
+		v.pane.refresh(ctx)
+		v.pane.stopLoading()
+	}
 }
 
 // retryFirst re-requests the first page after it failed.
@@ -210,6 +237,7 @@ func (v *threadView) retryFirst(ctx *ui.Context) tea.Cmd {
 
 // loadOlder requests the replies before the first loaded one (one at a time).
 func (v *threadView) loadOlder(ctx *ui.Context) tea.Cmd {
+	v.syncGen(ctx)
 	w := v.replies(ctx)
 	if v.pane.loadingOlder || v.firstBusy || !v.loaded(ctx) || w == nil || w.Len() == 0 || !w.HasMoreBefore() {
 		return nil
@@ -221,6 +249,7 @@ func (v *threadView) loadOlder(ctx *ui.Context) tea.Cmd {
 
 // loadNewer requests the replies after the last loaded one (one at a time).
 func (v *threadView) loadNewer(ctx *ui.Context) tea.Cmd {
+	v.syncGen(ctx)
 	w := v.replies(ctx)
 	if v.newerBusy || v.firstBusy || !v.loaded(ctx) || w == nil || w.Len() == 0 || !w.HasMoreAfter() {
 		return nil
@@ -237,11 +266,17 @@ func (v *threadView) busy() bool { return v.firstBusy || v.pane.loadingOlder || 
 func (v *threadView) onPage(ctx *ui.Context, m ui.ResultMsg[threadPage]) tea.Cmd {
 	q := m.Value.Q
 	first := q.Before == "" && q.After == ""
+	c := chatOf(ctx)
+	current := c == nil || c.ThreadCurrent(v.rootID(), m.Value.T)
 	switch {
 	case q.Before != "":
-		v.pane.loadingOlder = false
+		if current {
+			v.pane.loadingOlder = false
+		}
 	case q.After != "":
-		v.newerBusy = false
+		if current {
+			v.newerBusy = false
+		}
 	default:
 		v.firstBusy = false
 	}
@@ -260,11 +295,16 @@ func (v *threadView) onPage(ctx *ui.Context, m ui.ResultMsg[threadPage]) tea.Cmd
 		}
 		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: loadFailed} }
 	}
-	c := chatOf(ctx)
 	if c == nil || m.Value.W == nil {
 		return nil
 	}
-	c.ApplyThreadPage(v.rootID(), q, m.Value.W)
+	if !c.ApplyThreadPageFor(v.rootID(), m.Value.T, q, m.Value.W) {
+		// a page of a reply window replaced meanwhile: the jump goes on from the new one
+		v.pane.refresh(ctx)
+		v.pane.stopLoading()
+		return v.advanceJump(ctx)
+	}
+	v.syncGen(ctx)
 	if q.After != "" {
 		v.pane.noFollow = true
 	}
@@ -319,6 +359,7 @@ func (v *threadView) advanceJump(ctx *ui.Context) tea.Cmd {
 }
 
 func (v *threadView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
+	v.syncGen(ctx)
 	cmds := []tea.Cmd{v.pane.update(ctx, msg)}
 	defer v.syncComposer(ctx)
 	switch m := msg.(type) {
@@ -356,7 +397,15 @@ func (v *threadView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if c := chatOf(ctx); c != nil {
 			c.ApplyResync(m)
 		}
+		v.syncGen(ctx)
+		if err := m.ThreadErr(v.rootID()); err != nil && !v.loaded(ctx) && !v.firstBusy && !v.gone(ctx) {
+			// chatstore dropped the thread: the failed-first-page notice offers the retry
+			v.pane.failed = failedNotice(ctx)
+			v.pane.stopLoading()
+		}
 		v.pane.refresh(ctx)
+	case ui.ResyncDoneMsg:
+		cmds = append(cmds, v.refetchDropped(ctx))
 	case ui.RouteUpdatedMsg:
 		if m.Route.Key() != v.route.Key() {
 			break
@@ -609,7 +658,31 @@ func (v *threadView) Help(ctx *ui.Context) []key.Binding {
 	return ctx.Keys.Help(keymap.ComposeFocus, keymap.MsgReact, keymap.MsgActions, keymap.NavBack)
 }
 
+// refetchDropped (after a resync) loads the first page again when the thread
+// was dropped (it was not open when the resync started) and nothing is in
+// flight or failed.
+func (v *threadView) refetchDropped(ctx *ui.Context) tea.Cmd {
+	if chatOf(ctx) == nil || v.loaded(ctx) || v.firstBusy || v.pane.failed != "" || v.gone(ctx) {
+		return nil
+	}
+	if c := chatOf(ctx); c != nil {
+		c.SetThreadOpen(v.rootID(), true)
+	}
+	v.firstBusy = true
+	cmd := v.request(ctx, api.ThreadQuery{Limit: historyLimit})
+	v.pane.refresh(ctx)
+	if v.pane.loading {
+		cmd = tea.Batch(cmd, v.pane.startLoading(ctx))
+	}
+	return cmd
+}
+
+// SaveState is called when the app releases the instance (CA 5.3.3): the
+// thread stops being open (its replies are no longer kept live nor refetched).
 func (v *threadView) SaveState() any {
+	if v.chat != nil {
+		v.chat.SetThreadOpen(v.rootID(), false)
+	}
 	st := channelSaved{Anchor: v.pane.list.Anchor(), Draft: v.composer.draft()}
 	if r, ok := v.pane.selected(); ok {
 		st.Selected = r.ID

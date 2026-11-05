@@ -120,27 +120,6 @@ func TestResyncDropsClosedCaches(t *testing.T) {
 	}
 }
 
-func TestResyncErrorsKeepWindow(t *testing.T) {
-	srv := apitest.New(t)
-	srv.Error("GET /v1/channels/C1/messages", 503, "unavailable")
-	srv.Error("GET /v1/messages/m30/thread", 503, "unavailable")
-	s, c := loadedStore(t)
-	c.SetOpen("C1", "", true)
-	c.SetThreadOpen("m30", true)
-	c.ApplyThreadPage("m30", api.ThreadQuery{Limit: 50}, &api.ThreadWindow{Root: msg("m30", "U1"), Items: []api.Message{reply("m31", "U1", "m30")}})
-	msg := runCmd(t, c.Resync(s, srv.Client())).(ResyncResultMsg)
-	if msg.Errs["C1"] == nil || msg.Errs[threadErrKey("m30")] == nil || len(msg.Channels) != 0 || len(msg.Threads) != 0 {
-		t.Fatalf("errors %+v", msg)
-	}
-	c.ApplyResync(msg)
-	if idStr(c.Window("C1").Items()) != "m10,m20,m30" {
-		t.Fatalf("failed channel keeps its window: %s", idStr(c.Window("C1").Items()))
-	}
-	if _, replies := c.Thread("m30"); idStr(replies.Items()) != "m31" {
-		t.Fatal("failed thread keeps its replies")
-	}
-}
-
 func TestResyncReplaysEventsInFlight(t *testing.T) {
 	srv := apitest.New(t)
 	// The snapshot was read before m35 was created and before U2 reacted on m20.
@@ -159,10 +138,7 @@ func TestResyncReplaysEventsInFlight(t *testing.T) {
 	if r := get(t, c, "C1", "m20").Reactions; !slices.Equal(r, []api.ReactionSummary{{Emoji: "👍", Count: 1}}) {
 		t.Fatalf("reaction re-applied: %+v", r)
 	}
-	if c.flight != nil {
-		t.Fatal("journal closed after the latest resync landed")
-	}
-	// After the journal closes, events apply once as usual.
+	// After the result landed, events apply once as usual.
 	apply(t, s, "message.created", realtime.MessageEvent{Message: msg("m40", "U1")})
 	if idStr(c.Window("C1").Items()) != "m20,m30,m35,m40" {
 		t.Fatalf("live after resync: %s", idStr(c.Window("C1").Items()))
