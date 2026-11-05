@@ -3,6 +3,10 @@ package imgrender_test
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
@@ -10,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -322,4 +327,57 @@ func TestCacheMemoryBoundedByBytes(t *testing.T) {
 	imgrender.SetMemLimit(c, 1)
 	load("up_4", 5)
 	load("up_4", 5)
+}
+
+// Remote media that would decode to hundreds of MB (16-bit, large) is refused
+// before decoding, with ErrTooLarge.
+func TestCacheLoadRejects16BitBomb(t *testing.T) {
+	px := image.NewRGBA64(image.Rect(0, 0, 1, 1))
+	px.SetRGBA64(0, 0, color.RGBA64{1, 2, 3, 0x8000})
+	p := pngBytes(t, px)
+	binary.BigEndian.PutUint32(p[16:], 7000)
+	binary.BigEndian.PutUint32(p[20:], 7000)
+	binary.BigEndian.PutUint32(p[29:], crc32.ChecksumIEEE(p[12:29]))
+	srv := apitest.New(t)
+	ms := &mediaServer{}
+	srv.Handle("GET /v1/media/{id}", ms.handler(p, `"e1"`))
+	_, err := imgrender.NewCache(testPaths(t)).Load(context.Background(), srv.Client(), media("up_bomb"))
+	if !errors.Is(err, imgrender.ErrTooLarge) {
+		t.Fatalf("Load err = %v, want ErrTooLarge", err)
+	}
+}
+
+// Concurrent loads (one per card near the screen) decode at most MaxDecodes
+// images at a time.
+func TestCacheLoadLimitsConcurrentDecodes(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 700, 700))
+	rng := rand.New(rand.NewPCG(3, 4))
+	for i := range img.Pix {
+		img.Pix[i] = uint8(rng.UintN(256))
+	}
+	data := pngBytes(t, img)
+	srv := apitest.New(t)
+	ms := &mediaServer{}
+	srv.Handle("GET /v1/media/{id}", ms.handler(data, `"e1"`))
+	c := imgrender.NewCache(config.Paths{})
+	a := srv.Client()
+	var wg sync.WaitGroup
+	errs := make(chan error, 12)
+	for i := range 12 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.Load(context.Background(), a, media(fmt.Sprintf("up_c%d", i))); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("Load: %v", err)
+	}
+	if p := imgrender.DecodePeak(c); p < 1 || p > imgrender.MaxDecodes {
+		t.Fatalf("peak concurrent decodes = %d, want 1..%d", p, imgrender.MaxDecodes)
+	}
 }

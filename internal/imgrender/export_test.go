@@ -20,3 +20,19 @@ func SetMemLimit(c *Cache, bytes int64) { c.setMemLimit(bytes) }
 
 // ImageBytes is the memory LRU's size estimate of img.
 var ImageBytes = imageBytes
+
+// CheckHeader runs the pre-decode header check with the display limits
+// (Cache.Load) or the upload limits (Decode, PrepareUpload).
+func CheckHeader(data []byte, ct string, display bool) error {
+	lim := uploadLimits
+	if display {
+		lim = displayLimits
+	}
+	return checkConfig(codecs[ct], data, ct, lim)
+}
+
+// DecodePeak is the most decodes c ever ran at once.
+func DecodePeak(c *Cache) int32 { return c.decodePeak.Load() }
+
+// MaxDecodes is how many decodes a Cache runs at once.
+const MaxDecodes = maxDecodes

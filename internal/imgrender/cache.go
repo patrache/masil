@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	xdraw "golang.org/x/image/draw"
@@ -29,6 +30,10 @@ const (
 	// maxDisplaySide caps the long side of images Load keeps (cards and
 	// the full-screen viewer never need more).
 	maxDisplaySide = 2048
+	// maxDecodes is how many images one Cache decodes at a time: every card
+	// near the screen loads its media at once, and each full-size decode can
+	// reach the display byte limit before it is shrunk.
+	maxDecodes = 2
 )
 
 // Cache loads media through the API with a disk cache
@@ -37,7 +42,9 @@ const (
 // last 32 decoded images (at most 256MB of pixels). Images are kept at most
 // 2048 pixels on the long side: remote images have no dimension limit (only
 // the 5MB upload limit, which a large solid image passes easily), so a
-// full-size decode would cost hundreds of MB per image. A Cache is safe for
+// full-size decode would cost hundreds of MB per image. Remote media is checked
+// against the display limits (24MP, ~96MB decoded) before decoding, and at
+// most two decodes run at once. A Cache is safe for
 // concurrent use.
 type Cache struct {
 	dir string
@@ -51,6 +58,10 @@ type Cache struct {
 	bytes    int64 // sum of memEntry.size
 	// diskMu serializes disk writes and eviction.
 	diskMu sync.Mutex
+	// decodes holds one token per running decode (at most maxDecodes).
+	decodes chan struct{}
+	// decoding and decodePeak count running decodes (decodePeak for tests).
+	decoding, decodePeak atomic.Int32
 }
 
 type memEntry struct {
@@ -66,7 +77,7 @@ func NewCache(p config.Paths) *Cache {
 	if p.Cache != "" {
 		dir = filepath.Join(p.Cache, "media")
 	}
-	return &Cache{dir: dir, limit: defaultDiskLimit, memLimit: memBytes, lru: list.New(), idx: map[string]*list.Element{}}
+	return &Cache{dir: dir, limit: defaultDiskLimit, memLimit: memBytes, lru: list.New(), idx: map[string]*list.Element{}, decodes: make(chan struct{}, maxDecodes)}
 }
 
 func (c *Cache) setMemLimit(n int64) {
@@ -101,7 +112,10 @@ func (c *Cache) Load(ctx context.Context, a *api.Client, m api.Media) (image.Ima
 		rel = "/v1/media/" + url.PathEscape(m.ID)
 	}
 	data := c.diskPath(m.ID)
-	cached, etag := c.diskGet(data)
+	cached, etag, err := c.diskGet(ctx, data)
+	if err != nil {
+		return nil, err
+	}
 
 	blob, err := a.FetchMedia(ctx, a.MediaURL(rel), etag)
 	if err != nil {
@@ -113,7 +127,6 @@ func (c *Cache) Load(ctx context.Context, a *api.Client, m api.Media) (image.Ima
 		}
 		now := time.Now()
 		_ = os.Chtimes(data, now, now) // LRU touch; best effort
-		cached = displayImage(cached)
 		c.memPut(m.ID, cached)
 		return cached, nil
 	}
@@ -122,38 +135,68 @@ func (c *Cache) Load(ctx context.Context, a *api.Client, m api.Media) (image.Ima
 	if ct == "" {
 		ct = m.ContentType
 	}
-	img, err := Decode(blob.Data, ct)
+	img, err := c.decode(ctx, blob.Data, ct)
 	if err != nil {
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("imgrender: media %s: %w", m.ID, err)
 	}
 	if data != "" {
 		c.store(data, blob.Data, blob.ETag) // best effort: a full disk still shows the image
 	}
-	img = displayImage(img)
 	c.memPut(m.ID, img)
 	return img, nil
 }
 
-// diskGet returns the decoded disk copy at path and its ETag, or nil and ""
-// when there is no usable pair (a 304 is only trustworthy if the disk copy
-// decodes, so a damaged copy is refetched without If-None-Match).
-func (c *Cache) diskGet(path string) (image.Image, string) {
+// decode decodes data with the display limits and shrinks it to
+// maxDisplaySide, running at most maxDecodes at a time; waiting for a turn
+// ends with ctx.
+func (c *Cache) decode(ctx context.Context, data []byte, ct string) (image.Image, error) {
+	select {
+	case c.decodes <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-c.decodes }()
+	n := c.decoding.Add(1)
+	defer c.decoding.Add(-1)
+	for {
+		if p := c.decodePeak.Load(); n <= p || c.decodePeak.CompareAndSwap(p, n) {
+			break
+		}
+	}
+	img, err := decodeDisplay(data, ct)
+	if err != nil {
+		return nil, err
+	}
+	return displayImage(img), nil
+}
+
+// diskGet returns the decoded (display-sized) disk copy at path and its ETag,
+// or nil and "" when there is no usable pair (a 304 is only trustworthy if the
+// disk copy decodes, so a damaged copy is refetched without If-None-Match).
+// The only error is ctx ending while waiting to decode.
+func (c *Cache) diskGet(ctx context.Context, path string) (image.Image, string, error) {
 	if path == "" {
-		return nil, ""
+		return nil, "", nil
 	}
 	e, err := os.ReadFile(path + etagSuffix)
 	if err != nil || strings.TrimSpace(string(e)) == "" {
-		return nil, ""
+		return nil, "", nil
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, ""
+		return nil, "", nil
 	}
-	img, err := Decode(b, "")
+	img, err := c.decode(ctx, b, "")
 	if err != nil {
-		return nil, ""
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			return nil, "", err
+		}
+		return nil, "", nil
 	}
-	return img, strings.TrimSpace(string(e))
+	return img, strings.TrimSpace(string(e)), nil
 }
 
 // diskPath is <dir>/<id>, or "" when there is no dir or id is not a plain

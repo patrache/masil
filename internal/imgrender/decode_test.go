@@ -322,3 +322,58 @@ func TestPrepareUploadUnsupported(t *testing.T) {
 		t.Fatalf("err = %v, want ErrUnsupported", err)
 	}
 }
+
+// pngHeader is a tiny PNG of the model's kind whose IHDR claims w x h.
+func pngHeader(t *testing.T, img image.Image, w, h int) []byte {
+	t.Helper()
+	p := encodePNG(t, img)
+	binary.BigEndian.PutUint32(p[16:], uint32(w))
+	binary.BigEndian.PutUint32(p[20:], uint32(h))
+	binary.BigEndian.PutUint32(p[29:], crc32.ChecksumIEEE(p[12:29]))
+	return p
+}
+
+// The pre-decode check estimates the decoded bytes from the color model (a
+// 16-bit PNG is 8 bytes a pixel), not just the pixel count: a 300 KB
+// 7000x7000 RGBA64 PNG decodes to ~373 MB. Display decodes (remote media)
+// have far lower limits than local uploads.
+func TestDecodeLimitsCountBytesPerPixel(t *testing.T) {
+	rgba64 := image.NewRGBA64(image.Rect(0, 0, 1, 1))
+	rgba64.SetRGBA64(0, 0, color.RGBA64{1, 2, 3, 0x8000}) // keeps 16-bit RGBA
+	rgba := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	rgba.SetNRGBA(0, 0, color.NRGBA{1, 2, 3, 0x80})
+	gray := image.NewGray(image.Rect(0, 0, 1, 1))
+	for _, tc := range []struct {
+		name            string
+		img             image.Image
+		w, h            int
+		display, upload bool // true = accepted
+	}{
+		{"16-bit 7000x7000", rgba64, 7000, 7000, false, false},
+		{"16-bit 5000x5000", rgba64, 5000, 5000, false, true},
+		{"16-bit 4000x3000", rgba64, 4000, 3000, true, true},
+		{"8-bit RGBA 6000x4000", rgba, 6000, 4000, true, true},
+		{"8-bit RGBA 6000x5000", rgba, 6000, 5000, false, true},
+		{"gray 7000x4000", gray, 7000, 4000, false, true},
+		{"gray 8000x6000", gray, 8000, 6000, false, true},
+		{"gray 9000x6000", gray, 9000, 6000, false, false},
+	} {
+		p := pngHeader(t, tc.img, tc.w, tc.h)
+		for _, display := range []bool{true, false} {
+			want := tc.upload
+			if display {
+				want = tc.display
+			}
+			err := imgrender.CheckHeader(p, "image/png", display)
+			if want && err != nil {
+				t.Errorf("%s display=%v: err = %v, want accepted", tc.name, display, err)
+			}
+			if !want && !errors.Is(err, imgrender.ErrTooLarge) {
+				t.Errorf("%s display=%v: err = %v, want ErrTooLarge", tc.name, display, err)
+			}
+		}
+	}
+	if _, err := imgrender.Decode(pngHeader(t, rgba64, 7000, 7000), "image/png"); !errors.Is(err, imgrender.ErrTooLarge) {
+		t.Fatalf("Decode(16-bit 7000x7000) err = %v, want ErrTooLarge", err)
+	}
+}

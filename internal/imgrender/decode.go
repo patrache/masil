@@ -34,11 +34,26 @@ var (
 	ErrTooLarge = errors.New("imgrender: image too large even after downscaling")
 )
 
+// limits bound a decode before any pixel buffer is allocated, so a tiny file
+// claiming huge dimensions (or a deep bit depth) cannot exhaust memory.
+// bytes is checked against width*height*bytesPerPixel(ColorModel).
+type limits struct {
+	pixels int64
+	bytes  int64
+}
+
+var (
+	// uploadLimits apply to the user's own files (PrepareUpload, Decode):
+	// 50MP still covers 48MP phone photos (8000x6000).
+	uploadLimits = limits{pixels: 50_000_000, bytes: 256 << 20}
+	// displayLimits apply to remote media (Cache.Load). The server stores
+	// uploads as sent (api.md 5.14), so anyone could post a few-hundred-KB
+	// 16-bit PNG that decodes to ~400MB; every viewer would pay for it.
+	// 24MP keeps 24MP camera photos (8-bit) viewable; 16-bit images get 12MP.
+	displayLimits = limits{pixels: 24_000_000, bytes: 96 << 20}
+)
+
 const (
-	// maxPixels caps width*height before any pixel buffer is allocated, so a
-	// tiny file claiming huge dimensions cannot exhaust memory. 50MP still
-	// covers 48MP phone photos (8000x6000).
-	maxPixels = 50_000_000
 	// maxInputBytes caps how much of a local file PrepareUpload reads.
 	maxInputBytes = 128 << 20
 	// minUploadSide is the smallest long side PrepareUpload downscales to.
@@ -77,16 +92,22 @@ func normalizeType(contentType string, data []byte) string {
 
 // Decode decodes PNG, JPEG, GIF (first frame) or WebP data. contentType names
 // the format; an empty or application/octet-stream type is sniffed from data.
+// Images over the upload limits fail with ErrTooLarge before decoding.
 func Decode(data []byte, contentType string) (image.Image, error) {
-	return decodeAs(data, normalizeType(contentType, data))
+	return decodeAs(data, normalizeType(contentType, data), uploadLimits)
 }
 
-func decodeAs(data []byte, ct string) (image.Image, error) {
+// decodeDisplay is Decode with the (lower) remote-media limits.
+func decodeDisplay(data []byte, contentType string) (image.Image, error) {
+	return decodeAs(data, normalizeType(contentType, data), displayLimits)
+}
+
+func decodeAs(data []byte, ct string, lim limits) (image.Image, error) {
 	c, ok := codecs[ct]
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrUnsupported, ct)
 	}
-	if err := checkConfig(c, data, ct); err != nil {
+	if err := checkConfig(c, data, ct, lim); err != nil {
 		return nil, err
 	}
 	img, err := c.decode(bytes.NewReader(data))
@@ -96,8 +117,9 @@ func decodeAs(data []byte, ct string) (image.Image, error) {
 	return img, nil
 }
 
-// checkConfig reads only the header and rejects bombs before decoding.
-func checkConfig(c codec, data []byte, ct string) error {
+// checkConfig reads only the header and rejects bombs before decoding: too
+// many pixels, or too many bytes once decoded at the header's color model.
+func checkConfig(c codec, data []byte, ct string, lim limits) error {
 	cfg, err := c.config(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("imgrender: decode %s header: %w", ct, err)
@@ -105,10 +127,34 @@ func checkConfig(c codec, data []byte, ct string) error {
 	if cfg.Width <= 0 || cfg.Height <= 0 {
 		return fmt.Errorf("imgrender: decode %s: empty image %dx%d", ct, cfg.Width, cfg.Height)
 	}
-	if int64(cfg.Width)*int64(cfg.Height) > maxPixels {
+	px := int64(cfg.Width) * int64(cfg.Height)
+	if px > lim.pixels {
 		return fmt.Errorf("%w: %dx%d pixels", ErrTooLarge, cfg.Width, cfg.Height)
 	}
+	if n := px * bytesPerPixel(cfg.ColorModel); n > lim.bytes {
+		return fmt.Errorf("%w: %dx%d pixels decode to about %d MB", ErrTooLarge, cfg.Width, cfg.Height, n>>20)
+	}
 	return nil
+}
+
+// bytesPerPixel is the decoded size of one pixel for a DecodeConfig color
+// model (the worst case where it varies: YCbCr counts as 4:4:4). Unknown
+// models count as 8 bytes.
+func bytesPerPixel(m color.Model) int64 {
+	if _, ok := m.(color.Palette); ok {
+		return 1
+	}
+	switch m {
+	case color.GrayModel, color.AlphaModel:
+		return 1
+	case color.Gray16Model, color.Alpha16Model:
+		return 2
+	case color.YCbCrModel:
+		return 3
+	case color.RGBAModel, color.NRGBAModel, color.CMYKModel, color.NYCbCrAModel:
+		return 4
+	}
+	return 8 // RGBA64Model, NRGBA64Model and anything unknown
 }
 
 // PrepareUpload reads an image file and returns bytes safe to upload with
@@ -134,7 +180,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 	out := in
 	switch ct {
 	case ctJPEG:
-		if img, err = decodeAs(in, ct); err != nil {
+		if img, err = decodeAs(in, ct, uploadLimits); err != nil {
 			return nil, "", err
 		}
 		img = applyOrientation(img, jpegOrientation(in))
@@ -142,7 +188,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 			return nil, "", err
 		}
 	case ctPNG:
-		if img, err = decodeAs(in, ct); err != nil {
+		if img, err = decodeAs(in, ct, uploadLimits); err != nil {
 			return nil, "", err
 		}
 		var b bytes.Buffer
@@ -151,7 +197,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 		}
 		out = b.Bytes()
 	default: // GIF, WebP: pass through, but only real, sane images.
-		if err = checkConfig(c, in, ct); err != nil {
+		if err = checkConfig(c, in, ct, uploadLimits); err != nil {
 			return nil, "", err
 		}
 	}
@@ -160,7 +206,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 	}
 
 	if img == nil {
-		if img, err = decodeAs(in, ct); err != nil {
+		if img, err = decodeAs(in, ct, uploadLimits); err != nil {
 			return nil, "", err
 		}
 	}
