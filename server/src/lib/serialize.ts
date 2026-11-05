@@ -12,10 +12,12 @@ import type {
   Invite,
   InvitePreview,
   Me,
+  Media,
   MentionRef,
   Message,
   Notification,
   Poll,
+  Post,
   PresenceState,
   Profile,
   ReactionSummary,
@@ -42,12 +44,14 @@ import type {
   NotificationRow,
   PollOptionRow,
   PollRow,
+  PostRow,
   SessionRow,
   SpaceBanRow,
   SpaceDirectInviteRow,
   SpaceInviteRow,
   SpaceMemberRow,
   SpaceRow,
+  UploadRow,
   UserPresenceRow,
   UserRow,
   UserSettingsRow,
@@ -881,4 +885,209 @@ export async function serializeDirectInvites(db: D1Database, rows: SpaceDirectIn
     if (!space || !inviter || !invitee) return [];
     return [{ id: r.id, space, inviter, invitee, status: r.status, created_at: iso(r.created_at) }];
   });
+}
+
+// ---- media and posts (plan 01 Task 29; plan 02 pins these rules with its own tests) ----
+
+/** uploads row -> Media (api.md 2). Pure; never exposes r2_key / owner_id / attached_to. */
+export function serializeMedia(row: UploadRow): Media {
+  return {
+    id: row.id,
+    url: `/v1/media/${row.id}`,
+    content_type: row.content_type,
+    size: row.size,
+    width: row.width,
+    height: row.height,
+  };
+}
+
+/** Post.author of a placeholder row (Post.author is non-null): the real author is never exposed. */
+const HIDDEN_AUTHOR: UserSummary = {
+  id: "00000000000000000000000000",
+  handle: "",
+  display_name: "",
+  avatar_url: null,
+  status: null,
+  is_private: false,
+  suspended: false,
+};
+
+function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
+/**
+ * posts rows -> Post (api.md 2), same length and order as `rows`. Every related table is read once per call with
+ * json_each (no N+1), in three rounds: (1) quoted rows (one level only), (2) reply parents of rows + quoted rows,
+ * media (removed uploads dropped, position order), polls, hashtags and mentions (insertion order), viewer likes/reposts,
+ * (3) user summaries (authors + parent authors) and the viewer's blocks/active follows towards quoted/parent authors.
+ *
+ * - A row with deleted_at set is a placeholder: HIDDEN_AUTHOR, empty content, zero like/repost/quote counts, viewer
+ *   flags false; only id, reply_to_id, root_id, reply_count, created_at survive (also used by callers that mark
+ *   "not visible" rows by copying them with deleted_at set).
+ * - reply_to_author: the parent's author only when the viewer may see the parent (api.md 3.4 — parent not deleted,
+ *   author not suspended, no block either way, author public / the viewer / actively followed). viewerId null (event
+ *   payloads) only checks suspension; the publisher's visibility filter has handled the rest (events.md 4.8).
+ * - quote: missing or deleted original -> {available:false, reason:"deleted"}; not visible by the same rule ->
+ *   "not_visible"; otherwise the original serialized by these rules with quote = null.
+ * - viewerId null -> viewer {liked:false, reposted:false} and poll.my_votes [] (events.md 4.4).
+ */
+export async function serializePosts(db: D1Database, viewerId: string | null, rows: PostRow[]): Promise<Post[]> {
+  if (rows.length === 0) return [];
+  const live = rows.filter((r) => r.deleted_at === null);
+  const quoteIds = [...new Set(live.flatMap((r) => (r.quote_of_id !== null ? [r.quote_of_id] : [])))];
+
+  // (1) quoted originals, one level.
+  const quotedRows =
+    quoteIds.length === 0 ? [] : await all<PostRow>(db, "SELECT * FROM posts WHERE id IN (SELECT value FROM json_each(?1))", jsonList(quoteIds));
+  const quoted = new Map(quotedRows.map((q) => [q.id, q]));
+
+  // Rows whose content is serialized: live input rows + live quoted originals.
+  const content = new Map<string, PostRow>();
+  for (const r of [...live, ...quotedRows]) if (r.deleted_at === null) content.set(r.id, r);
+  const contentRows = [...content.values()];
+  const contentIds = jsonList(contentRows.map((r) => r.id));
+  const parentIds = [...new Set(contentRows.flatMap((r) => (r.reply_to_id !== null ? [r.reply_to_id] : [])))];
+  const pollIds = contentRows.flatMap((r) => (r.poll_id !== null ? [r.poll_id] : []));
+
+  // (2) parents and content-related rows.
+  const [parentRows, mediaRows, hashtagRows, mentionRows, likeRows, repostRows, polls] = await Promise.all([
+    parentIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string; author_id: string; deleted_at: number | null }>)
+      : all<{ id: string; author_id: string; deleted_at: number | null }>(
+          db,
+          "SELECT id, author_id, deleted_at FROM posts WHERE id IN (SELECT value FROM json_each(?1))",
+          jsonList(parentIds),
+        ),
+    all<UploadRow & { post_id: string }>(
+      db,
+      `SELECT pm.post_id, u.*
+         FROM post_media pm JOIN uploads u ON u.id = pm.upload_id
+        WHERE pm.post_id IN (SELECT value FROM json_each(?1)) AND u.status <> 'removed'
+        ORDER BY pm.post_id, pm.position`,
+      contentIds,
+    ),
+    all<{ post_id: string; tag: string }>(
+      db,
+      "SELECT post_id, tag FROM post_hashtags WHERE post_id IN (SELECT value FROM json_each(?1)) ORDER BY rowid",
+      contentIds,
+    ),
+    all<{ post_id: string; user_id: string; handle: string }>(
+      db,
+      `SELECT pm.post_id, u.id AS user_id, u.handle
+         FROM post_mentions pm JOIN users u ON u.id = pm.user_id
+        WHERE pm.post_id IN (SELECT value FROM json_each(?1))
+        ORDER BY pm.rowid`,
+      contentIds,
+    ),
+    viewerId === null
+      ? Promise.resolve([] as Array<{ post_id: string }>)
+      : all<{ post_id: string }>(db, "SELECT post_id FROM post_likes WHERE user_id = ?1 AND post_id IN (SELECT value FROM json_each(?2))", viewerId, contentIds),
+    viewerId === null
+      ? Promise.resolve([] as Array<{ post_id: string }>)
+      : all<{ post_id: string }>(db, "SELECT post_id FROM reposts WHERE user_id = ?1 AND post_id IN (SELECT value FROM json_each(?2))", viewerId, contentIds),
+    serializePolls(db, viewerId, pollIds),
+  ]);
+  const parents = new Map(parentRows.map((p) => [p.id, p]));
+
+  // (3) summaries + the viewer's relation to authors whose visibility we judge here (quoted / parent authors).
+  const judged = [...new Set([...quotedRows.map((q) => q.author_id), ...parentRows.map((p) => p.author_id)])].filter((id) => id !== viewerId);
+  const [users, blockRows, followRows] = await Promise.all([
+    loadUserSummaries(db, [...contentRows.map((r) => r.author_id), ...parentRows.map((p) => p.author_id), ...quotedRows.map((q) => q.author_id)]),
+    viewerId === null || judged.length === 0
+      ? Promise.resolve([] as Array<{ other: string }>)
+      : all<{ other: string }>(
+          db,
+          `SELECT blocked_id AS other FROM blocks WHERE blocker_id = ?1 AND blocked_id IN (SELECT value FROM json_each(?2))
+           UNION
+           SELECT blocker_id AS other FROM blocks WHERE blocked_id = ?1 AND blocker_id IN (SELECT value FROM json_each(?2))`,
+          viewerId,
+          jsonList(judged),
+        ),
+    viewerId === null || judged.length === 0
+      ? Promise.resolve([] as Array<{ followee_id: string }>)
+      : all<{ followee_id: string }>(
+          db,
+          "SELECT followee_id FROM follows WHERE follower_id = ?1 AND status = 'active' AND followee_id IN (SELECT value FROM json_each(?2))",
+          viewerId,
+          jsonList(judged),
+        ),
+  ]);
+  const blocked = new Set(blockRows.map((b) => b.other));
+  const following = new Set(followRows.map((f) => f.followee_id));
+
+  /** api.md 3.4 rules 2–4 for a live post by `authorId` (rule 1 is checked by the caller). */
+  const canSee = (authorId: string): boolean => {
+    const author = users.get(authorId);
+    if (!author || author.suspended) return false;
+    if (viewerId === null || authorId === viewerId) return true;
+    if (blocked.has(authorId)) return false;
+    return !author.is_private || following.has(authorId);
+  };
+
+  const media = new Map<string, Media[]>();
+  for (const m of mediaRows) pushTo(media, m.post_id, serializeMedia(m));
+  const hashtags = new Map<string, string[]>();
+  for (const h of hashtagRows) pushTo(hashtags, h.post_id, h.tag);
+  const mentions = new Map<string, MentionRef[]>();
+  for (const m of mentionRows) pushTo(mentions, m.post_id, { user_id: m.user_id, handle: m.handle });
+  const liked = new Set(likeRows.map((l) => l.post_id));
+  const reposted = new Set(repostRows.map((r) => r.post_id));
+
+  const toPost = (r: PostRow, withQuote: boolean): Post => {
+    if (r.deleted_at !== null) {
+      return {
+        id: r.id,
+        author: HIDDEN_AUTHOR,
+        body: "",
+        media: [],
+        poll: null,
+        reply_to_id: r.reply_to_id,
+        root_id: r.root_id,
+        reply_to_author: null,
+        quote: null,
+        hashtags: [],
+        mentions: [],
+        like_count: 0,
+        repost_count: 0,
+        reply_count: r.reply_count,
+        quote_count: 0,
+        viewer: { liked: false, reposted: false },
+        created_at: iso(r.created_at),
+        deleted: true,
+      };
+    }
+    const parent = r.reply_to_id !== null ? parents.get(r.reply_to_id) : undefined;
+    const replyToAuthor = parent && parent.deleted_at === null && canSee(parent.author_id) ? (users.get(parent.author_id) ?? null) : null;
+    let quote: Post["quote"] = null;
+    if (withQuote && r.quote_of_id !== null) {
+      const q = quoted.get(r.quote_of_id);
+      if (!q || q.deleted_at !== null) quote = { available: false, id: r.quote_of_id, reason: "deleted" };
+      else if (!canSee(q.author_id)) quote = { available: false, id: r.quote_of_id, reason: "not_visible" };
+      else quote = { available: true, post: toPost(q, false) };
+    }
+    return {
+      id: r.id,
+      author: users.get(r.author_id) ?? HIDDEN_AUTHOR,
+      body: r.body,
+      media: media.get(r.id) ?? [],
+      poll: r.poll_id === null ? null : (polls.get(r.poll_id) ?? null),
+      reply_to_id: r.reply_to_id,
+      root_id: r.root_id,
+      reply_to_author: replyToAuthor,
+      quote,
+      hashtags: hashtags.get(r.id) ?? [],
+      mentions: mentions.get(r.id) ?? [],
+      like_count: r.like_count,
+      repost_count: r.repost_count,
+      reply_count: r.reply_count,
+      quote_count: r.quote_count,
+      viewer: { liked: liked.has(r.id), reposted: reposted.has(r.id) },
+      created_at: iso(r.created_at),
+      deleted: false,
+    };
+  };
+  return rows.map((r) => toPost(r, true));
 }
