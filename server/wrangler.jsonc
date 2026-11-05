@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "masil",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "masil",
+      // placeholder for local dev; replaced with the real id only after the owner approves creating the remote DB
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "masil-media" }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "USER_HUB", "class_name": "UserHub" },
+      { "name": "TOPIC_HUB", "class_name": "TopicHub" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["UserHub", "TopicHub"] }
+  ],
+
+  // Workers Rate Limiting binding: period must be 10 or 60; namespace_id is an account-unique integer string.
+  "ratelimits": [
+    { "name": "RL_SIGNUP",  "namespace_id": "7101", "simple": { "limit": 5,   "period": 60 } },
+    { "name": "RL_LOGIN",   "namespace_id": "7102", "simple": { "limit": 10,  "period": 60 } },
+    { "name": "RL_MESSAGE", "namespace_id": "7103", "simple": { "limit": 20,  "period": 10 } },
+    { "name": "RL_POST",    "namespace_id": "7104", "simple": { "limit": 10,  "period": 60 } },
+    { "name": "RL_REACT",   "namespace_id": "7105", "simple": { "limit": 30,  "period": 10 } },
+    { "name": "RL_UPLOAD",  "namespace_id": "7106", "simple": { "limit": 20,  "period": 60 } },
+    { "name": "RL_SOCIAL",  "namespace_id": "7107", "simple": { "limit": 30,  "period": 60 } },
+    { "name": "RL_SEARCH",  "namespace_id": "7108", "simple": { "limit": 30,  "period": 60 } },
+    { "name": "RL_WS",      "namespace_id": "7109", "simple": { "limit": 30,  "period": 60 } },
+    { "name": "RL_API",     "namespace_id": "7110", "simple": { "limit": 600, "period": 60 } }
+  ],
+
+  "triggers": { "crons": ["*/5 * * * *", "17 * * * *"] },
+
+  "vars": {
+    "APP_ENV": "development",
+    "MIN_CLIENT_VERSION": "0.1.0"
+  }
+}
