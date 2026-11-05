@@ -53,3 +53,16 @@ func TrendsSelectedID(c ui.Component) string {
 	}
 	return ""
 }
+
+// NotifIDs is the shown notification IDs, top row first.
+func NotifIDs(c ui.Component) []string {
+	n, ok := c.(*notifications)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(n.items))
+	for _, it := range n.items {
+		out = append(out, it.ID)
+	}
+	return out
+}
