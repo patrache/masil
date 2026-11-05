@@ -2,7 +2,9 @@
 package theme
 
 import (
+	"hash/fnv"
 	"image/color"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 )
@@ -33,32 +35,80 @@ type Theme struct {
 	S      Styles
 }
 
-// Get returns the theme by name.
+func newTheme(n Name, letter, label string, dark bool, p Palette, border lipgloss.Border) *Theme {
+	return &Theme{Name: n, Letter: letter, Label: label, Dark: dark, P: p, Border: border, S: newStyles(p, border)}
+}
+
+// themes is built once; themes are read-only after init.
+var themes = []*Theme{
+	newTheme(Charm, "A", "Charm 보라", true, charmPalette, lipgloss.RoundedBorder()),
+	newTheme(Midnight, "B", "미드나잇 블루", true, midnightPalette, lipgloss.NormalBorder()),
+	newTheme(Cream, "C", "크림 파스텔", false, creamPalette, lipgloss.RoundedBorder()),
+	newTheme(Amber, "D", "레트로 앰버", true, amberPalette, lipgloss.DoubleBorder()),
+}
+
+// Get returns the theme by name; an unknown name yields the Default theme.
 func Get(n Name) *Theme {
-	// TODO(core): Task 16
+	for _, t := range themes {
+		if t.Name == n {
+			return t
+		}
+	}
+	for _, t := range themes {
+		if t.Name == Default {
+			return t
+		}
+	}
 	return nil
 }
 
-// All returns A, B, C, D in order.
+// All returns A, B, C, D in order (a fresh slice; themes themselves are shared).
 func All() []*Theme {
-	// TODO(core): Task 16
-	return nil
+	out := make([]*Theme, len(themes))
+	copy(out, themes)
+	return out
 }
 
 // Parse accepts "charm|midnight|cream|amber" and "a|b|c|d" (case-insensitive).
 func Parse(s string) (Name, bool) {
-	// TODO(core): Task 16
+	s = strings.ToLower(strings.TrimSpace(s))
+	for _, t := range themes {
+		if s == string(t.Name) || s == strings.ToLower(t.Letter) {
+			return t.Name, true
+		}
+	}
 	return "", false
 }
 
 // UserColor: self => Acc; others FNV-1a(userID) % 3 over [Acc2, Acc3, Acc4].
 func (t *Theme) UserColor(userID string, self bool) color.Color {
-	// TODO(core): Task 16
-	return nil
+	if self {
+		return t.P.Acc
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(userID))
+	switch h.Sum32() % 3 {
+	case 0:
+		return t.P.Acc2
+	case 1:
+		return t.P.Acc3
+	default:
+		return t.P.Acc4
+	}
 }
 
-// StoryBG maps accent|accent2|accent3|accent4|plain(chip).
+// StoryBG maps accent|accent2|accent3|accent4|plain(chip); unknown slots fall back to chip.
 func (t *Theme) StoryBG(slot string) color.Color {
-	// TODO(core): Task 16
-	return nil
+	switch slot {
+	case "accent":
+		return t.P.Acc
+	case "accent2":
+		return t.P.Acc2
+	case "accent3":
+		return t.P.Acc3
+	case "accent4":
+		return t.P.Acc4
+	default:
+		return t.P.Chip
+	}
 }
