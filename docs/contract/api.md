@@ -726,6 +726,8 @@ interface AdminAction {
 
 - 로그인·API·소켓 불가(`403 account_suspended`). 정지 순간 세션 폐기 + 소켓 `4003` 종료.
 - 다른 사람 화면: `UserSummary.suspended=true`. 정지 계정의 글·스토리·방명록 글은 피드·검색·트렌드에서 빠진다. 채팅 메시지는 남는다.
+- 정지 중에는 그 계정이 행위자인 알림함 행(미리보기 포함)도 목록·`unread_count` 에서 빠진다(5.18). 정지가 끝나면(`suspended_until` 경과) 다시 보인다.
+- 사용자 목록(남의 팔로워·팔로잉, 글의 좋아요·리포스트 목록)에는 정지 계정이 `suspended=true` 로 남는다. 사용자 검색(5.2)에서는 빠진다.
 - 정지된 사용자에게는 DM·친구 요청·팔로우·초대 불가.
 
 ---
@@ -1270,6 +1272,8 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | `guestbook_entry` | 내 방명록에 새 글 | guestbook_entry | — |
 
 중복 방지: `post_like`/`post_repost`/`follow` 는 `dedupe_key` 로 같은 (행위자, 대상) 당 1개.
+
+목록과 `unread_count`(목록·`/unread-count`·`notification.created`·`notifications.read` 모두)에서 빠지는 행: 내가 차단한 행위자, 지금 정지 중인 행위자(3.9 — 정지가 끝나면 다시 보인다).
 
 #### `GET /v1/notifications?cursor=&limit=&unread_only=<bool>`
 - `200 { "items": Notification[], "next_cursor": string | null, "unread_count": number }`

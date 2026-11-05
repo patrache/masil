@@ -453,7 +453,13 @@ export function accessibleChannelIds(db: D1Database, userId: string, opts?: { sp
 /** SQL fragment + params enforcing api.md 3.4 for alias `p` (posts) and viewer. Use in every post query. */
 export function postVisibilitySql(viewerId: string, alias?: string): { sql: string; params: unknown[] };
 export function canViewPost(db: D1Database, viewerId: string, post: PostRow): Promise<boolean>;
+/** Owner's SNS content (posts tab, stories, guestbook, follow lists, story media, reports of them) for anyone but the
+ *  owner: missing owner, owner suspended now (isSuspendedNow — suspended_until <= now counts as active again, same
+ *  boundary as postVisibilitySql) or block either way -> "hidden" (404); private + not active follower -> "private". */
 export function canViewUserContent(db: D1Database, viewerId: string, ownerId: string): Promise<"ok" | "private" | "hidden">;
+/** SQL fragment + params for guestbook alias `g`: not deleted, author not suspended now, no block either way with the
+ *  viewer. The owner side is checked separately with canViewUserContent. */
+export function guestbookEntryVisibilitySql(viewerId: string, alias?: string): { sql: string; params: unknown[] };
 export function presenceVisible(db: D1Database, viewerId: string, targetIds: string[]): Promise<Set<string>>;  // 3.6
 ```
 
@@ -565,6 +571,12 @@ export interface NotifyInput {
  *  Publishes notification.created (logged) and, if settings allow, alert (logged). */
 export function notify(rt: Runtime, input: NotifyInput): Promise<void>;
 export function notifyMany(rt: Runtime, inputs: NotifyInput[]): Promise<void>;
+
+/** The one "inbox row is shown" rule (api.md 5.18) for notifications alias `n`: actor not blocked by the recipient and
+ *  not suspended now (same boundary as postVisibilitySql). Used by GET /v1/notifications and every unread_count. */
+export function inboxRowVisibleSql(userExpr: string, nowExpr: string): string;
+/** Unread rows passing inboxRowVisibleSql (single source for the inbox routes, notification.created, notifications.read). */
+export function unreadNotificationCount(db: D1Database, userId: string): Promise<number>;
 
 /** Alert without an inbox row (DMs, channel_message). Applies settings, channel prefs, blocks. */
 export function sendAlerts(rt: Runtime, items: Array<{ userId: string; kind: AlertKind; actorId: string | null; title: string; body: string; target: Alert["target"]; channelId?: string }>): Promise<void>;

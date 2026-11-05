@@ -1,13 +1,14 @@
 // Notification inbox (api.md 5.18). Rows are written by lib/notify.ts; every unread_count here, in
 // notification.created and in notifications.read comes from unreadNotificationCount (one definition).
-// Rows whose actor I blocked are hidden from the list and from the count.
+// Rows whose actor I blocked or whose actor is suspended right now are hidden from the list and from the count
+// (inboxRowVisibleSql — one rule for both).
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
 import { getAuth, requireAuth } from "../lib/auth";
 import { all, decodeCursor, encodeCursor, jsonList, parseLimit, run } from "../lib/db";
 import { err } from "../lib/errors";
-import { unreadNotificationCount } from "../lib/notify";
+import { inboxRowVisibleSql, unreadNotificationCount } from "../lib/notify";
 import { publishEvent } from "../lib/realtime";
 import { serializeNotifications } from "../lib/serialize";
 import { now } from "../lib/time";
@@ -51,12 +52,13 @@ notificationRoutes.get("/notifications", requireAuth, vQuery(ListQuery), async (
       WHERE n.user_id = ?1
         AND (?2 = 0 OR n.read_at IS NULL)
         AND (?3 IS NULL OR n.id < ?3)
-        AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ?1 AND b.blocked_id = n.actor_id)
+        AND ${inboxRowVisibleSql("?1", "?4")}
       ORDER BY n.id DESC
       LIMIT ${n + 1}`,
     me,
     unreadOnly ? 1 : 0,
     cursor?.i ?? null,
+    now(),
   );
   const page = rows.slice(0, n);
   const last = page.at(-1);

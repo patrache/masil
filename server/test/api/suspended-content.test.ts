@@ -5,7 +5,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as P from "../../src/lib/permissions";
 import { newId } from "../../src/lib/ids";
-import { api, createPost, follow, signup, uploadPng, type TestUser } from "../helpers";
+import { api, connectWs, createPost, follow, signup, uploadPng, type TestUser } from "../helpers";
 
 async function suspend(u: TestUser, until: number | null): Promise<void> {
   await env.DB.prepare("UPDATE users SET suspended_at = ?1, suspended_until = ?2 WHERE id = ?3").bind(Date.now(), until, u.user.id).run();
@@ -136,5 +136,87 @@ describe("suspended owner's content over the API", () => {
     await env.DB.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?1, ?2, ?3)").bind(a.user.id, v.user.id, Date.now()).run();
     expect((await api(v.token).get<any>(`/v1/users/@${o.handle}/guestbook`)).body.items).toEqual([]);
     expect((await api(v.token).post("/v1/reports", { reason: "spam", target_type: "guestbook_entry", target_id: entry.id })).status).toBe(404);
+  });
+});
+
+describe("notification inbox: a suspended actor's rows are hidden (api.md 3.9 / 5.18)", () => {
+  const inbox = async (t: TestUser, q = ""): Promise<any> => (await api(t.token).get<any>(`/v1/notifications${q}`)).body;
+  const unread = async (t: TestUser): Promise<number> => (await api(t.token).get<any>("/v1/notifications/unread-count")).body.unread_count;
+
+  it("guestbook_entry / post_mention previews of a suspended author leave the list, unread_only and the badge; back after expiry", async () => {
+    const [s, v, d] = await Promise.all([signup(), signup(), signup()]);
+    expect((await api(s.token).post(`/v1/users/@${v.handle}/guestbook`, { body: "정지될 방명록 본문" })).status).toBe(201);
+    await createPost(s, `@${v.handle} 정지될 글 본문`);
+    await api(d.token).post("/v1/friends/requests", { user: `@${v.handle}` });
+    const before = await inbox(v);
+    expect(before.items.map((n: any) => [n.type, n.actor.id])).toEqual([
+      ["friend_request", d.user.id],
+      ["post_mention", s.user.id],
+      ["guestbook_entry", s.user.id],
+    ]);
+    expect(before.unread_count).toBe(3);
+
+    await suspend(s, null);
+    const during = await inbox(v);
+    expect(during.items.map((n: any) => [n.type, n.actor.id])).toEqual([["friend_request", d.user.id]]);
+    expect(JSON.stringify(during)).not.toContain("정지될");
+    expect(during.unread_count).toBe(1);
+    expect(await unread(v)).toBe(1);
+    expect((await inbox(v, "?unread_only=true")).items.map((n: any) => n.actor.id)).toEqual([d.user.id]);
+    // marking everything read and the count it returns use the same rule
+    expect((await api(v.token).post<any>("/v1/notifications/read", { ids: [during.items[0].id] })).body.unread_count).toBe(0);
+
+    await suspend(s, Date.now() + 60_000); // timed, still running
+    expect((await inbox(v)).items.map((n: any) => n.actor.id)).toEqual([d.user.id]);
+
+    await suspend(s, Date.now() - 1000); // expired: rows come back
+    const after = await inbox(v);
+    expect(after.items.map((n: any) => n.type)).toEqual(["friend_request", "post_mention", "guestbook_entry"]);
+    expect(after.unread_count).toBe(2);
+  });
+
+  it("boundary matches postVisibilitySql: suspended_until = now is shown again, now + 1 is still hidden", async () => {
+    const [s, v] = await Promise.all([signup(), signup()]);
+    expect((await api(s.token).post(`/v1/users/@${v.handle}/guestbook`, { body: "글" })).status).toBe(201);
+    const t = Date.now() + 10 * 60_000;
+    vi.spyOn(Date, "now").mockReturnValue(t);
+    await env.DB.prepare("UPDATE users SET suspended_at = ?1, suspended_until = ?2 WHERE id = ?3").bind(t - 1000, t, s.user.id).run();
+    expect((await inbox(v)).items.map((n: any) => n.actor.id)).toEqual([s.user.id]);
+    expect(await unread(v)).toBe(1);
+    await env.DB.prepare("UPDATE users SET suspended_until = ?1 WHERE id = ?2").bind(t + 1, s.user.id).run();
+    expect((await inbox(v)).items).toEqual([]);
+    expect(await unread(v)).toBe(0);
+  });
+
+  it("notification.created badge (single and multi-recipient batch) leaves out a suspended actor's unread rows", async () => {
+    const [s, v, w, x] = await Promise.all([signup(), signup(), signup(), signup()]);
+    for (const r of [v, w]) expect((await api(s.token).post(`/v1/users/@${r.handle}/guestbook`, { body: "글" })).status).toBe(201);
+    expect(await unread(v)).toBe(1);
+    await suspend(s, null);
+    const [wv, ww] = await Promise.all([connectWs(v.token), connectWs(w.token)]);
+    await createPost(x, `@${v.handle} @${w.handle} 둘 다`); // one notifyMany call, two recipients -> batched counts
+    expect((await wv.next("notification.created")).data.unread_count).toBe(1);
+    expect((await ww.next("notification.created")).data.unread_count).toBe(1);
+    expect((await api(x.token).post(`/v1/users/@${v.handle}/guestbook`, { body: "하나" })).status).toBe(201); // single recipient
+    expect((await wv.next("notification.created", (d) => d.notification.type === "guestbook_entry")).data.unread_count).toBe(2);
+    expect(await unread(v)).toBe(2);
+  });
+});
+
+describe("user lists keep a suspended member, flagged (decision: api.md 3.9 UserSummary.suspended=true)", () => {
+  it("followers / following of a non-suspended owner, /likes and /reposts list S with suspended:true; user search drops S", async () => {
+    const [o, s, v] = await Promise.all([signup(), signup(), signup()]);
+    await follow(s, o);
+    await follow(o, s);
+    const post = await createPost(o, "글");
+    expect((await api(s.token).put(`/v1/posts/${post.id}/like`)).status).toBe(200);
+    expect((await api(s.token).put(`/v1/posts/${post.id}/repost`)).status).toBe(200);
+    await suspend(s, null);
+    const V = api(v.token);
+    for (const p of [`/v1/users/@${o.handle}/followers`, `/v1/users/@${o.handle}/following`, `/v1/posts/${post.id}/likes`, `/v1/posts/${post.id}/reposts`]) {
+      const r = await V.get<any>(p);
+      expect([p, r.status, r.body.items.map((u: any) => [u.id, u.suspended])]).toEqual([p, 200, [[s.user.id, true]]]);
+    }
+    expect((await V.get<any>(`/v1/users/search?q=${s.handle}`)).body.items).toEqual([]);
   });
 });

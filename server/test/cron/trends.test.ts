@@ -20,3 +20,25 @@ test("trends ranks by distinct authors, excludes private/deleted, Top 10 replace
   const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM trends").first<{ n: number }>();
   expect(n!.n).toBe(r.items.length);
 });
+test("trends leave out suspended authors (indefinite and still-running timed) and count them again once expired", async () => {
+  const sfx = Math.random().toString(36).slice(2, 7);
+  const big = `정지트렌드${sfx}`; const small = `작은트렌드${sfx}`;
+  const [viewer, ...authors] = await Promise.all([0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => signup()));
+  for (const a of authors) await createPost(a!, `#${big}`);
+  for (const a of authors.slice(0, 3)) await createPost(a!, `#${small}`);
+  const suspended = authors.slice(2); // 6 of the 8 big-tag authors; one of them also posted the small tag
+  const run = async () => {
+    await handleScheduled(createScheduledController({ cron: "*/5 * * * *", scheduledTime: Date.now() }), env, createExecutionContext());
+    const items = (await api(viewer!.token).get<any>("/v1/trends")).body.items as any[];
+    return Object.fromEntries(items.filter((i) => i.tag === big || i.tag === small).map((i) => [i.tag, i.author_count]));
+  };
+  expect(await run()).toEqual({ [big]: 8, [small]: 3 });
+  const setSuspension = async (until: (i: number) => number | null) => {
+    for (const [i, u] of suspended.entries())
+      await env.DB.prepare("UPDATE users SET suspended_at = ?1, suspended_until = ?2 WHERE id = ?3").bind(Date.now(), until(i), u.user.id).run();
+  };
+  await setSuspension((i) => (i % 2 === 0 ? null : Date.now() + 60_000));
+  expect(await run()).toEqual({ [big]: 2, [small]: 2 });
+  await setSuspension(() => Date.now() - 1000);
+  expect(await run()).toEqual({ [big]: 8, [small]: 3 });
+});

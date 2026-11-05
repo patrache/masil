@@ -126,19 +126,32 @@ async function alertAllowed(db: D1Database, items: Array<{ userId: string; kind:
 }
 
 /**
- * The one definition of "unread inbox count" (api.md 5.18): unread rows of `userExpr`, hiding rows whose actor that
- * user blocked (same rule as the inbox list). Rides idx_notifications_unread. Both unreadNotificationCount and the
- * per-recipient batch below are built from this, so the badge never differs between events and REST.
+ * The one definition of "this inbox row is shown" (api.md 5.18 / 3.9) for notifications alias `n` of recipient
+ * `userExpr`: hidden while its actor is blocked by the recipient or suspended right now (same boundary as
+ * postVisibilitySql / isSuspendedNow: suspended_until <= `nowExpr` counts as active again, and the rows come back).
+ * Rows without an actor are always shown. Used by the inbox list and by unreadCountSql.
  */
-function unreadCountSql(userExpr: string): string {
+export function inboxRowVisibleSql(userExpr: string, nowExpr: string): string {
+  return `(NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ${userExpr} AND b.blocked_id = n.actor_id)
+           AND NOT EXISTS (SELECT 1 FROM users nau
+                            WHERE nau.id = n.actor_id AND nau.suspended_at IS NOT NULL
+                              AND (nau.suspended_until IS NULL OR nau.suspended_until > ${nowExpr})))`;
+}
+
+/**
+ * The one definition of "unread inbox count" (api.md 5.18): unread rows of `userExpr` that pass inboxRowVisibleSql
+ * (same rule as the inbox list). Rides idx_notifications_unread. Both unreadNotificationCount and the per-recipient
+ * batch below are built from this, so the badge never differs between events and REST.
+ */
+function unreadCountSql(userExpr: string, nowExpr: string): string {
   return `SELECT COUNT(*) FROM notifications n
            WHERE n.user_id = ${userExpr} AND n.read_at IS NULL
-             AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ${userExpr} AND b.blocked_id = n.actor_id)`;
+             AND ${inboxRowVisibleSql(userExpr, nowExpr)}`;
 }
 
 /** Unread inbox count of one user (single source for the inbox routes, notification.created, notifications.read). */
 export async function unreadNotificationCount(db: D1Database, userId: string): Promise<number> {
-  const row = await first<{ n: number }>(db, `SELECT (${unreadCountSql("?1")}) AS n`, userId);
+  const row = await first<{ n: number }>(db, `SELECT (${unreadCountSql("?1", "?2")}) AS n`, userId, now());
   return row?.n ?? 0;
 }
 
@@ -149,8 +162,9 @@ async function unreadCounts(db: D1Database, userIds: string[]): Promise<Map<stri
   if (ids.length === 1) return new Map([[ids[0]!, await unreadNotificationCount(db, ids[0]!)]]);
   const rows = await all<{ user_id: string; n: number }>(
     db,
-    `SELECT r.value AS user_id, (${unreadCountSql("r.value")}) AS n FROM json_each(?1) r`,
+    `SELECT r.value AS user_id, (${unreadCountSql("r.value", "?2")}) AS n FROM json_each(?1) r`,
     jsonList(ids),
+    now(),
   );
   return new Map(rows.map((r) => [r.user_id, r.n]));
 }

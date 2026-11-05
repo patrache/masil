@@ -1,4 +1,5 @@
 // test/api/timelines.test.ts
+import { env } from "cloudflare:test";
 import { expect, test } from "vitest";
 import { api, signup, createPost, follow, connectWs, watch } from "../helpers";
 const tl = async (t: any, q = "") => (await api(t.token).get<any>(`/v1/timeline/following${q}`)).body;
@@ -118,4 +119,29 @@ test("timeline.item_created never names a reply parent's author the recipient ca
   }
   expect((await api(f.token).get<any>(`/v1/posts/${reply2.id}`)).body.post.reply_to_author).toBeNull();
   expect((await api(g.token).get<any>(`/v1/posts/${reply2.id}`)).body.post.reply_to_author).toBeNull();
+});
+test("suspended accounts (api.md 3.9): following timeline drops the followee's posts and its reposts, falling back to an older visible repost; discover drops the author", async () => {
+  const me = await signup(); const s = await signup(); const a = await signup(); const z = await signup();
+  await follow(me, s); await follow(me, a);
+  const ps = await createPost(s, "정지될 글");
+  const pz = await createPost(z, "z");
+  await api(a.token).put(`/v1/posts/${pz.id}/repost`);
+  await api(s.token).put(`/v1/posts/${pz.id}/repost`); // newest repost of pz, by the soon-suspended followee
+  const pa = await createPost(a, "a");
+  const items = async () => (await tl(me)).items.map((i: any) => [i.type, i.post.id, i.reposted_by?.id ?? null]);
+  const discover = async () =>
+    (await api(me.token).get<any>(`/v1/timeline/discover?since=${ps.id.slice(0, 10)}${"0".repeat(16)}&limit=100`)).body.items.map((i: any) => i.id);
+  const visible = [["post", pa.id, null], ["repost", pz.id, s.user.id], ["post", ps.id, null]];
+  expect(await items()).toEqual(visible);
+  expect(await discover()).toContain(ps.id);
+  const suspend = (until: number | null) =>
+    env.DB.prepare("UPDATE users SET suspended_at = ?1, suspended_until = ?2 WHERE id = ?3").bind(Date.now(), until, s.user.id).run();
+  for (const until of [null, Date.now() + 60_000]) {
+    await suspend(until);
+    expect(await items()).toEqual([["post", pa.id, null], ["repost", pz.id, a.user.id]]);
+    expect(await discover()).not.toContain(ps.id);
+  }
+  await suspend(Date.now() - 1000);
+  expect(await items()).toEqual(visible);
+  expect(await discover()).toContain(ps.id);
 });

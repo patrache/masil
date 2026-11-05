@@ -72,3 +72,19 @@ test("private author's stories need active follow; delete by author emits story.
   expect((await wf.next("story.deleted")).data).toEqual({ user_id: p.user.id, story_id: s.id });
   expect(await env.MEDIA.head(`stories/${p.user.id}/${m.id}.png`)).toBeNull();
 });
+test("a suspended followee's stories leave the feed while the suspension lasts and come back after it (api.md 3.9)", async () => {
+  const v = await signup(); const s = await signup(); const a = await signup();
+  await follow(v, s); await follow(v, a);
+  await api(s.token).post("/v1/stories", { body: "정지될 스토리" });
+  await api(a.token).post("/v1/stories", { body: "a" });
+  const groups = async () => (await api(v.token).get<any>("/v1/stories/feed")).body.items.map((g: any) => g.user.id);
+  expect((await groups()).sort()).toEqual([s.user.id, a.user.id].sort());
+  const suspend = (until: number | null) =>
+    env.DB.prepare("UPDATE users SET suspended_at = ?1, suspended_until = ?2 WHERE id = ?3").bind(Date.now(), until, s.user.id).run();
+  await suspend(null);
+  expect(await groups()).toEqual([a.user.id]);
+  await suspend(Date.now() + 60_000);
+  expect(await groups()).toEqual([a.user.id]);
+  await suspend(Date.now() - 1000);
+  expect((await groups()).sort()).toEqual([s.user.id, a.user.id].sort());
+});
