@@ -488,9 +488,11 @@ func (r *runner) shownUser(arg string, u api.UserRef, v *api.AdminUserView) stri
 	return clean(arg)
 }
 
-// userState is 정상 / 정지(무기한) / 정지(~<time>).
+// userState is 정상 / 정지(무기한) / 정지(~<time>). It follows the server's
+// "suspended now" flag: the server keeps suspended_at/until after a timed
+// suspension ends (until <= now is active) and reports suspended=false then.
 func (r *runner) userState(u api.AdminUserView) string {
-	if !u.Suspended && u.SuspendedAt == nil {
+	if !u.Suspended {
 		return "정상"
 	}
 	if u.SuspendedUntil == nil {

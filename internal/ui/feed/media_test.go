@@ -2,6 +2,7 @@ package feed
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -141,14 +142,83 @@ func TestMediaITerm2EscClearsScreen(t *testing.T) {
 	if len(h.Model.Frame().Overlays) != 0 {
 		t.Fatal("esc did not close the viewer")
 	}
-	cleared := false
+	if !clearedSince(h, n) {
+		t.Fatal("closing an iTerm2 image did not clear the screen")
+	}
+}
+
+// clearedSince reports whether a tea.ClearScreen was emitted since TeaMsgs()[n].
+func clearedSince(h *uitest.Harness, n int) bool {
 	for _, m := range h.TeaMsgs()[n:] {
 		if fmt.Sprintf("%T", m) == fmt.Sprintf("%T", tea.ClearScreen()) {
-			cleared = true
+			return true
 		}
 	}
-	if !cleared {
-		t.Fatal("closing an iTerm2 image did not clear the screen")
+	return false
+}
+
+func TestMediaITerm2CtrlKClearsScreen(t *testing.T) {
+	// ctrl+k closes the viewer and opens the palette: the inline image must not
+	// stay behind in the blank cells of the screen below.
+	h := uitest.New(t, feedOpts(t, "following", false)...)
+	h.Context().Caps.Graphics = termcaps.GraphicsITerm2
+	openMedia(h, postBy("hana").ID, 0)
+	n := len(h.TeaMsgs())
+	h.Press("ctrl+k")
+	if !clearedSince(h, n) {
+		t.Fatal("ctrl+k over an iTerm2 image did not clear the screen")
+	}
+	if ov := h.Model.Frame().Overlays; len(ov) != 1 {
+		t.Fatalf("want only the palette open, got %d overlays", len(ov))
+	}
+	if strings.Contains(h.Screen(), "사진 1/1") {
+		t.Fatalf("viewer still open after ctrl+k:\n%s", h.Screen())
+	}
+	h.Type("새 글")
+	if !strings.Contains(h.Screen(), "새 글 쓰기") {
+		t.Fatalf("ctrl+k did not open the palette:\n%s", h.Screen())
+	}
+}
+
+func TestMediaITerm2SwitchToUnloadedClearsScreen(t *testing.T) {
+	// → onto a photo with no image yet (here: its load fails) clears the old
+	// inline image; ← back to the loaded photo sends it again.
+	h := uitest.New(t, feedOpts(t, "following", false)...)
+	h.Resize(120, 40)
+	h.Context().Caps.Graphics = termcaps.GraphicsITerm2
+	p := threePhotos()
+	feedstore.Get(h.Context().Store).ObservePosts(p)
+	bad := sid(201)
+	h.API.Handle("GET /v1/media/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if r.PathValue("id") == bad {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(testImagePNG())
+	})
+	openMedia(h, p.ID, 0)
+	if raws := itermRaws(h, 0); len(raws) != 1 {
+		t.Fatalf("want 1 iTerm2 escape for photo 1, got %d", len(raws))
+	}
+	n := len(h.TeaMsgs())
+	h.Press("right")
+	if !clearedSince(h, n) {
+		t.Fatal("→ onto an unloaded photo left the old inline image on screen")
+	}
+	if raws := itermRaws(h, n); len(raws) != 0 {
+		t.Fatalf("→ onto a failed photo sent %d escapes", len(raws))
+	}
+	if s := h.Screen(); !strings.Contains(s, "사진 2/3") || !strings.Contains(s, textMediaFailed) {
+		t.Fatalf("→: want 사진 2/3 and %q:\n%s", textMediaFailed, s)
+	}
+	n = len(h.TeaMsgs())
+	h.Press("left")
+	if raws := itermRaws(h, n); len(raws) != 1 {
+		t.Fatalf("← back to photo 1: want 1 escape, got %d", len(raws))
+	}
+	if got := joined(region(h.Screen(), mediaInner(t, h))); strings.Contains(got, "▀") || strings.Contains(got, textMediaFailed) {
+		t.Fatalf("← back: box must be blank under the image:\n%s", got)
 	}
 }
 

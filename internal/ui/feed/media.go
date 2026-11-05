@@ -37,6 +37,10 @@ import (
 // half blocks because it had not been sent yet (a same-mode resize). The box is
 // a pure function of ctx.Layout (the app's overlay geometry), so Update knows
 // it without waiting for Resize.
+//
+// An iTerm2 image is not in the cell grid, so whatever stops covering it
+// clears the screen: esc and ctrl+k (closing), and a switch to a photo with no
+// image to draw yet (loading or failed).
 
 const tagMediaPost = "feed.media_post:" // GET /v1/posts/{id} for a post the FeedStore lacks
 
@@ -211,6 +215,7 @@ func (v *mediaView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		v.want = false
 		cmds = append(cmds, v.emit(ctx, false))
 	}
+	cmds = append(cmds, v.clearStale(ctx)) // e.g. the post was deleted or its author blocked
 	return tea.Batch(cmds...)
 }
 
@@ -358,23 +363,47 @@ func (v *mediaView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.C
 	case "left":
 		if _, ok := v.current(ctx); ok && v.idx > 0 {
 			v.idx--
-			return true, v.show(ctx)
+			return true, tea.Batch(v.clearStale(ctx), v.show(ctx))
 		}
 		return true, nil
 	case "right":
 		if _, ok := v.current(ctx); ok && v.idx < len(v.photos(ctx))-1 {
 			v.idx++
-			return true, v.show(ctx)
+			return true, tea.Batch(v.clearStale(ctx), v.show(ctx))
 		}
 		return true, nil
 	}
-	if ctx.Keys.Matches(msg, keymap.NavBack) && v.sent.id != "" {
-		// The inline image is not in the cell grid: repaint everything so no
-		// piece of it stays on the screen below.
+	if v.sent.id == "" {
+		return false, nil
+	}
+	// The inline image is not in the cell grid: repaint everything so no piece
+	// of it stays on the screen below.
+	switch {
+	case ctx.Keys.Matches(msg, keymap.NavBack):
 		v.sent = mediaShot{}
 		return true, tea.Batch(closeOverlay, tea.ClearScreen)
+	case ctx.Keys.Matches(msg, keymap.PaletteOpen):
+		// Unhandled: the app closes the viewer and opens the palette itself
+		// (CA 5.3.4 step 2.1), batching this Cmd with it.
+		v.sent = mediaShot{}
+		return false, tea.ClearScreen
 	}
 	return false, nil
+}
+
+// clearStale clears the screen when an iTerm2 image is on it but the current
+// photo has none to cover it (still loading, failed, or gone): View then draws
+// text over a box the old image still shows through. The next arrival sends
+// the image again (v.sent is reset). Update / HandleKey only.
+func (v *mediaView) clearStale(ctx *ui.Context) tea.Cmd {
+	if v.sent.id == "" {
+		return nil
+	}
+	if m, ok := v.current(ctx); ok && !v.failed[m.ID] && v.imgs.image(m.ID) != nil {
+		return nil
+	}
+	v.sent = mediaShot{}
+	return tea.ClearScreen
 }
 
 func (v *mediaView) View(ctx *ui.Context, _ bool) string {

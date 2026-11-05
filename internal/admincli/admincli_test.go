@@ -74,7 +74,9 @@ func reportFix() []api.Report {
 	}
 }
 
-// userFix: hana normal, junho suspended for a week, sam admin.
+// userFix: hana normal, junho suspended for a week, sam admin, minji back
+// from a timed suspension that ended (the server keeps suspended_at/until but
+// reports suspended=false).
 func userFix() []api.AdminUserView {
 	j := junho
 	j.Suspended = true
@@ -85,6 +87,9 @@ func userFix() []api.AdminUserView {
 			SuspendedAt: ptr(time.Date(2026, 11, 5, 2, 5, 0, 0, time.UTC)), SuspendedUntil: ptr(time.Date(2026, 11, 12, 2, 5, 0, 0, time.UTC)),
 			SuspendReason: ptr("spam")},
 		{UserSummary: sam, Role: "admin", CreatedAt: time.Date(2025, 12, 31, 1, 0, 0, 0, time.UTC)},
+		{UserSummary: minji, Role: "user", CreatedAt: time.Date(2026, 10, 1, 1, 0, 0, 0, time.UTC),
+			SuspendedAt: ptr(time.Date(2026, 10, 20, 1, 0, 0, 0, time.UTC)), SuspendedUntil: ptr(time.Date(2026, 10, 27, 1, 0, 0, 0, time.UTC)),
+			SuspendReason: ptr("spam")},
 	}
 }
 
