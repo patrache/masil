@@ -17,6 +17,7 @@ import { meRoutes } from "./routes/me";
 import { messageRoutes } from "./routes/messages";
 import { metaRoutes } from "./routes/meta";
 import { notificationRoutes } from "./routes/notifications";
+import { pollRoutes } from "./routes/polls";
 import { postRoutes } from "./routes/posts";
 import { presenceRoutes } from "./routes/presence";
 import { searchRoutes } from "./routes/search";
@@ -124,6 +125,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", timelineRoutes);
   app.route("/v1", storyRoutes);
   app.route("/v1", notificationRoutes);
+  app.route("/v1", pollRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }
