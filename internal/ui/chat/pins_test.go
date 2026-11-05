@@ -25,6 +25,13 @@ func pinsText(t testing.TB, h *uitest.Harness) string {
 	return columnText(scr, os[len(os)-1].Rect) // border included: it carries the title
 }
 
+// pinHeld marks the held copy of m pinned, as the server's history would show
+// a pinned message (setItems leaves out a pin whose held copy is not pinned).
+func pinHeld(h *uitest.Harness, m api.Message) {
+	m.Pinned = true
+	chatOf(h.Context()).UpsertMessage(m)
+}
+
 // openPins opens #개발 with pins served for it and runs pins.show.
 func openPins(t *testing.T, sz uitest.Size, pins ...string) (*uitest.Harness, []api.Message) {
 	t.Helper()
@@ -33,6 +40,7 @@ func openPins(t *testing.T, sz uitest.Size, pins ...string) (*uitest.Harness, []
 	for _, body := range pins {
 		m := fixtureMsg(t, h, body)
 		m.Pinned = true
+		pinHeld(h, m)
 		ms = append(ms, m)
 	}
 	h.API.JSON("GET "+pinsPath(devID(t, h)), http.StatusOK, map[string]any{"items": ms})
@@ -45,6 +53,7 @@ func TestPinsGolden(t *testing.T) {
 		// exact path on a fresh per-size server; neither RegisterAPI nor chatRoutes registers GET …/pins, so no conflict
 		m := fixtureMsg(t, h, "오늘 배포 몇 시에 해요?")
 		m.Pinned = true
+		pinHeld(h, m)
 		h.API.JSON("GET "+pinsPath(devID(t, h)), http.StatusOK, map[string]any{"items": []api.Message{m}})
 		h.Send(ui.RunCommandMsg{ID: "pins.show"})
 		h.Golden("pins")
@@ -176,5 +185,25 @@ func TestPinsShowNeedsChannel(t *testing.T) {
 	}
 	if newPins(h.Context(), "01JB0000000000000000NOSUCH") != nil {
 		t.Fatal("an unknown channel opens nothing")
+	}
+}
+
+// A pin list snapshot older than the held copy (unpinned since) does not bring
+// the pin back, and the held copy is never forced pinned.
+func TestPinsSnapshotDefersToHeldCopy(t *testing.T) {
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	stale := fixtureMsg(t, h, "오늘 배포 몇 시에 해요?")
+	stale.Pinned = true // the snapshot says pinned; the held copy was unpinned since
+	kept := fixtureMsg(t, h, "@minji 점심 먹고 ㄱㄱ")
+	kept.Pinned = true
+	pinHeld(h, kept)
+	h.API.JSON("GET "+pinsPath(devID(t, h)), http.StatusOK, map[string]any{"items": []api.Message{stale, kept}})
+	h.Send(ui.RunCommandMsg{ID: "pins.show"})
+	txt := pinsText(t, h)
+	if !strings.Contains(txt, "📌 고정 메시지 1") || strings.Contains(txt, "오늘 배포 몇 시에 해요?") || !strings.Contains(txt, "점심 먹고") {
+		t.Fatalf("the unpinned held copy wins over the snapshot:\n%s", txt)
+	}
+	if got, _ := chatOf(h.Context()).FindMessage(stale.ID); got.Pinned {
+		t.Fatal("the held copy is not forced pinned")
 	}
 }

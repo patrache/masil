@@ -108,8 +108,15 @@ func (c *ChatStore) ApplyThreadPageFor(rootID string, t PageTicket, q api.Thread
 // thread's reply window only. A message that found no window place is logged
 // for page replay, and its pending send (client_nonce) stays while its window
 // awaits a page that will show it (pages.go); otherwise the pending send is
-// dropped.
+// dropped. A copy of a message known deleted lands as its placeholder, or not
+// at all when it was removed (deleted.go).
 func (c *ChatStore) UpsertMessage(m api.Message) {
+	m, keep, _ := c.deletedCopy(m)
+	if !keep {
+		c.mergePending(m)
+		c.removeMissing(m.ChannelID, m.ID)
+		return
+	}
 	placed := c.upsert(m)
 	c.settlePending(m, placed)
 	if !placed {

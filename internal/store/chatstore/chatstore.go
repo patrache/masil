@@ -37,6 +37,7 @@ type ChatStore struct {
 	pins       map[string][]api.Message // channel id -> pinned messages, newest pin first
 	pinsLoaded map[string]bool          // channel id -> pins came from REST (SetPins) and are kept live
 	missing    map[string][]string      // channel id -> in-range message ids we hold no copy of (TakeMissing)
+	deleted    map[string]*deletedSet   // channel id -> recently deleted message ids, held or not (deleted.go)
 
 	selectedSpace string
 	activeChannel string
@@ -86,6 +87,7 @@ func (c *ChatStore) clear() {
 	c.pins = map[string][]api.Message{}
 	c.pinsLoaded = map[string]bool{}
 	c.missing = map[string][]string{}
+	c.deleted = map[string]*deletedSet{}
 	c.selectedSpace = ""
 	c.activeChannel = ""
 	c.log = nil

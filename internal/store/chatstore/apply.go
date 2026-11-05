@@ -149,18 +149,32 @@ func (c *ChatStore) messageCreated(m api.Message) {
 		w = c.windows[m.ChannelID]
 	}
 	c.settlePending(m, true)
+	c.removeMissing(m.ChannelID, m.ID)
 	// Any copy we already hold (the REST send result, a later edit or a
 	// tombstone, a resync snapshot) is at least as new as its creation, and
 	// events from different requests can arrive out of order (events.md 6.4):
-	// a late creation payload must never regress it.
-	if _, ok := w.Get(m.ID); !ok {
+	// a late creation payload must never regress it, nor bring back a message
+	// whose deletion arrived first.
+	if _, ok := w.Get(m.ID); ok {
+		return
+	}
+	if m, keep, _ := c.deletedCopy(m); keep {
 		w.Upsert(m)
 	}
-	c.removeMissing(m.ChannelID, m.ID)
 }
 
+// messageUpdated replaces every held copy with the event copy (mergeLive),
+// except a copy that is newer (heldNewer: a tombstone or a later edit, events.md
+// 6.4). An update of a message known deleted changes nothing.
 func (c *ChatStore) messageUpdated(m api.Message) {
-	found := c.mutate(m.ChannelID, m.ThreadRootID, m.ID, func(p *api.Message) { *p = mergeLive(*p, m) })
+	if _, _, gone := c.deletedCopy(m); gone {
+		return
+	}
+	found := c.mutate(m.ChannelID, m.ThreadRootID, m.ID, func(p *api.Message) {
+		if !heldNewer(*p, m) {
+			*p = mergeLive(*p, m)
+		}
+	})
 	if !found && c.inRangeFor(m.ChannelID, m.ThreadRootID, m.ID) {
 		c.addMissing(m.ChannelID, m.ID)
 	}
@@ -178,6 +192,7 @@ func tombstone(p *api.Message) {
 }
 
 func (c *ChatStore) messageDeleted(d realtime.MessageDeleted) {
+	c.noteDeleted(d.ChannelID, d.MessageID, d.Tombstone)
 	var w *store.Window[api.Message]
 	if d.ThreadRootID != nil {
 		if th := c.threads[*d.ThreadRootID]; th != nil {
@@ -201,8 +216,14 @@ func (c *ChatStore) messageDeleted(d realtime.MessageDeleted) {
 	c.removeMissing(d.ChannelID, d.MessageID)
 }
 
+// threadUpdated sets the root's thread summary, unless the held summary is
+// newer (a later last_reply_at: summaries of different requests can cross).
 func (c *ChatStore) threadUpdated(d realtime.ThreadUpdated) {
 	set := func(p *api.Message) {
+		if old := p.Thread; old != nil && old.LastReplyAt != nil && d.Thread.LastReplyAt != nil &&
+			old.LastReplyAt.After(*d.Thread.LastReplyAt) {
+			return
+		}
 		t := d.Thread
 		t.ParticipantIDs = slices.Clone(d.Thread.ParticipantIDs)
 		p.Thread = &t
@@ -258,6 +279,12 @@ func (c *ChatStore) pinned(d realtime.PinEvent, on bool) {
 	if !ok {
 		if th := c.threads[d.MessageID]; th != nil && th.root != nil {
 			m, ok = *th.root, true
+		}
+	}
+	if !ok {
+		// held only in the pin list (a snapshot replaying the event): move it up
+		if i := slices.IndexFunc(c.pins[d.ChannelID], func(p api.Message) bool { return p.ID == d.MessageID }); i >= 0 {
+			m, ok = c.pins[d.ChannelID][i], true
 		}
 	}
 	if !ok {
@@ -370,10 +397,24 @@ func (c *ChatStore) Pins(channelID string) (pins []api.Message, loaded bool) {
 	return slices.Clone(c.pins[channelID]), c.pinsLoaded[channelID]
 }
 
-// SetPins stores the REST pin list (ListPins order); it is kept live by pin events.
+// PinsTicket is the ticket of a ListPins request built now (take it on the
+// Update goroutine when the request is built; SetPinsFor replays from it).
+func (c *ChatStore) PinsTicket() PageTicket { return PageTicket{since: c.logSeq} }
+
+// SetPins stores a pin list known now (a local edit of the list): SetPinsFor
+// with a ticket taken now, so nothing is replayed.
 func (c *ChatStore) SetPins(channelID string, pins []api.Message) {
+	c.SetPinsFor(channelID, c.PinsTicket(), pins)
+}
+
+// SetPinsFor stores the REST pin list (ListPins order) read with ticket t and
+// keeps it live by pin events. The list is a snapshot read while the request
+// was in flight, so the channel's pin, unpin and delete events logged since t
+// are re-applied over it, like a history page (pages.go).
+func (c *ChatStore) SetPinsFor(channelID string, t PageTicket, pins []api.Message) {
 	c.pins[channelID] = slices.Clone(pins)
 	c.pinsLoaded[channelID] = true
+	c.replayPinsSince(channelID, t.since)
 }
 
 func (c *ChatStore) removePin(channelID, id string) {
@@ -407,6 +448,7 @@ func (c *ChatStore) dropChannel(channelID string) {
 	delete(c.polls, channelID)
 	delete(c.pins, channelID)
 	delete(c.pinsLoaded, channelID)
+	delete(c.deleted, channelID)
 	for k := range c.typing {
 		if k.channelID == channelID {
 			delete(c.typing, k)
@@ -447,6 +489,9 @@ func (c *ChatStore) dropGone(s *store.Store) {
 		note(ch)
 	}
 	for ch := range c.missing {
+		note(ch)
+	}
+	for ch := range c.deleted {
 		note(ch)
 	}
 	for k := range c.typing {

@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
@@ -47,10 +48,12 @@ const (
 	pinsRowLines = 2 // a pinned message is at most this many lines
 )
 
-// pinsResult is the ListPins answer of one overlay instance.
+// pinsResult is the ListPins answer of one overlay instance (ticket = the
+// chatstore log position the request was built at, for SetPinsFor's replay).
 type pinsResult struct {
-	owner *pinsView
-	pins  []api.Message
+	owner  *pinsView
+	ticket chatstore.PageTicket
+	pins   []api.Message
 }
 
 // pinsView is chat.pins: the pinned messages of one channel in pin order (newest
@@ -125,14 +128,16 @@ func (o *pinsView) sync(ctx *ui.Context) tea.Cmd {
 	}
 	o.loading = true
 	ch := o.channelID
+	tk := c.PinsTicket()
 	return ui.Do(ctx, "chat.pins:"+ch, func(c context.Context, cl *api.Client) (pinsResult, error) {
 		pins, err := cl.ListPins(c, ch)
-		return pinsResult{owner: o, pins: pins}, err
+		return pinsResult{owner: o, ticket: tk, pins: pins}, err
 	})
 }
 
-// setItems shows pins (the held copy of each when there is one), keeping the
-// selection on the same message or at the same position.
+// setItems shows pins (the held copy of each when there is one; a held copy
+// that is deleted or no longer pinned is left out), keeping the selection on
+// the same message or at the same position.
 func (o *pinsView) setItems(ctx *ui.Context, pins []api.Message) {
 	prev, had := o.list.Selected()
 	prevIdx := -1
@@ -141,7 +146,15 @@ func (o *pinsView) setItems(ctx *ui.Context, pins []api.Message) {
 	}
 	items := make([]api.Message, 0, len(pins))
 	for _, m := range pins {
-		cur := current(ctx, m)
+		cur := m
+		if c := chatOf(ctx); c != nil {
+			if held, ok := c.FindMessage(m.ID); ok {
+				if !held.Pinned {
+					continue // the window copy is newer than the snapshot: unpinned since
+				}
+				cur = held
+			}
+		}
 		if cur.Deleted {
 			continue
 		}
@@ -183,7 +196,7 @@ func (o *pinsView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		o.failed = ""
 		if c := chatOf(ctx); c != nil {
-			c.SetPins(o.channelID, m.Value.pins)
+			c.SetPinsFor(o.channelID, m.Value.ticket, m.Value.pins)
 		}
 		return o.sync(ctx)
 	case ui.ResultMsg[msgAction]:

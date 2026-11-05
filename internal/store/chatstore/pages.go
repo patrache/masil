@@ -81,6 +81,41 @@ func (c *ChatStore) replaySince(since uint64) {
 	}
 }
 
+// replayPinsSince re-applies, over a pin list snapshot of channelID, the
+// channel's pin events and deletions logged after since.
+func (c *ChatStore) replayPinsSince(channelID string, since uint64) {
+	if since >= c.logSeq || c.replaying {
+		return
+	}
+	c.replaying = true
+	defer func() { c.replaying = false }()
+	start := max(0, len(c.log)-maxLog)
+	for _, e := range c.log[start:] {
+		if e.seq <= since || e.msg != nil {
+			continue
+		}
+		switch e.ev.Type {
+		case "message.pinned", "message.unpinned", "message.deleted":
+		default:
+			continue
+		}
+		v, err := e.ev.Decode()
+		if err != nil {
+			continue
+		}
+		switch d := v.(type) {
+		case realtime.PinEvent:
+			if d.ChannelID == channelID {
+				c.pinned(d, e.ev.Type == "message.pinned")
+			}
+		case realtime.MessageDeleted:
+			if d.ChannelID == channelID {
+				c.removePin(d.ChannelID, d.MessageID)
+			}
+		}
+	}
+}
+
 // bump gives a window a new generation.
 func (c *ChatStore) bump() uint64 {
 	c.genSeq++
