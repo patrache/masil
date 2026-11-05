@@ -93,9 +93,12 @@ func fetchBootstrap(ctx context.Context, c *api.Client) BootstrapMsg {
 		swg.Wait()
 		out := make([]api.SpaceDetail, 0, len(spaces))
 		for _, d := range details {
-			if d != nil {
-				out = append(out, *d)
+			if d == nil {
+				// One failed detail fails the whole result: a partial list would
+				// drop that space and its channels from the store.
+				return
 			}
+			out = append(out, *d)
 		}
 		m.Spaces = out
 	})
@@ -158,15 +161,15 @@ func fetchBootstrap(ctx context.Context, c *api.Client) BootstrapMsg {
 }
 
 // allPages follows next_cursor from a limit=100 first page, up to bootstrapMaxPages pages
-// (hitting the cap is not an error). On a failed page the items so far are returned with
-// the error (nil items if the first page failed).
+// (hitting the cap is not an error). Any failed page returns nil items with the error, so
+// a partial list never replaces the store (BootstrapMsg: nil means the request failed).
 func allPages[T any](ctx context.Context, list func(context.Context, api.PageOpts) (*api.Page[T], error)) ([]T, error) {
 	var out []T
 	p := api.PageOpts{Limit: bootstrapPageLimit}
 	for i := 0; i < bootstrapMaxPages; i++ {
 		pg, err := list(ctx, p)
 		if err != nil {
-			return out, err
+			return nil, err
 		}
 		if out == nil {
 			out = make([]T, 0, len(pg.Items))

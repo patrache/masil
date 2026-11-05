@@ -215,7 +215,8 @@ func TestBootstrapFollowsCursors(t *testing.T) {
 		t.Errorf("GET /v1/dms count = %d, want 20", n)
 	}
 
-	// page 2 returns 500 => Err set, page-1 items kept.
+	// page 2 returns 500 => Err set, Friends nil (a partial list would drop
+	// every friend after page 1 from the store).
 	srv3 := apitest.New(t)
 	cannedBootstrap(srv3)
 	ok := pagedHandler(t, mkFriend, twoPages, nextTwo)
@@ -232,8 +233,59 @@ func TestBootstrapFollowsCursors(t *testing.T) {
 	if m3.Err == nil {
 		t.Fatal("page-2 failure: expected Err")
 	}
-	if len(m3.Friends) != 100 {
-		t.Errorf("page-1 friends kept = %d, want 100", len(m3.Friends))
+	if m3.Friends != nil {
+		t.Errorf("partial friends = %d, want nil (failed request)", len(m3.Friends))
+	}
+	st := New()
+	st.Friends = map[string]api.Friend{"U1": {User: api.UserSummary{ID: "U1"}}, "U150": {User: api.UserSummary{ID: "U150"}}}
+	st.ApplyBootstrap(m3)
+	if len(st.Friends) != 2 {
+		t.Errorf("failed friends request replaced the store: %d friends", len(st.Friends))
+	}
+}
+
+// One failed GET /v1/spaces/{id} must not drop that space (and its channels
+// and unread counts) from the store: the whole Spaces result counts as failed.
+func TestBootstrapSpaceDetailFailureKeepsStore(t *testing.T) {
+	srv := apitest.New(t)
+	cannedBootstrap(srv)
+	full := runBootstrap(t, srv.Client())
+	if full.Err != nil || len(full.Spaces) != 2 {
+		t.Fatalf("canned bootstrap: %v %d", full.Err, len(full.Spaces))
+	}
+	s := New()
+	s.ApplyBootstrap(full)
+
+	srv2 := apitest.New(t)
+	cannedBootstrap(srv2)
+	srv2.Handle("GET /v1/spaces/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "S2" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(500)
+			_, _ = w.Write([]byte(`{"error":{"code":"internal_error","message":"x","details":{}}}`))
+			return
+		}
+		sd := api.SpaceDetail{Space: api.Space{SpacePreview: api.SpacePreview{ID: id, Name: "방 " + id}, MyRole: api.RoleMember},
+			Channels: []api.Channel{textChannel("C"+id+"a", id, "일반", 0), textChannel("C"+id+"b", id, "개발", 1)}}
+		writeJSON(w, map[string]any{"space": sd})
+	})
+	m := runBootstrap(t, srv2.Client())
+	if m.Err == nil {
+		t.Fatal("expected Err")
+	}
+	if m.Spaces != nil {
+		t.Errorf("partial Spaces = %d, want nil (failed request)", len(m.Spaces))
+	}
+	s.ApplyBootstrap(m)
+	if s.Spaces["S2"] == nil || s.Channels["CS2a"] == nil || s.Channels["CS2b"] == nil || len(s.SpaceChannels("S2")) != 2 {
+		t.Errorf("space S2 lost after a failed GET /v1/spaces/S2: spaces=%v", s.SpaceOrder)
+	}
+	if fmt.Sprint(s.SpaceOrder) != "[S1 S2]" {
+		t.Errorf("SpaceOrder = %v", s.SpaceOrder)
+	}
+	if s.Channels["D1MJ"] == nil {
+		t.Error("DMs lost")
 	}
 }
 
