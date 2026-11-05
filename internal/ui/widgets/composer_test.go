@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -472,5 +473,25 @@ func TestComposerRandomEditsStayNormalized(t *testing.T) {
 				t.Fatalf("w=%d step %d: cursor %+v outside the box (%d lines) for %q", w, i, cur, len(lines), v)
 			}
 		}
+	}
+}
+
+// NFD Hangul (macOS file names, drag and drop) is composed, not collapsed.
+func TestComposerNFDPaste(t *testing.T) {
+	ctx := newCtx(nil, false)
+	nfd := norm.NFD.String("회의록.pdf 한글 파일")
+	for _, name := range []string{"paste", "keys"} {
+		c := widgets.NewComposer("")
+		c.Focus()
+		if name == "paste" {
+			c.Update(ctx, tea.PasteMsg{Content: nfd})
+		} else {
+			typeInto(ctx, c, nfd)
+		}
+		if got, want := c.Value(), norm.NFC.String(nfd); got != want {
+			t.Errorf("%s: Value() = %q, want %q", name, got, want)
+		}
+		assertComposerView(t, ctx, c, 30, 5)
+		assertCursorAtEnd(t, c, 0)
 	}
 }

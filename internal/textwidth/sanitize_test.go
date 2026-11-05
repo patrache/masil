@@ -7,17 +7,25 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/patrache/masil/internal/textwidth"
 )
 
 var sanitizeCases = []struct{ in, want string }{
 	{"❄️ 첫눈", "❄ 첫눈"}, {"⚠️", "⚠"}, {"👍🏽", "👍"}, {"👨‍👩‍👧 가족", "👨 가족"}, {"1️⃣", "1"},
-	{"🇰", "□ "}, {"🇰🇷", "🇰🇷"}, {"क्षि", "क"}, {"가", "ᄀ"},
+	{"🇰", "□ "}, {"🇰🇷", "🇰🇷"}, {"क्षि", "क"}, {"\u1100\u1161", "\uac00"},
+	// NFD Hangul is NFC-composed before rule 7 (CA 8.2 rule 6); a jamo cluster
+	// that does not compose falls back to compatibility jamo, never losing runes.
+	{"\u1100\u1161\u11a8", "\uac01"}, {nfdFile, "회의록.pdf 한글 파일"},
+	{"\u1100\uac00\ub098", "\u3131\uac00\ub098"}, {"\u1100\u119e", "\u3131\u318d"}, {"\u1100\u1100\u1161", "\u3131\uac00"},
 	{"\x1b[31m빨강\x1b[0m", "빨강"}, {"\x1b]8;;https://x\x07링크\x1b]8;;\x07", "링크"},
 	{"a\tb", "a    b"}, {"a\x00b\x07c\u0085d", "abcd"}, {"줄\n바꿈", "줄바꿈"},
 	{"\xff\xfe", "□"}, {"�", "□"}, {"태그\U000E0067", "태그"},
 }
+
+// nfdFile is "회의록.pdf 한글 파일" in NFD (macOS file names, drag and drop).
+var nfdFile = norm.NFD.String("회의록.pdf 한글 파일")
 
 func TestSanitizeCases(t *testing.T) {
 	for _, c := range sanitizeCases {
@@ -145,6 +153,7 @@ var hostileChunks = []string{
 	"\x1bP+q\x1b\\", "\x9b31m", "\xff", "\xfe", "\xc3", "\xed\xa0\x80", "\xe2\x82", "\xf0\x9f\x91",
 	"\r\n", "\r", "\n", "\t",
 	"👨‍👩‍👧", "👍🏽", "1️⃣", "❄️", "🏴\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F", "🇰🇷", "\u0915\u094d\u0937\u093f", "\u1100\u1161", "\u1100\u1161\u1100\u1161", "\u1100\u1100", "\u0301",
+	nfdFile, norm.NFD.String("대한민국 서울 각"), "\u1100가나다", "\u1100\u119e\u11a8", "\u1100\u1100\u1100\u1161", "\u1161\u11a8",
 }
 
 func randomHostile(rng *rand.Rand) string {
@@ -160,4 +169,29 @@ func randomHostile(rng *rand.Rand) string {
 		b.WriteRune(r.lo + rune(rng.IntN(int(r.hi-r.lo)+1)))
 	}
 	return b.String()
+}
+
+// Sanitize must reach its fixpoint in one call (CA 8.2 idempotence): leftover
+// L jamo once merged with the next syllable and ate one syllable per pass.
+func TestSanitizeIdempotentHangul(t *testing.T) {
+	syllables := "가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허"
+	inputs := []string{
+		"\u1100" + syllables, nfdFile, norm.NFD.String(syllables), norm.NFD.String("/Users/sam/Desktop/회의록 2026.pdf"),
+		strings.Repeat("\u1100", 40) + "\u1161", strings.Repeat("\u1100\u119e", 20),
+	}
+	for _, in := range inputs {
+		for name, fn := range map[string]func(string) string{"Sanitize": textwidth.Sanitize, "SanitizeInput": textwidth.SanitizeInput} {
+			out := fn(in)
+			if again := fn(out); again != out {
+				t.Errorf("%s not idempotent for %q: %q -> %q", name, in, out, again)
+			}
+			if utf8.RuneCountInString(out) < utf8.RuneCountInString(norm.NFC.String(in)) {
+				t.Errorf("%s(%q) = %q lost runes", name, in, out)
+			}
+			assertWidthStable(t, in, out)
+		}
+	}
+	if got, want := textwidth.Sanitize("\u1100"+syllables), "ㄱ"+syllables; got != want {
+		t.Errorf("Sanitize(ᄀ+syllables) = %q, want %q", got, want)
+	}
 }

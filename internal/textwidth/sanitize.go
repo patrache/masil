@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
+	"golang.org/x/text/unicode/norm"
 )
 
 const (
@@ -17,8 +18,9 @@ const (
 	zwj         = '‍'
 
 	// maxPasses bounds the fixpoint loop; replacements can merge with
-	// neighbors into new graphemes (e.g. NFD jamo), so one pass is not
-	// always enough for idempotence.
+	// neighbors into new graphemes (e.g. a dropped ZWJ tail leaving NFD
+	// jamo that NFC composes on the next pass), so one pass is not always
+	// enough for idempotence.
 	maxPasses = 16
 )
 
@@ -56,6 +58,9 @@ func sanitizePass(s string, keepNewlines bool) string {
 	s = validUTF8(s)
 	s = validUTF8(ansi.Strip(s))
 	s = filterRunes(s, keepNewlines)
+	// Rule 6: NFC-compose (NFD Hangul from macOS file names would otherwise
+	// fail rule 7 cluster by cluster). The server stores NFC as well.
+	s = norm.NFC.String(s)
 	// Rules 3, 5 and 7 work per grapheme.
 	return perGrapheme(s)
 }
@@ -120,13 +125,76 @@ func fixGrapheme(g string) string {
 	if gw == ansi.StringWidthWc(g) {
 		return g
 	}
+	// Keep every rune, each conjoining jamo turned into a form that cannot
+	// cluster (e.g. "ᄀ가" -> "ㄱ가"), when that makes every grapheme stable.
+	if alt := standaloneRunes(g); widthStable(alt) {
+		return alt
+	}
 	r, _ := utf8.DecodeRuneInString(g)
-	rs := string(r)
+	rs := standalone(r)
 	if rw := ansi.StringWidth(rs); rw > 0 && rw == ansi.StringWidthWc(rs) {
 		return rs
 	}
 	return placeholder + strings.Repeat(" ", max(gw, 1)-1)
 }
+
+// standaloneRunes maps each conjoining jamo of g with standalone.
+func standaloneRunes(g string) string {
+	var b strings.Builder
+	for _, r := range g {
+		b.WriteString(standalone(r))
+	}
+	return b.String()
+}
+
+// standalone returns r, except that a conjoining Hangul jamo (which clusters
+// with neighboring jamo and syllables) becomes its compatibility jamo, or a
+// placeholder as wide as the jamo when there is none.
+func standalone(r rune) string {
+	if !conjoiningJamo(r) {
+		return string(r)
+	}
+	if c, ok := compatJamo[r]; ok {
+		return string(c)
+	}
+	return placeholder + strings.Repeat(" ", max(ansi.StringWidth(string(r)), 1)-1)
+}
+
+func conjoiningJamo(r rune) bool {
+	return r >= 0x1100 && r <= 0x11ff || r >= 0xa960 && r <= 0xa97f || r >= 0xd7b0 && r <= 0xd7ff
+}
+
+// widthStable reports whether every grapheme of s has StringWidth == StringWidthWc.
+func widthStable(s string) bool {
+	for rest := s; rest != ""; {
+		g, _ := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+		if g == "" {
+			return false
+		}
+		if ansi.StringWidth(g) != ansi.StringWidthWc(g) {
+			return false
+		}
+		rest = rest[len(g):]
+	}
+	return true
+}
+
+// compatJamo maps modern conjoining jamo (and arae-a) to Hangul Compatibility Jamo.
+var compatJamo = func() map[rune]rune {
+	m := map[rune]rune{0x119e: 0x318d, 0x11a1: 0x318e}
+	initials := []rune("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
+	for i, c := range initials {
+		m[0x1100+rune(i)] = c
+	}
+	for i := rune(0); i < 21; i++ { // ㅏ..ㅣ
+		m[0x1161+i] = 0x314f + i
+	}
+	finals := []rune("ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ")
+	for i, c := range finals {
+		m[0x11a8+rune(i)] = c
+	}
+	return m
+}()
 
 func onlyMarks(g string) bool {
 	if g == "" {
