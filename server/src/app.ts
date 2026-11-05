@@ -7,6 +7,7 @@ import { ApiError, notFoundHandler, onError } from "./lib/errors";
 import { newId } from "./lib/ids";
 import { clientVersionGate } from "./lib/version";
 import { authRoutes } from "./routes/auth";
+import { friendRoutes } from "./routes/friends";
 import { meRoutes } from "./routes/me";
 import { metaRoutes } from "./routes/meta";
 import { presenceRoutes } from "./routes/presence";
@@ -88,6 +89,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", meRoutes);
   app.route("/v1", presenceRoutes);
   app.route("/v1", userRoutes);
+  app.route("/v1", friendRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }

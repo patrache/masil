@@ -1,4 +1,4 @@
-// Shared test helpers (server-architecture.md 7.2). Later tasks add makeFriends/makeSpace.
+// Shared test helpers (server-architecture.md 7.2). Later tasks add makeSpace.
 import { SELF } from "cloudflare:test";
 import { newId } from "../src/lib/ids";
 import type { Me } from "../src/types/api";
@@ -194,4 +194,15 @@ export async function connectWs(
   client.send({ type: "resume", data: opts.resume ?? { epoch: null, last_seq: null } });
   await waitFor("ready", () => true, 3000, false);
   return client;
+}
+
+// ---- relations ----
+
+/** a -> b friend request + b accepts, through the API (a crossing pending request from b auto-accepts with 200). */
+export async function makeFriends(a: TestUser, b: TestUser): Promise<void> {
+  const r = await api(a.token).post<{ request: { id: string } }>("/v1/friends/requests", { user: `@${b.handle}` });
+  if (r.status === 200) return;
+  if (r.status !== 201) throw new Error(`friend request ${a.handle} -> ${b.handle} failed: ${r.status} ${JSON.stringify(r.body)}`);
+  const acc = await api(b.token).post(`/v1/friends/requests/${r.body.request.id}/accept`);
+  if (acc.status !== 200) throw new Error(`friend accept ${b.handle} failed: ${acc.status} ${JSON.stringify(acc.body)}`);
 }

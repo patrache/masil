@@ -1,9 +1,9 @@
 // Row -> api.md object serializers (server-architecture.md 4.9). Every response JSON is built here so that
 // fields always exist (null when absent, [] when empty). List serializers batch-load related rows with
 // json_each (no N+1).
-import type { Focus, Me, Notification, PresenceState, Profile, Relationship, Session, Settings, UserStatus, UserSummary } from "../types/api";
+import type { Focus, Friend, FriendRequest, Me, Notification, PresenceState, Profile, Relationship, Session, Settings, UserStatus, UserSummary } from "../types/api";
 import type { PresenceItem } from "../types/events";
-import type { NotificationRow, SessionRow, UserPresenceRow, UserRow, UserSettingsRow } from "../types/rows";
+import type { FriendRequestRow, NotificationRow, SessionRow, UserPresenceRow, UserRow, UserSettingsRow } from "../types/rows";
 import { isSuspendedNow } from "./auth";
 import { all, batch, jsonList, stmt } from "./db";
 import { err } from "./errors";
@@ -254,5 +254,32 @@ export async function serializeNotifications(db: D1Database, rows: NotificationR
       created_at: iso(r.created_at),
       read: r.read_at !== null,
     };
+  });
+}
+
+// ---- friends (plan 01 Task 17 additions) ----
+
+/** friend_requests rows -> FriendRequest (api.md 2), in row order; both ends batch-loaded in one query. A row whose
+ *  user is gone is dropped. */
+export async function serializeFriendRequests(db: D1Database, rows: FriendRequestRow[]): Promise<FriendRequest[]> {
+  const users = await loadUserSummaries(db, rows.flatMap((r) => [r.from_user_id, r.to_user_id]));
+  return rows.flatMap((r) => {
+    const from = users.get(r.from_user_id);
+    const to = users.get(r.to_user_id);
+    if (!from || !to) return [];
+    return [{ id: r.id, from, to, status: r.status, created_at: iso(r.created_at) }];
+  });
+}
+
+/** Friend (api.md 2) per `{user_id, created_at}` (created_at = friendship start), in row order; users and presence are
+ *  batch-loaded (two queries). Presence is not filtered: friends always see each other's presence (api.md 3.6). */
+export async function serializeFriends(db: D1Database, rows: Array<{ user_id: string; created_at: number }>): Promise<Friend[]> {
+  const ids = rows.map((r) => r.user_id);
+  const [users, presence] = await Promise.all([loadUserSummaries(db, ids), loadPresenceItems(db, ids)]);
+  const status = new Map(presence.map((p) => [p.user_id, p.status]));
+  return rows.flatMap((r) => {
+    const user = users.get(r.user_id);
+    if (!user) return [];
+    return [{ user, since: iso(r.created_at), presence: status.get(r.user_id) ?? "offline" }];
   });
 }
