@@ -146,6 +146,13 @@ var chatRouteTable = []chatRoute{
 	{"DELETE /v1/channels/{id}/members/{user}", "DELETE /v1/channels/01JBPROBE00000000000000000/members/@me", noContent},
 	{"GET /v1/spaces/{id}/members", "GET /v1/spaces/01JBPROBE00000000000000000/members", spaceMembers},
 	{"POST /v1/spaces", "POST /v1/spaces", echoCreateSpace},
+	{"PATCH /v1/spaces/{id}", "PATCH /v1/spaces/01JBPROBE00000000000000000", echoUpdateSpace},
+	{"DELETE /v1/spaces/{id}", "DELETE /v1/spaces/01JBPROBE00000000000000000", noContent},
+	{"POST /v1/spaces/{id}/transfer", "POST /v1/spaces/01JBPROBE00000000000000000/transfer", echoTransfer},
+	{"PATCH /v1/spaces/{id}/members/{user}", "PATCH /v1/spaces/01JBPROBE00000000000000000/members/@probe", echoMemberRole},
+	{"DELETE /v1/spaces/{id}/members/{user}", "DELETE /v1/spaces/01JBPROBE00000000000000000/members/@probe", noContent},
+	{"GET /v1/spaces/{id}/bans", "GET /v1/spaces/01JBPROBE00000000000000000/bans", spaceBans},
+	{"DELETE /v1/spaces/{id}/bans/{user}", "DELETE /v1/spaces/01JBPROBE00000000000000000/bans/@probe", noContent},
 	{"GET /v1/invites/{code}", "GET /v1/invites/AB12CD34", getInvite},
 	{"POST /v1/invites/{code}/accept", "POST /v1/invites/PROBE123/accept", acceptInvite},
 	{"POST /v1/direct-invites/{id}/accept", "POST /v1/direct-invites/01JKPROBE00000000000000000/accept", acceptDirectInvite},
@@ -470,6 +477,60 @@ func spaceMembers(w http.ResponseWriter, _ *http.Request) {
 }
 
 // ---- spaces and invites ----
+
+// seededSpace is the seeded space id (its Space part), else a stub space with that id.
+func seededSpace(id string) api.Space {
+	if sd := seeded().Spaces[id]; sd != nil {
+		return sd.Space
+	}
+	return api.Space{SpacePreview: api.SpacePreview{ID: id}, CreatedAt: routeNow(), MyRole: api.RoleOwner}
+}
+
+// echoUpdateSpace answers PATCH /v1/spaces/{id} with the space changed by the body (null icon = none).
+func echoUpdateSpace(w http.ResponseWriter, r *http.Request) {
+	var in map[string]*string
+	json.NewDecoder(r.Body).Decode(&in)
+	sp := seededSpace(r.PathValue("id"))
+	if v, ok := in["name"]; ok && v != nil {
+		sp.Name = *v
+	}
+	if v, ok := in["description"]; ok && v != nil {
+		sp.Description = *v
+	}
+	if v, ok := in["icon_emoji"]; ok {
+		sp.IconEmoji = v
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"space": sp})
+}
+
+// echoTransfer answers POST /v1/spaces/{id}/transfer: the posted user owns it, I am admin.
+func echoTransfer(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		User string `json:"user"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	sp := seededSpace(r.PathValue("id"))
+	sp.OwnerID, sp.MyRole = userByRef(in.User).ID, api.RoleAdmin
+	writeJSON(w, http.StatusOK, map[string]any{"space": sp})
+}
+
+// echoMemberRole answers PATCH /v1/spaces/{id}/members/{user} with that member in the posted role.
+func echoMemberRole(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Role api.SpaceRole `json:"role"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	if in.Role == "" {
+		in.Role = api.RoleMember
+	}
+	m := api.SpaceMember{User: userByRef(r.PathValue("user")), Role: in.Role, JoinedAt: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)}
+	writeJSON(w, http.StatusOK, map[string]any{"member": m})
+}
+
+// spaceBans answers GET /v1/spaces/{id}/bans with no bans.
+func spaceBans(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"items": []api.SpaceBan{}})
+}
 
 // Space / invite test ids: POST /v1/spaces answers newSpace*; invite testInviteCode
 // previews 노바 개발방 (from 민지), joinInviteCode 보드게임 모임 (joinSpace*), which
