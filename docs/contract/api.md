@@ -695,7 +695,7 @@ interface AdminAction {
 | 메시지 작성·리액션·스레드 | ✓ | ✓ | ✓ |
 | 방 나가기 | 위임 후 | ✓ | ✓ |
 
-- 초대는 낸 사람의 권한이 남아 있는 동안만 유효하다. 방에서 빠지면(**나가기·강퇴·밴 모두**) 같은 batch 안에서 그 사람이 그 방에 보낸 대기 중 직접 초대는 `canceled`, 만든 초대 링크는 폐기(`revoked`)된다. admin→member 로 강등되면(링크 권한 상실) 그 사람이 만든 링크도 같은 batch 에서 폐기된다(다시 admin 이 돼도 되살아나지 않음). 직접 초대 수락은 초대한 사람이 아직 방 멤버인지 사전 확인과 조건부 UPDATE 양쪽에서 다시 본다.
+- 초대는 낸 사람의 권한이 남아 있는 동안만 유효하다. 방에서 빠지면(**나가기·강퇴·밴 모두**) 같은 batch 안에서 그 사람이 그 방에 보낸 대기 중 직접 초대는 `canceled`, 만든 초대 링크는 폐기(`revoked`)된다. admin→member 로 강등되면(링크 권한 상실) 그 사람이 만든 링크도 같은 batch 에서 폐기된다(다시 admin 이 돼도 되살아나지 않음). 직접 초대 수락은 초대한 사람이 아직 방 멤버인지 사전 확인과 조건부 UPDATE 양쪽에서 다시 본다. 링크도 쓸 때마다(조회·수락의 사전 확인·조건부 UPDATE) 만든 사람이 아직 그 방 owner·admin 인지 다시 보며, 아니면 `revoked` 로 취급한다(폐기가 빠진 경로가 있어도 링크로 들어올 수 없음). 만들 때도 링크·직접 초대의 INSERT 자체가 권한(링크: owner·admin, 직접 초대: 멤버)을 다시 확인하므로, 권한 확인과 INSERT 사이에 강등·제거가 끼어들면 아무것도 만들어지지 않는다.
 - 방 멤버가 아니면(또는 방이 삭제됐으면) 방·채널·메시지 모두 `404 not_found`. text 채널의 읽기 검사는 비공개 채널이라도 **방 멤버십과 방 미삭제를 함께** 확인한다(`channel_members` 행만으로 통과하지 않음). 실시간 청중도 같다(`events.md` 6.1).
 - 비공개 채널은 그 채널 멤버만 보고(방장·관리자라도 멤버가 아니면 목록에 안 보임), 공개 채널은 방 멤버 전원.
 - 방에서 빠지면(**스스로 나가기·강퇴·밴 모두**) 같은 batch 안에서 그 방의 모든 비공개 채널의 `channel_members` 행도 지운다(`channels.member_count` 감소 포함). 밴은 강퇴 + 초대 수락 차단.
@@ -972,33 +972,35 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 ### 5.8 초대
 
 #### `GET /v1/spaces/{space_id}/invites`
-- owner·admin. 폐기되지 않은 링크 전부. `200 { "items": Invite[] }`
+- owner·admin. 폐기되지 않은 링크 전부(만료·소진 포함, 만든 사람이 owner·admin 이 아니게 된 링크는 폐기로 보아 제외 — 3.5). `200 { "items": Invite[] }`
 
 #### `POST /v1/spaces/{space_id}/invites`
 - owner·admin, `RL_SOCIAL`. 요청: `{ "max_uses"?: number | null, "expires_in_sec"?: number | null }`
   - `max_uses` 1..1000, `null`/생략 = 무제한. `expires_in_sec` 300..2592000, **생략 시 604800(7일)**, `null` = 무기한.
 - `201 { "invite": Invite }` — 클라이언트는 `code` 를 보여 주고, 공유 문자열은 `masil join <code>` 형식으로 안내한다.
+- INSERT 가 owner·admin 권한을 다시 확인한다(3.5). 그 사이 방에서 빠졌으면 `404`, member 로 강등됐으면 `403 forbidden` 이고 링크는 생기지 않는다.
 
 #### `DELETE /v1/invites/{code}`
 - 그 방 owner·admin. `204`
 - 만든 사람이 방에서 빠지거나 member 로 강등되면 링크는 자동 폐기된다(3.5) — 이후 조회·수락은 `410 invite_invalid`(`reason:"revoked"`).
 
 #### `GET /v1/invites/{code}`
-- 로그인한 누구나. 무효 코드 → `410 invite_invalid`, 없는 코드 → `404`.
+- 로그인한 누구나. 무효 코드 → `410 invite_invalid`, 없는 코드 → `404`. 만든 사람이 더 이상 그 방 owner·admin 이 아니면 `410`(`reason:"revoked"`, 3.5).
 - `200 { "invite": InvitePreview }`
 
 #### `POST /v1/invites/{code}/accept`
-- 가입. `use_count+1`(같은 batch, 조건부 UPDATE 로 초과 방지).
+- 가입. `use_count+1`(같은 batch, 조건부 UPDATE 로 초과 방지). 사전 확인과 조건부 UPDATE 모두 만든 사람이 아직 owner·admin 인지 본다(아니면 `410`, `reason:"revoked"`).
 - `200 { "space": SpaceDetail }` · 이벤트: `space.joined`(나), `space.member_joined`(기존 멤버) · 시스템 메시지(기본 채널) `member_joined`
 - 오류: `410 invite_invalid`, `409 already_member`, `403 banned_from_space`, `422 limit_exceeded`(`space_members`).
 
 #### `POST /v1/spaces/{space_id}/direct-invites`
 - 방 멤버 누구나(owner·admin 도 같은 조건), `RL_SOCIAL`. 요청: `{ "user": "@hana" }` — **역할과 무관하게 초대하는 사람의 친구**여야 함(3.5 표), 상대가 이미 멤버/밴/차단 관계면 실패. 친구가 아닌 사람은 초대 링크로 들인다.
 - `201 { "invite": DirectInvite }` · 이벤트: `space.invite_received`(상대) · 알림 `space_invite` · alert `invite`
-- 오류: `403 action_not_allowed`(친구 아님·차단), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`.
+- 오류: `403 action_not_allowed`(친구 아님·차단), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
+- 같은 사람에게 온 대기 초대라도 초대한 사람이 이미 방 멤버가 아니면(수락 불가) `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
 
 #### `GET /v1/me/direct-invites`
-- 나에게 온 대기 초대. `200 { "items": DirectInvite[] }`
+- 나에게 온 대기 초대(초대한 사람이 아직 그 방 멤버인 것만 — 나머지는 수락할 수 없음). `200 { "items": DirectInvite[] }`
 
 #### `POST /v1/direct-invites/{invite_id}/accept`
 - 초대받은 사람. `200 { "space": SpaceDetail }` · 이벤트는 초대 링크 수락과 같음 + `space.invite_removed`(`reason:"accepted"`).

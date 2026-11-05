@@ -272,9 +272,25 @@ type JoinFactsRow = SpaceRow & { _banned: number; _member: number };
 
 export type InviteInvalidReason = "revoked" | "expired" | "exhausted";
 
-/** Why an invite link can no longer be used (revoked > expired > exhausted), or null while it is usable. */
-export function inviteInvalidReason(row: SpaceInviteRow, nowMs: number = now()): InviteInvalidReason | null {
-  if (row.revoked_at !== null) return "revoked";
+/**
+ * An invite link only counts while its creator still holds owner·admin in its space (api.md 3.5, pending item 9):
+ * removal and demotion revoke the creator's links, and every use re-checks this (preview, the joinSpace pre-check and
+ * its conditional UPDATE), so a link that outlived its creator's right (a path that skipped the revoke, rows from
+ * before the fix, a link inserted in the race with a removal) behaves as revoked. `t` is the space_invites table or alias.
+ */
+export function linkIssuerCanInvite(t: string): string {
+  return `EXISTS (SELECT 1 FROM space_members lm WHERE lm.space_id = ${t}.space_id AND lm.user_id = ${t}.created_by AND lm.role IN ('owner', 'admin'))`;
+}
+
+/** A space_invites row loaded with `${linkIssuerCanInvite(t)} AS _issuer_ok`. */
+export type InviteCheckRow = SpaceInviteRow & { _issuer_ok: number };
+
+/**
+ * Why an invite link can no longer be used (revoked > expired > exhausted), or null while it is usable. A link whose
+ * creator lost owner·admin (or left the space) counts as revoked.
+ */
+export function inviteInvalidReason(row: InviteCheckRow, nowMs: number = now()): InviteInvalidReason | null {
+  if (row.revoked_at !== null || !row._issuer_ok) return "revoked";
   if (row.expires_at !== null && row.expires_at <= nowMs) return "expired";
   if (row.max_uses !== null && row.use_count >= row.max_uses) return "exhausted";
   return null;
@@ -288,22 +304,27 @@ export function inviteInvalidReason(row: SpaceInviteRow, nowMs: number = now()):
  */
 const INVITER_IS_MEMBER = "EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = ?2 AND im.user_id = space_direct_invites.inviter_id)";
 
-/** The invite link `code` of `spaceId`; 404 when missing. */
-async function loadInviteOf(db: D1Database, spaceId: string, code: string): Promise<SpaceInviteRow> {
-  const row = await first<SpaceInviteRow>(db, "SELECT * FROM space_invites WHERE code = ?1 AND space_id = ?2", code, spaceId);
+/** The invite link `code` of `spaceId` with its issuer check; 404 when missing. */
+async function loadInviteOf(db: D1Database, spaceId: string, code: string): Promise<InviteCheckRow> {
+  const row = await first<InviteCheckRow>(
+    db,
+    `SELECT *, ${linkIssuerCanInvite("space_invites")} AS _issuer_ok FROM space_invites WHERE code = ?1 AND space_id = ?2`,
+    code,
+    spaceId,
+  );
   if (row === null) throw err.notFound("invite");
   return row;
 }
 
 /**
  * `userId` joins a live space (404 otherwise) as a member. Pre-checks in this order: (inviteCode) the link is usable
- * 410 invite_invalid / (directInviteId) a pending invite to this user from a current member of the space 404, then
+ * and its creator still owner·admin 410 invite_invalid / (directInviteId) a pending invite to this user from a current member of the space 404, then
  * ban 403 banned_from_space, already a member 409 already_member, member_count >= 5000 422 limit_exceeded
  * space_members (pre-check only: concurrent joins may pass the cap by one or two, which keeps the invite use and the
  * join in one batch).
  * One batch (plan 01 Task 22, exactly these statements in this order):
- *   via invite: [invite UPDATE (use_count+1 / status accepted) gated on still being usable — direct: still pending
- *   and its inviter still a member] ->
+ *   via invite: [invite UPDATE (use_count+1 / status accepted) gated on still being usable — link: its creator still
+ *   owner·admin; direct: still pending and its inviter still a member] ->
  *   space_members INSERT gated on changes() > 0 -> spaces.member_count+1 gated on changes() > 0.
  *   via {}: the INSERT and the member_count UPDATE without the gates (Task 21).
  * A first statement that changed nothing means the invite was used up / answered meanwhile and nothing was written:
@@ -353,7 +374,7 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
         db,
         `UPDATE space_invites SET use_count = use_count + 1
           WHERE code = ?1 AND space_id = ?2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?3)
-            AND (max_uses IS NULL OR use_count < max_uses)`,
+            AND (max_uses IS NULL OR use_count < max_uses) AND ${linkIssuerCanInvite("space_invites")}`,
         via.inviteCode,
         spaceId,
         t,

@@ -1,7 +1,8 @@
-import { env } from "cloudflare:test";
+import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
+import { createApp } from "../../src/app";
 import { joinSpace } from "../../src/services/membership";
-import { api, connectWs, makeFriends, makeSpace, signup, type TestUser } from "../helpers";
+import { api, connectWs, makeFriends, makeSpace, signup, uniqueIp, type TestUser } from "../helpers";
 
 // ---- local fixtures (this file only) ----
 
@@ -348,5 +349,222 @@ describe("invites whose inviter lost the right to invite", () => {
     const lo = (await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
     expect((await api(o.token).post(`/v1/spaces/${space.id}/transfer`, { user: `@${n.handle}` })).status).toBe(200);
     expect((await linkState(lo.code)).accept).toBe(200);
+  });
+});
+
+// pending item 9 (follow-up): the issuer's right is checked where the invite is created and every time it is used, not
+// only when the issuer is removed or demoted. The races below interpose between the route's role check and its write.
+describe("invites are gated on the issuer's right at creation and at use", () => {
+  /**
+   * env.DB, except that the first bound statement whose SQL matches `match` runs `cb` before (or after) it executes
+   * through first/run/all. Everything else passes through untouched.
+   */
+  function hookDb(match: RegExp, when: "before" | "after", cb: () => Promise<void>): D1Database {
+    const db = env.DB;
+    let fired = false;
+    const fire = async () => {
+      if (fired) return;
+      fired = true;
+      await cb();
+    };
+    const pass = <T extends object>(o: T, p: string | symbol) => {
+      const v = Reflect.get(o, p, o);
+      return typeof v === "function" ? v.bind(o) : v;
+    };
+    const wrapBound = (bound: D1PreparedStatement): D1PreparedStatement =>
+      new Proxy(bound, {
+        get(b, q) {
+          if (q === "first" || q === "run" || q === "all") {
+            return async (...a: unknown[]) => {
+              if (when === "before") await fire();
+              const out = await (b[q] as (...x: unknown[]) => Promise<unknown>)(...a);
+              if (when === "after") await fire();
+              return out;
+            };
+          }
+          return pass(b, q);
+        },
+      });
+    return new Proxy(db, {
+      get(target, prop) {
+        if (prop === "prepare") {
+          return (sql: string) => {
+            const s = target.prepare(sql);
+            if (fired || !match.test(sql)) return s;
+            return new Proxy(s, {
+              get(st, p) {
+                if (p === "bind") return (...args: unknown[]) => wrapBound(st.bind(...args));
+                return pass(st, p);
+              },
+            });
+          };
+        }
+        return pass(target, prop);
+      },
+    });
+  }
+
+  /** One request through a fresh app whose env.DB is `db`; the background work is awaited. */
+  async function fetchWith(db: D1Database, token: string, method: string, path: string, json: unknown): Promise<{ status: number; body: any }> {
+    const ctx = createExecutionContext();
+    const res = await createApp().fetch(
+      new Request(`http://masil.test${path}`, {
+        method,
+        headers: {
+          "User-Agent": "masil/0.1.0 (test; test)",
+          "CF-Connecting-IP": uniqueIp(),
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(json),
+      }),
+      { ...env, DB: db } as typeof env,
+      ctx,
+    );
+    await waitOnExecutionContext(ctx);
+    const text = await res.text();
+    return { status: res.status, body: text === "" ? null : JSON.parse(text) };
+  }
+
+  async function linkState(code: string): Promise<{ get: number; reason?: string; accept: number; acceptReason?: string }> {
+    const u = await signup();
+    const g = await api(u.token).get<any>(`/v1/invites/${code}`);
+    const a = await api(u.token).post<any>(`/v1/invites/${code}/accept`);
+    return { get: g.status, reason: g.body?.error?.details?.reason, accept: a.status, acceptReason: a.body?.error?.details?.reason };
+  }
+
+  const linkCount = async (spaceId: string, userId: string) =>
+    (await env.DB.prepare("SELECT COUNT(*) AS n FROM space_invites WHERE space_id=?1 AND created_by=?2").bind(spaceId, userId).first<any>()).n;
+
+  for (const how of ["demoted", "kicked"] as const) {
+    it(`link create: the admin is ${how} between the role check and the INSERT -> ${how === "demoted" ? 403 : 404}, no link`, async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { space } = await makeSpace(o, [a]);
+      expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+      const db = hookDb(/INSERT INTO space_invites/, "before", async () => {
+        const r =
+          how === "demoted"
+            ? await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "member" })
+            : await api(o.token).del(`/v1/spaces/${space.id}/members/@${a.handle}`);
+        expect(r.status).toBe(how === "demoted" ? 200 : 204);
+      });
+      const r = await fetchWith(db, a.token, "POST", `/v1/spaces/${space.id}/invites`, { expires_in_sec: null });
+      expect(r.status).toBe(how === "demoted" ? 403 : 404);
+      expect(await linkCount(space.id, a.user.id)).toBe(0);
+    });
+  }
+
+  it("link create: an admin who keeps the role still gets 201 through the gated INSERT", async () => {
+    const [o, a] = await Promise.all([signup(), signup()]);
+    const { space } = await makeSpace(o, [a]);
+    expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+    const r = await api(a.token).post<any>(`/v1/spaces/${space.id}/invites`, { max_uses: 3, expires_in_sec: null });
+    expect(r.status).toBe(201);
+    expect(r.body.invite).toMatchObject({ max_uses: 3, use_count: 0, expires_at: null });
+    expect((await linkState(r.body.invite.code)).accept).toBe(200);
+  });
+
+  for (const how of ["gone", "demoted"] as const) {
+    it(`link whose creator is ${how} without the revoke running: preview and accept 410 revoked, not listed`, async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { space } = await makeSpace(o, [a]);
+      expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+      const link = (await api(a.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+      // the creator's right disappears without going through removeFromSpace / PATCH (rows from before the fix, a future path)
+      const sql =
+        how === "gone"
+          ? "DELETE FROM space_members WHERE space_id=?1 AND user_id=?2"
+          : "UPDATE space_members SET role='member' WHERE space_id=?1 AND user_id=?2";
+      await env.DB.prepare(sql).bind(space.id, a.user.id).run();
+      expect(await linkState(link.code)).toEqual({ get: 410, reason: "revoked", accept: 410, acceptReason: "revoked" });
+      const row = await env.DB.prepare("SELECT use_count, revoked_at FROM space_invites WHERE code=?").bind(link.code).first<any>();
+      expect(row).toEqual({ use_count: 0, revoked_at: null });
+      const listed = (await api(o.token).get<any>(`/v1/spaces/${space.id}/invites`)).body.items.map((i: any) => i.code);
+      expect(listed).not.toContain(link.code);
+      expect(listed.length).toBeGreaterThan(0); // makeSpace's owner link is still there
+    });
+  }
+
+  it("link accept: the creator is demoted between the pre-check and the batch -> the conditional UPDATE refuses it", async () => {
+    const [o, a, s] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [a]);
+    expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+    const link = (await api(a.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+    const db = env.DB;
+    const racing = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "batch") {
+          return async (stmts: D1PreparedStatement[]) => {
+            await target.prepare("UPDATE space_members SET role='member' WHERE space_id=?1 AND user_id=?2").bind(space.id, a.user.id).run();
+            return target.batch(stmts);
+          };
+        }
+        const v = Reflect.get(target, prop, target);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    const rt = { env: { ...env, DB: racing } as typeof env, waitUntil: () => {} };
+    await expect(joinSpace(rt, space.id, s.user.id, { inviteCode: link.code })).rejects.toMatchObject({
+      status: 410,
+      code: "invite_invalid",
+      details: { reason: "revoked" },
+    });
+    const row = await env.DB.prepare(
+      "SELECT i.use_count, s.member_count, (SELECT COUNT(*) FROM space_members WHERE space_id=s.id) n FROM space_invites i JOIN spaces s ON s.id=i.space_id WHERE i.code=?",
+    )
+      .bind(link.code)
+      .first<any>();
+    expect(row).toEqual({ use_count: 0, member_count: 2, n: 2 });
+  });
+
+  it("direct invite create: the inviter is kicked between the role check and the INSERT -> 404, nothing reaches the invitee", async () => {
+    const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m]);
+    await Promise.all([makeFriends(m, f), makeFriends(o, f)]);
+    const cf = await connectWs(f.token);
+    // after the route's own pre-check reads (ban / member / pending), before its write
+    const db = hookDb(/AS pending/, "after", async () => {
+      expect((await api(o.token).del(`/v1/spaces/${space.id}/members/@${m.handle}`)).status).toBe(204);
+    });
+    const r = await fetchWith(db, m.token, "POST", `/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(r.status).toBe(404);
+    const counts = await env.DB.prepare(
+      `SELECT (SELECT COUNT(*) FROM space_direct_invites WHERE space_id=?1 AND invitee_id=?2) AS invites,
+              (SELECT COUNT(*) FROM notifications WHERE user_id=?2 AND type='space_invite') AS notes`,
+    )
+      .bind(space.id, f.user.id)
+      .first<any>();
+    expect(counts).toEqual({ invites: 0, notes: 0 });
+    expect((await api(f.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+    // a current member can still invite the same person
+    const fresh = await api(o.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(fresh.status).toBe(201);
+    expect((await cf.next("space.invite_received")).data.invite.id).toBe(fresh.body.invite.id);
+  });
+
+  it("stale pending direct invite (inviter gone, no cancel ran): not listed; a member's fresh invite replaces it", async () => {
+    const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m]);
+    await Promise.all([makeFriends(m, f), makeFriends(o, f)]);
+    const stale = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+    await env.DB.prepare("DELETE FROM space_members WHERE space_id=?1 AND user_id=?2").bind(space.id, m.user.id).run();
+    expect((await api(f.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+    const cf = await connectWs(f.token);
+    const fresh = await api(o.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(fresh.status).toBe(201);
+    expect((await cf.next("space.invite_removed")).data).toEqual({ invite_id: stale.id, reason: "canceled" });
+    expect((await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(stale.id).first<any>()).status).toBe("canceled");
+    expect((await api(f.token).get<any>("/v1/me/direct-invites")).body.items.map((i: any) => i.id)).toEqual([fresh.body.invite.id]);
+    expect((await api(f.token).post(`/v1/direct-invites/${fresh.body.invite.id}/accept`)).status).toBe(200);
+  });
+
+  it("a pending invite from a current member still blocks a second one (409 already_exists)", async () => {
+    const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m]);
+    await Promise.all([makeFriends(m, f), makeFriends(o, f)]);
+    expect((await api(m.token).post(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).status).toBe(201);
+    const dup = await api(o.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error.code).toBe("already_exists");
   });
 });

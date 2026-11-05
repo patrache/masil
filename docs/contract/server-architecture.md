@@ -603,6 +603,9 @@ export const clientVersionGate: MiddlewareHandler<AppEnv>;   // UA "masil/x.y.z"
 
 ```ts
 // membership.ts
+/** SQL fragment over space_invites `t`: its creator is still owner·admin of its space (api.md 3.5). Preview, listing and joinSpace all apply it. */
+export function linkIssuerCanInvite(t: string): string;
+/** Via a link: pre-check + conditional UPDATE both require the creator to still be owner·admin (else 410 revoked); via a direct invite: the inviter still a member (else 404). */
 export function joinSpace(rt: Runtime, spaceId: string, userId: string, via: { inviteCode?: string; directInviteId?: string }): Promise<SpaceDetail>;
 /** One batch for every reason: delete space_members row + this user's channel_members rows in all private channels of the space + cancel this user's pending direct invites to the space + revoke their invite links (+ counters). */
 export function removeFromSpace(rt: Runtime, spaceId: string, userId: string, actorId: string, reason: "left" | "kicked" | "banned", banReason?: string): Promise<void>;
