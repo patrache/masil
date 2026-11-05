@@ -722,3 +722,21 @@ func TestSetViewingBeforeBroadcast(t *testing.T) {
 		t.Fatalf("event records = %+v, want message.created with Viewing(dev)=true", recs)
 	}
 }
+
+// TestLoggedOutInitialLoginRoute: without credentials an InitialRoute of kind
+// RouteLogin picks the form (`masil signup` => Arg "signup"); any other initial
+// route still shows the plain login screen.
+func TestLoggedOutInitialLoginRoute(t *testing.T) {
+	h := uitest.New(t, uitest.WithCredentials(nil), uitest.WithRoute(ui.Route{Kind: ui.RouteLogin, Arg: "signup"}))
+	if r := h.Model.Frame().Routes[layout.SlotMain]; r.Kind != ui.RouteLogin || r.Arg != "signup" {
+		t.Fatalf("main route = %+v, want login/signup", r)
+	}
+	if !strings.Contains(h.Screen(), "비밀번호 확인") {
+		t.Fatalf("signup form not shown:\n%s", h.Screen())
+	}
+
+	h = uitest.New(t, uitest.WithCredentials(nil), uitest.WithRoute(ui.Route{Kind: ui.RouteInvite, ID: "AbC12345"}))
+	if r := h.Model.Frame().Routes[layout.SlotMain]; r.Kind != ui.RouteLogin || r.Arg != "" || r.ID != "" {
+		t.Fatalf("main route = %+v, want the plain login screen", r)
+	}
+}

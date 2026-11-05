@@ -221,7 +221,11 @@ func New(o Options) *Model {
 	}
 	m.pin = startPin(saved, cfg.Layout.Pin)
 	if o.Credentials == nil { // CA 5.4 start order: no credentials => the login screen
-		m.login = &ui.Route{Kind: ui.RouteLogin}
+		r := ui.Route{Kind: ui.RouteLogin}
+		if o.InitialRoute != nil && o.InitialRoute.Kind == ui.RouteLogin { // `masil login` / `masil signup`
+			r = *o.InitialRoute
+		}
+		m.login = &r
 	} else if o.InitialRoute != nil {
 		m.nav, m.intent = m.nav.navigate(ui.NavigateMsg{Route: *o.InitialRoute}, m.ctx.Mode)
 		if m.intent.Slot == "" {
