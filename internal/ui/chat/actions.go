@@ -12,6 +12,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
@@ -170,9 +171,10 @@ func deleteMessageCmd(ctx *ui.Context, m api.Message) tea.Cmd {
 	})
 }
 
-// pinCmd pins (on) or unpins m; on success the held copy follows at once.
+// pinCmd pins (on) or unpins m; on success the held copy and a loaded pin list
+// (chat.pins) follow at once, before the pin event lands.
 func pinCmd(ctx *ui.Context, m api.Message, on bool) tea.Cmd {
-	id := m.ID
+	id, chID := m.ID, m.ChannelID
 	return doAction(ctx, "chat.pin:"+id, func(c context.Context, cl *api.Client) (struct{}, error) {
 		if on {
 			return struct{}{}, cl.Pin(c, id)
@@ -183,16 +185,40 @@ func pinCmd(ctx *ui.Context, m api.Message, on bool) tea.Cmd {
 			return errorCmd(err, pinFailed)
 		}
 		if c := chatOf(ctx); c != nil {
-			if cur, ok := c.FindMessage(id); ok && cur.Pinned != on {
+			cur, held := c.FindMessage(id)
+			if held && cur.Pinned != on {
 				cur.Pinned = on
 				c.UpsertMessage(cur)
 			}
+			if !held {
+				cur = m
+			}
+			syncPinList(c, chID, cur, on)
 		}
 		if on {
 			return ui.Toast(pinnedText, ui.ToastSuccess)
 		}
 		return ui.Toast(unpinnedText, ui.ToastInfo)
 	})
+}
+
+// syncPinList applies a successful pin (on) or unpin of m to the channel's pin
+// list when it is loaded: unpinned = dropped, pinned = first (pin order is newest
+// first). The later message.pinned / unpinned event leaves it as it is.
+func syncPinList(c *chatstore.ChatStore, chID string, m api.Message, on bool) {
+	if chID == "" {
+		chID = m.ChannelID
+	}
+	pins, loaded := c.Pins(chID)
+	if !loaded {
+		return
+	}
+	pins = slices.DeleteFunc(pins, func(p api.Message) bool { return p.ID == m.ID })
+	if on {
+		m.Pinned = true
+		pins = append([]api.Message{m}, pins...)
+	}
+	c.SetPins(chID, pins)
 }
 
 // voteCmd replaces my votes of poll p with idxs (none = retract); the result is

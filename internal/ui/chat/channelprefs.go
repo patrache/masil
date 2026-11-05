@@ -31,7 +31,7 @@ func init() {
 // Registered overlay ids.
 const (
 	overlayChannelPrefs = "chat.channel_prefs" // args = channel id ("" = the viewed channel)
-	overlayPins         = "chat.pins"          // Task 22; unregistered until then (the item then does nothing)
+	overlayPins         = "chat.pins"          // pins.go; args = channel id
 )
 
 // Channel settings texts and limits.
