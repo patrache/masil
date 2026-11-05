@@ -7,8 +7,10 @@ import { ApiError, notFoundHandler, onError } from "./lib/errors";
 import { newId } from "./lib/ids";
 import { clientVersionGate } from "./lib/version";
 import { authRoutes } from "./routes/auth";
+import { meRoutes } from "./routes/me";
 import { metaRoutes } from "./routes/meta";
 import { presenceRoutes } from "./routes/presence";
+import { userRoutes } from "./routes/users";
 import { wsRoutes } from "./routes/ws";
 
 export const JSON_BODY_MAX_BYTES = 64 * 1024;
@@ -83,7 +85,9 @@ export function createApp(): Hono<AppEnv> {
   // Route modules in server-architecture.md section 2 order; each task adds its own line.
   app.route("/v1", metaRoutes);
   app.route("/v1", authRoutes);
+  app.route("/v1", meRoutes);
   app.route("/v1", presenceRoutes);
+  app.route("/v1", userRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }

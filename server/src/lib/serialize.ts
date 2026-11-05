@@ -1,12 +1,13 @@
 // Row -> api.md object serializers (server-architecture.md 4.9). Every response JSON is built here so that
 // fields always exist (null when absent, [] when empty). List serializers batch-load related rows with
 // json_each (no N+1).
-import type { Focus, Me, Notification, PresenceState, Session, Settings, UserStatus, UserSummary } from "../types/api";
+import type { Focus, Me, Notification, PresenceState, Profile, Relationship, Session, Settings, UserStatus, UserSummary } from "../types/api";
 import type { PresenceItem } from "../types/events";
 import type { NotificationRow, SessionRow, UserPresenceRow, UserRow, UserSettingsRow } from "../types/rows";
 import { isSuspendedNow } from "./auth";
 import { all, batch, jsonList, stmt } from "./db";
 import { err } from "./errors";
+import { canDm, canViewUserContent, presenceVisible } from "./permissions";
 import { iso, isoOrNull, now } from "./time";
 
 function toUserStatus(row: UserRow, nowMs: number): UserStatus | null {
@@ -112,6 +113,92 @@ export async function serializeMe(db: D1Database, userId: string): Promise<Me> {
     post_count: user.post_count,
     settings: toSettings(user, settings),
     presence: toPresenceState(presence, t),
+  };
+}
+
+const SHARED_SPACES_MAX = 10;
+
+interface RelationshipFactsRow {
+  is_friend: number;
+  fr_id: string | null;
+  fr_from: string | null;
+  following: "active" | "pending" | null;
+  followed_by: "active" | "pending" | null;
+  blocked: number;
+}
+
+/** viewer -> target Relationship (api.md 2): pending friend request, follows both ways, my block only, can_dm, can_view_posts. */
+async function loadRelationship(db: D1Database, viewerId: string, targetId: string): Promise<Relationship> {
+  const [[facts, spaces], dm, view] = await Promise.all([
+    batch(db, [
+      stmt(
+        db,
+        `SELECT EXISTS (SELECT 1 FROM friendships f WHERE f.user_a = MIN(?1, ?2) AND f.user_b = MAX(?1, ?2)) AS is_friend,
+                (SELECT r.id FROM friend_requests r
+                  WHERE r.status = 'pending'
+                    AND ((r.from_user_id = ?1 AND r.to_user_id = ?2) OR (r.from_user_id = ?2 AND r.to_user_id = ?1))
+                  ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS fr_id,
+                (SELECT r.from_user_id FROM friend_requests r
+                  WHERE r.status = 'pending'
+                    AND ((r.from_user_id = ?1 AND r.to_user_id = ?2) OR (r.from_user_id = ?2 AND r.to_user_id = ?1))
+                  ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS fr_from,
+                (SELECT fo.status FROM follows fo WHERE fo.follower_id = ?1 AND fo.followee_id = ?2) AS following,
+                (SELECT fo.status FROM follows fo WHERE fo.follower_id = ?2 AND fo.followee_id = ?1) AS followed_by,
+                EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ?1 AND b.blocked_id = ?2) AS blocked`,
+        viewerId,
+        targetId,
+      ),
+      stmt(
+        db,
+        `SELECT m1.space_id
+           FROM space_members m1
+           JOIN space_members m2 ON m2.space_id = m1.space_id AND m2.user_id = ?2
+           JOIN spaces s ON s.id = m1.space_id AND s.deleted_at IS NULL
+          WHERE m1.user_id = ?1
+          ORDER BY m1.space_id
+          LIMIT ${SHARED_SPACES_MAX}`,
+        viewerId,
+        targetId,
+      ),
+    ]),
+    canDm(db, viewerId, targetId),
+    canViewUserContent(db, viewerId, targetId),
+  ]);
+  const f = facts.results[0] as unknown as RelationshipFactsRow;
+  return {
+    is_friend: f.is_friend === 1,
+    friend_request: f.fr_id === null ? null : { id: f.fr_id, direction: f.fr_from === viewerId ? "outgoing" : "incoming" },
+    following: f.following ?? "none",
+    followed_by: f.followed_by ?? "none",
+    blocked: f.blocked === 1,
+    can_dm: dm,
+    can_view_posts: view === "ok",
+    shared_space_ids: (spaces.results as Array<{ space_id: string }>).map((r) => r.space_id),
+  };
+}
+
+/**
+ * Profile of `row` as seen by `viewerId`: relationship null for self; presence/last_seen_at null outside api.md 3.6.
+ * A block (either way) still yields a profile — with can_dm=false and can_view_posts=false.
+ */
+export async function serializeProfile(db: D1Database, viewerId: string, row: UserRow): Promise<Profile> {
+  const self = row.id === viewerId;
+  const [visible, presence, relationship] = await Promise.all([
+    self ? Promise.resolve(new Set([row.id])) : presenceVisible(db, viewerId, [row.id]),
+    loadPresenceItems(db, [row.id]),
+    self ? Promise.resolve(null) : loadRelationship(db, viewerId, row.id),
+  ]);
+  const p = visible.has(row.id) ? (presence[0] ?? null) : null;
+  return {
+    ...toUserSummary(row),
+    bio: row.bio,
+    created_at: iso(row.created_at),
+    follower_count: row.follower_count,
+    following_count: row.following_count,
+    post_count: row.post_count,
+    presence: p === null ? null : p.status,
+    last_seen_at: p === null ? null : p.last_seen_at,
+    relationship,
   };
 }
 
