@@ -1,5 +1,5 @@
 // Me, profile, settings and status message (api.md 5.1): GET /me, PATCH /me/profile, GET|PATCH /me/settings,
-// PUT|DELETE /me/status. /me is shared with presence.ts and plan 02 follows.ts, so requireAuth is attached per
+// PUT|DELETE /me/status, GET /me/unreads (Task 27). /me is shared with presence.ts and plan 02 follows.ts, so requireAuth is attached per
 // route (plan 01 Global Constraints). Writes commit in one db.batch, then publish user.updated / settings.updated.
 import { Hono } from "hono";
 import * as z from "zod";
@@ -8,8 +8,9 @@ import { getAuth, requireAuth } from "../lib/auth";
 import { batch, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId } from "../lib/ids";
+import { accessibleChannelIds } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
-import { serializeMe, toUserSummary } from "../lib/serialize";
+import { loadUnreadStates, serializeMe, toUserSummary } from "../lib/serialize";
 import { isSingleEmoji, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
 import { removeUploads } from "../lib/uploads";
@@ -197,4 +198,20 @@ meRoutes.delete("/me/status", requireAuth, async (c) => {
   if (row === null) throw err.unauthorized();
   await publishUserUpdated(c, row);
   return c.body(null, 204);
+});
+
+/**
+ * Unread state of every channel I can read that has something unread or a mention (api.md 5.1), in channel id order.
+ * loadUnreadStates applies the cost rule (only channels whose last_message_id is past the pointer are counted).
+ */
+meRoutes.get("/me/unreads", requireAuth, async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const ids = await accessibleChannelIds(db, me);
+  const states = await loadUnreadStates(db, me, ids);
+  const items = ids.flatMap((id) => {
+    const st = states.get(id);
+    return st !== undefined && (st.unread_count > 0 || st.mention_count > 0) ? [st] : [];
+  });
+  return c.json({ items });
 });

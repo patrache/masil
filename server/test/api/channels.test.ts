@@ -18,6 +18,30 @@ async function seedChannelsSql(spaceId: string, creator: TestUser, n: number): P
   );
 }
 
+/** Two friends and their 1:1 dm channel id. */
+async function dmPair(): Promise<{ a: TestUser; b: TestUser; ch: string }> {
+  const [a, b] = await Promise.all([signup(), signup()]);
+  await makeFriends(a, b);
+  const r = await api(a.token).post<any>("/v1/dms", { users: [`@${b.handle}`] });
+  if (r.status !== 201) throw new Error(`dm create failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return { a, b, ch: r.body.channel.id };
+}
+
+/** Sends a text message as `u` in `ch` and returns it (throws unless 201). */
+async function post(u: TestUser, ch: string, body: string): Promise<any> {
+  const r = await api(u.token).post<any>(`/v1/channels/${ch}/messages`, { client_nonce: crypto.randomUUID().slice(0, 12), body });
+  if (r.status !== 201) throw new Error(`post failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return r.body.message;
+}
+
+/** `owner` makes an invite link for `spaceId` and `joiner` accepts it (throws unless both succeed). */
+async function joinViaInvite(spaceId: string, owner: TestUser, joiner: TestUser): Promise<void> {
+  const inv = await api(owner.token).post<any>(`/v1/spaces/${spaceId}/invites`, { max_uses: null });
+  if (inv.status !== 201) throw new Error(`invite create failed: ${inv.status} ${JSON.stringify(inv.body)}`);
+  const r = await api(joiner.token).post(`/v1/invites/${inv.body.invite.code}/accept`);
+  if (r.status !== 200) throw new Error(`invite accept failed: ${r.status} ${JSON.stringify(r.body)}`);
+}
+
 describe("POST /spaces/:space_id/channels", () => {
   it("admin creates public channel; member cannot; duplicate name incl. NFD -> 409", async () => {
     const [o, m] = await Promise.all([signup(), signup()]);
@@ -221,5 +245,40 @@ describe("PATCH / DELETE /channels/:channel_id, prefs", () => {
     expect((await api(x.token).del<any>(`/v1/channels/${g.id}`)).body.error.details).toEqual({ reason: "not_supported" });
     const d = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`] })).body.channel;
     expect((await api(o.token).patch(`/v1/channels/${d.id}`, { name: "x" })).status).toBe(409);
+  });
+});
+
+describe("read state", () => {
+  it("unread/mention counts top-level by others after pointer; baseline = join time; own send advances pointer", async () => {
+    const [o, m] = await Promise.all([signup(), signup()]);
+    const { space, generalChannelId: g } = await makeSpace(o, []);
+    await post(o, g, "before join");
+    await joinViaInvite(space.id, o, m);
+    const x1 = await post(o, g, "one");
+    await post(o, g, `@${m.handle} two`);
+    await api(o.token).post(`/v1/messages/${x1.id}/thread`, { client_nonce: "tr", body: "reply not counted" });
+    const st = (await api(m.token).get<any>("/v1/me/unreads")).body.items.find((s: any) => s.channel_id === g);
+    expect(st).toMatchObject({ unread_count: 2, mention_count: 1, last_read_message_id: null });
+    const cm2 = await connectWs(m.token);
+    const r = await api(m.token).put<any>(`/v1/channels/${g}/read`, { message_id: x1.id });
+    expect(r.body.state).toMatchObject({ unread_count: 1, mention_count: 1, last_read_message_id: x1.id });
+    await cm2.next("read_state.updated");
+    // api.md 5.10: sending moves the author's own channel_reads to the new message -> nothing unread, channel drops out of /me/unreads
+    const mine = await post(m, g, "mine");
+    expect((await api(m.token).get<any>("/v1/me/unreads")).body.items.find((s: any) => s.channel_id === g)).toBeUndefined();
+    expect((await api(m.token).get<any>(`/v1/channels/${g}`)).body.channel.my).toMatchObject({ unread_count: 0, mention_count: 0, last_read_message_id: mine.id });
+  });
+
+  it("Review Focus 5: pointer never moves back; foreign/thread ids rejected", async () => {
+    const [o, m] = await Promise.all([signup(), signup()]);
+    const { generalChannelId: g } = await makeSpace(o, [m]);
+    const [a1, a2] = [await post(o, g, "1"), await post(o, g, "2")];
+    await api(m.token).put(`/v1/channels/${g}/read`, { message_id: a2.id });
+    expect((await api(m.token).put<any>(`/v1/channels/${g}/read`, { message_id: a1.id })).body.state.last_read_message_id).toBe(a2.id);
+    const reply = (await api(o.token).post<any>(`/v1/messages/${a1.id}/thread`, { client_nonce: "t", body: "r" })).body.message;
+    expect((await api(m.token).put(`/v1/channels/${g}/read`, { message_id: reply.id })).status).toBe(400);
+    const { a, ch } = await dmPair();
+    const other = await post(a, ch, "elsewhere");
+    expect((await api(m.token).put(`/v1/channels/${g}/read`, { message_id: other.id })).status).toBe(400);
   });
 });

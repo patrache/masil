@@ -6,11 +6,12 @@
 // alert suppression (focus/dnd) with focus_alerts, focus mode start/end (one finishFocus for early and natural end).
 // Task 13: `watch` frames (TopicHub join/leave, topic events only to sockets watching them).
 // Task 14: revokeSessions (session.revoked then 4001/4003).
-// Typing (Task 27) builds on this.
+// Task 27: `typing` frames (write access check, 2s per-connection dedupe, volatile fan-out to the channel minus me).
 import { DurableObject } from "cloudflare:workers";
 import type { AuthContext, Runtime } from "../env";
 import { all } from "../lib/db";
 import { newId, isId } from "../lib/ids";
+import { getChannelAccess } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
 import { loadPresenceItems } from "../lib/serialize";
 import { iso } from "../lib/time";
@@ -67,6 +68,11 @@ export const LOG_KEEP_MS = 86_400_000;
 const RATE_WINDOW_MS = 10_000; // events.md 2: 30 frames / 10s -> reply{rate_limited}; 60 -> 4008
 const RATE_SOFT = 30;
 const RATE_HARD = 60;
+
+export const TYPING_DEDUPE_MS = 2_000; // events.md 5: duplicates per connection + channel(+thread) within 2s are dropped
+export const TYPING_EXPIRES_MS = 6_000; // events.md 4: typing.expires_in_ms
+export const TYPING_KEYS_MAX = 20; // ConnAttachment.typingAt keeps at most 20 keys
+export const TYPING_ACCESS_CACHE_MS = 5 * 60_000; // server-architecture.md 3.2: write access may be cached for 5 min
 
 export const WATCH_LEASE_MS = 300_000; // events.md 5: server lease 300s (clients resend `watch` every 120s)
 
@@ -517,8 +523,77 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         );
         break;
       case "typing":
-        break;
+        return this.handleTyping(ws, a, frame.data, ref);
     }
+    this.reply(ws, ref, null);
+  }
+
+  /** channelId -> until (ms): positive write-access results of this hub's user (in memory; lost on hibernation). */
+  private typingAccess = new Map<string, number>();
+
+  protected async canTypeIn(userId: string, channelId: string): Promise<boolean> {
+    const t = this.now();
+    const until = this.typingAccess.get(channelId);
+    if (until !== undefined && until > t) return true;
+    const access = await getChannelAccess(this.env.DB, channelId, userId);
+    if (access === null || !access.canWrite) {
+      this.typingAccess.delete(channelId);
+      return false;
+    }
+    if (this.typingAccess.size >= 100) this.typingAccess.clear(); // bound the cache; it refills on demand
+    this.typingAccess.set(channelId, t + TYPING_ACCESS_CACHE_MS);
+    return true;
+  }
+
+  /**
+   * `typing` (events.md 5, server-architecture.md 3.2; full only, checked by the caller). Duplicates for the same
+   * channel(+thread) on this connection within 2s are dropped (stamped before any await so back-to-back frames dedupe).
+   * No write access -> reply{not_found} (and the stamp is withdrawn). Otherwise a volatile `typing` goes to the
+   * channel audience minus me (all my connections included).
+   */
+  protected async handleTyping(
+    ws: WebSocket,
+    a: ConnAttachment,
+    data: { channel_id: string; thread_root_id: string | null },
+    ref: string | null,
+  ): Promise<void> {
+    const key = data.thread_root_id === null ? data.channel_id : `${data.channel_id}:${data.thread_root_id}`;
+    const t = this.now();
+    const last = a.typingAt[key];
+    if (last !== undefined && t - last < TYPING_DEDUPE_MS) return this.reply(ws, ref, null);
+    const typingAt: Record<string, number> = {};
+    for (const [k, v] of Object.entries(a.typingAt)) if (t - v < TYPING_DEDUPE_MS) typingAt[k] = v; // expired stamps are useless
+    typingAt[key] = t;
+    const keys = Object.keys(typingAt);
+    if (keys.length > TYPING_KEYS_MAX) {
+      keys.sort((x, y) => typingAt[x]! - typingAt[y]!);
+      for (const k of keys.slice(0, keys.length - TYPING_KEYS_MAX)) delete typingAt[k];
+    }
+    a.typingAt = typingAt;
+    ws.serializeAttachment(a);
+
+    let ok: boolean;
+    try {
+      ok = await this.canTypeIn(a.userId, data.channel_id);
+    } catch (e) {
+      console.error("UserHub: typing access check failed", e);
+      ok = false;
+    }
+    if (!ok) {
+      const cur = this.att(ws); // re-read: other frames may have updated the attachment meanwhile
+      if (cur !== null && cur.typingAt[key] === t) {
+        delete cur.typingAt[key];
+        ws.serializeAttachment(cur);
+      }
+      return this.reply(ws, ref, { code: "not_found", message: "channel not found" });
+    }
+    await publishEvent(
+      this.runtime(),
+      { channel: data.channel_id },
+      "typing",
+      { channel_id: data.channel_id, thread_root_id: data.thread_root_id, user_id: a.userId, expires_in_ms: TYPING_EXPIRES_MS },
+      { ephemeral: true, exclude: [a.userId] },
+    );
     this.reply(ws, ref, null);
   }
 

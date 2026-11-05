@@ -5,7 +5,7 @@ import { deliverToUsers, publishEvent, publishEvents, resolveOnlineAudience } fr
 import { newId } from "../../src/lib/ids";
 import { notify, notifyMany, sendAlerts } from "../../src/lib/notify";
 import type { Alert } from "../../src/types/api";
-import { connectWs, signup, uniqueHandle } from "../helpers";
+import { connectWs, makeSpace, signup, uniqueHandle } from "../helpers";
 
 // ---- local fixtures (this file only): seed relations / presence with raw SQL ----
 
@@ -418,5 +418,24 @@ describe("notify", () => {
     expect(al).toMatchObject({ kind: "dm", actor: { id: a.user.id }, suppressed: false, suppressed_reason: null });
     expect([...al.title]).toHaveLength(80);
     expect([...al.body]).toHaveLength(200);
+  });
+});
+
+describe("typing", () => {
+  it("typing reaches other members only, ephemeral, deduped within 2s; no write access -> reply not_found", async () => {
+    const [o, m] = await Promise.all([signup(), signup()]);
+    const { generalChannelId: g } = await makeSpace(o, [m]);
+    const [co, cm] = await Promise.all([connectWs(o.token), connectWs(m.token)]);
+    co.send({ type: "typing", data: { channel_id: g, thread_root_id: null } });
+    co.send({ type: "typing", data: { channel_id: g, thread_root_id: null } });
+    const t = await cm.next("typing");
+    expect(t).toMatchObject({ seq: null, data: { channel_id: g, user_id: o.user.id, expires_in_ms: 6000 } });
+    await settle();
+    expect(cm.frames.filter((f) => f.type === "typing")).toHaveLength(1);
+    expect(co.frames.some((f) => f.type === "typing")).toBe(false);
+    const x = await signup();
+    const cx = await connectWs(x.token);
+    cx.send({ type: "typing", ref: "t1", data: { channel_id: g, thread_root_id: null } });
+    expect((await cx.next("reply", (d) => d.ref === "t1")).data.error.code).toBe("not_found");
   });
 });

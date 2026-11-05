@@ -11,10 +11,10 @@ import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from 
 import { err, type FieldError } from "../lib/errors";
 import { requireChannelRead } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
-import { loadUserSummaries, serializeChannels, serializeMessages } from "../lib/serialize";
+import { loadUnreadStates, loadUserSummaries, serializeChannels, serializeMessages } from "../lib/serialize";
 import { charCount, normalizeText } from "../lib/text";
 import { iso, now } from "../lib/time";
-import { CHANNEL_NAME_RE, vJson, vQuery, zText, zUserRef } from "../lib/validate";
+import { CHANNEL_NAME_RE, vJson, vQuery, zId, zText, zUserRef } from "../lib/validate";
 import { addChannelMembers, GROUP_DM_MAX_MEMBERS, removeChannelMember } from "../services/membership";
 import { postSystemMessage } from "../services/messages";
 import type { SystemEvent } from "../types/api";
@@ -35,6 +35,8 @@ const PatchBody = z.object({
 });
 
 const MembersQuery = z.object({ cursor: z.string().optional(), limit: z.string().optional() });
+
+const ReadBody = z.object({ message_id: zId });
 
 const PrefsBody = z.object({
   notify: z.enum(["all", "mentions", "none"]).optional(),
@@ -310,4 +312,32 @@ channelRoutes.get("/channels/:channel_id/pins", requireAuth, async (c) => {
   );
   const items = await serializeMessages(db, me, rows);
   return c.json({ items });
+});
+
+/**
+ * Mark read up to `message_id` (api.md 5.9): it must be a top-level message of this channel (thread replies and other
+ * channels' ids -> 400 fields.message_id "invalid"). The pointer only moves forward: a late/older request leaves it
+ * as it is (conditional upsert). 200 {state} + read_state.updated{state} to my connections.
+ */
+channelRoutes.put("/channels/:channel_id/read", requireAuth, vJson(ReadBody), async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const ch = (await requireChannelRead(db, c.req.param("channel_id"), me)).channel;
+  const messageId = c.req.valid("json").message_id;
+  const target = await first(db, "SELECT 1 AS x FROM messages WHERE id = ?1 AND channel_id = ?2 AND thread_root_id IS NULL", messageId, ch.id);
+  if (target === null) throw err.invalid({ message_id: "invalid" });
+  await stmt(
+    db,
+    `INSERT INTO channel_reads (user_id, channel_id, last_read_message_id, updated_at) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_message_id = excluded.last_read_message_id, updated_at = excluded.updated_at
+      WHERE excluded.last_read_message_id > channel_reads.last_read_message_id`,
+    me,
+    ch.id,
+    messageId,
+    now(),
+  ).run();
+  const state = (await loadUnreadStates(db, me, [ch.id])).get(ch.id);
+  if (state === undefined) throw err.notFound("channel");
+  await publishEvent(rt(c), { users: [me] }, "read_state.updated", { state });
+  return c.json({ state });
 });
