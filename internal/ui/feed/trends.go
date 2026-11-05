@@ -462,6 +462,12 @@ func (t *trends) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, t.onTags(m))
 	case ui.ResultMsg[*api.Page[api.PostSearchHit]]:
 		cmds = append(cmds, t.onPosts(ctx, m))
+	case tea.PasteMsg:
+		// CA 5.3.4: a paste reaches only Update, never HandleKey.
+		if t.searchOpen && t.inputFocus {
+			_, c := inputUpdate(&t.input, m)
+			cmds = append(cmds, c, t.onInputChanged(ctx))
+		}
 	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
 		imagesChanged = true
 	default:
@@ -874,8 +880,7 @@ func (t *trends) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) 
 			l.HandleMouse(ctx, msg, lp)
 			return nil
 		}
-		t.posts.handleMouse(ctx, msg, lp)
-		return t.maybeMorePosts(ctx)
+		return tea.Batch(t.posts.handleMouse(ctx, msg, lp), t.maybeMorePosts(ctx))
 	}
 	if m, ok := msg.(tea.MouseClickMsg); !ok || m.Button != tea.MouseLeft {
 		return nil

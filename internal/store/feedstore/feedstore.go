@@ -37,6 +37,9 @@ func init() {
 // notification list and trends.
 type FeedStore struct {
 	timelines    map[string]*store.Window[api.TimelineItem]
+	tlLoaded     map[string]bool            // kind -> a first page filled the window (pages.go)
+	tlCursor     map[string]*string         // kind -> next_cursor of the oldest loaded page
+	evItems      map[string]map[string]bool // window key -> IDs realtime events upserted (pages.go)
 	posts        map[string]*api.Post
 	replies      map[string]*store.Window[api.Post]
 	notifs       *store.Window[api.Notification]
@@ -84,6 +87,9 @@ func (f *FeedStore) clear() {
 	}
 	f.notifs.Clear()
 	f.notifsLoaded, f.notifsCursor = false, nil
+	f.tlLoaded = map[string]bool{}
+	f.tlCursor = map[string]*string{}
+	f.evItems = map[string]map[string]bool{}
 	f.posts = map[string]*api.Post{}
 	f.replies = map[string]*store.Window[api.Post]{}
 	f.stories = nil
@@ -342,6 +348,7 @@ func (f *FeedStore) dropSubtree(id string) {
 		return
 	}
 	delete(f.replies, id)
+	delete(f.evItems, keyPostPrefix+id)
 	for _, p := range w.Items() {
 		f.dropSubtree(p.ID)
 	}

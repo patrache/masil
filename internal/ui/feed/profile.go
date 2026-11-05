@@ -718,8 +718,9 @@ func (p *profile) activeList() *profileList {
 	return nil
 }
 
-// imageItems are the active tab's cards that draw their first image.
-func (p *profile) imageItems(ctx *ui.Context) []api.Media {
+// imageItems are the active tab's cards that draw their first image (only
+// cards on or near the screen when near is set).
+func (p *profile) imageItems(ctx *ui.Context, near ...[]bool) []api.Media {
 	l := p.activeList()
 	if l == nil || !p.canView(ctx) {
 		return nil
@@ -728,7 +729,10 @@ func (p *profile) imageItems(ctx *ui.Context) []api.Media {
 		return nil
 	}
 	var out []api.Media
-	for _, it := range l.items {
+	for i, it := range l.items {
+		if len(near) > 0 && !near[0][i] {
+			continue
+		}
 		if m, ok := firstMedia(p.post(ctx, it)); ok {
 			out = append(out, m)
 		}
@@ -736,12 +740,28 @@ func (p *profile) imageItems(ctx *ui.Context) []api.Media {
 	return out
 }
 
+// requestImages loads the avatar and the first image of each active-tab card
+// on or near the screen, and forgets every other image (imageSlots.track).
 func (p *profile) requestImages(ctx *ui.Context) tea.Cmd {
-	ms := p.imageItems(ctx)
+	var ms []api.Media
+	if l := p.activeList(); l != nil {
+		w, h := viewSize(p.size.W, p.listH)
+		if p.listH <= 0 && p.size.H > 0 {
+			h = p.size.H
+		}
+		sel := ""
+		if it, ok := l.list.Selected(); ok {
+			sel = it.ID
+		}
+		near := nearItems(l.list, l.items, func(it api.TimelineItem) string { return it.ID }, h, func(it api.TimelineItem) int {
+			return len(p.view(ctx, l, it, it.ID == sel, w).Lines)
+		})
+		ms = p.imageItems(ctx, near)
+	}
 	if m, ok := p.avatarMedia(); ok && p.fullHeader(ctx) {
 		ms = append(ms, m)
 	}
-	return p.imgs.request(ctx, ms...)
+	return p.imgs.track(ctx, ms...)
 }
 
 // renderMedia renders a newly arrived image wherever it shows, so a kitty Setup
@@ -1368,7 +1388,7 @@ func (p *profile) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 	if !handled {
 		return false, nil
 	}
-	return true, tea.Batch(cmd, p.maybeMore(ctx, l))
+	return true, tea.Batch(cmd, p.maybeMore(ctx, l), p.requestImages(ctx))
 }
 
 func (p *profile) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
@@ -1386,7 +1406,7 @@ func (p *profile) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 	case tea.MouseWheelMsg:
 		if inList {
 			l.list.HandleMouse(ctx, msg, ui.Point{X: local.X, Y: local.Y - p.listY})
-			return p.maybeMore(ctx, l)
+			return tea.Batch(p.maybeMore(ctx, l), p.requestImages(ctx))
 		}
 		return nil
 	case tea.MouseClickMsg:
@@ -1425,7 +1445,7 @@ func (p *profile) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 			}
 		}
 		l.list.HandleMouse(ctx, msg, ui.Point{X: local.X, Y: ly})
-		return p.maybeMore(ctx, l)
+		return tea.Batch(p.maybeMore(ctx, l), p.requestImages(ctx))
 	}
 	return nil
 }

@@ -30,6 +30,7 @@ func (f *FeedStore) Apply(s *store.Store, ev realtime.Event) {
 		f.observeEventPost(d.Post)
 		if w := f.replies[d.ParentID]; w != nil {
 			w.Upsert(d.Post)
+			f.noteEvent(keyPostPrefix+d.ParentID, d.Post.ID)
 		}
 	case realtime.PollUpdated:
 		f.pollUpdated(d.Poll)
@@ -68,6 +69,7 @@ func (f *FeedStore) itemCreated(s *store.Store, it api.TimelineItem) {
 	}
 	f.observeEventPost(it.Post)
 	upsertTimelineItem(f.Timeline(KindFollowing), it)
+	f.noteEvent(keyFollowing, it.ID)
 }
 
 // upsertTimelineItem inserts it; a repost replaces older repost items of the

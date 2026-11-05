@@ -464,3 +464,64 @@ func TestDiscoverBannerOneItemWindow(t *testing.T) {
 		t.Fatalf("banner missing on a one-item window:\n%s", s)
 	}
 }
+
+// A timeline.item_created that reaches the following window before the feed is
+// first opened must not stop the feed from loading its first page and stories.
+func TestTimelineEventBeforeOpenStillLoads(t *testing.T) {
+	opts := feedOpts(t, "following", false)
+	opts[len(opts)-1] = uitest.WithRoute(ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChGeneral})
+	h := uitest.New(t, opts...)
+	h.Resize(120, 40)
+	if n := len(reqsTo(h, "GET", "/v1/timeline/following")); n != 0 {
+		t.Fatalf("precondition: following fetched before the feed opened (%d)", n)
+	}
+	ev := mkPost(90, "junho", "이벤트로 온 글", 0)
+	ev.ID = discoverNewID(9) // newer than every fixture item, like a real event
+	h.Event("timeline.item_created", map[string]any{"item": itemOf(ev)})
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}})
+	if n := len(reqsTo(h, "GET", "/v1/timeline/following")); n != 1 {
+		t.Fatalf("following first-page requests = %d, want 1", n)
+	}
+	if n := len(reqsTo(h, "GET", "/v1/stories/feed")); n != 1 {
+		t.Fatalf("story ring requests = %d, want 1", n)
+	}
+	s := h.Screen()
+	for _, want := range []string{"이벤트로 온 글", "@hana"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("feed lacks %q:\n%s", want, s)
+		}
+	}
+}
+
+// The paging cursor outlives the timeline instance: a following screen
+// released by the instance LRU and built again still loads older pages.
+func TestTimelineCursorSurvivesEviction(t *testing.T) {
+	srv := snsAPI(t, false)
+	srv.Handle("GET /v1/timeline/following", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("cursor") == "c2" {
+			writeJSON(w, api.TimelinePage{Items: []api.TimelineItem{itemOf(myPost())}})
+			return
+		}
+		writeJSON(w, api.TimelinePage{Items: fixtures.Timeline(), NextCursor: ptr("c2")})
+	})
+	h := uitest.New(t, uitest.WithAPI(srv), uitest.WithSeed(fixtures.Seed),
+		uitest.WithRoute(ui.Route{Kind: ui.RouteFeed, Arg: "following"}))
+	h.Resize(120, 40)
+	first := h.Instance(keyFollowingRoute)
+	h.Press("1")
+	for i := 0; i < 40; i++ {
+		h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteHashtag, ID: fmt.Sprintf("tag%d", i)}})
+	}
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}})
+	if got := h.Instance(keyFollowingRoute); got == nil || got == first {
+		t.Fatalf("precondition: the following instance was not rebuilt (same=%v)", got == first)
+	}
+	h.Press("G")
+	r, ok := lastReq(h, "GET", "/v1/timeline/following")
+	if !ok || !strings.Contains(r.Query, "cursor=c2") {
+		t.Fatalf("last following request = %+v (ok=%v), want cursor=c2", r, ok)
+	}
+	if !strings.Contains(h.Screen(), "점심 먹고 배포합니다") {
+		t.Fatalf("second page not shown:\n%s", h.Screen())
+	}
+}

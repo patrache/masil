@@ -94,7 +94,6 @@ type timeline struct {
 	fade  widgets.Fade
 
 	fadeUntil      time.Time
-	cursor         *string // next_cursor of the oldest page
 	loadingFirst   bool
 	loadingMore    bool
 	storiesLoading bool
@@ -147,8 +146,9 @@ func (t *timeline) fs(ctx *ui.Context) *feedstore.FeedStore {
 	return feedstore.Get(ctx.Store)
 }
 
-// Init loads the first page and the story ring when the window is empty and
-// marks both open for resync; discover arms its new-posts check.
+// Init loads the first page unless one already filled the FeedStore window
+// (items that only events brought do not count) and the story ring unless it
+// is loaded, and marks both open for resync; discover arms its new-posts check.
 func (t *timeline) Init(ctx *ui.Context) tea.Cmd {
 	fs := t.fs(ctx)
 	if fs == nil {
@@ -157,11 +157,11 @@ func (t *timeline) Init(ctx *ui.Context) tea.Cmd {
 	fs.SetOpen("timeline:"+t.kind, true)
 	fs.SetOpen("stories", true)
 	var cmds []tea.Cmd
-	if fs.Timeline(t.kind).Len() == 0 {
+	if !fs.TimelineLoaded(t.kind) {
 		cmds = append(cmds, t.loadFirst(ctx))
-		if fs.Stories() == nil {
-			cmds = append(cmds, t.loadStories(ctx))
-		}
+	}
+	if fs.Stories() == nil {
+		cmds = append(cmds, t.loadStories(ctx))
 	}
 	if t.kind == feedstore.KindDiscover {
 		cmds = append(cmds, t.armPoll(ctx))
@@ -185,12 +185,22 @@ func (t *timeline) loadFirst(ctx *ui.Context) tea.Cmd {
 	}))
 }
 
+// cursor is the FeedStore's next_cursor of the oldest loaded page (it outlives
+// this instance).
+func (t *timeline) cursor(ctx *ui.Context) *string {
+	if fs := t.fs(ctx); fs != nil {
+		return fs.TimelineCursor(t.kind)
+	}
+	return nil
+}
+
 func (t *timeline) loadMore(ctx *ui.Context) tea.Cmd {
-	if t.cursor == nil || t.loadingMore || t.loadingFirst {
+	c := t.cursor(ctx)
+	if c == nil || t.loadingMore || t.loadingFirst {
 		return nil
 	}
 	t.loadingMore = true
-	cur := *t.cursor
+	cur := *c
 	get := t.fetch(t.kind)
 	return tea.Batch(t.spin.Start(ctx), ui.Do(ctx, tagTimelineMore+t.kind, func(c context.Context, a *api.Client) (*api.TimelinePage, error) {
 		return get(a, c, api.TimelineQuery{PageOpts: api.PageOpts{Cursor: cur}})
@@ -206,7 +216,7 @@ func (t *timeline) loadStories(ctx *ui.Context) tea.Cmd {
 
 // maybeMore loads the next page when the selection is within moreThreshold of the end.
 func (t *timeline) maybeMore(ctx *ui.Context) tea.Cmd {
-	if t.cursor == nil || len(t.items) == 0 {
+	if t.cursor(ctx) == nil || len(t.items) == 0 {
 		return nil
 	}
 	if i := t.selectedIndex(); i >= len(t.items)-moreThreshold {
@@ -338,11 +348,7 @@ func errCmd(err error) tea.Cmd {
 }
 
 func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
-	if forwardResync(ctx, msg) {
-		if m := msg.(feedstore.ResyncMsg); m.Key == "timeline:"+t.kind && m.Restart && m.Timeline != nil {
-			t.cursor = m.Timeline.NextCursor
-		}
-	}
+	forwardResync(ctx, msg)
 	fs := t.fs(ctx)
 	if fs == nil {
 		return nil
@@ -415,12 +421,6 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 
 // onPage applies a timeline page result of this timeline's kind.
 func (t *timeline) onPage(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultMsg[*api.TimelinePage]) tea.Cmd {
-	w := fs.Timeline(t.kind)
-	posts := func(p *api.TimelinePage) {
-		for _, it := range p.Items {
-			fs.ObservePosts(it.Post)
-		}
-	}
 	switch m.Tag {
 	case tagTimeline + t.kind:
 		t.loadingFirst = false
@@ -428,9 +428,7 @@ func (t *timeline) onPage(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultM
 		if m.Err != nil || m.Value == nil {
 			return errCmd(m.Err)
 		}
-		posts(m.Value)
-		w.Replace(m.Value.Items, m.Value.NextCursor != nil, false)
-		t.cursor = m.Value.NextCursor
+		fs.SetTimelinePage(t.kind, m.Value)
 		if t.kind == feedstore.KindDiscover {
 			fs.SetDiscoverNew(0)
 		}
@@ -444,12 +442,7 @@ func (t *timeline) onPage(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultM
 		if m.Err != nil || m.Value == nil {
 			return errCmd(m.Err)
 		}
-		posts(m.Value)
-		w.PrependOlder(m.Value.Items, m.Value.NextCursor != nil)
-		t.cursor = m.Value.NextCursor
-		if len(m.Value.Items) == 0 {
-			t.cursor = nil // an empty page never loops
-		}
+		fs.AddOlderTimeline(t.kind, m.Value)
 	case tagDiscoverNew + t.kind:
 		if m.Err == nil && m.Value != nil {
 			fs.SetDiscoverNew(countNew(fs, t.kind, m.Value))
@@ -554,18 +547,30 @@ func firstMedia(p *api.Post) (api.Media, bool) {
 	return p.Media[0], true
 }
 
-// requestImages loads each card's first image when the density draws images.
+// requestImages loads the first image of each card on or near the screen when
+// the density draws images, and forgets every other image (imageSlots.track).
 func (t *timeline) requestImages(ctx *ui.Context) tea.Cmd {
 	if d := ctx.Density(); d != ui.DensityFull && d != ui.DensityBubble {
-		return nil
+		return t.imgs.track(ctx)
 	}
+	w, h := viewSize(t.size.W, t.listH)
+	if t.listH <= 0 && t.size.H > 0 {
+		h = t.size.H
+	}
+	sel := t.selectedID()
+	near := nearItems(t.list, t.items, func(it api.TimelineItem) string { return it.ID }, h, func(it api.TimelineItem) int {
+		return len(t.view(ctx, it, it.ID == sel && !t.bannerSel, w).Lines)
+	})
 	var ms []api.Media
-	for _, it := range t.items {
+	for i, it := range t.items {
+		if !near[i] {
+			continue
+		}
 		if m, ok := firstMedia(t.post(ctx, it)); ok {
 			ms = append(ms, m)
 		}
 	}
-	return t.imgs.request(ctx, ms...)
+	return t.imgs.track(ctx, ms...)
 }
 
 // renderMedia renders a newly arrived image for every card that shows it, so a
@@ -903,7 +908,7 @@ func (t *timeline) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 	case t.bannerSel:
 		t.setBanner(false)
 	}
-	return true, tea.Batch(cmd, t.maybeMore(ctx), t.rearm(ctx))
+	return true, tea.Batch(cmd, t.maybeMore(ctx), t.rearm(ctx), t.requestImages(ctx))
 }
 
 func (t *timeline) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
@@ -913,7 +918,7 @@ func (t *timeline) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 	case tea.MouseWheelMsg:
 		if inList {
 			t.list.HandleMouse(ctx, msg, ui.Point{X: local.X, Y: local.Y - t.listY})
-			return t.rearm(ctx)
+			return tea.Batch(t.rearm(ctx), t.requestImages(ctx))
 		}
 		return nil
 	case tea.MouseClickMsg:
@@ -949,7 +954,7 @@ func (t *timeline) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 		}
 		t.list.HandleMouse(ctx, msg, ui.Point{X: local.X, Y: ly})
 		t.setBanner(false)
-		return tea.Batch(t.maybeMore(ctx), t.rearm(ctx))
+		return tea.Batch(t.maybeMore(ctx), t.rearm(ctx), t.requestImages(ctx))
 	}
 	return nil
 }

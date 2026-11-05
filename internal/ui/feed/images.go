@@ -13,6 +13,7 @@ import (
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/widgets"
 )
 
 // mediaTagPrefix tags image loads: "feed.media:<media id>".
@@ -114,6 +115,102 @@ func (s *imageSlots) request(ctx *ui.Context, ms ...api.Media) tea.Cmd {
 		cmds = append(cmds, loadImage(ctx, m))
 	}
 	return tea.Batch(cmds...)
+}
+
+// track is request for card lists: it loads every media of ms not requested
+// yet and forgets (drops the decoded image of) every media not in ms, so a
+// component only ever holds the images of the cards near the screen. A
+// forgotten image that comes back near the screen is loaded again (from the
+// shared Cache's memory or disk tier). Update / HandleKey / HandleMouse only.
+func (s *imageSlots) track(ctx *ui.Context, ms ...api.Media) tea.Cmd {
+	keep := make(map[string]bool, len(ms))
+	for _, m := range ms {
+		keep[m.ID] = true
+	}
+	for id := range s.requested {
+		if !keep[id] {
+			delete(s.requested, id)
+		}
+	}
+	for id := range s.imgs {
+		if !keep[id] {
+			delete(s.imgs, id)
+		}
+	}
+	return s.request(ctx, ms...)
+}
+
+// retained is how many decoded images s holds.
+func (s *imageSlots) retained() int { return len(s.imgs) }
+
+// Near-screen image window (track): cards within one view height of the screen
+// and of the selection, plus imageMargin cards either side.
+const (
+	imageMargin   = 2
+	fallbackViewW = 80 // before the first Resize
+	fallbackViewH = 40
+)
+
+// viewSize is w x h, or the fallback size before the first Resize.
+func viewSize(w, h int) (int, int) {
+	if w <= 0 {
+		w = fallbackViewW
+	}
+	if h <= 0 {
+		h = fallbackViewH
+	}
+	return w, h
+}
+
+// nearItems marks the items of l on screen or close to it: from the scroll
+// anchor down one view height (viewH rows), and one view height above and below
+// the selection (a key press moves the selection; the List scrolls to it on the
+// next View), each range widened by imageMargin items. height is an item's
+// rendered line count.
+func nearItems[T any](l *widgets.List[T], items []T, idOf func(T) string, viewH int, height func(T) int) []bool {
+	near := make([]bool, len(items))
+	if len(items) == 0 {
+		return near
+	}
+	h := func(i int) int { return max(height(items[i]), 1) }
+	mark := func(lo, hi int) {
+		for i := max(lo-imageMargin, 0); i <= min(hi+imageMargin, len(items)-1); i++ {
+			near[i] = true
+		}
+	}
+	a := l.Anchor()
+	top, sel := 0, -1
+	selID := ""
+	if it, ok := l.Selected(); ok {
+		selID = idOf(it)
+	}
+	for i, it := range items {
+		id := idOf(it)
+		if id == a.ItemID {
+			top = i
+		}
+		if selID != "" && id == selID {
+			sel = i
+		}
+	}
+	end := top
+	for acc := -a.LineOffset; end < len(items)-1 && acc+h(end) < viewH; end++ {
+		acc += h(end)
+	}
+	mark(top, end)
+	if sel >= 0 {
+		lo, hi := sel, sel
+		for acc := 0; lo > 0 && acc < viewH; {
+			lo--
+			acc += h(lo)
+		}
+		for acc := h(sel); hi < len(items)-1 && acc < viewH; {
+			hi++
+			acc += h(hi)
+		}
+		mark(lo, hi)
+	}
+	return near
 }
 
 // image returns the loaded image of media id, or nil.

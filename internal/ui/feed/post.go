@@ -366,12 +366,11 @@ func (v *postView) onReplies(fs *feedstore.FeedStore, m ui.ResultMsg[*api.Page[a
 		return postErr(m.Err)
 	}
 	page := m.Value
-	fs.ObservePosts(page.Items...)
-	w := fs.Replies(parent)
 	if more {
-		w.AppendNewer(page.Items, page.NextCursor != nil)
+		fs.ObservePosts(page.Items...)
+		fs.Replies(parent).AppendNewer(page.Items, page.NextCursor != nil)
 	} else {
-		w.Replace(page.Items, false, page.NextCursor != nil)
+		fs.SetRepliesPage(parent, page) // keeps post.reply_created replies that raced it
 	}
 	v.setCursor(parent, page.NextCursor)
 	if parent == v.id {
@@ -511,8 +510,9 @@ func (v *postView) cardWidth(r treeRow, w int) int {
 	return w
 }
 
-// imageRows are the rows that draw their post's first image, with that media.
-func (v *postView) imageRows(ctx *ui.Context) []struct {
+// imageRows are the rows that draw their post's first image, with that media
+// (only rows on or near the screen when near is set).
+func (v *postView) imageRows(ctx *ui.Context, near ...[]bool) []struct {
 	r treeRow
 	m api.Media
 } {
@@ -523,8 +523,11 @@ func (v *postView) imageRows(ctx *ui.Context) []struct {
 		r treeRow
 		m api.Media
 	}
-	for _, r := range v.rows {
+	for i, r := range v.rows {
 		if r.Kind != rowMain && r.Kind != rowReply {
+			continue
+		}
+		if len(near) > 0 && !near[0][i] {
 			continue
 		}
 		if m, ok := firstMedia(v.rowPost(ctx, r)); ok {
@@ -537,12 +540,19 @@ func (v *postView) imageRows(ctx *ui.Context) []struct {
 	return out
 }
 
+// requestImages loads the first image of each row on or near the screen and
+// forgets every other image (imageSlots.track).
 func (v *postView) requestImages(ctx *ui.Context) tea.Cmd {
+	w, h := viewSize(v.size.W, v.size.H)
+	sel := v.selectedKey()
+	near := nearItems(v.list, v.rows, treeRow.key, h, func(r treeRow) int {
+		return len(v.view(ctx, r, r.key() == sel, w).Lines)
+	})
 	var ms []api.Media
-	for _, x := range v.imageRows(ctx) {
+	for _, x := range v.imageRows(ctx, near) {
 		ms = append(ms, x.m)
 	}
-	return v.imgs.request(ctx, ms...)
+	return v.imgs.track(ctx, ms...)
 }
 
 // renderMedia renders a newly arrived image for every row that shows it, so a
@@ -888,17 +898,18 @@ func (v *postView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		}
 	}
 	handled, cmd := v.list.HandleKey(ctx, msg)
-	if handled {
-		v.touched = true
+	if !handled {
+		return false, nil
 	}
-	return handled, cmd
+	v.touched = true
+	return true, tea.Batch(cmd, v.requestImages(ctx))
 }
 
 func (v *postView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
 	switch msg.(type) {
 	case tea.MouseWheelMsg:
 		v.touched = true
-		return v.list.HandleMouse(ctx, msg, local)
+		return tea.Batch(v.list.HandleMouse(ctx, msg, local), v.requestImages(ctx))
 	case tea.MouseClickMsg:
 	default:
 		return nil
@@ -920,7 +931,7 @@ func (v *postView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 			return v.open(ctx, r)
 		}
 	}
-	return v.list.HandleMouse(ctx, msg, local)
+	return tea.Batch(v.list.HandleMouse(ctx, msg, local), v.requestImages(ctx))
 }
 
 // ---- optional capabilities ----

@@ -239,8 +239,27 @@ func (l *cardList) media(ctx *ui.Context) []api.Media {
 	return out
 }
 
+// requestImages loads the first image of each card on or near the screen (as
+// of the last View's size) and forgets every other image (imageSlots.track).
 func (l *cardList) requestImages(ctx *ui.Context) tea.Cmd {
-	return l.imgs.request(ctx, l.media(ctx)...)
+	if d := ctx.Density(); d != ui.DensityFull && d != ui.DensityBubble {
+		return l.imgs.track(ctx)
+	}
+	w, h := viewSize(l.width, l.height)
+	sel := l.selectedID()
+	near := nearItems(l.list, l.items, func(it api.TimelineItem) string { return it.ID }, h, func(it api.TimelineItem) int {
+		return len(l.view(ctx, it, it.ID == sel, w).Lines)
+	})
+	var ms []api.Media
+	for i, it := range l.items {
+		if !near[i] {
+			continue
+		}
+		if m, ok := firstMedia(l.post(ctx, it)); ok {
+			ms = append(ms, m)
+		}
+	}
+	return l.imgs.track(ctx, ms...)
 }
 
 // renderMedia renders a newly arrived image for every card showing it.
@@ -283,7 +302,11 @@ func (l *cardList) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 			}
 		}
 	}
-	return l.list.HandleKey(ctx, msg)
+	handled, cmd := l.list.HandleKey(ctx, msg)
+	if !handled {
+		return false, nil
+	}
+	return true, tea.Batch(cmd, l.requestImages(ctx))
 }
 
 // handleMouse is a wheel or a click at list row local.Y: a card region runs its
@@ -292,7 +315,7 @@ func (l *cardList) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 	switch m := msg.(type) {
 	case tea.MouseWheelMsg:
 		l.list.HandleMouse(ctx, msg, local)
-		return nil
+		return l.requestImages(ctx)
 	case tea.MouseClickMsg:
 		if m.Button != tea.MouseLeft {
 			return nil
@@ -309,7 +332,7 @@ func (l *cardList) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 		}
 	}
 	l.list.HandleMouse(ctx, msg, local)
-	return nil
+	return l.requestImages(ctx)
 }
 
 // ---- RouteHashtag ----

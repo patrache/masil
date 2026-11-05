@@ -401,3 +401,23 @@ func TestTrendsSearchGolden(t *testing.T) {
 		})
 	}
 }
+
+// A bracketed paste reaches only Update (CA 5.3.4 step 4), never HandleKey: the
+// search box must take it (normalized) and run the debounce like typed text.
+func TestTrendsSearchPaste(t *testing.T) {
+	h := uitest.New(t, trendsOptsWith(searchSrv(t, snowTags(), nil), false)...)
+	h.Resize(120, 40)
+	h.Press("/")
+	h.Paste("#첫\n")
+	h.Advance(300 * time.Millisecond)
+	reqs := reqsTo(h, "GET", "/v1/hashtags/search")
+	if len(reqs) != 1 {
+		t.Fatalf("hashtag search requests after paste = %d, want 1", len(reqs))
+	}
+	if q := query(t, reqs[0]); q.Get("q") != "첫" {
+		t.Fatalf("pasted hashtag search query = %v, want q=첫", q)
+	}
+	if s := h.Screen(); !strings.Contains(s, "#첫눈") {
+		t.Fatalf("paste results lack #첫눈:\n%s", s)
+	}
+}

@@ -168,8 +168,7 @@ func (f *FeedStore) ApplyResync(m ResyncMsg) {
 			f.postDeleted(id)
 		}
 		if m.Replies != nil {
-			f.ObservePosts(m.Replies.Items...)
-			f.Replies(id).Replace(m.Replies.Items, false, m.Replies.NextCursor != nil)
+			f.SetRepliesPage(id, m.Replies)
 		}
 	case m.Key == keyStories:
 		if m.Err == nil {
@@ -180,11 +179,16 @@ func (f *FeedStore) ApplyResync(m ResyncMsg) {
 	}
 }
 
-// applyTimeline caches the page's posts, then replaces the window (Restart) or
-// merges the since page into it by ID. Items are merged oldest first so the
-// newest repost of a post wins.
+// applyTimeline replaces the window with a Restart page (SetTimelinePage:
+// cursor, loaded flag, raced events kept) or caches a since page and merges it
+// into the window by ID. Items are merged oldest first so the newest repost of
+// a post wins.
 func (f *FeedStore) applyTimeline(kind string, m ResyncMsg) {
 	if m.Timeline == nil {
+		return
+	}
+	if m.Restart {
+		f.SetTimelinePage(kind, m.Timeline)
 		return
 	}
 	items := append([]api.TimelineItem(nil), m.Timeline.Items...)
@@ -193,9 +197,6 @@ func (f *FeedStore) applyTimeline(kind string, m ResyncMsg) {
 		f.ObservePosts(it.Post)
 	}
 	w := f.Timeline(kind)
-	if m.Restart {
-		w.Replace(nil, m.Timeline.NextCursor != nil, false)
-	}
 	for _, it := range items {
 		upsertTimelineItem(w, it)
 	}

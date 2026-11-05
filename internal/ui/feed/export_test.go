@@ -66,3 +66,21 @@ func NotifIDs(c ui.Component) []string {
 	}
 	return out
 }
+
+// ImagesRetained is how many decoded images a card screen holds (timeline,
+// hashtag, trends, post, profile); -1 for any other component.
+func ImagesRetained(c ui.Component) int {
+	switch v := c.(type) {
+	case *timeline:
+		return v.imgs.retained()
+	case *hashtag:
+		return v.imgs.retained()
+	case *trends:
+		return v.imgs.retained()
+	case *postView:
+		return v.imgs.retained()
+	case *profile:
+		return v.imgs.retained()
+	}
+	return -1
+}
