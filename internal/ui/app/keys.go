@@ -83,12 +83,8 @@ func (m *Model) routeKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.quitKey(msg)
 	}
 	// 2.1 the top overlay; only a non-modal overlay lets an unhandled key go on (steps 3–6).
-	if n := len(m.overlays); n > 0 {
-		handled, cmd := m.handleKey(m.overlays[n-1], msg)
-		if handled || m.overlays[n-1].Modal() {
-			return cmd
-		}
-		return tea.Batch(cmd, m.globalKeys(msg))
+	if len(m.overlays) > 0 {
+		return m.overlayKey(msg)
 	}
 	// 2.2 the ctrl+w prefix.
 	if m.prefix == prefixWindow {
@@ -141,8 +137,10 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 	if capturing(comp) {
 		return cmd
 	}
-	// 6. soft globals (help.toggle arrives with the help overlay, Task 28)
+	// 6. soft globals
 	switch {
+	case keys.Matches(msg, keymap.HelpToggle):
+		return tea.Batch(cmd, m.openHelp())
 	case keys.Matches(msg, keymap.FeedToggle):
 		return tea.Batch(cmd, m.applyToggle(m.nav.toggleFeed(m.lay.Mode)))
 	case keys.Matches(msg, keymap.TabPrev):
@@ -213,13 +211,11 @@ func (m *Model) openPalette(initial string) tea.Cmd {
 		return nil
 	}
 	o := m.openPal(m.ctx, initial)
-	if o == nil {
-		return nil
+	cmd, ok := m.pushOverlay(o)
+	if ok {
+		m.palette = o
 	}
-	m.overlays = append(m.overlays, o)
-	m.palette = o
-	m.prefix = prefixNone
-	return o.Init(m.ctx)
+	return cmd
 }
 
 // maxOverlays is the overlay stack limit (CA 5.3.7).

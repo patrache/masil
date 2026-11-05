@@ -32,6 +32,7 @@ func (m *Model) render() string {
 		s := m.renderPane(p)
 		layers = append(layers, lipgloss.NewLayer(s).X(p.Rect.X).Y(p.Rect.Y).Z(0))
 	}
+	layers = append(layers, m.overlayLayers()...)
 	if l := m.toastLayer(); l != nil {
 		layers = append(layers, l)
 	}

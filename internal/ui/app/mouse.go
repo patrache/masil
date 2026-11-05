@@ -8,8 +8,8 @@ import (
 )
 
 // routeMouse is CA 5.3.4 step 3 (View.OnMouse is not used). A left click on the toast
-// box is handled first; while an overlay is open nothing reaches the panes below (the
-// overlay hit test and outside-click close arrive with Task 28). A click focuses the
+// box is handled first; while an overlay is open it gets the mouse and nothing reaches
+// the panes below (overlayMouse: outside click = close). A click focuses the
 // pane under the pointer (border cells included) and hands it to the component in
 // inner-rect coordinates; the wheel goes to the pane under the pointer without moving
 // the focus. Tab-bar clicks select that tab, a context-line click opens the palette.
@@ -25,8 +25,11 @@ func (m *Model) routeMouse(msg tea.MouseMsg) tea.Cmd {
 			return cmd
 		}
 	}
-	if len(m.overlays) > 0 || !m.sized || m.lay.Mode == layout.ModeTooSmall {
+	if !m.sized || m.lay.Mode == layout.ModeTooSmall {
 		return nil
+	}
+	if len(m.overlays) > 0 {
+		return m.overlayMouse(msg)
 	}
 	mo := msg.Mouse()
 	p, ok := m.lay.At(mo.X, mo.Y)

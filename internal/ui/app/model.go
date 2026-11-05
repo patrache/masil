@@ -70,7 +70,9 @@ type Model struct {
 	initCmds []tea.Cmd // emitted by Init (New cannot return Cmds)
 	frame    FrameInfo // geometry of the last View
 
-	overlays []ui.Overlay                                     // open overlays, bottom -> top (drawing: Task 28)
+	overlays []ui.Overlay                                     // open overlays, bottom -> top (CA 5.3.7)
+	ovSizes  []ui.Size                                        // inner size last given to overlays[i].Resize
+	ovSized  []bool                                           // overlays[i] has been Resize'd
 	palette  ui.Overlay                                       // the palette instance opened by palette.open (nil = none)
 	openPal  func(ctx *ui.Context, initial string) ui.Overlay // palette.Open (tests swap it)
 
@@ -183,6 +185,7 @@ func (m *Model) Init() tea.Cmd {
 // focus session or a 429 cooldown is showing.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.dispatch(msg)
+	m.syncOverlays()
 	// The focus slot is resolved at the end of every Update (CA 5.3.5); a change is
 	// broadcast as ui.FocusChangedMsg after this Update's relayout/projection.
 	return m, tea.Batch(cmd, m.syncFocus(), m.armStatusTick())
@@ -224,6 +227,11 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.applyNavigate(msg)
 	case ui.BackMsg:
 		return m, m.goBack()
+	case ui.OpenOverlayMsg:
+		return m, m.openOverlay(msg)
+	case ui.CloseOverlayMsg:
+		m.popOverlay()
+		return m, nil
 	case tea.KeyPressMsg:
 		return m, m.routeKey(msg)
 	case tea.PasteMsg:
@@ -242,7 +250,8 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // broadcast sends msg to every live component: route instances (creation order),
-// then pane-factory components (CA 5.3.4 steps 5–6).
+// then pane-factory components, then the open overlays bottom -> top (CA 5.3.4 steps
+// 5–6).
 func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 	for _, in := range m.cache.all() {
@@ -252,6 +261,9 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 		if in := m.panes[s]; in != nil {
 			cmds = append(cmds, in.comp.Update(m.ctx, msg))
 		}
+	}
+	for _, o := range append([]ui.Overlay(nil), m.overlays...) {
+		cmds = append(cmds, o.Update(m.ctx, msg))
 	}
 	return tea.Batch(cmds...)
 }
@@ -350,11 +362,14 @@ func (m *Model) View() tea.View {
 }
 
 // cursor is the real cursor (CA 5.4): with an overlay open it is the top overlay's
-// (Task 28 adds the overlay origin; until then nil, never the pane cursor below);
-// otherwise the focused component's Cursorer result plus its pane's inner origin.
+// (CA 5.3.7, never the pane cursor below); otherwise the focused component's
+// Cursorer result plus its pane's inner origin.
 func (m *Model) cursor() *tea.Cursor {
-	if len(m.overlays) > 0 || !m.sized || m.lay.Mode == layout.ModeTooSmall {
+	if !m.sized || m.lay.Mode == layout.ModeTooSmall {
 		return nil
+	}
+	if len(m.overlays) > 0 {
+		return m.overlayCursor()
 	}
 	cr, ok := m.focusedComponent().(ui.Cursorer)
 	if !ok {

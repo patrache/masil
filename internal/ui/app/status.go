@@ -172,6 +172,9 @@ func (m *Model) armStatusTick() tea.Cmd {
 // component captures input), then the focused component's Helper bindings whose keys
 // the defaults do not already show, at most maxHints in all.
 func (m *Model) hints() []string {
+	if len(m.overlays) > 0 {
+		return m.overlayHints()
+	}
 	base := modeHints[m.lay.Mode]
 	var comp ui.Component
 	if in := m.focusedInstance(); in != nil {
