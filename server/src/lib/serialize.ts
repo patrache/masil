@@ -31,6 +31,7 @@ import type {
   SpacePreview,
   SpaceRole,
   SystemEvent,
+  TimelineItem,
   UnreadState,
   Upload,
   UserStatus,
@@ -52,6 +53,7 @@ import type {
   SpaceInviteRow,
   SpaceMemberRow,
   SpaceRow,
+  TimelineRow,
   UploadRow,
   UserPresenceRow,
   UserRow,
@@ -1096,4 +1098,26 @@ export async function serializePosts(db: D1Database, viewerId: string | null, ro
     };
   };
   return rows.map((r) => toPost(r, true));
+}
+
+/**
+ * Timeline rows (UNION of posts and reposts) -> TimelineItem[] (contract 4.9), input order kept. One posts query for
+ * the distinct post ids, one serializePosts call (a post shown in several items is serialized once) and one
+ * loadUserSummaries call for the reposters. Items whose post row is gone are dropped. Visibility was already applied
+ * by the caller's SQL; this function does not filter.
+ */
+export async function serializeTimelineItems(db: D1Database, viewerId: string, rows: TimelineRow[]): Promise<TimelineItem[]> {
+  if (rows.length === 0) return [];
+  const postIds = [...new Set(rows.map((r) => r.post_id))];
+  const postRows = await all<PostRow>(db, "SELECT * FROM posts WHERE id IN (SELECT value FROM json_each(?1))", jsonList(postIds));
+  const reposterIds = rows.flatMap((r) => (r.type === "repost" && r.reposter_id !== null ? [r.reposter_id] : []));
+  const [posts, reposters] = await Promise.all([serializePosts(db, viewerId, postRows), loadUserSummaries(db, reposterIds)]);
+  const byId = new Map(posts.map((p) => [p.id, p]));
+  return rows.flatMap((r): TimelineItem[] => {
+    const post = byId.get(r.post_id);
+    if (post === undefined) return [];
+    const reposted_by = r.type === "repost" && r.reposter_id !== null ? (reposters.get(r.reposter_id) ?? null) : null;
+    if (r.type === "repost" && reposted_by === null) return [];
+    return [{ id: r.item_id, type: r.type, post, reposted_by, at: iso(r.at) }];
+  });
 }

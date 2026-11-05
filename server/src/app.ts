@@ -21,6 +21,7 @@ import { postRoutes } from "./routes/posts";
 import { presenceRoutes } from "./routes/presence";
 import { searchRoutes } from "./routes/search";
 import { spaceRoutes } from "./routes/spaces";
+import { timelineRoutes } from "./routes/timelines";
 import { uploadRoutes } from "./routes/uploads";
 import { userRoutes } from "./routes/users";
 import { wsRoutes } from "./routes/ws";
@@ -119,6 +120,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", searchRoutes);
   app.route("/v1", uploadRoutes);
   app.route("/v1", postRoutes);
+  app.route("/v1", timelineRoutes);
   app.route("/v1", notificationRoutes);
   app.route("/v1", wsRoutes);
   return app;

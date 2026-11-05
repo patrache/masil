@@ -8,11 +8,12 @@ import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, decodeCursor, encodeCursor, parseLimit } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId } from "../lib/ids";
-import { canViewUserContent } from "../lib/permissions";
+import { canViewUserContent, postVisibilitySql } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { loadUserSummaries, serializeProfile, toUserSummary } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vQuery, zText } from "../lib/validate";
+import { rangeSql, readTimeline, repostVisibilitySql, timelinePage, type SqlPart } from "../services/timeline";
 import type { UserRow } from "../types/rows";
 
 const IDS_MAX = 100;
@@ -22,6 +23,7 @@ const SEARCH_LIMIT_MAX = 20;
 const SearchQuery = z.object({ q: zText(1, 100), limit: z.string().optional() });
 const IdsQuery = z.object({ ids: z.string() });
 const PageQuery = z.object({ cursor: z.string().optional(), limit: z.string().optional() });
+const PostsTabQuery = PageQuery.extend({ filter: z.enum(["posts", "replies", "media"]).optional() });
 
 /** Escapes LIKE wildcards for `... LIKE ? ESCAPE '\'`. */
 function likeEscape(s: string): string {
@@ -129,3 +131,52 @@ function followListRoute(side: "followers" | "following") {
 }
 followListRoute("followers");
 followListRoute("following");
+
+/**
+ * GET /users/:user/posts?filter=posts|replies|media (api.md 5.2, plan 02 Task 7). Block either way -> 404, private and
+ * not an active follower -> 403 private_account. Every post passes api.md 3.4 (postVisibilitySql). `posts` (default):
+ * the owner's top-level posts and quotes + the owner's reposts filtered like the following timeline
+ * (repostVisibilitySql: original viewable, quoted author not blocked either way); `replies`: replies only;
+ * `media`: the owner's posts with at least one non-removed image. Newest item first, cursor {k: item_id, i: item_id}.
+ */
+userRoutes.get("/users/:user/posts", requireAuth, vQuery(PostsTabQuery), async (c) => {
+  const auth = getAuth(c);
+  const db = c.env.DB;
+  const owner = await resolveUserRef(db, c.req.param("user"), auth);
+  const access = await canViewUserContent(db, auth.userId, owner.id);
+  if (access === "hidden") throw err.notFound("user");
+  if (access === "private") throw err.forbidden("private_account");
+  const q = c.req.valid("query");
+  const page = timelinePage({ cursor: q.cursor }, parseLimit(q.limit, 30, 100));
+  const vis = postVisibilitySql(auth.userId, "p");
+  const range = rangeSql(page, "p.id");
+  const postBranch = (where: string): SqlPart => ({
+    sql: `SELECT p.id AS item_id, 'post' AS type, p.id AS post_id, NULL AS reposter_id, p.created_at AS at
+            FROM posts p
+           WHERE p.author_id = ? AND ${where} AND ${vis.sql} AND ${range.sql}`,
+    params: [owner.id, ...vis.params, ...range.params],
+  });
+  const filter = q.filter ?? "posts";
+  let source: SqlPart;
+  if (filter === "replies") {
+    source = postBranch("p.reply_to_id IS NOT NULL");
+  } else if (filter === "media") {
+    source = postBranch(
+      `EXISTS (SELECT 1 FROM post_media pm JOIN uploads u ON u.id = pm.upload_id WHERE pm.post_id = p.id AND u.status <> 'removed')`,
+    );
+  } else {
+    const top = postBranch("p.reply_to_id IS NULL");
+    const repostVis = repostVisibilitySql(auth.userId, "r", "rp");
+    const repostRange = rangeSql(page, "r.id");
+    source = {
+      sql: `${top.sql}
+            UNION ALL
+            SELECT r.id AS item_id, 'repost' AS type, r.post_id AS post_id, r.user_id AS reposter_id, r.created_at AS at
+              FROM reposts r JOIN posts rp ON rp.id = r.post_id
+             WHERE r.user_id = ? AND ${repostVis.sql} AND ${repostRange.sql}`,
+      params: [...top.params, owner.id, ...repostVis.params, ...repostRange.params],
+    };
+  }
+  const { items, next_cursor } = await readTimeline(db, auth.userId, source, page);
+  return c.json({ items, next_cursor });
+});
