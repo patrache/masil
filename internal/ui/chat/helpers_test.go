@@ -16,6 +16,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -455,8 +456,11 @@ func lineWith(t testing.TB, screen, s string) (row, col int) {
 	return -1, -1
 }
 
-// msgID is a test message id ("01JCTEST" + 18 digits).
-func msgID(i int) string { return fmt.Sprintf("01JCTEST%018d", i) }
+// msgID is a test message id ("01JTTEST" + 18 digits). The prefix sorts after
+// every canned fixture message id ("01JD…"), so a test message created "now" in a
+// fixture channel lands inside its latest window (Window.Covers), and before the
+// echoed sends ("01JZ…").
+func msgID(i int) string { return fmt.Sprintf("01JTTEST%018d", i) }
 
 // mkMsg builds a text message.
 func mkMsg(ch string, i int, author api.UserSummary, body string, at time.Time) api.Message {
@@ -568,4 +572,135 @@ func paneText(t testing.TB, h *uitest.Harness, slot layout.SlotID) string {
 		in = in.Inner()
 	}
 	return columnText(h.Screen(), in)
+}
+
+// ---- channel view helpers (Task 8) ----
+
+// devID is the id of #개발 in h's Store.
+func devID(t testing.TB, h *uitest.Harness) string {
+	t.Helper()
+	return chanID(t, h.Context().Store, "개발")
+}
+
+// channelOf is the conversation instance of the active tab: the top-most
+// RouteChannel of its stack.
+func channelOf(t testing.TB, h *uitest.Harness) *channelView {
+	t.Helper()
+	nav := h.Nav()
+	if nav.Active >= 0 && nav.Active < len(nav.Tabs) {
+		st := nav.Tabs[nav.Active].Stack
+		for i := len(st) - 1; i >= 0; i-- {
+			if st[i].Kind != ui.RouteChannel {
+				continue
+			}
+			if v, ok := h.Instance(st[i].Key()).(*channelView); ok {
+				return v
+			}
+		}
+	}
+	t.Fatalf("no channel view in the active tab: %+v", nav)
+	return nil
+}
+
+// selectedID is the id of the selected row of the channel view ("" = none).
+func selectedID(t testing.TB, h *uitest.Harness) string {
+	t.Helper()
+	r, ok := channelOf(t, h).pane.selected()
+	if !ok {
+		return ""
+	}
+	return r.ID
+}
+
+// genMsgs builds messages msgID(from..to) in ch, one minute apart, ending at
+// the harness start (bodies "메시지 <i>", authors minji/junho alternating).
+func genMsgs(ch string, from, to int) []api.Message {
+	s := seeded()
+	authors := []api.UserSummary{*s.User(fixtures.UserMinji), *s.User(fixtures.UserJunho)}
+	var out []api.Message
+	for i := from; i <= to; i++ {
+		at := uitest.Start.Add(-time.Duration(100-i) * time.Minute)
+		out = append(out, mkMsg(ch, i, authors[i%2], fmt.Sprintf("메시지 %d", i), at))
+	}
+	return out
+}
+
+// pageBody is a GET /v1/channels/{id}/messages answer.
+func pageBody(items []api.Message, hasMoreBefore, hasMoreAfter bool) api.MessageWindow {
+	if items == nil {
+		items = []api.Message{}
+	}
+	return api.MessageWindow{Items: items, HasMoreBefore: hasMoreBefore, HasMoreAfter: hasMoreAfter}
+}
+
+// withTestChannel is the bootstrapped fixture seed plus a text channel "테스트"
+// (id) in 노바 개발방 with My.UnreadCount = unread and no read pointer.
+func withTestChannel(id string, unread int) func(*store.Store) {
+	return func(s *store.Store) {
+		bootstrappedSeed(s)
+		space := fixtures.SpaceNova
+		name := "테스트"
+		s.ObserveChannel(api.Channel{
+			ID: id, Kind: api.ChannelText, SpaceID: &space, Name: &name, Position: 9, MemberCount: 5,
+			CreatedAt: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+			My:        api.ChannelMyState{Notify: "all", UnreadCount: unread},
+		})
+		s.Sync.Bootstrapped = true
+	}
+}
+
+// jsonField is the string field key of a JSON object body ("" when absent).
+func jsonField(body []byte, key string) string {
+	var m map[string]any
+	if json.Unmarshal(body, &m) != nil {
+		return ""
+	}
+	v, _ := m[key].(string)
+	return v
+}
+
+// lastQuery is the raw query of the last GET request recorded for path.
+func lastQuery(srv *apitest.Server, path string) string {
+	r := reqs(srv, "GET", path)
+	if len(r) == 0 {
+		return ""
+	}
+	return r[len(r)-1].Query
+}
+
+// plainOf is the first 2 runes of the untruncated plain body of message id (an
+// ellipsis-free prefix every density draws).
+func plainOf(t testing.TB, h *uitest.Harness, id string) string {
+	t.Helper()
+	m, ok := chatOf(h.Context()).FindMessage(id)
+	if !ok {
+		t.Fatalf("message %s not held", id)
+	}
+	r := []rune(markup.Plain(m.Body, 1<<16))
+	return string(r[:min(2, len(r))])
+}
+
+// rowVisible reports whether row id is drawn on some line of the channel list
+// (after a fresh View).
+func rowVisible(t testing.TB, h *uitest.Harness, id string) bool {
+	t.Helper()
+	h.Screen()
+	v := channelOf(t, h)
+	for y := 0; y < v.pane.size.H; y++ {
+		if rid, _, ok := v.pane.lineAt(h.Context(), y); ok && rid == id {
+			return true
+		}
+	}
+	return false
+}
+
+// threadRoute is the RouteThread placed in some slot of the last frame.
+func threadRoute(h *uitest.Harness) (ui.Route, bool) {
+	h.Screen()
+	for _, r := range h.Model.Frame().Routes {
+		if r.Kind == ui.RouteThread {
+			return r, true
+		}
+	}
+	return ui.Route{}, false
 }
