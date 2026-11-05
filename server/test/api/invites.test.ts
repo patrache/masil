@@ -324,6 +324,30 @@ describe("invites whose inviter lost the right to invite", () => {
       expect(listed).not.toContain(link.code);
       expect((await linkState(ownerLink.code)).accept).toBe(200); // the owner's link is not touched
     });
+
+    // The use-time issuer check alone also yields 410 'revoked' while the issuer is out, so the test above cannot tell
+    // whether removal really revoked the row. This one pins the revoke itself: the row is marked at removal, and the
+    // link stays dead after the issuer comes back and is made admin again (api.md 3.5: 다시 admin 이 돼도 되살아나지 않음).
+    it(`invite link of an admin who was ${how}: revoked_at is set at removal and the link stays dead after rejoin + re-promotion`, async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { space } = await makeSpace(o, [a]);
+      expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+      const link = (await api(a.token).post<any>(`/v1/spaces/${space.id}/invites`, { max_uses: null, expires_in_sec: null })).body.invite;
+      expect(link).toMatchObject({ max_uses: null, expires_at: null });
+      const ownerLink = (await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, { max_uses: null, expires_in_sec: null })).body.invite;
+      const revokedAt = async (code: string) =>
+        (await env.DB.prepare("SELECT revoked_at FROM space_invites WHERE code=?").bind(code).first<any>()).revoked_at;
+      expect(await revokedAt(link.code)).toBeNull();
+      const path = how === "left" ? `/v1/spaces/${space.id}/members/@me` : `/v1/spaces/${space.id}/members/@${a.handle}${how === "banned" ? "?ban=true" : ""}`;
+      expect((await api(how === "left" ? a.token : o.token).del(path)).status).toBe(204);
+      expect(await revokedAt(link.code)).not.toBeNull();
+      expect(await revokedAt(ownerLink.code)).toBeNull();
+      if (how === "banned") expect((await api(o.token).del(`/v1/spaces/${space.id}/bans/@${a.handle}`)).status).toBe(204);
+      expect((await api(a.token).post(`/v1/invites/${ownerLink.code}/accept`)).status).toBe(200);
+      expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+      expect(await linkState(link.code)).toEqual({ get: 410, reason: "revoked", accept: 410, acceptReason: "revoked" });
+      expect(await revokedAt(link.code)).not.toBeNull();
+    });
   }
 
   it("invite link of an admin demoted to member: revoked; links of admins who keep the role survive", async () => {
