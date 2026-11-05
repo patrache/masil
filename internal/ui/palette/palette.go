@@ -65,17 +65,24 @@ func ResetForTest() {
 	commands, sources = nil, nil
 }
 
-// SnapshotForTest copies the current registries and returns a func that restores them. Tests only.
+// SnapshotForTest copies the current registries (and the recently chosen routes) and
+// returns a func that restores them. Tests only.
 func SnapshotForTest() (restore func()) {
 	mu.Lock()
 	savedCmds := cloneCommands(commands)
 	savedSrcs := slices.Clone(sources)
 	mu.Unlock()
+	recentMu.Lock()
+	savedRecent := slices.Clone(recent)
+	recentMu.Unlock()
 	return func() {
 		mu.Lock()
-		defer mu.Unlock()
 		commands = cloneCommands(savedCmds)
 		sources = slices.Clone(savedSrcs)
+		mu.Unlock()
+		recentMu.Lock()
+		recent = slices.Clone(savedRecent)
+		recentMu.Unlock()
 	}
 }
 
@@ -88,10 +95,4 @@ func cloneCommands(cs []Command) []Command {
 		out[i] = cloneCommand(c)
 	}
 	return out
-}
-
-// Open builds the palette overlay (ctrl+k).
-func Open(ctx *ui.Context, initial string) ui.Overlay {
-	// TODO(core): Task 29
-	return nil
 }

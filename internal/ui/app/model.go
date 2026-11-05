@@ -213,6 +213,14 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case pinMsg:
 		return m, m.setPin(msg.mode)
+	case ui.RunCommandMsg: // consumed, never broadcast (CR-B)
+		return m, m.runCommand(msg)
+	case ui.SetThemeMsg:
+		return m, m.setTheme(msg.Name)
+	case helpMsg:
+		return m, m.openHelp()
+	case reconnectMsg:
+		return m, m.reconnect()
 	case tea.MouseMsg:
 		return m, m.routeMouse(msg)
 	case tea.WindowSizeMsg:
