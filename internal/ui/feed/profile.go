@@ -69,7 +69,6 @@ const (
 	textNoProfilePosts    = "아직 글이 없어요"
 	textNoProfileReplies  = "아직 답글이 없어요"
 	textNoProfileMedia    = "아직 사진이 없어요"
-	textGuestbookTab      = "방명록"
 	chipFollow            = "[팔로우]"
 	chipFollowing         = "[팔로잉 ✓]"
 	chipRequested         = "[요청됨]"
@@ -190,6 +189,7 @@ type profile struct {
 	tab   profileTab
 	tabs  *widgets.Tabs
 	lists [postTabs]*profileList
+	gb    *guestbookTab // the 방명록 tab (guestbook_tab.go)
 
 	reqCount       int // my pending follow requests (first page), when reqKnown
 	reqKnown       bool
@@ -222,6 +222,7 @@ func newProfile(_ *ui.Context, r ui.Route) ui.Component {
 		id:    r.ID,
 		ref:   userRef(r.ID),
 		tabs:  widgets.NewTabs(),
+		gb:    newGuestbookTab(),
 		spin:  widgets.NewSpinner(),
 		tabY:  -1,
 		chipY: -1,
@@ -300,8 +301,12 @@ func (p *profile) loadList(ctx *ui.Context, l *profileList, cursor string) tea.C
 	}))
 }
 
-// ensureTab loads the active post tab the first time it can be shown.
+// ensureTab loads the active tab (posts or guestbook) the first time it can
+// be shown.
 func (p *profile) ensureTab(ctx *ui.Context) tea.Cmd {
+	if p.tab == tabGuestbook {
+		return p.ensureGuestbook(ctx)
+	}
 	if int(p.tab) >= postTabs || !p.canView(ctx) {
 		return nil
 	}
@@ -377,7 +382,7 @@ func (p *profile) storiesRoute() ui.Route {
 
 func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	forwardResync(ctx, msg)
-	cmds := []tea.Cmd{applyResults(ctx, msg)}
+	cmds := []tea.Cmd{applyResults(ctx, msg), p.guestbookUpdate(ctx, msg)}
 	force := true
 	imagesChanged := false
 	switch m := msg.(type) {
@@ -440,7 +445,7 @@ func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 }
 
 func (p *profile) stopSpinner() {
-	if p.loading {
+	if p.loading || p.gb.loading || p.gb.loadingMore {
 		return
 	}
 	for _, l := range p.lists {
@@ -632,6 +637,7 @@ func (p *profile) onEvent(ctx *ui.Context, m ui.EventMsg) tea.Cmd {
 			for _, l := range p.lists {
 				l.raw, l.cursor, l.loaded, l.err = nil, nil, false, nil
 			}
+			p.gb.reset()
 			return p.loadProfile(ctx)
 		}
 	}
@@ -674,6 +680,7 @@ func (p *profile) sync(ctx *ui.Context, force bool) tea.Cmd {
 			l.list.Restore(widgets.ScrollAnchor{ItemID: items[0].ID})
 		}
 	}
+	p.syncGuestbook(ctx, force)
 	return p.requestImages(ctx)
 }
 
@@ -1144,7 +1151,7 @@ func (p *profile) View(ctx *ui.Context, _ bool) string {
 	l := p.activeList()
 	switch {
 	case l == nil:
-		out = append(out, strings.Split(widgets.Empty(t, ui.Size{W: w, H: rest}, "📖", textGuestbookTab, ""), "\n")...)
+		out = append(out, p.guestbookView(ctx, w, rest, len(out))...)
 	case len(l.items) == 0 && (l.loading || !l.loaded):
 		out = append(out, p.loadingLine(ctx, w))
 	case len(l.items) == 0 && l.err != nil:
@@ -1319,6 +1326,11 @@ func (p *profile) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 		return false, nil
 	}
 	km := ctx.Keys
+	if p.onGuestbook(ctx) {
+		if handled, cmd := p.guestbookActionKey(ctx, msg); handled {
+			return true, cmd
+		}
+	}
 	switch s := msg.String(); {
 	case s == "+":
 		return true, p.toggleFollow(ctx)
@@ -1330,6 +1342,9 @@ func (p *profile) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 		return true, p.openStories(ctx)
 	case len(s) == 1 && s[0] >= '1' && int(s[0]-'1') < len(profileTabs):
 		return true, p.setTab(ctx, profileTab(s[0]-'1'))
+	}
+	if p.onGuestbook(ctx) {
+		return p.guestbookListKey(ctx, msg)
 	}
 	l := p.activeList()
 	if l == nil || !p.canView(ctx) {
@@ -1359,6 +1374,11 @@ func (p *profile) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 func (p *profile) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
 	if p.prof == nil {
 		return nil
+	}
+	if p.onGuestbook(ctx) {
+		if cmd, ok := p.guestbookMouse(ctx, msg, local); ok {
+			return cmd
+		}
 	}
 	l := p.activeList()
 	inList := l != nil && p.listY >= 0 && local.Y >= p.listY && local.Y < p.listY+p.listH
@@ -1430,6 +1450,9 @@ func (p *profile) Help(ctx *ui.Context) []key.Binding {
 		out = append(out, b("e", "프로필 편집"))
 	} else {
 		out = append(out, b("+", "팔로우"))
+	}
+	if p.tab == tabGuestbook {
+		out = append(out, b("w", "방명록 쓰기"))
 	}
 	return append(out, b("m", "메뉴"), b("1-4", "탭"), b("s", "스토리"))
 }
