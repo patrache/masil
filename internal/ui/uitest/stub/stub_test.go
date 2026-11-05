@@ -406,6 +406,19 @@ func TestStubList(t *testing.T) {
 		if seen != 1 {
 			t.Errorf("OnUpdate called %d times", seen)
 		}
+
+		// mouse: recorded (local coords) and forwarded to the List (click selects the row)
+		var mh ui.MouseHandler = l
+		l.List.Select("row 1")
+		l.View(ctx, true)
+		click := tea.MouseClickMsg{X: 40, Y: 41, Button: tea.MouseLeft}
+		mh.HandleMouse(ctx, click, ui.Point{X: 2, Y: 3})
+		if len(l.Mouse) != 1 || l.Mouse[0].Local != (ui.Point{X: 2, Y: 3}) || l.Mouse[0].Msg != tea.MouseMsg(click) {
+			t.Errorf("Mouse = %+v", l.Mouse)
+		}
+		if s, _ := l.List.Selected(); s == "row 1" {
+			t.Errorf("click on row 3 not forwarded to the List (selection %q)", s)
+		}
 	}
 }
 

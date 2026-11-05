@@ -20,6 +20,7 @@ import (
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
+	"github.com/patrache/masil/internal/ui/palette"
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
@@ -47,9 +48,14 @@ type Model struct {
 	pin      *layout.Mode // runtime pin (nil = auto)
 	pinFell  bool         // the pin did not fit this frame (Resolve fell back to auto)
 
-	nav    NavState    // logical navigation (CA 5.3.3); projected onto the layout every frame
-	intent FocusIntent // remembered focus intent (CA 5.3.5)
-	focus  FocusIntent // focus resolved for the current layout
+	nav       NavState    // logical navigation (CA 5.3.3); projected onto the layout every frame
+	intent    FocusIntent // remembered focus intent (CA 5.3.5)
+	focus     FocusIntent // focus resolved for the current layout
+	sentFocus FocusIntent // focus of the last FocusChangedMsg broadcast
+
+	prefix    prefixState // pending ctrl+w prefix (CA 5.3.4 2.2)
+	quitArmed bool        // the first ctrl+c armed quitting (CA 5.5 app.quit)
+	quitGen   int         // generation of the pending quitArmMsg
 
 	cols, rows int
 	sized      bool // a WindowSizeMsg arrived
@@ -64,6 +70,10 @@ type Model struct {
 	initCmds []tea.Cmd // emitted by Init (New cannot return Cmds)
 	frame    FrameInfo // geometry of the last View
 
+	overlays []ui.Overlay                                     // open overlays, bottom -> top (drawing: Task 28)
+	palette  ui.Overlay                                       // the palette instance opened by palette.open (nil = none)
+	openPal  func(ctx *ui.Context, initial string) ui.Overlay // palette.Open (tests swap it)
+
 	toasts    toastState // queued toasts (newest last) and the drawn box
 	tickArmed bool       // a statusTickMsg is pending
 	tickGen   int        // generation of the pending statusTickMsg
@@ -75,14 +85,15 @@ var _ tea.Model = (*Model)(nil)
 // harness and Run take the same path (plan 03 Task 25).
 func New(o Options) *Model {
 	m := &Model{
-		opts:   o,
-		creds:  o.Credentials,
-		nav:    newNavState(),
-		intent: FocusIntent{Slot: layout.SlotMain},
-		cache:  newInstanceCache(),
-		panes:  map[layout.SlotID]*instance{},
-		tabs:   widgets.NewTabs(),
-		routes: map[layout.SlotID]ui.Route{},
+		opts:    o,
+		creds:   o.Credentials,
+		nav:     newNavState(),
+		intent:  FocusIntent{Slot: layout.SlotMain},
+		cache:   newInstanceCache(),
+		panes:   map[layout.SlotID]*instance{},
+		tabs:    widgets.NewTabs(),
+		routes:  map[layout.SlotID]ui.Route{},
+		openPal: palette.Open,
 	}
 
 	// ① Config.
@@ -167,14 +178,14 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Update implements tea.Model (CA 5.3.4). After every message the status-line
-// countdown tick is (re)armed when a focus session or a 429 cooldown is showing.
+// Update implements tea.Model (CA 5.3.4). After every message the focus is resolved
+// (and a change broadcast) and the status-line countdown tick is (re)armed when a
+// focus session or a 429 cooldown is showing.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.dispatch(msg)
-	if tick := m.armStatusTick(); tick != nil {
-		cmd = tea.Batch(cmd, tick)
-	}
-	return m, cmd
+	// The focus slot is resolved at the end of every Update (CA 5.3.5); a change is
+	// broadcast as ui.FocusChangedMsg after this Update's relayout/projection.
+	return m, tea.Batch(cmd, m.syncFocus(), m.armStatusTick())
 }
 
 // dispatch handles one message (CA 5.3.4 steps).
@@ -192,11 +203,15 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toastExpireMsg:
 		m.toasts.remove(msg.id)
 		return m, nil
-	case tea.MouseClickMsg:
-		if cmd, ok := m.clickToast(msg); ok {
-			return m, cmd
+	case quitArmMsg:
+		if msg.gen == m.quitGen {
+			m.quitArmed = false
 		}
-		return m, m.broadcast(msg)
+		return m, nil
+	case pinMsg:
+		return m, m.setPin(msg.mode)
+	case tea.MouseMsg:
+		return m, m.routeMouse(msg)
 	case tea.WindowSizeMsg:
 		m.cols, m.rows, m.sized = msg.Width, msg.Height, true
 		return m, m.relayout()
@@ -206,18 +221,15 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case ui.NavigateMsg:
-		n, intent := m.nav.navigate(msg, m.lay.Mode)
-		m.nav = n
-		if intent.Slot != "" {
-			m.intent = intent
-		}
-		return m, m.relayout()
+		return m, m.applyNavigate(msg)
 	case ui.BackMsg:
-		m.nav = m.nav.back(m.focus.Slot, m.lay.Mode, m.lay)
-		return m, m.relayout()
+		return m, m.goBack()
 	case tea.KeyPressMsg:
 		return m, m.routeKey(msg)
 	case tea.PasteMsg:
+		if n := len(m.overlays); n > 0 { // CA 5.3.4 step 4: never below an open overlay
+			return m, m.overlays[n-1].Update(m.ctx, msg)
+		}
 		if in := m.focusedInstance(); in != nil {
 			return m, in.comp.Update(m.ctx, msg)
 		}
@@ -227,20 +239,6 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.broadcast(msg)
 	}
 	return m, m.broadcast(msg)
-}
-
-// routeKey hands a key to the focused component (CA 5.3.4 step 2.4; overlays, hard
-// and soft globals arrive with Task 27).
-func (m *Model) routeKey(msg tea.KeyPressMsg) tea.Cmd {
-	in := m.focusedInstance()
-	if in == nil {
-		return nil
-	}
-	if kh, ok := in.comp.(ui.KeyHandler); ok {
-		_, cmd := kh.HandleKey(m.ctx, msg)
-		return cmd
-	}
-	return nil
 }
 
 // broadcast sends msg to every live component: route instances (creation order),
@@ -342,12 +340,39 @@ func (m *Model) View() tea.View {
 	if m.ctx.Config.UI.Mouse {
 		v.MouseMode = tea.MouseModeCellMotion
 	}
+	v.Cursor = m.cursor()
 	v.WindowTitle = "masil · " + m.currentTitle()
 	if m.ctx.Config.UI.PaintBackground {
 		v.BackgroundColor = m.ctx.Theme.P.BG
 		v.ForegroundColor = m.ctx.Theme.P.FG
 	}
 	return v
+}
+
+// cursor is the real cursor (CA 5.4): with an overlay open it is the top overlay's
+// (Task 28 adds the overlay origin; until then nil, never the pane cursor below);
+// otherwise the focused component's Cursorer result plus its pane's inner origin.
+func (m *Model) cursor() *tea.Cursor {
+	if len(m.overlays) > 0 || !m.sized || m.lay.Mode == layout.ModeTooSmall {
+		return nil
+	}
+	cr, ok := m.focusedComponent().(ui.Cursorer)
+	if !ok {
+		return nil
+	}
+	c := cr.Cursor()
+	p, has := m.lay.Pane(m.focus.Slot)
+	if c == nil || !has {
+		return nil
+	}
+	inner := p.Rect
+	if p.Bordered {
+		inner = inner.Inner()
+	}
+	out := *c
+	out.X += inner.X
+	out.Y += inner.Y
+	return &out
 }
 
 // Context returns the shared ui.Context (tests).

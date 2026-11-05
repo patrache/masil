@@ -59,6 +59,8 @@ type Chat struct {
 }
 
 // List stands in for feed/notification screens: a widgets.List of fixed rows, Persistent, Titled.
+// It also implements ui.MouseHandler (test-only addition): every call is recorded in
+// Mouse and forwarded to the List.
 type List struct {
 	Route  ui.Route
 	Serial uint64
@@ -66,6 +68,8 @@ type List struct {
 
 	// OnUpdate (nil = ignored) is called at the very start of every Update.
 	OnUpdate func(ctx *ui.Context, msg tea.Msg)
+	// Mouse records every HandleMouse call, in order (mouse routing tests).
+	Mouse []MouseCall
 
 	size ui.Size
 }
@@ -82,11 +86,18 @@ var (
 	_ ui.Helper        = (*Chat)(nil)
 	_ ui.Completer     = (*Chat)(nil)
 
-	_ ui.Component  = (*List)(nil)
-	_ ui.KeyHandler = (*List)(nil)
-	_ ui.Persistent = (*List)(nil)
-	_ ui.Titled     = (*List)(nil)
+	_ ui.Component    = (*List)(nil)
+	_ ui.KeyHandler   = (*List)(nil)
+	_ ui.MouseHandler = (*List)(nil)
+	_ ui.Persistent   = (*List)(nil)
+	_ ui.Titled       = (*List)(nil)
 )
+
+// MouseCall is one recorded HandleMouse call.
+type MouseCall struct {
+	Msg   tea.MouseMsg
+	Local ui.Point
+}
 
 // serial numbers every stub instance (Chat and List share it).
 var serial atomic.Uint64
@@ -518,6 +529,12 @@ func (l *List) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (handled bool, cm
 		return l.List.HandleKey(ctx, msg)
 	}
 	return false, nil
+}
+
+// HandleMouse implements ui.MouseHandler: recorded in Mouse, then forwarded to the List.
+func (l *List) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
+	l.Mouse = append(l.Mouse, MouseCall{Msg: msg, Local: local})
+	return l.List.HandleMouse(ctx, msg, local)
 }
 
 // listState is the List's Persistent state.

@@ -404,3 +404,29 @@ func (n NavState) cycleTab(delta int, mode layout.Mode) NavState {
 	}
 	return c
 }
+
+// selectTab activates the tab-bar entry i (a click; the order of cycleTab and
+// tabItems): compact walks the tab roots then 피드 then 알림, widget and tiny the fixed
+// 채팅/피드/알림 tabs. Out-of-range entries and other modes are no-ops.
+func (n NavState) selectTab(i int, mode layout.Mode) NavState {
+	c := n.clone()
+	switch mode {
+	case layout.ModeWidget, layout.ModeTiny:
+		if i >= 0 && i < 3 {
+			c.Front = Front(i)
+		}
+	case layout.ModeCompact:
+		nt := len(c.Tabs)
+		switch {
+		case i < 0 || i > nt+1:
+		case i < nt:
+			c.Active, c.Front = i, FrontTab
+			c.touch()
+		case i == nt:
+			c.Front = FrontFeed
+		default:
+			c.Front = FrontNotifications
+		}
+	}
+	return c
+}
