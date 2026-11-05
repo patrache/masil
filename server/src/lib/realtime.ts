@@ -18,7 +18,8 @@ export type Audience =
  *  - no block in either direction between R and every id in `authors`, and
  *  - for every id P in `privateAuthors`: R === P or R is an active follower of P.
  *  Required for timeline.item_created (authors = post author + quoted author + reposter)
- *  and post.reply_created (authors = reply author + parent author). */
+ *  and post.reply_created (authors = reply author + parent author). Either one also lists every reply-parent author
+ *  the event Post names (eventParentAuthorIds), so a recipient blocked either way with them never sees that name. */
 export interface VisibilitySpec {
   authors: string[];
   privateAuthors: string[];

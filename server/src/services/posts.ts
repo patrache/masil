@@ -9,7 +9,7 @@ import { newId } from "../lib/ids";
 import { notifyMany, type NotifyInput } from "../lib/notify";
 import { canViewPost } from "../lib/permissions";
 import { publishEvent, type VisibilitySpec } from "../lib/realtime";
-import { loadUserSummaries, serializePosts } from "../lib/serialize";
+import { eventParentAuthorIds, loadUserSummaries, serializePosts } from "../lib/serialize";
 import { charCount, extractHashtags, extractMentions, normalizeText, plainSnippet } from "../lib/text";
 import { iso, now } from "../lib/time";
 import { removeUploads } from "../lib/uploads";
@@ -126,7 +126,7 @@ async function loadTarget(db: D1Database, viewerId: string, targetId: string | n
  *     post_mentions -> author post_count + 1 -> parent reply_count + 1 / quoted quote_count + 1;
  * (6) after commit: top-level posts and quotes -> timeline.item_created (ephemeral) to active followers + the author,
  *     replies -> post.reply_created (ephemeral) on topic post:<parent>, both through the visibility filter (authors =
- *     poster + target author); post.stats on the target's topic; then post_reply / post_quote to the target author
+ *     poster + target author + any reply-parent author the event Post names); post.stats on the target's topic; then post_reply / post_quote to the target author
  *     and post_mention to the remaining mentioned users.
  */
 export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{ post: Post; created: boolean }> {
@@ -260,11 +260,16 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
   }
 
   // (6) after commit
-  const [[post], [eventPost]] = await Promise.all([serializePosts(db, author.id, [row]), serializePosts(db, null, [row])]);
   const related = target === null ? [author] : [author, target.author];
+  const privateAuthors = [...new Set(related.filter((u) => u.is_private === 1).map((u) => u.id))];
+  const [[post], [eventPost]] = await Promise.all([
+    serializePosts(db, author.id, [row]),
+    serializePosts(db, null, [row], { privateOk: privateAuthors }),
+  ]);
+  // Reply-parent authors the event names (a reply's parent, a quoted reply's parent) join the block filter too.
   const visibleTo: VisibilitySpec = {
-    authors: [...new Set(related.map((u) => u.id))],
-    privateAuthors: [...new Set(related.filter((u) => u.is_private === 1).map((u) => u.id))],
+    authors: [...new Set([...related.map((u) => u.id), ...eventParentAuthorIds(eventPost!)])],
+    privateAuthors,
   };
   if (replyToId === null) {
     // top-level posts and quotes
@@ -508,15 +513,17 @@ export async function setRepost(rt: Runtime, post: PostRow, userId: string, on: 
           ? null
           : ((await first<{ author_id: string }>(db, "SELECT author_id FROM posts WHERE id = ?1", post.quote_of_id))?.author_id ?? null);
       const relatedIds = [...new Set([userId, post.author_id, ...(quotedAuthorId !== null ? [quotedAuthorId] : [])])];
-      const [related, [eventPost], summaries] = await Promise.all([
+      const [related, summaries] = await Promise.all([
         all<Pick<UserRow, "id" | "is_private">>(db, "SELECT id, is_private FROM users WHERE id IN (SELECT value FROM json_each(?1))", jsonList(relatedIds)),
-        serializePosts(db, null, [fresh]),
         loadUserSummaries(db, [userId]),
       ]);
+      const privateAuthors = related.filter((u) => u.is_private === 1).map((u) => u.id);
+      const [eventPost] = await serializePosts(db, null, [fresh], { privateOk: privateAuthors });
       const reposter = summaries.get(userId);
       if (eventPost !== undefined && reposter !== undefined) {
         const item: TimelineItem = { id: repostId, type: "repost", post: eventPost, reposted_by: reposter, at: iso(t) };
-        const visibleTo: VisibilitySpec = { authors: relatedIds, privateAuthors: related.filter((u) => u.is_private === 1).map((u) => u.id) };
+        // Reply-parent authors the event names join the block filter too (serializePosts, events.md 4.8).
+        const visibleTo: VisibilitySpec = { authors: [...new Set([...relatedIds, ...eventParentAuthorIds(eventPost)])], privateAuthors };
         await publishEvent(rt, { followers: userId }, "timeline.item_created", { item }, { ephemeral: true, includeSelf: userId, visibleTo });
       }
     }

@@ -968,13 +968,22 @@ function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
  *   "not visible" rows by copying them with deleted_at set).
  * - reply_to_author: the parent's author only when the viewer may see the parent (api.md 3.4 — parent not deleted,
  *   author not suspended, no block either way, author public / the viewer / actively followed). viewerId null (event
- *   payloads) only checks suspension; the publisher's visibility filter has handled the rest (events.md 4.8).
+ *   payloads, one object for every recipient): the parent's author is named only when not suspended and either public
+ *   or listed in `opts.privateOk` (a private author the publish VisibilitySpec already restricts recipients to). The
+ *   publisher must then add every named parent author (eventParentAuthorIds) to VisibilitySpec.authors so recipients
+ *   blocked either way with them are filtered out (events.md 4.8: an event object matches that recipient's REST view).
  * - quote: missing or deleted original -> {available:false, reason:"deleted"}; not visible by the same rule ->
  *   "not_visible"; otherwise the original serialized by these rules with quote = null.
  * - viewerId null -> viewer {liked:false, reposted:false} and poll.my_votes [] (events.md 4.4).
  */
-export async function serializePosts(db: D1Database, viewerId: string | null, rows: PostRow[]): Promise<Post[]> {
+export async function serializePosts(
+  db: D1Database,
+  viewerId: string | null,
+  rows: PostRow[],
+  opts: { privateOk?: readonly string[] } = {},
+): Promise<Post[]> {
   if (rows.length === 0) return [];
+  const privateOk = new Set(opts.privateOk ?? []);
   const live = rows.filter((r) => r.deleted_at === null);
   const quoteIds = [...new Set(live.flatMap((r) => (r.quote_of_id !== null ? [r.quote_of_id] : [])))];
 
@@ -1065,6 +1074,12 @@ export async function serializePosts(db: D1Database, viewerId: string | null, ro
     if (blocked.has(authorId)) return false;
     return !author.is_private || following.has(authorId);
   };
+  /** reply_to_author rule: canSee, and for event payloads (no viewer) only public or publisher-cleared private authors. */
+  const canName = (authorId: string): boolean => {
+    if (!canSee(authorId)) return false;
+    if (viewerId !== null) return true;
+    return !users.get(authorId)!.is_private || privateOk.has(authorId);
+  };
 
   const media = new Map<string, Media[]>();
   for (const m of mediaRows) pushTo(media, m.post_id, serializeMedia(m));
@@ -1099,7 +1114,7 @@ export async function serializePosts(db: D1Database, viewerId: string | null, ro
       };
     }
     const parent = r.reply_to_id !== null ? parents.get(r.reply_to_id) : undefined;
-    const replyToAuthor = parent && parent.deleted_at === null && canSee(parent.author_id) ? (users.get(parent.author_id) ?? null) : null;
+    const replyToAuthor = parent && parent.deleted_at === null && canName(parent.author_id) ? (users.get(parent.author_id) ?? null) : null;
     let quote: Post["quote"] = null;
     if (withQuote && r.quote_of_id !== null) {
       const q = quoted.get(r.quote_of_id);
@@ -1129,6 +1144,17 @@ export async function serializePosts(db: D1Database, viewerId: string | null, ro
     };
   };
   return rows.map((r) => toPost(r, true));
+}
+
+/**
+ * Ids of the reply-parent authors an event Post (serializePosts with viewerId null) names: its own reply_to_author and
+ * its quoted post's. Publishers add them to VisibilitySpec.authors (see serializePosts).
+ */
+export function eventParentAuthorIds(post: Post): string[] {
+  const ids: string[] = [];
+  if (post.reply_to_author !== null) ids.push(post.reply_to_author.id);
+  if (post.quote?.available === true && post.quote.post.reply_to_author !== null) ids.push(post.quote.post.reply_to_author.id);
+  return ids;
 }
 
 /**

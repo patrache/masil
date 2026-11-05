@@ -1,6 +1,6 @@
 // test/api/timelines.test.ts
 import { expect, test } from "vitest";
-import { api, signup, createPost, follow, connectWs } from "../helpers";
+import { api, signup, createPost, follow, connectWs, watch } from "../helpers";
 const tl = async (t: any, q = "") => (await api(t.token).get<any>(`/v1/timeline/following${q}`)).body;
 
 test("following: me + active followees, top-level and quotes, no replies, repost deduped to latest", async () => {
@@ -74,4 +74,48 @@ test("profile posts tab hides reposts the viewer can't see (blocked author, quot
   const tab = async (t: any) => (await api(t.token).get<any>(`/v1/users/@${a.handle}/posts?filter=posts`)).body.items.map((i: any) => i.post.id);
   expect(await tab(v)).toEqual([]);
   expect(await tab(a)).toEqual([cq.id, pp.id, bp.id]);
+});
+test("timeline.item_created never names a reply parent's author the recipient cannot see (private parent, block either way)", async () => {
+  const p = await signup(); const r = await signup(); const q = await signup(); const f = await signup(); const g = await signup();
+  await api(p.token).patch("/v1/me/settings", { is_private: true });
+  await follow(r, p); await api(p.token).post(`/v1/me/follow-requests/@${r.handle}/accept`);
+  await follow(f, q); await follow(g, q);
+  const root = await createPost(p, "private root");
+  const wr = await connectWs(r.token); await watch(wr, [`post:${root.id}`]);
+  const reply = await createPost(r, "public reply", { reply_to_id: root.id });
+  expect(reply.reply_to_author).toMatchObject({ id: p.user.id }); // r follows p
+  // post.reply_created already restricts recipients to p's followers, so the private parent author stays named there
+  expect((await wr.next("post.reply_created")).data.post.reply_to_author).toMatchObject({ id: p.user.id });
+  const wf = await connectWs(f.token);
+  // repost of a reply to a private account: f (not p's follower) sees reply_to_author null over REST, so in the event too
+  await api(q.token).put(`/v1/posts/${reply.id}/repost`);
+  const rep = (await wf.next("timeline.item_created", (d) => d.item.type === "repost")).data.item;
+  expect(rep.post.id).toBe(reply.id);
+  expect((await api(f.token).get<any>(`/v1/posts/${reply.id}`)).body.post.reply_to_author).toBeNull();
+  expect(rep.post.reply_to_author).toBeNull();
+  // quote of that reply: the quoted post's reply_to_author is hidden the same way
+  const quote = await createPost(q, "quoting", { quote_of_id: reply.id });
+  const qi = (await wf.next("timeline.item_created", (d) => d.item.post.id === quote.id)).data.item;
+  expect(qi.post.quote).toMatchObject({ available: true, post: { id: reply.id } });
+  expect(qi.post.quote.post.reply_to_author).toBeNull();
+
+  // public parent: named in the event, and recipients blocked either way with that author are filtered out
+  const pub = await signup();
+  const root2 = await createPost(pub, "public root");
+  const reply2 = await createPost(r, "reply 2", { reply_to_id: root2.id });
+  await api(f.token).put(`/v1/blocks/@${pub.handle}`); // f blocked the parent author
+  await api(pub.token).put(`/v1/blocks/@${g.handle}`); // the parent author blocked g
+  const h = await signup(); await follow(h, q);
+  const [wf2, wg, wh] = [wf, await connectWs(g.token), await connectWs(h.token)];
+  await api(q.token).put(`/v1/posts/${reply2.id}/repost`);
+  const hi = (await wh.next("timeline.item_created", (d) => d.item.post.id === reply2.id)).data.item;
+  expect(hi.post.reply_to_author).toMatchObject({ id: pub.user.id });
+  const quote2 = await createPost(q, "quoting 2", { quote_of_id: reply2.id });
+  const hq = (await wh.next("timeline.item_created", (d) => d.item.post.id === quote2.id)).data.item;
+  expect(hq.post.quote.post.reply_to_author).toMatchObject({ id: pub.user.id });
+  for (const w of [wf2, wg]) {
+    await expect(w.next("timeline.item_created", (d) => d.item.post.id === reply2.id || d.item.post.id === quote2.id, 500)).rejects.toThrow();
+  }
+  expect((await api(f.token).get<any>(`/v1/posts/${reply2.id}`)).body.post.reply_to_author).toBeNull();
+  expect((await api(g.token).get<any>(`/v1/posts/${reply2.id}`)).body.post.reply_to_author).toBeNull();
 });
