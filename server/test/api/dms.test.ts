@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import { newId } from "../../src/lib/ids";
 import { loadUnreadStates } from "../../src/lib/serialize";
+import { addChannelMembers } from "../../src/services/membership";
 import { api, connectWs, makeFriends, signup } from "../helpers";
 
 // ---- local fixtures (this file only) ----
@@ -183,6 +184,70 @@ describe("dms", () => {
     const qAfter = await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${q.handle}`] });
     expect(qAfter.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [q.user.id] } });
   });
+
+  // Pending item 8 (TOCTOU): the pairwise block pre-check is a plain read, so two concurrent adds of p and q (who block
+  // each other) both pass it against the same members. The insert itself must re-check blocks against the members it
+  // sees inside the batch, and the add that loses reports 403 dm_not_allowed.
+  async function memberIds(channelId: string): Promise<string[]> {
+    const rows = await env.DB.prepare("SELECT user_id FROM channel_members WHERE channel_id = ?1").bind(channelId).all<{ user_id: string }>();
+    return rows.results.map((r) => r.user_id);
+  }
+
+  it("group dm add: a block-linked member committed after the pre-check -> the insert refuses (403 dm_not_allowed), nothing written", async () => {
+    const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    for (const f of [x, y, p, q]) await makeFriends(o, f);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    await api(q.token).put(`/v1/blocks/@${p.handle}`);
+    // A D1 handle that commits a concurrent add of p right before this add's batch: the pre-check saw [o, x, y] only.
+    let fired = false;
+    const db = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "batch") {
+          return async (stmts: D1PreparedStatement[]) => {
+            if (!fired) {
+              fired = true;
+              await target
+                .prepare("INSERT INTO channel_members (channel_id, user_id, added_by, joined_at) VALUES (?1, ?2, ?3, ?4)")
+                .bind(g.id, p.user.id, o.user.id, Date.now())
+                .run();
+            }
+            return target.batch(stmts);
+          };
+        }
+        const v = Reflect.get(target, key);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    const rt = { env: { ...env, DB: db }, waitUntil: () => {} };
+    await expect(addChannelMembers(rt, g.id, o.user.id, [q.user.id])).rejects.toMatchObject({
+      status: 403,
+      code: "dm_not_allowed",
+      details: { user_ids: [q.user.id] },
+    });
+    expect(fired).toBe(true);
+    expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id, p.user.id].sort());
+    const ch = await env.DB.prepare("SELECT member_count FROM channels WHERE id = ?1").bind(g.id).first<{ member_count: number }>();
+    expect(ch?.member_count).toBe(4); // the recount in the same batch counts p (the concurrent add), not q
+  });
+
+  it("group dm add: concurrent adds of two users who block each other -> at most one gets in, the other 403 dm_not_allowed", async () => {
+    const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    for (const f of [x, y, p, q]) await makeFriends(o, f);
+    await api(p.token).put(`/v1/blocks/@${q.handle}`);
+    for (let i = 0; i < 8; i++) {
+      const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+      const [rp, rq] = await Promise.all([
+        api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${p.handle}`] }),
+        api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${q.handle}`] }),
+      ]);
+      const ids = await memberIds(g.id);
+      expect(ids.includes(p.user.id) && ids.includes(q.user.id)).toBe(false);
+      expect([rp.status, rq.status].sort()).toEqual([200, 403]);
+      const [loser, loserId] = rp.status === 403 ? [rp, p.user.id] : [rq, q.user.id];
+      expect(loser.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [loserId] } });
+      expect(ids).toHaveLength(4);
+    }
+  }, 60_000);
 
   it("GET /dms lists newest activity first and pages with a cursor", async () => {
     const [me, p, q, r] = await Promise.all([signup(), signup(), signup(), signup()]);

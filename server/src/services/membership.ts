@@ -63,7 +63,9 @@ async function loadChannel(db: D1Database, channelId: string): Promise<ChannelRo
  * member): see addPrivateTextMembers.
  * group_dm (any member may add): 409 already_member if anyone is already in; 422 limit_exceeded group_dm_members when
  * the total would pass 10; 403 dm_not_allowed (details.user_ids) for every X with !can_dm(actor, X) or a block either way
- * with any current member or with another user being added (groupDmDenied). 1:1 dm and public text -> 409 conflict not_supported.
+ * with any current member or with another user being added (groupDmDenied). The batch re-checks capacity, membership
+ * and blocks against the members it sees, so concurrent adds cannot get past any of them (the loser gets the same errors).
+ * 1:1 dm and public text -> 409 conflict not_supported.
  * Events after commit: channel.member_added{channel_id, user} per new member to the existing members,
  * channel.created{channel} to the new members; then one system message group_member_added per new member.
  */
@@ -86,33 +88,49 @@ export async function addChannelMembers(rt: Runtime, channelId: string, actorId:
   if (failed.length > 0) throw dmNotAllowed(failed);
 
   const t = now();
-  // The insert re-checks capacity and membership inside the transaction (concurrent adds cannot pass 10).
-  const [ins] = await batch(db, [
+  // The batch re-checks capacity, membership and blocks against the members it sees inside the transaction: the
+  // pre-checks above are plain reads, so concurrent adds would otherwise pass 10, or put two users who block each other
+  // into the room (each request checked against the same members and missed the other's insert; pending item 8).
+  // Statement 0 reads the same facts the INSERT gates on, in the same transaction, so a refused insert reports why.
+  const room = "SELECT user_id FROM channel_members WHERE channel_id = ?1 UNION SELECT value FROM json_each(?2)";
+  const [facts, ins] = await batch(db, [
+    stmt(
+      db,
+      `SELECT j.value AS id,
+              (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1) AS n,
+              EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = ?1 AND cm.user_id = j.value) AS dup,
+              EXISTS (SELECT 1 FROM blocks b
+                       WHERE (b.blocker_id = j.value AND b.blocked_id IN (${room}))
+                          OR (b.blocked_id = j.value AND b.blocker_id IN (${room}))) AS blocked
+         FROM json_each(?2) j`,
+      ch.id,
+      jsonList(ids),
+    ),
     stmt(
       db,
       `INSERT INTO channel_members (channel_id, user_id, added_by, joined_at)
-       SELECT ?1, j.value, ?2, ?3 FROM json_each(?4) j
-        WHERE (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1) + json_array_length(?4) <= ?5
-          AND NOT EXISTS (SELECT 1 FROM channel_members cm, json_each(?4) k WHERE cm.channel_id = ?1 AND cm.user_id = k.value)
+       SELECT ?1, j.value, ?3, ?4 FROM json_each(?2) j
+        WHERE (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1) + json_array_length(?2) <= ?5
+          AND NOT EXISTS (SELECT 1 FROM channel_members cm, json_each(?2) k WHERE cm.channel_id = ?1 AND cm.user_id = k.value)
+          AND NOT EXISTS (SELECT 1 FROM blocks b
+                           WHERE (b.blocker_id IN (SELECT value FROM json_each(?2)) AND b.blocked_id IN (${room}))
+                              OR (b.blocked_id IN (SELECT value FROM json_each(?2)) AND b.blocker_id IN (${room})))
        ON CONFLICT DO NOTHING`,
       ch.id,
+      jsonList(ids),
       actorId,
       t,
-      jsonList(ids),
       GROUP_DM_MAX_MEMBERS,
     ),
     stmt(db, "UPDATE channels SET member_count = (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1), updated_at = ?2 WHERE id = ?1", ch.id, t),
   ]);
-  if ((ins.meta.changes ?? 0) === 0) {
-    // lost a race: report what is true now
-    const n = await first<{ n: number; dup: number }>(
-      db,
-      `SELECT COUNT(*) AS n, SUM(user_id IN (SELECT value FROM json_each(?2))) AS dup FROM channel_members WHERE channel_id = ?1`,
-      ch.id,
-      jsonList(ids),
-    );
-    if ((n?.dup ?? 0) > 0) throw err.conflict("already_member");
-    throw err.limit("group_dm_members", GROUP_DM_MAX_MEMBERS);
+  if ((ins!.meta.changes ?? 0) === 0) {
+    // lost a race: report what the insert saw (same order as the pre-checks)
+    const seen = facts!.results as Array<{ id: string; n: number; dup: number; blocked: number }>;
+    if (seen.some((f) => f.dup)) throw err.conflict("already_member");
+    if ((seen[0]?.n ?? 0) + ids.length > GROUP_DM_MAX_MEMBERS) throw err.limit("group_dm_members", GROUP_DM_MAX_MEMBERS);
+    const blockedSet = new Set(seen.filter((f) => f.blocked).map((f) => f.id));
+    throw dmNotAllowed(ids.filter((id) => blockedSet.has(id)));
   }
 
   const row = await loadChannel(db, ch.id);

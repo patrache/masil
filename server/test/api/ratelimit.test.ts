@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { env, SELF } from "cloudflare:test";
 import { verifyPassword } from "../../src/lib/crypto";
-import { api, BASE, signup, uniqueHandle, uniqueIp } from "../helpers";
+import { api, BASE, makeFriends, signup, uniqueHandle, uniqueIp } from "../helpers";
 
 describe("rate limits", () => {
   it("RL_SIGNUP: 6th signup from one IP in 60s -> 429 with Retry-After", async () => {
@@ -60,5 +60,21 @@ describe("rate limits", () => {
       expect((await api(u.token).post("/v1/auth/password", { current_password: u.password, new_password: "brand new pass" })).status).toBe(204);
       expect((await api().post("/v1/auth/login", { handle: u.handle, password: "brand new pass" })).status).toBe(200);
     });
+  });
+
+  // Member add is the other way into a group DM (besides POST /v1/dms), so it shares RL_SOCIAL: an unthrottled add
+  // could be retried freely to win a race against the in-batch checks (pending item 8).
+  it("RL_SOCIAL on POST /v1/channels/:id/members: 31st add in 60s -> 429", async () => {
+    const [o, x, y] = await Promise.all([signup(), signup(), signup()]);
+    await makeFriends(o, x);
+    await makeFriends(o, y);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    // x has spent nothing on RL_SOCIAL (it only accepted o's request); y is already a member -> 409 until the limit
+    const statuses: number[] = []; let last: any;
+    for (let i = 0; i < 31; i++) { last = await api(x.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${y.handle}`] }); statuses.push(last.status); }
+    expect(statuses.slice(0, 30)).toEqual(Array(30).fill(409));
+    expect(last.status).toBe(429);
+    expect(last.headers.get("Retry-After")).toBe("60");
+    expect(last.body.error.details).toEqual({ limiter: "RL_SOCIAL", retry_after_sec: 60 });
   });
 });

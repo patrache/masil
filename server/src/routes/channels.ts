@@ -10,6 +10,7 @@ import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from "../lib/db";
 import { err, type FieldError } from "../lib/errors";
 import { requireChannelRead } from "../lib/permissions";
+import { limit } from "../lib/ratelimit";
 import { publishEvent } from "../lib/realtime";
 import { loadUnreadStates, loadUserSummaries, serializeChannels, serializeMessages } from "../lib/serialize";
 import { charCount, normalizeText } from "../lib/text";
@@ -62,7 +63,7 @@ channelRoutes.get("/channels/:channel_id", requireAuth, async (c) => {
   return c.json({ channel });
 });
 
-channelRoutes.post("/channels/:channel_id/members", requireAuth, vJson(AddMembersBody), async (c) => {
+channelRoutes.post("/channels/:channel_id/members", requireAuth, limit("RL_SOCIAL"), vJson(AddMembersBody), async (c) => {
   const auth = getAuth(c);
   const db = c.env.DB;
   // 404 for a channel I cannot read comes before resolving the users (no existence leak through the body).

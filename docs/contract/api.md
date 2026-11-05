@@ -128,7 +128,7 @@
 | `RL_POST` | 10회 / 60초 | `u:<user_id>` | 글·답글·인용·스토리·방명록 작성 |
 | `RL_REACT` | 30회 / 10초 | `u:<user_id>` | 리액션, 좋아요, 리포스트, 투표, 고정 (읽음 표시는 제외) |
 | `RL_UPLOAD` | 20회 / 60초 | `u:<user_id>` | `POST /v1/uploads` |
-| `RL_SOCIAL` | 30회 / 60초 | `u:<user_id>` | 친구 요청, 팔로우, 차단, DM 생성, 초대 생성·직접 초대, 방 생성, 신고 |
+| `RL_SOCIAL` | 30회 / 60초 | `u:<user_id>` | 친구 요청, 팔로우, 차단, DM 생성, 채널 멤버 추가, 초대 생성·직접 초대, 방 생성, 신고 |
 | `RL_SEARCH` | 30회 / 60초 | `u:<user_id>` | `/v1/search/*`, `/v1/users/search`, `/v1/hashtags/search` |
 | `RL_WS` | 30회 / 60초 | `u:<user_id>` | `GET /v1/ws` 연결 시도 |
 | `RL_API` | 600회 / 60초 | `u:<user_id>` | 인증된 모든 요청(위 전용 리미터와 **추가로**) |
@@ -912,7 +912,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 이벤트: `channel.created`(모든 참여자). 그룹 DM 생성 시 시스템 메시지 없음.
 
 #### `POST /v1/channels/{channel_id}/members`
-- group_dm: 멤버 누구나(3.1 규칙), 비공개 text 채널: 3.5 규칙. 공개 text·dm 채널 → `409 conflict`(`reason:"not_supported"`).
+- `RL_SOCIAL`. group_dm: 멤버 누구나(3.1 규칙), 비공개 text 채널: 3.5 규칙. 공개 text·dm 채널 → `409 conflict`(`reason:"not_supported"`).
 - 요청: `{ "users": ["@hana"] }` (1..9)
 - `200 { "channel": Channel }` · 이벤트: `channel.member_added`(기존 멤버), `channel.created`(새 멤버) · 시스템 메시지 `group_member_added`(group_dm 만)
 - 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`, `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널).
