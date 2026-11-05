@@ -726,6 +726,7 @@ interface AdminAction {
 
 - 로그인·API·소켓 불가(`403 account_suspended`). 정지 순간 세션 폐기 + 소켓 `4003` 종료.
 - 다른 사람 화면: `UserSummary.suspended=true`. 정지 계정의 글·스토리·방명록 글은 피드·검색·트렌드에서 빠진다. 채팅 메시지는 남는다.
+- 남의 글에 박힌 정지 계정 글도 숨는다(REST·이벤트 공통): 인용은 `quote: { available:false, reason:"not_visible" }`, 정지 계정 글에 단 답글은 `reply_to_author: null`. 정지가 끝나면 다시 나온다.
 - 정지 중에는 그 계정이 행위자인 알림함 행(미리보기 포함)도 목록·`unread_count` 에서 빠진다(5.18). 정지가 끝나면(`suspended_until` 경과) 다시 보인다.
 - 사용자 목록(남의 팔로워·팔로잉, 글의 좋아요·리포스트 목록)에는 정지 계정이 `suspended=true` 로 남는다. 사용자 검색(5.2)에서는 빠진다.
 - 정지된 사용자에게는 DM·친구 요청·팔로우·초대 불가.
@@ -827,10 +828,10 @@ interface AdminAction {
 #### `GET /v1/users/{user}/posts?filter=posts|replies|media&cursor=&limit=`
 - 열람 규칙 3.4. `posts`(기본): 본인 최상위 글 + 인용 + 리포스트, `replies`: 답글만, `media`: 미디어 있는 글만.
 - `200 { "items": TimelineItem[], "next_cursor": string | null }`
-- 오류: `403 private_account`, `404`.
+- 오류: `403 private_account`, `404`(없는 사용자, 또는 정지 중인 계정 — 본인 외, 3.4 규칙 2·3.9).
 
 #### `GET /v1/users/{user}/followers?cursor=&limit=` / `GET /v1/users/{user}/following?cursor=&limit=`
-- `active` 관계만, 최신순. 비공개 계정은 3.3.
+- `active` 관계만, 최신순. 비공개 계정은 3.3. 정지 중인 계정의 목록은 본인 외 `404`(3.9).
 - `200 { "items": UserSummary[], "next_cursor": string | null }`
 
 ### 5.3 친구

@@ -220,3 +220,69 @@ describe("user lists keep a suspended member, flagged (decision: api.md 3.9 User
     expect((await V.get<any>(`/v1/users/search?q=${s.handle}`)).body.items).toEqual([]);
   });
 });
+
+describe("embedded quote / reply parent of a suspended author (serializePosts canSee, api.md 3.4 rule 2 / 3.9)", () => {
+  // serializePosts judges quoted and reply-parent authors itself, for REST (viewer) and event payloads (viewer null):
+  // a suspended one -> quote {available:false, reason:"not_visible"} and reply_to_author null, on every surface.
+  it("timeline, posts tab, post detail, search and timeline.item_created hide S's quoted post and S's name; back after expiry", async () => {
+    const [s, c, r, v, q, f] = await Promise.all([signup(), signup(), signup(), signup(), signup(), signup()]);
+    const tag = `sq${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
+    const sp = await createPost(s, "정지될 원글 본문");
+    const cq = await createPost(c, `quoting ${tag}`, { quote_of_id: sp.id });
+    const rr = await createPost(r, `replying ${tag}`, { reply_to_id: sp.id });
+    await follow(v, c);
+    await follow(f, q);
+    const V = api(v.token);
+
+    const surfaces = async (): Promise<{ quote: any[]; reply: any[]; raw: string }> => {
+      const tl = (await V.get<any>("/v1/timeline/following")).body;
+      const tab = (await V.get<any>(`/v1/users/@${c.handle}/posts`)).body;
+      const replies = (await V.get<any>(`/v1/users/@${r.handle}/posts?filter=replies`)).body;
+      const dq = (await V.get<any>(`/v1/posts/${cq.id}`)).body;
+      const dr = (await V.get<any>(`/v1/posts/${rr.id}`)).body;
+      const search = (await V.get<any>(`/v1/search/posts?q=${tag}`)).body;
+      const pick = (items: any[], id: string): any => items.find((i: any) => i.post.id === id)?.post;
+      return {
+        quote: [pick(tl.items, cq.id), pick(tab.items, cq.id), dq.post, pick(search.items, cq.id)].map((p) => p?.quote),
+        reply: [pick(replies.items, rr.id), dr.post, pick(search.items, rr.id)].map((p) => (p === undefined ? "missing" : p.reply_to_author?.id ?? null)),
+        raw: JSON.stringify([tl, tab, replies, dq, dr, search]),
+      };
+    };
+
+    const before = await surfaces();
+    for (const qt of before.quote) expect(qt).toMatchObject({ available: true, post: { id: sp.id, author: { id: s.user.id } } });
+    expect(before.reply).toEqual([s.user.id, s.user.id, s.user.id]);
+
+    await suspend(s, null);
+    const during = await surfaces();
+    for (const qt of during.quote) expect(qt).toEqual({ available: false, id: sp.id, reason: "not_visible" });
+    expect(during.reply).toEqual([null, null, null]);
+    expect(during.raw).not.toContain(s.user.id);
+    expect(during.raw).not.toContain(s.handle);
+    expect(during.raw).not.toContain("정지될");
+
+    // event payloads (serializePosts with viewer null): repost of the quote, repost of the reply, a fresh quote of the reply
+    const wf = await connectWs(f.token);
+    expect((await api(q.token).put(`/v1/posts/${cq.id}/repost`)).status).toBe(200);
+    const ev1 = (await wf.next("timeline.item_created", (d) => d.item.type === "repost" && d.item.post.id === cq.id)).data.item;
+    expect(ev1.post.quote).toEqual({ available: false, id: sp.id, reason: "not_visible" });
+    expect((await api(q.token).put(`/v1/posts/${rr.id}/repost`)).status).toBe(200);
+    const ev2 = (await wf.next("timeline.item_created", (d) => d.item.type === "repost" && d.item.post.id === rr.id)).data.item;
+    expect(ev2.post.reply_to_author).toBeNull();
+    const qr = await createPost(q, "quoting the reply", { quote_of_id: rr.id });
+    const ev3 = (await wf.next("timeline.item_created", (d) => d.item.post.id === qr.id)).data.item;
+    expect(ev3.post.quote).toMatchObject({ available: true, post: { id: rr.id, reply_to_author: null } });
+    const events = JSON.stringify([ev1, ev2, ev3]);
+    expect(events).not.toContain(s.user.id);
+    expect(events).not.toContain("정지될");
+    wf.close();
+
+    await suspend(s, Date.now() + 60_000); // timed, still running
+    expect((await surfaces()).reply).toEqual([null, null, null]);
+
+    await suspend(s, Date.now() - 1000); // expired: shown again
+    const after = await surfaces();
+    for (const qt of after.quote) expect(qt).toMatchObject({ available: true, post: { id: sp.id } });
+    expect(after.reply).toEqual([s.user.id, s.user.id, s.user.id]);
+  });
+});
