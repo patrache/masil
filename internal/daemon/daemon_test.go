@@ -461,3 +461,28 @@ func TestRunStatusFile(t *testing.T) {
 		t.Fatal("corrupt file must be an error")
 	}
 }
+
+// Two 4009 closes within 60s halt the realtime client for good (CA 4.4). The
+// daemon must notice, warn, and open a fresh client after a poll interval
+// instead of staying offline for the rest of the process's life.
+func TestRunReplacedTwiceReconnectsLater(t *testing.T) {
+	p, hub, logs := setupRun(t)
+	saveCreds(t, p, "http://localhost:8787", "msl_test_token_A")
+	waitDial(t, hub)
+	waitFor(t, func() bool { return len(hub.Resumes()) == 1 })
+	hub.CloseWith(4009) // first replacement: the client backs off and redials itself
+	waitDial(t, hub)
+	waitFor(t, func() bool { return len(hub.Resumes()) == 2 })
+	hub.CloseWith(4009) // second within 60s: the client halts
+	if d := waitDial(t, hub); d.Auth != "Bearer msl_test_token_A" {
+		t.Fatalf("redial %+v", d)
+	}
+	waitFor(t, func() bool { return len(hub.Resumes()) == 3 })
+	out := logs.String()
+	if !strings.Contains(out, `level=WARN msg="realtime stopped; reconnecting later" reason="realtime: replaced twice within 60s (4009)"`) {
+		t.Fatalf("missing stopped WARN:\n%s", out)
+	}
+	if strings.Contains(out, "msl_test_token_") {
+		t.Fatal("token leaked into log")
+	}
+}

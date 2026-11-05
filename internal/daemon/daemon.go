@@ -324,13 +324,26 @@ func (dm *daemon) session(ctx context.Context, creds *auth.Credentials, server s
 		}
 	}
 	h := newHandler(dm.notifier, pr, dm.desktop.Load, dm.o.Now, dm.d.after, mark, dm.log)
+	// halted is set when the client stops on its own for a reason that is not
+	// a rejection (two 4009 closes within 60s). Run then only waits for its
+	// ctx, so the session is cancelled here and the loop opens a new client
+	// after a poll interval. OnState runs on this goroutine (inside Run), so
+	// reading halted after Run returned needs no lock.
+	var halted error
+	onState := func(s realtime.State) {
+		pr.observe(s.TUIOnDevice)
+		if s.Phase == realtime.PhaseStopped && s.Err != nil && !isRejection(s.Err) && sctx.Err() == nil {
+			halted = s.Err
+			cancel()
+		}
+	}
 	client = realtime.New(realtime.Options{
 		API:      api.New(server, api.WithToken(creds.Token)),
 		DeviceID: dm.deviceID,
 		Mode:     realtime.ModeNotify,
 		Resume:   resumePoint(st, creds.UserID),
 		OnEvent:  h.onEvent,
-		OnState:  func(s realtime.State) { pr.observe(s.TUIOnDevice) },
+		OnState:  onState,
 		Logger:   dm.log,
 		Now:      dm.o.Now,
 		Dial:     dm.d.dial,
@@ -381,15 +394,16 @@ func (dm *daemon) session(ctx context.Context, creds *auth.Credentials, server s
 		return false, dm.restart()
 	case ctx.Err() != nil:
 		return false, nil
-	case errors.Is(runErr, realtime.ErrUnauthorized),
-		errors.Is(runErr, realtime.ErrSuspended),
-		errors.Is(runErr, realtime.ErrUpgradeRequired):
+	case isRejection(runErr):
 		dm.log.Warn("session rejected; waiting for new credentials", "reason", rejectReason(runErr), "token", creds.Redacted())
 		dm.rejectedToken = creds.Token
 		return true, nil
 	case runErr != nil:
 		dm.log.Error("unexpected realtime error", "err", runErr)
 		return false, nil
+	case halted != nil:
+		dm.log.Warn("realtime stopped; reconnecting later", "reason", halted.Error(), "retry_in", dm.o.PollCredentials.String())
+		return false, nil // loop pauses one poll interval, then opens a new client
 	}
 	return true, nil // the watcher ended the session: credentials or server changed
 }
@@ -424,6 +438,14 @@ func (dm *daemon) watch(sctx context.Context, cancel context.CancelFunc, creds *
 			return
 		}
 	}
+}
+
+// isRejection reports whether err is a terminal rejection of the credentials
+// or the client version: the daemon must not redial with the same token.
+func isRejection(err error) bool {
+	return errors.Is(err, realtime.ErrUnauthorized) ||
+		errors.Is(err, realtime.ErrSuspended) ||
+		errors.Is(err, realtime.ErrUpgradeRequired)
 }
 
 func rejectReason(err error) string {
