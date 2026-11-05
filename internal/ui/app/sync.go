@@ -254,6 +254,7 @@ func (m *Model) logout(reason string) tea.Cmd {
 	m.panes = map[layout.SlotID]*instance{}
 	m.nav = newNavState()
 	m.intent = FocusIntent{Slot: layout.SlotMain}
+	m.lastSpaceID = ""
 
 	r := ui.Route{Kind: ui.RouteLogin}
 	if notice := loginNotices[reason]; notice != "" {

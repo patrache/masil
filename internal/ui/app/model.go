@@ -121,6 +121,9 @@ type Model struct {
 	// Alerts (Task 31, alerts.go).
 	termFocused bool     // the last focus report was FocusMsg (meaningful once Caps.FocusReports)
 	summaries   []string // focus-summary alert ids opened in this process, oldest first (last 50)
+
+	// state.json (Task 32, state.go).
+	lastSpaceID string // space remembered from state.json (savedState falls back to it)
 }
 
 var _ tea.Model = (*Model)(nil)
@@ -206,9 +209,16 @@ func New(o Options) *Model {
 	}
 
 	m.bp = layout.FromConfig(cfg.Layout)
-	if pm, ok := layout.ParseMode(cfg.Layout.Pin); ok && pm != layout.ModeTooSmall {
-		m.pin = &pm
+	// ⑦ state.json (CA 3.5): restored only for the logged-in user; the start pin is
+	// state.pinned_mode (≠ auto) > config layout.pin (≠ auto) > none.
+	var saved *SavedState
+	if o.Credentials != nil {
+		if s, ok := readState(o.Paths, o.Credentials.UserID); ok {
+			saved = &s
+			m.restore(s)
+		}
 	}
+	m.pin = startPin(saved, cfg.Layout.Pin)
 	if o.Credentials == nil { // CA 5.4 start order: no credentials => the login screen
 		m.login = &ui.Route{Kind: ui.RouteLogin}
 	} else if o.InitialRoute != nil {

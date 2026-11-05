@@ -41,3 +41,13 @@ func SetSenderForTest(m *Model, send func(tea.Msg)) {
 func SetObserverForTest(m *Model, f func(tea.Msg)) {
 	m.observe = f
 }
+
+// WriteStateForTest writes m's state.json (what Run does on exit).
+func WriteStateForTest(m *Model) error {
+	return writeState(m.ctx.Paths, m.savedState())
+}
+
+// RunProgramForTest is Run with extra tea.ProgramOptions (input, output, size).
+func RunProgramForTest(ctx context.Context, o Options, opts ...tea.ProgramOption) error {
+	return runProgram(ctx, New(o), opts...)
+}
