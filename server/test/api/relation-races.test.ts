@@ -4,12 +4,12 @@
 // themselves must re-check, so these tests commit the block/suspension between the pre-check and the write (or run
 // the write statement directly with the block row in place) and assert nothing is written.
 import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../src/app";
 import type { Runtime } from "../../src/env";
 import { newId } from "../../src/lib/ids";
 import { insertDirectInvite } from "../../src/services/membership";
-import { applyBlock, follow, insertFriendRequest, makeFriends, unfriend } from "../../src/services/relations";
+import { applyBlock, follow, insertFriendRequest, makeFriends, removeBlock, unfriend } from "../../src/services/relations";
 import type { FriendRequestRow } from "../../src/types/rows";
 import { api, makeFriends as befriend, makeSpace, signup, uniqueIp, type TestUser } from "../helpers";
 
@@ -455,5 +455,239 @@ describe("direct invite insert: friendship / block / suspension are part of the 
     t = Date.now();
     const { row } = await insertDirectInvite(env.DB, spaceId, a.user.id, b.user.id, t, newId(t));
     expect(row).toMatchObject({ space_id: spaceId, inviter_id: a.user.id, invitee_id: b.user.id, status: "pending" });
+  });
+});
+
+// ---- the accept's later statements carry the rule themselves, not only statement 1 ----
+// Two accepts of the same request can share one now() (Date.now() in Workers only advances on I/O): both pre-reads see
+// it pending, X commits (accepted at t + friendship), a block commits (friendship deleted; the request is 'accepted',
+// so the cleanup leaves it), then Z runs with the same t. Z's statement 1 changes nothing, but the "accepted at t"
+// token its later statements gated on is still true — so those statements must check the block / suspension too.
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/**
+ * A Runtime whose D1 handle runs `before(realDb)` right before the first batch and `after(realDb)` right after it
+ * resolves (each once): a commit landing just before / just after the batch's transaction.
+ */
+function aroundFirstBatch(before: (db: D1Database) => Promise<unknown>, after: (db: D1Database) => Promise<unknown>) {
+  let fired = false;
+  const db = new Proxy(env.DB, {
+    get(target, key) {
+      if (key === "batch") {
+        return async (stmts: D1PreparedStatement[]) => {
+          if (fired) return target.batch(stmts);
+          fired = true;
+          await before(target);
+          const res = await target.batch(stmts);
+          await after(target);
+          return res;
+        };
+      }
+      const v = Reflect.get(target, key);
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  });
+  const rt: Runtime = { env: { ...env, DB: db }, waitUntil: () => {} };
+  return { rt, fired: () => fired };
+}
+
+/** A D1 handle that runs `after(realDb)` once, right after its first query of any kind (first/all/run/raw/batch) resolves. */
+function afterFirstQuery(after: (db: D1Database) => Promise<unknown>) {
+  let fired = false;
+  const once = async <T>(p: Promise<T>): Promise<T> => {
+    const res = await p;
+    if (!fired) {
+      fired = true;
+      await after(env.DB);
+    }
+    return res;
+  };
+  const real = new WeakMap<object, D1PreparedStatement>();
+  const wrapStmt = (s: D1PreparedStatement): D1PreparedStatement => {
+    const p = new Proxy(s, {
+      get(target, key) {
+        if (key === "bind") return (...args: unknown[]) => wrapStmt(target.bind(...args));
+        if (key === "first" || key === "all" || key === "run" || key === "raw") {
+          return (...args: unknown[]) => once((Reflect.get(target, key) as (...a: unknown[]) => Promise<unknown>).apply(target, args));
+        }
+        const v = Reflect.get(target, key);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    real.set(p, s);
+    return p;
+  };
+  const db = new Proxy(env.DB, {
+    get(target, key) {
+      if (key === "prepare") return (sql: string) => wrapStmt(target.prepare(sql));
+      // the real batch gets the real statements back (unwrapped)
+      if (key === "batch") return (stmts: D1PreparedStatement[]) => once(target.batch(stmts.map((x) => real.get(x) ?? x)));
+      const v = Reflect.get(target, key);
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  });
+  return { db, fired: () => fired };
+}
+
+describe("makeFriends: a same-ms second accept writes nothing across a block (the friendship INSERT / crossing UPDATE check it)", () => {
+  async function pendingRequestId(from: TestUser, to: TestUser): Promise<string> {
+    const r = await api(from.token).post<any>("/v1/friends/requests", { user: `@${to.handle}` });
+    expect(r.status).toBe(201);
+    return r.body.request.id;
+  }
+
+  /** Freezes Date.now() for the rest of the test (afterEach restores it). */
+  function freezeNow(): number {
+    const t = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockReturnValue(t);
+    return t;
+  }
+
+  async function blockCount(a: TestUser, b: TestUser): Promise<number> {
+    return (await env.DB.prepare("SELECT COUNT(*) AS n FROM blocks WHERE (blocker_id = ?1 AND blocked_id = ?2) OR (blocker_id = ?2 AND blocked_id = ?1)")
+      .bind(a.user.id, b.user.id)
+      .first<number>("n"))!;
+  }
+
+  it("X accepts at t, then the real block path, then Z (same t) -> Z 403, no friendship next to the block", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await pendingRequestId(a, b);
+    freezeNow();
+    // Z's pre-read (before its batch) saw the request pending; X and the block commit before Z's batch
+    const { rt, fired } = commitsBeforeFirstBatch(async () => {
+      await makeFriends(plainRt, b.user.id, a.user.id, id);
+      expect(await friendshipExists(a, b)).toBe(true);
+      await applyBlock(plainRt, a.user.id, b.user.id);
+      expect(await friendshipExists(a, b)).toBe(false);
+    });
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(fired()).toBe(true);
+    expect(await blockCount(a, b)).toBe(1);
+    expect(await friendshipExists(a, b)).toBe(false);
+    expect(await requestStatus(id)).toBe("accepted");
+  });
+
+  it("the friendships INSERT on its own: X at t, then a block row and the friendship gone -> Z inserts nothing", async () => {
+    for (const dir of ["sender blocks accepter", "accepter blocks sender"] as const) {
+      const [a, b] = await Promise.all([signup(), signup()]);
+      const id = await pendingRequestId(a, b);
+      freezeNow();
+      const { rt } = commitsBeforeFirstBatch(async (db) => {
+        await makeFriends(plainRt, b.user.id, a.user.id, id);
+        await (dir === "sender blocks accepter" ? insertBlock(db, a, b) : insertBlock(db, b, a));
+        await unfriend(plainRt, a.user.id, b.user.id);
+      });
+      await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+      expect(await friendshipExists(a, b)).toBe(false);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("the friendships INSERT on its own: X at t, then the sender suspended and the friendship gone -> Z inserts nothing", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await pendingRequestId(a, b);
+    freezeNow();
+    const { rt } = commitsBeforeFirstBatch(async (db) => {
+      await makeFriends(plainRt, b.user.id, a.user.id, id);
+      await suspend(db, a, null);
+      await unfriend(plainRt, a.user.id, b.user.id);
+    });
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(await friendshipExists(a, b)).toBe(false);
+  });
+
+  it("the crossing-request UPDATE on its own: X at t, then a block row and a pending b -> a request -> Z leaves it pending", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await pendingRequestId(a, b);
+    const t = freezeNow();
+    const crossing = newId(t);
+    const { rt } = commitsBeforeFirstBatch(async (db) => {
+      await makeFriends(plainRt, b.user.id, a.user.id, id);
+      await insertBlock(db, a, b);
+      // a pending row between the pair under the block (raw; the block cleanup / insert gate would not leave one)
+      await db
+        .prepare("INSERT INTO friend_requests (id, from_user_id, to_user_id, status, created_at) VALUES (?1, ?2, ?3, 'pending', ?4)")
+        .bind(crossing, b.user.id, a.user.id, t)
+        .run();
+    });
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(await requestStatus(crossing)).toBe("pending");
+  });
+
+  it("the crossing-request UPDATE on its own: the sender suspended after X -> Z leaves the crossing request pending", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await pendingRequestId(a, b);
+    const t = freezeNow();
+    const crossing = newId(t);
+    const { rt } = commitsBeforeFirstBatch(async (db) => {
+      await makeFriends(plainRt, b.user.id, a.user.id, id);
+      await suspend(db, a, null);
+      await db
+        .prepare("INSERT INTO friend_requests (id, from_user_id, to_user_id, status, created_at) VALUES (?1, ?2, ?3, 'pending', ?4)")
+        .bind(crossing, b.user.id, a.user.id, t)
+        .run();
+    });
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(await requestStatus(crossing)).toBe("pending");
+  });
+
+  it("no block, same-ms double accept -> the second is a 404 and the friendship stays (one row)", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await pendingRequestId(a, b);
+    freezeNow();
+    const { rt } = commitsBeforeFirstBatch(() => makeFriends(plainRt, b.user.id, a.user.id, id));
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject({ status: 404 });
+    expect(await friendshipExists(a, b)).toBe(true);
+  });
+});
+
+describe("the reason for a 0-row write is read in the write's own transaction (a lift right after it does not change the code)", () => {
+  it("insertFriendRequest: blocked at the INSERT, block lifted right after -> still 403 action_not_allowed, nothing written", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await insertBlock(env.DB, b, a);
+    const { db, fired } = afterFirstQuery(() => removeBlock(plainRt, b.user.id, a.user.id));
+    await expect(insertFriendRequest(db, requestRow(a, b), 100)).rejects.toMatchObject(forbidden);
+    expect(fired()).toBe(true);
+    expect(await pendingRequests(a, b)).toBe(0);
+  });
+
+  it("insertFriendRequest: target suspended at the INSERT, lifted right after -> still 403, nothing written", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await suspend(env.DB, b, null);
+    const { db, fired } = afterFirstQuery((real) => real.prepare("UPDATE users SET suspended_at = NULL, suspended_until = NULL WHERE id = ?1").bind(b.user.id).run());
+    await expect(insertFriendRequest(db, requestRow(a, b), 100)).rejects.toMatchObject(forbidden);
+    expect(fired()).toBe(true);
+    expect(await pendingRequests(a, b)).toBe(0);
+  });
+
+  it("makeFriends: a block landing before the batch and lifted right after it -> 403 (not 404), no friendship", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const r = await api(a.token).post<any>("/v1/friends/requests", { user: `@${b.handle}` });
+    const id: string = r.body.request.id;
+    const { rt, fired } = aroundFirstBatch(
+      (db) => insertBlock(db, a, b),
+      () => removeBlock(plainRt, a.user.id, b.user.id),
+    );
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(fired()).toBe(true);
+    expect(await friendshipExists(a, b)).toBe(false);
+    expect(await requestStatus(id)).toBe("pending");
+  });
+
+  it("makeFriends: the sender suspended before the batch and lifted right after it -> 403 (not 404), no friendship", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const r = await api(a.token).post<any>("/v1/friends/requests", { user: `@${b.handle}` });
+    const id: string = r.body.request.id;
+    const { rt, fired } = aroundFirstBatch(
+      (db) => suspend(db, a, null),
+      (db) => db.prepare("UPDATE users SET suspended_at = NULL, suspended_until = NULL WHERE id = ?1").bind(a.user.id).run(),
+    );
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(fired()).toBe(true);
+    expect(await friendshipExists(a, b)).toBe(false);
+    expect(await requestStatus(id)).toBe("pending");
   });
 });

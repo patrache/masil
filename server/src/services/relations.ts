@@ -12,12 +12,6 @@ import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "..
 import { now } from "../lib/time";
 import type { FollowRow, FriendRequestRow, FriendshipRow, UserRow } from "../types/rows";
 
-/** `userId` is suspended at `t` (isSuspendedNow on a fresh read; a missing user counts as not suspended). */
-async function isUserSuspendedNow(db: D1Database, userId: string, t: number): Promise<boolean> {
-  const u = await first<Pick<UserRow, "suspended_at" | "suspended_until">>(db, "SELECT suspended_at, suspended_until FROM users WHERE id = ?1", userId);
-  return u !== null && isSuspendedNow(u, t);
-}
-
 /** friendships keeps one row per pair with user_a < user_b (data-model.md). */
 function friendPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
@@ -30,8 +24,10 @@ function friendPair(a: string, b: string): [string, string] {
  * After commit: `friend.request_accepted{request}` + `friend.added{friend: accepter}` to the sender,
  * `friend.added{friend: sender}` to the accepter, inbox `friend_accepted` (no alert) to the sender.
  * 404 when the request is not (any longer) pending between a and b; 403 action_not_allowed when a block either way is
- * in place at the accept, or the sender (the accepter's other side) is suspended now (api.md 3.2 / 3.9) — both checked
- * inside the batch (pending item 10), so a block / suspension committing after the caller's pre-check writes nothing.
+ * in place at the accept, or the sender (the accepter's other side) is suspended now (api.md 3.2 / 3.9) — checked in
+ * every write statement of the batch (pending item 10), so a block / suspension committing after the caller's
+ * pre-check writes nothing, even for a second accept of the same request sharing the first one's now(). The 403 / 404
+ * choice is read in the same batch.
  */
 export async function makeFriends(rt: Runtime, a: string, b: string, requestId: string): Promise<void> {
   const db = rt.env.DB;
@@ -50,47 +46,59 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
   const [lo, hi] = friendPair(senderId, accepterId);
   const t = now();
 
-  const [accepted] = await batch(db, [
-    // The block / suspension rule is part of the accept (pending item 10): a block committing after the caller's
-    // pre-check either canceled the request (status guard) or, at least, is seen here, and so is the sender's
-    // suspension — and everything after is gated on this row.
+  // Every write statement carries the block / suspension rule itself (pending item 10). Statements 2 and 3 are also
+  // gated on "the request was accepted at t", but that token alone is not enough: two accepts of the same request can
+  // share t (Date.now() in Workers advances only on I/O), and a block committing between them deletes the friendship
+  // while leaving the already-accepted request alone — so the second accept's token is still true under the block.
+  const allowed = (sender: string, at: string) =>
+    `NOT ${blockedEitherSql("?1", "?2")} AND NOT ${suspendedNowSql(sender, at)}`;
+  const results = await batch(db, [
+    // ?1 sender, ?2 accepter, ?3 t, ?4 request id
     stmt(
       db,
-      `UPDATE friend_requests SET status = 'accepted', responded_at = ?2
-        WHERE id = ?1 AND status = 'pending' AND NOT ${blockedEitherSql("?3", "?4")} AND NOT ${suspendedNowSql("?3", "?2")}`,
-      requestId,
-      t,
+      `UPDATE friend_requests SET status = 'accepted', responded_at = ?3
+        WHERE id = ?4 AND status = 'pending' AND ${allowed("?1", "?3")}`,
       senderId,
       accepterId,
+      t,
+      requestId,
     ),
+    // ?1 lo, ?2 hi, ?3 t, ?4 request id, ?5 sender — crossing requests between the pair
     stmt(
       db,
       `UPDATE friend_requests SET status = 'accepted', responded_at = ?3
         WHERE status = 'pending' AND id <> ?4
           AND ((from_user_id = ?1 AND to_user_id = ?2) OR (from_user_id = ?2 AND to_user_id = ?1))
-          AND EXISTS (SELECT 1 FROM friend_requests r WHERE r.id = ?4 AND r.status = 'accepted' AND r.responded_at = ?3)`,
+          AND EXISTS (SELECT 1 FROM friend_requests r WHERE r.id = ?4 AND r.status = 'accepted' AND r.responded_at = ?3)
+          AND ${allowed("?5", "?3")}`,
       lo,
       hi,
       t,
       requestId,
+      senderId,
     ),
+    // same params as the crossing UPDATE
     stmt(
       db,
       `INSERT INTO friendships (user_a, user_b, created_at)
        SELECT ?1, ?2, ?3
         WHERE EXISTS (SELECT 1 FROM friend_requests r WHERE r.id = ?4 AND r.status = 'accepted' AND r.responded_at = ?3)
+          AND ${allowed("?5", "?3")}
        ON CONFLICT (user_a, user_b) DO NOTHING`,
       lo,
       hi,
       t,
       requestId,
+      senderId,
     ),
+    // why statement 1 may have written nothing, read inside the same transaction (a lift right after cannot change it)
+    stmt(db, `SELECT ${blockedEitherSql("?1", "?2")} AS blocked, ${suspendedNowSql("?1", "?3")} AS suspended`, senderId, accepterId, t),
   ]);
-  if (accepted!.meta.changes === 0) {
-    // a block landed after the pre-check (its cleanup may also have canceled the request) or the sender was suspended
+  if (results[0]!.meta.changes === 0) {
+    // a block landed after the pre-check (its cleanup may also have canceled the request) or the sender is suspended
     // -> 403 like the pre-check; otherwise the request was accepted / declined / canceled meanwhile -> 404
-    if (await isBlockedEither(db, senderId, accepterId)) throw err.forbidden("action_not_allowed");
-    if (await isUserSuspendedNow(db, senderId, t)) throw err.forbidden("action_not_allowed");
+    const why = (results[3]!.results as Array<{ blocked: number; suspended: number }>)[0];
+    if (why?.blocked || why?.suspended) throw err.forbidden("action_not_allowed");
     throw err.notFound("friend request");
   }
 
@@ -130,32 +138,37 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
  * suspension (pending item 10: the caller's pre-check is a plain read, and a block committing after it would leave a
  * pending request its cleanup is meant to cancel). When nothing went in: 403 action_not_allowed (blocked / target
  * suspended now), 409 already_exists `pending` (the sender already has one pending to this user), else 422
- * limit_exceeded `pending_friend_requests`.
+ * limit_exceeded `pending_friend_requests` — the reason read in the INSERT's own batch.
  */
 export async function insertFriendRequest(db: D1Database, row: FriendRequestRow, maxPending: number): Promise<void> {
-  const inserted = await first<{ id: string }>(
-    db,
-    `INSERT INTO friend_requests (id, from_user_id, to_user_id, status, created_at)
-     SELECT ?1, ?2, ?3, 'pending', ?4
-      WHERE (SELECT COUNT(*) FROM friend_requests WHERE from_user_id = ?2 AND status = 'pending') < ?5
-        AND NOT ${blockedEitherSql("?2", "?3")} AND NOT ${suspendedNowSql("?3", "?4")}
-     ON CONFLICT DO NOTHING
-     RETURNING id`,
-    row.id,
-    row.from_user_id,
-    row.to_user_id,
-    row.created_at,
-    maxPending,
-  );
-  if (inserted !== null) return;
-  const why = await first<{ blocked: number; suspended: number; dup: number }>(
-    db,
-    `SELECT ${blockedEitherSql("?1", "?2")} AS blocked, ${suspendedNowSql("?2", "?3")} AS suspended,
-            EXISTS (SELECT 1 FROM friend_requests WHERE from_user_id = ?1 AND to_user_id = ?2 AND status = 'pending') AS dup`,
-    row.from_user_id,
-    row.to_user_id,
-    row.created_at,
-  );
+  // The reason for a 0-row INSERT is read in the same batch (one transaction), so a block / suspension lifted right
+  // after it cannot turn the 403 into a 409 / 422.
+  const [ins, reason] = await batch(db, [
+    stmt(
+      db,
+      `INSERT INTO friend_requests (id, from_user_id, to_user_id, status, created_at)
+       SELECT ?1, ?2, ?3, 'pending', ?4
+        WHERE (SELECT COUNT(*) FROM friend_requests WHERE from_user_id = ?2 AND status = 'pending') < ?5
+          AND NOT ${blockedEitherSql("?2", "?3")} AND NOT ${suspendedNowSql("?3", "?4")}
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      row.id,
+      row.from_user_id,
+      row.to_user_id,
+      row.created_at,
+      maxPending,
+    ),
+    stmt(
+      db,
+      `SELECT ${blockedEitherSql("?1", "?2")} AS blocked, ${suspendedNowSql("?2", "?3")} AS suspended,
+              EXISTS (SELECT 1 FROM friend_requests WHERE from_user_id = ?1 AND to_user_id = ?2 AND status = 'pending') AS dup`,
+      row.from_user_id,
+      row.to_user_id,
+      row.created_at,
+    ),
+  ]);
+  if (ins!.results.length > 0) return;
+  const why = (reason!.results as Array<{ blocked: number; suspended: number; dup: number }>)[0];
   if (why?.blocked || why?.suspended) throw err.forbidden("action_not_allowed");
   if (why?.dup) throw err.conflict("already_exists", "pending");
   throw err.limit("pending_friend_requests", maxPending);
