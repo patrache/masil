@@ -462,10 +462,14 @@ func TestRunStatusFile(t *testing.T) {
 	}
 }
 
-// Two 4009 closes within 60s halt the realtime client for good (CA 4.4). The
-// daemon must notice, warn, and open a fresh client after a poll interval
-// instead of staying offline for the rest of the process's life.
-func TestRunReplacedTwiceReconnectsLater(t *testing.T) {
+// Two 4009 closes within 60s halt the realtime client for good (CA 4.4,
+// events.md 1.2). 4009 means "evicted: more than 10 connections", and the stop
+// rule is the brake on eviction storms, so the daemon must not redial on the
+// poll cadence (each redial would evict the user's oldest connection, maybe a
+// TUI on another device). It warns once — `masil daemon status` shows it under
+// 최근 경고 — and stays offline until the credentials or the server change (or
+// the process restarts), exactly like a rejection.
+func TestRunReplacedTwiceStaysOffline(t *testing.T) {
 	p, hub, logs := setupRun(t)
 	saveCreds(t, p, "http://localhost:8787", "msl_test_token_A")
 	waitDial(t, hub)
@@ -474,15 +478,19 @@ func TestRunReplacedTwiceReconnectsLater(t *testing.T) {
 	waitDial(t, hub)
 	waitFor(t, func() bool { return len(hub.Resumes()) == 2 })
 	hub.CloseWith(4009) // second within 60s: the client halts
-	if d := waitDial(t, hub); d.Auth != "Bearer msl_test_token_A" {
+	const warn = `level=WARN msg="realtime stopped; staying offline until credentials or server change" reason="realtime: replaced twice within 60s (4009)"`
+	waitFor(t, func() bool { return strings.Contains(logs.String(), warn) })
+	expectNoDial(t, hub, 400*time.Millisecond) // eight poll rounds: no redial
+	if n := strings.Count(logs.String(), "realtime stopped"); n != 1 {
+		t.Fatalf("want exactly one stopped WARN, got %d:\n%s", n, logs.String())
+	}
+
+	// A new login lifts the halt.
+	saveCreds(t, p, "http://localhost:8787", "msl_test_token_B")
+	if d := waitDial(t, hub); d.Auth != "Bearer msl_test_token_B" {
 		t.Fatalf("redial %+v", d)
 	}
-	waitFor(t, func() bool { return len(hub.Resumes()) == 3 })
-	out := logs.String()
-	if !strings.Contains(out, `level=WARN msg="realtime stopped; reconnecting later" reason="realtime: replaced twice within 60s (4009)"`) {
-		t.Fatalf("missing stopped WARN:\n%s", out)
-	}
-	if strings.Contains(out, "msl_test_token_") {
+	if strings.Contains(logs.String(), "msl_test_token_") {
 		t.Fatal("token leaked into log")
 	}
 }

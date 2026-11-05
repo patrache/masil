@@ -67,7 +67,7 @@ type daemon struct {
 	d        deps
 	p        config.Paths
 	log      *slog.Logger
-	notifier *notify.Notifier
+	notifier alertSink
 	deviceID string
 	xw       *exeWatch
 
@@ -79,6 +79,13 @@ type daemon struct {
 	lastStatus    *runStatus // last daemon-status.json written (UpdatedAt zeroed)
 	statusWarned  bool
 	rejectedToken string // never redial with this token (CA 9.2)
+	haltedKey     string // haltKey of a session the realtime client halted (4009 twice); never redial it
+}
+
+// haltKey identifies what a 4009 halt is tied to: the same token against the
+// same server. A new login or a different server lifts the halt.
+func haltKey(creds *auth.Credentials, server string) string {
+	return creds.Token + "\x00" + server
 }
 
 func run(ctx context.Context, o Options, d deps) error {
@@ -120,7 +127,7 @@ func run(ctx context.Context, o Options, d deps) error {
 	}
 	dm := &daemon{
 		o: o, d: d, p: p, log: o.Logger,
-		notifier: notify.New(o.Backend, notify.OpenLedger(p), o.Logger),
+		notifier: newLedgerSink(o.Backend, notify.OpenLedger(p), o.Logger),
 		deviceID: deviceID,
 		xw:       newExeWatch(d.exe),
 		cfg:      o.Config,
@@ -177,6 +184,8 @@ func (dm *daemon) loop(ctx context.Context) error {
 			}
 		case creds.Token == dm.rejectedToken:
 			dm.enterWait("rejected") // logged when the session was rejected
+		case haltKey(creds, server) == dm.haltedKey:
+			dm.enterWait("halted") // logged when the client halted
 		default:
 			dm.waitKey = ""
 			again, err := dm.session(ctx, creds, server)
@@ -326,9 +335,13 @@ func (dm *daemon) session(ctx context.Context, creds *auth.Credentials, server s
 	h := newHandler(dm.notifier, pr, dm.desktop.Load, dm.o.Now, dm.d.after, mark, dm.log)
 	// halted is set when the client stops on its own for a reason that is not
 	// a rejection (two 4009 closes within 60s). Run then only waits for its
-	// ctx, so the session is cancelled here and the loop opens a new client
-	// after a poll interval. OnState runs on this goroutine (inside Run), so
-	// reading halted after Run returned needs no lock.
+	// ctx, so the session is cancelled here. The daemon then treats it like a
+	// rejection for redial purposes (events.md 1.2/7, CA 4.4: the TUI does not
+	// keep redialing either): 4009 is an eviction for having more than 10
+	// connections, and redialing would evict the user's oldest one again. It
+	// stays offline until the credentials or server change, or the process
+	// restarts. OnState runs on this goroutine (inside Run), so reading halted
+	// after Run returned needs no lock.
 	var halted error
 	onState := func(s realtime.State) {
 		pr.observe(s.TUIOnDevice)
@@ -402,8 +415,9 @@ func (dm *daemon) session(ctx context.Context, creds *auth.Credentials, server s
 		dm.log.Error("unexpected realtime error", "err", runErr)
 		return false, nil
 	case halted != nil:
-		dm.log.Warn("realtime stopped; reconnecting later", "reason", halted.Error(), "retry_in", dm.o.PollCredentials.String())
-		return false, nil // loop pauses one poll interval, then opens a new client
+		dm.log.Warn("realtime stopped; staying offline until credentials or server change", "reason", halted.Error())
+		dm.haltedKey = haltKey(creds, server)
+		return true, nil // the loop waits in "halted" until the key changes
 	}
 	return true, nil // the watcher ended the session: credentials or server changed
 }
