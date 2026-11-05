@@ -14,8 +14,9 @@ import (
 	"github.com/patrache/masil/internal/ui"
 )
 
-// TUI alert handling (CA 9.1): every `alert` event goes through notify.Notifier.Handle
-// (OS popup, de-duplicated by the shared ledger); an alert whose target is not on
+// TUI alert handling (CA 9.1): every `alert` event goes through notify.Decide, and a
+// Popup through notify.Notifier.Show in a tea.Cmd (OS popup, de-duplicated by the
+// shared ledger); an alert whose target is not on
 // screen becomes a ToastAlert that opens the target route; alert{kind:focus_summary}
 // opens the focus-summary overlay (registered by sns-fun) instead, once per alert id.
 
@@ -63,13 +64,44 @@ func (m *Model) handleAlert(ev realtime.Event, a api.Alert) tea.Cmd {
 		TerminalFocused:    m.termFocused,
 		ViewingTarget:      viewing,
 	}
-	d, err := m.notifier.Handle(a, in)
-	if err != nil {
-		slog.Debug("os notification failed", "alert_id", a.ID, "kind", string(a.Kind), "err", err)
-	}
+	// Decide stays synchronous (the toast and focus-summary rules need it); the
+	// ledger flock + write and the OS notifier run in a Cmd, off Update.
+	d := notify.Decide(a, in)
 	if d == notify.Skip {
 		return nil
 	}
+	var show tea.Cmd
+	if d == notify.Popup {
+		show = m.showOS(a)
+	}
+	return tea.Batch(show, m.alertUI(ev, a, viewing, now))
+}
+
+// osShownMsg is the result of showOS.
+type osShownMsg struct {
+	alertID string
+	kind    api.AlertKind
+	err     error
+}
+
+// showOS is notify.Notifier.Show (ledger.MarkIfNew + backend.Show) as a Cmd.
+func (m *Model) showOS(a api.Alert) tea.Cmd {
+	n := m.notifier
+	return func() tea.Msg {
+		return osShownMsg{alertID: a.ID, kind: a.Kind, err: n.Show(a)}
+	}
+}
+
+// onOSShown logs a failed OS notification (titles and bodies are never logged).
+func onOSShown(msg osShownMsg) {
+	if msg.err != nil {
+		slog.Debug("os notification failed", "alert_id", msg.alertID, "kind", string(msg.kind), "err", msg.err)
+	}
+}
+
+// alertUI is the in-app part of an alert that was not skipped: the focus-summary
+// overlay or a ToastAlert when the target is not on screen.
+func (m *Model) alertUI(ev realtime.Event, a api.Alert, viewing bool, now time.Time) tea.Cmd {
 	if a.Kind == api.AlertFocusSummary {
 		if m.summaryOpened(a.ID) { // already shown in this process (replay)
 			return nil

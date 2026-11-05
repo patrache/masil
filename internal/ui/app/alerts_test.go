@@ -370,3 +370,42 @@ func TestFocusSummaryUnregisteredFallsBackToToast(t *testing.T) {
 		t.Fatalf("unregistered: want a ToastAlert\n%s", h.Screen())
 	}
 }
+
+// The ledger flock (up to 2s), its atomic write and the OS notifier (osascript
+// on darwin) run inside a tea.Cmd, never on the Update goroutine.
+func TestAlertOSNotificationOffUpdate(t *testing.T) {
+	h := uitest.New(t)
+	a := mentionAlert("ALCMD", fixtures.ChGeneral, h.Clock().Now())
+	raw, err := json.Marshal(map[string]any{"alert": a})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seq := int64(1)
+	_, cmd := h.Model.Update(ui.EventMsg{Event: realtime.Event{Type: "alert", Seq: &seq, TS: h.Clock().Now(), Data: raw}})
+	if len(h.Notify.Shown) != 0 {
+		t.Fatal("Update showed the OS notification itself; it must return a Cmd")
+	}
+	if cmd == nil {
+		t.Fatal("no Cmd for a popup alert")
+	}
+	var run func(c tea.Cmd)
+	run = func(c tea.Cmd) {
+		if c == nil {
+			return
+		}
+		switch msg := c().(type) {
+		case tea.BatchMsg:
+			for _, c := range msg {
+				run(c)
+			}
+		default:
+			if msg != nil {
+				h.Send(msg) // e.g. the result msg, logged by Update
+			}
+		}
+	}
+	run(cmd)
+	if len(h.Notify.Shown) != 1 || h.Notify.Shown[0].AlertID != "ALCMD" {
+		t.Fatalf("OS notifications after the Cmd = %+v, want ALCMD once", h.Notify.Shown)
+	}
+}

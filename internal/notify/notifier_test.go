@@ -130,3 +130,21 @@ func TestOSBackend(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestNotifierShowIsThePopupHalf(t *testing.T) {
+	p := newPaths(t)
+	rec := &notify.Recorder{}
+	n := notify.New(rec, notify.OpenLedger(p), nil)
+	a := api.Alert{ID: "SH1", Kind: api.AlertDM, Title: "민지", Body: "안녕", CreatedAt: now}
+	for i := 0; i < 2; i++ {
+		if err := n.Show(a); err != nil {
+			t.Fatalf("Show #%d: %v", i, err)
+		}
+	}
+	if len(rec.Shown) != 1 {
+		t.Fatalf("shown %d, want 1 (ledger de-dupes)", len(rec.Shown))
+	}
+	if d, err := n.Handle(a, tuiInput()); err != nil || d != notify.Popup || len(rec.Shown) != 1 {
+		t.Fatalf("Handle after Show = %v, %v, shown %d", d, err, len(rec.Shown))
+	}
+}

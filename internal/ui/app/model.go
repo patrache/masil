@@ -342,6 +342,9 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onBootstrapDone(msg)
 	case bootstrapRetryMsg:
 		return m, m.onBootstrapRetry(msg)
+	case osShownMsg:
+		onOSShown(msg)
+		return m, nil
 	case idleMsg:
 		m.onIdle(msg)
 		return m, nil

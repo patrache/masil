@@ -1,6 +1,10 @@
 package notify
 
-import "github.com/gen2brain/beeep"
+import (
+	"sync"
+
+	"github.com/gen2brain/beeep"
+)
 
 // Backend shows OS notifications.
 type Backend interface {
@@ -20,13 +24,17 @@ func (osBackend) Show(n OSNotification) error {
 	return beeep.Notify(n.Title, n.Body, "")
 }
 
-// Recorder is a test backend that records every notification.
+// Recorder is a test backend that records every notification. Show may be
+// called from several goroutines (TUI tea.Cmds); read Shown once they are done.
 type Recorder struct {
+	mu    sync.Mutex
 	Shown []OSNotification
 }
 
 // Show records n.
 func (r *Recorder) Show(n OSNotification) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.Shown = append(r.Shown, n)
 	return nil
 }

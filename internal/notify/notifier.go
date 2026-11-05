@@ -21,15 +21,23 @@ func New(b Backend, l *Ledger, log *slog.Logger) *Notifier {
 	return &Notifier{backend: b, ledger: l, log: log}
 }
 
-// Handle runs Decide; if Popup => ledger.MarkIfNew; only new => backend.Show.
-// The returned error is a display (backend) failure only. A ledger failure
-// still shows (a duplicate is better than a miss, CA 3.7) and is logged as a
-// warning. Titles and bodies are never logged.
+// Handle runs Decide; if Popup => Show (ledger.MarkIfNew; only new => backend.Show).
+// The returned error is a display (backend) failure only. Titles and bodies are
+// never logged.
 func (n *Notifier) Handle(a api.Alert, in Input) (Decision, error) {
 	d := Decide(a, in)
 	if d != Popup {
 		return d, nil
 	}
+	return d, n.Show(a)
+}
+
+// Show is the Popup half of Handle: ledger.MarkIfNew, and backend.Show only when
+// the alert is new. It blocks on file I/O (up to the 2s ledger lock wait) and on
+// the OS notifier, so the TUI runs it inside a tea.Cmd after a synchronous Decide.
+// The returned error is a display (backend) failure only: a ledger failure still
+// shows (a duplicate is better than a miss, CA 3.7) and is logged as a warning.
+func (n *Notifier) Show(a api.Alert) error {
 	isNew := true
 	if n.ledger != nil {
 		var err error
@@ -39,7 +47,7 @@ func (n *Notifier) Handle(a api.Alert, in Input) (Decision, error) {
 		}
 	}
 	if !isNew || n.backend == nil {
-		return d, nil
+		return nil
 	}
-	return d, n.backend.Show(Format(a))
+	return n.backend.Show(Format(a))
 }

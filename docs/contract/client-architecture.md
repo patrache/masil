@@ -1213,7 +1213,8 @@ func Format(a api.Alert) OSNotification      // title/body sanitized: control ch
 
 type Notifier struct{ /* backend + ledger + logger */ }
 func New(b Backend, l *Ledger, log *slog.Logger) *Notifier
-func (n *Notifier) Handle(a api.Alert, in Input) (Decision, error) // Decide; if Popup => ledger.MarkIfNew; only new => backend.Show
+func (n *Notifier) Handle(a api.Alert, in Input) (Decision, error) // Decide; if Popup => Show
+func (n *Notifier) Show(a api.Alert) error                         // ledger.MarkIfNew; only new => backend.Show (blocking I/O: the TUI runs it in a tea.Cmd)
 ```
 
 `Decide` 규칙(순서대로, events.md 4.7·7장):
@@ -2267,7 +2268,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 ### 9.1 TUI
 
-- `alert` 이벤트마다 `notify.Notifier.Handle(alert, Input{Role: RoleTUI, Replayed, DesktopEnabled: cfg.notify.desktop, TerminalFocusKnown: caps.FocusReports, TerminalFocused, ViewingTarget})`.
+- `alert` 이벤트마다 `notify.Decide(alert, Input{Role: RoleTUI, Replayed, DesktopEnabled: cfg.notify.desktop, TerminalFocusKnown: caps.FocusReports, TerminalFocused, ViewingTarget})` 를 Update 안에서 바로 하고(토스트·집중 요약 판단에 필요), 결과가 `Popup` 이면 `Notifier.Show(alert)`(원장 flock 최대 2초 대기·원자적 쓰기·OS 알림 실행)를 **`tea.Cmd` 안에서** 돌린다 — Update 고루틴을 막지 않는다. 실패는 결과 메시지에서 로그로만 남긴다.
 - `ViewingTarget` = alert 의 `target.channel_id`(스레드면 `thread_root_id`) 가 현재 보이는 `ChannelViewer`/스레드 경로이거나, `post_id` 가 보이는 글.
 - 결과가 `Silent` 또는 `Popup` 이면 알림 패널(`Store.Alerts`)에 넣고, 대상이 화면에 안 보이면 `ToastAlert` 토스트(4초, 클릭·`enter` 시 대상 경로로 이동).
 - **집중 요약 [결정]**: 요약 오버레이의 **유일한 트리거**는 `alert{kind:"focus_summary"}` 다. 앱(core `ui/app`)은 그 alert 에 대해 토스트 대신 `ui.OpenRegisteredOverlay(ui.OverlayFocusSummary, alert.ID)` 를 낸다(오버레이는 sns-fun `ui/fun` 이 등록, 5.3.6 — core 는 import 하지 않는다). 조건: `Decide` 결과가 `Skip` 이 아니고, `!(Replayed && now - created_at > 10분)`, 그리고 **이 프로세스에서 같은 `alert.id` 로 연 적이 없음**(앱이 연 id 집합을 최근 50개 기억). 미등록이면 무시(오버레이 대신 일반 `ToastAlert`).
