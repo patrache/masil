@@ -12,6 +12,7 @@ import { channelRoutes } from "./routes/channels";
 import { dmRoutes } from "./routes/dms";
 import { followRoutes } from "./routes/follows";
 import { friendRoutes } from "./routes/friends";
+import { guestbookRoutes } from "./routes/guestbook";
 import { inviteRoutes } from "./routes/invites";
 import { meRoutes } from "./routes/me";
 import { messageRoutes } from "./routes/messages";
@@ -126,6 +127,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", storyRoutes);
   app.route("/v1", notificationRoutes);
   app.route("/v1", pollRoutes);
+  app.route("/v1", guestbookRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }

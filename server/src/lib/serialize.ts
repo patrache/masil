@@ -9,6 +9,7 @@ import type {
   Focus,
   Friend,
   FriendRequest,
+  GuestbookEntry,
   Invite,
   InvitePreview,
   Me,
@@ -43,6 +44,7 @@ import type {
   ChannelPrefsRow,
   ChannelRow,
   FriendRequestRow,
+  GuestbookRow,
   MessageRow,
   NotificationRow,
   PollOptionRow,
@@ -1182,6 +1184,39 @@ export async function serializeStories(db: D1Database, viewerId: string, rows: S
         expires_at: iso(r.expires_at),
         seen: own || seen.has(r.id),
         view_count: own ? (counts.get(r.id) ?? 0) : null,
+      },
+    ];
+  });
+}
+
+/**
+ * GuestbookEntry list (api.md 4.9 / 5.20) in input order. Author summaries in one query (authors of entries the viewer
+ * cannot read are left out). A secret entry viewed by anyone but the owner or its author is `hidden`: author null and
+ * body "" (is_secret stays true so the client can show a placeholder); a deleted entry has body "". Rows whose author
+ * no longer exists are dropped. List filtering (deleted, suspended authors, blocks) is the caller's SQL.
+ */
+export async function serializeGuestbook(db: D1Database, viewerId: string, rows: GuestbookRow[]): Promise<GuestbookEntry[]> {
+  if (rows.length === 0) return [];
+  const isHidden = (r: GuestbookRow): boolean => r.is_secret === 1 && viewerId !== r.owner_id && viewerId !== r.author_id;
+  const authors = await loadUserSummaries(
+    db,
+    rows.filter((r) => !isHidden(r)).map((r) => r.author_id),
+  );
+  return rows.flatMap((r): GuestbookEntry[] => {
+    const hidden = isHidden(r);
+    const author = hidden ? null : authors.get(r.author_id);
+    if (author === undefined) return [];
+    const deleted = r.deleted_at !== null;
+    return [
+      {
+        id: r.id,
+        owner_id: r.owner_id,
+        author,
+        body: hidden || deleted ? "" : r.body,
+        is_secret: r.is_secret === 1,
+        hidden,
+        created_at: iso(r.created_at),
+        deleted,
       },
     ];
   });
