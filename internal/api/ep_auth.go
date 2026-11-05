@@ -15,8 +15,8 @@ func (c *Client) Meta(ctx context.Context) (*MetaInfo, error) {
 
 // Health: GET /v1/health
 func (c *Client) Health(ctx context.Context) error {
-	// TODO(core): Task 10
-	return nil
+	_, err := c.call(ctx, request{Method: "GET", Path: "/v1/health"}, nil)
+	return err
 }
 
 type SignupRequest struct {
@@ -59,20 +59,19 @@ func (c *Client) Login(ctx context.Context, r LoginRequest) (*AuthResult, error)
 
 // Logout: POST /v1/auth/logout
 func (c *Client) Logout(ctx context.Context) error {
-	// TODO(core): Task 10
-	return nil
+	_, err := c.call(ctx, request{Method: "POST", Path: "/v1/auth/logout", Auth: true}, nil)
+	return err
 }
 
 // ListSessions: GET /v1/auth/sessions
 func (c *Client) ListSessions(ctx context.Context) ([]Session, error) {
-	// TODO(core): Task 10
-	return nil, nil
+	return list[Session](ctx, c, request{Method: "GET", Path: "/v1/auth/sessions", Auth: true})
 }
 
 // RevokeSession: DELETE /v1/auth/sessions/{id}
 func (c *Client) RevokeSession(ctx context.Context, sessionID string) error {
-	// TODO(core): Task 10
-	return nil
+	_, err := c.call(ctx, request{Method: "DELETE", Path: escPath("v1", "auth", "sessions", sessionID), Auth: true}, nil)
+	return err
 }
 
 // ChangePassword: POST /v1/auth/password
