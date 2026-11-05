@@ -5,9 +5,10 @@ import { Hono } from "hono";
 import * as z from "zod";
 import type { AppEnv } from "../env";
 import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
-import { all, parseLimit } from "../lib/db";
+import { all, decodeCursor, encodeCursor, parseLimit } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId } from "../lib/ids";
+import { canViewUserContent } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { loadUserSummaries, serializeProfile, toUserSummary } from "../lib/serialize";
 import { now } from "../lib/time";
@@ -20,6 +21,7 @@ const SEARCH_LIMIT_MAX = 20;
 
 const SearchQuery = z.object({ q: zText(1, 100), limit: z.string().optional() });
 const IdsQuery = z.object({ ids: z.string() });
+const PageQuery = z.object({ cursor: z.string().optional(), limit: z.string().optional() });
 
 /** Escapes LIKE wildcards for `... LIKE ? ESCAPE '\'`. */
 function likeEscape(s: string): string {
@@ -80,3 +82,50 @@ userRoutes.get("/users/:user", requireAuth, async (c) => {
   const row = await resolveUserRef(c.env.DB, c.req.param("user"), auth);
   return c.json({ user: await serializeProfile(c.env.DB, auth.userId, row) });
 });
+
+/**
+ * GET /users/:user/followers | /following (api.md 5.2, 3.3): `active` rows only, newest accepted first
+ * (cursor {k: accepted_at, i: user_id}). Block either way with the owner -> 404; private owner and I am neither the
+ * owner nor an active follower -> 403 private_account. Users in a block relation with me are left out of the list.
+ */
+function followListRoute(side: "followers" | "following") {
+  // followers of X: rows followee_id = X, listing follower_id; following of X: rows follower_id = X, listing followee_id
+  const ownerCol = side === "followers" ? "followee_id" : "follower_id";
+  const otherCol = side === "followers" ? "follower_id" : "followee_id";
+  userRoutes.get(`/users/:user/${side}`, requireAuth, vQuery(PageQuery), async (c) => {
+    const auth = getAuth(c);
+    const db = c.env.DB;
+    const owner = await resolveUserRef(db, c.req.param("user"), auth);
+    const access = await canViewUserContent(db, auth.userId, owner.id);
+    if (access === "hidden") throw err.notFound("user");
+    if (access === "private") throw err.forbidden("private_account");
+    const q = c.req.valid("query");
+    const n = parseLimit(q.limit, 30, 100);
+    const cur = decodeCursor(q.cursor);
+    if (cur !== null && typeof cur.k !== "number") throw err.invalid({ cursor: "invalid" });
+    const rows = await all<{ user_id: string; k: number }>(
+      db,
+      `SELECT f.${otherCol} AS user_id, COALESCE(f.accepted_at, f.created_at) AS k
+         FROM follows f
+        WHERE f.${ownerCol} = ?1 AND f.status = 'active'
+          AND NOT EXISTS (SELECT 1 FROM blocks b
+                           WHERE (b.blocker_id = ?2 AND b.blocked_id = f.${otherCol}) OR (b.blocker_id = f.${otherCol} AND b.blocked_id = ?2))
+          AND (?3 IS NULL OR COALESCE(f.accepted_at, f.created_at) < ?3
+               OR (COALESCE(f.accepted_at, f.created_at) = ?3 AND f.${otherCol} < ?4))
+        ORDER BY k DESC, user_id DESC
+        LIMIT ?5`,
+      owner.id,
+      auth.userId,
+      cur?.k ?? null,
+      cur?.i ?? null,
+      n + 1,
+    );
+    const page = rows.slice(0, n);
+    const users = await loadUserSummaries(db, page.map((r) => r.user_id));
+    const last = page[page.length - 1];
+    const next_cursor = rows.length > n && last ? encodeCursor({ k: last.k, i: last.user_id }) : null;
+    return c.json({ items: page.flatMap((r) => users.get(r.user_id) ?? []), next_cursor });
+  });
+}
+followListRoute("followers");
+followListRoute("following");

@@ -10,6 +10,7 @@ import { authRoutes } from "./routes/auth";
 import { blockRoutes } from "./routes/blocks";
 import { channelRoutes } from "./routes/channels";
 import { dmRoutes } from "./routes/dms";
+import { followRoutes } from "./routes/follows";
 import { friendRoutes } from "./routes/friends";
 import { inviteRoutes } from "./routes/invites";
 import { meRoutes } from "./routes/me";
@@ -108,6 +109,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", userRoutes);
   app.route("/v1", friendRoutes);
   app.route("/v1", blockRoutes);
+  app.route("/v1", followRoutes);
   app.route("/v1", dmRoutes);
   app.route("/v1", spaceRoutes);
   app.route("/v1", inviteRoutes);

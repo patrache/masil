@@ -4,11 +4,13 @@
 import type { Runtime } from "../env";
 import { batch, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
+import { isSuspendedNow } from "../lib/auth";
 import { notify, notifyMany } from "../lib/notify";
+import { isBlockedEither } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "../lib/serialize";
 import { now } from "../lib/time";
-import type { FriendRequestRow, FriendshipRow } from "../types/rows";
+import type { FollowRow, FriendRequestRow, FriendshipRow, UserRow } from "../types/rows";
 
 /** friendships keeps one row per pair with user_a < user_b (data-model.md). */
 function friendPair(a: string, b: string): [string, string] {
@@ -225,4 +227,70 @@ export async function approveAllPendingFollows(rt: Runtime, userId: string): Pro
       },
     })),
   );
+}
+
+/** Desktop-alert target pointing at a user profile. */
+function userTarget(id: string) {
+  return { type: "user" as const, id, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null };
+}
+
+/**
+ * `followerId` follows `followeeId` (api.md 5.5). Self -> 409 conflict `self`; followee suspended or a block either
+ * way -> 403 action_not_allowed; an existing row (active or pending) is returned as is, with no notification.
+ * A new row is `pending` for a private followee, else `active` (accepted_at = now). The status is decided inside the
+ * batch from the followee's current is_private, and the counter statements come before the INSERT, guarded so they
+ * move only when this batch really inserts an active row (data-model 7: counters count active rows only).
+ * After commit: inbox `follow` (dedupe `follow:<followee>:<follower>`) or `follow_request`
+ * (dedupe `follow_request:<followee>:<follower>`), alert kind `social`.
+ */
+export async function follow(rt: Runtime, followerId: string, followeeId: string): Promise<"active" | "pending"> {
+  const db = rt.env.DB;
+  if (followerId === followeeId) throw err.conflict("conflict", "self");
+  const t = now();
+  const followee = await first<UserRow>(db, "SELECT * FROM users WHERE id = ?1", followeeId);
+  if (followee === null) throw err.notFound("user");
+  if (isSuspendedNow(followee, t) || (await isBlockedEither(db, followerId, followeeId))) throw err.forbidden("action_not_allowed");
+
+  const existing = await first<Pick<FollowRow, "status">>(db, "SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = ?2", followerId, followeeId);
+  if (existing !== null) return existing.status;
+
+  // "No row for the pair yet" covers the active guard (NOT EXISTS ... status='active') and also keeps the counters
+  // still when a concurrent request already inserted a row this INSERT will skip.
+  const willInsertActive = `EXISTS (SELECT 1 FROM users fe WHERE fe.id = ?2 AND fe.is_private = 0)
+    AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ?1 AND followee_id = ?2)`;
+  const results = await batch(db, [
+    stmt(db, `UPDATE users SET following_count = following_count + 1 WHERE id = ?1 AND ${willInsertActive}`, followerId, followeeId),
+    stmt(db, `UPDATE users SET follower_count = follower_count + 1 WHERE id = ?2 AND ${willInsertActive}`, followerId, followeeId),
+    stmt(
+      db,
+      `INSERT INTO follows (follower_id, followee_id, status, created_at, accepted_at)
+       SELECT ?1, ?2, CASE WHEN u.is_private = 1 THEN 'pending' ELSE 'active' END, ?3, CASE WHEN u.is_private = 1 THEN NULL ELSE ?3 END
+         FROM users u WHERE u.id = ?2
+       ON CONFLICT (follower_id, followee_id) DO NOTHING
+       RETURNING status`,
+      followerId,
+      followeeId,
+      t,
+    ),
+  ]);
+  const inserted = (results[2]!.results as Array<Pick<FollowRow, "status">>)[0];
+  if (inserted === undefined) {
+    // lost a race with a concurrent follow of the same pair: report what is there now
+    const current = await first<Pick<FollowRow, "status">>(db, "SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = ?2", followerId, followeeId);
+    if (current === null) throw err.forbidden("action_not_allowed"); // removed meanwhile (e.g. a block)
+    return current.status;
+  }
+
+  const name = (await loadUserSummaries(db, [followerId])).get(followerId)?.display_name ?? "";
+  const active = inserted.status === "active";
+  await notify(rt, {
+    userId: followeeId,
+    type: active ? "follow" : "follow_request",
+    actorId: followerId,
+    subject: { type: "user", id: followerId },
+    preview: "",
+    dedupeKey: `${active ? "follow" : "follow_request"}:${followeeId}:${followerId}`,
+    alert: { kind: "social", title: active ? `${name} 님이 팔로우했어요` : `${name} 님의 팔로우 요청`, body: "", target: userTarget(followerId) },
+  });
+  return inserted.status;
 }
