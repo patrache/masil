@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import * as P from "../../src/lib/permissions";
 import { newId } from "../../src/lib/ids";
 import type { PostRow } from "../../src/types/rows";
-import { signup, type TestUser } from "../helpers";
+import { api, makeFriends, signup, type TestUser } from "../helpers";
 
 // ---- local fixtures (this file only): seed relations with raw SQL ----
 
@@ -248,5 +248,15 @@ describe("rules", () => {
     await env.DB.prepare("UPDATE spaces SET deleted_at=? WHERE id=?").bind(Date.now(), s).run();
     expect([...(await P.presenceVisible(env.DB, b.user.id, [a.user.id, c.user.id, e.user.id]))].sort()).toEqual([a.user.id, c.user.id].sort());
     expect((await P.presenceVisible(env.DB, a.user.id, [e.user.id])).size).toBe(0);
+  });
+});
+
+describe("dm api", () => {
+  it("unfriend turns 1:1 dm read-only (send -> 403 read_only)", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await makeFriends(a, b);
+    const d = (await api(a.token).post<any>("/v1/dms", { users: [`@${b.handle}`] })).body.channel;
+    await api(a.token).del(`/v1/friends/@${b.handle}`);
+    expect((await api(a.token).get<any>(`/v1/channels/${d.id}`)).body.channel).toMatchObject({ read_only: true, read_only_reason: "not_eligible" });
   });
 });

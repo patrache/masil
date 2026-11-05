@@ -8,6 +8,8 @@ import { newId } from "./lib/ids";
 import { clientVersionGate } from "./lib/version";
 import { authRoutes } from "./routes/auth";
 import { blockRoutes } from "./routes/blocks";
+import { channelRoutes } from "./routes/channels";
+import { dmRoutes } from "./routes/dms";
 import { friendRoutes } from "./routes/friends";
 import { meRoutes } from "./routes/me";
 import { metaRoutes } from "./routes/meta";
@@ -92,6 +94,8 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", userRoutes);
   app.route("/v1", friendRoutes);
   app.route("/v1", blockRoutes);
+  app.route("/v1", dmRoutes);
+  app.route("/v1", channelRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }
