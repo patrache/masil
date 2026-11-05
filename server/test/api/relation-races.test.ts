@@ -3,14 +3,15 @@
 // pending friend requests both ways, follows both ways, pending direct invites both ways). The write statements
 // themselves must re-check, so these tests commit the block/suspension between the pre-check and the write (or run
 // the write statement directly with the block row in place) and assert nothing is written.
-import { env } from "cloudflare:test";
+import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { createApp } from "../../src/app";
 import type { Runtime } from "../../src/env";
 import { newId } from "../../src/lib/ids";
 import { insertDirectInvite } from "../../src/services/membership";
-import { applyBlock, follow, insertFriendRequest, makeFriends } from "../../src/services/relations";
+import { applyBlock, follow, insertFriendRequest, makeFriends, unfriend } from "../../src/services/relations";
 import type { FriendRequestRow } from "../../src/types/rows";
-import { api, makeFriends as befriend, makeSpace, signup, type TestUser } from "../helpers";
+import { api, makeFriends as befriend, makeSpace, signup, uniqueIp, type TestUser } from "../helpers";
 
 // ---- local fixtures (this file only) ----
 
@@ -36,6 +37,31 @@ function commitsBeforeFirstBatch(before: (db: D1Database) => Promise<unknown>) {
   });
   const rt: Runtime = { env: { ...env, DB: db }, waitUntil: () => {} };
   return { rt, fired: () => fired };
+}
+
+/**
+ * One request through a fresh app whose env.DB is `db` (e.g. commitsBeforeFirstBatch's): the route's pre-checks are
+ * plain reads, so the hook lands between them and the route's write batch. Background work is awaited.
+ */
+async function fetchWith(db: D1Database, token: string, method: string, path: string, json?: unknown): Promise<{ status: number; body: any }> {
+  const ctx = createExecutionContext();
+  const res = await createApp().fetch(
+    new Request(`http://masil.test${path}`, {
+      method,
+      headers: {
+        "User-Agent": "masil/0.1.0 (test; test)",
+        "CF-Connecting-IP": uniqueIp(),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: json === undefined ? undefined : JSON.stringify(json),
+    }),
+    { ...env, DB: db } as typeof env,
+    ctx,
+  );
+  await waitOnExecutionContext(ctx);
+  const text = await res.text();
+  return { status: res.status, body: text === "" ? null : JSON.parse(text) };
 }
 
 function insertBlock(db: D1Database, blocker: TestUser, blocked: TestUser): Promise<unknown> {
@@ -242,6 +268,120 @@ describe("makeFriends: no friendship across a block committed after the pre-chec
     await makeFriends(plainRt, b.user.id, a.user.id, id);
     expect(await friendshipExists(a, b)).toBe(true);
   });
+
+  it("the sender suspended right before the accept batch -> 403 action_not_allowed, no friendship, request untouched", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await pendingRequestId(a, b);
+    const { rt, fired } = commitsBeforeFirstBatch((db) => suspend(db, a, null));
+    await expect(makeFriends(rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(fired()).toBe(true);
+    expect(await friendshipExists(a, b)).toBe(false);
+    expect(await requestStatus(id)).toBe("pending");
+  });
+
+  it("a timed suspension still running refuses; one already over (until <= now) does not", async () => {
+    const [a, b, c] = await Promise.all([signup(), signup(), signup()]);
+    const id = await pendingRequestId(a, b);
+    const running = commitsBeforeFirstBatch((db) => suspend(db, a, Date.now() + 3_600_000));
+    await expect(makeFriends(running.rt, b.user.id, a.user.id, id)).rejects.toMatchObject(forbidden);
+    expect(await friendshipExists(a, b)).toBe(false);
+    const id2 = await pendingRequestId(c, b);
+    await suspend(env.DB, c, Date.now() - 1);
+    await makeFriends(plainRt, b.user.id, c.user.id, id2);
+    expect(await friendshipExists(b, c)).toBe(true);
+  });
+});
+
+async function requestStatus(id: string): Promise<string | undefined> {
+  return (await env.DB.prepare("SELECT status FROM friend_requests WHERE id = ?1").bind(id).first<{ status: string }>())?.status;
+}
+
+async function requestCount(a: TestUser, b: TestUser): Promise<number> {
+  const r = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM friend_requests WHERE (from_user_id = ?1 AND to_user_id = ?2) OR (from_user_id = ?2 AND to_user_id = ?1)",
+  )
+    .bind(a.user.id, b.user.id)
+    .first<{ n: number }>();
+  return r!.n;
+}
+
+describe("POST /v1/friends/requests crossing auto-accept: block / suspension landing after the route's pre-check", () => {
+  /** a -> b pending; returns its id. */
+  async function aToB(a: TestUser, b: TestUser): Promise<string> {
+    const r = await api(a.token).post<any>("/v1/friends/requests", { user: `@${b.handle}` });
+    expect(r.status).toBe(201);
+    return r.body.request.id;
+  }
+
+  const races: Array<[string, (db: D1Database, a: TestUser, b: TestUser) => Promise<unknown>, string]> = [
+    ["the other side (the request's sender) suspended", (db, a) => suspend(db, a, null), "pending"],
+    ["a block row (sender blocks me)", (db, a, b) => insertBlock(db, a, b), "pending"],
+    ["a block row (I block the sender)", (db, a, b) => insertBlock(db, b, a), "pending"],
+    ["the real block path (cleanup cancels the request)", (_db, a, b) => applyBlock(plainRt, a.user.id, b.user.id), "canceled"],
+  ];
+  for (const [what, land, status] of races) {
+    it(`${what} -> 403 action_not_allowed, no friendship, no second request`, async () => {
+      const [a, b] = await Promise.all([signup(), signup()]);
+      const id = await aToB(a, b);
+      const { rt, fired } = commitsBeforeFirstBatch((db) => land(db, a, b));
+      const r = await fetchWith(rt.env.DB, b.token, "POST", "/v1/friends/requests", { user: `@${a.handle}` });
+      expect(fired()).toBe(true);
+      expect(r).toMatchObject({ status: 403, body: { error: { code: "action_not_allowed" } } });
+      expect(await friendshipExists(a, b)).toBe(false);
+      expect(await requestStatus(id)).toBe(status);
+      expect(await requestCount(a, b)).toBe(1);
+    });
+  }
+
+  it("nothing lands in between -> 200 auto-accept, friends", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await aToB(a, b);
+    const { rt, fired } = commitsBeforeFirstBatch(async () => {});
+    const r = await fetchWith(rt.env.DB, b.token, "POST", "/v1/friends/requests", { user: `@${a.handle}` });
+    expect(fired()).toBe(true);
+    expect(r.status).toBe(200);
+    expect(r.body.request).toMatchObject({ id, status: "accepted" });
+    expect(await friendshipExists(a, b)).toBe(true);
+  });
+});
+
+describe("POST /v1/friends/requests/{id}/accept: the sender's suspension (api.md 3.2 / 3.9 / 5.3)", () => {
+  async function aToB(a: TestUser, b: TestUser): Promise<string> {
+    const r = await api(a.token).post<any>("/v1/friends/requests", { user: `@${b.handle}` });
+    expect(r.status).toBe(201);
+    return r.body.request.id;
+  }
+
+  it("the sender already suspended -> 403 action_not_allowed (pre-check), no friendship, request still pending", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await aToB(a, b);
+    await suspend(env.DB, a, null);
+    const r = await api(b.token).post<any>(`/v1/friends/requests/${id}/accept`);
+    expect(r.status).toBe(403);
+    expect(r.body.error.code).toBe("action_not_allowed");
+    expect(await friendshipExists(a, b)).toBe(false);
+    expect(await requestStatus(id)).toBe("pending");
+  });
+
+  it("the sender suspended after the pre-check, before the accept batch -> 403, no friendship", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await aToB(a, b);
+    const { rt, fired } = commitsBeforeFirstBatch((db) => suspend(db, a, null));
+    const r = await fetchWith(rt.env.DB, b.token, "POST", `/v1/friends/requests/${id}/accept`);
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "action_not_allowed" } } });
+    expect(await friendshipExists(a, b)).toBe(false);
+    expect(await requestStatus(id)).toBe("pending");
+  });
+
+  it("a suspension already over (until <= now) -> 200, friends", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await aToB(a, b);
+    await suspend(env.DB, a, Date.now() - 1);
+    const r = await api(b.token).post<any>(`/v1/friends/requests/${id}/accept`);
+    expect(r.status).toBe(200);
+    expect(await friendshipExists(a, b)).toBe(true);
+  });
 });
 
 // ---- direct space invites ----
@@ -277,6 +417,25 @@ describe("direct invite insert: friendship / block / suspension are part of the 
     const t = Date.now();
     await expect(insertDirectInvite(env.DB, spaceId, a.user.id, b.user.id, t, newId(t))).rejects.toMatchObject(forbidden);
     expect(await invites(spaceId, b)).toBe(0);
+  });
+
+  it("only the friendship gone (unfriended, no block row) -> 403, nothing written", async () => {
+    const { a, b, spaceId } = await setup();
+    await unfriend(plainRt, a.user.id, b.user.id);
+    const t = Date.now();
+    await expect(insertDirectInvite(env.DB, spaceId, a.user.id, b.user.id, t, newId(t))).rejects.toMatchObject(forbidden);
+    expect(await invites(spaceId, b)).toBe(0);
+  });
+
+  it("through the API: an unfriend (no block) committed after the route's pre-check -> 403, nothing written", async () => {
+    const { a, b, spaceId } = await setup();
+    const { rt, fired } = commitsBeforeFirstBatch(() => unfriend(plainRt, b.user.id, a.user.id));
+    const r = await fetchWith(rt.env.DB, a.token, "POST", `/v1/spaces/${spaceId}/direct-invites`, { user: `@${b.handle}` });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "action_not_allowed" } } });
+    expect(await invites(spaceId, b)).toBe(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM blocks WHERE blocker_id IN (?1, ?2)").bind(a.user.id, b.user.id).first("n")).toBe(0);
+    expect((await api(b.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
   });
 
   it("the invitee suspended now -> 403, nothing written", async () => {

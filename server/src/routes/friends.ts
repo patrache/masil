@@ -15,7 +15,7 @@ import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "..
 import { now } from "../lib/time";
 import { vJson, vQuery, zUserRef } from "../lib/validate";
 import { insertFriendRequest, makeFriends, unfriend } from "../services/relations";
-import type { FriendRequestRow } from "../types/rows";
+import type { FriendRequestRow, UserRow } from "../types/rows";
 
 const PENDING_OUTGOING_MAX = 100; // api.md 5.3: 422 limit_exceeded pending_friend_requests
 const REQUEST_LIST_MAX = 200;
@@ -177,7 +177,16 @@ friendRoutes.post("/friends/requests/:request_id/accept", requireAuth, async (c)
   const id = requestIdParam(c.req.param("request_id"));
   const req = await first<FriendRequestRow>(db, "SELECT * FROM friend_requests WHERE id = ?1 AND to_user_id = ?2 AND status = 'pending'", id, me);
   if (req === null) throw err.notFound("friend request");
-  if (await isBlockedEither(db, me, req.from_user_id)) throw err.forbidden("action_not_allowed");
+  // api.md 3.2 / 3.9: no friendship across a block either way or with a sender suspended now (makeFriends re-checks
+  // both inside its batch)
+  const sender = await first<Pick<UserRow, "suspended_at" | "suspended_until">>(
+    db,
+    "SELECT suspended_at, suspended_until FROM users WHERE id = ?1",
+    req.from_user_id,
+  );
+  if ((sender !== null && isSuspendedNow(sender, now())) || (await isBlockedEither(db, me, req.from_user_id))) {
+    throw err.forbidden("action_not_allowed");
+  }
   await makeFriends(rt(c), me, req.from_user_id, id);
   return c.json({ friend: await friendOf(db, me, req.from_user_id) });
 });

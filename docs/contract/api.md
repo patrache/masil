@@ -852,14 +852,14 @@ interface AdminAction {
 #### `POST /v1/friends/requests`
 - `RL_SOCIAL`. 요청: `{ "user": "@junho" }`
 - 결과:
-  - 상대가 이미 나에게 대기 요청을 보냈으면 **자동 수락**: `200 { "request": FriendRequest(status:"accepted"), "friend": Friend }`
+  - 상대가 이미 나에게 대기 요청을 보냈으면 **자동 수락**: `200 { "request": FriendRequest(status:"accepted"), "friend": Friend }` — 수락과 같은 규칙(차단·상대 정지를 수락 batch 안에서도 다시 확인, 3.2)
   - 아니면 `201 { "request": FriendRequest, "friend": null }`
 - 오류: `409 already_exists`(이미 대기/이미 친구 — `details.reason:"pending"|"already_friends"`), `403 action_not_allowed`(차단/정지), `409 conflict`(`reason:"self"`), `422 limit_exceeded`(`pending_friend_requests`, 보낸 대기 100).
 - 이벤트·알림: 받는 사람에게 `friend.request_received` + 알림 `friend_request` + alert `friend_request`.
 
 #### `POST /v1/friends/requests/{request_id}/accept`
 - 받는 사람만. `200 { "friend": Friend }` · 이벤트: `friend.request_accepted`(보낸 사람), `friend.added`(양쪽) · 알림 `friend_accepted`(보낸 사람)
-- 오류: `404`(대기 중이 아님), `403 action_not_allowed`(어느 방향이든 차단 — 수락 batch 안에서도 다시 확인, 3.2)
+- 오류: `404`(대기 중이 아님), `403 action_not_allowed`(어느 방향이든 차단·보낸 사람 정지(3.9) — 수락 batch 안에서도 다시 확인, 3.2. 사전 확인 뒤 batch 전에 차단·정지가 끼어들어도 같고, 친구 관계는 만들어지지 않음)
 
 #### `POST /v1/friends/requests/{request_id}/decline`
 - 받는 사람만. `204` · 이벤트: `friend.request_removed`(양쪽, `reason:"declined"`). 보낸 사람에게 알림 없음.

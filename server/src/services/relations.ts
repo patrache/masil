@@ -12,6 +12,12 @@ import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "..
 import { now } from "../lib/time";
 import type { FollowRow, FriendRequestRow, FriendshipRow, UserRow } from "../types/rows";
 
+/** `userId` is suspended at `t` (isSuspendedNow on a fresh read; a missing user counts as not suspended). */
+async function isUserSuspendedNow(db: D1Database, userId: string, t: number): Promise<boolean> {
+  const u = await first<Pick<UserRow, "suspended_at" | "suspended_until">>(db, "SELECT suspended_at, suspended_until FROM users WHERE id = ?1", userId);
+  return u !== null && isSuspendedNow(u, t);
+}
+
 /** friendships keeps one row per pair with user_a < user_b (data-model.md). */
 function friendPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
@@ -24,7 +30,8 @@ function friendPair(a: string, b: string): [string, string] {
  * After commit: `friend.request_accepted{request}` + `friend.added{friend: accepter}` to the sender,
  * `friend.added{friend: sender}` to the accepter, inbox `friend_accepted` (no alert) to the sender.
  * 404 when the request is not (any longer) pending between a and b; 403 action_not_allowed when a block either way is
- * in place at the accept (checked inside the batch — pending item 10).
+ * in place at the accept, or the sender (the accepter's other side) is suspended now (api.md 3.2 / 3.9) — both checked
+ * inside the batch (pending item 10), so a block / suspension committing after the caller's pre-check writes nothing.
  */
 export async function makeFriends(rt: Runtime, a: string, b: string, requestId: string): Promise<void> {
   const db = rt.env.DB;
@@ -44,12 +51,13 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
   const t = now();
 
   const [accepted] = await batch(db, [
-    // The block rule is part of the accept (pending item 10): a block committing after the caller's pre-check either
-    // canceled the request (status guard) or, at least, is seen here — and everything after is gated on this row.
+    // The block / suspension rule is part of the accept (pending item 10): a block committing after the caller's
+    // pre-check either canceled the request (status guard) or, at least, is seen here, and so is the sender's
+    // suspension — and everything after is gated on this row.
     stmt(
       db,
       `UPDATE friend_requests SET status = 'accepted', responded_at = ?2
-        WHERE id = ?1 AND status = 'pending' AND NOT ${blockedEitherSql("?3", "?4")}`,
+        WHERE id = ?1 AND status = 'pending' AND NOT ${blockedEitherSql("?3", "?4")} AND NOT ${suspendedNowSql("?3", "?2")}`,
       requestId,
       t,
       senderId,
@@ -79,9 +87,10 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
     ),
   ]);
   if (accepted!.meta.changes === 0) {
-    // a block landed after the pre-check (its cleanup may also have canceled the request) -> 403 like the pre-check;
-    // otherwise the request was accepted / declined / canceled meanwhile -> 404
+    // a block landed after the pre-check (its cleanup may also have canceled the request) or the sender was suspended
+    // -> 403 like the pre-check; otherwise the request was accepted / declined / canceled meanwhile -> 404
     if (await isBlockedEither(db, senderId, accepterId)) throw err.forbidden("action_not_allowed");
+    if (await isUserSuspendedNow(db, senderId, t)) throw err.forbidden("action_not_allowed");
     throw err.notFound("friend request");
   }
 
