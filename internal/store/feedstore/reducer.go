@@ -67,7 +67,12 @@ func (f *FeedStore) itemCreated(s *store.Store, it api.TimelineItem) {
 		return
 	}
 	f.observeEventPost(it.Post)
-	w := f.Timeline(KindFollowing)
+	upsertTimelineItem(f.Timeline(KindFollowing), it)
+}
+
+// upsertTimelineItem inserts it; a repost replaces older repost items of the
+// same post (api.md 5.16: most recent only).
+func upsertTimelineItem(w *store.Window[api.TimelineItem], it api.TimelineItem) {
 	if it.Type == "repost" {
 		for _, old := range w.Items() {
 			if old.Type == "repost" && old.Post.ID == it.Post.ID && old.ID != it.ID {

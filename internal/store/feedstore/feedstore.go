@@ -46,6 +46,12 @@ type FeedStore struct {
 	discoverNew  int
 	open         map[string]bool
 	openPosts    []string // "post:<id>" keys, oldest first (at most maxOpenPosts)
+
+	// Resync result bookkeeping (resync.go). seq survives Reset so results
+	// issued before a Reset can be told apart and dropped.
+	seq          uint64          // last Seq handed out by Resync
+	appliedMark  uint64          // every Seq <= appliedMark is applied or void
+	appliedAbove map[uint64]bool // applied Seqs > appliedMark
 }
 
 func newFeedStore() *FeedStore {
@@ -83,6 +89,8 @@ func (f *FeedStore) clear() {
 	f.discoverNew = 0
 	f.open = map[string]bool{}
 	f.openPosts = nil
+	f.appliedMark = f.seq // results of fetches issued before now are void
+	f.appliedAbove = map[uint64]bool{}
 }
 
 // Get returns the store's FeedStore (s.Reducer("feed")).
