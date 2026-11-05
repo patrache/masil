@@ -1,0 +1,26 @@
+{
+  "id": "01JP0000000000000000000001",
+  "context_type": "message",
+  "context_id": "01JC0000000000000000000003",
+  "creator_id": "01JA0000000000000000000001",
+  "question": "점심 메뉴",
+  "multi": false,
+  "options": [
+    {
+      "idx": 0,
+      "text": "국밥",
+      "vote_count": 2
+    },
+    {
+      "idx": 1,
+      "text": "돈까스",
+      "vote_count": 1
+    }
+  ],
+  "voter_count": 3,
+  "closes_at": "2026-11-05T03:00:00.000Z",
+  "closed": false,
+  "my_votes": [
+    0
+  ]
+}

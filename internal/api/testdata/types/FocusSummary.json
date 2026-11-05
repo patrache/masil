@@ -1,0 +1,45 @@
+{
+  "started_at": "2026-11-05T02:03:04.567Z",
+  "ended_at": "2026-11-05T03:00:00.000Z",
+  "counts": {
+    "dm": 2,
+    "mention": 3,
+    "thread_reply": 1,
+    "invite": 0,
+    "friend_request": 1,
+    "other": 4
+  },
+  "items": [
+    {
+      "id": "01JL0000000000000000000001",
+      "kind": "mention",
+      "title": "민지 · #개발",
+      "body": "@junho 점심 먹고 ㄱㄱ",
+      "actor": {
+        "id": "01JA0000000000000000000001",
+        "handle": "minji",
+        "display_name": "민지",
+        "avatar_url": "/v1/media/01JU0000000000000000000001",
+        "status": {
+          "emoji": "🎧",
+          "text": "듣는 중…",
+          "expires_at": "2026-11-05T03:00:00.000Z"
+        },
+        "is_private": false,
+        "suspended": false
+      },
+      "target": {
+        "type": "message",
+        "id": "01JC0000000000000000000003",
+        "channel_id": "01JB0000000000000000000001",
+        "message_id": "01JC0000000000000000000003",
+        "thread_root_id": "01JC0000000000000000000001",
+        "post_id": "01JE0000000000000000000002",
+        "space_id": "01JS0000000000000000000001"
+      },
+      "created_at": "2026-11-05T02:03:04.567Z",
+      "suppressed": true,
+      "suppressed_reason": "focus"
+    }
+  ]
+}

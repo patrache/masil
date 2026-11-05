@@ -1,0 +1,11 @@
+{
+  "id": "01JS0000000000000000000001",
+  "name": "노바 개발방",
+  "description": "개발 이야기",
+  "icon_emoji": "🚀",
+  "member_count": 12,
+  "owner_id": "01JA0000000000000000000001",
+  "default_channel_id": "01JB0000000000000000000001",
+  "created_at": "2026-11-05T02:03:04.567Z",
+  "my_role": "admin"
+}

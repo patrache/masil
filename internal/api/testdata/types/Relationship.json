@@ -1,0 +1,15 @@
+{
+  "is_friend": true,
+  "friend_request": {
+    "id": "01JF0000000000000000000001",
+    "direction": "incoming"
+  },
+  "following": "active",
+  "followed_by": "pending",
+  "blocked": false,
+  "can_dm": true,
+  "can_view_posts": true,
+  "shared_space_ids": [
+    "01JS0000000000000000000001"
+  ]
+}

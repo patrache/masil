@@ -1,0 +1,190 @@
+{
+  "root": {
+    "id": "01JC0000000000000000000003",
+    "channel_id": "01JB0000000000000000000001",
+    "author": {
+      "id": "01JA0000000000000000000001",
+      "handle": "minji",
+      "display_name": "민지",
+      "avatar_url": "/v1/media/01JU0000000000000000000001",
+      "status": {
+        "emoji": "🎧",
+        "text": "듣는 중…",
+        "expires_at": "2026-11-05T03:00:00.000Z"
+      },
+      "is_private": false,
+      "suspended": false
+    },
+    "kind": "poll",
+    "body": "@junho 점심 먹고 ㄱㄱ",
+    "mentions": [
+      {
+        "user_id": "01JA0000000000000000000002",
+        "handle": "junho"
+      }
+    ],
+    "mention_here": true,
+    "thread_root_id": "01JC0000000000000000000001",
+    "thread": {
+      "reply_count": 3,
+      "last_reply_at": "2026-11-05T02:03:04.567Z",
+      "participant_ids": [
+        "01JA0000000000000000000001",
+        "01JA0000000000000000000002"
+      ]
+    },
+    "reactions": [
+      {
+        "emoji": "👍",
+        "count": 2,
+        "me": true
+      }
+    ],
+    "pinned": true,
+    "poll": {
+      "id": "01JP0000000000000000000001",
+      "context_type": "message",
+      "context_id": "01JC0000000000000000000003",
+      "creator_id": "01JA0000000000000000000001",
+      "question": "점심 메뉴",
+      "multi": false,
+      "options": [
+        {
+          "idx": 0,
+          "text": "국밥",
+          "vote_count": 2
+        },
+        {
+          "idx": 1,
+          "text": "돈까스",
+          "vote_count": 1
+        }
+      ],
+      "voter_count": 3,
+      "closes_at": "2026-11-05T03:00:00.000Z",
+      "closed": false,
+      "my_votes": [
+        0
+      ]
+    },
+    "roll": {
+      "expr": "2d6+1",
+      "rolls": [
+        3,
+        5
+      ],
+      "modifier": 1,
+      "total": 9
+    },
+    "system": {
+      "event": "channel_renamed",
+      "actor_id": "01JA0000000000000000000001",
+      "target_user_id": "01JA0000000000000000000002",
+      "data": {
+        "name": "개발",
+        "topic": "배포 이야기",
+        "message_id": "01JC0000000000000000000001"
+      }
+    },
+    "client_nonce": "01JC9X0000000000000000000A",
+    "created_at": "2026-11-05T02:03:04.567Z",
+    "edited_at": "2026-11-05T03:00:00.000Z",
+    "deleted": false
+  },
+  "items": [
+    {
+      "id": "01JC0000000000000000000003",
+      "channel_id": "01JB0000000000000000000001",
+      "author": {
+        "id": "01JA0000000000000000000001",
+        "handle": "minji",
+        "display_name": "민지",
+        "avatar_url": "/v1/media/01JU0000000000000000000001",
+        "status": {
+          "emoji": "🎧",
+          "text": "듣는 중…",
+          "expires_at": "2026-11-05T03:00:00.000Z"
+        },
+        "is_private": false,
+        "suspended": false
+      },
+      "kind": "poll",
+      "body": "@junho 점심 먹고 ㄱㄱ",
+      "mentions": [
+        {
+          "user_id": "01JA0000000000000000000002",
+          "handle": "junho"
+        }
+      ],
+      "mention_here": true,
+      "thread_root_id": "01JC0000000000000000000001",
+      "thread": {
+        "reply_count": 3,
+        "last_reply_at": "2026-11-05T02:03:04.567Z",
+        "participant_ids": [
+          "01JA0000000000000000000001",
+          "01JA0000000000000000000002"
+        ]
+      },
+      "reactions": [
+        {
+          "emoji": "👍",
+          "count": 2,
+          "me": true
+        }
+      ],
+      "pinned": true,
+      "poll": {
+        "id": "01JP0000000000000000000001",
+        "context_type": "message",
+        "context_id": "01JC0000000000000000000003",
+        "creator_id": "01JA0000000000000000000001",
+        "question": "점심 메뉴",
+        "multi": false,
+        "options": [
+          {
+            "idx": 0,
+            "text": "국밥",
+            "vote_count": 2
+          },
+          {
+            "idx": 1,
+            "text": "돈까스",
+            "vote_count": 1
+          }
+        ],
+        "voter_count": 3,
+        "closes_at": "2026-11-05T03:00:00.000Z",
+        "closed": false,
+        "my_votes": [
+          0
+        ]
+      },
+      "roll": {
+        "expr": "2d6+1",
+        "rolls": [
+          3,
+          5
+        ],
+        "modifier": 1,
+        "total": 9
+      },
+      "system": {
+        "event": "channel_renamed",
+        "actor_id": "01JA0000000000000000000001",
+        "target_user_id": "01JA0000000000000000000002",
+        "data": {
+          "name": "개발",
+          "topic": "배포 이야기",
+          "message_id": "01JC0000000000000000000001"
+        }
+      },
+      "client_nonce": "01JC9X0000000000000000000A",
+      "created_at": "2026-11-05T02:03:04.567Z",
+      "edited_at": "2026-11-05T03:00:00.000Z",
+      "deleted": false
+    }
+  ],
+  "has_more_before": false,
+  "has_more_after": true
+}

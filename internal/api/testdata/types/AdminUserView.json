@@ -1,0 +1,19 @@
+{
+  "id": "01JA0000000000000000000001",
+  "handle": "minji",
+  "display_name": "민지",
+  "avatar_url": "/v1/media/01JU0000000000000000000001",
+  "status": {
+    "emoji": "🎧",
+    "text": "듣는 중…",
+    "expires_at": "2026-11-05T03:00:00.000Z"
+  },
+  "is_private": false,
+  "suspended": false,
+  "role": "admin",
+  "created_at": "2026-11-05T02:03:04.567Z",
+  "suspended_at": "2026-11-05T02:03:04.567Z",
+  "suspended_until": "2026-11-05T03:00:00.000Z",
+  "suspend_reason": "spam",
+  "open_report_count": 2
+}

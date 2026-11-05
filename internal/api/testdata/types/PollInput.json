@@ -1,0 +1,9 @@
+{
+  "question": "점심 메뉴",
+  "options": [
+    "국밥",
+    "돈까스"
+  ],
+  "multi": true,
+  "duration_sec": 3600
+}

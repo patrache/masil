@@ -1,0 +1,13 @@
+{
+  "dm_policy": "friends_and_spaces",
+  "is_private": false,
+  "notify": {
+    "dm": true,
+    "mention": true,
+    "invite": true,
+    "friend_request": true,
+    "thread_reply": true,
+    "social": false
+  },
+  "focus_default_min": 25
+}
