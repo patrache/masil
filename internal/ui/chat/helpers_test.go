@@ -11,12 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/exp/golden"
+
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 )
@@ -298,6 +302,111 @@ func forEachSize(t *testing.T, sizes []uitest.Size, mk func(t *testing.T, sz uit
 			fn(t, mk(t, sz))
 		})
 	}
+}
+
+// bootstrappedSeed is fixtures.Seed plus Sync.Bootstrapped (Seed does not promise
+// it; "the channel is gone" notices rely on it).
+func bootstrappedSeed(s *store.Store) {
+	fixtures.Seed(s)
+	s.Sync.Bootstrapped = true
+}
+
+// devChannel opens the #개발 channel on the bootstrapped fixture seed.
+func devChannel(t *testing.T, sz uitest.Size) *uitest.Harness {
+	t.Helper()
+	return open(t, sz, ui.Route{Kind: ui.RouteChannel, ID: chanID(t, seeded(), "개발")}, uitest.WithSeed(bootstrappedSeed))
+}
+
+// hostileOpen opens the hostile channel on the fixture seed plus fixtures.Hostile.
+func hostileOpen(t *testing.T, sz uitest.Size) *uitest.Harness {
+	t.Helper()
+	s := seeded()
+	fixtures.Hostile(s)
+	seed := func(s *store.Store) {
+		bootstrappedSeed(s)
+		fixtures.Hostile(s)
+	}
+	return open(t, sz, ui.Route{Kind: ui.RouteChannel, ID: hostileChannel(t, s)}, uitest.WithSeed(seed))
+}
+
+// top is the top route of the active tab's stack.
+func top(h *uitest.Harness) ui.Route {
+	nav := h.Nav()
+	if nav.Active < 0 || nav.Active >= len(nav.Tabs) || len(nav.Tabs[nav.Active].Stack) == 0 {
+		return ui.Route{}
+	}
+	st := nav.Tabs[nav.Active].Stack
+	return st[len(st)-1]
+}
+
+// cropRect cuts r out of a plain screen (cell columns via ansi.Cut), one string per row.
+func cropRect(screen string, r layout.Rect) []string {
+	lines := strings.Split(screen, "\n")
+	var out []string
+	for y := r.Y; y < r.Y+r.H; y++ {
+		if y < 0 || y >= len(lines) {
+			out = append(out, "")
+			continue
+		}
+		out = append(out, ansi.Cut(lines[y], r.X, r.X+r.W))
+	}
+	return out
+}
+
+// columnText is the rows of screen inside r, joined by newlines.
+func columnText(screen string, r layout.Rect) string {
+	return strings.Join(cropRect(screen, r), "\n")
+}
+
+// mustContainInOrder fails unless s contains every sub, in this order.
+func mustContainInOrder(t testing.TB, s string, subs ...string) {
+	t.Helper()
+	rest := s
+	for _, sub := range subs {
+		i := strings.Index(rest, sub)
+		if i < 0 {
+			t.Fatalf("%q not found (in order %q) in:\n%s", sub, subs, s)
+		}
+		rest = rest[i+len(sub):]
+	}
+}
+
+// paneGolden checks the whole shell (h.Check), then stores only the slot's OUTER
+// rect (border included) as testdata/<Test>/<WxH>/<name>.golden — "(no pane)"
+// when this size has no such slot — so changes around the pane never touch it.
+func paneGolden(t *testing.T, h *uitest.Harness, slot layout.SlotID, name string) {
+	t.Helper()
+	h.Check()
+	t.Run(name, func(t *testing.T) {
+		t.Helper()
+		screen := h.Screen()
+		out := "(no pane)"
+		if p, ok := h.Model.Frame().Layout.Pane(slot); ok {
+			out = strings.Join(cropRect(screen, p.Rect), "\n")
+		}
+		golden.RequireEqual(t, out)
+	})
+}
+
+// clickText clicks the first cell of text inside slot's inner rect.
+func clickText(t testing.TB, h *uitest.Harness, slot layout.SlotID, text string) {
+	t.Helper()
+	screen := h.Screen()
+	p, ok := h.Model.Frame().Layout.Pane(slot)
+	if !ok {
+		t.Fatalf("no %s pane", slot)
+	}
+	in := p.Rect
+	if p.Bordered {
+		in = in.Inner()
+	}
+	for i, row := range cropRect(screen, in) {
+		if j := strings.Index(row, text); j >= 0 {
+			h.Click(in.X+textwidth.Width(row[:j]), in.Y+i)
+			return
+		}
+	}
+	t.Fatalf("%q not in the %s pane:\n%s", text, slot, columnText(screen, in))
 }
 
 // overlaySizes are the overlay golden sizes: Required + 44x16 + 20x6.
