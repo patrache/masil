@@ -565,7 +565,7 @@ func memberActions(ctx *ui.Context, u api.UserSummary) []menuItem {
 		return []menuItem{profile}
 	}
 	items := []menuItem{
-		{Label: itemSendDM, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return openDMCmd(ctx, u), nil }},
+		{Label: itemSendDM, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return openDMCmd(ctx, []api.UserRef{userRef(u)}, ""), nil }},
 		profile,
 		{Label: itemReportUser, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.ReportDialog("user", u.ID, textwidth.Sanitize(displayName(u)))
@@ -587,11 +587,21 @@ func userRef(u api.UserSummary) api.UserRef {
 	return api.UserID(u.ID)
 }
 
-// openDMCmd opens (or creates) the 1:1 DM with u (POST /v1/dms) and navigates to it.
-func openDMCmd(ctx *ui.Context, u api.UserSummary) tea.Cmd {
-	ref := userRef(u)
-	return doAction(ctx, "chat.dm_open:"+u.ID, func(c context.Context, cl *api.Client) (*api.Channel, error) {
-		ch, _, err := cl.OpenDM(c, api.OpenDMRequest{Users: []api.UserRef{ref}})
+// openDMCmd opens (or creates) the DM with users (POST /v1/dms: one user = the
+// 1:1 DM, several = a new group DM named name, "" = no name) and, on success,
+// observes the channel and navigates to it (tag chat.dm_open:<first user>).
+func openDMCmd(ctx *ui.Context, users []api.UserRef, name string) tea.Cmd {
+	refs := slices.Clone(users)
+	first := ""
+	if len(refs) > 0 {
+		first = string(refs[0])
+	}
+	req := api.OpenDMRequest{Users: refs}
+	if name != "" {
+		req.Name = api.Some(name)
+	}
+	return doAction(ctx, "chat.dm_open:"+first, func(c context.Context, cl *api.Client) (*api.Channel, error) {
+		ch, _, err := cl.OpenDM(c, req)
 		return ch, err
 	}, func(ctx *ui.Context, ch *api.Channel, err error) tea.Cmd {
 		if err != nil || ch == nil {

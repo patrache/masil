@@ -133,6 +133,12 @@ var chatRouteTable = []chatRoute{
 	{"DELETE /v1/polls/{id}/vote", "DELETE /v1/polls/01JGPROBE00000000000000000/vote", echoPoll("retract")},
 	{"POST /v1/polls/{id}/close", "POST /v1/polls/01JGPROBE00000000000000000/close", echoPoll("close")},
 	{"PUT /v1/blocks/{user}", "PUT /v1/blocks/@probe", noContent},
+	{"POST /v1/friends/requests", "POST /v1/friends/requests", echoFriendRequest},
+	{"POST /v1/friends/requests/{id}/accept", "POST /v1/friends/requests/01JFPROBE00000000000000000/accept", acceptFriend},
+	{"POST /v1/friends/requests/{id}/decline", "POST /v1/friends/requests/01JFPROBE00000000000000000/decline", noContent},
+	{"DELETE /v1/friends/requests/{id}", "DELETE /v1/friends/requests/01JFPROBE00000000000000000", noContent},
+	{"DELETE /v1/friends/{user}", "DELETE /v1/friends/@probe", noContent},
+	{"POST /v1/dms", "POST /v1/dms", echoOpenDM},
 }
 
 // newAPI is apitest.New + fixtures.RegisterAPI + chatRoutes, in this order (tests overlay after it).
@@ -312,6 +318,66 @@ func presence(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// userByRef is the seeded user of a {user} reference ("@handle" or an id), else a
+// stub user carrying the reference.
+func userByRef(ref string) api.UserSummary {
+	s := seeded()
+	for _, u := range s.Users {
+		if "@"+u.Handle == ref || u.ID == ref {
+			return *u
+		}
+	}
+	h := strings.TrimPrefix(ref, "@")
+	return api.UserSummary{ID: "01JA0000000000000000STUB01", Handle: h, DisplayName: h}
+}
+
+// echoFriendRequest answers POST /v1/friends/requests with a new pending request (201).
+func echoFriendRequest(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		User string `json:"user"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	req := api.FriendRequest{ID: "01JFECH" + echoID()[7:], From: seeded().Me.UserSummary, To: userByRef(in.User), Status: "pending", CreatedAt: routeNow()}
+	writeJSON(w, http.StatusCreated, map[string]any{"request": req, "friend": nil})
+}
+
+// acceptFriend answers an accept with a friend whose user is unknown to the
+// route (the client takes the requester from its own request).
+func acceptFriend(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"friend": api.Friend{Since: routeNow(), Presence: api.PresenceOffline}})
+}
+
+// echoOpenDM answers POST /v1/dms: one seeded peer with a seeded DM = that DM
+// (200), else a new dm / group_dm with me + the users (201).
+func echoOpenDM(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Users []string `json:"users"`
+		Name  *string  `json:"name"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	s := seeded()
+	if len(in.Users) == 1 {
+		u := userByRef(in.Users[0])
+		for _, id := range s.DMOrder {
+			ch := s.Channels[id]
+			if ch.Kind == api.ChannelDM && slices.ContainsFunc(ch.Members, func(m api.UserSummary) bool { return m.ID == u.ID }) {
+				writeJSON(w, http.StatusOK, map[string]any{"channel": ch})
+				return
+			}
+		}
+	}
+	ch := api.Channel{ID: "01JBDMECH" + echoID()[9:], Kind: api.ChannelDM, Members: []api.UserSummary{s.Me.UserSummary},
+		CreatedAt: routeNow(), My: api.ChannelMyState{Notify: "all"}}
+	if len(in.Users) > 1 {
+		ch.Kind, ch.Name = api.ChannelGroupDM, in.Name
+	}
+	for _, ref := range in.Users {
+		ch.Members = append(ch.Members, userByRef(ref))
+	}
+	ch.MemberCount = len(ch.Members)
+	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch})
 }
 
 // ---- harness helpers ----

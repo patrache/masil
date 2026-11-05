@@ -151,12 +151,17 @@ func (cc *chatComposer) onInviteCreated(m ui.ResultMsg[*api.Invite]) tea.Cmd {
 	return func() tea.Msg { return ui.OpenOverlayMsg{Overlay: o} }
 }
 
-// onDirectInvite lands a direct invite this composer sent: "<이름>님을 <방>에
-// 초대했어요", or an error toast.
+// onDirectInvite lands a direct invite this composer sent.
 func (cc *chatComposer) onDirectInvite(ctx *ui.Context, m ui.ResultMsg[*api.DirectInvite]) tea.Cmd {
 	if !strings.HasPrefix(m.Tag, tagInviteDirect) || !cc.claim(m.Tag) {
 		return nil
 	}
+	return directInviteDone(ctx, m)
+}
+
+// directInviteDone is the end of a direct invite (directInviteCmd): "<이름>님을
+// <방>에 초대했어요", or an error toast.
+func directInviteDone(ctx *ui.Context, m ui.ResultMsg[*api.DirectInvite]) tea.Cmd {
 	if m.Err != nil || m.Value == nil {
 		err := m.Err
 		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: inviteFailedText} }
