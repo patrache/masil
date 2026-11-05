@@ -267,6 +267,16 @@ func (f *FeedStore) HideAuthor(userID string) {
 	}
 }
 
+// MarkDeleted is the post.deleted rule for a post I deleted myself: the UI runs
+// it right after DELETE /v1/posts/{id} succeeds, without waiting for the event
+// (which then changes nothing).
+func (f *FeedStore) MarkDeleted(postID string) {
+	if postID == "" {
+		return
+	}
+	f.postDeleted(postID)
+}
+
 // dropSubtree removes the reply window of id and, recursively, of its replies.
 func (f *FeedStore) dropSubtree(id string) {
 	w := f.replies[id]

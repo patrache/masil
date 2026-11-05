@@ -141,6 +141,42 @@ func TestPostDeletedRemovesFromTimelines(t *testing.T) {
 	}
 }
 
+// TestMarkDeletedMatchesPostDeletedEvent: the UI's local apply after its own
+// DELETE /v1/posts/{id} is exactly what the post.deleted event does.
+func TestMarkDeletedMatchesPostDeletedEvent(t *testing.T) {
+	build := func() (*store.Store, *feedstore.FeedStore, api.Post, api.Post) {
+		s, f := newFeed(t)
+		p := post("01JEPST0000000000000000001", devKim, "bubbletea", 0)
+		quote := post("01JEPST0000000000000000002", minji, "look", 1)
+		quote.Quote = &api.QuotedPost{Available: true, Post: &p}
+		f.ObservePosts(p, quote)
+		f.Timeline("following").Upsert(item(p), item(quote), repost("01JEHRP0000000000000000001", p, hana, 2))
+		return s, f, p, quote
+	}
+	sA, fA, p, quote := build()
+	sA.Apply(ev(t, "post.deleted", map[string]any{"post_id": p.ID}))
+	_, fB, _, _ := build()
+	fB.MarkDeleted(p.ID)
+
+	ids := func(f *feedstore.FeedStore) []string {
+		var out []string
+		for _, it := range f.Timeline("following").Items() {
+			out = append(out, it.ID)
+		}
+		return out
+	}
+	if a, b := ids(fA), ids(fB); !reflect.DeepEqual(a, b) {
+		t.Fatalf("MarkDeleted timeline %v, post.deleted %v", b, a)
+	}
+	if got := fB.Post(p.ID); got == nil || !got.Deleted {
+		t.Fatalf("Post after MarkDeleted = %#v", got)
+	}
+	if q := fB.Post(quote.ID).Quote; q == nil || q.Available || q.Reason != "deleted" {
+		t.Fatalf("quote after MarkDeleted = %#v", q)
+	}
+	fB.MarkDeleted("") // no-op
+}
+
 func TestPostDeletedKeepsReplyPlaceholder(t *testing.T) {
 	s, f := newFeed(t)
 	parent := post("01JEPST0000000000000000001", devKim, "parent", 0)

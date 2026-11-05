@@ -333,7 +333,7 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	if fs == nil {
 		return nil
 	}
-	var cmds []tea.Cmd
+	cmds := []tea.Cmd{applyResults(ctx, msg)}
 	force := true
 	imagesChanged := false
 	var before map[string]bool
@@ -864,6 +864,14 @@ func (t *timeline) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 			return true, nil
 		}
 	}
+	if isPostKey(ctx, msg) {
+		if it, ok := t.list.Selected(); ok {
+			if handled, cmd := handlePostKey(ctx, msg, t.post(ctx, it)); handled {
+				t.redraw() // optimistic like / repost changes show at once
+				return true, cmd
+			}
+		}
+	}
 	if bannerVis && !t.bannerSel && km.Matches(msg, keymap.ListUp) && t.selectedIndex() <= 0 {
 		t.setBanner(true)
 		return true, nil
@@ -918,28 +926,13 @@ func (t *timeline) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 		if it, line, ok := cardAt(t.list, t.items, views, ly); ok {
 			for _, hit := range views(it).Hits {
 				if hit.Line == line && local.X >= hit.X0 && local.X < hit.X1 {
-					return t.cardHit(hit)
+					return handlePostHit(ctx, hit, t.post(ctx, it))
 				}
 			}
 		}
 		t.list.HandleMouse(ctx, msg, ui.Point{X: local.X, Y: ly})
 		t.setBanner(false)
 		return tea.Batch(t.maybeMore(ctx), t.rearm(ctx))
-	}
-	return nil
-}
-
-// cardHit handles a click on a card region. Task 7 replaces it with
-// handlePostHit (image viewer, poll votes); until then hashtags, authors and
-// quotes navigate and the other regions do nothing.
-func (t *timeline) cardHit(h cardHit) tea.Cmd {
-	switch h.Kind {
-	case hitHashtag:
-		return t.navigate(ui.Route{Kind: ui.RouteHashtag, ID: h.Value})
-	case hitAuthor:
-		return t.navigate(ui.Route{Kind: ui.RouteProfile, ID: h.Value})
-	case hitQuote:
-		return t.navigate(ui.Route{Kind: ui.RoutePost, ID: h.Value})
 	}
 	return nil
 }
