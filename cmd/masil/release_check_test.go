@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,6 +91,25 @@ func TestReleaseBinaryCheck(t *testing.T) {
 // builds[].hooks.post (a failure aborts before archiving), and the workflow
 // guard rejects a bare "https://" the same way the script does.
 func TestReleaseCheckRunsBeforePublish(t *testing.T) {
+	gr, wf := readReleaseFiles(t)
+	if err := checkReleaseConfig(gr, wf); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// windows-latest runners check files out with CRLF (Git for Windows sets
+// core.autocrlf=true) and release.yml's go-test matrix gates goreleaser on it,
+// so the check must not depend on line endings.
+func TestReleaseCheckIgnoresCRLF(t *testing.T) {
+	gr, wf := readReleaseFiles(t)
+	crlf := func(s string) string { return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n") }
+	if err := checkReleaseConfig(crlf(gr), crlf(wf)); err != nil {
+		t.Fatalf("CRLF checkout: %v", err)
+	}
+}
+
+func readReleaseFiles(t *testing.T) (goreleaser, workflow string) {
+	t.Helper()
 	read := func(rel string) string {
 		t.Helper()
 		b, err := os.ReadFile(filepath.Join("..", "..", rel))
@@ -97,21 +118,27 @@ func TestReleaseCheckRunsBeforePublish(t *testing.T) {
 		}
 		return string(b)
 	}
-	gr := read(".goreleaser.yaml")
+	return read(".goreleaser.yaml"), read(".github/workflows/release.yml")
+}
+
+// checkReleaseConfig checks .goreleaser.yaml (gr) and release.yml (wf).
+// Line endings are normalized first: a CRLF checkout is the same file.
+func checkReleaseConfig(gr, wf string) error {
+	gr = strings.ReplaceAll(gr, "\r\n", "\n")
+	wf = strings.ReplaceAll(wf, "\r\n", "\n")
 	const hook = `- cmd: sh scripts/check-release-binary.sh '{{ .Path }}' '{{ envOrDefault "MASIL_DEFAULT_SERVER" "" }}'`
 	hooks := strings.Index(gr, "\n    hooks:\n      post:\n")
 	if hooks < 0 || !strings.Contains(gr[hooks:], hook) {
-		t.Fatalf(".goreleaser.yaml: builds[].hooks.post must run %s", hook)
+		return fmt.Errorf(".goreleaser.yaml: builds[].hooks.post must run %s", hook)
 	}
 	if archives := strings.Index(gr, "\narchives:"); archives < 0 || hooks > archives {
-		t.Fatal(".goreleaser.yaml: the post hook must sit in builds, before archives")
+		return errors.New(".goreleaser.yaml: the post hook must sit in builds, before archives")
 	}
-
-	wf := read(".github/workflows/release.yml")
 	if strings.Contains(wf, "check-release-binary.sh \"") || strings.Contains(wf, "sh scripts/check-release-binary.sh") {
-		t.Fatal("release.yml: do not run the binary check as a step after goreleaser publishes; it runs as a goreleaser build hook")
+		return errors.New("release.yml: do not run the binary check as a step after goreleaser publishes; it runs as a goreleaser build hook")
 	}
 	if !strings.Contains(wf, "            https://?*) ;;") || strings.Contains(wf, "            https://*) ;;") {
-		t.Fatal(`release.yml: the guard must accept only https://?* (a bare "https://" fails), like the script`)
+		return errors.New(`release.yml: the guard must accept only https://?* (a bare "https://" fails), like the script`)
 	}
+	return nil
 }
