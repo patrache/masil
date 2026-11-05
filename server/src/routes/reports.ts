@@ -9,7 +9,7 @@ import { getAuth, requireAuth } from "../lib/auth";
 import { all, first, run } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
 import { newId } from "../lib/ids";
-import { canViewPost, canViewUserContent, getSpaceRole, requireChannelRead } from "../lib/permissions";
+import { canViewPost, canViewUserContent, getSpaceRole, guestbookEntryVisibilitySql, requireChannelRead } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { now } from "../lib/time";
 import { vJson, zId, zText } from "../lib/validate";
@@ -93,7 +93,10 @@ async function resolveTarget(db: D1Database, me: string, type: TargetType, id: s
       };
     }
     case "guestbook_entry": {
-      const g = await first<GuestbookRow>(db, "SELECT * FROM guestbook_entries WHERE id = ?1 AND deleted_at IS NULL", id);
+      // Listed for me (author not suspended, no block with the author) and the owner's content viewable (owner not
+      // suspended, no block, private rule) — the same two checks GET /users/:user/guestbook applies.
+      const vis = guestbookEntryVisibilitySql(me, "g");
+      const g = await first<GuestbookRow>(db, `SELECT g.* FROM guestbook_entries g WHERE g.id = ? AND ${vis.sql}`, id, ...vis.params);
       if (g === null || (await canViewUserContent(db, me, g.owner_id)) !== "ok") throw err.notFound("guestbook entry");
       if (g.is_secret === 1 && me !== g.owner_id && me !== g.author_id) throw err.notFound("guestbook entry");
       return { targetUserId: g.author_id, snapshot: { body: g.body, author_id: g.author_id, owner_id: g.owner_id } };

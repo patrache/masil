@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import type { AppContext, AppEnv } from "../env";
-import { getAuth, isSuspendedNow, requireAuth } from "../lib/auth";
+import { getAuth, requireAuth } from "../lib/auth";
 import { declaredLength, readBodyCapped } from "../lib/body";
 import { first, run } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
@@ -146,17 +146,14 @@ async function canViewMedia(c: AppContext, viewerId: string, up: UploadRow): Pro
     return post !== null && (await canViewPost(db, viewerId, post));
   }
   if (kind === "story") {
-    const t = now();
-    const story = await first<Pick<StoryRow, "author_id"> & { suspended_at: number | null; suspended_until: number | null }>(
+    // canViewUserContent covers api.md 3.4 rules 2-4 (author suspended now, block either way, private rule).
+    const story = await first<Pick<StoryRow, "author_id">>(
       db,
-      `SELECT s.author_id, u.suspended_at, u.suspended_until
-         FROM stories s JOIN users u ON u.id = s.author_id
-        WHERE s.id = ?1 AND s.deleted_at IS NULL AND s.expires_at > ?2`,
+      "SELECT author_id FROM stories WHERE id = ?1 AND deleted_at IS NULL AND expires_at > ?2",
       targetId,
-      t,
+      now(),
     );
     if (story === null) return false;
-    if (story.author_id !== viewerId && isSuspendedNow(story, t)) return false; // api.md 3.4 rule 2
     return (await canViewUserContent(db, viewerId, story.author_id)) === "ok";
   }
   return false;

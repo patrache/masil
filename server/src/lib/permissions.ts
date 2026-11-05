@@ -276,12 +276,16 @@ export async function canViewPost(db: D1Database, viewerId: string, post: PostRo
   return (await first(db, `SELECT 1 AS x FROM posts p WHERE p.id = ? AND ${vis.sql}`, post.id, ...vis.params)) !== null;
 }
 
-/** Owner's SNS content (posts, stories, guestbook, follow lists): block either way -> hidden; private + not active follower -> private. */
+/**
+ * Owner's SNS content (posts, stories, guestbook, follow lists) for anyone but the owner: missing owner, owner suspended
+ * now (api.md 3.4 rule 2 / 3.9 — same boundary as postVisibilitySql: suspended_until <= now counts as active again) or
+ * block either way -> hidden; private + not active follower -> private.
+ */
 export async function canViewUserContent(db: D1Database, viewerId: string, ownerId: string): Promise<"ok" | "private" | "hidden"> {
   if (viewerId === ownerId) return "ok";
-  const row = await first<{ is_private: number; blocked: number; following: number }>(
+  const row = await first<{ is_private: number; suspended_at: number | null; suspended_until: number | null; blocked: number; following: number }>(
     db,
-    `SELECT u.is_private,
+    `SELECT u.is_private, u.suspended_at, u.suspended_until,
             EXISTS (SELECT 1 FROM blocks b
                      WHERE (b.blocker_id = ?1 AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?1)) AS blocked,
             EXISTS (SELECT 1 FROM follows f
@@ -290,9 +294,27 @@ export async function canViewUserContent(db: D1Database, viewerId: string, owner
     viewerId,
     ownerId,
   );
-  if (row === null || row.blocked) return "hidden";
+  if (row === null || row.blocked || isSuspendedNow(row, now())) return "hidden";
   if (row.is_private === 1 && !row.following) return "private";
   return "ok";
+}
+
+/**
+ * SQL fragment + params: guestbook alias `g` is listed for the viewer — not deleted, author not suspended now (same
+ * boundary as postVisibilitySql), no block either way between the viewer and the author. The owner side is checked
+ * separately with canViewUserContent. Anonymous `?` placeholders: append `params` in order.
+ */
+export function guestbookEntryVisibilitySql(viewerId: string, alias = "g"): { sql: string; params: unknown[] } {
+  if (!SQL_ALIAS.test(alias)) throw new Error(`guestbookEntryVisibilitySql: invalid alias ${JSON.stringify(alias)}`);
+  const a = alias;
+  const sql = `(${a}.deleted_at IS NULL
+    AND EXISTS (SELECT 1 FROM users ${a}_gu
+                 WHERE ${a}_gu.id = ${a}.author_id
+                   AND (${a}_gu.suspended_at IS NULL OR (${a}_gu.suspended_until IS NOT NULL AND ${a}_gu.suspended_until <= ?)))
+    AND NOT EXISTS (SELECT 1 FROM blocks ${a}_gb
+                     WHERE (${a}_gb.blocker_id = ? AND ${a}_gb.blocked_id = ${a}.author_id)
+                        OR (${a}_gb.blocker_id = ${a}.author_id AND ${a}_gb.blocked_id = ?)))`;
+  return { sql, params: [now(), viewerId, viewerId] };
 }
 
 // ---------------------------------------------------------------------------

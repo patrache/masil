@@ -10,7 +10,7 @@ import { all, decodeCursor, encodeCursor, first, parseLimit, run } from "../lib/
 import { err } from "../lib/errors";
 import { isId, newId } from "../lib/ids";
 import { notify } from "../lib/notify";
-import { areFriends, canViewUserContent, isBlockedEither } from "../lib/permissions";
+import { areFriends, canViewUserContent, guestbookEntryVisibilitySql, isBlockedEither } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { loadUserSummaries, serializeGuestbook } from "../lib/serialize";
 import { plainSnippet } from "../lib/text";
@@ -27,21 +27,6 @@ const CreateBody = z.object({
 });
 const PageQuery = z.object({ cursor: z.string().optional(), limit: z.string().optional() });
 
-/**
- * SQL fragment + params: guestbook alias `g` is listed for the viewer at `t` — not deleted, author not suspended,
- * no block either way between the viewer and the author. Anonymous `?` placeholders: append `params` in order.
- */
-function listedEntrySql(viewerId: string, t: number): { sql: string; params: unknown[] } {
-  const sql = `(g.deleted_at IS NULL
-    AND EXISTS (SELECT 1 FROM users gu
-                 WHERE gu.id = g.author_id
-                   AND (gu.suspended_at IS NULL OR (gu.suspended_until IS NOT NULL AND gu.suspended_until <= ?)))
-    AND NOT EXISTS (SELECT 1 FROM blocks gb
-                     WHERE (gb.blocker_id = ? AND gb.blocked_id = g.author_id)
-                        OR (gb.blocker_id = g.author_id AND gb.blocked_id = ?)))`;
-  return { sql, params: [t, viewerId, viewerId] };
-}
-
 export const guestbookRoutes = new Hono<AppEnv>();
 
 /** api.md 3.4 owner content rules: block either way -> 404, private and not an active follower -> 403. Newest first. */
@@ -56,7 +41,7 @@ guestbookRoutes.get("/users/:user/guestbook", requireAuth, vQuery(PageQuery), as
   const n = parseLimit(q.limit, 30, 100);
   const cur = decodeCursor(q.cursor);
   if (cur !== null && (typeof cur.k !== "string" || cur.k !== cur.i || !isId(cur.i))) throw err.invalid({ cursor: "invalid" });
-  const vis = listedEntrySql(auth.userId, now());
+  const vis = guestbookEntryVisibilitySql(auth.userId);
   const rows = await all<GuestbookRow>(
     db,
     `SELECT g.* FROM guestbook_entries g
@@ -154,7 +139,7 @@ guestbookRoutes.delete("/guestbook/:entry_id", requireAuth, async (c) => {
   const entry = await first<GuestbookRow>(db, "SELECT * FROM guestbook_entries WHERE id = ?1 AND deleted_at IS NULL", entryId);
   if (entry === null) throw err.notFound("guestbook entry");
   if (entry.author_id !== me && entry.owner_id !== me) {
-    const vis = listedEntrySql(me, now());
+    const vis = guestbookEntryVisibilitySql(me);
     const listed = await first(db, `SELECT 1 AS x FROM guestbook_entries g WHERE g.id = ? AND ${vis.sql}`, entry.id, ...vis.params);
     if (listed === null || (await canViewUserContent(db, me, entry.owner_id)) !== "ok") throw err.notFound("guestbook entry");
     throw err.forbidden();
