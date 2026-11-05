@@ -1,13 +1,17 @@
 package app
 
 import (
+	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -55,13 +59,113 @@ type statusInput struct {
 	Right []statusItem // right side, in order
 }
 
-// statusLine gathers the status input for this frame and renders it.
+// statusLine gathers the status input for this frame and renders it. The hint area
+// carries, in order: the newest toast when toasts fall back to the status line (it
+// replaces the hints), else the pin fallback notice followed by the hints.
 func (m *Model) statusLine(w int) string {
-	in := statusInput{Mode: m.lay.Mode, Right: []statusItem{m.connectionItem()}}
-	if m.lay.Mode != layout.ModeTiny {
-		in.Hints = m.hints()
+	in := statusInput{Mode: m.lay.Mode, Right: m.rightItems()}
+	switch {
+	case m.statusToast() != "":
+		in.Hints = []string{m.statusToast()}
+	case m.lay.Mode != layout.ModeTiny:
+		if m.pinFell && m.pin != nil {
+			in.Hints = append(in.Hints, pinFallbackNotice(*m.pin, m.lay.Mode))
+		}
+		in.Hints = append(in.Hints, m.hints()...)
 	}
 	return renderStatus(m.ctx, w, in)
+}
+
+// pinFallbackNotice is shown while a pinned mode does not fit (CA 5.2.1).
+func pinFallbackNotice(pin, shown layout.Mode) string {
+	return "📌 " + pin.Label() + " 고정 · 창이 작아 " + withRo(shown.Label()) + " 표시"
+}
+
+// withRo appends the particle 으로/로: 로 after a vowel or a final ㄹ, else 으로.
+func withRo(word string) string {
+	r := []rune(word)
+	if len(r) == 0 {
+		return word
+	}
+	last := r[len(r)-1]
+	if last >= 0xAC00 && last <= 0xD7A3 {
+		if fin := (last - 0xAC00) % 28; fin != 0 && fin != 8 { // 8 = ㄹ
+			return word + "으로"
+		}
+	}
+	return word + "로"
+}
+
+// cooldownLimiters are the limiters whose 429 cooldown the status line shows
+// (the longest remaining one wins).
+var cooldownLimiters = []string{"RL_MESSAGE", "RL_POST", "RL_REACT", "RL_SEARCH", "RL_SOCIAL", "RL_UPLOAD", "RL_API"}
+
+// focusLeft is the active focus session's remaining time (0 when none).
+func (m *Model) focusLeft() time.Duration {
+	f := m.ctx.Store.Focus
+	if f == nil {
+		return 0
+	}
+	return max(0, f.EndsAt.Sub(m.ctx.Now()))
+}
+
+// cooldownLeft is the longest remaining 429 cooldown (0 when none). It compares
+// ctx.API.Cooldown with ctx.Now, which is deterministic because the app's client is
+// built with api.WithClock(o.Now).
+func (m *Model) cooldownLeft() time.Duration {
+	if m.ctx.API == nil {
+		return 0
+	}
+	now := m.ctx.Now()
+	var left time.Duration
+	for _, l := range cooldownLimiters {
+		if until := m.ctx.API.Cooldown(l); !until.IsZero() {
+			left = max(left, until.Sub(now))
+		}
+	}
+	return left
+}
+
+// ceilSeconds rounds d up to whole seconds.
+func ceilSeconds(d time.Duration) time.Duration {
+	return (d + time.Second - 1) / time.Second * time.Second
+}
+
+// rightItems are the status line's right side (plan 03 Task 26):
+// "🎯 mm:ss · ⏳ N초 · 📌 · <connection>"; only the connection item is essential.
+func (m *Model) rightItems() []statusItem {
+	bar := m.ctx.Theme.S.StatusBar
+	var out []statusItem
+	if d := ceilSeconds(m.focusLeft()); d > 0 {
+		mins, secs := int(d/time.Minute), int(d%time.Minute/time.Second)
+		out = append(out, statusItem{Text: fmt.Sprintf("🎯 %02d:%02d", mins, secs), Style: bar})
+	}
+	if d := ceilSeconds(m.cooldownLeft()); d > 0 {
+		out = append(out, statusItem{Text: "⏳ " + humanize.Duration(d), Style: bar})
+	}
+	if m.pin != nil && !m.pinFell {
+		out = append(out, statusItem{Text: "📌", Style: bar})
+	}
+	return append(out, m.connectionItem())
+}
+
+// statusTickMsg re-renders the status line once a second while a focus session or a
+// cooldown is counting down; gen discards a superseded tick.
+type statusTickMsg struct{ gen int }
+
+// statusTicking reports whether the status line shows a countdown.
+func (m *Model) statusTicking() bool {
+	return m.focusLeft() > 0 || m.cooldownLeft() > 0
+}
+
+// armStatusTick arms the 1s tick when a countdown is showing and none is pending.
+func (m *Model) armStatusTick() tea.Cmd {
+	if m.tickArmed || !m.statusTicking() {
+		return nil
+	}
+	m.tickArmed = true
+	m.tickGen++
+	return ui.After(m.ctx, time.Second, statusTickMsg{gen: m.tickGen})
 }
 
 // hints builds the hint items: the mode defaults (or the input hints while the focused
@@ -117,7 +221,8 @@ func overlaps(b key.Binding, shown map[string]bool) bool {
 }
 
 // connectionItem is the realtime/presence item (CA 5.4): live => my presence
-// (online when unknown), connecting/syncing => "◌ 연결 중…", else offline.
+// (online when unknown), connecting => "◌ 연결 중…", syncing => "◌ 동기화 중…",
+// else offline.
 func (m *Model) connectionItem() statusItem {
 	s := m.ctx.Theme.S
 	bar := s.StatusBar
@@ -136,8 +241,10 @@ func (m *Model) connectionItem() statusItem {
 			return statusItem{"⊘ 방해금지", tint(s.DND), true}
 		}
 		return statusItem{"● 온라인", tint(s.Online), true}
-	case realtime.PhaseConnecting, realtime.PhaseSyncing:
+	case realtime.PhaseConnecting:
 		return statusItem{"◌ 연결 중…", s.StatusHint, true}
+	case realtime.PhaseSyncing:
+		return statusItem{"◌ 동기화 중…", s.StatusHint, true}
 	}
 	return statusItem{"✕ 오프라인", tint(s.Offline), true}
 }

@@ -191,10 +191,10 @@ func TestStatusConnectionItem(t *testing.T) {
 	if s := status(); !strings.Contains(s, "⊘ 방해금지") {
 		t.Fatalf("dnd: status = %q", s)
 	}
-	for _, ph := range []realtime.Phase{realtime.PhaseConnecting, realtime.PhaseSyncing} {
+	for ph, want := range map[realtime.Phase]string{realtime.PhaseConnecting: "◌ 연결 중…", realtime.PhaseSyncing: "◌ 동기화 중…"} {
 		rt.st.Phase = ph
-		if s := status(); !strings.Contains(s, "◌ 연결 중…") {
-			t.Fatalf("phase %v: status = %q", ph, s)
+		if s := status(); !strings.Contains(s, want) {
+			t.Fatalf("phase %v: status = %q, want %q", ph, s, want)
 		}
 	}
 	for _, ph := range []realtime.Phase{realtime.PhaseIdle, realtime.PhaseBackoff, realtime.PhaseStopped} {

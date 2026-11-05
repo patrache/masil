@@ -63,6 +63,10 @@ type Model struct {
 
 	initCmds []tea.Cmd // emitted by Init (New cannot return Cmds)
 	frame    FrameInfo // geometry of the last View
+
+	toasts    toastState // queued toasts (newest last) and the drawn box
+	tickArmed bool       // a statusTickMsg is pending
+	tickGen   int        // generation of the pending statusTickMsg
 }
 
 var _ tea.Model = (*Model)(nil)
@@ -163,9 +167,36 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Update implements tea.Model (CA 5.3.4).
+// Update implements tea.Model (CA 5.3.4). After every message the status-line
+// countdown tick is (re)armed when a focus session or a 429 cooldown is showing.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	_, cmd := m.dispatch(msg)
+	if tick := m.armStatusTick(); tick != nil {
+		cmd = tea.Batch(cmd, tick)
+	}
+	return m, cmd
+}
+
+// dispatch handles one message (CA 5.3.4 steps).
+func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case statusTickMsg:
+		if msg.gen == m.tickGen {
+			m.tickArmed = false
+		}
+		return m, nil
+	case ui.ToastMsg:
+		return m, m.toasts.push(m.ctx, msg)
+	case ui.ErrorMsg:
+		return m, m.toasts.push(m.ctx, errorToast(msg))
+	case toastExpireMsg:
+		m.toasts.remove(msg.id)
+		return m, nil
+	case tea.MouseClickMsg:
+		if cmd, ok := m.clickToast(msg); ok {
+			return m, cmd
+		}
+		return m, m.broadcast(msg)
 	case tea.WindowSizeMsg:
 		m.cols, m.rows, m.sized = msg.Width, msg.Height, true
 		return m, m.relayout()
@@ -342,8 +373,11 @@ func (m *Model) Focus() FocusIntent {
 	return m.focus
 }
 
-// Frame returns the geometry of the last View() (tests, CA 10.2 AssertIntegrity).
+// Frame returns the geometry of the last View() (tests, CA 10.2 AssertIntegrity). The
+// frame is re-rendered first, so it also reflects messages sent since that View (a
+// real program renders after every Update; the harness does not).
 func (m *Model) Frame() FrameInfo {
+	m.render()
 	return m.frame
 }
 
