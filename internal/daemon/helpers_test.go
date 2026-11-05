@@ -1,7 +1,9 @@
 package daemon
 
 import (
+	"bytes"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -169,4 +171,45 @@ func runHandlerWith(t *testing.T, sink alertSink, probe func() (bool, error)) *h
 		func(int64) {}, slog.New(slog.DiscardHandler))
 	go h.run(t.Context())
 	return h
+}
+
+// syncBuffer is a goroutine-safe log sink.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// writeTempExe creates an absolute executable file standing in for <prefix>/bin/masil.
+func writeTempExe(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "masil")
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// replaceExe swaps path for a new file (new inode) the way install.sh does:
+// write a sibling temp file, then rename it over path.
+func replaceExe(t *testing.T, path, content string) {
+	t.Helper()
+	tmp := path + ".new"
+	if err := os.WriteFile(tmp, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		t.Fatal(err)
+	}
 }
