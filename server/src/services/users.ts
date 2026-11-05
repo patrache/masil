@@ -1,8 +1,14 @@
 // User-level services (server-architecture.md 4.5 users.ts). Plan 01 owns `revokeSessions`; plan 02 appends
 // suspendUser / unsuspendUser.
 import type { Runtime } from "../env";
-import { all, jsonList } from "../lib/db";
+import { all, batch, first, jsonList, stmt } from "../lib/db";
+import { err } from "../lib/errors";
+import { newId } from "../lib/ids";
+import { serializeAdminUsers } from "../lib/serialize";
 import { now } from "../lib/time";
+import type { AdminUserView } from "../types/api";
+import type { UserRow } from "../types/rows";
+import { resolveReports } from "./content";
 
 export type RevokeReason = "logout" | "revoked" | "password_changed" | "suspended";
 
@@ -43,4 +49,94 @@ export async function revokeSessions(
   } catch (e) {
     console.error("revokeSessions: UserHub call failed", e);
   }
+}
+
+function adminActionStmt(
+  db: D1Database,
+  t: number,
+  adminId: string,
+  action: "suspend_user" | "unsuspend_user",
+  userId: string,
+  reportId: string | null,
+  reason: string,
+): D1PreparedStatement {
+  return stmt(
+    db,
+    `INSERT INTO admin_actions (id, admin_id, action, target_type, target_id, report_id, reason, created_at)
+     VALUES (?1, ?2, ?3, 'user', ?4, ?5, ?6, ?7)`,
+    newId(t),
+    adminId,
+    action,
+    userId,
+    reportId,
+    reason,
+    t,
+  );
+}
+
+async function adminUserView(db: D1Database, userId: string): Promise<AdminUserView> {
+  const row = await first<UserRow>(db, "SELECT * FROM users WHERE id = ?1", userId);
+  if (row === null) throw err.notFound("user");
+  const [view] = await serializeAdminUsers(db, [row]);
+  return view!;
+}
+
+/**
+ * Suspends `userId` (api.md 5.22 / 3.9): suspended_at = now, suspended_until = now + durationSec (null = indefinite),
+ * suspend_reason; an admin_actions row; and, with `reportId`, that report plus every other open report on the user
+ * resolved as user_suspended — all in one batch. After the commit every session is revoked (UserHub sends
+ * session.revoked and closes the sockets with 4003). Suspending an operator -> 409 conflict; unknown report -> 404.
+ * Re-suspending an already suspended user overwrites the period and reason.
+ */
+export async function suspendUser(
+  rt: Runtime,
+  adminId: string,
+  userId: string,
+  reason: string,
+  durationSec: number | null,
+  reportId?: string,
+): Promise<AdminUserView> {
+  const db = rt.env.DB;
+  const target = await first<Pick<UserRow, "id" | "role">>(db, "SELECT id, role FROM users WHERE id = ?1", userId);
+  if (target === null) throw err.notFound("user");
+  if (target.role === "admin") throw err.conflict("conflict", "admin");
+  // admin_actions.report_id references reports(id)
+  if (reportId !== undefined && (await first(db, "SELECT 1 AS x FROM reports WHERE id = ?1", reportId)) === null) {
+    throw err.notFound("report");
+  }
+
+  const t = now();
+  const stmts = [
+    stmt(
+      db,
+      "UPDATE users SET suspended_at = ?2, suspended_until = ?3, suspend_reason = ?4, updated_at = ?2 WHERE id = ?1 AND role <> 'admin'",
+      userId,
+      t,
+      durationSec === null ? null : t + durationSec * 1000,
+      reason,
+    ),
+    adminActionStmt(db, t, adminId, "suspend_user", userId, reportId ?? null, reason),
+  ];
+  if (reportId !== undefined) stmts.push(resolveReports(db, reportId, "user", userId, adminId, "user_suspended", reason));
+  await batch(db, stmts);
+
+  await revokeSessions(rt, userId, "all", "suspended");
+  return adminUserView(db, userId);
+}
+
+/** Lifts a suspension (all three columns NULL) and records unsuspend_user. Unknown user -> 404. */
+export async function unsuspendUser(rt: Runtime, adminId: string, userId: string): Promise<AdminUserView> {
+  const db = rt.env.DB;
+  if ((await first(db, "SELECT 1 AS x FROM users WHERE id = ?1", userId)) === null) throw err.notFound("user");
+  const t = now();
+  await batch(db, [
+    stmt(
+      db,
+      "UPDATE users SET suspended_at = NULL, suspended_until = NULL, suspend_reason = NULL, updated_at = ?2 WHERE id = ?1",
+      userId,
+      t,
+    ),
+    adminActionStmt(db, t, adminId, "unsuspend_user", userId, null, ""),
+  ]);
+  return adminUserView(db, userId);
 }

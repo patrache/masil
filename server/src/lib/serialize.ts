@@ -3,6 +3,7 @@
 // json_each (no N+1).
 import type {
   AdminAction,
+  AdminUserView,
   Channel,
   ChannelMyState,
   ChannelRef,
@@ -24,6 +25,7 @@ import type {
   Profile,
   ReactionSummary,
   Relationship,
+  Report,
   RollResult,
   Session,
   Settings,
@@ -52,6 +54,7 @@ import type {
   PollOptionRow,
   PollRow,
   PostRow,
+  ReportRow,
   SessionRow,
   SpaceBanRow,
   SpaceDirectInviteRow,
@@ -1250,4 +1253,115 @@ export async function serializeAdminActions(db: D1Database, rows: AdminActionRow
       },
     ];
   });
+}
+
+/** Report target kind -> SQL telling whether the target still exists (?1 = json id list, ?2 = now). */
+const REPORT_TARGET_EXISTS_SQL: Record<ReportRow["target_type"], string> = {
+  user: "SELECT id FROM users WHERE id IN (SELECT value FROM json_each(?1))",
+  message: "SELECT id FROM messages WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL",
+  post: "SELECT id FROM posts WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL",
+  // the cleanup cron hard-deletes expired stories, so a missing row is "gone" as well
+  story: "SELECT id FROM stories WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL AND expires_at > ?2",
+  guestbook_entry: "SELECT id FROM guestbook_entries WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL",
+  space: "SELECT id FROM spaces WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL",
+};
+
+/**
+ * Report list (api.md 4.9 / 5.22) in input order. One query for every person involved (reporter, target user,
+ * resolver), one existence query per target kind present (at most 6, sent as one batch) and one open-report count
+ * query grouped by (target_type, target_id). A row whose reporter no longer exists is dropped.
+ */
+export async function serializeReports(db: D1Database, rows: ReportRow[]): Promise<Report[]> {
+  if (rows.length === 0) return [];
+  const t = now();
+  const personIds = rows.flatMap((r) => [r.reporter_id, r.target_user_id, r.resolved_by].filter((id): id is string => id !== null));
+  const idsByType = new Map<ReportRow["target_type"], Set<string>>();
+  for (const r of rows) {
+    const set = idsByType.get(r.target_type) ?? new Set<string>();
+    set.add(r.target_id);
+    idsByType.set(r.target_type, set);
+  }
+  const types = [...idsByType.keys()];
+  const [people, existsResults, counts] = await Promise.all([
+    loadUserSummaries(db, personIds),
+    batch(
+      db,
+      types.map((type) => {
+        const ids = jsonList([...idsByType.get(type)!]);
+        // only the story query has ?2: extra bindings are an error
+        return type === "story" ? stmt(db, REPORT_TARGET_EXISTS_SQL[type], ids, t) : stmt(db, REPORT_TARGET_EXISTS_SQL[type], ids);
+      }),
+    ),
+    all<{ target_type: string; target_id: string; n: number }>(
+      db,
+      `SELECT target_type, target_id, COUNT(*) AS n FROM reports
+        WHERE status = 'open' AND target_id IN (SELECT value FROM json_each(?1))
+        GROUP BY target_type, target_id`,
+      jsonList([...new Set(rows.map((r) => r.target_id))]),
+    ),
+  ]);
+  const key = (type: string, id: string) => `${type}:${id}`;
+  const existing = new Set<string>();
+  types.forEach((type, i) => {
+    for (const row of (existsResults[i]?.results ?? []) as Array<{ id: string }>) existing.add(key(type, row.id));
+  });
+  const openCounts = new Map(counts.map((c) => [key(c.target_type, c.target_id), c.n]));
+
+  return rows.flatMap((r): Report[] => {
+    const reporter = people.get(r.reporter_id);
+    if (reporter === undefined) return [];
+    let snapshot: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(r.snapshot);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) snapshot = parsed as Record<string, unknown>;
+    } catch {
+      // a malformed snapshot reads as empty rather than failing the whole list
+    }
+    return [
+      {
+        id: r.id,
+        reporter,
+        target_type: r.target_type,
+        target_id: r.target_id,
+        target_user: r.target_user_id === null ? null : (people.get(r.target_user_id) ?? null),
+        reason: r.reason,
+        note: r.note,
+        snapshot,
+        target_exists: existing.has(key(r.target_type, r.target_id)),
+        open_reports_on_target: openCounts.get(key(r.target_type, r.target_id)) ?? 0,
+        status: r.status,
+        resolution: r.resolution,
+        resolution_note: r.resolution_note,
+        resolved_by: r.resolved_by === null ? null : (people.get(r.resolved_by) ?? null),
+        resolved_at: isoOrNull(r.resolved_at),
+        created_at: iso(r.created_at),
+      },
+    ];
+  });
+}
+
+/**
+ * AdminUserView list (api.md 4.9 / 5.22, plan 02 Task 16 addition) in input order. `open_report_count` = open reports
+ * whose target_user_id is the user, read for all rows in one query.
+ */
+export async function serializeAdminUsers(db: D1Database, rows: UserRow[]): Promise<AdminUserView[]> {
+  if (rows.length === 0) return [];
+  const counts = await all<{ target_user_id: string; n: number }>(
+    db,
+    `SELECT target_user_id, COUNT(*) AS n FROM reports
+      WHERE status = 'open' AND target_user_id IN (SELECT value FROM json_each(?1))
+      GROUP BY target_user_id`,
+    jsonList([...new Set(rows.map((r) => r.id))]),
+  );
+  const byUser = new Map(counts.map((c) => [c.target_user_id, c.n]));
+  const t = now();
+  return rows.map((r) => ({
+    ...toUserSummary(r, t),
+    role: r.role,
+    created_at: iso(r.created_at),
+    suspended_at: isoOrNull(r.suspended_at),
+    suspended_until: isoOrNull(r.suspended_until),
+    suspend_reason: r.suspend_reason,
+    open_report_count: byUser.get(r.id) ?? 0,
+  }));
 }

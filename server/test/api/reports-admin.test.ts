@@ -67,3 +67,55 @@ test("unknown report_id -> 404 and nothing removed; removing a body-less story's
   expect(await env.MEDIA.head(`stories/${a.user.id}/${m.id}.png`)).toBeNull();
   wa.close();
 });
+test("suspend: socket 4003, login 403, admin target 409, report resolved user_suspended; unsuspend", async () => {
+  const adm = await signup(); await makeAdmin(adm);
+  const adm2 = await signup(); await makeAdmin(adm2);
+  const u = await signup(); const r = await signup();
+  const rep = (await api(r.token).post<any>("/v1/reports", { target_type: "user", target_id: u.user.id, reason: "harassment" })).body.report_id;
+  const w = await connectWs(u.token);
+  const closed = new Promise<number>((res) => w.ws.addEventListener("close", (e) => res(e.code)));
+  const s = await api(adm.token).post<any>(`/v1/admin/users/@${u.handle}/suspend`, { reason: "harassment", duration_sec: 3600, report_id: rep });
+  expect(s.body.user).toMatchObject({ id: u.user.id, suspended: true, suspend_reason: "harassment", open_report_count: 0 });
+  expect(await closed).toBe(4003);
+  const login = await api().post<any>("/v1/auth/login", { handle: u.handle, password: u.password });
+  expect(login.body.error.code).toBe("account_suspended");
+  expect((await api(adm.token).get<any>(`/v1/admin/reports/${rep}`)).body.report).toMatchObject({ status: "resolved", resolution: "user_suspended", resolved_by: { id: adm.user.id } });
+  expect((await api(adm.token).post<any>(`/v1/admin/users/@${adm2.handle}/suspend`, { reason: "x" })).status).toBe(409);
+  expect((await api(adm.token).post<any>(`/v1/admin/users/@${u.handle}/unsuspend`)).body.user).toMatchObject({ suspended: false, suspended_at: null });
+  expect((await api().post("/v1/auth/login", { handle: u.handle, password: u.password })).status).toBe(200);
+});
+test("suspension hides posts and media, unsuspend restores", async () => {
+  const adm = await signup(); await makeAdmin(adm);
+  const u = await signup(); const v = await signup();
+  const tag = `s${Math.random().toString(36).slice(2, 8)}`;
+  const m = await uploadPng(u, "post");
+  const p = await createPost(u, `#${tag}`, { media_upload_ids: [m.id] });
+  await api(adm.token).post(`/v1/admin/users/@${u.handle}/suspend`, { reason: "x" });
+  expect((await api(v.token).get<any>(`/v1/hashtags/${tag}/posts`)).body.items).toEqual([]);
+  expect((await api(v.token).get<any>(`/v1/timeline/discover?limit=100`)).body.items.find((i: any) => i.post.id === p.id)).toBeUndefined();
+  expect((await api(v.token).raw(`/v1/media/${m.id}`, { method: "GET" })).status).toBe(404);
+  await api(adm.token).post(`/v1/admin/users/@${u.handle}/unsuspend`);
+  expect((await api(v.token).get<any>(`/v1/hashtags/${tag}/posts`)).body.items.map((x: any) => x.id)).toEqual([p.id]);
+});
+test("reports list oldest-first by status; resolve no_action -> dismissed + dismiss_report; users & actions listing", async () => {
+  const adm = await signup(); await makeAdmin(adm);
+  const a = await signup(); const r = await signup();
+  const p1 = await createPost(a, "1"); const p2 = await createPost(a, "2");
+  const id1 = (await api(r.token).post<any>("/v1/reports", { target_type: "post", target_id: p1.id, reason: "spam" })).body.report_id;
+  const id2 = (await api(r.token).post<any>("/v1/reports", { target_type: "post", target_id: p2.id, reason: "spam" })).body.report_id;
+  const open = (await api(adm.token).get<any>("/v1/admin/reports?target_type=post&limit=100")).body.items.map((x: any) => x.id);
+  expect(open.indexOf(id1)).toBeLessThan(open.indexOf(id2));
+  const d = await api(adm.token).post<any>(`/v1/admin/reports/${id1}/resolve`, { resolution: "no_action", note: "ok" });
+  expect(d.body.report).toMatchObject({ status: "dismissed", resolution: "no_action", resolution_note: "ok", target_exists: true,
+    reporter: { id: r.user.id }, target_user: { id: a.user.id }, resolved_by: { id: adm.user.id }, open_reports_on_target: 0, snapshot: { body: "1" } });
+  const open2 = (await api(adm.token).get<any>(`/v1/admin/reports/${id2}`)).body.report;
+  expect(open2).toMatchObject({ status: "open", open_reports_on_target: 1, resolved_by: null, resolved_at: null });
+  await api(a.token).del(`/v1/posts/${p2.id}`);
+  expect((await api(adm.token).get<any>(`/v1/admin/reports/${id2}`)).body.report.target_exists).toBe(false);
+  expect((await api(adm.token).get<any>("/v1/admin/reports?status=dismissed&limit=100")).body.items.map((x: any) => x.id)).toContain(id1);
+  const acts = (await api(adm.token).get<any>(`/v1/admin/actions?target_type=post&target_id=${p1.id}`)).body.items;
+  expect(acts.map((x: any) => x.action)).toEqual(["dismiss_report"]);
+  await api(adm.token).post(`/v1/admin/users/@${a.handle}/suspend`, { reason: "x" });
+  const us = (await api(adm.token).get<any>(`/v1/admin/users?q=${a.handle}&suspended=true`)).body.items;
+  expect(us.map((x: any) => [x.id, x.open_report_count])).toEqual([[a.user.id, 1]]);
+});
