@@ -1,5 +1,5 @@
 // Messages (api.md 5.10). requireAuth is a per-route argument (plan 01 Global Constraints).
-// Task 20: send, list, get. Task 24 adds PATCH/DELETE, Task 25 threads, Task 26 reactions and pins.
+// Task 20: send, list, get. Task 24: PATCH/DELETE. Task 25 threads, Task 26 reactions and pins.
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
@@ -10,7 +10,7 @@ import { requireChannelRead, requireChannelWrite } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { serializeMessages } from "../lib/serialize";
 import { vJson, vQuery, zId, zNonce, zPollInput } from "../lib/validate";
-import { createMessage } from "../services/messages";
+import { createMessage, deleteMessage, editMessage } from "../services/messages";
 import type { MessageRow } from "../types/rows";
 
 const SendBody = z.object({
@@ -18,6 +18,10 @@ const SendBody = z.object({
   kind: z.enum(["text", "me", "roll", "poll"]).optional(),
   body: z.string().optional(), // validated per kind in services/messages.ts (prepareMessageBody)
   poll: zPollInput.optional(),
+});
+
+const EditBody = z.object({
+  body: z.string(), // NFC + trim + 1..4000 code points in services/messages.ts (prepareMessageBody)
 });
 
 const ListQuery = z.object({
@@ -122,4 +126,16 @@ messageRoutes.get("/messages/:message_id", requireAuth, async (c) => {
   const [message] = await serializeMessages(db, me, [row]);
   if (!message) throw err.notFound("message");
   return c.json({ message });
+});
+
+/** Author only, kind text/me (api.md 5.10, 3.7): 200 { message } + message.updated. */
+messageRoutes.patch("/messages/:message_id", requireAuth, limit("RL_MESSAGE"), vJson(EditBody), async (c) => {
+  const message = await editMessage(rt(c), c.req.param("message_id"), getAuth(c).userId, c.req.valid("json").body);
+  return c.json({ message });
+});
+
+/** Author or space owner/admin (api.md 3.7): soft delete, 204 + message.deleted. */
+messageRoutes.delete("/messages/:message_id", requireAuth, async (c) => {
+  await deleteMessage(rt(c), c.req.param("message_id"), getAuth(c).userId);
+  return c.body(null, 204);
 });

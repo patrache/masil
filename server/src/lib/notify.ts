@@ -3,15 +3,17 @@
 //   really went in publish `notification.created` (logged) and, when the recipient's switch allows, `alert` (logged).
 // - sendAlerts: alerts without an inbox row (dm, channel_message) — settings, channel prefs and blocks applied.
 // - suppressed / suppressed_reason (focus, dnd) are filled by UserHub, never here.
+// - fanoutMessageNotifications / notifyMessageMentions: per-message inbox rows + alerts (Task 24).
 // - Every lookup over many recipients is one json_each query (D1 caps bound params at 100 per statement).
 import type { Runtime } from "../env";
-import type { Alert, AlertKind, Notification, NotificationType } from "../types/api";
-import type { NotificationRow, UserSettingsRow } from "../types/rows";
-import { all, batch, jsonList, stmt } from "./db";
+import type { Alert, AlertKind, Message, Notification, NotificationType } from "../types/api";
+import type { ChannelRow, NotificationRow, UserSettingsRow } from "../types/rows";
+import { all, batch, first, jsonList, stmt } from "./db";
 import { newId } from "./ids";
 import type { OutboundEvent } from "../do/user-hub";
 import { deliverPerUser } from "./realtime";
 import { type NotificationExtra, loadUserSummaries, serializeNotifications } from "./serialize";
+import { plainSnippet } from "./text";
 import { iso, now } from "./time";
 
 export interface NotifyInput {
@@ -273,4 +275,171 @@ export async function sendAlerts(rt: Runtime, items: AlertItem[]): Promise<void>
     push(byUser, s.userId, { type: "alert", data: { alert: buildAlert(s, actor, t) } });
   }
   await publishPerRecipient(rt, byUser);
+}
+
+// ---------------------------------------------------------------------------
+// message notifications (Task 24; table in plan 01 Task 15)
+
+const GROUP_TITLE_MEMBERS = 3;
+
+/** Of `userIds`, those who can read `channel` now (api.md 3.7), one json_each query. */
+async function channelReadersAmong(db: D1Database, channel: ChannelRow, userIds: string[]): Promise<Set<string>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Set();
+  const cond =
+    channel.kind === "text"
+      ? `EXISTS (SELECT 1 FROM space_members sm JOIN spaces s ON s.id = sm.space_id AND s.deleted_at IS NULL
+                  WHERE sm.space_id = ?3 AND sm.user_id = j.value)
+         AND (?4 = 0 OR EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = ?2 AND cm.user_id = j.value))`
+      : "EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = ?2 AND cm.user_id = j.value)";
+  const rows = await all<{ user_id: string }>(
+    db,
+    `SELECT j.value AS user_id FROM json_each(?1) j WHERE ${cond}`,
+    jsonList(ids),
+    channel.id,
+    channel.space_id,
+    channel.is_private,
+  );
+  return new Set(rows.map((r) => r.user_id));
+}
+
+interface MessageAlertParts {
+  title: string;
+  body: string;
+  preview: string;
+  target: Alert["target"];
+  context: Partial<Notification["context"]>;
+  /** dm / group_dm members other than the author, in joined order. */
+  convMembers: string[];
+}
+
+/**
+ * Alert title / body / target for a message (plan 01 Task 24): text "<name> · <space> #<channel>", dm "<name>",
+ * group_dm "<name> · <group name or 3 member names>"; body = plainSnippet(body, 200) (a poll uses its question).
+ */
+async function messageAlertParts(db: D1Database, message: Message, channel: ChannelRow): Promise<MessageAlertParts> {
+  const authorId = message.author.id;
+  const name = message.author.display_name;
+  const text = message.kind === "poll" ? (message.poll?.question ?? "") : message.body;
+  let title = name;
+  let convMembers: string[] = [];
+  if (channel.kind === "text") {
+    const space = channel.space_id === null ? null : await first<{ name: string }>(db, "SELECT name FROM spaces WHERE id = ?1", channel.space_id);
+    title = `${name} · ${space?.name ?? ""} #${channel.name ?? ""}`;
+  } else {
+    const rows = await all<{ user_id: string }>(db, "SELECT user_id FROM channel_members WHERE channel_id = ?1 ORDER BY joined_at, user_id", channel.id);
+    convMembers = rows.map((r) => r.user_id).filter((u) => u !== authorId);
+    if (channel.kind === "group_dm") {
+      let group = (channel.name ?? "").trim();
+      if (group === "") {
+        const shown = convMembers.slice(0, GROUP_TITLE_MEMBERS);
+        const users = await loadUserSummaries(db, shown);
+        group = shown.flatMap((u) => (users.has(u) ? [users.get(u)!.display_name] : [])).join(", ");
+      }
+      title = group === "" ? name : `${name} · ${group}`;
+    }
+  }
+  const spaceId = channel.kind === "text" ? channel.space_id : null;
+  return {
+    title,
+    body: plainSnippet(text, BODY_MAX),
+    preview: plainSnippet(text, PREVIEW_MAX),
+    target: {
+      type: "message",
+      id: message.id,
+      channel_id: channel.id,
+      message_id: message.id,
+      thread_root_id: message.thread_root_id,
+      post_id: null,
+      space_id: spaceId,
+    },
+    context: { channel_id: channel.id, message_id: message.id, thread_root_id: message.thread_root_id, space_id: spaceId },
+    convMembers,
+  };
+}
+
+function mentionInput(message: Message, parts: MessageAlertParts, userId: string, withAlert: boolean): NotifyInput {
+  return {
+    userId,
+    type: "message_mention",
+    actorId: message.author.id,
+    subject: { type: "message", id: message.id },
+    preview: parts.preview,
+    context: parts.context,
+    dedupeKey: `message_mention:${message.id}:${userId}`,
+    alert: withAlert ? { kind: "mention", title: parts.title, body: parts.body, target: parts.target } : null,
+  };
+}
+
+/**
+ * Per-recipient alerts for a new message (one each, dm > mention > thread_reply > channel_message) and inbox rows:
+ * message_mention to every message_mentions row (explicit + @here, already filtered by api.md 2.1; none in a 1:1 dm),
+ * thread_reply to the root author + thread participants who still read the channel and were not mentioned.
+ * channel_message: text channel, top-level only, members whose prefs say notify 'all'. The author never gets anything;
+ * blocks, settings switches and channel prefs are applied by notifyMany / sendAlerts.
+ */
+export async function fanoutMessageNotifications(rt: Runtime, message: Message, channel: ChannelRow): Promise<void> {
+  const db = rt.env.DB;
+  if (message.kind === "system" || message.deleted) return;
+  const authorId = message.author.id;
+  const rootId = message.thread_root_id;
+
+  const [parts, mentionRows, threadRows, prefsRows] = await Promise.all([
+    messageAlertParts(db, message, channel),
+    all<{ user_id: string }>(db, "SELECT user_id FROM message_mentions WHERE message_id = ?1 ORDER BY rowid", message.id),
+    rootId === null
+      ? Promise.resolve([] as Array<{ user_id: string }>)
+      : all<{ user_id: string }>(
+          db,
+          "SELECT user_id FROM thread_participants WHERE root_id = ?1 UNION SELECT author_id AS user_id FROM messages WHERE id = ?1",
+          rootId,
+        ),
+    channel.kind !== "text" || rootId !== null
+      ? Promise.resolve([] as Array<{ user_id: string }>)
+      : all<{ user_id: string }>(db, "SELECT user_id FROM channel_prefs WHERE channel_id = ?1 AND notify = 'all' AND muted = 0", channel.id),
+  ]);
+
+  const dmTo = new Set(parts.convMembers); // dm / group_dm: everyone else gets the dm alert
+  const mentioned = mentionRows.map((r) => r.user_id).filter((u) => u !== authorId);
+  const mentionedSet = new Set(mentioned);
+  const readers = await channelReadersAmong(db, channel, [...threadRows, ...prefsRows].map((r) => r.user_id));
+  const threadTo = [...new Set(threadRows.map((r) => r.user_id))].filter((u) => u !== authorId && !mentionedSet.has(u) && readers.has(u));
+  const threadSet = new Set(threadTo);
+  const channelTo = prefsRows.map((r) => r.user_id).filter((u) => u !== authorId && !mentionedSet.has(u) && !threadSet.has(u) && readers.has(u));
+
+  const inbox: NotifyInput[] = [];
+  if (channel.kind !== "dm") for (const u of mentioned) inbox.push(mentionInput(message, parts, u, !dmTo.has(u)));
+  for (const u of threadTo) {
+    inbox.push({
+      userId: u,
+      type: "thread_reply",
+      actorId: authorId,
+      subject: { type: "message", id: message.id },
+      preview: parts.preview,
+      context: parts.context,
+      dedupeKey: `thread_reply:${message.id}:${u}`,
+      alert: dmTo.has(u) ? null : { kind: "thread_reply", title: parts.title, body: parts.body, target: parts.target },
+    });
+  }
+  const alerts: AlertItem[] = [
+    ...[...dmTo].map((u) => ({ userId: u, kind: "dm" as const })),
+    ...channelTo.map((u) => ({ userId: u, kind: "channel_message" as const })),
+  ].map((a) => ({ ...a, actorId: authorId, title: parts.title, body: parts.body, target: parts.target, channelId: channel.id }));
+
+  await Promise.all([notifyMany(rt, inbox), sendAlerts(rt, alerts)]);
+}
+
+/**
+ * message_mention inbox rows (+ mention alert) for mentions an edit newly added (api.md 5.10 PATCH). Not in a 1:1 dm;
+ * the dedupe key keeps it to one row per person per message however many times the message is edited.
+ */
+export async function notifyMessageMentions(rt: Runtime, message: Message, channel: ChannelRow, userIds: string[]): Promise<void> {
+  if (channel.kind === "dm" || message.deleted) return;
+  const targets = [...new Set(userIds)].filter((u) => u !== message.author.id);
+  if (targets.length === 0) return;
+  const parts = await messageAlertParts(rt.env.DB, message, channel);
+  await notifyMany(
+    rt,
+    targets.map((u) => mentionInput(message, parts, u, true)),
+  );
 }

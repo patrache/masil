@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
-import { api, connectWs, makeFriends, signup, type TestUser } from "../helpers";
+import { newId } from "../../src/lib/ids";
+import { api, connectWs, makeFriends, makeSpace, signup, uniqueHandle, type TestUser } from "../helpers";
 
 // ---- local fixtures (this file only) ----
 
@@ -11,6 +12,29 @@ async function dmPair(): Promise<{ a: TestUser; b: TestUser; ch: string }> {
   const r = await api(a.token).post<any>("/v1/dms", { users: [`@${b.handle}`] });
   if (r.status !== 201) throw new Error(`dm create failed: ${r.status} ${JSON.stringify(r.body)}`);
   return { a, b, ch: r.body.channel.id };
+}
+
+/** Lets fire-and-forget fan-out land before asserting that something did NOT arrive. */
+const settle = (ms = 150) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** n users (with settings) joined to the space, user_presence.status='online' (liveness left stale: no sockets to wake). */
+async function seedOnlineMembersSql(spaceId: string, n: number): Promise<void> {
+  const t = Date.now();
+  const list = JSON.stringify(Array.from({ length: n }, () => ({ id: newId(), handle: uniqueHandle("om") })));
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO users (id, handle, display_name, password_hash, created_at, updated_at)
+       SELECT json_extract(j.value, '$.id'), json_extract(j.value, '$.handle'), 'seed', 'x', ?2, ?2 FROM json_each(?1) j`,
+    ).bind(list, t),
+    env.DB.prepare("INSERT INTO user_settings (user_id, updated_at) SELECT json_extract(j.value, '$.id'), ?2 FROM json_each(?1) j").bind(list, t),
+    env.DB.prepare(
+      "INSERT INTO user_presence (user_id, status, updated_at) SELECT json_extract(j.value, '$.id'), 'online', ?2 FROM json_each(?1) j",
+    ).bind(list, t),
+    env.DB.prepare(
+      "INSERT INTO space_members (space_id, user_id, role, joined_at) SELECT ?2, json_extract(j.value, '$.id'), 'member', ?3 FROM json_each(?1) j",
+    ).bind(list, spaceId, t),
+    env.DB.prepare("UPDATE spaces SET member_count = member_count + ?2 WHERE id = ?1").bind(spaceId, n),
+  ]);
 }
 
 describe("send / list / get", () => {
@@ -146,5 +170,105 @@ describe("system messages", () => {
     const items = (await api(x.token).get<any>(`/v1/channels/${g.id}/messages`)).body.items;
     expect(items.map((m: any) => m.system?.event)).toEqual(["group_member_added", "group_member_removed"]);
     expect((await api(x.token).get<any>(`/v1/channels/${g.id}`)).body.channel.my.unread_count).toBe(0);
+  });
+});
+
+describe("mentions", () => {
+  it("@handle resolves only for readers without blocks; author in mentions[] but not notified", async () => {
+    const [o, m, out, blk] = await Promise.all([signup(), signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m, blk]);
+    const priv = (await api(o.token).post<any>(`/v1/spaces/${space.id}/channels`, { name: "p", is_private: true, members: [`@${blk.handle}`] })).body.channel;
+    await api(blk.token).put(`/v1/blocks/@${o.handle}`);
+    const cm = await connectWs(m.token);
+    const msg = (
+      await api(o.token).post<any>(`/v1/channels/${priv.id}/messages`, { client_nonce: "m1", body: `@${m.handle} @${out.handle} @${blk.handle} @${o.handle} hi` })
+    ).body.message;
+    expect(msg.mentions.map((x: any) => x.handle)).toEqual([o.handle]); // m: not a member of private channel; out: not in space; blk: blocked
+    await settle();
+    expect(cm.frames.some((f) => f.type === "notification.created")).toBe(false);
+  });
+
+  it("mention in channel -> message_mention inbox + mention alert; @here expands to online non-dnd only", async () => {
+    const [o, on, dnd, off] = await Promise.all([signup(), signup(), signup(), signup()]);
+    const { generalChannelId: g } = await makeSpace(o, [on, dnd, off]);
+    const [con, cdnd] = await Promise.all([connectWs(on.token), connectWs(dnd.token)]);
+    await api(dnd.token).put("/v1/me/presence", { mode: "dnd" });
+    const msg = (await api(o.token).post<any>(`/v1/channels/${g}/messages`, { client_nonce: "h1", body: "@here 회의" })).body.message;
+    expect(msg).toMatchObject({ mention_here: true, mentions: [] });
+    expect((await con.next("notification.created")).data.notification).toMatchObject({
+      type: "message_mention",
+      context: { message_id: msg.id, thread_root_id: null },
+    });
+    expect((await con.next("alert")).data.alert.kind).toBe("mention");
+    await settle();
+    expect(cdnd.frames.some((f) => f.type === "notification.created")).toBe(false);
+    expect((await env.DB.prepare("SELECT COUNT(*) n FROM message_mentions WHERE message_id=?").bind(msg.id).first<any>()).n).toBe(1);
+  });
+
+  it("@here in 1:1 dm does not expand; dm alert to partner", async () => {
+    const { a, b, ch } = await dmPair();
+    const cb = await connectWs(b.token);
+    await api(a.token).post(`/v1/channels/${ch}/messages`, { client_nonce: "d1", body: "@here yo" });
+    expect((await cb.next("alert")).data.alert).toMatchObject({ kind: "dm", title: a.user.display_name, body: "@here yo" });
+    expect(
+      (await env.DB.prepare("SELECT COUNT(*) n FROM message_mentions m JOIN messages x ON x.id=m.message_id WHERE x.channel_id=?").bind(ch).first<any>()).n,
+    ).toBe(0);
+  });
+
+  it("channel notify:all gives channel_message alert (top-level only); default mentions gives none", async () => {
+    const [o, m, q] = await Promise.all([signup(), signup(), signup()]);
+    const { space, generalChannelId: g } = await makeSpace(o, [m, q]);
+    await api(m.token).put(`/v1/channels/${g}/prefs`, { notify: "all" });
+    const [cm, cq] = await Promise.all([connectWs(m.token), connectWs(q.token)]);
+    const msg = (await api(o.token).post<any>(`/v1/channels/${g}/messages`, { client_nonce: "c1", body: "**공지** 입니다" })).body.message;
+    expect((await cm.next("alert")).data.alert).toMatchObject({
+      kind: "channel_message",
+      body: "공지 입니다",
+      target: { type: "message", channel_id: g, message_id: msg.id, space_id: space.id },
+    });
+    await settle();
+    expect(cq.frames.some((f) => f.type === "alert")).toBe(false);
+    await api(o.token).post(`/v1/messages/${msg.id}/thread`, { client_nonce: "c2", body: "답글" });
+    await settle();
+    expect(cm.frames.filter((f) => f.type === "alert")).toHaveLength(1); // thread replies never give channel_message
+  });
+
+  it("Review Focus 2: @here with 120 online members writes 119 is_here rows and 119 inbox rows", async () => {
+    const o = await signup();
+    const { space, generalChannelId: g } = await makeSpace(o, []);
+    await seedOnlineMembersSql(space.id, 119);
+    const r = await api(o.token).post<any>(`/v1/channels/${g}/messages`, { client_nonce: "h120", body: "@here 공지" });
+    expect(r.status).toBe(201);
+    const count = async (sql: string) => (await env.DB.prepare(sql).bind(r.body.message.id).first<any>()).n;
+    expect(await count("SELECT COUNT(*) n FROM message_mentions WHERE message_id=? AND is_here=1")).toBe(119);
+    expect(await count("SELECT COUNT(*) n FROM notifications WHERE type='message_mention' AND subject_id=?")).toBe(119);
+  });
+});
+
+describe("edit/delete", () => {
+  it("only author edits text; new mention notifies once", async () => {
+    const [o, m] = await Promise.all([signup(), signup()]);
+    const { generalChannelId: g } = await makeSpace(o, [m]);
+    const cm = await connectWs(m.token);
+    const msg = (await api(o.token).post<any>(`/v1/channels/${g}/messages`, { client_nonce: "e1", body: "hello" })).body.message;
+    expect((await api(m.token).patch(`/v1/messages/${msg.id}`, { body: "hack" })).status).toBe(403);
+    const ed = (await api(o.token).patch<any>(`/v1/messages/${msg.id}`, { body: `hello @${m.handle}` })).body.message;
+    expect(ed.edited_at).not.toBeNull();
+    await cm.next("message.updated");
+    await cm.next("notification.created");
+    await api(o.token).patch(`/v1/messages/${msg.id}`, { body: `hello again @${m.handle}` });
+    await settle();
+    expect(cm.frames.filter((f) => f.type === "notification.created")).toHaveLength(1);
+  });
+
+  it("delete: author / space admin ok, other member 403; event tombstone flag", async () => {
+    const [o, m, x] = await Promise.all([signup(), signup(), signup()]);
+    const { generalChannelId: g } = await makeSpace(o, [m, x]);
+    const cx = await connectWs(x.token);
+    const msg = (await api(m.token).post<any>(`/v1/channels/${g}/messages`, { client_nonce: "d1", body: "bye" })).body.message;
+    expect((await api(x.token).del(`/v1/messages/${msg.id}`)).status).toBe(403);
+    expect((await api(o.token).del(`/v1/messages/${msg.id}`)).status).toBe(204);
+    expect((await cx.next("message.deleted")).data).toEqual({ channel_id: g, message_id: msg.id, thread_root_id: null, tombstone: false });
+    expect((await api(o.token).get<any>(`/v1/channels/${g}/messages`)).body.items.map((i: any) => i.id)).not.toContain(msg.id);
   });
 });
