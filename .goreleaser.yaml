@@ -36,9 +36,19 @@ builds:
       - -X github.com/patrache/masil/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/patrache/masil/internal/version.Date={{ .Date }}
       # The release workflow refuses to run unless MASIL_DEFAULT_SERVER is https://,
-      # and afterwards runs scripts/check-release-binary.sh on the built binary
-      # (not `go version -m | grep DefaultServer=`, which -trimpath makes always fail).
+      # and the post hook below checks every built binary before anything is
+      # archived or published (not `go version -m | grep DefaultServer=`, which
+      # -trimpath makes always fail).
       - -X github.com/patrache/masil/internal/config.DefaultServer={{ envOrDefault "MASIL_DEFAULT_SERVER" "http://localhost:8787" }}
+    # Review Focus 2: a binary that does not embed the https:// default server
+    # (or was not built with CGO_ENABLED=0) fails the build here, so goreleaser
+    # aborts before archiving and before the GitHub release is created. An
+    # unset MASIL_DEFAULT_SERVER is passed as '' and rejected by the script, so
+    # a local `release --snapshot` needs MASIL_DEFAULT_SERVER=https://… too.
+    hooks:
+      post:
+        - cmd: sh scripts/check-release-binary.sh '{{ .Path }}' '{{ envOrDefault "MASIL_DEFAULT_SERVER" "" }}'
+          output: true
 
 archives:
   - ids:

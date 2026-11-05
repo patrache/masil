@@ -74,23 +74,22 @@ jobs:
         # fallback) to every user. Refuse before anything is built or published.
         run: |
           case "$MASIL_DEFAULT_SERVER" in
-            https://*) ;;
+            https://?*) ;;
             *) echo "::error::repo variable MASIL_DEFAULT_SERVER must be an https:// URL (owner sets it after the approved deploy)"; exit 1 ;;
           esac
       - uses: goreleaser/goreleaser-action@v7.3.0
+        # Every built binary is checked by scripts/check-release-binary.sh (the
+        # builds[].hooks.post in .goreleaser.yaml) BEFORE archiving and
+        # publishing: a binary without the https default server or with cgo
+        # aborts the release, so nothing reaches releases/latest. (-trimpath
+        # drops -ldflags from build info, so `go version -m | grep
+        # DefaultServer=` cannot work; the script looks for the URL in the binary.)
         with:
           distribution: goreleaser
           version: v2.19.0
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: check release binary
-        # -trimpath drops -ldflags from build info, so `go version -m | grep
-        # DefaultServer=` cannot work; this script looks for the URL in the binary.
-        run: |
-          set -- dist/masil_linux_amd64*/masil
-          [ -f "$1" ] || { echo "::error::linux/amd64 binary not found in dist/"; exit 1; }
-          sh scripts/check-release-binary.sh "$1" "$MASIL_DEFAULT_SERVER"
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: checksums

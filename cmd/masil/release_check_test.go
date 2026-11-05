@@ -68,6 +68,9 @@ func TestReleaseBinaryCheck(t *testing.T) {
 	if out, code := run(bin, "http://localhost:8787"); code != 1 || !strings.Contains(out, "https://") {
 		t.Fatalf("non-https expected server => exit %d, want 1 with an https hint:\n%s", code, out)
 	}
+	if out, code := run(bin, "https://"); code != 1 {
+		t.Fatalf("bare https:// expected server => exit %d, want 1:\n%s", code, out)
+	}
 	if out, code := run(bin, ""); code != 1 {
 		t.Fatalf("empty expected server => exit %d, want 1:\n%s", code, out)
 	}
@@ -76,5 +79,39 @@ func TestReleaseBinaryCheck(t *testing.T) {
 	}
 	if out, code := run(bin); code != 2 {
 		t.Fatalf("wrong arg count => exit %d, want 2:\n%s", code, out)
+	}
+}
+
+// Review Focus 2: the binary check must run before anything is published.
+// .goreleaser.yaml has draft: false, so a check that runs after
+// `goreleaser release` would only fail the job after the bad assets were
+// already served by releases/latest/download. The check therefore lives in
+// builds[].hooks.post (a failure aborts before archiving), and the workflow
+// guard rejects a bare "https://" the same way the script does.
+func TestReleaseCheckRunsBeforePublish(t *testing.T) {
+	read := func(rel string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join("..", "..", rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	gr := read(".goreleaser.yaml")
+	const hook = `- cmd: sh scripts/check-release-binary.sh '{{ .Path }}' '{{ envOrDefault "MASIL_DEFAULT_SERVER" "" }}'`
+	hooks := strings.Index(gr, "\n    hooks:\n      post:\n")
+	if hooks < 0 || !strings.Contains(gr[hooks:], hook) {
+		t.Fatalf(".goreleaser.yaml: builds[].hooks.post must run %s", hook)
+	}
+	if archives := strings.Index(gr, "\narchives:"); archives < 0 || hooks > archives {
+		t.Fatal(".goreleaser.yaml: the post hook must sit in builds, before archives")
+	}
+
+	wf := read(".github/workflows/release.yml")
+	if strings.Contains(wf, "check-release-binary.sh \"") || strings.Contains(wf, "sh scripts/check-release-binary.sh") {
+		t.Fatal("release.yml: do not run the binary check as a step after goreleaser publishes; it runs as a goreleaser build hook")
+	}
+	if !strings.Contains(wf, "            https://?*) ;;") || strings.Contains(wf, "            https://*) ;;") {
+		t.Fatal(`release.yml: the guard must accept only https://?* (a bare "https://" fails), like the script`)
 	}
 }
