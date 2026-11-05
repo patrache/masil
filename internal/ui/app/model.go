@@ -29,7 +29,8 @@ type Options struct {
 }
 
 // Model implements tea.Model.
-type Model struct { /* implements tea.Model */
+type Model struct {
+	nav NavState // logical navigation (CA 5.3.3); projected onto the layout every frame
 }
 
 var _ tea.Model = (*Model)(nil)
@@ -66,8 +67,7 @@ func (m *Model) Context() *ui.Context {
 
 // Nav returns the current logical navigation state (tests, CA 5.3.3).
 func (m *Model) Nav() NavState {
-	// TODO(core): Task 24
-	return NavState{}
+	return m.nav.clone()
 }
 
 // Instance returns the cached route instance or nil (tests).
