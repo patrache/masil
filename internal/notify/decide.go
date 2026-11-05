@@ -40,8 +40,41 @@ const (
 	Popup                  // OS notification (after ledger check)
 )
 
+// String names the decision (log attribute).
+func (d Decision) String() string {
+	switch d {
+	case Skip:
+		return "skip"
+	case Silent:
+		return "silent"
+	case Popup:
+		return "popup"
+	}
+	return "unknown"
+}
+
+// staleReplay is the age above which a replayed alert never pops (events.md 4.7, 7).
+const staleReplay = 10 * time.Minute
+
 // Decide applies the CA 4.6 rules in order.
 func Decide(a api.Alert, in Input) Decision {
-	// TODO(core): Task 15
-	return Skip
+	// quiet is the "do not pop" outcome: the TUI still lists the alert in-app,
+	// the daemon has no in-app surface.
+	quiet := Silent
+	if in.Role == RoleDaemon {
+		quiet = Skip
+	}
+	switch {
+	case in.Replayed && in.Now.Sub(a.CreatedAt) > staleReplay: // 1
+		return quiet
+	case a.Suppressed: // 2
+		return quiet
+	case !in.DesktopEnabled: // 3
+		return quiet
+	case in.Role == RoleDaemon && in.TUIPresent: // 4
+		return Skip
+	case in.Role == RoleTUI && in.TerminalFocusKnown && in.TerminalFocused && in.ViewingTarget: // 5
+		return Silent
+	}
+	return Popup // 6
 }
