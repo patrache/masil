@@ -1,7 +1,7 @@
 // Shared test helpers (server-architecture.md 7.2).
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { newId } from "../src/lib/ids";
-import type { Me, SpaceDetail } from "../src/types/api";
+import type { Me, PollInput, Post, SpaceDetail, Upload } from "../src/types/api";
 
 export const BASE = "http://masil.test" as const;
 
@@ -228,4 +228,57 @@ export async function makeSpace(owner: TestUser, members: TestUser[] = []): Prom
   const detail = await api(owner.token).get<{ space: SpaceDetail }>(`/v1/spaces/${spaceId}`);
   if (detail.status !== 200) throw new Error(`space get failed: ${detail.status} ${JSON.stringify(detail.body)}`);
   return { space: detail.body.space, generalChannelId: detail.body.space.default_channel_id };
+}
+
+// ---- SNS fixtures (plan 02 Task 1; every later SNS test uses these) ----
+
+/** A valid 1x1 PNG (70 bytes). */
+export const PNG_1X1: Uint8Array = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="),
+  (ch) => ch.charCodeAt(0),
+);
+
+/** POST /v1/uploads?purpose=… with PNG_1X1; throws unless 201. */
+export async function uploadPng(t: TestUser, purpose: "avatar" | "post" | "story"): Promise<Upload> {
+  const res = await api(t.token).raw(`/v1/uploads?purpose=${purpose}`, {
+    method: "POST",
+    headers: { "Content-Type": "image/png" },
+    body: PNG_1X1,
+  });
+  const text = await res.text();
+  if (res.status !== 201) throw new Error(`upload ${purpose} by ${t.handle} failed: ${res.status} ${text}`);
+  return (JSON.parse(text) as { upload: Upload }).upload;
+}
+
+/** POST /v1/posts with a fresh client_nonce; throws unless 201. */
+export async function createPost(
+  t: TestUser,
+  body: string,
+  extra: { media_upload_ids?: string[]; reply_to_id?: string; quote_of_id?: string; poll?: PollInput } = {},
+): Promise<Post> {
+  const r = await api(t.token).post<{ post: Post }>("/v1/posts", { body, client_nonce: crypto.randomUUID(), ...extra });
+  if (r.status !== 201) throw new Error(`post by ${t.handle} failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return r.body.post;
+}
+
+/** PUT /v1/users/@b/follow as a; returns `state` ("pending" for a private b); throws unless 200. */
+export async function follow(a: TestUser, b: TestUser): Promise<"active" | "pending"> {
+  const r = await api(a.token).put<{ state: "active" | "pending" }>(`/v1/users/@${b.handle}/follow`);
+  if (r.status !== 200) throw new Error(`follow ${a.handle} -> ${b.handle} failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return r.body.state;
+}
+
+/** Makes t a global operator directly in D1 (the role is read per request by requireAuth). */
+export async function makeAdmin(t: TestUser): Promise<void> {
+  await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(t.user.id).run();
+}
+
+let watchSeq = 0;
+
+/** Sends a `watch` frame (full replace) and waits for its ok reply. */
+export async function watch(c: WsClient, topics: string[]): Promise<void> {
+  const ref = `w-${++watchSeq}`;
+  c.send({ type: "watch", ref, data: { topics } });
+  const reply = await c.next("reply", (d) => d?.ref === ref);
+  if (reply.data.ok !== true) throw new Error(`watch ${ref} failed: ${JSON.stringify(reply.data.error)}`);
 }

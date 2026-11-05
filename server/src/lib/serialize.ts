@@ -32,6 +32,7 @@ import type {
   SpaceRole,
   SystemEvent,
   UnreadState,
+  Upload,
   UserStatus,
   UserSummary,
 } from "../types/api";
@@ -899,6 +900,11 @@ export function serializeMedia(row: UploadRow): Media {
     width: row.width,
     height: row.height,
   };
+}
+
+/** uploads row -> Upload (api.md 2, server-architecture.md 4.9): Media + purpose, status, created_at. */
+export function serializeUpload(row: UploadRow): Upload {
+  return { ...serializeMedia(row), purpose: row.purpose, status: row.status, created_at: iso(row.created_at) };
 }
 
 /** Post.author of a placeholder row (Post.author is non-null): the real author is never exposed. */

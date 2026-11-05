@@ -18,6 +18,7 @@ import { metaRoutes } from "./routes/meta";
 import { presenceRoutes } from "./routes/presence";
 import { searchRoutes } from "./routes/search";
 import { spaceRoutes } from "./routes/spaces";
+import { uploadRoutes } from "./routes/uploads";
 import { userRoutes } from "./routes/users";
 import { wsRoutes } from "./routes/ws";
 
@@ -104,6 +105,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", channelRoutes);
   app.route("/v1", messageRoutes);
   app.route("/v1", searchRoutes);
+  app.route("/v1", uploadRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }
