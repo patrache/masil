@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
+import { verifyPassword } from "../../src/lib/crypto";
 import { api, BASE, signup, uniqueHandle, uniqueIp } from "../helpers";
 
 describe("rate limits", () => {
@@ -14,5 +15,50 @@ describe("rate limits", () => {
     const u = await signup(); let status = 0;
     for (let i = 0; i < 11; i++) status = (await api().post("/v1/auth/login", { handle: u.handle, password: "wrong pass" })).status;
     expect(status).toBe(429);
+  });
+
+  // POST /v1/auth/password re-verifies the current password, so it is a password oracle for anyone holding a stolen
+  // token: it shares RL_LOGIN (same ip:/handle: keys) with login, checked before the PBKDF2 verify (api.md 0.7, 1.4).
+  describe("RL_LOGIN on POST /v1/auth/password", () => {
+    const wrong = { current_password: "wrong pass", new_password: "brand new pass" };
+
+    it("keys by handle across IPs: 11th wrong current_password -> 429 in the contract shape", async () => {
+      const u = await signup(); const statuses: number[] = []; let last: any;
+      for (let i = 0; i < 11; i++) { last = await api(u.token).post<any>("/v1/auth/password", wrong); statuses.push(last.status); }
+      expect(statuses.slice(0, 10)).toEqual(Array(10).fill(401));
+      expect(last.status).toBe(429);
+      expect(last.headers.get("Retry-After")).toBe("60");
+      expect(last.body.error.code).toBe("rate_limited");
+      expect(last.body.error.details).toEqual({ limiter: "RL_LOGIN", retry_after_sec: 60 });
+    });
+
+    it("keys by IP across users", async () => {
+      const ip = uniqueIp(); let status = 0;
+      for (let i = 0; i < 11; i++) {
+        const u = await signup();
+        status = (await api(u.token).raw("/v1/auth/password", { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": ip }, body: JSON.stringify(wrong) })).status;
+      }
+      expect(status).toBe(429);
+    });
+
+    it("shares the handle budget with login, and a limited request never changes the password", async () => {
+      const u = await signup();
+      for (let i = 0; i < 10; i++) expect((await api().post("/v1/auth/login", { handle: u.handle, password: "wrong pass" })).status).toBe(401);
+      // Even the correct current password is refused once the budget is spent; the hash stays as it was.
+      const r = await api(u.token).post<any>("/v1/auth/password", { current_password: u.password, new_password: "brand new pass" });
+      expect(r.status).toBe(429);
+      expect(r.body.error.details).toEqual({ limiter: "RL_LOGIN", retry_after_sec: 60 });
+      const row = await env.DB.prepare("SELECT password_hash FROM users WHERE id = ?1").bind(u.user.id).first<{ password_hash: string }>();
+      expect(await verifyPassword(u.password, row!.password_hash)).toBe(true);
+      // The session survives a 429 (an outsider can spend the shared handle budget, so tripping it must not log the owner out).
+      expect((await api(u.token).get("/v1/auth/sessions")).status).toBe(200);
+    });
+
+    it("a normal change within the budget still succeeds", async () => {
+      const u = await signup();
+      expect((await api(u.token).post("/v1/auth/password", wrong)).status).toBe(401);
+      expect((await api(u.token).post("/v1/auth/password", { current_password: u.password, new_password: "brand new pass" })).status).toBe(204);
+      expect((await api().post("/v1/auth/login", { handle: u.handle, password: "brand new pass" })).status).toBe(200);
+    });
   });
 });

@@ -123,7 +123,7 @@
 | 리미터(바인딩) | 한도 | 키 | 적용 엔드포인트 |
 |---|---|---|---|
 | `RL_SIGNUP` | 5회 / 60초 | `ip:<CF-Connecting-IP>` | `POST /v1/auth/signup` |
-| `RL_LOGIN` | 10회 / 60초 | `ip:<IP>` **그리고** `handle:<handle>` (둘 다 검사) | `POST /v1/auth/login` |
+| `RL_LOGIN` | 10회 / 60초 | `ip:<IP>` **그리고** `handle:<handle>` (둘 다 검사) | `POST /v1/auth/login`, `POST /v1/auth/password`(현재 비밀번호 확인 — 같은 버킷을 공유) |
 | `RL_MESSAGE` | 20회 / 10초 | `u:<user_id>` | 메시지·스레드 답글 전송, 메시지 수정 |
 | `RL_POST` | 10회 / 60초 | `u:<user_id>` | 글·답글·인용·스토리·방명록 작성 |
 | `RL_REACT` | 30회 / 10초 | `u:<user_id>` | 리액션, 좋아요, 리포스트, 투표, 고정 (읽음 표시는 제외) |
@@ -191,9 +191,10 @@
 - 내 세션만. 해당 세션의 소켓 `4001` 로 닫힘. 응답 `204`. 남의 세션 → `404`.
 
 #### `POST /v1/auth/password`
+- 인증 필요 · `RL_LOGIN`(`ip:<IP>` 와 `handle:<내 handle>`, 로그인과 **같은 버킷**). 현재 비밀번호 확인 전에 검사한다 — 세션 토큰을 가진 사람이 현재 비밀번호를 무제한 대입하지 못하게. 한도 초과 시 요청은 비밀번호를 바꾸지 않으며, 세션도 폐기하지 않는다(`handle:` 버킷은 로그인과 공유라 남이 소진시킬 수 있으므로, 폐기하면 남이 소유자를 로그아웃시킬 수 있다).
 - 요청: `{ "current_password": string, "new_password": string }`
 - 현재 세션을 제외한 모든 세션 폐기(`password_changed`). 응답 `204`.
-- 오류: `401 invalid_credentials`(현재 비밀번호 틀림), `400`.
+- 오류: `401 invalid_credentials`(현재 비밀번호 틀림), `400`, `429 rate_limited`(`RL_LOGIN`).
 
 ---
 
@@ -1377,7 +1378,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | POST | /v1/auth/logout | ✓ | |
 | GET | /v1/auth/sessions | ✓ | |
 | DELETE | /v1/auth/sessions/{session_id} | ✓ | |
-| POST | /v1/auth/password | ✓ | |
+| POST | /v1/auth/password | ✓ | RL_LOGIN |
 | GET | /v1/me | ✓ | |
 | PATCH | /v1/me/profile | ✓ | |
 | GET/PATCH | /v1/me/settings | ✓ | |

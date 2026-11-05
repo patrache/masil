@@ -223,11 +223,18 @@ authRoutes.delete("/auth/sessions/:session_id", requireAuth, async (c) => {
   return c.body(null, 204);
 });
 
-/** Password change: verify the current one (401 invalid_credentials), store the new hash, revoke every other session. */
+/**
+ * Password change: verify the current one (401 invalid_credentials), store the new hash, revoke every other session.
+ * The current-password check is a password oracle for whoever holds the token, so it spends the login budget
+ * (RL_LOGIN, same ip:/handle: keys as /auth/login) before the PBKDF2 verify (api.md 0.7). A 429 does not revoke the
+ * session: the handle: bucket is shared with login, so an outsider could otherwise log the owner out at will.
+ */
 authRoutes.post("/auth/password", requireAuth, vJson(PasswordBody), async (c) => {
   const auth = getAuth(c);
   const body = c.req.valid("json");
   const db = c.env.DB;
+  await checkLimit(c.env, "RL_LOGIN", `ip:${clientIp(c)}`);
+  await checkLimit(c.env, "RL_LOGIN", `handle:${auth.handle}`);
   if (body.new_password.toLowerCase() === auth.handle) throw err.invalid({ new_password: "invalid" });
   const user = await first<Pick<UserRow, "password_hash">>(db, "SELECT password_hash FROM users WHERE id = ?1", auth.userId);
   if (user === null) throw err.unauthorized();
