@@ -1,6 +1,7 @@
 package uitest
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/patrache/masil/internal/ui/layout"
@@ -51,6 +52,17 @@ func AllSizes() []Size {
 }
 
 // ForEachSize runs fn in a subtest per "WxH", with a fresh harness each.
+// An empty size list fails the test (a golden loop must never pass vacuously).
 func ForEachSize(t *testing.T, sizes []Size, fn func(t *testing.T, h *Harness)) {
-	// TODO(core): Task 25 (needs New)
+	t.Helper()
+	if len(sizes) == 0 {
+		t.Fatal("uitest.ForEachSize: no sizes")
+	}
+	for _, s := range sizes {
+		t.Run(fmt.Sprintf("%dx%d", s.W, s.H), func(t *testing.T) {
+			h := New(t)
+			h.Resize(s.W, s.H)
+			fn(t, h)
+		})
+	}
 }

@@ -31,8 +31,8 @@ import (
 // (thread of the selected message; channel routes only) and i/a (focus the input)
 // are handled; everything else (esc, ctrl+c included) is left to the app.
 //
-// Test-only hooks (additions to CA 10.2): Completion, Completed, OnUpdate, Pending
-// and Completing (ui.Completer, CR-A).
+// Test-only hooks (additions to CA 10.2): Completion, Completed, OnUpdate, Pending,
+// Resizes and Completing (ui.Completer, CR-A).
 type Chat struct {
 	Route    ui.Route
 	Serial   uint64                     // unique per instance (identity checks across mode switches)
@@ -47,6 +47,8 @@ type Chat struct {
 	OnUpdate func(ctx *ui.Context, msg tea.Msg)
 	// Pending holds the lines sent with enter, in order.
 	Pending []string
+	// Resizes records every Resize size, in order (pane geometry tests).
+	Resizes []ui.Size
 
 	base      []api.Message
 	capturing bool
@@ -274,6 +276,7 @@ func (c *Chat) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 // Resize implements ui.Component.
 func (c *Chat) Resize(ctx *ui.Context, size ui.Size) {
 	c.size = size
+	c.Resizes = append(c.Resizes, size)
 	if c.composerH = c.composerHeight(ctx); c.composerH > 0 {
 		c.Composer.View(ctx, size.W, c.maxRows(ctx)) // keep the composer's cursor geometry current
 	}
