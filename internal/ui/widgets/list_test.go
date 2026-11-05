@@ -10,6 +10,7 @@ import (
 
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
@@ -393,5 +394,32 @@ func TestListMouse(t *testing.T) {
 	multi.HandleMouse(ctx, tea.MouseClickMsg{Button: tea.MouseLeft}, ui.Point{X: 0, Y: 4})
 	if got := selID(t, multi); got != "m1" {
 		t.Fatalf("click on 2nd line of m1 selected %q", got)
+	}
+}
+
+// A mode change at the same width must re-render: render output depends on
+// ctx.Density()/ctx.Mode, so cached lines from the old mode must not be served.
+func TestListModeChangeSameWidthRerenders(t *testing.T) {
+	ctx := newCtx(nil, false)
+	ctx.Mode = layout.ModeStandard
+	l := widgets.NewList(func(it item) string { return it.id },
+		func(ctx *ui.Context, it item, selected bool, width int) []string {
+			return []string{fmt.Sprintf("%s d%d", it.id, ctx.Density())}
+		})
+	l.SetItems(items(3, nil, ""))
+	want := fmt.Sprintf("d%d", ui.DensityFull)
+	if got := ansi.Strip(viewLines(ctx, l, 20, 3)[0]); !strings.Contains(got, want) {
+		t.Fatalf("standard: first line = %q, want %q", got, want)
+	}
+	ctx.Mode = layout.ModeCompact
+	want = fmt.Sprintf("d%d", ui.DensityLine)
+	if got := ansi.Strip(viewLines(ctx, l, 20, 3)[0]); !strings.Contains(got, want) {
+		t.Fatalf("compact at same width: first line = %q, want %q (stale cache)", got, want)
+	}
+	// command and standard share a density but are different modes: still re-rendered
+	ctx.Mode = layout.ModeCommand
+	want = fmt.Sprintf("d%d", ui.DensityFull)
+	if got := ansi.Strip(viewLines(ctx, l, 20, 3)[0]); !strings.Contains(got, want) {
+		t.Fatalf("command at same width: first line = %q, want %q", got, want)
 	}
 }

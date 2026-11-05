@@ -8,6 +8,7 @@ import (
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
+	"github.com/patrache/masil/internal/ui/layout"
 )
 
 // wheelLines is how far one mouse wheel notch scrolls a List.
@@ -18,8 +19,9 @@ const wheelLines = 3
 // Items render to a variable number of lines (render returns them for a width).
 // The scroll position lives only in a ScrollAnchor (top item ID + line offset into
 // it, or pinned to the bottom), so it survives re-wrapping on width/mode changes.
-// Rendered lines are cached per (item ID, width, selected) until the next SetItems
-// or a theme change. "g g" (top) is a two-key sequence tracked without any timer.
+// Rendered lines are cached per (item ID, width, selected) and dropped on the next
+// SetItems, a theme change or a ctx.Mode change (so density changes re-render even at
+// the same width). "g g" (top) is a two-key sequence tracked without any timer.
 type List[T any] struct {
 	idOf   func(T) string
 	render func(ctx *ui.Context, item T, selected bool, width int) []string
@@ -36,6 +38,7 @@ type List[T any] struct {
 
 	cache      map[listCacheKey][]string
 	cacheTheme *theme.Theme
+	cacheMode  layout.Mode
 
 	size ui.Size // last View size
 	rows []int   // last View: item index per visible row (-1 = blank)
@@ -55,11 +58,19 @@ type ScrollAnchor struct {
 }
 
 // NewList creates a list.
+//
+// render's output is cached by item ID (plus width and selection), and the cache is
+// also dropped when ctx.Theme or ctx.Mode changes. Any other input render reads
+// (Store state such as names or presence, ctx.Now for relative times, ...) is not
+// tracked: when such inputs change, call SetItems again to re-render.
 func NewList[T any](idOf func(T) string, render func(ctx *ui.Context, item T, selected bool, width int) []string) *List[T] {
 	return &List[T]{idOf: idOf, render: render, sel: -1, index: map[string]int{}}
 }
 
 // SetItems replaces items, keeping selection & top anchor by ID.
+//
+// It always drops the render cache, so callers also use it to re-render after a
+// non-item input of render changes (Store, time), even with the same items.
 //
 // A removed selected item hands the selection to the item now at the same index
 // (or the last one); with no prior selection the first item is selected. A removed
@@ -383,9 +394,14 @@ func (l *List[T]) height(ctx *ui.Context, i, w int) int {
 // linesOf renders item i at width w (at least one line), through the cache.
 func (l *List[T]) linesOf(ctx *ui.Context, i, w int) []string {
 	t := themeOf(ctx)
-	if l.cache == nil || l.cacheTheme != t {
+	var mode layout.Mode
+	if ctx != nil {
+		mode = ctx.Mode
+	}
+	if l.cache == nil || l.cacheTheme != t || l.cacheMode != mode {
 		l.cache = map[listCacheKey][]string{}
 		l.cacheTheme = t
+		l.cacheMode = mode
 	}
 	it := l.items[i]
 	k := listCacheKey{id: l.idOf(it), width: w, selected: i == l.sel}
