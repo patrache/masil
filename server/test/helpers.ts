@@ -1,7 +1,7 @@
-// Shared test helpers (server-architecture.md 7.2). Later tasks add makeSpace.
+// Shared test helpers (server-architecture.md 7.2).
 import { SELF } from "cloudflare:test";
 import { newId } from "../src/lib/ids";
-import type { Me } from "../src/types/api";
+import type { Me, SpaceDetail } from "../src/types/api";
 
 export const BASE = "http://masil.test" as const;
 
@@ -205,4 +205,27 @@ export async function makeFriends(a: TestUser, b: TestUser): Promise<void> {
   if (r.status !== 201) throw new Error(`friend request ${a.handle} -> ${b.handle} failed: ${r.status} ${JSON.stringify(r.body)}`);
   const acc = await api(b.token).post(`/v1/friends/requests/${r.body.request.id}/accept`);
   if (acc.status !== 200) throw new Error(`friend accept ${b.handle} failed: ${acc.status} ${JSON.stringify(acc.body)}`);
+}
+
+// ---- spaces ----
+
+/**
+ * `owner` creates a space through the API, makes one invite link (no use cap) and every member accepts it.
+ * Returns the space as the owner sees it after the joins, and its default channel (`일반`).
+ */
+export async function makeSpace(owner: TestUser, members: TestUser[] = []): Promise<{ space: SpaceDetail; generalChannelId: string }> {
+  const created = await api(owner.token).post<{ space: SpaceDetail }>("/v1/spaces", { name: `방 ${randomBase36(6)}` });
+  if (created.status !== 201) throw new Error(`space create failed: ${created.status} ${JSON.stringify(created.body)}`);
+  const spaceId = created.body.space.id;
+  if (members.length > 0) {
+    const inv = await api(owner.token).post<{ invite: { code: string } }>(`/v1/spaces/${spaceId}/invites`, { max_uses: null });
+    if (inv.status !== 201) throw new Error(`invite create failed: ${inv.status} ${JSON.stringify(inv.body)}`);
+    for (const m of members) {
+      const r = await api(m.token).post(`/v1/invites/${inv.body.invite.code}/accept`);
+      if (r.status !== 200) throw new Error(`invite accept ${m.handle} failed: ${r.status} ${JSON.stringify(r.body)}`);
+    }
+  }
+  const detail = await api(owner.token).get<{ space: SpaceDetail }>(`/v1/spaces/${spaceId}`);
+  if (detail.status !== 200) throw new Error(`space get failed: ${detail.status} ${JSON.stringify(detail.body)}`);
+  return { space: detail.body.space, generalChannelId: detail.body.space.default_channel_id };
 }

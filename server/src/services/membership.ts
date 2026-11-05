@@ -1,6 +1,6 @@
 // Space / channel membership services (server-architecture.md 4.14 membership.ts).
 // Task 19: addChannelMembers / removeChannelMember for group_dm (api.md 3.1, 5.6). The private text branch is Task 23;
-// joinSpace / removeFromSpace are Task 21 (the invite branches of joinSpace's `via` are Task 22). group_dm system messages (group_member_added/removed) come from Task 20's
+// joinSpace / removeFromSpace are Task 21; the invite branches of joinSpace's `via` are Task 22. group_dm system messages (group_member_added/removed) come from Task 20's
 // postSystemMessage after the membership batch committed.
 // Each write is one db.batch, then publish (server-architecture.md 3.5).
 import type { Runtime } from "../env";
@@ -13,7 +13,7 @@ import { now } from "../lib/time";
 import { postSystemMessage } from "./messages";
 import type { Channel, SpaceDetail } from "../types/api";
 import type { SpaceRemovalReason } from "../types/events";
-import type { ChannelRow, SpaceMemberRow, SpaceRow } from "../types/rows";
+import type { ChannelRow, SpaceDirectInviteRow, SpaceInviteRow, SpaceMemberRow, SpaceRow } from "../types/rows";
 
 /** Members of a group DM, creator included (api.md 3.1). */
 export const GROUP_DM_MAX_MEMBERS = 10;
@@ -161,17 +161,55 @@ function isUniqueViolation(e: unknown): boolean {
 
 type JoinFactsRow = SpaceRow & { _banned: number; _member: number };
 
+export type InviteInvalidReason = "revoked" | "expired" | "exhausted";
+
+/** Why an invite link can no longer be used (revoked > expired > exhausted), or null while it is usable. */
+export function inviteInvalidReason(row: SpaceInviteRow, nowMs: number = now()): InviteInvalidReason | null {
+  if (row.revoked_at !== null) return "revoked";
+  if (row.expires_at !== null && row.expires_at <= nowMs) return "expired";
+  if (row.max_uses !== null && row.use_count >= row.max_uses) return "exhausted";
+  return null;
+}
+
+/** The invite link `code` of `spaceId`; 404 when missing. */
+async function loadInviteOf(db: D1Database, spaceId: string, code: string): Promise<SpaceInviteRow> {
+  const row = await first<SpaceInviteRow>(db, "SELECT * FROM space_invites WHERE code = ?1 AND space_id = ?2", code, spaceId);
+  if (row === null) throw err.notFound("invite");
+  return row;
+}
+
 /**
- * `userId` joins a live space (404 otherwise) as a member. Pre-checks in this order: ban 403 banned_from_space,
- * already a member 409 already_member, member_count >= 5000 422 limit_exceeded space_members.
- * One batch: space_members INSERT + spaces.member_count+1 (a concurrent join of the same user fails the PK -> 409).
- * After commit: space.joined{space} to the user (their own view), space.member_joined{space_id, member} to the other
- * members, then the system message member_joined in the default channel.
- * `via` carries the invite whose use is recorded in the same batch — that branch is plan 01 Task 22.
+ * `userId` joins a live space (404 otherwise) as a member. Pre-checks in this order: (inviteCode) the link is usable
+ * 410 invite_invalid / (directInviteId) a pending invite to this user 404, then ban 403 banned_from_space, already a
+ * member 409 already_member, member_count >= 5000 422 limit_exceeded space_members (pre-check only: concurrent joins
+ * may pass the cap by one or two, which keeps the invite use and the join in one batch).
+ * One batch (plan 01 Task 22, exactly these statements in this order):
+ *   via invite: [invite UPDATE (use_count+1 / status accepted) gated on still being usable] ->
+ *   space_members INSERT gated on changes() > 0 -> spaces.member_count+1 gated on changes() > 0.
+ *   via {}: the INSERT and the member_count UPDATE without the gates (Task 21).
+ * A first statement that changed nothing means the invite was used up / answered meanwhile and nothing was written:
+ * 410 with the re-read reason (link) or 404 (direct). A concurrent join of the same user fails the PK and rolls the
+ * whole batch back -> 409 already_member.
+ * After commit (only when a row went in): space.joined{space} to the user (their own view), space.member_joined
+ * {space_id, member} to the other members, (direct) space.invite_removed{invite_id, reason:"accepted"} to the invitee
+ * and the inviter, then the system message member_joined in the default channel.
  */
 export async function joinSpace(rt: Runtime, spaceId: string, userId: string, via: { inviteCode?: string; directInviteId?: string }): Promise<SpaceDetail> {
-  if (via.inviteCode !== undefined || via.directInviteId !== undefined) throw new Error("invite joins are not implemented yet (plan 01 Task 22)");
   const db = rt.env.DB;
+  let direct: SpaceDirectInviteRow | null = null;
+  if (via.inviteCode !== undefined) {
+    const reason = inviteInvalidReason(await loadInviteOf(db, spaceId, via.inviteCode));
+    if (reason !== null) throw err.inviteInvalid(reason);
+  } else if (via.directInviteId !== undefined) {
+    direct = await first<SpaceDirectInviteRow>(
+      db,
+      "SELECT * FROM space_direct_invites WHERE id = ?1 AND space_id = ?2 AND invitee_id = ?3 AND status = 'pending'",
+      via.directInviteId,
+      spaceId,
+      userId,
+    );
+    if (direct === null) throw err.notFound("invite");
+  }
   const facts = await first<JoinFactsRow>(
     db,
     `SELECT s.*,
@@ -187,15 +225,52 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
   if (facts.member_count >= SPACE_MEMBERS_MAX) throw err.limit("space_members", SPACE_MEMBERS_MAX);
 
   const t = now();
+  const gated = via.inviteCode !== undefined || via.directInviteId !== undefined;
+  const stmts: D1PreparedStatement[] = [];
+  if (via.inviteCode !== undefined) {
+    stmts.push(
+      stmt(
+        db,
+        `UPDATE space_invites SET use_count = use_count + 1
+          WHERE code = ?1 AND space_id = ?2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?3)
+            AND (max_uses IS NULL OR use_count < max_uses)`,
+        via.inviteCode,
+        spaceId,
+        t,
+      ),
+    );
+  } else if (via.directInviteId !== undefined) {
+    stmts.push(
+      stmt(
+        db,
+        `UPDATE space_direct_invites SET status = 'accepted', responded_at = ?3
+          WHERE id = ?1 AND space_id = ?2 AND invitee_id = ?4 AND status = 'pending'`,
+        via.directInviteId,
+        spaceId,
+        t,
+        userId,
+      ),
+    );
+  }
+  const gate = gated ? " WHERE changes() > 0" : "";
+  stmts.push(
+    stmt(db, `INSERT INTO space_members (space_id, user_id, role, joined_at) SELECT ?1, ?2, 'member', ?3${gate}`, spaceId, userId, t),
+    stmt(db, `UPDATE spaces SET member_count = member_count + 1, updated_at = ?2 WHERE id = ?1${gated ? " AND changes() > 0" : ""}`, spaceId, t),
+  );
+  let results: D1Result[];
   try {
-    await batch(db, [
-      stmt(db, "INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'member', ?3)", spaceId, userId, t),
-      stmt(db, "UPDATE spaces SET member_count = member_count + 1, updated_at = ?2 WHERE id = ?1", spaceId, t),
-    ]);
+    results = await batch(db, stmts);
   } catch (e) {
     if (isUniqueViolation(e)) throw err.conflict("already_member");
     throw e;
   }
+  if (gated && (results[0]!.meta.changes ?? 0) === 0) {
+    if (via.inviteCode !== undefined) {
+      throw err.inviteInvalid(inviteInvalidReason(await loadInviteOf(db, spaceId, via.inviteCode), t) ?? "exhausted");
+    }
+    throw err.notFound("invite");
+  }
+  if ((results[gated ? 1 : 0]!.meta.changes ?? 0) !== 1) throw err.conflict("already_member");
 
   const row = await first<SpaceRow>(db, "SELECT * FROM spaces WHERE id = ?1", spaceId);
   if (row === null) throw err.notFound("space");
@@ -203,6 +278,9 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
   const [detail, [member]] = await Promise.all([serializeSpaceDetail(db, userId, row), serializeSpaceMembers(db, [memberRow])]);
   await publishEvent(rt, { users: [userId] }, "space.joined", { space: detail });
   if (member) await publishEvent(rt, { space: spaceId }, "space.member_joined", { space_id: spaceId, member }, { exclude: [userId] });
+  if (direct !== null) {
+    await publishEvent(rt, { users: [direct.invitee_id, direct.inviter_id] }, "space.invite_removed", { invite_id: direct.id, reason: "accepted" });
+  }
   if (row.default_channel_id !== null) {
     await postSystemMessage(rt, row.default_channel_id, userId, { event: "member_joined", actor_id: userId, target_user_id: userId, data: {} });
   }

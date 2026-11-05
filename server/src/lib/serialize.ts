@@ -4,9 +4,12 @@
 import type {
   Channel,
   ChannelMyState,
+  DirectInvite,
   Focus,
   Friend,
   FriendRequest,
+  Invite,
+  InvitePreview,
   Me,
   MentionRef,
   Message,
@@ -22,6 +25,7 @@ import type {
   Space,
   SpaceDetail,
   SpaceMember,
+  SpacePreview,
   SpaceRole,
   SystemEvent,
   UnreadState,
@@ -39,6 +43,8 @@ import type {
   PollRow,
   SessionRow,
   SpaceBanRow,
+  SpaceDirectInviteRow,
+  SpaceInviteRow,
   SpaceMemberRow,
   SpaceRow,
   UserPresenceRow,
@@ -768,5 +774,89 @@ export async function serializeSpaceBans(db: D1Database, rows: SpaceBanRow[]): P
     const user = users.get(r.user_id);
     const by = users.get(r.banned_by);
     return user && by ? [{ user, banned_by: by, reason: r.reason, created_at: iso(r.created_at) }] : [];
+  });
+}
+
+// ---- invites (plan 01 Task 22 additions) ----
+
+function toSpacePreview(row: SpaceRow): SpacePreview {
+  return { id: row.id, name: row.name, description: row.description, icon_emoji: row.icon_emoji, member_count: row.member_count };
+}
+
+/** Live (not deleted) spaces by id, one json_each query. */
+async function loadSpacePreviews(db: D1Database, ids: readonly string[]): Promise<Map<string, SpacePreview>> {
+  if (ids.length === 0) return new Map();
+  const rows = await all<SpaceRow>(
+    db,
+    "SELECT * FROM spaces WHERE id IN (SELECT value FROM json_each(?1)) AND deleted_at IS NULL",
+    jsonList([...new Set(ids)]),
+  );
+  return new Map(rows.map((r) => [r.id, toSpacePreview(r)]));
+}
+
+/** space_invites rows -> Invite (api.md 2), in row order; spaces and creators batch-loaded (two queries). A row whose
+ *  space is deleted or whose creator is gone is dropped. */
+export async function serializeInvites(db: D1Database, rows: SpaceInviteRow[]): Promise<Invite[]> {
+  const [spaces, users] = await Promise.all([
+    loadSpacePreviews(
+      db,
+      rows.map((r) => r.space_id),
+    ),
+    loadUserSummaries(
+      db,
+      rows.map((r) => r.created_by),
+    ),
+  ]);
+  return rows.flatMap((r) => {
+    const space = spaces.get(r.space_id);
+    const by = users.get(r.created_by);
+    if (!space || !by) return [];
+    return [
+      {
+        code: r.code,
+        space,
+        created_by: by,
+        max_uses: r.max_uses,
+        use_count: r.use_count,
+        expires_at: isoOrNull(r.expires_at),
+        revoked: r.revoked_at !== null,
+        created_at: iso(r.created_at),
+      },
+    ];
+  });
+}
+
+/** What `viewerId` sees for an invite code (api.md InvitePreview). Validity and the space being live are the caller's job. */
+export async function serializeInvitePreview(db: D1Database, viewerId: string, row: SpaceInviteRow): Promise<InvitePreview> {
+  const [spaces, users, member] = await Promise.all([
+    loadSpacePreviews(db, [row.space_id]),
+    loadUserSummaries(db, [row.created_by]),
+    all<{ x: number }>(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", row.space_id, viewerId),
+  ]);
+  const space = spaces.get(row.space_id);
+  const by = users.get(row.created_by);
+  if (!space || !by) throw err.notFound("invite");
+  return { code: row.code, space, created_by: by, expires_at: isoOrNull(row.expires_at), already_member: member.length > 0 };
+}
+
+/** space_direct_invites rows -> DirectInvite (api.md 2), in row order; spaces and both users batch-loaded (two
+ *  queries). A row whose space is deleted or whose inviter/invitee is gone is dropped. */
+export async function serializeDirectInvites(db: D1Database, rows: SpaceDirectInviteRow[]): Promise<DirectInvite[]> {
+  const [spaces, users] = await Promise.all([
+    loadSpacePreviews(
+      db,
+      rows.map((r) => r.space_id),
+    ),
+    loadUserSummaries(
+      db,
+      rows.flatMap((r) => [r.inviter_id, r.invitee_id]),
+    ),
+  ]);
+  return rows.flatMap((r) => {
+    const space = spaces.get(r.space_id);
+    const inviter = users.get(r.inviter_id);
+    const invitee = users.get(r.invitee_id);
+    if (!space || !inviter || !invitee) return [];
+    return [{ id: r.id, space, inviter, invitee, status: r.status, created_at: iso(r.created_at) }];
   });
 }

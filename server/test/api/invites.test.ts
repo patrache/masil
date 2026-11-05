@@ -1,0 +1,213 @@
+import { env } from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+import { joinSpace } from "../../src/services/membership";
+import { api, connectWs, makeFriends, makeSpace, signup, type TestUser } from "../helpers";
+
+// ---- local fixtures (this file only) ----
+
+/** POST /v1/spaces by `owner`; throws unless 201. Returns the SpaceDetail. */
+async function spaceViaApi(owner: TestUser, name = "초대방"): Promise<any> {
+  const r = await api(owner.token).post<any>("/v1/spaces", { name });
+  if (r.status !== 201) throw new Error(`space create failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return r.body.space;
+}
+
+describe("invites", () => {
+  it("link: create (default 7d), preview, accept, system message, use_count", async () => {
+    const [o, m] = await Promise.all([signup(), signup()]);
+    const s = await spaceViaApi(o);
+    const created = await api(o.token).post<any>(`/v1/spaces/${s.id}/invites`, { max_uses: 1 });
+    expect(created.status).toBe(201);
+    const inv = created.body.invite;
+    expect(inv.code).toMatch(/^[A-HJ-NP-Za-km-np-z2-9]{8}$/);
+    expect(inv).toMatchObject({ space: { id: s.id, name: "초대방" }, created_by: { id: o.user.id }, max_uses: 1, use_count: 0, revoked: false });
+    expect(Date.parse(inv.expires_at) - Date.now()).toBeGreaterThan(604_790_000);
+    expect((await api(m.token).get<any>(`/v1/invites/${inv.code}`)).body.invite).toMatchObject({
+      code: inv.code,
+      already_member: false,
+      created_by: { id: o.user.id },
+      space: { id: s.id, member_count: 1 },
+    });
+    expect((await api(o.token).get<any>(`/v1/invites/${inv.code}`)).body.invite.already_member).toBe(true);
+    expect((await api(m.token).get(`/v1/invites/ABCDEFGH`)).status).toBe(404);
+    const co = await connectWs(o.token);
+    const cm = await connectWs(m.token);
+    const j = await api(m.token).post<any>(`/v1/invites/${inv.code}/accept`);
+    expect(j.status).toBe(200);
+    expect(j.body.space).toMatchObject({ id: s.id, my_role: "member", member_count: 2 });
+    expect((await co.next("space.member_joined")).data.member.user.id).toBe(m.user.id);
+    expect((await cm.next("space.joined")).data.space).toMatchObject({ id: s.id, my_role: "member" });
+    const general = (await api(o.token).get<any>(`/v1/channels/${s.default_channel_id}/messages`)).body.items.at(-1);
+    expect(general.system).toMatchObject({ event: "member_joined", actor_id: m.user.id });
+    const third = await signup();
+    const ex = await api(third.token).post<any>(`/v1/invites/${inv.code}/accept`);
+    expect(ex.status).toBe(410);
+    expect(ex.body.error).toMatchObject({ code: "invite_invalid", details: { reason: "exhausted" } });
+    expect((await api(m.token).post<any>(`/v1/invites/${inv.code}/accept`)).status).toBe(410);
+    const row = await env.DB.prepare("SELECT use_count FROM space_invites WHERE code=?").bind(inv.code).first<any>();
+    expect(row.use_count).toBe(1);
+  });
+
+  it("link options: max_uses / expires_in_sec validation and null = unlimited", async () => {
+    const o = await signup();
+    const s = await spaceViaApi(o);
+    const forever = (await api(o.token).post<any>(`/v1/spaces/${s.id}/invites`, { max_uses: null, expires_in_sec: null })).body.invite;
+    expect(forever).toMatchObject({ max_uses: null, expires_at: null });
+    const short = (await api(o.token).post<any>(`/v1/spaces/${s.id}/invites`, { expires_in_sec: 300 })).body.invite;
+    expect(Math.abs(Date.parse(short.expires_at) - Date.now() - 300_000)).toBeLessThan(10_000);
+    for (const bad of [{ max_uses: 0 }, { max_uses: 1001 }, { max_uses: 1.5 }, { expires_in_sec: 299 }, { expires_in_sec: 2_592_001 }]) {
+      expect((await api(o.token).post<any>(`/v1/spaces/${s.id}/invites`, bad)).status).toBe(400);
+    }
+  });
+
+  it("revoked / expired / banned / already member", async () => {
+    const [o, m, b] = await Promise.all([signup(), signup(), signup()]);
+    const s = await spaceViaApi(o);
+    const inv = (await api(o.token).post<any>(`/v1/spaces/${s.id}/invites`, {})).body.invite;
+    expect(inv.max_uses).toBeNull();
+    expect((await api(m.token).post(`/v1/invites/${inv.code}/accept`)).status).toBe(200);
+    const again = await api(m.token).post<any>(`/v1/invites/${inv.code}/accept`);
+    expect(again.status).toBe(409);
+    expect(again.body.error.code).toBe("already_member");
+    expect((await api(m.token).del(`/v1/invites/${inv.code}`)).status).toBe(403); // plain member cannot revoke
+    await api(b.token).post(`/v1/invites/${inv.code}/accept`);
+    await api(o.token).del(`/v1/spaces/${s.id}/members/@${b.handle}?ban=true`);
+    const banned = await api(b.token).post<any>(`/v1/invites/${inv.code}/accept`);
+    expect(banned.status).toBe(403);
+    expect(banned.body.error.code).toBe("banned_from_space");
+    expect((await api(o.token).del(`/v1/invites/${inv.code}`)).status).toBe(204);
+    const revoked = await api((await signup()).token).get<any>(`/v1/invites/${inv.code}`);
+    expect(revoked.status).toBe(410);
+    expect(revoked.body.error.details.reason).toBe("revoked");
+    expect((await api(o.token).get<any>(`/v1/spaces/${s.id}/invites`)).body.items.map((i: any) => i.code)).not.toContain(inv.code);
+    await env.DB.prepare("UPDATE space_invites SET revoked_at=NULL, expires_at=1 WHERE code=?").bind(inv.code).run();
+    expect((await api((await signup()).token).get<any>(`/v1/invites/${inv.code}`)).body.error.details.reason).toBe("expired");
+    expect((await api((await signup()).token).post<any>(`/v1/invites/${inv.code}/accept`)).body.error.details.reason).toBe("expired");
+  });
+
+  it("direct invite: friend only, any role; accept emits invite_removed to both", async () => {
+    const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+    const { space, generalChannelId } = await makeSpace(o, [m]);
+    expect(space).toMatchObject({ member_count: 2, my_role: "owner", default_channel_id: generalChannelId });
+    expect((await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.error.code).toBe("action_not_allowed");
+    await makeFriends(m, f);
+    const cf = await connectWs(f.token);
+    const cm = await connectWs(m.token);
+    const di = await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(di.status).toBe(201);
+    expect(di.body.invite).toMatchObject({ space: { id: space.id }, inviter: { id: m.user.id }, invitee: { id: f.user.id }, status: "pending" });
+    expect((await cf.next("space.invite_received")).data.invite.id).toBe(di.body.invite.id);
+    const alert = (await cf.next("alert")).data.alert;
+    expect(alert).toMatchObject({ kind: "invite", target: { type: "space", id: space.id, space_id: space.id } });
+    expect(alert.title).toContain(space.name);
+    const n = (await cf.next("notification.created")).data.notification;
+    expect(n).toMatchObject({ type: "space_invite", subject: { type: "space_direct_invite", id: di.body.invite.id }, context: { space_id: space.id, space_name: space.name } });
+    const dup = await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error.code).toBe("already_exists");
+    expect((await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${o.handle}` })).status).toBe(403); // not m's friend
+    const mine = (await api(f.token).get<any>("/v1/me/direct-invites")).body.items;
+    expect(mine).toHaveLength(1);
+    expect(mine[0].id).toBe(di.body.invite.id);
+    expect((await api(m.token).post(`/v1/direct-invites/${di.body.invite.id}/accept`)).status).toBe(404); // not the invitee
+    const acc = await api(f.token).post<any>(`/v1/direct-invites/${di.body.invite.id}/accept`);
+    expect(acc.status).toBe(200);
+    expect(acc.body.space).toMatchObject({ id: space.id, my_role: "member", member_count: 3 });
+    expect((await cm.next("space.invite_removed")).data).toEqual({ invite_id: di.body.invite.id, reason: "accepted" });
+    expect((await cf.next("space.invite_removed")).data).toEqual({ invite_id: di.body.invite.id, reason: "accepted" });
+    expect((await cm.next("space.member_joined")).data.member.user.id).toBe(f.user.id);
+    expect((await api(f.token).post(`/v1/direct-invites/${di.body.invite.id}/accept`)).status).toBe(404); // no longer pending
+    const member = await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(member.status).toBe(409);
+    expect(member.body.error.code).toBe("already_member");
+  });
+
+  it("direct invite to a banned friend: 403 banned_from_space", async () => {
+    const [o, f] = await Promise.all([signup(), signup()]);
+    const { space } = await makeSpace(o, [f]);
+    await api(o.token).del(`/v1/spaces/${space.id}/members/@${f.handle}?ban=true`);
+    await makeFriends(o, f);
+    const r = await api(o.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(r.status).toBe(403);
+    expect(r.body.error.code).toBe("banned_from_space");
+  });
+
+  it("direct invite decline and cancel; invite list for admins", async () => {
+    const [o, m, f, g] = await Promise.all([signup(), signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m]);
+    await makeFriends(m, f);
+    await makeFriends(m, g);
+    const cm = await connectWs(m.token);
+    const d1 = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+    expect((await api(g.token).post(`/v1/direct-invites/${d1.id}/decline`)).status).toBe(404); // not the invitee
+    expect((await api(f.token).post(`/v1/direct-invites/${d1.id}/decline`)).status).toBe(204);
+    expect((await cm.next("space.invite_removed", (d) => d.invite_id === d1.id)).data.reason).toBe("declined");
+    expect((await api(f.token).post(`/v1/direct-invites/${d1.id}/decline`)).status).toBe(404); // already declined
+    const d2 = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${g.handle}` })).body.invite;
+    const cg = await connectWs(g.token);
+    expect((await api(f.token).del(`/v1/direct-invites/${d2.id}`)).status).toBe(404); // stranger to this invite
+    const plain = await signup();
+    await api(plain.token).post(`/v1/invites/${(await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite.code}/accept`);
+    expect((await api(plain.token).del(`/v1/direct-invites/${d2.id}`)).status).toBe(403); // plain member, not the inviter
+    expect((await api(o.token).del(`/v1/direct-invites/${d2.id}`)).status).toBe(204); // owner may cancel
+    expect((await cg.next("space.invite_removed")).data).toEqual({ invite_id: d2.id, reason: "canceled" });
+    expect((await cm.next("space.invite_removed", (d) => d.invite_id === d2.id)).data.reason).toBe("canceled");
+    expect((await api(g.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+    expect((await api(o.token).del(`/v1/direct-invites/${d2.id}`)).status).toBe(404); // already canceled
+    const l = (await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, {})).body.invite;
+    expect((await api(m.token).get(`/v1/spaces/${space.id}/invites`)).status).toBe(403);
+    expect((await api(m.token).post(`/v1/spaces/${space.id}/invites`, {})).status).toBe(403);
+    expect((await api(f.token).get(`/v1/spaces/${space.id}/invites`)).status).toBe(404);
+    expect((await api(o.token).get<any>(`/v1/spaces/${space.id}/invites`)).body.items.map((i: any) => i.code)).toContain(l.code);
+  });
+
+  it("two concurrent accepts of a max_uses=1 link: exactly one joins", async () => {
+    const [o, u1, u2] = await Promise.all([signup(), signup(), signup()]);
+    const s = await spaceViaApi(o);
+    const inv = (await api(o.token).post<any>(`/v1/spaces/${s.id}/invites`, { max_uses: 1 })).body.invite;
+    const rs = await Promise.all([u1, u2].map((u) => api(u.token).post<any>(`/v1/invites/${inv.code}/accept`)));
+    expect(rs.map((r) => r.status).sort()).toEqual([200, 410]);
+    expect(rs.find((r) => r.status === 410)!.body.error.details.reason).toBe("exhausted");
+    const row = await env.DB.prepare(
+      "SELECT s.member_count, i.use_count, (SELECT COUNT(*) FROM space_members WHERE space_id=s.id) n FROM spaces s JOIN space_invites i ON i.space_id=s.id WHERE i.code=?",
+    )
+      .bind(inv.code)
+      .first<any>();
+    expect(row).toEqual({ member_count: 2, use_count: 1, n: 2 });
+  });
+
+  it("joinSpace race inside the batch: the losers write nothing (use_count, members, member_count stay consistent)", async () => {
+    const o = await signup();
+    const users = await Promise.all([signup(), signup(), signup()]);
+    const s = await spaceViaApi(o);
+    const inv = (await api(o.token).post<any>(`/v1/spaces/${s.id}/invites`, { max_uses: 1 })).body.invite;
+    const rt = { env, waitUntil: () => {} };
+    // In one isolate the pre-check reads of all three interleave before any batch commits, so the losers fail in the batch.
+    const rs = await Promise.allSettled(users.map((u) => joinSpace(rt, s.id, u.user.id, { inviteCode: inv.code })));
+    expect(rs.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    for (const r of rs.filter((r) => r.status === "rejected")) {
+      expect((r as PromiseRejectedResult).reason).toMatchObject({ status: 410, code: "invite_invalid", details: { reason: "exhausted" } });
+    }
+    const row = await env.DB.prepare(
+      "SELECT s.member_count, i.use_count, (SELECT COUNT(*) FROM space_members WHERE space_id=s.id) n FROM spaces s JOIN space_invites i ON i.space_id=s.id WHERE i.code=?",
+    )
+      .bind(inv.code)
+      .first<any>();
+    expect(row).toEqual({ member_count: 2, use_count: 1, n: 2 });
+  });
+
+  it("joinSpace race on one direct invite: one join, the other 404", async () => {
+    const [o, f] = await Promise.all([signup(), signup()]);
+    const { space } = await makeSpace(o);
+    await makeFriends(o, f);
+    const di = (await api(o.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+    const rt = { env, waitUntil: () => {} };
+    const rs = await Promise.allSettled([0, 1].map(() => joinSpace(rt, space.id, f.user.id, { directInviteId: di.id })));
+    expect(rs.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const lost = rs.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect([404, 409]).toContain(lost.reason.status); // 404 = lost on the invite row; 409 = lost on the member PK
+    const row = await env.DB.prepare("SELECT member_count, (SELECT COUNT(*) FROM space_members WHERE space_id=?1) n FROM spaces WHERE id=?1").bind(space.id).first<any>();
+    expect(row).toEqual({ member_count: 2, n: 2 });
+    expect((await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(di.id).first<any>()).status).toBe("accepted");
+  });
+});
