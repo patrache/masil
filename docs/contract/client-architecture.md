@@ -55,6 +55,7 @@ require (
 	github.com/sahilm/fuzzy v0.1.3
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 )
 ```
 
@@ -73,6 +74,7 @@ require (
 | sahilm/fuzzy | 명령 팔레트 퍼지 검색 |
 | x/image (`webp`, `draw`) | WebP 디코드, 이미지 축소 |
 | x/sys (`windows/registry`) | Windows 자동 시작 등록(`autostart`) |
+| x/text (`unicode/norm`) | 입력 NFC 정규화(`textwidth.Sanitize`, 8.2 규칙 6) |
 | x/exp/golden, x/exp/teatest/v2 | 골든 테스트 |
 
 **브리프 목록과 다른 점 [결정]**:
@@ -116,6 +118,7 @@ import (
 	_ "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 	_ "golang.org/x/sys/windows/registry"
+	_ "golang.org/x/text/unicode/norm"
 )
 ```
 
@@ -275,8 +278,16 @@ type Env struct {
 
 func register(c command) // panics on duplicate Name; call from init()
 
+// Usage-error marker shared by every file of package main (CR-D).
+var errUsage = errors.New("usage")
+// usageErr marks err as a usage error: errors.Is(usageErr(x), errUsage) && errors.Is(usageErr(x), x); usageErr(nil) == errUsage.
+func usageErr(err error) error
+
 func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch commands; exit code 0/1/2(usage)
 ```
+
+- **종료 코드(CR-D)**: 명령의 `Run` 이 돌려준 오류를 `nil` → 0, `errors.Is(err, errUsage)` → 2, 그 밖 → 1 로 바꾼다(감싼 오류도 `errors.Is` 로 판정 — `fmt.Errorf("…: %w", usageErr(x))` 도 2). 알 수 없는 명령·인자 오류는 명령이 stderr 에 사용법 줄을 쓴 뒤 `usageErr(err)` 로 돌려준다. `-h`/`--help` 는 사용법을 stdout 에 쓰고 0. 사용자에게 보일 문구는 명령이 스스로 `env.Stderr` 에 쓰고, 디스패처는 돌려받은 오류를 다시 출력하지 않는다(로그 파일에만 기록).
+- core 는 `admincli` 를 import 하지 않는다(2.2). 같은 `package main` 인 `cmd_admin.go`(sns-fun)는 `errors.Is(err, admincli.ErrUsage)` 면 `usageErr(err)` 로 감싸고, `cmd_daemon.go`(daemon-release)는 사용법 오류를 `usageErr(…)` 로 돌려준다.
 
 - 명령 소유: core = `tui`(기본), `login`, `signup`, `logout`, `join <code>`, `version`, `config path`, `help`. daemon-release = `daemon run|install|uninstall|status`, `admin ...`.
 - `masil join <code>` 은 TUI 를 시작하며 초기 경로를 `ui.Route{Kind: ui.RouteInvite, ID: code}` 로 준다(초대 미리보기 화면은 chat 소유).
@@ -380,12 +391,15 @@ type NotifyConfig struct{ Desktop bool `toml:"desktop"` }
 func ResolvePaths() (Paths, error)              // MASIL_CONFIG_DIR / ~/.config/masil, MASIL_CACHE_DIR / UserCacheDir
 func EnsureDir(p Paths) error                   // mkdir 0700 (+ logs/), fix perms
 func Defaults() *Config                         // every field filled (values above)
-func Load(p Paths) (*Config, error)             // missing file => Defaults(); unknown keys ignored; invalid values => default + warning in returned error wrapper ErrPartial
-func Save(p Paths, c *Config) error             // atomic, 0600
+func Load(p Paths) (*Config, error)             // missing file => Defaults(); unknown keys ignored; invalid values => default + warning in returned error wrapper ErrPartial; unreadable / unparsable file => Defaults() marked "not loaded" (+ ErrPartial)
+func Save(p Paths, c *Config) error             // atomic, 0600; a "not loaded" Config (or a copy) => ErrNotLoaded, file untouched
 func (c *Config) ServerURL() string             // env MASIL_SERVER > c.Server > DefaultServer; trailing "/" trimmed
 func WriteFileAtomic(path string, data []byte, perm os.FileMode) error
 var ErrPartial = errors.New("config: some values were invalid and replaced by defaults")
+var ErrNotLoaded = errors.New("config: config.toml did not load; not overwriting it")
 ```
+
+- **고장 난 config.toml 보호**: 파일을 읽지 못했거나 TOML 문법 오류로 `Load` 가 `Defaults()` 로 물러선 경우, 그 `Config` 로 `Save` 하면 사용자 파일(서버 주소·키 재정의 등)이 기본값으로 덮인다. 그래서 `Save` 는 `ErrNotLoaded` 로 거절하고 아무것도 쓰지 않는다. 호출자(테마 전환·설정 화면)는 바뀐 값을 이번 실행의 메모리에만 적용하고 `config.toml 을 고친 뒤 다시 해 주세요` 를 보인다(토스트 또는 행 아래 오류). 값 일부만 잘못된 경우(파싱은 됨)는 지금처럼 저장한다.
 
 ### 3.4 `credentials.json`
 
@@ -1565,6 +1579,7 @@ type Helper interface{ Help(ctx *Context) []key.Binding }               // statu
 type Watcher interface{ WatchTopics() []string }       // visible posts ("post:<id>"), sns-fun
 type ChannelViewer interface{ ViewingChannels() []string } // for Store.SetViewing / notify ViewingTarget
 type Persistent interface{ SaveState() any; LoadState(any) } // optional, state.json
+type Completer interface{ Completing() bool }          // true while an input-owned completion popup is open (CR-A, 5.3.4 2.3)
 
 type Point struct{ X, Y int }
 type Badge struct{ Count int; Mention bool; Dot bool } // Mention => BadgeMention style; Dot => "●"
@@ -1746,13 +1761,15 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
    1. 오버레이(팔레트·대화상자·도움말)가 열려 있으면 **맨 위 오버레이**로(`ctrl+c` 제외). 그 오버레이의 `HandleKey` 가 `handled=false` 를 돌려줘도 아래로 내려가지 않는다(`Modal()==false` 인 오버레이만 예외로 3~6단계 계속).
    2. 진행 중인 코드(`ctrl+w` 접두)가 있으면 그 처리.
    3. **하드 전역**: `ctrl+c`, `ctrl+k`, `ctrl+f`, `ctrl+n`, `tab`/`shift+tab`(포커스가 입력 캡처 중이고 그 입력이 자동완성 팝업을 띄운 경우에는 컴포넌트로; 포커스 링이 창 1개인 모드에서는 창 순환 대신 탭 순환 — 5.3.5). `ctrl+w` 는 포커스가 입력 캡처 중이 **아닐 때만** 창 접두로 쓰이고, 입력 중이면 입력창의 "단어 지우기"로 간다(`esc` 로 입력을 빠져나온 뒤 `ctrl+w`).
+      - **자동완성 중 `tab`(CR-A)**: 하드 전역 `tab`/`shift+tab` 판정(창 1개 모드의 `tab.next`/`tab.prev` 포함) **전에**, 포커스 컴포넌트가 `CapturesInput() && Completing()`(`ui.InputCapturer`·`ui.Completer`) 이면 그 키를 `HandleKey` 로 넘긴다. `handled=true` 면 끝(포커스·`NavState` 불변), `false` 면 원래 하드 전역으로 처리. 둘 중 하나라도 아니면(입력 캡처 아님·`Completer` 미구현·팝업 없음) 그대로 하드 전역.
    4. 포커스 컴포넌트의 `HandleKey`. `handled=true` 면 끝.
    5. 포커스 컴포넌트가 `CapturesInput()==true` 면 여기서 끝(글자 키가 전역 단축키로 새지 않음).
    6. **소프트 전역**: `?`, `f`, `[`, `]`, `esc`(뒤로), `g` 계열.
 3. 마우스 → `layout.At(x,y)` 의 창: 클릭이면 그 창으로 포커스 이동 후 `HandleMouse(local)`, 휠은 포커스와 무관하게 포인터 아래 창으로. 오버레이가 열려 있으면 오버레이가 먼저(바깥 클릭 = 닫기).
 4. `tea.PasteMsg` → 오버레이가 열려 있으면 **맨 위 오버레이**(`Update`), 아니면 포커스 컴포넌트(`Update`). 오버레이가 열려 있는 동안 아래 창으로는 절대 가지 않는다.
 5. `realtime.EventMsg`(앱 브리지가 감싼 것) → `Store.Apply(ev)` → **모든 살아 있는 컴포넌트에 방송** → 알림 처리(`alert` 이면 notify, 9장) → `rt.MarkProcessed(seq)`.
-6. 그 밖 모든 메시지(API 결과, 틱, 내부 메시지) → 모든 살아 있는 컴포넌트에 방송. 컴포넌트는 자기와 관계없는 것은 무시한다.
+6. 그 밖 모든 메시지(API 결과, 틱, 내부 메시지) → 모든 살아 있는 컴포넌트에 방송. 컴포넌트는 자기와 관계없는 것은 무시한다. 단 `ui.RunCommandMsg` 는 방송하지 않는다(아래).
+7. **`ui.RunCommandMsg{ID, Args}` 는 앱이 소비한다(방송하지 않음 — 명령이 두 번 실행되지 않게, CR-B)**: ① `palette.Lookup(ID)`(5.6) → 없으면 무시(`ctx.Debug` 일 때 slog debug, 토스트 없음). ② 맨 위 오버레이가 앱이 `ctrl+k` 로 연 팔레트면 실행 **전에** 먼저 닫는다(명령이 여는 오버레이가 팔레트 위에 쌓이지 않게). ③ `Available != nil && !Available(ctx)` 면 실행하지 않고 토스트 `지금은 쓸 수 없는 명령이에요`(`ToastInfo`). ④ 아니면 `Run(ctx, Args)` 의 Cmd 를 실행 — `Args` 는 손대지 않고 **그대로**(자르기·정규화는 각 명령의 몫), `Run == nil` 이면 무시. 팔레트 안 `enter`(명령 항목)도 직접 `Run` 을 부르지 않고 `ui.RunCommand(c.ID, "")` 를 내어 같은 디스패치를 탄다.
 
 앱이 쓰는 공용 메시지(`internal/ui`):
 
@@ -1877,7 +1894,7 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 
 유휴 감지: 마지막 키·마우스 입력 후 10분 → `RT.SetIdle(true)`, 입력 시 `false`(`ui.After` 세대 번호 방식).
 `watch` 갱신: 레이아웃·스크롤 변화 후 300ms 디바운스(`ui.After`)로 보이는 `Watcher` 들의 토픽 합집합(포커스 창 우선, 최대 50)을 `RT.Watch`.
-`Store.SetViewing`: 매 프레임 보이는 `ChannelViewer` 들의 채널.
+`Store.SetViewing`(CR-C): 투영 결과에 놓인 인스턴스 중 `ChannelViewer` 들의 `ViewingChannels` 합집합. **Compute→Project(→Resize) 직후, 같은 `Update` 안에서, 그 `Update` 가 내는 방송(`ModeChangedMsg`·`FocusChangedMsg`·`RouteUpdatedMsg`·`EventMsg` 등)보다 먼저** 부른다 — 방송을 받은 컴포넌트(chat 의 읽음 판정)가 직전 프레임이 아니라 이번 투영의 Viewing 집합을 보게. 투영이 바뀌지 않는 Update(`EventMsg` 등)에서는 직전 집합이 그대로 맞다. `View` 에서는 부르지 않는다(View 는 순수).
 
 상태줄(`SlotStatus`, 1줄): `[모드 pill] 힌트 ··· 오른쪽: 집중 남은 시간(🎯 18:20) · 429 쿨다운 · 📌(고정) · 연결 상태(● 온라인 / ◐ 자리비움 / ⊘ 방해금지 / ◌ 연결 중… / ✕ 오프라인)`. 폭이 모자라면 오른쪽 항목을 연결 상태만 남기고 힌트를 자른다.
 
@@ -1970,6 +1987,7 @@ type Command struct {
 	Run       func(ctx *ui.Context, args string) tea.Cmd
 }
 func Register(c Command)                  // init()-time; duplicate id => panic
+func Lookup(id string) (Command, bool)    // registered command by id (copy, Keywords copied too) — CR-B; app's RunCommandMsg dispatch (5.3.4 7)
 
 type ItemKind int
 const (ItemChannel ItemKind = iota; ItemDM; ItemSpace; ItemPerson; ItemCommand; ItemRoute)
@@ -1991,6 +2009,7 @@ func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Ko
 - 검색: `sahilm/fuzzy` 로 `Title`, `Chosung(Title)`, `Keywords` 를 각각 맞춰 최고 점수. 입력이 비면 최근 이동 8개 + 안 읽은 채널.
 - core 기본 소스: 채널·DM·방(Store), 친구, 명령. 2글자 이상이면 `SearchUsers` 를 300ms 디바운스로 불러 사람 항목 추가.
 - 팔레트 입력은 `textinput`(실제 커서, `ctrl+k` 를 `DeleteAfterCursor` 에서 뺌, 5.3.7). 팔레트가 열린 상태의 `ctrl+k` = 닫기.
+- **명령 실행(CR-B)**: 팔레트 안 `enter`(명령 항목)는 `Run` 을 직접 부르지 않고 `ui.RunCommand(c.ID, "")` 만 낸다. 팔레트·슬래시 명령·시험의 `RunCommandMsg` 가 모두 앱의 같은 디스패치(5.3.4 7단계: `Lookup` → 팔레트 먼저 닫기 → `Available` 재확인·`지금은 쓸 수 없는 명령이에요` 토스트 → `Run(ctx, Args)` 에 `Args` 그대로)를 탄다. `RunCommandMsg` 는 방송되지 않으므로 컴포넌트가 받아 따로 실행하지 않는다.
 - 명령 id 는 **등록 패키지별로 겹치지 않게** 나눈다(`Register` 는 중복 시 패닉). 등록 패키지 = 아래 표의 패키지 `init()` 하나뿐.
 
 | 등록 패키지 | 명령 id |
