@@ -47,6 +47,9 @@ type cardOpts struct {
 	Selected bool
 	PollSel  int                                        // poll option slice position with the Selected background; -1 = none
 	Image    func(m api.Media, cols, rows int) []string // nil or nil result => dim placeholder box "이미지 불러오는 중"
+	// ExactTime shows the header time as humanize.MessageTime ("11:05",
+	// "어제 11:05", ...) instead of the relative "3분" (the post detail's main post).
+	ExactTime bool
 }
 
 // cardView is a rendered card: every line exactly Width cells.
@@ -228,7 +231,7 @@ func (b *cardBuilder) fullCard(it api.TimelineItem, p *api.Post, o cardOpts) {
 		idx := b.add(t.S.Dim.Render("↻ " + displayName(*it.RepostedBy) + textRepostedBy))
 		b.hit(idx, gutterW, gutterW+min(b.cw, textwidth.Width("↻ "+displayName(*it.RepostedBy))), hitAuthor, it.RepostedBy.ID)
 	}
-	b.header(p)
+	b.header(p, o.ExactTime)
 
 	if p.Deleted {
 		b.add(t.S.Deleted.Render(textDeleted))
@@ -262,9 +265,16 @@ func (b *cardBuilder) fullCard(it api.TimelineItem, p *api.Post, o cardOpts) {
 	b.addRaw(t.S.Base.Foreground(t.P.Line).Render(strings.Repeat("┄", max(b.w, 0))))
 }
 
-// header is "@handle 이름 · 3분": the name is cut first so the time stays.
-func (b *cardBuilder) header(p *api.Post) {
+// header is "@handle 이름 · 3분" (exact: "· 11:05"): the name is cut first so the time stays.
+func (b *cardBuilder) header(p *api.Post, exact bool) {
 	ts := " · " + humanize.Relative(b.now(), p.CreatedAt)
+	if exact {
+		var loc *time.Location
+		if b.ctx != nil {
+			loc = b.ctx.Loc
+		}
+		ts = " · " + humanize.MessageTime(b.now(), p.CreatedAt, loc)
+	}
 	idx, whoW := 0, 0
 	if room := b.cw - textwidth.Width(ts); room >= 2 {
 		var who string

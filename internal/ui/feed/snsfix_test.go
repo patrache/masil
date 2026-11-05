@@ -211,7 +211,8 @@ func replyTree() (top []api.Post, children map[string][]api.Post) {
 	return top, children
 }
 
-// deepChain is a 7-deep reply chain under hana's post (minji/junho alternating).
+// deepChain is a 7-deep reply chain under hana's post (minji/junho alternating);
+// every reply but the last has reply_count 1.
 func deepChain() []api.Post {
 	parent := postBy("hana")
 	root := parent.ID
@@ -222,6 +223,9 @@ func deepChain() []api.Post {
 			handle = "junho"
 		}
 		p := reply(39+d, handle, fmt.Sprintf("깊이 %d", d), 1, parent, root)
+		if d < 7 {
+			p.ReplyCount = 1
+		}
 		out = append(out, p)
 		parent = p
 	}
