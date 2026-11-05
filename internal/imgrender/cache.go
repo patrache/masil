@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	xdraw "golang.org/x/image/draw"
+
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/config"
 )
@@ -22,27 +24,39 @@ import (
 const (
 	defaultDiskLimit = 200 << 20 // bytes of <Cache>/media
 	memEntries       = 32        // decoded images kept in memory
+	memBytes         = 256 << 20 // and their pixel bytes (estimated)
 	etagSuffix       = ".etag"
+	// maxDisplaySide caps the long side of images Load keeps (cards and
+	// the full-screen viewer never need more).
+	maxDisplaySide = 2048
 )
 
 // Cache loads media through the API with a disk cache
 // (<Paths.Cache>/media/<upload_id> + <upload_id>.etag, 200MB LRU by
 // modification time, revalidated with If-None-Match) and a memory LRU of the
-// last 32 decoded images. A Cache is safe for concurrent use.
+// last 32 decoded images (at most 256MB of pixels). Images are kept at most
+// 2048 pixels on the long side: remote images have no dimension limit (only
+// the 5MB upload limit, which a large solid image passes easily), so a
+// full-size decode would cost hundreds of MB per image. A Cache is safe for
+// concurrent use.
 type Cache struct {
 	dir string
 
 	mu    sync.Mutex
 	limit int64
-	lru   *list.List // front = most recent; values *memEntry
-	idx   map[string]*list.Element
+	// memLimit bounds the memory LRU's pixel bytes (memBytes).
+	memLimit int64
+	lru      *list.List // front = most recent; values *memEntry
+	idx      map[string]*list.Element
+	bytes    int64 // sum of memEntry.size
 	// diskMu serializes disk writes and eviction.
 	diskMu sync.Mutex
 }
 
 type memEntry struct {
-	id  string
-	img image.Image
+	id   string
+	img  image.Image
+	size int64
 }
 
 // NewCache returns a cache under p.Cache/media. The directory is created on
@@ -52,7 +66,13 @@ func NewCache(p config.Paths) *Cache {
 	if p.Cache != "" {
 		dir = filepath.Join(p.Cache, "media")
 	}
-	return &Cache{dir: dir, limit: defaultDiskLimit, lru: list.New(), idx: map[string]*list.Element{}}
+	return &Cache{dir: dir, limit: defaultDiskLimit, memLimit: memBytes, lru: list.New(), idx: map[string]*list.Element{}}
+}
+
+func (c *Cache) setMemLimit(n int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.memLimit = n
 }
 
 func (c *Cache) setLimit(n int64) {
@@ -93,6 +113,7 @@ func (c *Cache) Load(ctx context.Context, a *api.Client, m api.Media) (image.Ima
 		}
 		now := time.Now()
 		_ = os.Chtimes(data, now, now) // LRU touch; best effort
+		cached = displayImage(cached)
 		c.memPut(m.ID, cached)
 		return cached, nil
 	}
@@ -108,6 +129,7 @@ func (c *Cache) Load(ctx context.Context, a *api.Client, m api.Media) (image.Ima
 	if data != "" {
 		c.store(data, blob.Data, blob.ETag) // best effort: a full disk still shows the image
 	}
+	img = displayImage(img)
 	c.memPut(m.ID, img)
 	return img, nil
 }
@@ -242,17 +264,69 @@ func (c *Cache) memPut(id string, img image.Image) {
 	if id == "" {
 		return
 	}
+	size := imageBytes(img)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if el, ok := c.idx[id]; ok {
-		el.Value.(*memEntry).img = img
+		e := el.Value.(*memEntry)
+		c.bytes += size - e.size
+		e.img, e.size = img, size
 		c.lru.MoveToFront(el)
-		return
+	} else {
+		c.idx[id] = c.lru.PushFront(&memEntry{id: id, img: img, size: size})
+		c.bytes += size
 	}
-	c.idx[id] = c.lru.PushFront(&memEntry{id: id, img: img})
-	for c.lru.Len() > memEntries {
+	// The newest entry always stays, even if it alone is over budget.
+	for c.lru.Len() > 1 && (c.lru.Len() > memEntries || c.bytes > c.memLimit) {
 		el := c.lru.Back()
+		e := el.Value.(*memEntry)
 		c.lru.Remove(el)
-		delete(c.idx, el.Value.(*memEntry).id)
+		delete(c.idx, e.id)
+		c.bytes -= e.size
 	}
+}
+
+// displayImage returns img, or a copy scaled (CatmullRom, alpha kept) so its
+// long side is maxDisplaySide when it is longer. The copy is a compact
+// 8-bit RGBA whatever the source's pixel format.
+func displayImage(img image.Image) image.Image {
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	long := max(w, h)
+	if long <= maxDisplaySide {
+		return img
+	}
+	dw := max(1, (w*maxDisplaySide+long/2)/long)
+	dh := max(1, (h*maxDisplaySide+long/2)/long)
+	dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
+	xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, b, xdraw.Src, nil)
+	return dst
+}
+
+// imageBytes estimates the memory held by img's pixels.
+func imageBytes(img image.Image) int64 {
+	switch p := img.(type) {
+	case *image.RGBA:
+		return int64(len(p.Pix))
+	case *image.NRGBA:
+		return int64(len(p.Pix))
+	case *image.RGBA64:
+		return int64(len(p.Pix))
+	case *image.NRGBA64:
+		return int64(len(p.Pix))
+	case *image.Gray:
+		return int64(len(p.Pix))
+	case *image.Gray16:
+		return int64(len(p.Pix))
+	case *image.Paletted:
+		return int64(len(p.Pix))
+	case *image.YCbCr:
+		return int64(len(p.Y) + len(p.Cb) + len(p.Cr))
+	case *image.NYCbCrA:
+		return int64(len(p.Y) + len(p.Cb) + len(p.Cr) + len(p.A))
+	case *image.CMYK:
+		return int64(len(p.Pix))
+	}
+	s := img.Bounds().Size()
+	return int64(s.X) * int64(s.Y) * 4
 }

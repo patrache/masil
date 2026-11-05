@@ -174,12 +174,14 @@ func (r *Renderer) Render(key string, img image.Image, o Options) Rendered {
 	return out
 }
 
-// Peek is Render for View: it never changes the Renderer's state (no
-// transmit is marked sent, no LRU update). With kitty, a combination already
-// sent by Render returns the same placeholder lines and ready=true; one not
-// sent yet returns half-block lines of the same size and ready=false (the
-// caller Renders it in its next Update and emits Setup). Other methods return
-// what Render would, with ready=true.
+// Peek is Render for View. With kitty it never changes the Renderer's state
+// (no transmit is marked sent, no LRU update): a combination already sent by
+// Render returns the same placeholder lines and ready=true; one not sent yet
+// returns half-block lines of the same size and ready=false (the caller
+// Renders it in its next Update and emits Setup). Other methods return what
+// Render would, with ready=true, and remember it in the same LRU as Render:
+// that touches no terminal state, and without it every View would rescale
+// every visible image from its full-size source.
 func (r *Renderer) Peek(key string, img image.Image, o Options) (out Rendered, ready bool) {
 	if o.Cols <= 0 || o.Rows <= 0 {
 		return Rendered{}, true
@@ -188,10 +190,14 @@ func (r *Renderer) Peek(key string, img image.Image, o Options) (out Rendered, r
 	if img == nil {
 		return Rendered{Lines: r.draw(methodOr(m, methodHalfBlock), nil, o)}, true
 	}
+	k := r.keyOf(key, o)
 	r.mu.Lock()
-	el, ok := r.idx[r.keyOf(key, o)]
+	el, ok := r.idx[k]
 	if ok {
 		out = el.Value.(*renderEntry).out
+		if m != methodKitty {
+			r.lru.MoveToFront(el)
+		}
 	}
 	r.mu.Unlock()
 	if ok {
@@ -200,7 +206,18 @@ func (r *Renderer) Peek(key string, img image.Image, o Options) (out Rendered, r
 	if m == methodKitty {
 		return Rendered{Lines: halfBlockFit(img, o.Cols, o.Rows, o.Fit, o.BG)}, false
 	}
-	return Rendered{Lines: r.draw(m, img, o)}, true
+	// Draw outside the lock (scaling is slow), then store unless a
+	// concurrent Render or Peek got there first.
+	out = Rendered{Lines: r.draw(m, img, o)}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if el, ok := r.idx[k]; ok {
+		r.lru.MoveToFront(el)
+		return el.Value.(*renderEntry).out, true
+	}
+	r.idx[k] = r.lru.PushFront(&renderEntry{k: k, out: out})
+	r.evict()
+	return out, true
 }
 
 // methodOr maps kitty to fallback (kitty needs an image to transmit).

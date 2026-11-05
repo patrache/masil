@@ -355,3 +355,31 @@ func TestITerm2Inline(t *testing.T) {
 		t.Fatalf("zero cols: want an error")
 	}
 }
+
+func TestPeekHalfBlockMemoizes(t *testing.T) {
+	for _, g := range []termcaps.Graphics{termcaps.GraphicsHalfBlock, termcaps.GraphicsITerm2} {
+		r := imgrender.New(termcaps.Caps{Graphics: g}, nil)
+		img := fixtures.TestImage()
+		before := imgrender.FitCalls()
+		p1, ready := r.Peek("p", img, opts(8, 3))
+		if !ready {
+			t.Fatalf("%v: first Peek not ready", g)
+		}
+		p2, ready := r.Peek("p", img, opts(8, 3))
+		if !ready || strings.Join(p1.Lines, "\n") != strings.Join(p2.Lines, "\n") {
+			t.Fatalf("%v: second Peek: ready %v, lines differ", g, ready)
+		}
+		checkHalfBlocks(t, p2.Lines, 8, 3)
+		if n := imgrender.FitCalls() - before; n != 1 {
+			t.Fatalf("%v: two Peeks scaled %d times, want 1", g, n)
+		}
+		// Render reuses what Peek drew.
+		out := r.Render("p", img, opts(8, 3))
+		if strings.Join(out.Lines, "\n") != strings.Join(p1.Lines, "\n") || out.Setup != "" {
+			t.Fatalf("%v: Render after Peek differs", g)
+		}
+		if n := imgrender.FitCalls() - before; n != 1 {
+			t.Fatalf("%v: Render after Peek scaled again (%d)", g, n)
+		}
+	}
+}

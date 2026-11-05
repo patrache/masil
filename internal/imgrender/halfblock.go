@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/draw"
 	"strings"
+	"sync/atomic"
 
 	"charm.land/lipgloss/v2"
 	xdraw "golang.org/x/image/draw"
@@ -21,6 +22,9 @@ const (
 )
 
 const halfBlock = "▀"
+
+// fitCalls counts fitPx calls (pixel-box scalings) for tests.
+var fitCalls atomic.Int64
 
 // HalfBlock draws img into cols×rows cells. Each cell is "▀" with the top
 // pixel as foreground and the bottom pixel as background; the image is
@@ -58,6 +62,7 @@ func fit(img image.Image, cols, rows int, mode FitMode, bg color.Color) *image.R
 
 // fitPx is fit for an arbitrary W × H pixel box.
 func fitPx(img image.Image, W, H int, mode FitMode, bg color.Color) *image.RGBA {
+	fitCalls.Add(1)
 	W, H = max(W, 0), max(H, 0)
 	dst := image.NewRGBA(image.Rect(0, 0, W, H))
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(opaque(bg)), image.Point{}, draw.Src)

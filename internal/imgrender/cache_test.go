@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"image"
+	"image/color"
 	"image/png"
 	"math/rand/v2"
 	"net/http"
@@ -248,4 +249,77 @@ func TestNilCacheAndNilClient(t *testing.T) {
 	if _, err := c.Load(context.Background(), nil, media("up_1")); err == nil {
 		t.Fatalf("nil cache/client: want an error")
 	}
+}
+
+func TestCacheLoadBoundsHugeImages(t *testing.T) {
+	// A solid 7000x3000 image compresses to a few KB but would decode to a
+	// full-size buffer; Load must keep only a display-sized copy.
+	big := image.NewGray(image.Rect(0, 0, 7000, 3000))
+	for i := range big.Pix {
+		big.Pix[i] = 0x80
+	}
+	srv := apitest.New(t)
+	ms := &mediaServer{}
+	srv.Handle("GET /v1/media/{id}", ms.handler(pngBytes(t, big), `"e1"`))
+	p := testPaths(t)
+	a := srv.Client()
+	ctx := context.Background()
+	side := imgrender.MaxDisplaySide
+	want := image.Pt(side, (3000*side+3500)/7000)
+
+	img, err := imgrender.NewCache(p).Load(ctx, a, media("up_big"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	sameSize(t, img, want)
+	if c := color.GrayModel.Convert(img.At(side/2, want.Y/2)).(color.Gray); c.Y < 0x7e || c.Y > 0x82 {
+		t.Fatalf("downscaled pixel = %v, want ~0x80", c)
+	}
+
+	// The 304 path (disk copy of another instance) is bounded too.
+	img2, err := imgrender.NewCache(p).Load(ctx, a, media("up_big"))
+	if err != nil {
+		t.Fatalf("second instance Load: %v", err)
+	}
+	if n := ms.hits.Load(); n != 2 {
+		t.Fatalf("requests = %d, want 2", n)
+	}
+	sameSize(t, img2, want)
+}
+
+func TestCacheMemoryBoundedByBytes(t *testing.T) {
+	srv := apitest.New(t)
+	ms := &mediaServer{}
+	data := pngBytes(t, fixtures.TestImage())
+	srv.Handle("GET /v1/media/{id}", ms.handler(data, `"e1"`))
+	dec, err := imgrender.Decode(data, "image/png")
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	one := imgrender.ImageBytes(dec)
+	c := imgrender.NewCache(config.Paths{}) // memory only
+	imgrender.SetMemLimit(c, 2*one)         // room for two, not three
+	a := srv.Client()
+	ctx := context.Background()
+	load := func(id string, wantHits int32) {
+		t.Helper()
+		if _, err := c.Load(ctx, a, media(id)); err != nil {
+			t.Fatalf("Load %s: %v", id, err)
+		}
+		if n := ms.hits.Load(); n != wantHits {
+			t.Fatalf("after Load %s: requests = %d, want %d", id, n, wantHits)
+		}
+	}
+	load("up_1", 1)
+	load("up_2", 2)
+	load("up_1", 2) // memory; up_2 is now the oldest
+	load("up_3", 3) // evicts up_2 over the byte budget
+	load("up_1", 3)
+	load("up_3", 3)
+	load("up_2", 4)
+
+	// One image over the whole budget is still kept.
+	imgrender.SetMemLimit(c, 1)
+	load("up_4", 5)
+	load("up_4", 5)
 }
