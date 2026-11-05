@@ -1,6 +1,6 @@
 // Message services (server-architecture.md 4.14 messages.ts). Task 20: createMessage (top-level) and
 // postSystemMessage. Task 24: mention / @here resolution (api.md 2.1), notification fan-out, editMessage, deleteMessage.
-// Thread replies (threadRootId) are Task 25. Each write is one db.batch, then publish (server-architecture.md 3.5).
+// Task 25: thread replies (threadRootId, api.md 5.11). Each write is one db.batch, then publish (server-architecture.md 3.5).
 import type { Runtime } from "../env";
 import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { err } from "../lib/errors";
@@ -145,15 +145,20 @@ function isUniqueViolation(e: unknown): boolean {
 }
 
 /**
- * Creates a top-level message in a channel the author may write to (the caller checked requireChannelWrite).
- * One batch: (poll -> pollInsertStmts) + messages INSERT + channels.last_message_id/at (only when newer) + the author's
- * channel_reads moved to this message (only when newer). Mention rows: Task 24.
+ * Creates a message in a channel the author may write to (the caller checked requireChannelWrite).
+ * Top-level, one batch: (poll -> pollInsertStmts) + messages INSERT + channels.last_message_id/at (only when newer) +
+ * the author's channel_reads moved to this message (only when newer) + message_mentions (explicit + @here).
+ * Thread reply (threadRootId = a live top-level message of this channel, else 404; poll -> 400 fields.kind), one batch:
+ * messages INSERT + root reply_count+1 / last_reply_at + thread_participants upsert (the replier at now; on the first
+ * reply also the root author at the root's created_at, so the replier sorts as more recent) + message_mentions
+ * (in_thread = 1). The channel's last_message_* and read pointers are left alone (replies never count as unread).
  * Same author + same client_nonce -> the existing message, created:false (pre-check, and uq_messages_nonce for races).
- * After commit: message.created{message} to the channel audience (logged).
+ * After commit: message.created{message} (+ thread.updated{channel_id, root_id, thread} for a reply) to the channel
+ * audience (logged), then notifications (fanoutMessageNotifications).
  */
 export async function createMessage(rt: Runtime, input: CreateMessageInput): Promise<{ message: Message; created: boolean }> {
   const db = rt.env.DB;
-  if (input.threadRootId !== undefined && input.threadRootId !== null) throw new Error("thread replies are not implemented yet (plan 01 Task 25)");
+  const rootId = input.threadRootId ?? null;
 
   const existing = await findByNonce(db, input.authorId, input.clientNonce);
   if (existing !== null) {
@@ -161,9 +166,16 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
     return { message: message!, created: false };
   }
 
+  if (rootId !== null && input.kind === "poll") throw err.invalid({ kind: "not_allowed" });
   const { body, roll } = prepareMessageBody(input.kind, input.body, input.poll);
-  const channel = await loadChannel(db, input.channelId);
+  const [channel, root] = await Promise.all([
+    loadChannel(db, input.channelId),
+    rootId === null ? Promise.resolve(null) : first<MessageRow>(db, "SELECT * FROM messages WHERE id = ?1", rootId),
+  ]);
   if (channel === null || channel.deleted_at !== null) throw err.notFound("channel");
+  if (rootId !== null && (root === null || root.deleted_at !== null || root.thread_root_id !== null || root.channel_id !== channel.id)) {
+    throw err.notFound("message");
+  }
   const explicit = await resolveExplicitMentions(db, channel, input.authorId, body);
   const mentionHere = hasHereMention(body);
   const here = mentionHere && channel.kind !== "dm" ? await resolveHere(db, channel, input.authorId, explicit) : [];
@@ -177,7 +189,7 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
     kind: input.kind,
     body,
     meta: roll === null ? null : JSON.stringify(roll),
-    thread_root_id: null,
+    thread_root_id: rootId,
     reply_count: 0,
     last_reply_at: null,
     mention_here: mentionHere ? 1 : 0,
@@ -196,33 +208,59 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
     stmt(
       db,
       `INSERT INTO messages (id, channel_id, author_id, kind, body, meta, thread_root_id, mention_here, poll_id, client_nonce, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9, ?10)`,
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
       row.id,
       row.channel_id,
       row.author_id,
       row.kind,
       row.body,
       row.meta,
+      row.thread_root_id,
       row.mention_here,
       row.poll_id,
       row.client_nonce,
       row.created_at,
     ),
-    lastMessageStmt(db, input.channelId, id, t),
-    stmt(
-      db,
-      `INSERT INTO channel_reads (user_id, channel_id, last_read_message_id, updated_at) VALUES (?1, ?2, ?3, ?4)
-       ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_message_id = excluded.last_read_message_id, updated_at = excluded.updated_at
-        WHERE excluded.last_read_message_id > channel_reads.last_read_message_id`,
-      input.authorId,
-      input.channelId,
-      id,
-      t,
-    ),
   );
+  if (root === null) {
+    stmts.push(
+      lastMessageStmt(db, input.channelId, id, t),
+      stmt(
+        db,
+        `INSERT INTO channel_reads (user_id, channel_id, last_read_message_id, updated_at) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_message_id = excluded.last_read_message_id, updated_at = excluded.updated_at
+          WHERE excluded.last_read_message_id > channel_reads.last_read_message_id`,
+        input.authorId,
+        input.channelId,
+        id,
+        t,
+      ),
+    );
+  } else {
+    stmts.push(
+      stmt(db, "UPDATE messages SET reply_count = reply_count + 1, last_reply_at = MAX(COALESCE(last_reply_at, 0), ?2) WHERE id = ?1", root.id, t),
+      stmt(
+        db,
+        `INSERT INTO thread_participants (root_id, user_id, last_reply_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT (root_id, user_id) DO UPDATE SET last_reply_at = MAX(thread_participants.last_reply_at, excluded.last_reply_at)`,
+        root.id,
+        input.authorId,
+        t,
+      ),
+      // the root author joins with the first reply; a row that already exists (they replied) keeps its later time
+      stmt(
+        db,
+        "INSERT INTO thread_participants (root_id, user_id, last_reply_at) VALUES (?1, ?2, ?3) ON CONFLICT (root_id, user_id) DO NOTHING",
+        root.id,
+        root.author_id,
+        root.created_at,
+      ),
+    );
+  }
   // message_mentions reference messages(id): after the INSERT
-  if (explicit.length > 0) stmts.push(mentionInsertStmt(db, id, input.channelId, explicit, false, false));
-  if (here.length > 0) stmts.push(mentionInsertStmt(db, id, input.channelId, here, true, false));
+  const inThread = root !== null;
+  if (explicit.length > 0) stmts.push(mentionInsertStmt(db, id, input.channelId, explicit, false, inThread));
+  if (here.length > 0) stmts.push(mentionInsertStmt(db, id, input.channelId, here, true, inThread));
 
   try {
     await batch(db, stmts);
@@ -237,7 +275,14 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
 
   // A brand-new message reads the same for everyone (no reactions, no votes): one serialization serves both.
   const [message] = await serializeMessages(db, null, [row]);
-  await publishEvent(rt, { channel: input.channelId }, "message.created", { message: message! });
+  if (root === null) {
+    await publishEvent(rt, { channel: input.channelId }, "message.created", { message: message! });
+  } else {
+    const thread = await loadThreadSummary(db, root.id);
+    const events: Array<{ type: "message.created" | "thread.updated"; data: unknown }> = [{ type: "message.created", data: { message: message! } }];
+    if (thread !== null) events.push({ type: "thread.updated", data: { channel_id: input.channelId, root_id: root.id, thread } });
+    await publishEvents(rt, { channel: input.channelId }, events);
+  }
   await scheduleNotifications(rt, "message notifications", () => fanoutMessageNotifications(rt, message!, channel));
   return { message: message!, created: true };
 }

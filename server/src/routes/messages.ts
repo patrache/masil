@@ -1,5 +1,5 @@
 // Messages (api.md 5.10). requireAuth is a per-route argument (plan 01 Global Constraints).
-// Task 20: send, list, get. Task 24: PATCH/DELETE. Task 25 threads, Task 26 reactions and pins.
+// Task 20: send, list, get. Task 24: PATCH/DELETE. Task 25: threads (api.md 5.11). Task 26 reactions and pins.
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
@@ -22,6 +22,19 @@ const SendBody = z.object({
 
 const EditBody = z.object({
   body: z.string(), // NFC + trim + 1..4000 code points in services/messages.ts (prepareMessageBody)
+});
+
+// Thread replies: no polls (api.md 5.11) — kind "poll" fails the enum -> 400 fields.kind.
+const ReplyBody = z.object({
+  client_nonce: zNonce,
+  kind: z.enum(["text", "me", "roll"]).optional(),
+  body: z.string(), // validated per kind in services/messages.ts (prepareMessageBody)
+});
+
+const ThreadQuery = z.object({
+  before: zId.optional(),
+  after: zId.optional(),
+  limit: z.string().optional(),
 });
 
 const ListQuery = z.object({
@@ -138,4 +151,85 @@ messageRoutes.patch("/messages/:message_id", requireAuth, limit("RL_MESSAGE"), v
 messageRoutes.delete("/messages/:message_id", requireAuth, async (c) => {
   await deleteMessage(rt(c), c.req.param("message_id"), getAuth(c).userId);
   return c.body(null, 204);
+});
+
+// ---------------------------------------------------------------------------
+// threads (api.md 5.11): one level — a reply's id resolves to its root.
+
+/** The root a message id points at (itself, or its thread_root_id), or 404 message. Deleted roots come back as-is. */
+async function threadRootOf(db: D1Database, messageId: string): Promise<MessageRow> {
+  const row = await first<MessageRow>(db, "SELECT * FROM messages WHERE id = ?1", messageId);
+  if (row === null) throw err.notFound("message");
+  if (row.thread_root_id === null) return row;
+  const root = await first<MessageRow>(db, "SELECT * FROM messages WHERE id = ?1", row.thread_root_id);
+  if (root === null) throw err.notFound("message");
+  return root;
+}
+
+// Live replies of a root (deleted replies have nothing hanging off them, so they are left out).
+const REPLIES = "thread_root_id = ?1 AND deleted_at IS NULL";
+
+/**
+ * { root, items, has_more_before, has_more_after } for a reader of the root's channel; items ID ascending.
+ * none: the latest `limit` replies; before / after: older / newer than that ID (at most one, else 400).
+ * A deleted root is shown as a tombstone while it has replies, else 404.
+ */
+messageRoutes.get("/messages/:message_id/thread", requireAuth, vQuery(ThreadQuery), async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const q = c.req.valid("query");
+  if (q.before !== undefined && q.after !== undefined) throw err.invalid({ before: "not_allowed", after: "not_allowed" });
+  const n = parseLimit(q.limit, LIST_DEFAULT, LIST_MAX);
+  const root = await threadRootOf(db, c.req.param("message_id"));
+  await requireChannelRead(db, root.channel_id, me);
+  if (root.deleted_at !== null && root.reply_count === 0) throw err.notFound("message");
+
+  const exists = async (op: "<" | ">" | "<=" | ">=", id: string): Promise<boolean> =>
+    (await first<{ x: number }>(db, `SELECT 1 AS x FROM messages WHERE ${REPLIES} AND id ${op} ?2 LIMIT 1`, root.id, id)) !== null;
+
+  let rows: MessageRow[];
+  let hasBefore: boolean;
+  let hasAfter: boolean;
+  if (q.after !== undefined) {
+    const got = await all<MessageRow>(db, `SELECT * FROM messages WHERE ${REPLIES} AND id > ?2 ORDER BY id ASC LIMIT ?3`, root.id, q.after, n + 1);
+    rows = got.slice(0, n);
+    hasAfter = got.length > n;
+    hasBefore = await exists(rows.length > 0 ? "<" : "<=", rows[0]?.id ?? q.after);
+  } else {
+    const anchor = q.before ?? null;
+    const got = await all<MessageRow>(
+      db,
+      `SELECT * FROM messages WHERE ${REPLIES} AND (?2 IS NULL OR id < ?2) ORDER BY id DESC LIMIT ?3`,
+      root.id,
+      anchor,
+      n + 1,
+    );
+    hasBefore = got.length > n;
+    rows = got.slice(0, n).reverse();
+    const last = rows[rows.length - 1];
+    hasAfter = anchor === null ? false : await exists(last ? ">" : ">=", last?.id ?? anchor);
+  }
+
+  const [serialized, items] = await Promise.all([serializeMessages(db, me, [root]), serializeMessages(db, me, rows)]);
+  const rootMessage = serialized[0];
+  if (!rootMessage) throw err.notFound("message");
+  return c.json({ root: rootMessage, items, has_more_before: hasBefore, has_more_after: hasAfter });
+});
+
+/** Reply in the root's thread (a reply id resolves to its root): write access, 201 { message } (same nonce -> 200). */
+messageRoutes.post("/messages/:message_id/thread", requireAuth, limit("RL_MESSAGE"), vJson(ReplyBody), async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const root = await threadRootOf(db, c.req.param("message_id"));
+  const access = await requireChannelWrite(db, root.channel_id, me);
+  const b = c.req.valid("json");
+  const { message, created } = await createMessage(rt(c), {
+    channelId: access.channel.id,
+    authorId: me,
+    kind: b.kind ?? "text",
+    body: b.body,
+    clientNonce: b.client_nonce,
+    threadRootId: root.id,
+  });
+  return c.json({ message }, created ? 201 : 200);
 });
