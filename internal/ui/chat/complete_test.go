@@ -32,6 +32,29 @@ func hasDetail(items []widgets.Completion, d string) bool {
 	return false
 }
 
+func TestCompletionTabAccept(t *testing.T) { // requires CR-1 (ui.Completer) in core
+	for _, sz := range []uitest.Size{{W: 120, H: 40}, {W: 80, H: 24}} { // multi-pane ring and single-pane (tab.next) modes
+		h := devChannel(t, sz)
+		h.Press("i")
+		h.Type("@mi")
+		f0 := h.Model.Focus()
+		h.Press("tab")
+		if v := channelOf(t, h).composer.c.Value(); v != "@minji " {
+			t.Fatalf("%v: got %q", sz, v)
+		}
+		if f := h.Model.Focus(); f != f0 {
+			t.Fatalf("%v: tab accepting the popup must not move focus: %+v -> %+v", sz, f0, f)
+		}
+		h.Press("tab") // popup closed now → hard global again (focus.next / tab.next), composer value unchanged
+		if channelOf(t, h).composer.c.Value() != "@minji " {
+			t.Fatal("tab without popup must not touch the draft")
+		}
+		if f := h.Model.Focus(); f == f0 {
+			t.Fatalf("%v: tab without popup is the hard global (focus.next / tab.next), focus stayed %+v", sz, f)
+		}
+	}
+}
+
 func TestMentionCompletion(t *testing.T) {
 	h := devChannel(t, uitest.Size{W: 120, H: 40})
 	h.Press("i")
