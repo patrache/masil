@@ -89,7 +89,17 @@ func newChannel(ctx *ui.Context, r ui.Route) ui.Component {
 	v.pane.older = v.loadOlder
 	v.pane.newer = v.loadNewer
 	v.pane.open = v.openThread
+	v.composer.onEmptyEdit = func(ctx *ui.Context, m api.Message) tea.Cmd { return openOverlayCmd(deleteConfirm(ctx, m)) }
 	return v
+}
+
+// startEdit edits my message m in the composer (focused).
+func (v *channelView) startEdit(ctx *ui.Context, m api.Message) tea.Cmd {
+	if v.inputBlocked(ctx) {
+		return nil
+	}
+	v.composer.startEdit(m)
+	return v.composer.focus()
 }
 
 func (v *channelView) id() string { return v.route.ID }
@@ -326,6 +336,20 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.EventMsg:
 		cmds = append(cmds, v.onEvent(ctx, m.Event))
+	case ui.ResultMsg[msgAction]:
+		cmds = append(cmds, landAction(ctx, m))
+		v.pane.refresh(ctx)
+	case chatChangedMsg:
+		v.pane.refresh(ctx)
+	case editRequestMsg:
+		if m.ChannelID != v.id() {
+			break
+		}
+		if c := chatOf(ctx); c != nil {
+			if msg, ok := c.FindMessage(m.MessageID); ok && msg.ThreadRootID == nil && editable(ctx, msg) {
+				cmds = append(cmds, v.startEdit(ctx, msg))
+			}
+		}
 	case chatstore.ResyncResultMsg:
 		if c := chatOf(ctx); c != nil {
 			c.ApplyResync(m)
@@ -557,6 +581,9 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 			return false, nil
 		}
 		return true, v.openThread(r)
+	}
+	if handled, cmd := v.pane.actionKey(ctx, msg, func(m api.Message) tea.Cmd { return v.startEdit(ctx, m) }); handled {
+		return true, cmd
 	}
 	handled, cmd := v.pane.handleKey(ctx, msg)
 	if !handled {

@@ -294,8 +294,9 @@ func (p *msgPane) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 	return true, tea.Batch(cmd, more)
 }
 
-// handleMouse: the wheel scrolls 3 lines (paging at either edge); a left click on a
-// message row selects it, a click on the row that was already selected runs open.
+// handleMouse: the wheel scrolls 3 lines (paging at either edge); a click on a
+// reaction chip or a poll bar runs it (hitAction), else a left click on a message
+// row selects it, a click on the row that was already selected runs open.
 func (p *msgPane) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
 	switch m := msg.(type) {
 	case tea.MouseWheelMsg:
@@ -313,15 +314,23 @@ func (p *msgPane) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 		}
 		return tea.Batch(cmd, more)
 	case tea.MouseClickMsg:
-		if m.Button != tea.MouseLeft {
+		if m.Button != tea.MouseLeft && m.Button != tea.MouseRight {
 			return nil
 		}
-		id, _, ok := p.lineAt(ctx, local.Y)
+		id, line, ok := p.lineAt(ctx, local.Y)
 		if !ok {
 			return nil
 		}
 		r := p.rows[p.index[id]]
 		if !r.selectable() {
+			return nil
+		}
+		// a reaction chip (left = toggle, right = who reacted) or a poll bar (left = vote)
+		if cmd, hit := p.hitAction(ctx, r, line, local.X, m.Button); hit {
+			p.selectID(id)
+			return cmd
+		}
+		if m.Button != tea.MouseLeft {
 			return nil
 		}
 		if cur, ok := p.selected(); ok && cur.ID == id && p.open != nil {
@@ -408,10 +417,14 @@ func (p *msgPane) stopLoading() {
 
 // render draws one row (selection painted only while the pane is focused).
 func (p *msgPane) render(ctx *ui.Context, r row, selected bool, width int) []string {
-	t := themeOf(ctx)
 	if r.Kind == rowLoading {
 		return []string{p.loadingLine(ctx, width)}
 	}
+	return renderRow(ctx, r, p.style(ctx, r, selected, width))
+}
+
+// style is the msgStyle row r is drawn with at width.
+func (p *msgPane) style(ctx *ui.Context, r row, selected bool, width int) msgStyle {
 	st := msgStyle{
 		Density:  ctx.Density(),
 		Width:    width,
@@ -422,10 +435,10 @@ func (p *msgPane) render(ctx *ui.Context, r row, selected bool, width int) []str
 		st.Continuation = isContinuation(p.rows[i-1], r)
 	}
 	if _, ok := p.fading[r.ID]; ok {
-		s := p.fade.Style(t, r.ID)
+		s := p.fade.Style(themeOf(ctx), r.ID)
 		st.Fade = &s
 	}
-	return renderRow(ctx, r, st)
+	return st
 }
 
 // loadingLine is "<spinner> 불러오는 중…" centered in width cells.

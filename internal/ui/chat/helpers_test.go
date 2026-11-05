@@ -129,6 +129,10 @@ var chatRouteTable = []chatRoute{
 	{"PUT /v1/channels/{id}/read", "PUT /v1/channels/01JBPROBE00000000000000000/read", echoRead},
 	{"GET /v1/channels/{id}/members", "GET /v1/channels/01JBPROBE00000000000000000/members", channelMembers},
 	{"GET /v1/presence", "GET /v1/presence?user_ids=" + fixtures.UserMinji + "," + fixtures.UserJunho, presence},
+	{"PUT /v1/polls/{id}/vote", "PUT /v1/polls/01JGPROBE00000000000000000/vote", echoPoll("vote")},
+	{"DELETE /v1/polls/{id}/vote", "DELETE /v1/polls/01JGPROBE00000000000000000/vote", echoPoll("retract")},
+	{"POST /v1/polls/{id}/close", "POST /v1/polls/01JGPROBE00000000000000000/close", echoPoll("close")},
+	{"PUT /v1/blocks/{user}", "PUT /v1/blocks/@probe", noContent},
 }
 
 // newAPI is apitest.New + fixtures.RegisterAPI + chatRoutes, in this order (tests overlay after it).
@@ -204,6 +208,47 @@ func echoSend(thread bool) http.HandlerFunc {
 			m.Poll = p
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{"message": m, "created": true})
+	}
+}
+
+// fixturePoll finds a canned message poll by id (a stub poll when unknown).
+func fixturePoll(id string) api.Poll {
+	for cid := range seeded().Channels {
+		for _, m := range fixtures.Messages(cid) {
+			if m.Poll != nil && m.Poll.ID == id {
+				p := *m.Poll
+				p.Options = slices.Clone(p.Options)
+				return p
+			}
+		}
+	}
+	return api.Poll{ID: id, ContextType: "message", Options: []api.PollOption{}, MyVotes: []int{}}
+}
+
+// echoPoll answers a poll write with the canned poll: "vote" counts the posted
+// option_idxs as my (only) votes on top of the canned counts, "retract" clears
+// my votes, "close" closes it.
+func echoPoll(op string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p := fixturePoll(r.PathValue("id"))
+		p.MyVotes = []int{}
+		switch op {
+		case "vote":
+			var in struct {
+				OptionIdxs []int `json:"option_idxs"`
+			}
+			json.NewDecoder(r.Body).Decode(&in)
+			for _, i := range in.OptionIdxs {
+				if i >= 0 && i < len(p.Options) {
+					p.Options[i].VoteCount++
+				}
+			}
+			p.VoterCount++
+			p.MyVotes = append(p.MyVotes, in.OptionIdxs...)
+		case "close":
+			p.Closed = true
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"poll": p})
 	}
 }
 
