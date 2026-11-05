@@ -1,6 +1,7 @@
 // Per-user realtime hub (server-architecture.md 3.2, events.md 1-3, 5, 6.2).
 // Task 9: upgrade, epochs + D1 liveness on connect, hello, resume -> ready, client frame validation and rate limit.
-// deliver/ack/alarm work (Task 10), presence (Task 12), watch (Task 13) and typing (Task 27) build on this.
+// Task 10: deliver (seq log), resume replay, device acks, close handling and the alarm (heartbeat, liveness, log trim).
+// Presence (Task 12), watch (Task 13) and typing (Task 27) build on this.
 import { DurableObject } from "cloudflare:workers";
 import type { AuthContext } from "../env";
 import { newId, isId } from "../lib/ids";
@@ -48,6 +49,13 @@ export const FULL_ONLINE_MS = 10 * 60_000; // events.md 6.2 online_until = now +
 export const NOTIFY_ONLINE_MS = 40 * 60_000; // events.md 6.2 notify_online_until = now + 40 min
 export const FULL_ALARM_MS = 60_000; // alarm cadence with a full socket (events.md 3.4)
 export const NOTIFY_ALARM_MS = 15 * 60_000; // alarm cadence with only notify sockets
+export const CLOSE_GRACE_MS = 120_000; // events.md 6.2: last socket of a mode gone -> liveness = now + 120s
+export const FULL_EXTEND_BELOW_MS = 5 * 60_000; // alarm re-extends online_until when less than this is left (~1 D1 write / 5 min)
+// notify liveness is re-extended at most about once per 15 min whatever the alarm cadence (60s with a full socket, 15 min without):
+// 40 min - 30 min = 10 min between writes with a 60s alarm; every 15-min alarm with notify sockets only.
+export const NOTIFY_EXTEND_BELOW_MS = 30 * 60_000;
+export const LOG_KEEP_EVENTS = 2000; // events.md 6.2: keep the last 2,000 events or 24 hours, whichever is smaller
+export const LOG_KEEP_MS = 86_400_000;
 const RATE_WINDOW_MS = 10_000; // events.md 2: 30 frames / 10s -> reply{rate_limited}; 60 -> 4008
 const RATE_SOFT = 30;
 const RATE_HARD = 60;
@@ -220,6 +228,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       try {
         const until = await this.extendLiveness(auth.userId, mode, t);
         this.setMeta(mode === "full" ? "full_until" : "notify_until", until); // raise only after D1 succeeded
+        this.setMeta("zero_since", ""); // a socket is connected from here on
         return true;
       } catch (e) {
         console.error("UserHub: presence write failed on connect", e);
@@ -290,6 +299,58 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     return row.until;
   }
 
+  // ---------------------------------------------------------------- delivery
+
+  /**
+   * Deliver events to this user's sockets (server-architecture.md 3.2 deliver 1-4). Logged events get seq + go to the log.
+   * Fully synchronous after the call starts, so it never interleaves with a resume replay: an event is either in the
+   * replayed range or sent live after `ready`, never both and never neither.
+   */
+  async deliver(batch: DeliveryBatch): Promise<void> {
+    if (batch.events.length === 0) return;
+    // 1-3 in one SQL transaction: user_id, seq + frame + log row per logged event
+    const out = this.ctx.storage.transactionSync(() => {
+      if (this.getMeta("user_id") === null) this.setMeta("user_id", batch.userId);
+      let seq = this.currentSeq();
+      const frames: { ev: OutboundEvent; frame: string }[] = [];
+      for (const ev of batch.events) {
+        const data = this.prepareEventData(ev);
+        if (ev.logged) {
+          seq++;
+          const frame = JSON.stringify({ type: ev.type, seq, ts: iso(ev.ts), data });
+          this.sql.exec("INSERT INTO events (seq, type, ts, frame) VALUES (?, ?, ?, ?)", seq, ev.type, ev.ts, frame);
+          frames.push({ ev, frame });
+        } else {
+          frames.push({ ev, frame: JSON.stringify({ type: ev.type, seq: null, ts: iso(ev.ts), data }) });
+        }
+      }
+      if (seq !== this.currentSeq()) this.setMeta("seq", seq);
+      return frames;
+    });
+
+    // 4. ready sockets only; notify sockets get the events.md 7 types only; topic events only where watched
+    const targets = this.liveSockets()
+      .map((ws) => ({ ws, a: this.att(ws) }))
+      .filter((x): x is { ws: WebSocket; a: ConnAttachment } => x.a !== null && x.a.ready);
+    for (const { ev, frame } of out) {
+      for (const { ws, a } of targets) {
+        if (a.mode === "notify" && !NOTIFY_ALLOWED_TYPES.has(ev.type)) continue;
+        if (ev.topic !== undefined && !a.topics.includes(ev.topic)) continue;
+        if (ev.onlyDevice !== undefined && a.deviceId !== ev.onlyDevice) continue;
+        try {
+          ws.send(frame);
+        } catch {
+          // closing socket — ignore
+        }
+      }
+    }
+  }
+
+  /** deliver step 2 hook: the event's `data` as framed (Task 12 fills alert suppression / focus_alerts here). */
+  protected prepareEventData(ev: OutboundEvent): unknown {
+    return ev.data;
+  }
+
   // ---------------------------------------------------------------- client frames
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -354,6 +415,17 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         }
         break;
       case "ack":
+        // events.md 3.5: keyed by (device_id, this connection's mode), stamped with that mode's current epoch.
+        this.sql.exec(
+          `INSERT INTO device_acks (device_id, mode, epoch, seq, updated_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (device_id, mode) DO UPDATE SET epoch = excluded.epoch, seq = excluded.seq, updated_at = excluded.updated_at`,
+          a.deviceId,
+          a.mode,
+          this.epochOf(a.mode),
+          frame.data.seq,
+          this.now(),
+        );
+        break;
       case "typing":
         break;
     }
@@ -406,18 +478,165 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
   async webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean): Promise<void> {
     // With web_socket_auto_reply_to_close the runtime answers the close; this keeps older dates correct too.
     this.closeWs(ws, code === 1005 || code === 1006 ? CloseCode.normal : code, reason);
+    await this.onSocketGone(ws);
     await this.scheduleAlarm();
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     console.error("UserHub: websocket error", error);
     this.closeWs(ws, CloseCode.internal, "socket error");
+    await this.onSocketGone(ws);
     await this.scheduleAlarm();
   }
 
-  /** Task 9: only keeps the alarm chain going; heartbeat/resume/liveness work comes with Task 10. */
+  /**
+   * server-architecture.md 3.2 webSocketClose/webSocketError: last full socket gone -> full_until/online_until = now+120s,
+   * last notify socket gone -> notify_until/notify_online_until likewise, no socket left -> zero_since, last_seen_at.
+   * Runs under blockConcurrencyWhile so a connect arriving meanwhile cannot have its fresh liveness shortened by this write.
+   */
+  protected async onSocketGone(ws: WebSocket): Promise<void> {
+    const gone = this.att(ws);
+    if (gone === null) return;
+    await this.ctx.blockConcurrencyWhile(async () => {
+      try {
+        const others = this.liveSockets()
+          .map((s) => this.att(s))
+          .filter((x): x is ConnAttachment => x !== null && x.connId !== gone.connId);
+        await this.markDisconnected(gone.userId, this.now(), {
+          full: gone.mode === "full" && !others.some((x) => x.mode === "full"),
+          notify: gone.mode === "notify" && !others.some((x) => x.mode === "notify"),
+          zero: others.length === 0 && (this.getMeta("zero_since") ?? "") === "",
+        });
+      } catch (e) {
+        console.error("UserHub: close handling failed", e); // never throw inside blockConcurrencyWhile
+      }
+    });
+  }
+
+  /**
+   * Shortens the liveness of the modes that lost their last socket to now+120s (watermark first, regardless of the D1
+   * outcome; D1 with MIN so it never extends) and records zero_since/last_seen_at. Call under blockConcurrencyWhile.
+   */
+  protected async markDisconnected(userId: string, t: number, what: { full: boolean; notify: boolean; zero: boolean }): Promise<void> {
+    const grace = t + CLOSE_GRACE_MS;
+    const sets: string[] = [];
+    const binds: unknown[] = [];
+    if (what.full) {
+      this.setMeta("full_until", Math.min(this.getMetaNum("full_until"), grace));
+      sets.push("online_until = MIN(online_until, ?)");
+      binds.push(grace);
+    }
+    if (what.notify) {
+      this.setMeta("notify_until", Math.min(this.getMetaNum("notify_until"), grace));
+      sets.push("notify_online_until = MIN(notify_online_until, ?)");
+      binds.push(grace);
+    }
+    if (what.zero) {
+      this.setMeta("zero_since", t);
+      sets.push("last_seen_at = ?");
+      binds.push(t);
+    }
+    if (sets.length === 0) return;
+    try {
+      await this.env.DB.prepare(`UPDATE user_presence SET ${sets.join(", ")}, updated_at = ? WHERE user_id = ?`)
+        .bind(...binds, t, this.getMeta("user_id") ?? userId)
+        .run();
+    } catch (e) {
+      console.error("UserHub: presence write failed on disconnect", e);
+    }
+  }
+
+  /**
+   * server-architecture.md 3.2 alarm: resume deadline (4000), heartbeat (4002), liveness extension (full: <5 min left ->
+   * +10 min; notify: +40 min), extension failure (1011), missed close handling, log trim. Reschedules itself while sockets exist.
+   * The body runs under blockConcurrencyWhile: liveness writes must not interleave with connect/close writes.
+   */
   async alarm(): Promise<void> {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      try {
+        await this.runAlarm();
+      } catch (e) {
+        console.error("UserHub: alarm failed", e); // never throw inside blockConcurrencyWhile
+      }
+    });
     await this.scheduleAlarm();
+  }
+
+  protected async runAlarm(): Promise<void> {
+    const t = this.now();
+    const userId = this.getMeta("user_id") ?? "";
+
+    // 1. no resume within 10s of hello -> 4000; no ping for 120s -> 4002
+    for (const ws of this.liveSockets()) {
+      const a = this.att(ws);
+      if (a === null) {
+        this.closeWs(ws, CloseCode.internal, "lost connection state");
+        continue;
+      }
+      if (!a.ready) {
+        if (t >= a.connectedAt + RESUME_TIMEOUT_MS) this.closeWs(ws, CloseCode.protocol, "resume timeout");
+        continue;
+      }
+      const pingAt = this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0;
+      if (t - Math.max(pingAt, a.connectedAt) > HEARTBEAT.timeoutMs) this.closeWs(ws, CloseCode.heartbeat, "heartbeat timeout");
+    }
+
+    // 2. extend D1 liveness for the modes that still have sockets; the watermark follows only a successful write
+    const modes = (): { full: number; notify: number } => {
+      let full = 0;
+      let notify = 0;
+      for (const ws of this.liveSockets()) {
+        const m = this.att(ws)?.mode;
+        if (m === "full") full++;
+        else if (m === "notify") notify++;
+      }
+      return { full, notify };
+    };
+    let live = modes();
+    if (userId !== "") {
+      if (live.full > 0 && this.getMetaNum("full_until") - t < FULL_EXTEND_BELOW_MS) await this.tryExtend(userId, "full", t);
+      if (live.notify > 0 && this.getMetaNum("notify_until") - t < NOTIFY_EXTEND_BELOW_MS) await this.tryExtend(userId, "notify", t);
+    }
+
+    // 3. extension kept failing and the watermark ran out: publishers no longer target these sockets -> 1011 (reconnect resyncs)
+    const fullUntil = this.getMetaNum("full_until");
+    const notifyUntil = this.getMetaNum("notify_until");
+    if (live.full > 0 && t >= fullUntil) {
+      for (const ws of this.liveSockets("mode:full")) this.closeWs(ws, CloseCode.internal, "presence expired");
+    }
+    if (live.notify > 0 && t >= Math.max(fullUntil, notifyUntil)) {
+      for (const ws of this.liveSockets("mode:notify")) this.closeWs(ws, CloseCode.internal, "presence expired");
+    }
+
+    // 4. missed close handling (also covers the sockets closed above): no socket of a mode but its watermark still runs past the grace
+    live = modes();
+    const missed = {
+      full: live.full === 0 && this.getMetaNum("full_until") > t + CLOSE_GRACE_MS,
+      notify: live.notify === 0 && this.getMetaNum("notify_until") > t + CLOSE_GRACE_MS,
+      zero: live.full + live.notify === 0 && (this.getMeta("zero_since") ?? "") === "",
+    };
+    if (userId !== "") await this.markDisconnected(userId, t, missed);
+
+    // 5. log retention (events.md 6.2) and acks of rotated epochs (useless to use_device_ack)
+    this.sql.exec(
+      `DELETE FROM events WHERE seq <= (SELECT MAX(seq) - ${LOG_KEEP_EVENTS} FROM events) OR ts < ?`,
+      t - LOG_KEEP_MS,
+    );
+    this.sql.exec(
+      "DELETE FROM device_acks WHERE (mode = 'full' AND epoch <> ?) OR (mode = 'notify' AND epoch <> ?)",
+      this.epochOf("full"),
+      this.epochOf("notify"),
+    );
+  }
+
+  /** One liveness extension; failures are logged and leave the watermark alone (step 3 of the alarm handles expiry). */
+  protected async tryExtend(userId: string, mode: ConnMode, t: number): Promise<void> {
+    try {
+      const until = await this.extendLiveness(userId, mode, t);
+      this.setMeta(mode === "full" ? "full_until" : "notify_until", until);
+    } catch (e) {
+      console.error(`UserHub: ${mode} liveness extension failed`, e);
+    }
   }
 
   // ---------------------------------------------------------------- debug
