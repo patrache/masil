@@ -1,7 +1,7 @@
 // Post services (server-architecture.md 4.14 posts.ts, api.md 5.15): createPost / deletePost with their counters.
 // Each write is one db.batch; events and notifications go out only after it committed (server-architecture.md 3.5).
 // Plan 02 Task 4: top-level posts (media, hashtags, mentions, poll, nonce idempotency) and deletion.
-// Plan 02 Task 5 fills the reply / quote target (step 3 of createPost): validation, counters, notifications, events.
+// Plan 02 Task 5: the reply / quote target (step 3 of createPost): validation, counters, notifications, events.
 import type { Runtime } from "../env";
 import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { err } from "../lib/errors";
@@ -93,18 +93,41 @@ async function resolvePostMentions(db: D1Database, author: UserRow, body: string
   return [...new Set(rows.map((r) => r.id))];
 }
 
+interface PostTarget {
+  post: PostRow;
+  author: UserRow;
+}
+
+/**
+ * The reply parent / quoted original (api.md 5.15): missing, deleted or not viewable by the author (api.md 3.4 — includes
+ * blocks either way and private authors the poster does not actively follow) -> 404; quoting a private account's post
+ * -> 403 action_not_allowed (whoever the viewer is).
+ */
+async function loadTarget(db: D1Database, viewerId: string, targetId: string | null, isQuote: boolean): Promise<PostTarget | null> {
+  if (targetId === null) return null;
+  const post = await first<PostRow>(db, "SELECT * FROM posts WHERE id = ?1", targetId);
+  if (post === null || post.deleted_at !== null || !(await canViewPost(db, viewerId, post))) throw err.notFound("post");
+  const author = await first<UserRow>(db, "SELECT * FROM users WHERE id = ?1", post.author_id);
+  if (author === null) throw err.notFound("post");
+  if (isQuote && author.is_private === 1) throw err.forbidden("action_not_allowed", "posts of private accounts cannot be quoted");
+  return { post, author };
+}
+
 /**
  * Creates a post (api.md 5.15). Order:
  * (1) same author + same client_nonce -> the existing post, created:false (pre-check, and uq_posts_nonce for races);
  * (2) validation — reply + quote together -> fields.reply_to_id not_allowed, poll on a reply -> fields.poll not_allowed,
  *     more than 4 images -> 422 limit_exceeded post_media, body NFC + trim 0..500 (1..500 without media / poll / quote),
  *     uploads not mine / not purpose post / not pending / repeated -> fields.media_upload_ids invalid;
- * (3) reply / quote target (Task 5);
+ * (3) reply / quote target: missing / deleted / not viewable -> 404, quoting a private account's post -> 403
+ *     action_not_allowed; root_id = parent.root_id ?? parent.id;
  * (4) mentions that can view the post;
  * (5) one batch: poll -> posts -> post_media (request order = position) -> uploads attached -> post_hashtags ->
- *     post_mentions -> author post_count + 1;
- * (6) after commit: timeline.item_created (ephemeral) to active followers + the author through the visibility filter,
- *     then post_mention notifications.
+ *     post_mentions -> author post_count + 1 -> parent reply_count + 1 / quoted quote_count + 1;
+ * (6) after commit: top-level posts and quotes -> timeline.item_created (ephemeral) to active followers + the author,
+ *     replies -> post.reply_created (ephemeral) on topic post:<parent>, both through the visibility filter (authors =
+ *     poster + target author); post.stats on the target's topic; then post_reply / post_quote to the target author
+ *     and post_mention to the remaining mentioned users.
  */
 export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{ post: Post; created: boolean }> {
   const db = rt.env.DB;
@@ -135,7 +158,8 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
   ]);
   if (author === null) throw err.notFound("user");
 
-  // (3) reply / quote target: Task 5 (target validation, root_id, parent reply_count / quote_count, notifications).
+  // (3) reply / quote target
+  const target = await loadTarget(db, author.id, replyToId ?? quoteOfId, quoteOfId !== null);
 
   // (4) mentions
   const t = now();
@@ -149,9 +173,9 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
     id,
     author_id: author.id,
     body,
-    reply_to_id: null,
-    root_id: null,
-    quote_of_id: null,
+    reply_to_id: replyToId,
+    root_id: replyToId !== null ? (target!.post.root_id ?? target!.post.id) : null,
+    quote_of_id: quoteOfId,
     poll_id: pollId,
     like_count: 0,
     repost_count: 0,
@@ -216,6 +240,9 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
     );
   }
   stmts.push(stmt(db, "UPDATE users SET post_count = post_count + 1 WHERE id = ?1", author.id));
+  // deletePost decrements these for a live reply / quote regardless of the target's state, so increment the same way.
+  if (replyToId !== null) stmts.push(stmt(db, "UPDATE posts SET reply_count = reply_count + 1 WHERE id = ?1", replyToId));
+  if (quoteOfId !== null) stmts.push(stmt(db, "UPDATE posts SET quote_count = quote_count + 1 WHERE id = ?1", quoteOfId));
 
   try {
     await batch(db, stmts);
@@ -234,20 +261,53 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
 
   // (6) after commit
   const [[post], [eventPost]] = await Promise.all([serializePosts(db, author.id, [row]), serializePosts(db, null, [row])]);
-  const isTopLevel = row.reply_to_id === null;
-  if (isTopLevel) {
+  const related = target === null ? [author] : [author, target.author];
+  const visibleTo: VisibilitySpec = {
+    authors: [...new Set(related.map((u) => u.id))],
+    privateAuthors: [...new Set(related.filter((u) => u.is_private === 1).map((u) => u.id))],
+  };
+  if (replyToId === null) {
+    // top-level posts and quotes
     const item: TimelineItem = { id: row.id, type: "post", post: eventPost!, reposted_by: null, at: iso(row.created_at) };
-    const visibleTo: VisibilitySpec = { authors: [author.id], privateAuthors: author.is_private === 1 ? [author.id] : [] };
     await publishEvent(rt, { followers: author.id }, "timeline.item_created", { item }, { ephemeral: true, includeSelf: author.id, visibleTo });
+  } else {
+    await publishEvent(
+      rt,
+      { topic: `post:${replyToId}` },
+      "post.reply_created",
+      { parent_id: replyToId, post: eventPost! },
+      { ephemeral: true, visibleTo },
+    );
   }
+  if (target !== null) await publishStats(rt, target.post.id);
 
-  // Recipients of post_reply / post_quote (Task 5) get that notification instead of post_mention.
+  const name = author.display_name;
+  const snippet = plainSnippet(body, 200);
+  const inputs: NotifyInput[] = [];
+  // Recipients of post_reply / post_quote get that notification instead of post_mention.
   const notifiedOtherwise = new Set<string>();
-  const mentionTargets = mentionIds.filter((uid) => uid !== author.id && !notifiedOtherwise.has(uid));
-  if (mentionTargets.length > 0) {
-    const name = author.display_name;
-    const snippet = plainSnippet(body, 200);
-    const inputs: NotifyInput[] = mentionTargets.map((uid) => ({
+  if (target !== null && target.author.id !== author.id) {
+    const isReply = replyToId !== null;
+    notifiedOtherwise.add(target.author.id);
+    inputs.push({
+      userId: target.author.id,
+      type: isReply ? "post_reply" : "post_quote",
+      actorId: author.id,
+      subject: { type: "post", id: row.id },
+      preview: snippet,
+      context: { post_id: row.id },
+      dedupeKey: `${isReply ? "post_reply" : "post_quote"}:${row.id}`,
+      alert: {
+        kind: "social",
+        title: isReply ? `${name} 님의 답글` : `${name} 님이 글을 인용했어요`,
+        body: snippet,
+        target: postTarget(row.id),
+      },
+    });
+  }
+  for (const uid of mentionIds) {
+    if (uid === author.id || notifiedOtherwise.has(uid)) continue;
+    inputs.push({
       userId: uid,
       type: "post_mention",
       actorId: author.id,
@@ -256,9 +316,9 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
       context: { post_id: row.id },
       dedupeKey: `post_mention:${row.id}:${uid}`,
       alert: { kind: "mention", title: `${name} 님이 글에서 멘션했어요`, body: snippet, target: postTarget(row.id) },
-    }));
-    await scheduleNotifications(rt, "post mention notifications", () => notifyMany(rt, inputs));
+    });
   }
+  if (inputs.length > 0) await scheduleNotifications(rt, "post notifications", () => notifyMany(rt, inputs));
   return { post: post!, created: true };
 }
 
