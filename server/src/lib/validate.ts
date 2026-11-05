@@ -105,3 +105,11 @@ export const zPollInput = z.object({
   multi: z.boolean().optional(),
   duration_sec: z.number().int().min(60).max(604_800).nullable().optional(),
 });
+
+/** Text channel name (api.md 0.3): NFC + trim, then `^[a-z0-9가-힣_-]{1,32}$` (no case folding). */
+export const CHANNEL_NAME_RE = /^[a-z0-9가-힣_-]{1,32}$/;
+
+export const zChannelName: z.ZodType<string, string> = z
+  .string()
+  .transform((s) => normalizeText(s))
+  .refine((s) => CHANNEL_NAME_RE.test(s), { message: "invalid channel name" });

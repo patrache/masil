@@ -5,13 +5,14 @@ import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
 import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
-import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from "../lib/db";
+import { all, batch, decodeCursor, encodeCursor, first, jsonList, parseLimit, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { newId } from "../lib/ids";
 import { requireSpaceRole } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { limit } from "../lib/ratelimit";
 import {
+  serializeChannels,
   serializeSpace,
   serializeSpaceBans,
   serializeSpaceChannels,
@@ -21,10 +22,11 @@ import {
 } from "../lib/serialize";
 import { charCount, isSingleEmoji, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
-import { vJson, vQuery, zText, zUserRef } from "../lib/validate";
+import { vJson, vQuery, zChannelName, zText, zUserRef } from "../lib/validate";
 import { OWNED_SPACES_MAX, removeFromSpace } from "../services/membership";
+import { postSystemMessage } from "../services/messages";
 import type { SpaceRole } from "../types/api";
-import type { SpaceBanRow, SpaceMemberRow, SpaceRow } from "../types/rows";
+import type { ChannelRow, SpaceBanRow, SpaceMemberRow, SpaceRow } from "../types/rows";
 
 /** api.md 0.3 / data-model.md: one emoji grapheme; the byte cap matches reactions (32 bytes). */
 const ICON_EMOJI_MAX_BYTES = 32;
@@ -66,6 +68,18 @@ const KickQuery = z.object({
   reason: z.string().optional(),
 });
 
+/** api.md 3.5: text channels per space (the default channel included). */
+const CHANNELS_PER_SPACE_MAX = 100;
+/** Initial members of a private channel in one request (api.md gives no cap; this bounds the per-ref lookups). */
+const CHANNEL_INITIAL_MEMBERS_MAX = 100;
+
+const CreateChannelBody = z.object({
+  name: zChannelName,
+  topic: zText(0, 250).optional(),
+  is_private: z.boolean().optional(),
+  members: z.array(zUserRef).max(CHANNEL_INITIAL_MEMBERS_MAX).optional(),
+});
+
 const ROLE_RANK_SQL = "CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END";
 
 async function loadSpace(db: D1Database, spaceId: string): Promise<SpaceRow> {
@@ -79,6 +93,10 @@ async function loadMember(db: D1Database, spaceId: string, userId: string): Prom
 }
 
 /** LIKE pattern for a substring match with `\` as the escape character. */
+function isUniqueViolation(e: unknown): boolean {
+  return e instanceof Error && /UNIQUE constraint failed/i.test(e.message);
+}
+
 function likeContains(s: string): string {
   return `%${s.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
 }
@@ -370,4 +388,101 @@ spaceRoutes.get("/spaces/:space_id/channels", requireAuth, async (c) => {
   const spaceId = c.req.param("space_id");
   await requireSpaceRole(c.env.DB, spaceId, me, "member");
   return c.json({ items: await serializeSpaceChannels(c.env.DB, me, spaceId) });
+});
+
+/**
+ * owner·admin; a text channel (api.md 5.9). Pre-checks: (private) `members` resolve to current space members (404
+ * otherwise; public + non-empty members -> 400 not_allowed), the name is free among the space's live text channels
+ * (409 already_exists — the name is NFC by now, so an NFD duplicate clashes too), fewer than 100 live text channels
+ * (422 channels_per_space). One batch: channels INSERT (position = last + 1, gated on the channel cap so concurrent
+ * creates cannot pass 100; uq_channels_space_name catches a concurrent same-name create) -> (private) channel_members
+ * for the creator + `members` -> member_count. After commit: channel.created (public: the space; private: the channel
+ * members), then the system message channel_created{name} in the new channel.
+ */
+spaceRoutes.post("/spaces/:space_id/channels", requireAuth, vJson(CreateChannelBody), async (c) => {
+  const auth = getAuth(c);
+  const me = auth.userId;
+  const db = c.env.DB;
+  const spaceId = c.req.param("space_id");
+  await requireSpaceRole(db, spaceId, me, "admin");
+  const b = c.req.valid("json");
+  const isPrivate = b.is_private === true;
+  const refs = b.members ?? [];
+  if (!isPrivate && refs.length > 0) throw err.invalid({ members: "not_allowed" });
+
+  let memberIds: string[] = [];
+  if (isPrivate) {
+    const users = await Promise.all(refs.map((ref) => resolveUserRef(db, ref, auth)));
+    memberIds = [...new Set([me, ...users.map((u) => u.id)])];
+    const inSpace = await first<{ n: number }>(
+      db,
+      "SELECT COUNT(*) AS n FROM space_members WHERE space_id = ?1 AND user_id IN (SELECT value FROM json_each(?2))",
+      spaceId,
+      jsonList(memberIds),
+    );
+    if ((inSpace?.n ?? 0) !== memberIds.length) throw err.notFound("member");
+  }
+  const facts = await first<{ n: number; taken: number }>(
+    db,
+    `SELECT COUNT(*) AS n, COALESCE(SUM(name = ?2), 0) AS taken
+       FROM channels WHERE space_id = ?1 AND kind = 'text' AND deleted_at IS NULL`,
+    spaceId,
+    b.name,
+  );
+  if ((facts?.taken ?? 0) > 0) throw err.conflict("already_exists");
+  if ((facts?.n ?? 0) >= CHANNELS_PER_SPACE_MAX) throw err.limit("channels_per_space", CHANNELS_PER_SPACE_MAX);
+
+  const t = now();
+  const channelId = newId(t);
+  const live = "FROM channels WHERE space_id = ?2 AND kind = 'text' AND deleted_at IS NULL";
+  const stmts: D1PreparedStatement[] = [
+    stmt(
+      db,
+      `INSERT INTO channels (id, kind, space_id, name, topic, is_private, position, created_by, created_at, updated_at)
+       SELECT ?1, 'text', ?2, ?3, ?4, ?5, COALESCE((SELECT MAX(position) ${live}), -1) + 1, ?6, ?7, ?7
+        WHERE (SELECT COUNT(*) ${live}) < ?8`,
+      channelId,
+      spaceId,
+      b.name,
+      b.topic ?? "",
+      isPrivate ? 1 : 0,
+      me,
+      t,
+      CHANNELS_PER_SPACE_MAX,
+    ),
+  ];
+  if (isPrivate) {
+    stmts.push(
+      stmt(
+        db,
+        `INSERT INTO channel_members (channel_id, user_id, added_by, joined_at)
+         SELECT ?1, j.value, ?2, ?3 FROM json_each(?4) j WHERE EXISTS (SELECT 1 FROM channels WHERE id = ?1)`,
+        channelId,
+        me,
+        t,
+        jsonList(memberIds),
+      ),
+      stmt(db, "UPDATE channels SET member_count = (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1) WHERE id = ?1", channelId),
+    );
+  }
+  let results: D1Result[];
+  try {
+    results = await batch(db, stmts);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw err.conflict("already_exists");
+    throw e;
+  }
+  if ((results[0]!.meta.changes ?? 0) === 0) throw err.limit("channels_per_space", CHANNELS_PER_SPACE_MAX);
+
+  const loadRow = async () => {
+    const row = await first<ChannelRow>(db, "SELECT * FROM channels WHERE id = ?1", channelId);
+    if (row === null) throw err.notFound("channel");
+    return row;
+  };
+  const [forEvent] = await serializeChannels(db, null, [await loadRow()]);
+  await publishEvent(rt(c), isPrivate ? { channel: channelId } : { space: spaceId }, "channel.created", { channel: forEvent! });
+  await postSystemMessage(rt(c), channelId, me, { event: "channel_created", actor_id: me, target_user_id: null, data: { name: b.name } });
+  // re-read so the response carries the system message as last_message_*
+  const [forMe] = await serializeChannels(db, me, [await loadRow()]);
+  return c.json({ channel: forMe }, 201);
 });

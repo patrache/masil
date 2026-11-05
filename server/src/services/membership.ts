@@ -1,5 +1,5 @@
 // Space / channel membership services (server-architecture.md 4.14 membership.ts).
-// Task 19: addChannelMembers / removeChannelMember for group_dm (api.md 3.1, 5.6). The private text branch is Task 23;
+// Task 19: addChannelMembers / removeChannelMember for group_dm (api.md 3.1, 5.6); Task 23 adds the private text branch;
 // joinSpace / removeFromSpace are Task 21; the invite branches of joinSpace's `via` are Task 22. group_dm system messages (group_member_added/removed) come from Task 20's
 // postSystemMessage after the membership batch committed.
 // Each write is one db.batch, then publish (server-architecture.md 3.5).
@@ -35,6 +35,8 @@ async function loadChannel(db: D1Database, channelId: string): Promise<ChannelRo
 
 /**
  * Adds `userIds` to a channel the actor can read (404 otherwise) and returns it as the actor sees it.
+ * private text (api.md 3.5: the space owner·admin or any member of that channel — reading it already requires being a
+ * member): see addPrivateTextMembers.
  * group_dm (any member may add): 409 already_member if anyone is already in; 422 limit_exceeded group_dm_members when
  * the total would pass 10; 403 dm_not_allowed (details.user_ids) for every X with !can_dm(actor, X) or a block either way
  * with any current member. 1:1 dm and public text -> 409 conflict not_supported.
@@ -47,10 +49,10 @@ export async function addChannelMembers(rt: Runtime, channelId: string, actorId:
   if (access === null) throw err.notFound("channel");
   const ch = access.channel;
   if (ch.kind === "dm" || (ch.kind === "text" && ch.is_private === 0)) throw notSupported();
-  if (ch.kind === "text") throw notSupported(); // private text channel members: Task 23
 
   const ids = [...new Set(userIds)];
   if (ids.length === 0) throw err.invalid({ users: "required" });
+  if (ch.kind === "text") return addPrivateTextMembers(rt, ch, actorId, ids);
   const current = (await all<{ user_id: string }>(db, "SELECT user_id FROM channel_members WHERE channel_id = ?1", ch.id)).map((r) => r.user_id);
   const currentSet = new Set(current);
   if (ids.some((id) => currentSet.has(id))) throw err.conflict("already_member");
@@ -119,8 +121,78 @@ export async function addChannelMembers(rt: Runtime, channelId: string, actorId:
 }
 
 /**
+ * Private text branch of addChannelMembers (api.md 3.5, 5.6): every target must be a current member of the channel's
+ * space (404 otherwise, before anything else), none may already be in the channel (409 already_member). No member cap
+ * beyond the space's own. One batch: channel_members INSERT (gated per row on the space membership, skipping rows that
+ * appeared meanwhile; RETURNING tells who actually went in) + member_count recount.
+ * Events after commit: channel.member_added{channel_id, user} per new member to the members before the add,
+ * channel.created{channel} to the new members. No system message (group_dm only).
+ */
+async function addPrivateTextMembers(rt: Runtime, ch: ChannelRow, actorId: string, ids: string[]): Promise<Channel> {
+  const db = rt.env.DB;
+  const facts = await all<{ id: string; in_space: number; in_channel: number }>(
+    db,
+    `SELECT j.value AS id,
+            EXISTS (SELECT 1 FROM space_members sm WHERE sm.space_id = ?2 AND sm.user_id = j.value) AS in_space,
+            EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = ?3 AND cm.user_id = j.value) AS in_channel
+       FROM json_each(?1) j`,
+    jsonList(ids),
+    ch.space_id,
+    ch.id,
+  );
+  if (facts.some((f) => !f.in_space)) throw err.notFound("member");
+  if (facts.some((f) => f.in_channel)) throw err.conflict("already_member");
+  const before = (
+    await all<{ user_id: string }>(
+      db,
+      `SELECT cm.user_id FROM channel_members cm
+         JOIN space_members sm ON sm.space_id = ?2 AND sm.user_id = cm.user_id
+        WHERE cm.channel_id = ?1`,
+      ch.id,
+      ch.space_id,
+    )
+  ).map((r) => r.user_id);
+
+  const t = now();
+  const [ins] = await batch(db, [
+    stmt(
+      db,
+      `INSERT INTO channel_members (channel_id, user_id, added_by, joined_at)
+       SELECT ?1, j.value, ?2, ?3 FROM json_each(?4) j
+        WHERE EXISTS (SELECT 1 FROM space_members sm WHERE sm.space_id = ?5 AND sm.user_id = j.value)
+       ON CONFLICT DO NOTHING
+       RETURNING user_id`,
+      ch.id,
+      actorId,
+      t,
+      jsonList(ids),
+      ch.space_id,
+    ),
+    stmt(db, "UPDATE channels SET member_count = (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1), updated_at = ?2 WHERE id = ?1", ch.id, t),
+  ]);
+  const insertedSet = new Set((ins!.results as Array<{ user_id: string }>).map((r) => r.user_id));
+  const inserted = ids.filter((id) => insertedSet.has(id));
+  if (inserted.length === 0) throw err.conflict("already_member"); // lost a race to a concurrent add
+
+  const row = await loadChannel(db, ch.id);
+  const [[forEvent], [forActor], users] = await Promise.all([
+    serializeChannels(db, null, [row]),
+    serializeChannels(db, actorId, [row]),
+    loadUserSummaries(db, inserted),
+  ]);
+  const added = inserted.flatMap((id) => {
+    const user = users.get(id);
+    return user ? [{ type: "channel.member_added" as const, data: { channel_id: ch.id, user } }] : [];
+  });
+  await publishEvents(rt, { users: before }, added);
+  await publishEvent(rt, { users: inserted }, "channel.created", { channel: forEvent! });
+  return forActor!;
+}
+
+/**
  * Removes `userId` from a channel the actor can read (404 otherwise; 404 too when `userId` is not a member).
  * group_dm: the owner (owner_id) may remove anyone, everyone may remove themselves; otherwise 403 forbidden.
+ * private text: the space owner·admin may remove anyone, everyone may remove themselves (@me); otherwise 403 forbidden.
  * 1:1 dm and public text -> 409 conflict not_supported.
  * Events after commit: channel.member_removed{channel_id, user_id} to the remaining members,
  * channel.deleted{channel_id, space_id, reason:"removed"} to the removed user; then (group_dm) the system message
@@ -132,8 +204,13 @@ export async function removeChannelMember(rt: Runtime, channelId: string, actorI
   if (access === null) throw err.notFound("channel");
   const ch = access.channel;
   if (ch.kind === "dm" || (ch.kind === "text" && ch.is_private === 0)) throw notSupported();
-  if (ch.kind === "text") throw notSupported(); // private text channel members: Task 23
-  if (userId !== actorId && ch.owner_id !== actorId) throw err.forbidden("forbidden", "only the group owner can remove members");
+  if (userId !== actorId) {
+    if (ch.kind === "group_dm" && ch.owner_id !== actorId) throw err.forbidden("forbidden", "only the group owner can remove members");
+    // private text: removing someone else takes the space owner·admin (api.md 3.5); members may only add
+    if (ch.kind === "text" && access.spaceRole !== "owner" && access.spaceRole !== "admin") {
+      throw err.forbidden("forbidden", "requires admin role");
+    }
+  }
 
   const t = now();
   const [del] = await batch(db, [
