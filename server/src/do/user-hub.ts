@@ -9,6 +9,7 @@
 // Task 27: `typing` frames (write access check, 2s per-connection dedupe, volatile fan-out to the channel minus me).
 import { DurableObject } from "cloudflare:workers";
 import type { AuthContext, Runtime } from "../env";
+import { isSuspendedNow } from "../lib/auth";
 import { all } from "../lib/db";
 import { newId, isId } from "../lib/ids";
 import { getChannelAccess } from "../lib/permissions";
@@ -109,6 +110,9 @@ function utf8Bytes(s: string): number {
   if (s.length * 3 <= LIMITS.maxFrameBytes) return s.length;
   return encoder.encode(s).byteLength;
 }
+
+/** session.revoked reasons (events.md 4.1) = sessions.revoke_reason values. */
+type RevokeReason = "logout" | "revoked" | "password_changed" | "suspended";
 
 function isAuthContext(v: unknown): v is AuthContext {
   if (v === null || typeof v !== "object") return false;
@@ -252,20 +256,22 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     const mode: ConnMode = modeRaw;
     if (this.getMeta("user_id") === null) this.setMeta("user_id", auth.userId);
 
-    // 2. at the cap: replace the oldest connection
-    const open = this.liveSockets()
-      .map((ws) => ({ ws, a: this.att(ws) }))
-      .sort((x, y) => (x.a?.connId ?? "").localeCompare(y.a?.connId ?? ""));
-    const replacedFullDevices: string[] = [];
-    for (let i = 0; i <= open.length - MAX_CONNECTIONS; i++) {
-      this.closeWs(open[i].ws, CloseCode.replaced, "replaced");
-      if (open[i].a?.mode === "full") replacedFullDevices.push(open[i].a!.deviceId);
-    }
-
-    // 3-4. epoch check + D1 liveness write, serialized so concurrent connects don't rotate an epoch twice.
-    // `d1Status` is the D1 mirror's status as the liveness upsert saw it (null when the write failed).
-    const d1Status = await this.ctx.blockConcurrencyWhile(async (): Promise<PresenceStatus | null> => {
+    // 2-4. session re-check + epoch check + D1 liveness write, serialized so concurrent connects don't rotate an epoch
+    // twice. The session is re-read here because a logout / password change / suspension may have landed between the
+    // Worker's requireAuth and this call: its revokeSessions found no `sess:<id>` socket yet, so nothing else would
+    // ever close this one. Nothing awaits between this block and acceptWebSocket, so a revocation that commits after
+    // the re-check reaches revokeSessions only once the socket is tagged. `d1Status` is the D1 mirror's status as the
+    // liveness upsert saw it (null when a D1 call failed); `dead` is the session.revoked reason.
+    const gate = await this.ctx.blockConcurrencyWhile(async (): Promise<{ d1Status: PresenceStatus | null; dead: RevokeReason | null }> => {
       const t = this.now();
+      let dead: RevokeReason | null;
+      try {
+        dead = await this.sessionDeadReason(auth, t);
+      } catch (e) {
+        console.error("UserHub: session check failed on connect", e);
+        return { d1Status: null, dead: null }; // never throw inside blockConcurrencyWhile (it would reset the object)
+      }
+      if (dead !== null) return { d1Status: null, dead };
       const fullUntil = this.getMetaNum("full_until");
       const notifyUntil = this.getMetaNum("notify_until");
       if (this.epochOf("full") === "" || t >= fullUntil) this.setMeta("epoch_full", newId());
@@ -274,20 +280,38 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         const { until, status } = await this.extendLiveness(auth.userId, mode, t);
         this.setMeta(mode === "full" ? "full_until" : "notify_until", until); // raise only after D1 succeeded
         this.setMeta("zero_since", ""); // a socket is connected from here on
-        return status;
+        return { d1Status: status, dead: null };
       } catch (e) {
         console.error("UserHub: presence write failed on connect", e);
-        return null; // never throw inside blockConcurrencyWhile (it would reset the object)
+        return { d1Status: null, dead: null };
       }
     });
-    const accepted = d1Status !== null;
+    const d1Status = gate.d1Status;
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
-    if (!accepted) {
+    if (gate.dead !== null) {
+      // Same frames revokeSessions sends a live socket (events.md 4.1): session.revoked, then 4001 / 4003. Not hibernated,
+      // never tagged, so it touches no other socket and no presence.
+      server.accept();
+      this.sendFrame(server, "session.revoked", { session_id: auth.sessionId, reason: gate.dead });
+      server.close(gate.dead === "suspended" ? CloseCode.suspended : CloseCode.unauthorized, gate.dead);
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    if (d1Status === null) {
       server.accept();
       server.close(CloseCode.internal, "presence unavailable");
       return new Response(null, { status: 101, webSocket: client });
+    }
+
+    // at the cap: replace the oldest connection (only for an upgrade that is going to be accepted)
+    const open = this.liveSockets()
+      .map((ws) => ({ ws, a: this.att(ws) }))
+      .sort((x, y) => (x.a?.connId ?? "").localeCompare(y.a?.connId ?? ""));
+    const replacedFullDevices: string[] = [];
+    for (let i = 0; i <= open.length - MAX_CONNECTIONS; i++) {
+      this.closeWs(open[i].ws, CloseCode.replaced, "replaced");
+      if (open[i].a?.mode === "full") replacedFullDevices.push(open[i].a!.deviceId);
     }
 
     // 5. accept, attachment, hello, alarm
@@ -332,6 +356,26 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     await this.recomputePresence(d1Status);
     await this.scheduleAlarm();
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /**
+   * Why `auth`'s session can no longer open a socket, or null when it still can: user suspended right now ->
+   * "suspended"; session gone or not this user's -> "revoked"; revoked -> its revoke_reason; expired -> "revoked".
+   * Throws on D1 failure.
+   */
+  protected async sessionDeadReason(auth: AuthContext, t: number): Promise<RevokeReason | null> {
+    const row = await this.env.DB.prepare(
+      `SELECT s.revoked_at, s.revoke_reason, s.expires_at, u.suspended_at, u.suspended_until
+         FROM sessions s JOIN users u ON u.id = s.user_id
+        WHERE s.id = ?1 AND s.user_id = ?2`,
+    )
+      .bind(auth.sessionId, auth.userId)
+      .first<{ revoked_at: number | null; revoke_reason: RevokeReason | null; expires_at: number; suspended_at: number | null; suspended_until: number | null }>();
+    if (row === null) return "revoked";
+    if (isSuspendedNow(row, t)) return "suspended";
+    if (row.revoked_at !== null) return row.revoke_reason ?? "revoked";
+    if (row.expires_at <= t) return "revoked";
+    return null;
   }
 
   /**
@@ -1119,7 +1163,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
    * otherwise those tagged `sess:<id>`) gets `session.revoked{session_id, reason}` (volatile, also before `ready` and on
    * notify sockets) and is then closed with 4001, or 4003 for "suspended".
    */
-  async revokeSessions(userId: string, sessionIds: string[] | "all", reason: "logout" | "revoked" | "password_changed" | "suspended"): Promise<void> {
+  async revokeSessions(userId: string, sessionIds: string[] | "all", reason: RevokeReason): Promise<void> {
     this.ensureUser(userId);
     const code = reason === "suspended" ? CloseCode.suspended : CloseCode.unauthorized;
     const targets = sessionIds === "all" ? this.liveSockets() : [...new Set(sessionIds)].flatMap((id) => this.liveSockets(`sess:${id}`));

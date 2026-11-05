@@ -87,6 +87,48 @@ describe("ws handshake", () => {
     expect((await cl).code).toBe(4000);
   });
 
+  it("upgrade racing a revocation: the hub re-checks the session, sends session.revoked and closes 4001 / 4003", async () => {
+    /** Hands an upgrade straight to the hub, as routes/ws.ts does after requireAuth read a still-live session. */
+    const hubUpgrade = async (u: Awaited<ReturnType<typeof signup>>, sessionId: string) => {
+      const auth = { userId: u.user.id, sessionId, handle: u.handle, role: "user" };
+      const res = await env.USER_HUB.getByName(u.user.id).fetch(
+        new Request(`${BASE}/v1/ws?mode=full&device_id=${newId()}`, { headers: { Upgrade: "websocket", "X-Masil-Auth": JSON.stringify(auth) } }),
+      );
+      expect(res.status).toBe(101);
+      const ws = res.webSocket!;
+      const first = firstFrame(ws); const closed = waitClose(ws); ws.accept();
+      return { first: await first, closed: await closed };
+    };
+    const sessionOf = async (userId: string) =>
+      (await env.DB.prepare("SELECT id FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 1").bind(userId).first<any>()).id as string;
+
+    // logged out between requireAuth and the hub: no hello, session.revoked{logout} then 4001
+    const u = await signup(); const sid = await sessionOf(u.user.id);
+    const live = await connectWs(u.token);
+    const liveClosed = waitClose(live.ws, 1500).then(() => true, () => false);
+    await env.DB.prepare("UPDATE sessions SET revoked_at=?1, revoke_reason='logout' WHERE id=?2").bind(Date.now(), sid).run();
+    const r1 = await hubUpgrade(u, sid);
+    expect(r1.first).toMatchObject({ type: "session.revoked", data: { session_id: sid, reason: "logout" } });
+    expect(r1.closed.code).toBe(4001);
+    expect(await liveClosed).toBe(false); // a dead upgrade never replaces or touches an open socket
+    expect((await env.USER_HUB.getByName(u.user.id).inspect()).connections).toBe(1);
+
+    // expired session: reason revoked, 4001
+    const e = await signup(); const esid = await sessionOf(e.user.id);
+    await env.DB.prepare("UPDATE sessions SET expires_at=?1 WHERE id=?2").bind(Date.now() - 1, esid).run();
+    const r2 = await hubUpgrade(e, esid);
+    expect(r2.first).toMatchObject({ type: "session.revoked", data: { session_id: esid, reason: "revoked" } });
+    expect(r2.closed.code).toBe(4001);
+
+    // suspended in that window (session row not revoked yet): reason suspended, 4003
+    const s = await signup(); const ssid = await sessionOf(s.user.id);
+    await env.DB.prepare("UPDATE users SET suspended_at=?1, suspend_reason='spam' WHERE id=?2").bind(Date.now(), s.user.id).run();
+    const r3 = await hubUpgrade(s, ssid);
+    expect(r3.first).toMatchObject({ type: "session.revoked", data: { session_id: ssid, reason: "suspended" } });
+    expect(r3.closed.code).toBe(4003);
+    expect((await env.USER_HUB.getByName(s.user.id).inspect()).connections).toBe(0);
+  });
+
   it("frame flood: >60 frames/10s -> 4008", async () => {
     const u = await signup(); const c = await connectWs(u.token); const cl = waitClose(c.ws);
     for (let i = 0; i < 61; i++) c.send({ type: "ack", data: { seq: 0 } });
