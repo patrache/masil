@@ -132,6 +132,23 @@ describe("invites", () => {
     expect(r.body.error.code).toBe("banned_from_space");
   });
 
+  it("direct invite to a suspended friend: 403 action_not_allowed, no invite or notification (api.md 3.9)", async () => {
+    const [o, f] = await Promise.all([signup(), signup()]);
+    const { space } = await makeSpace(o, []);
+    await makeFriends(o, f);
+    await env.DB.prepare("UPDATE users SET suspended_at=?1, suspend_reason='spam' WHERE id=?2").bind(Date.now(), f.user.id).run();
+    const r = await api(o.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+    expect(r.status).toBe(403);
+    expect(r.body.error.code).toBe("action_not_allowed");
+    const inv = await env.DB.prepare("SELECT COUNT(*) AS n FROM space_direct_invites WHERE invitee_id=?").bind(f.user.id).first<any>();
+    expect(inv.n).toBe(0);
+    const notif = await env.DB.prepare("SELECT COUNT(*) AS n FROM notifications WHERE user_id=? AND type='space_invite'").bind(f.user.id).first<any>();
+    expect(notif.n).toBe(0);
+    // a suspension whose suspended_until already passed counts as active again
+    await env.DB.prepare("UPDATE users SET suspended_until=?1 WHERE id=?2").bind(Date.now() - 1000, f.user.id).run();
+    expect((await api(o.token).post(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).status).toBe(201);
+  });
+
   it("direct invite decline and cancel; invite list for admins", async () => {
     const [o, m, f, g] = await Promise.all([signup(), signup(), signup(), signup()]);
     const { space } = await makeSpace(o, [m]);

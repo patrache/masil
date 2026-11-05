@@ -3,7 +3,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
-import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
+import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId, newId, newInviteCode } from "../lib/ids";
@@ -140,7 +140,7 @@ inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
 
 /**
  * Any member invites one of their own friends (api.md 3.5, any role). 403 action_not_allowed (not friends / blocked
- * either way), 403 banned_from_space, 409 already_member, 409 already_exists (a pending invite to this space).
+ * either way / invitee currently suspended), 403 banned_from_space, 409 already_member, 409 already_exists (a pending invite to this space).
  * After the insert: space.invite_received{invite} to the invitee + inbox space_invite + alert invite (Task 15 table).
  */
 inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOCIAL"), vJson(DirectInviteBody), async (c) => {
@@ -151,6 +151,7 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
   await requireSpaceRole(db, spaceId, me, "member");
   const target = await resolveUserRef(db, c.req.valid("json").user, auth);
   if (target.id === me) throw err.conflict("already_member");
+  if (isSuspendedNow(target, now())) throw err.forbidden("action_not_allowed"); // api.md 3.9: no invites to a suspended user
   const [friends, blocked] = await Promise.all([areFriends(db, me, target.id), isBlockedEither(db, me, target.id)]);
   if (!friends || blocked) throw err.forbidden("action_not_allowed");
   const facts = await first<{ banned: number; member: number; pending: number }>(
