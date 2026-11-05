@@ -74,12 +74,15 @@ describe("resume", () => {
     const u = await signup(); const dev = newId();
     const full = await connectWs(u.token, { deviceId: dev }); const notify = await connectWs(u.token, { deviceId: dev, mode: "notify" });
     await hub(u.user.id).deliver({ userId: u.user.id, events: [{ type: "alert", data: { alert: fakeAlert() }, ts: Date.now(), logged: true }, ev(2)] });
-    full.send({ type: "ack", data: { seq: 2 } }); notify.send({ type: "ack", data: { seq: 0 } }); await settle();
+    full.send({ type: "ack", data: { seq: 2 } }); notify.send({ type: "ack", data: { seq: 0 } });
+    const acks = () => runInDurableObject(hub(u.user.id), (_i, st): Record<string, SqlStorageValue>[] => st.storage.sql.exec("SELECT mode, seq FROM device_acks ORDER BY mode").toArray());
+    // Wait until the hub has stored both acks (a fixed sleep was flaky under full-suite load: the notify ack could
+    // still be unprocessed when n2 resumed, so use_device_ack found no row and replayed nothing).
+    for (let i = 0; i < 100 && (await acks()).length < 2; i++) await settle(30);
     notify.close(1000);
     const n2 = await connectWs(u.token, { deviceId: dev, mode: "notify", resume: { use_device_ack: true } as any });
     expect(n2.frames.filter((f) => f.type === "alert").map((f) => f.seq)).toEqual([1]); // settings.updated not allowed in notify
-    const rows = await runInDurableObject(hub(u.user.id), (_i, st): Record<string, SqlStorageValue>[] => st.storage.sql.exec("SELECT mode, seq FROM device_acks ORDER BY mode").toArray());
-    expect(rows).toEqual([{ mode: "full", seq: 2 }, { mode: "notify", seq: 0 }]);
+    expect(await acks()).toEqual([{ mode: "full", seq: 2 }, { mode: "notify", seq: 0 }]);
   });
 
   it("alarm: heartbeat timeout closes 4002; no resume in 10s closes 4000", async () => {
