@@ -398,3 +398,49 @@ func TestEnsureDirFixesPerms(t *testing.T) {
 		t.Fatalf("logs dir missing: %v", err)
 	}
 }
+
+func TestLoadWrongTypeKeepsOtherFields(t *testing.T) {
+	p := testPaths(t)
+	writeConfig(t, p, "server=\"https://my.example\"\ntheme=\"cream\"\n[layout]\ncommand_min_cols=\"wide\"\ncommand_min_rows=60\n[ui]\nmouse=\"no\"\nclock=\"12h\"\n[notify]\ndesktop=false\n[keys]\n\"palette.open\"=[\"ctrl+k\"]\n\"bad.key\"=3\n", 0o600)
+	c, err := config.Load(p)
+	if !errors.Is(err, config.ErrPartial) {
+		t.Fatalf("err = %v, want ErrPartial", err)
+	}
+	want := config.Defaults()
+	want.Server = "https://my.example"
+	want.Theme = "cream"
+	want.Layout.CommandMinRows = 60
+	want.UI.Clock = "12h"
+	want.Notify.Desktop = false
+	want.Keys = map[string][]string{"palette.open": {"ctrl+k"}}
+	if !reflect.DeepEqual(c, want) {
+		t.Fatalf("config = %+v, want %+v", *c, *want)
+	}
+	for _, field := range []string{"ui.mouse", "layout.command_min_cols", "keys.bad.key"} {
+		if !strings.Contains(err.Error(), field) {
+			t.Errorf("error %q does not name %s", err, field)
+		}
+	}
+	if strings.Contains(err.Error(), "server") || strings.Contains(err.Error(), "ui.clock") {
+		t.Errorf("error %q names a valid field", err)
+	}
+}
+
+func TestLoadWrongTypeTableKeepsOtherFields(t *testing.T) {
+	p := testPaths(t)
+	writeConfig(t, p, "server=\"https://my.example\"\nui=3\nlayout=\"x\"\n", 0o600)
+	c, err := config.Load(p)
+	if !errors.Is(err, config.ErrPartial) {
+		t.Fatalf("err = %v, want ErrPartial", err)
+	}
+	want := config.Defaults()
+	want.Server = "https://my.example"
+	if !reflect.DeepEqual(c, want) {
+		t.Fatalf("config = %+v, want %+v", *c, *want)
+	}
+	for _, field := range []string{"ui", "layout"} {
+		if !strings.Contains(err.Error(), field) {
+			t.Errorf("error %q does not name %s", err, field)
+		}
+	}
+}

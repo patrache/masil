@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -92,7 +94,10 @@ var (
 
 // Load reads config.toml: missing file => Defaults(); unknown keys ignored;
 // invalid values => default + warning in the returned error wrapper ErrPartial.
-// A file that does not parse yields Defaults() and an ErrPartial-wrapped error.
+// Invalid is per field: a wrong-typed value (e.g. mouse="no") resets only that
+// key and every other decoded field is kept; the error names the reset keys.
+// Only a file that does not parse at all (toml.ParseError) yields Defaults()
+// and an ErrPartial-wrapped error.
 // The returned *Config is never nil.
 func Load(p Paths) (*Config, error) {
 	b, err := os.ReadFile(p.Config)
@@ -104,17 +109,108 @@ func Load(p Paths) (*Config, error) {
 	}
 	permErr := fixPerm(p.Config, 0o600)
 
-	c := Defaults()
-	if _, err := toml.Decode(string(b), c); err != nil {
+	// Parse into primitives first: any error here is a real syntax error
+	// (toml.ParseError), and only then does the whole file fall back.
+	var raw map[string]toml.Primitive
+	md, err := toml.Decode(string(b), &raw)
+	if err != nil {
 		return Defaults(), errors.Join(fmt.Errorf("%w: %v", ErrPartial, err), permErr)
 	}
+	c := Defaults()
+	bad := decodeFields(&md, raw, reflect.ValueOf(c).Elem(), "")
 	if c.Keys == nil {
 		c.Keys = map[string][]string{}
 	}
-	if bad := c.validate(); len(bad) > 0 {
+	bad = append(bad, c.validate()...)
+	if len(bad) > 0 {
 		return c, errors.Join(fmt.Errorf("%w: %s", ErrPartial, strings.Join(bad, ", ")), permErr)
 	}
 	return c, permErr
+}
+
+// decodeFields decodes each key of prims into the matching (toml-tagged) field
+// of the struct rv on its own, so a wrong-typed value only leaves that one
+// field at its default. Nested structs recurse per key; maps decode per entry.
+// Unknown keys are ignored. It returns the sorted key paths that failed.
+func decodeFields(md *toml.MetaData, prims map[string]toml.Primitive, rv reflect.Value, prefix string) []string {
+	var bad []string
+	rt := rv.Type()
+	for key, prim := range prims {
+		idx := fieldIndex(rt, key)
+		if idx < 0 {
+			continue // unknown key
+		}
+		fv := rv.Field(idx)
+		name := prefix + key
+		switch fv.Kind() {
+		case reflect.Struct:
+			sub, ok := decodeTable(md, prim)
+			if !ok {
+				bad = append(bad, name)
+				continue
+			}
+			bad = append(bad, decodeFields(md, sub, fv, name+".")...)
+		case reflect.Map:
+			sub, ok := decodeTable(md, prim)
+			if !ok {
+				bad = append(bad, name)
+				continue
+			}
+			m := reflect.MakeMapWithSize(fv.Type(), len(sub))
+			for k, ep := range sub {
+				ev := reflect.New(fv.Type().Elem())
+				if err := md.PrimitiveDecode(ep, ev.Interface()); err != nil {
+					bad = append(bad, name+"."+k)
+					continue
+				}
+				m.SetMapIndex(reflect.ValueOf(k).Convert(fv.Type().Key()), ev.Elem())
+			}
+			fv.Set(m)
+		default:
+			v := reflect.New(fv.Type())
+			if err := md.PrimitiveDecode(prim, v.Interface()); err != nil {
+				bad = append(bad, name)
+				continue
+			}
+			fv.Set(v.Elem())
+		}
+	}
+	sort.Strings(bad)
+	return bad
+}
+
+// decodeTable splits a TOML table into per-key primitives. ok is false when
+// prim is not a table (toml's map decoding silently accepts a non-table as an
+// empty map, so the type is probed first).
+func decodeTable(md *toml.MetaData, prim toml.Primitive) (map[string]toml.Primitive, bool) {
+	var probe any
+	if err := md.PrimitiveDecode(prim, &probe); err != nil {
+		return nil, false
+	}
+	if _, ok := probe.(map[string]any); !ok {
+		return nil, false
+	}
+	var sub map[string]toml.Primitive
+	if err := md.PrimitiveDecode(prim, &sub); err != nil {
+		return nil, false
+	}
+	return sub, true
+}
+
+// fieldIndex finds the field whose toml tag is key (exact match first, then
+// case-insensitive, like toml.Decode), or -1.
+func fieldIndex(rt reflect.Type, key string) int {
+	fold := -1
+	for i := range rt.NumField() {
+		tag, _, _ := strings.Cut(rt.Field(i).Tag.Get("toml"), ",")
+		if tag == key {
+			return i
+		}
+		if fold < 0 && strings.EqualFold(tag, key) {
+			fold = i
+		}
+	}
+	return fold
 }
 
 // validate resets every invalid field to its default and returns the names of
