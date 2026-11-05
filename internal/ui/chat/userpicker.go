@@ -48,9 +48,13 @@ const (
 // NameFrom users are picked (0 = always). Order sorts the offered Candidates
 // (nil = by display name). Query is the first query. OnPick/OnDone follow the
 // form's tag and morph rules (formSpec); OnPick gets the name only while the name
-// field is shown.
+// field is shown. AllowEmpty lets enter submit with no pick (OnPick gets none).
+// Empty is the line shown when nothing is offered and no query is typed (default
+// "찾는 사람이 없어요" / the search hint).
 type pickerSpec struct {
 	Title, Submit string
+	Empty         string
+	AllowEmpty    bool
 	Max           int
 	Search        bool
 	Candidates    func(ctx *ui.Context) []api.UserSummary
@@ -320,7 +324,7 @@ func (p *userPicker) pick(ctx *ui.Context, i int) tea.Cmd {
 
 // submit calls OnPick with the chips and the name.
 func (p *userPicker) submit(ctx *ui.Context) tea.Cmd {
-	if len(p.chips) == 0 {
+	if len(p.chips) == 0 && !p.spec.AllowEmpty {
 		return nil
 	}
 	p.errMsg = ""
@@ -621,6 +625,8 @@ func (p *userPicker) emptyText() string {
 		return pickerSearching
 	case p.searchErr:
 		return pickerSearchFail
+	case q == "" && p.spec.Empty != "":
+		return p.spec.Empty
 	case q == "" && p.spec.Search:
 		return pickerTypeHint
 	case p.spec.Search && len([]rune(q)) < pickerSearchMin:
@@ -671,7 +677,7 @@ func (p *userPicker) layout(ctx *ui.Context, t *theme.Theme) (rows []string, cur
 		status = cell(t.S.Error.Render, "✕ "+textwidth.Sanitize(p.errMsg), cw)
 	case p.busy:
 		status = p.spinner.View(t) + cell(t.S.Dim.Render, pickerSending, cw-1)
-	case len(p.chips) > 0 && strings.TrimSpace(p.query.Value()) == "" && p.cur < 0:
+	case (len(p.chips) > 0 || p.spec.AllowEmpty) && strings.TrimSpace(p.query.Value()) == "" && p.cur < 0:
 		status = cell(t.S.Dim.Render, "enter "+textwidth.Sanitize(p.submitText())+" · esc 닫기", cw)
 	default:
 		status = cell(t.S.Dim.Render, "enter 고르기 · ↑↓ 이동 · esc 닫기", cw)

@@ -118,13 +118,15 @@ const (
 
 // field is one form field. Value is the initial value (choice: one of Choices,
 // default Choices[0]; toggle: "true" = on). Max is the text CharLimit (0 = none).
-// Validate returns an error text ("" = ok).
+// Validate returns an error text ("" = ok). Text is a toggle's value text
+// ("[ ] <Text>" / "[x] <Text>"; empty = "[ ] 꺼짐" / "[x] 켜짐").
 type field struct {
 	Key, Label, Placeholder, Value string
 	Kind                           fieldKind
 	Choices                        []string
 	Max                            int
 	Validate                       func(string) string
+	Text                           string
 }
 
 // formSpec describes a form. OnSubmit gets the values by Key and returns the ui.Do
@@ -423,6 +425,12 @@ func (f *form) layout(t *theme.Theme) (rows []string, curX, curY int) {
 			mark := "[ ] 꺼짐"
 			if f.on[i] {
 				mark = "[x] 켜짐"
+			}
+			if fd.Text != "" {
+				mark = "[ ] " + textwidth.Sanitize(fd.Text)
+				if f.on[i] {
+					mark = "[x] " + textwidth.Sanitize(fd.Text)
+				}
 			}
 			st := t.S.Base
 			if i == f.focus {

@@ -52,7 +52,7 @@ func init() {
 // settingsTab is a tab of the space settings route.
 type settingsTab int
 
-// Space settings tabs (tabInvites / tabChannels are filled by Task 20).
+// Space settings tabs.
 const (
 	tabOverview settingsTab = iota
 	tabMembers
@@ -82,7 +82,6 @@ const (
 	settingsFallback    = "방 설정"
 	spaceGoneText       = "볼 수 없는 방이에요"
 	spaceGoneHint       = "방이 삭제됐거나 더 이상 멤버가 아니에요"
-	tabSoonText         = "준비 중이에요"
 	roleOwnerLabel      = "방장"
 	roleAdminLabel      = "관리자"
 	roleMemberLabel     = "멤버"
@@ -168,8 +167,10 @@ type spaceSettingsView struct {
 	actTop int // overview: first drawn line (mouse)
 	actRow int // overview: line of the first action
 
-	members *memberTab
-	bans    *banTab
+	members  *memberTab
+	invites  *inviteTab
+	channels *channelTab
+	bans     *banTab
 }
 
 var (
@@ -187,6 +188,8 @@ var (
 func newSpaceSettings(_ *ui.Context, r ui.Route) ui.Component {
 	v := &spaceSettingsView{spaceID: r.ID, tabs: widgets.NewTabs()}
 	v.members = newSpaceMembers(v)
+	v.invites = newSpaceInvites(v)
+	v.channels = newSpaceChannels(v)
 	v.bans = newSpaceBans(v)
 	return v
 }
@@ -215,7 +218,8 @@ func (v *spaceSettingsView) clampTab(ctx *ui.Context) {
 	}
 }
 
-// setTab switches to the tab at index i of the set (clamped); entering 차단됨 fetches the bans.
+// setTab switches to the tab at index i of the set (clamped); entering 초대 /
+// 차단됨 fetches the invites / bans.
 func (v *spaceSettingsView) setTab(ctx *ui.Context, i int) tea.Cmd {
 	set := v.tabSet(ctx)
 	i = max(0, min(len(set)-1, i))
@@ -224,7 +228,10 @@ func (v *spaceSettingsView) setTab(ctx *ui.Context, i int) tea.Cmd {
 	}
 	v.members.blur()
 	v.tab = set[i]
-	if v.tab == tabBans {
+	switch v.tab {
+	case tabInvites:
+		return v.invites.fetch(ctx)
+	case tabBans:
 		return v.bans.fetch(ctx)
 	}
 	return nil
@@ -368,10 +375,12 @@ func (v *spaceSettingsView) View(ctx *ui.Context, focused bool) string {
 			rows = v.overviewView(ctx, t, body)
 		case tabMembers:
 			rows = strings.Split(v.members.view(ctx, t, body), "\n")
+		case tabInvites:
+			rows = strings.Split(v.invites.view(ctx, t, body), "\n")
+		case tabChannels:
+			rows = strings.Split(v.channels.view(ctx, t, body), "\n")
 		case tabBans:
 			rows = strings.Split(v.bans.view(ctx, t, body), "\n")
-		default:
-			rows = strings.Split(widgets.Empty(t, body, "🛠", tabSoonText, ""), "\n")
 		}
 		for len(rows) < body.H {
 			rows = append(rows, blank(t, w))
@@ -403,6 +412,19 @@ func (v *spaceSettingsView) Help(ctx *ui.Context) []key.Binding {
 			}
 		}
 		return append(ctx.Keys.Help(keymap.MsgActions), key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "멤버 찾기")), tabs)
+	case tabInvites:
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "열기")),
+			key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "복사")),
+			key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "메뉴")),
+			tabs,
+		}
+	case tabChannels:
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "설정")),
+			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "새 채널")),
+			tabs,
+		}
 	case tabBans:
 		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "차단 풀기")), tabs}
 	}
@@ -436,7 +458,7 @@ func (v *spaceSettingsView) LoadState(s any) {
 
 // ---- updates ----
 
-// Init fetches the space and its first member page (the bans with their tab).
+// Init fetches the space and its first member page (the invites / bans with their tab).
 func (v *spaceSettingsView) Init(ctx *ui.Context) tea.Cmd {
 	if ctx == nil || ctx.Store == nil || ctx.Store.Spaces[v.spaceID] == nil {
 		return nil
@@ -447,8 +469,13 @@ func (v *spaceSettingsView) Init(ctx *ui.Context) tea.Cmd {
 		return spaceGot{owner: v, d: d}, err
 	})
 	cmds := []tea.Cmd{get, v.members.fetch(ctx, false)}
-	if v.tab == tabBans && canManageSpace(ctx, id) {
-		cmds = append(cmds, v.bans.fetch(ctx))
+	if canManageSpace(ctx, id) {
+		switch v.tab {
+		case tabInvites:
+			cmds = append(cmds, v.invites.fetch(ctx))
+		case tabBans:
+			cmds = append(cmds, v.bans.fetch(ctx))
+		}
 	}
 	return tea.Batch(cmds...)
 }
@@ -499,10 +526,11 @@ func (v *spaceSettingsView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.EventMsg:
 		v.onEvent(m.Event)
 	}
+	icmd := v.invites.update(ctx, msg)
 	if cmd := v.members.update(ctx, msg); cmd != nil {
-		return cmd
+		return tea.Batch(icmd, cmd)
 	}
-	return v.bans.update(ctx, msg)
+	return tea.Batch(icmd, v.bans.update(ctx, msg))
 }
 
 // onEvent follows space.member_* of this space in the member list.
@@ -559,6 +587,10 @@ func (v *spaceSettingsView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (boo
 		}
 	case tabMembers:
 		return v.members.key(ctx, msg)
+	case tabInvites:
+		return v.invites.key(ctx, msg)
+	case tabChannels:
+		return v.channels.key(ctx, msg)
 	case tabBans:
 		return v.bans.key(ctx, msg)
 	}
@@ -596,6 +628,10 @@ func (v *spaceSettingsView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local
 		v.actCur = i
 	case tabMembers:
 		return v.members.mouse(ctx, msg, body)
+	case tabInvites:
+		return v.invites.mouse(ctx, msg, body)
+	case tabChannels:
+		return v.channels.mouse(ctx, msg, body)
 	case tabBans:
 		return v.bans.mouse(ctx, msg, body)
 	}

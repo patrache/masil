@@ -158,6 +158,11 @@ var chatRouteTable = []chatRoute{
 	{"POST /v1/direct-invites/{id}/accept", "POST /v1/direct-invites/01JKPROBE00000000000000000/accept", acceptDirectInvite},
 	{"POST /v1/direct-invites/{id}/decline", "POST /v1/direct-invites/01JKPROBE00000000000000000/decline", noContent},
 	{"POST /v1/reports", "POST /v1/reports", echoReport},
+	{"GET /v1/spaces/{id}/invites", "GET /v1/spaces/01JBPROBE00000000000000000/invites", spaceInvites},
+	{"POST /v1/spaces/{id}/invites", "POST /v1/spaces/01JBPROBE00000000000000000/invites", echoCreateInvite},
+	{"DELETE /v1/invites/{code}", "DELETE /v1/invites/PROBE123", noContent},
+	{"POST /v1/spaces/{id}/direct-invites", "POST /v1/spaces/01JBPROBE00000000000000000/direct-invites", echoDirectInvite},
+	{"POST /v1/spaces/{id}/channels", "POST /v1/spaces/01JBPROBE00000000000000000/channels", echoCreateChannel},
 }
 
 // newAPI is apitest.New + fixtures.RegisterAPI + chatRoutes, in this order (tests overlay after it).
