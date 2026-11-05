@@ -53,8 +53,12 @@ func halfBlockFit(img image.Image, cols, rows int, mode FitMode, bg color.Color)
 // CatmullRom, compositing it over an opaque bg. Uncovered pixels are bg. A
 // nil or empty img yields a bg-only box. The result's bounds start at (0,0).
 func fit(img image.Image, cols, rows int, mode FitMode, bg color.Color) *image.RGBA {
-	cols, rows = max(cols, 0), max(rows, 0)
-	W, H := cols, rows*2
+	return fitPx(img, max(cols, 0), max(rows, 0)*2, mode, bg)
+}
+
+// fitPx is fit for an arbitrary W × H pixel box.
+func fitPx(img image.Image, W, H int, mode FitMode, bg color.Color) *image.RGBA {
+	W, H = max(W, 0), max(H, 0)
 	dst := image.NewRGBA(image.Rect(0, 0, W, H))
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(opaque(bg)), image.Point{}, draw.Src)
 	if img == nil || W == 0 || H == 0 {
