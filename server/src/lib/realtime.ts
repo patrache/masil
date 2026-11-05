@@ -170,16 +170,10 @@ function schedule(rt: Runtime, label: string, work: () => Promise<void>): Promis
   return Promise.resolve();
 }
 
-/** TopicHub.publish lands in Task 13; typed structurally here so this path compiles before the method exists. */
-interface TopicPublisher {
-  publish(topic: string, events: OutboundEvent[], opts?: { visibleTo?: VisibilitySpec }): Promise<number>;
-}
-
 async function fanout(env: Env, audience: Audience, events: OutboundEvent[], opts: Omit<PublishOptions, "ephemeral">): Promise<void> {
   if ("topic" in audience) {
     // watchers of a post: TopicHub filters (visibleTo) and delivers itself. includeSelf/exclude do not apply to topics.
-    const hub = env.TOPIC_HUB.getByName(audience.topic) as unknown as TopicPublisher;
-    await hub.publish(audience.topic, events, { visibleTo: opts.visibleTo });
+    await env.TOPIC_HUB.getByName(audience.topic).publish(audience.topic, events, { visibleTo: opts.visibleTo });
     return;
   }
   for (const part of splitByNotify(events)) {

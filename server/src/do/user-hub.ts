@@ -4,7 +4,8 @@
 // Task 11: device.tui_state to same-device notify sockets on full 0<->1 transitions (hello.local_tui_connected is set in fetch).
 // Task 12: presence (events.md 6.3) recomputed on connect/close/idle/mode/focus/alarm, presence.snapshot after ready,
 // alert suppression (focus/dnd) with focus_alerts, focus mode start/end (one finishFocus for early and natural end).
-// Watch (Task 13) and typing (Task 27) build on this.
+// Task 13: `watch` frames (TopicHub join/leave, topic events only to sockets watching them).
+// Typing (Task 27) builds on this.
 import { DurableObject } from "cloudflare:workers";
 import type { AuthContext, Runtime } from "../env";
 import { all } from "../lib/db";
@@ -65,6 +66,8 @@ export const LOG_KEEP_MS = 86_400_000;
 const RATE_WINDOW_MS = 10_000; // events.md 2: 30 frames / 10s -> reply{rate_limited}; 60 -> 4008
 const RATE_SOFT = 30;
 const RATE_HARD = 60;
+
+export const WATCH_LEASE_MS = 300_000; // events.md 5: server lease 300s (clients resend `watch` every 120s)
 
 export const FOCUS_MIN_SEC = 60; // api.md 5.1 POST /me/focus duration_sec 60..43200
 export const FOCUS_MAX_SEC = 43_200;
@@ -498,6 +501,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         if (frame.data.topics.length > LIMITS.watchTopicsMax) {
           return this.reply(ws, ref, { code: "limit_exceeded", message: `at most ${LIMITS.watchTopicsMax} topics` });
         }
+        await this.handleWatch(ws, frame.data.topics);
         break;
       case "ack":
         // events.md 3.5: keyed by (device_id, this connection's mode), stamped with that mode's current epoch.
@@ -515,6 +519,44 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         break;
     }
     this.reply(ws, ref, null);
+  }
+
+  /** Watch frames of this hub run one after another, so join/leave RPCs for one topic never race each other. */
+  private watchQueue: Promise<void> = Promise.resolve();
+
+  /**
+   * `watch` (events.md 5, server-architecture.md 3.2): full replacement of this socket's topics. The attachment is
+   * updated first (deliver filters on it), then topics no other socket of mine still watches are left and every topic
+   * of the new list is joined (lease renewal included). TopicHub failures are logged only: leases expire on their own.
+   */
+  protected handleWatch(ws: WebSocket, topics: string[]): Promise<void> {
+    const run = async (): Promise<void> => {
+      const a = this.att(ws);
+      if (a === null || ws.readyState !== WebSocket.OPEN) return;
+      const next = [...new Set(topics)];
+      const prev = a.topics;
+      a.topics = next;
+      ws.serializeAttachment(a);
+
+      const others = new Set<string>();
+      for (const s of this.liveSockets()) {
+        const o = this.att(s);
+        if (o !== null && o.connId !== a.connId) for (const t of o.topics) others.add(t);
+      }
+      const keep = new Set(next);
+      const toLeave = prev.filter((t) => !keep.has(t) && !others.has(t));
+      const calls = [
+        ...toLeave.map((t) => ({ t, op: "leave", p: this.env.TOPIC_HUB.getByName(t).leave(a.userId) })),
+        ...next.map((t) => ({ t, op: "join", p: this.env.TOPIC_HUB.getByName(t).join(a.userId, WATCH_LEASE_MS) })),
+      ];
+      const results = await Promise.allSettled(calls.map((c) => c.p));
+      results.forEach((r, i) => {
+        if (r.status === "rejected") console.error(`UserHub: TopicHub ${calls[i].op} ${calls[i].t} failed`, r.reason);
+      });
+    };
+    const p = this.watchQueue.then(run, run);
+    this.watchQueue = p.catch(() => {});
+    return p;
   }
 
   /** events.md 3.3 rules 1-4, then ready (+ presence.snapshot for full). Synchronous: nothing can interleave. */
