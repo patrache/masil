@@ -2,13 +2,18 @@
 // Task 9: upgrade, epochs + D1 liveness on connect, hello, resume -> ready, client frame validation and rate limit.
 // Task 10: deliver (seq log), resume replay, device acks, close handling and the alarm (heartbeat, liveness, log trim).
 // Task 11: device.tui_state to same-device notify sockets on full 0<->1 transitions (hello.local_tui_connected is set in fetch).
-// Presence (Task 12), watch (Task 13) and typing (Task 27) build on this.
+// Task 12: presence (events.md 6.3) recomputed on connect/close/idle/mode/focus/alarm, presence.snapshot after ready,
+// alert suppression (focus/dnd) with focus_alerts, focus mode start/end (one finishFocus for early and natural end).
+// Watch (Task 13) and typing (Task 27) build on this.
 import { DurableObject } from "cloudflare:workers";
-import type { AuthContext } from "../env";
+import type { AuthContext, Runtime } from "../env";
+import { all } from "../lib/db";
 import { newId, isId } from "../lib/ids";
+import { publishEvent } from "../lib/realtime";
+import { loadPresenceItems } from "../lib/serialize";
 import { iso } from "../lib/time";
-import type { PresenceStatus } from "../types/api";
-import type { HelloData, ReadyData, ReplyErrorCode, ServerEventType } from "../types/events";
+import type { Alert, Focus, FocusSummary, PresenceState, PresenceStatus } from "../types/api";
+import type { HelloData, PresenceItem, ReadyData, ReplyErrorCode, ServerEventType } from "../types/events";
 import { ClientFrameSchema, CloseCode, HEARTBEAT, LIMITS, NOTIFY_ALLOWED_TYPES, type ClientFrame } from "./protocol";
 
 /** Per-socket state kept with `ws.serializeAttachment` (server-architecture.md 3.2; JSON, <= 16,384 bytes). */
@@ -60,6 +65,22 @@ export const LOG_KEEP_MS = 86_400_000;
 const RATE_WINDOW_MS = 10_000; // events.md 2: 30 frames / 10s -> reply{rate_limited}; 60 -> 4008
 const RATE_SOFT = 30;
 const RATE_HARD = 60;
+
+export const FOCUS_MIN_SEC = 60; // api.md 5.1 POST /me/focus duration_sec 60..43200
+export const FOCUS_MAX_SEC = 43_200;
+export const FOCUS_SUMMARY_ITEMS = 20; // FocusSummary.items: newest first, <= 20
+
+export type PresenceMode = PresenceState["mode"];
+
+/** What the presence state was when it was last persisted/published (meta.last_state); D1's defaults for a new user. */
+const INITIAL_STATE_JSON = JSON.stringify({ status: "offline", mode: "auto", focus: null } satisfies PresenceState);
+
+/** The synchronous half of a presence recompute: what to send/write after meta was already updated. */
+interface PresencePlan {
+  userId: string;
+  self: OutboundEvent; // presence.self (volatile)
+  watchers: PresenceItem | null; // presence.updated (volatile) — only when the status changed
+}
 
 const KNOWN_CLIENT_TYPES: ReadonlySet<string> = new Set(["resume", "ack", "typing", "idle", "watch"]);
 const FULL_ONLY_TYPES: ReadonlySet<string> = new Set(["typing", "idle", "watch"]);
@@ -174,19 +195,27 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     }
   }
 
-  /** Next alarm = min(full socket ? now+60s : notify-only ? now+15min, pending resume deadlines). Never moves an earlier alarm later. */
+  /**
+   * Next alarm = min(full socket ? now+60s : notify-only ? now+15min, pending resume deadlines, focus end).
+   * Never moves an earlier alarm later. With no socket and no focus nothing is scheduled.
+   */
   protected async scheduleAlarm(): Promise<void> {
     const t = this.now();
     const sockets = this.liveSockets();
-    if (sockets.length === 0) return;
-    let next = this.liveSockets("mode:full").length > 0 ? t + FULL_ALARM_MS : t + NOTIFY_ALARM_MS;
-    for (const ws of sockets) {
-      const a = this.att(ws);
-      if (a && !a.ready) {
-        const deadline = a.connectedAt + RESUME_TIMEOUT_MS;
-        if (deadline > t && deadline < next) next = deadline;
+    let next = Number.POSITIVE_INFINITY;
+    if (sockets.length > 0) {
+      next = this.liveSockets("mode:full").length > 0 ? t + FULL_ALARM_MS : t + NOTIFY_ALARM_MS;
+      for (const ws of sockets) {
+        const a = this.att(ws);
+        if (a && !a.ready) {
+          const deadline = a.connectedAt + RESUME_TIMEOUT_MS;
+          if (deadline > t && deadline < next) next = deadline;
+        }
       }
     }
+    const focusEnds = this.getMetaNum("focus_ends_at");
+    if (focusEnds > 0) next = Math.min(next, Math.max(focusEnds, t)); // an overdue focus end runs at once
+    if (!Number.isFinite(next)) return;
     const current = await this.ctx.storage.getAlarm();
     if (current === null || current > next) await this.ctx.storage.setAlarm(next);
   }
@@ -288,6 +317,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     // full 0->1 on this device: tell its daemons (events.md 7). Replaced full sockets may have been a device's last one.
     if (mode === "full" && !localTui) this.sendTuiState(deviceId, true);
     for (const dev of new Set(replacedFullDevices)) this.signalTuiGone(dev);
+    await this.recomputePresence();
     await this.scheduleAlarm();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -354,9 +384,34 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     }
   }
 
-  /** deliver step 2 hook: the event's `data` as framed (Task 12 fills alert suppression / focus_alerts here). */
+  /**
+   * deliver step 2 (server-architecture.md 3.2, events.md 4.7): an alert is framed with suppressed/suppressed_reason from
+   * this hub's state — focus active -> "focus" + a focus_alerts row (summary), manual dnd -> "dnd" (not accumulated).
+   * focus_summary is never suppressed ("항상"). Runs inside deliver's SQL transaction.
+   */
   protected prepareEventData(ev: OutboundEvent): unknown {
-    return ev.data;
+    if (ev.type !== "alert") return ev.data;
+    const data = ev.data as { alert?: Alert } | null;
+    const alert = data?.alert;
+    if (alert === undefined || alert === null || typeof alert !== "object") return ev.data;
+    let out: Alert;
+    if (alert.kind === "focus_summary") {
+      out = { ...alert, suppressed: false, suppressed_reason: null };
+    } else if (this.getMetaNum("focus_ends_at") > this.now()) {
+      out = { ...alert, suppressed: true, suppressed_reason: "focus" };
+      this.sql.exec(
+        "INSERT OR IGNORE INTO focus_alerts (id, kind, alert, created_at) VALUES (?, ?, ?, ?)",
+        out.id,
+        out.kind,
+        JSON.stringify(out),
+        ev.ts,
+      );
+    } else if (this.manualMode() === "dnd") {
+      out = { ...alert, suppressed: true, suppressed_reason: "dnd" };
+    } else {
+      out = { ...alert, suppressed: false, suppressed_reason: null };
+    }
+    return { ...data, alert: out };
   }
 
   // ---------------------------------------------------------------- device.tui_state
@@ -411,7 +466,9 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     // Before ready only a valid resume is acceptable; after ready a second resume is a protocol error.
     if (!a.ready) {
       if (!parsed?.success || parsed.data.type !== "resume") return this.closeWs(ws, CloseCode.protocol, "expected resume");
-      return this.handleResume(ws, a, parsed.data);
+      this.handleResume(ws, a, parsed.data);
+      if (a.ready && a.mode === "full") await this.sendPresenceSnapshot(ws, a.userId);
+      return;
     }
     if (!parsedJson) return; // not JSON: no ref to answer
     if (typeof type !== "string" || !KNOWN_CLIENT_TYPES.has(type)) {
@@ -428,12 +485,13 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
   }
 
   /** ack / typing / idle / watch after ready. Handlers are filled in by later tasks (10: ack, 12: idle, 13: watch, 27: typing). */
-  protected handleFrame(ws: WebSocket, a: ConnAttachment, frame: Exclude<ClientFrame, { type: "resume" }>, ref: string | null): void {
+  protected async handleFrame(ws: WebSocket, a: ConnAttachment, frame: Exclude<ClientFrame, { type: "resume" }>, ref: string | null): Promise<void> {
     switch (frame.type) {
       case "idle":
         if (a.idle !== frame.data.idle) {
           a.idle = frame.data.idle;
           ws.serializeAttachment(a);
+          await this.recomputePresence(); // events.md 6.3 rule 5 (mode auto)
         }
         break;
       case "watch":
@@ -499,13 +557,14 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     ws.serializeAttachment(a);
     const ready: ReadyData = { resumed: lastSeq !== null, resync_required: resync, replayed, seq, epoch };
     this.sendFrame(ws, "ready", ready);
-    if (a.mode === "full") this.sendFrame(ws, "presence.snapshot", { items: [] }); // Task 12 fills the items
+    // presence.snapshot (full only) needs D1, so webSocketMessage sends it right after this returns.
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean): Promise<void> {
     // With web_socket_auto_reply_to_close the runtime answers the close; this keeps older dates correct too.
     this.closeWs(ws, code === 1005 || code === 1006 ? CloseCode.normal : code, reason);
     await this.onSocketGone(ws);
+    await this.recomputePresence();
     await this.scheduleAlarm();
   }
 
@@ -513,6 +572,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     console.error("UserHub: websocket error", error);
     this.closeWs(ws, CloseCode.internal, "socket error");
     await this.onSocketGone(ws);
+    await this.recomputePresence();
     await this.scheduleAlarm();
   }
 
@@ -561,6 +621,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     }
     if (what.zero) {
       this.setMeta("zero_since", t);
+      this.setMeta("last_seen_at", t);
       sets.push("last_seen_at = ?");
       binds.push(t);
     }
@@ -587,6 +648,14 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         console.error("UserHub: alarm failed", e); // never throw inside blockConcurrencyWhile
       }
     });
+    // Outside blockConcurrencyWhile: these publish (RPCs to other hubs). Natural focus end, then whatever the
+    // sockets closed above did to the status.
+    try {
+      await this.catchUpFocus();
+      await this.recomputePresence();
+    } catch (e) {
+      console.error("UserHub: alarm presence/focus failed", e);
+    }
     await this.scheduleAlarm();
   }
 
@@ -674,6 +743,234 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     } catch (e) {
       console.error(`UserHub: ${mode} liveness extension failed`, e);
     }
+  }
+
+  // ---------------------------------------------------------------- presence (events.md 6.3) and focus mode (RPC: server-architecture.md 3.2)
+
+  /** D1 presence writes run one after another; each writes the state current when it runs, so the last one wins. */
+  private presenceWrites: Promise<void> = Promise.resolve();
+
+  protected runtime(): Runtime {
+    return { env: this.env, waitUntil: (p) => this.ctx.waitUntil(p) };
+  }
+
+  protected ensureUser(userId: string): void {
+    if (this.getMeta("user_id") === null) this.setMeta("user_id", userId);
+  }
+
+  protected manualMode(): PresenceMode {
+    const m = this.getMeta("mode");
+    return m === "away" || m === "dnd" ? m : "auto";
+  }
+
+  /** The active focus, or null (none, or its end time passed and the alarm has not finished it yet). */
+  protected currentFocus(t = this.now()): Focus | null {
+    const ends = this.getMetaNum("focus_ends_at");
+    if (ends <= t) return null;
+    return { started_at: iso(this.getMetaNum("focus_started_at")), ends_at: iso(ends) };
+  }
+
+  protected presenceState(): PresenceState {
+    return { status: this.computeStatus(), mode: this.manualMode(), focus: this.currentFocus() };
+  }
+
+  /**
+   * Synchronous half of a recompute: compares the state with the last persisted one (meta.last_state/last_status) and,
+   * when it changed, records the new one at once (so concurrent recomputes never announce the same change twice).
+   * Returns null when nothing changed. `offline` stamps last_seen_at (events.md 6.3).
+   */
+  protected planPresence(): PresencePlan | null {
+    const userId = this.getMeta("user_id");
+    if (userId === null) return null;
+    const t = this.now();
+    const state = this.presenceState();
+    const stateJson = JSON.stringify(state);
+    const prevStatus = this.getMeta("last_status") ?? "offline";
+    if (stateJson === (this.getMeta("last_state") ?? INITIAL_STATE_JSON) && state.status === prevStatus) return null;
+    const statusChanged = state.status !== prevStatus;
+    this.setMeta("last_state", stateJson);
+    this.setMeta("last_status", state.status);
+    if (statusChanged && state.status === "offline") this.setMeta("last_seen_at", t);
+    const lastSeen = this.getMetaNum("last_seen_at");
+    return {
+      userId,
+      self: { type: "presence.self", data: { presence: state }, ts: t, logged: false },
+      watchers: statusChanged ? { user_id: userId, status: state.status, last_seen_at: lastSeen > 0 ? iso(lastSeen) : null } : null,
+    };
+  }
+
+  /** Async half: D1 user_presence(status, mode, focus_ends_at, last_seen_at), then presence.updated to presenceWatchers. */
+  protected async finishPresence(plan: PresencePlan | null): Promise<void> {
+    if (plan === null) return;
+    const write = this.presenceWrites.then(() => this.writePresence(plan.userId));
+    this.presenceWrites = write.catch(() => {});
+    try {
+      await write;
+    } catch (e) {
+      console.error("UserHub: presence write failed", e);
+    }
+    if (plan.watchers !== null) {
+      await publishEvent(this.runtime(), { presenceWatchers: plan.userId }, "presence.updated", plan.watchers, { ephemeral: true });
+    }
+  }
+
+  protected async writePresence(userId: string): Promise<void> {
+    const t = this.now();
+    const ends = this.getMetaNum("focus_ends_at");
+    const lastSeen = this.getMetaNum("last_seen_at");
+    await this.env.DB.prepare(
+      `INSERT INTO user_presence (user_id, status, mode, focus_ends_at, last_seen_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT (user_id) DO UPDATE SET status = excluded.status, mode = excluded.mode, focus_ends_at = excluded.focus_ends_at,
+         last_seen_at = COALESCE(excluded.last_seen_at, user_presence.last_seen_at), updated_at = excluded.updated_at`,
+    )
+      .bind(userId, this.getMeta("last_status") ?? "offline", this.manualMode(), ends > t ? ends : null, lastSeen > 0 ? lastSeen : null, t)
+      .run();
+  }
+
+  /** Recompute; on change: presence.self to my sockets (local), D1, presence.updated to my presence watchers. */
+  protected async recomputePresence(): Promise<void> {
+    const plan = this.planPresence();
+    if (plan === null) return;
+    await this.deliver({ userId: plan.userId, events: [plan.self] });
+    await this.finishPresence(plan);
+  }
+
+  /** `presence.snapshot` (events.md 4.6): friends + dm/group_dm co-members, to this connection only, right after ready. */
+  protected async sendPresenceSnapshot(ws: WebSocket, userId: string): Promise<void> {
+    let items: PresenceItem[] = [];
+    try {
+      const rows = await all<{ id: string }>(
+        this.env.DB,
+        `SELECT CASE WHEN fr.user_a = ?1 THEN fr.user_b ELSE fr.user_a END AS id
+           FROM friendships fr WHERE fr.user_a = ?1 OR fr.user_b = ?1
+         UNION
+         SELECT cm2.user_id AS id FROM channel_members cm1
+           JOIN channels c ON c.id = cm1.channel_id AND c.kind IN ('dm', 'group_dm') AND c.deleted_at IS NULL
+           JOIN channel_members cm2 ON cm2.channel_id = cm1.channel_id AND cm2.user_id <> ?1
+          WHERE cm1.user_id = ?1
+         ORDER BY id`,
+        userId,
+      );
+      items = await loadPresenceItems(
+        this.env.DB,
+        rows.map((r) => r.id),
+      );
+    } catch (e) {
+      console.error("UserHub: presence snapshot failed", e); // still send one: the client waits for it after ready
+    }
+    if (ws.readyState === WebSocket.OPEN) this.sendFrame(ws, "presence.snapshot", { items });
+  }
+
+  /** A focus whose end time passed but was not finished yet (alarm late or not run) is finished now, at its end time. */
+  protected async catchUpFocus(): Promise<void> {
+    const ends = this.getMetaNum("focus_ends_at");
+    if (ends > 0 && ends <= this.now()) await this.finishFocus(ends);
+  }
+
+  /**
+   * The one way a focus ends (early via endFocus, naturally via the alarm). Synchronously: summary from focus_alerts,
+   * focus meta cleared, focus_alerts emptied — so a second caller (or the later alarm) finds nothing and the summary
+   * alert goes out exactly once. Then presence recompute, and focus.ended + alert{focus_summary} (both logged) in one
+   * delivery. The summary alert is never suppressed (events.md 4.7 "항상").
+   */
+  protected async finishFocus(endedAt: number): Promise<FocusSummary | null> {
+    const endsRaw = this.getMeta("focus_ends_at");
+    const userId = this.getMeta("user_id");
+    if (endsRaw === null || endsRaw === "" || userId === null) return null;
+    const startedAt = this.getMetaNum("focus_started_at");
+    const summary = this.ctx.storage.transactionSync((): FocusSummary => {
+      const counts: FocusSummary["counts"] = { dm: 0, mention: 0, thread_reply: 0, invite: 0, friend_request: 0, other: 0 };
+      for (const r of this.sql.exec<{ kind: string; n: number }>("SELECT kind, COUNT(*) AS n FROM focus_alerts GROUP BY kind")) {
+        const k = r.kind;
+        if (k === "dm" || k === "mention" || k === "thread_reply" || k === "invite" || k === "friend_request") counts[k] += r.n;
+        else counts.other += r.n;
+      }
+      const items = this.sql
+        .exec<{ alert: string }>(`SELECT alert FROM focus_alerts ORDER BY created_at DESC, rowid DESC LIMIT ${FOCUS_SUMMARY_ITEMS}`)
+        .toArray()
+        .map((r) => JSON.parse(r.alert) as Alert);
+      this.setMeta("focus_started_at", "");
+      this.setMeta("focus_ends_at", "");
+      this.sql.exec("DELETE FROM focus_alerts");
+      return { started_at: iso(startedAt), ended_at: iso(endedAt), counts, items };
+    });
+    const plan = this.planPresence();
+    const t = this.now();
+    const c = summary.counts;
+    const alert: Alert = {
+      id: newId(),
+      kind: "focus_summary",
+      title: `집중 모드 끝 — 멘션 ${c.mention}, DM ${c.dm}`,
+      body: `스레드 답글 ${c.thread_reply} · 초대 ${c.invite} · 친구 요청 ${c.friend_request} · 기타 ${c.other}`,
+      actor: null,
+      target: { type: "user", id: userId, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
+      created_at: iso(t),
+      suppressed: false,
+      suppressed_reason: null,
+    };
+    await this.deliver({
+      userId,
+      events: [
+        ...(plan !== null ? [plan.self] : []),
+        { type: "focus.ended", data: { summary }, ts: t, logged: true },
+        { type: "alert", data: { alert }, ts: t, logged: true },
+      ],
+    });
+    await this.finishPresence(plan);
+    return summary;
+  }
+
+  /** PUT /me/presence: the manual mode; returns the resulting state. */
+  async setPresenceMode(userId: string, mode: PresenceMode): Promise<PresenceState> {
+    this.ensureUser(userId);
+    await this.catchUpFocus();
+    this.setMeta("mode", mode);
+    await this.recomputePresence();
+    return this.presenceState();
+  }
+
+  async getPresenceState(userId: string): Promise<PresenceState> {
+    this.ensureUser(userId);
+    await this.catchUpFocus();
+    return this.presenceState();
+  }
+
+  /** POST /me/focus: starts a focus, or (already focusing) replaces its end time — that is not an end, no summary. */
+  async startFocus(userId: string, durationSec: number): Promise<Focus> {
+    if (!Number.isInteger(durationSec) || durationSec < FOCUS_MIN_SEC || durationSec > FOCUS_MAX_SEC) {
+      throw new RangeError(`durationSec must be an integer in ${FOCUS_MIN_SEC}..${FOCUS_MAX_SEC}`);
+    }
+    this.ensureUser(userId);
+    await this.catchUpFocus();
+    const t = this.now();
+    const active = this.getMetaNum("focus_ends_at") > t;
+    const startedAt = active ? this.getMetaNum("focus_started_at") : t;
+    const endsAt = t + durationSec * 1000;
+    if (!active) this.sql.exec("DELETE FROM focus_alerts");
+    this.setMeta("focus_started_at", startedAt);
+    this.setMeta("focus_ends_at", endsAt);
+    const focus: Focus = { started_at: iso(startedAt), ends_at: iso(endsAt) };
+    const plan = this.planPresence();
+    await this.deliver({
+      userId,
+      events: [{ type: "focus.started", data: { focus }, ts: t, logged: true }, ...(plan !== null ? [plan.self] : [])],
+    });
+    await this.scheduleAlarm();
+    await this.finishPresence(plan);
+    return focus;
+  }
+
+  /** DELETE /me/focus: early end -> summary; null when not focusing (an overdue focus is finished naturally first). */
+  async endFocus(userId: string): Promise<FocusSummary | null> {
+    this.ensureUser(userId);
+    const ends = this.getMetaNum("focus_ends_at");
+    if (ends === 0) return null;
+    const t = this.now();
+    if (ends <= t) {
+      await this.finishFocus(ends);
+      return null;
+    }
+    return this.finishFocus(t);
   }
 
   // ---------------------------------------------------------------- debug

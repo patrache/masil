@@ -2,6 +2,7 @@
 // fields always exist (null when absent, [] when empty). List serializers batch-load related rows with
 // json_each (no N+1).
 import type { Focus, Me, PresenceState, Session, Settings, UserStatus, UserSummary } from "../types/api";
+import type { PresenceItem } from "../types/events";
 import type { SessionRow, UserPresenceRow, UserRow, UserSettingsRow } from "../types/rows";
 import { isSuspendedNow } from "./auth";
 import { all, batch, jsonList, stmt } from "./db";
@@ -64,6 +65,29 @@ function toPresenceState(p: UserPresenceRow | null, nowMs: number): PresenceStat
     focus = { started_at: iso(Math.min(p.updated_at, p.focus_ends_at)), ends_at: iso(p.focus_ends_at) };
   }
   return { status: p.status, mode: p.mode, focus };
+}
+
+/**
+ * PresenceItem (events.md 4.6, api.md 5.1 GET /presence) for existing users, in the order of `ids` (duplicates once).
+ * A user without a user_presence row reads as offline / never seen. Visibility (api.md 3.6) is the caller's job.
+ */
+export async function loadPresenceItems(db: D1Database, ids: readonly string[]): Promise<PresenceItem[]> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return [];
+  const rows = await all<{ id: string; status: PresenceItem["status"] | null; last_seen_at: number | null }>(
+    db,
+    `SELECT u.id, p.status, p.last_seen_at
+       FROM users u LEFT JOIN user_presence p ON p.user_id = u.id
+      WHERE u.id IN (SELECT value FROM json_each(?1))`,
+    jsonList(unique),
+  );
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const out: PresenceItem[] = [];
+  for (const id of unique) {
+    const r = byId.get(id);
+    if (r) out.push({ user_id: r.id, status: r.status ?? "offline", last_seen_at: isoOrNull(r.last_seen_at) });
+  }
+  return out;
 }
 
 /** Me = UserSummary + profile counters + settings + presence (user_presence row). 404 if the user is gone. */
