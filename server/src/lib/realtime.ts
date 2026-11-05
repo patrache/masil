@@ -1,6 +1,9 @@
 // Realtime publishing (server-architecture.md 3.5, 4.11; events.md 6).
-// This file so far: audience types + online audience resolution. publishEvent/publishEvents/deliverToUsers follow (Task 11).
-import type { Env } from "../env";
+// Audience types, online audience resolution (Task 8) and the publish functions (Task 11).
+import type { Env, Runtime } from "../env";
+import { NOTIFY_ALLOWED_TYPES } from "../do/protocol";
+import type { OutboundEvent } from "../do/user-hub";
+import type { ServerEventData, ServerEventType } from "../types/events";
 import { all, jsonList } from "./db";
 
 export type Audience =
@@ -127,4 +130,101 @@ export async function resolveOnlineAudience(
   const q = buildAudienceQuery(audience, Date.now(), opts);
   const rows = await all<{ user_id: string }>(env.DB, q.sql, ...q.params);
   return rows.map((r) => r.user_id);
+}
+
+// ---------------------------------------------------------------- publishing (server-architecture.md 3.5, 4.11)
+
+/** UserHub RPCs run this many at a time (server-architecture.md 2: 50 in parallel). */
+const RPC_CHUNK = 50;
+
+/** A batch is notify-ok only when every event type is one a notify (daemon) connection may receive (events.md 7). */
+const notifyAllowed = (e: { type: ServerEventType }): boolean => NOTIFY_ALLOWED_TYPES.has(e.type);
+
+/** Splits a batch into its notify-allowed part (notifyOk=true) and the rest (notifyOk=false); empty parts are dropped. */
+function splitByNotify<E extends { type: ServerEventType }>(events: E[]): { notifyOk: boolean; events: E[] }[] {
+  const ok = events.filter(notifyAllowed);
+  const rest = events.filter((e) => !notifyAllowed(e));
+  const out: { notifyOk: boolean; events: E[] }[] = [];
+  if (rest.length > 0) out.push({ notifyOk: false, events: rest });
+  if (ok.length > 0) out.push({ notifyOk: true, events: ok });
+  return out;
+}
+
+/** One UserHub.deliver per user, RPC_CHUNK at a time; failures are logged only (clients resync). */
+async function rpcDeliver(env: Env, userIds: string[], events: OutboundEvent[]): Promise<void> {
+  if (userIds.length === 0 || events.length === 0) return;
+  for (let i = 0; i < userIds.length; i += RPC_CHUNK) {
+    const chunk = userIds.slice(i, i + RPC_CHUNK);
+    const results = await Promise.allSettled(chunk.map((userId) => env.USER_HUB.getByName(userId).deliver({ userId, events })));
+    results.forEach((r, j) => {
+      if (r.status === "rejected") console.error(`realtime: deliver to ${chunk[j]} failed`, r.reason);
+    });
+  }
+}
+
+/** Test env: run to completion so tests are deterministic; otherwise hand to waitUntil and return at once. */
+function schedule(rt: Runtime, label: string, work: () => Promise<void>): Promise<void> {
+  const p = work().catch((e) => console.error(`realtime: ${label} failed`, e));
+  if (rt.env.APP_ENV === "test") return p;
+  rt.waitUntil(p);
+  return Promise.resolve();
+}
+
+/** TopicHub.publish lands in Task 13; typed structurally here so this path compiles before the method exists. */
+interface TopicPublisher {
+  publish(topic: string, events: OutboundEvent[], opts?: { visibleTo?: VisibilitySpec }): Promise<number>;
+}
+
+async function fanout(env: Env, audience: Audience, events: OutboundEvent[], opts: Omit<PublishOptions, "ephemeral">): Promise<void> {
+  if ("topic" in audience) {
+    // watchers of a post: TopicHub filters (visibleTo) and delivers itself. includeSelf/exclude do not apply to topics.
+    const hub = env.TOPIC_HUB.getByName(audience.topic) as unknown as TopicPublisher;
+    await hub.publish(audience.topic, events, { visibleTo: opts.visibleTo });
+    return;
+  }
+  for (const part of splitByNotify(events)) {
+    const ids = await resolveOnlineAudience(env, audience, { exclude: opts.exclude, notifyOk: part.notifyOk, visibleTo: opts.visibleTo });
+    const self = opts.includeSelf;
+    if (self !== undefined && !ids.includes(self) && !(opts.exclude ?? []).includes(self)) {
+      // same online rule as everyone else; the author's own visibility is not filtered
+      ids.push(...(await resolveOnlineAudience(env, { users: [self] }, { notifyOk: part.notifyOk })));
+    }
+    await rpcDeliver(env, ids, part.events);
+  }
+}
+
+/** Publish one event to an audience. Call only after the D1 batch committed (server-architecture.md 3.5). */
+export function publishEvent<T extends ServerEventType>(
+  rt: Runtime,
+  audience: Audience,
+  type: T,
+  data: ServerEventData<T>,
+  opts: PublishOptions = {},
+): Promise<void> {
+  const { ephemeral, ...rest } = opts;
+  return publishEvents(rt, audience, [{ type, data, ephemeral }], rest);
+}
+
+/** Publish several events to one audience with one UserHub RPC per recipient (per notify/non-notify part). */
+export function publishEvents(
+  rt: Runtime,
+  audience: Audience,
+  events: Array<{ type: ServerEventType; data: unknown; ephemeral?: boolean }>,
+  opts: Omit<PublishOptions, "ephemeral"> = {},
+): Promise<void> {
+  if (events.length === 0) return Promise.resolve();
+  const ts = Date.now();
+  const out: OutboundEvent[] = events.map((e) => ({ type: e.type, data: e.data, ts, logged: e.ephemeral !== true }));
+  return schedule(rt, `publish ${events.map((e) => e.type).join(",")}`, () => fanout(rt.env, audience, out, opts));
+}
+
+/** Low-level: deliver to explicit users regardless of audience rules (still online-filtered by the same notifyOk rule). */
+export function deliverToUsers(rt: Runtime, userIds: string[], events: OutboundEvent[]): Promise<void> {
+  if (userIds.length === 0 || events.length === 0) return Promise.resolve();
+  return schedule(rt, `deliver ${events.map((e) => e.type).join(",")}`, async () => {
+    for (const part of splitByNotify(events)) {
+      const ids = await resolveOnlineAudience(rt.env, { users: userIds }, { notifyOk: part.notifyOk });
+      await rpcDeliver(rt.env, ids, part.events);
+    }
+  });
 }

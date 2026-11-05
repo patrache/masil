@@ -1,8 +1,10 @@
 import { env } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
-import { resolveOnlineAudience } from "../../src/lib/realtime";
+import type { Runtime } from "../../src/env";
+import { deliverToUsers, publishEvent, publishEvents, resolveOnlineAudience } from "../../src/lib/realtime";
 import { newId } from "../../src/lib/ids";
-import { signup, uniqueHandle } from "../helpers";
+import type { Alert } from "../../src/types/api";
+import { connectWs, signup, uniqueHandle } from "../helpers";
 
 // ---- local fixtures (this file only): seed relations / presence with raw SQL ----
 
@@ -93,6 +95,28 @@ async function seedUsers(n: number): Promise<U[]> {
 
 const sorted = (ids: string[]) => [...ids].sort();
 
+const rtFor = (e: typeof env): Runtime => ({ env: e, waitUntil: () => {} });
+
+/** Short wait so anything still in flight would have arrived. */
+const settle = (ms = 150) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Shape only matters to the client; the hub frames whatever data it gets. */
+const fakeMessage = (channelId: string) => ({ id: newId(), channel_id: channelId, body: "hi" });
+
+function fakeAlert(): Alert {
+  return {
+    id: newId(),
+    kind: "channel_message",
+    title: "hi",
+    body: "hello",
+    actor: null,
+    target: { type: "channel", id: newId(), channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
+    created_at: new Date().toISOString(),
+    suppressed: false,
+    suppressed_reason: null,
+  };
+}
+
 describe("audience", () => {
   it("channel audience: only full-online space members; notifyOk adds daemon-only", async () => {
     const [a, b, c] = await Promise.all([signup(), signup(), signup()]);
@@ -160,5 +184,87 @@ describe("audience", () => {
     expect(await resolveOnlineAudience(env, { space: s })).toHaveLength(120);
     const all = [owner, ...members].map((u) => u.user.id);
     expect(await resolveOnlineAudience(env, { users: all }, { exclude: all.slice(0, 110) })).toHaveLength(10);
+  });
+});
+
+describe("publish", () => {
+  it("two members in one space both receive message.created (self included)", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const s = await space(a, [b]);
+    const ch = await publicText(s);
+    const [ca, cb] = await Promise.all([connectWs(a.token), connectWs(b.token)]);
+    await publishEvent(rtFor(env), { channel: ch }, "message.created", { message: fakeMessage(ch) } as any);
+    const [fa, fb] = await Promise.all([ca.next("message.created"), cb.next("message.created")]);
+    expect(fa.seq).toBeGreaterThan(0);
+    expect(fb.seq).toBeGreaterThan(0);
+  });
+
+  it("exclude skips; ephemeral has seq null", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const s = await space(a, [b]);
+    const ch = await publicText(s);
+    const [ca, cb] = await Promise.all([connectWs(a.token), connectWs(b.token)]);
+    await publishEvent(rtFor(env), { channel: ch }, "typing", { channel_id: ch, thread_root_id: null, user_id: a.user.id, expires_in_ms: 6000 }, { ephemeral: true, exclude: [a.user.id] });
+    expect((await cb.next("typing")).seq).toBeNull();
+    await settle();
+    expect(ca.frames.some((f) => f.type === "typing")).toBe(false);
+    expect((await env.USER_HUB.getByName(b.user.id).inspect()).seq).toBe(0); // ephemeral: not logged
+  });
+
+  it("mixed batch is split: daemon-only user gets only the notify-allowed part, TUI user gets both in one seq run", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const s = await space(a, [b]);
+    const ch = await publicText(s);
+    const ca = await connectWs(a.token);
+    const db = await connectWs(b.token, { mode: "notify" });
+    await publishEvents(rtFor(env), { space: s }, [
+      { type: "message.created", data: { message: fakeMessage(ch) } },
+      { type: "alert", data: { alert: fakeAlert() } },
+    ]);
+    await Promise.all([ca.next("message.created"), ca.next("alert"), db.next("alert")]);
+    expect((await env.USER_HUB.getByName(a.user.id).inspect()).seq).toBe(2);
+    expect((await env.USER_HUB.getByName(b.user.id).inspect()).seq).toBe(1); // message.created never woke b's hub
+    expect(db.frames.some((f) => f.type === "message.created")).toBe(false);
+  });
+
+  it("includeSelf adds the user only if online by the same rule", async () => {
+    const [author, f, offline] = await Promise.all([signup(), signup(), signup()]);
+    await followActive(f, author);
+    const [cAuthor, cF] = await Promise.all([connectWs(author.token), connectWs(f.token)]);
+    const data = { item: { id: newId() } } as any;
+    await publishEvent(rtFor(env), { followers: author.user.id }, "timeline.item_created", data, { includeSelf: author.user.id });
+    await Promise.all([cAuthor.next("timeline.item_created"), cF.next("timeline.item_created")]);
+    // includeSelf of an offline user reaches no hub
+    await publishEvent(rtFor(env), { followers: author.user.id }, "timeline.item_created", data, { includeSelf: offline.user.id });
+    expect((await env.USER_HUB.getByName(offline.user.id).inspect()).seq).toBe(0);
+    // includeSelf already in the audience is delivered once
+    await publishEvent(rtFor(env), { users: [author.user.id] }, "timeline.item_created", data, { includeSelf: author.user.id });
+    await cAuthor.next("timeline.item_created");
+    await settle();
+    expect(cAuthor.frames.filter((x) => x.type === "timeline.item_created")).toHaveLength(2);
+  });
+
+  it("deliverToUsers online-filters explicit users by the notify rule", async () => {
+    const [a, b, c] = await Promise.all([signup(), signup(), signup()]);
+    const ca = await connectWs(a.token);
+    const db = await connectWs(b.token, { mode: "notify" });
+    const ts = Date.now();
+    await deliverToUsers(rtFor(env), [a.user.id, b.user.id, c.user.id], [{ type: "settings.updated", data: { n: 1 } as any, ts, logged: true }]);
+    await ca.next("settings.updated");
+    expect((await env.USER_HUB.getByName(b.user.id).inspect()).seq).toBe(0);
+    await deliverToUsers(rtFor(env), [a.user.id, b.user.id, c.user.id], [{ type: "alert", data: { alert: fakeAlert() }, ts, logged: true }]);
+    await Promise.all([ca.next("alert"), db.next("alert")]);
+    expect((await env.USER_HUB.getByName(c.user.id).inspect()).seq).toBe(0);
+  });
+
+  it("fans out to more than 50 online users (RPC chunks)", async () => {
+    const owner = await signup();
+    const members = await seedUsers(60);
+    const s = await space(owner, members);
+    const ch = await publicText(s);
+    for (const u of [owner, ...members]) await online(u, { full: true });
+    await publishEvent(rtFor(env), { channel: ch }, "message.created", { message: fakeMessage(ch) } as any);
+    const seqs = await Promise.all([owner, ...members].map((u) => env.USER_HUB.getByName(u.user.id).inspect().then((x) => x.seq)));
+    expect(seqs.every((n) => n === 1)).toBe(true);
   });
 });

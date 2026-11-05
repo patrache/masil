@@ -1,6 +1,7 @@
 // Per-user realtime hub (server-architecture.md 3.2, events.md 1-3, 5, 6.2).
 // Task 9: upgrade, epochs + D1 liveness on connect, hello, resume -> ready, client frame validation and rate limit.
 // Task 10: deliver (seq log), resume replay, device acks, close handling and the alarm (heartbeat, liveness, log trim).
+// Task 11: device.tui_state to same-device notify sockets on full 0<->1 transitions (hello.local_tui_connected is set in fetch).
 // Presence (Task 12), watch (Task 13) and typing (Task 27) build on this.
 import { DurableObject } from "cloudflare:workers";
 import type { AuthContext } from "../env";
@@ -216,7 +217,11 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     const open = this.liveSockets()
       .map((ws) => ({ ws, a: this.att(ws) }))
       .sort((x, y) => (x.a?.connId ?? "").localeCompare(y.a?.connId ?? ""));
-    for (let i = 0; i <= open.length - MAX_CONNECTIONS; i++) this.closeWs(open[i].ws, CloseCode.replaced, "replaced");
+    const replacedFullDevices: string[] = [];
+    for (let i = 0; i <= open.length - MAX_CONNECTIONS; i++) {
+      this.closeWs(open[i].ws, CloseCode.replaced, "replaced");
+      if (open[i].a?.mode === "full") replacedFullDevices.push(open[i].a!.deviceId);
+    }
 
     // 3-4. epoch check + D1 liveness write, serialized so concurrent connects don't rotate an epoch twice.
     const accepted = await this.ctx.blockConcurrencyWhile(async () => {
@@ -280,6 +285,9 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       limits: { max_frame_bytes: LIMITS.maxFrameBytes, watch_topics_max: LIMITS.watchTopicsMax, typing_min_interval_ms: LIMITS.typingMinIntervalMs },
     };
     this.sendFrame(server, "hello", hello, null, t);
+    // full 0->1 on this device: tell its daemons (events.md 7). Replaced full sockets may have been a device's last one.
+    if (mode === "full" && !localTui) this.sendTuiState(deviceId, true);
+    for (const dev of new Set(replacedFullDevices)) this.signalTuiGone(dev);
     await this.scheduleAlarm();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -349,6 +357,25 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
   /** deliver step 2 hook: the event's `data` as framed (Task 12 fills alert suppression / focus_alerts here). */
   protected prepareEventData(ev: OutboundEvent): unknown {
     return ev.data;
+  }
+
+  // ---------------------------------------------------------------- device.tui_state
+
+  /** Volatile `device.tui_state` to every open notify socket of `deviceId` (ready or not: it is a state signal, idempotent). */
+  protected sendTuiState(deviceId: string, connected: boolean): void {
+    for (const ws of this.liveSockets(`dev:${deviceId}`)) {
+      if (this.att(ws)?.mode !== "notify") continue;
+      this.sendFrame(ws, "device.tui_state", { device_id: deviceId, tui_connected: connected });
+    }
+  }
+
+  /** A full socket of `deviceId` went away (closed by either side): if none is left open there, signal 1->0. */
+  protected signalTuiGone(deviceId: string, goneConnId?: string): void {
+    const anyFull = this.liveSockets(`dev:${deviceId}`).some((ws) => {
+      const a = this.att(ws);
+      return a !== null && a.mode === "full" && a.connId !== goneConnId;
+    });
+    if (!anyFull) this.sendTuiState(deviceId, false);
   }
 
   // ---------------------------------------------------------------- client frames
@@ -497,6 +524,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
   protected async onSocketGone(ws: WebSocket): Promise<void> {
     const gone = this.att(ws);
     if (gone === null) return;
+    if (gone.mode === "full") this.signalTuiGone(gone.deviceId, gone.connId);
     await this.ctx.blockConcurrencyWhile(async () => {
       try {
         const others = this.liveSockets()
@@ -566,6 +594,13 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     const t = this.now();
     const userId = this.getMeta("user_id") ?? "";
 
+    // full sockets this alarm closes: their devices may lose their last TUI (webSocketClose may never run for them)
+    const closedFullDevices = new Set<string>();
+    const closeFull = (ws: WebSocket, a: ConnAttachment | null, code: number, reason: string): void => {
+      this.closeWs(ws, code, reason);
+      if (a?.mode === "full") closedFullDevices.add(a.deviceId);
+    };
+
     // 1. no resume within 10s of hello -> 4000; no ping for 120s -> 4002
     for (const ws of this.liveSockets()) {
       const a = this.att(ws);
@@ -574,11 +609,11 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         continue;
       }
       if (!a.ready) {
-        if (t >= a.connectedAt + RESUME_TIMEOUT_MS) this.closeWs(ws, CloseCode.protocol, "resume timeout");
+        if (t >= a.connectedAt + RESUME_TIMEOUT_MS) closeFull(ws, a, CloseCode.protocol, "resume timeout");
         continue;
       }
       const pingAt = this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0;
-      if (t - Math.max(pingAt, a.connectedAt) > HEARTBEAT.timeoutMs) this.closeWs(ws, CloseCode.heartbeat, "heartbeat timeout");
+      if (t - Math.max(pingAt, a.connectedAt) > HEARTBEAT.timeoutMs) closeFull(ws, a, CloseCode.heartbeat, "heartbeat timeout");
     }
 
     // 2. extend D1 liveness for the modes that still have sockets; the watermark follows only a successful write
@@ -602,11 +637,13 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     const fullUntil = this.getMetaNum("full_until");
     const notifyUntil = this.getMetaNum("notify_until");
     if (live.full > 0 && t >= fullUntil) {
-      for (const ws of this.liveSockets("mode:full")) this.closeWs(ws, CloseCode.internal, "presence expired");
+      for (const ws of this.liveSockets("mode:full")) closeFull(ws, this.att(ws), CloseCode.internal, "presence expired");
     }
     if (live.notify > 0 && t >= Math.max(fullUntil, notifyUntil)) {
       for (const ws of this.liveSockets("mode:notify")) this.closeWs(ws, CloseCode.internal, "presence expired");
     }
+
+    for (const dev of closedFullDevices) this.signalTuiGone(dev);
 
     // 4. missed close handling (also covers the sockets closed above): no socket of a mode but its watermark still runs past the grace
     live = modes();
