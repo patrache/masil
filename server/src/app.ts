@@ -1,8 +1,8 @@
 // App assembly (server-architecture.md 5). Global middleware is mounted with app.use("*", …) only — never
 // under "/v1/*" — and route modules attach requireAuth per route (plan 01 Global Constraints).
 import { Hono, type MiddlewareHandler } from "hono";
-import { bodyLimit } from "hono/body-limit";
-import type { AppEnv } from "./env";
+import type { AppContext, AppEnv } from "./env";
+import { readBodyCapped, withBufferedBody } from "./lib/body";
 import { ApiError, notFoundHandler, onError } from "./lib/errors";
 import { newId } from "./lib/ids";
 import { clientVersionGate } from "./lib/version";
@@ -62,32 +62,47 @@ export const stripInternalHeaders: MiddlewareHandler<AppEnv> = async (c, next) =
   await next();
 };
 
-const limitJsonBody = bodyLimit({
-  maxSize: JSON_BODY_MAX_BYTES,
-  onError: () => {
-    throw new ApiError(413, "payload_too_large", `request body exceeds ${JSON_BODY_MAX_BYTES} bytes`);
-  },
-});
+function jsonTooLarge(): ApiError {
+  return new ApiError(413, "payload_too_large", `request body exceeds ${JSON_BODY_MAX_BYTES} bytes`);
+}
 
 /** POST /v1/uploads carries raw image bytes (never JSON) and enforces its own 5MB guard after auth. */
 const isUploadPost = (method: string, path: string) => method === "POST" && path === "/v1/uploads";
 
-/** 64KB body cap for everything except POST /v1/uploads (that route enforces its own 5MB guard). */
+/**
+ * Buffers the request body (at most JSON_BODY_MAX_BYTES, counted on the bytes received — Content-Length is not
+ * trusted) and swaps it into c.req.raw, or throws 413. Returns the bytes. No body -> null, nothing changes.
+ */
+async function bufferCappedBody(c: AppContext): Promise<Uint8Array | null> {
+  if (c.req.raw.body === null) return null;
+  const bytes = await readBodyCapped(c.req.raw, JSON_BODY_MAX_BYTES);
+  if (bytes === null) throw jsonTooLarge();
+  c.req.raw = withBufferedBody(c.req.raw, bytes);
+  return bytes;
+}
+
+/**
+ * 64KB body cap for everything except POST /v1/uploads (that route enforces its own 5MB guard, also by counting).
+ * Not hono/body-limit: that one trusts a present Content-Length, so a forged small value let any size through.
+ */
 export const jsonBodyLimit: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (isUploadPost(c.req.method, c.req.path)) return next();
-  return limitJsonBody(c, next);
+  await bufferCappedBody(c);
+  await next();
 };
 
 /**
  * A JSON-typed, non-empty body that does not parse -> 400 invalid_json (before any route runs).
- * Skips POST /v1/uploads: that body is uncapped here, so reading it would let an unauthenticated client make the
- * isolate buffer and parse megabytes before auth; the route itself rejects a non-image Content-Type with 415.
+ * Reads at most JSON_BODY_MAX_BYTES itself (413 beyond), so it is safe even without jsonBodyLimit in front.
+ * Skips POST /v1/uploads: reading that body here would let an unauthenticated client make the isolate buffer
+ * megabytes before auth; the route itself rejects a non-image Content-Type with 415.
  */
 export const jsonParseCheck: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (isUploadPost(c.req.method, c.req.path)) return next();
   const contentType = c.req.header("Content-Type");
   if (c.req.raw.body && contentType && JSON_CONTENT_TYPE_RE.test(contentType)) {
-    const text = await c.req.text(); // cached by HonoRequest; c.req.json() later reuses it
+    const bytes = await bufferCappedBody(c);
+    const text = bytes === null ? "" : new TextDecoder().decode(bytes);
     if (text.trim() !== "") {
       try {
         JSON.parse(text);

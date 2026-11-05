@@ -1,9 +1,11 @@
 // Uploads and media (api.md 5.14, data-model.md 3.6 / 5): POST /uploads, DELETE /uploads/:upload_id,
-// GET /media/:upload_id. The upload body is raw image bytes (app.ts skips the 64KB JSON cap for this route).
+// GET /media/:upload_id. The upload body is raw image bytes (app.ts skips the 64KB JSON cap for this route;
+// the 5MB cap here counts received bytes, see lib/body.ts).
 import { Hono } from "hono";
 import * as z from "zod";
 import type { AppContext, AppEnv } from "../env";
 import { getAuth, isSuspendedNow, requireAuth } from "../lib/auth";
+import { declaredLength, readBodyCapped } from "../lib/body";
 import { first, run } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
 import { isId, newId } from "../lib/ids";
@@ -43,17 +45,17 @@ uploadRoutes.post("/uploads", requireAuth, limit("RL_UPLOAD"), vQuery(UploadQuer
   const me = getAuth(c);
   const { purpose } = c.req.valid("query");
 
-  // Size guard before the body is read.
-  const declared = c.req.header("Content-Length");
-  if (declared === undefined || declared === "") throw err.invalid({ "content-length": "required" });
-  if (!/^\d+$/.test(declared)) throw err.invalid({ "content-length": "invalid" });
-  const declaredSize = Number(declared);
-  if (declaredSize > UPLOAD_MAX_BYTES) throw tooLarge();
-  if (declaredSize === 0) throw err.invalid({ body: "required" });
+  // Size guard: a declared Content-Length over the cap is refused before reading; the body itself is then read with a
+  // running byte count (the header can lie), so at most UPLOAD_MAX_BYTES (+ one chunk) is ever buffered.
+  const declared = declaredLength(c.req.raw);
+  if (declared === "absent") throw err.invalid({ "content-length": "required" });
+  if (declared === "invalid") throw err.invalid({ "content-length": "invalid" });
+  if (declared > UPLOAD_MAX_BYTES) throw tooLarge();
+  if (declared === 0) throw err.invalid({ body: "required" });
 
-  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  const bytes = await readBodyCapped(c.req.raw, UPLOAD_MAX_BYTES);
+  if (bytes === null) throw tooLarge();
   if (bytes.byteLength === 0) throw err.invalid({ body: "required" });
-  if (bytes.byteLength > UPLOAD_MAX_BYTES) throw tooLarge();
 
   const sniffed = sniffImage(bytes);
   if (sniffed === null || sniffed.contentType !== mediaType(c.req.header("Content-Type"))) throw unsupported();
