@@ -8,10 +8,12 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/humanize"
@@ -753,7 +755,7 @@ var snipSpaces = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ", "\t", " 
 
 // highlightSnippet draws body on one line of at most width cells with the search
 // highlights (code point offsets into body; out-of-range ones ignored, ends
-// clamped) in S.Selected. Newlines become spaces and every run is sanitized. When
+// clamped, edges widened to whole grapheme clusters) in S.Selected. Newlines become spaces and every run is sanitized. When
 // the first highlight would not be visible, the start is cut to "…" + a little
 // context before it; an overlong end is cut with "…".
 func highlightSnippet(t *theme.Theme, body string, hs []api.SearchHighlight, width int) string {
@@ -774,14 +776,34 @@ func highlightSnippet(t *theme.Theme, body string, hs []api.SearchHighlight, wid
 			mark[i] = true
 		}
 	}
-	var spans []snipSpan
-	for i := 0; i < len(rs); {
-		j := i
-		for j < len(rs) && mark[j] == mark[i] {
-			j++
+	// Highlights snap outward to whole grapheme clusters: a cluster is marked when
+	// any of its code points is, so no Sanitize call ever sees a partial cluster
+	// (a split "👍🏽" or ZWJ sequence or flag would otherwise render differently).
+	type cluster struct {
+		s  string
+		hl bool
+	}
+	var cs []cluster
+	for rest, i := body, 0; rest != ""; {
+		g, _ := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+		if g == "" { // defensive: never loop forever
+			_, n := utf8.DecodeRuneInString(rest)
+			g = rest[:n]
 		}
-		if s := textwidth.Sanitize(snipSpaces.Replace(string(rs[i:j]))); s != "" {
-			spans = append(spans, snipSpan{s: s, hl: mark[i]})
+		rest = rest[len(g):]
+		n := utf8.RuneCountInString(g)
+		cs = append(cs, cluster{s: g, hl: slices.Contains(mark[i:min(i+n, len(mark))], true)})
+		i += n
+	}
+	var spans []snipSpan
+	for i := 0; i < len(cs); {
+		var run strings.Builder
+		j := i
+		for ; j < len(cs) && cs[j].hl == cs[i].hl; j++ {
+			run.WriteString(cs[j].s)
+		}
+		if s := textwidth.Sanitize(snipSpaces.Replace(run.String())); s != "" {
+			spans = append(spans, snipSpan{s: s, hl: cs[i].hl})
 		}
 		i = j
 	}

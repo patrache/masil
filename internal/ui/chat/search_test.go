@@ -132,6 +132,28 @@ func TestHighlightSnippet(t *testing.T) {
 			t.Fatalf("width %d: %q", w, got)
 		}
 	}
+	// a highlight edge inside a grapheme cluster snaps outward to whole clusters:
+	// the row shows the same text as the message and the cluster is highlighted whole
+	for _, c := range []struct {
+		body, cluster string
+		h             api.SearchHighlight
+	}{
+		{"❤️ 좋아요", "❤️", api.SearchHighlight{Start: 0, Length: 1}},      // VS16
+		{"👍🏽 좋아", "👍🏽", api.SearchHighlight{Start: 0, Length: 1}},       // skin tone
+		{"👨‍👩‍👧 가족", "👨‍👩‍👧", api.SearchHighlight{Start: 0, Length: 1}}, // ZWJ start
+		{"가족 👨‍👩‍👧", "👨‍👩‍👧", api.SearchHighlight{Start: 5, Length: 2}}, // ZWJ middle
+		{"🇰🇷 한국", "🇰🇷", api.SearchHighlight{Start: 0, Length: 1}},       // flag
+		{"한국 🇰🇷", "🇰🇷", api.SearchHighlight{Start: 4, Length: 1}},       // flag tail
+	} {
+		raw := highlightSnippet(th, c.body, []api.SearchHighlight{c.h}, 30)
+		want := textwidth.Sanitize(c.body)
+		if got := ansi.Strip(raw); got != want {
+			t.Errorf("%q %+v: got %q want %q", c.body, c.h, got, want)
+		}
+		if !strings.Contains(raw, th.S.Selected.Render(textwidth.Sanitize(c.cluster))) {
+			t.Errorf("%q %+v: cluster not highlighted whole: %q", c.body, c.h, raw)
+		}
+	}
 }
 
 func TestSearchGolden(t *testing.T) {

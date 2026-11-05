@@ -715,6 +715,49 @@ func TestMemberPaging(t *testing.T) {
 	}
 }
 
+// TestTransferPickerLoadsAllPages: 방장 넘기기 offers every member, not just the
+// first page — the target here is only on page 2.
+func TestTransferPickerLoadsAllPages(t *testing.T) {
+	srv := settingsServer(t, api.RoleOwner)
+	var first, rest []api.SpaceMember
+	for _, m := range novaMembers(api.RoleOwner) {
+		if m.User.Handle == "hana" {
+			rest = append(rest, m)
+		} else {
+			first = append(first, m)
+		}
+	}
+	// same shape as settingsServer's route: replaced for this test (two pages)
+	srv.Handle("GET /v1/spaces/"+fixtures.SpaceNova+"/members", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("cursor") == "" {
+			writeJSON(w, http.StatusOK, map[string]any{"items": first, "next_cursor": "P2"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": rest, "next_cursor": nil})
+	})
+	h := openWith(t, uitest.Size{W: 120, H: 40}, novaSettings(), srv, uitest.WithSeed(settingsSeed(api.RoleOwner)))
+	h.Press("j", "enter")
+	if overlays(h) != 1 {
+		t.Fatalf("방장 넘기기 opens a picker:\n%s", h.Screen())
+	}
+	path := "/v1/spaces/" + fixtures.SpaceNova + "/members"
+	if q := lastQuery(h.API, path); !strings.Contains(q, "cursor=P2") || !strings.Contains(q, "limit=100") {
+		t.Fatalf("the picker reads the next page: %q", q)
+	}
+	mustContain(t, overlayText(t, h), "하나", "준호")
+	h.Type("하나")
+	h.Press("enter", "enter")
+	if !strings.Contains(h.Screen(), "하나님에게 방장을 넘길까요?") {
+		t.Fatalf("a page-2 member can be picked:\n%s", h.Screen())
+	}
+	h.Press("y")
+	r := reqs(h.API, "POST", "/v1/spaces/"+fixtures.SpaceNova+"/transfer")
+	if len(r) != 1 {
+		t.Fatalf("one transfer, got %d", len(r))
+	}
+	mustJSONObject(t, r[0].Body, `{"user":"@hana"}`)
+}
+
 func TestMemberUpdatedLive(t *testing.T) {
 	h := settingsAs("owner")(t, uitest.Size{W: 120, H: 40})
 	toMembers(h)

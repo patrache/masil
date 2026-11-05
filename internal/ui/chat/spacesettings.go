@@ -718,18 +718,19 @@ func editSpaceForm(ctx *ui.Context, spaceID string) ui.Overlay {
 	})
 }
 
-// transferLoader is 방장 넘기기: the space's members are fetched, then picked
-// (one, never me), then confirmed.
+// transferLoader is 방장 넘기기: the space's members are fetched (every page, so
+// anyone can become owner), then picked (one, never me), then confirmed.
 func transferLoader(_ *ui.Context, spaceID string) ui.Overlay {
-	return newLoader(membersLoadTitle, tagTransferMembers+spaceID, func(c context.Context, cl *api.Client) (*api.Page[api.SpaceMember], error) {
-		return cl.ListSpaceMembers(c, spaceID, api.SpaceMembersQuery{PageOpts: api.PageOpts{Limit: 100}})
-	}, func(ctx *ui.Context, page *api.Page[api.SpaceMember]) ui.Overlay {
-		var users []api.UserSummary
-		if page != nil {
-			for _, m := range page.Items {
-				users = append(users, m.User)
-			}
+	return newLoader(membersLoadTitle, tagTransferMembers+spaceID, func(c context.Context, cl *api.Client) ([]api.UserSummary, error) {
+		ms, err := allPages(func(cursor string) (*api.Page[api.SpaceMember], error) {
+			return cl.ListSpaceMembers(c, spaceID, api.SpaceMembersQuery{PageOpts: api.PageOpts{Cursor: cursor, Limit: memberPageSize}})
+		})
+		users := make([]api.UserSummary, len(ms))
+		for i, m := range ms {
+			users[i] = m.User
 		}
+		return users, err
+	}, func(ctx *ui.Context, users []api.UserSummary) ui.Overlay {
 		var picked api.UserSummary
 		return newUserPicker(pickerSpec{
 			Title: transferTitle, Submit: transferSubmit, Max: 1,
