@@ -6,7 +6,8 @@
     "dev": "wrangler dev --test-scheduled",
     "test": "vitest run",
     "types": "wrangler types --strict-vars=false",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p test"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@hono/zod-validator": "0.9.1",
