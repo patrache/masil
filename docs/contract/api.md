@@ -1421,7 +1421,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | POST | /v1/direct-invites/{id}/accept, /decline | ✓ | |
 | DELETE | /v1/direct-invites/{id} | ✓ | |
 | GET/PATCH/DELETE | /v1/channels/{channel_id} | ✓ | |
-| GET/POST | /v1/channels/{channel_id}/members | ✓ | |
+| GET/POST | /v1/channels/{channel_id}/members | ✓ | RL_SOCIAL(POST) |
 | DELETE | /v1/channels/{channel_id}/members/{user} | ✓ | |
 | PUT | /v1/channels/{channel_id}/prefs | ✓ | |
 | PUT | /v1/channels/{channel_id}/read | ✓ | |

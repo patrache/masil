@@ -193,12 +193,8 @@ describe("dms", () => {
     return rows.results.map((r) => r.user_id);
   }
 
-  it("group dm add: a block-linked member committed after the pre-check -> the insert refuses (403 dm_not_allowed), nothing written", async () => {
-    const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
-    for (const f of [x, y, p, q]) await makeFriends(o, f);
-    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
-    await api(q.token).put(`/v1/blocks/@${p.handle}`);
-    // A D1 handle that commits a concurrent add of p right before this add's batch: the pre-check saw [o, x, y] only.
+  /** A Runtime whose D1 handle commits `userId` into `channelId` right before the first batch (a concurrent add). */
+  function commitsMemberBeforeBatch(channelId: string, userId: string, addedBy: string) {
     let fired = false;
     const db = new Proxy(env.DB, {
       get(target, key) {
@@ -208,7 +204,7 @@ describe("dms", () => {
               fired = true;
               await target
                 .prepare("INSERT INTO channel_members (channel_id, user_id, added_by, joined_at) VALUES (?1, ?2, ?3, ?4)")
-                .bind(g.id, p.user.id, o.user.id, Date.now())
+                .bind(channelId, userId, addedBy, Date.now())
                 .run();
             }
             return target.batch(stmts);
@@ -218,23 +214,55 @@ describe("dms", () => {
         return typeof v === "function" ? v.bind(target) : v;
       },
     });
-    const rt = { env: { ...env, DB: db }, waitUntil: () => {} };
+    return { rt: { env: { ...env, DB: db }, waitUntil: () => {} }, fired: () => fired };
+  }
+
+  it("group dm add: a block-linked member committed after the pre-check -> the insert refuses (403 dm_not_allowed), nothing written", async () => {
+    const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    for (const f of [x, y, p, q]) await makeFriends(o, f);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    await api(q.token).put(`/v1/blocks/@${p.handle}`);
+    // The pre-check saw [o, x, y] only; p's add commits right before this add's batch.
+    const { rt, fired } = commitsMemberBeforeBatch(g.id, p.user.id, o.user.id);
     await expect(addChannelMembers(rt, g.id, o.user.id, [q.user.id])).rejects.toMatchObject({
       status: 403,
       code: "dm_not_allowed",
       details: { user_ids: [q.user.id] },
     });
-    expect(fired).toBe(true);
+    expect(fired()).toBe(true);
     expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id, p.user.id].sort());
     const ch = await env.DB.prepare("SELECT member_count FROM channels WHERE id = ?1").bind(g.id).first<{ member_count: number }>();
     expect(ch?.member_count).toBe(4); // the recount in the same batch counts p (the concurrent add), not q
   });
 
-  it("group dm add: concurrent adds of two users who block each other -> at most one gets in, the other 403 dm_not_allowed", async () => {
+  // The mirror of the test above: the block points from the concurrently committed member p toward q (the user being
+  // added), so only the INSERT's "blocked IN new AND blocker IN room" clause can refuse it.
+  it("group dm add: a member committed after the pre-check who blocked the user being added -> the insert refuses (403 dm_not_allowed)", async () => {
     const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
     for (const f of [x, y, p, q]) await makeFriends(o, f);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    await api(p.token).put(`/v1/blocks/@${q.handle}`);
+    // The pre-check saw [o, x, y] only; p's add commits right before this add's batch.
+    const { rt, fired } = commitsMemberBeforeBatch(g.id, p.user.id, o.user.id);
+    await expect(addChannelMembers(rt, g.id, o.user.id, [q.user.id])).rejects.toMatchObject({
+      status: 403,
+      code: "dm_not_allowed",
+      details: { user_ids: [q.user.id] },
+    });
+    expect(fired()).toBe(true);
+    expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id, p.user.id].sort());
+    const ch = await env.DB.prepare("SELECT member_count FROM channels WHERE id = ?1").bind(g.id).first<{ member_count: number }>();
+    expect(ch?.member_count).toBe(4);
+  });
+
+  it("group dm add: concurrent adds of two users who block each other -> at most one gets in, the other 403 dm_not_allowed", async () => {
+    const [x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup()]);
     await api(p.token).put(`/v1/blocks/@${q.handle}`);
     for (let i = 0; i < 8; i++) {
+      // A fresh adder per round: friend requests, POST /v1/dms and member adds all draw on the adder's RL_SOCIAL
+      // (30 / 60s). One adder across rounds spends 4 + 3 per round and hits 429 at round 9; per round it is 7.
+      const o = await signup();
+      for (const f of [x, y, p, q]) await makeFriends(o, f);
       const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
       const [rp, rq] = await Promise.all([
         api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${p.handle}`] }),
