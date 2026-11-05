@@ -1,6 +1,6 @@
 // Space / channel membership services (server-architecture.md 4.14 membership.ts).
 // Task 19: addChannelMembers / removeChannelMember for group_dm (api.md 3.1, 5.6). The private text branch is Task 23;
-// joinSpace / removeFromSpace are Task 21. group_dm system messages (group_member_added/removed) come from Task 20's
+// joinSpace / removeFromSpace are Task 21 (the invite branches of joinSpace's `via` are Task 22). group_dm system messages (group_member_added/removed) come from Task 20's
 // postSystemMessage after the membership batch committed.
 // Each write is one db.batch, then publish (server-architecture.md 3.5).
 import type { Runtime } from "../env";
@@ -8,11 +8,12 @@ import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
 import { canDmMany, getChannelAccess } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
-import { loadUserSummaries, serializeChannels } from "../lib/serialize";
+import { loadUserSummaries, serializeChannels, serializeSpaceDetail, serializeSpaceMembers } from "../lib/serialize";
 import { now } from "../lib/time";
 import { postSystemMessage } from "./messages";
-import type { Channel } from "../types/api";
-import type { ChannelRow } from "../types/rows";
+import type { Channel, SpaceDetail } from "../types/api";
+import type { SpaceRemovalReason } from "../types/events";
+import type { ChannelRow, SpaceMemberRow, SpaceRow } from "../types/rows";
 
 /** Members of a group DM, creator included (api.md 3.1). */
 export const GROUP_DM_MAX_MEMBERS = 10;
@@ -145,5 +146,141 @@ export async function removeChannelMember(rt: Runtime, channelId: string, actorI
   await publishEvent(rt, { users: [userId] }, "channel.deleted", { channel_id: ch.id, space_id: ch.space_id, reason: "removed" });
   if (ch.kind === "group_dm") {
     await postSystemMessage(rt, ch.id, actorId, { event: "group_member_removed", actor_id: actorId, target_user_id: userId, data: {} });
+  }
+}
+
+// ---- spaces (plan 01 Task 21) ----
+
+/** api.md 3.5 limits. */
+export const SPACE_MEMBERS_MAX = 5000;
+export const OWNED_SPACES_MAX = 100;
+
+function isUniqueViolation(e: unknown): boolean {
+  return e instanceof Error && /UNIQUE constraint failed/i.test(e.message);
+}
+
+type JoinFactsRow = SpaceRow & { _banned: number; _member: number };
+
+/**
+ * `userId` joins a live space (404 otherwise) as a member. Pre-checks in this order: ban 403 banned_from_space,
+ * already a member 409 already_member, member_count >= 5000 422 limit_exceeded space_members.
+ * One batch: space_members INSERT + spaces.member_count+1 (a concurrent join of the same user fails the PK -> 409).
+ * After commit: space.joined{space} to the user (their own view), space.member_joined{space_id, member} to the other
+ * members, then the system message member_joined in the default channel.
+ * `via` carries the invite whose use is recorded in the same batch — that branch is plan 01 Task 22.
+ */
+export async function joinSpace(rt: Runtime, spaceId: string, userId: string, via: { inviteCode?: string; directInviteId?: string }): Promise<SpaceDetail> {
+  if (via.inviteCode !== undefined || via.directInviteId !== undefined) throw new Error("invite joins are not implemented yet (plan 01 Task 22)");
+  const db = rt.env.DB;
+  const facts = await first<JoinFactsRow>(
+    db,
+    `SELECT s.*,
+            EXISTS (SELECT 1 FROM space_bans b WHERE b.space_id = s.id AND b.user_id = ?2) AS _banned,
+            EXISTS (SELECT 1 FROM space_members m WHERE m.space_id = s.id AND m.user_id = ?2) AS _member
+       FROM spaces s WHERE s.id = ?1 AND s.deleted_at IS NULL`,
+    spaceId,
+    userId,
+  );
+  if (facts === null) throw err.notFound("space");
+  if (facts._banned) throw err.forbidden("banned_from_space");
+  if (facts._member) throw err.conflict("already_member");
+  if (facts.member_count >= SPACE_MEMBERS_MAX) throw err.limit("space_members", SPACE_MEMBERS_MAX);
+
+  const t = now();
+  try {
+    await batch(db, [
+      stmt(db, "INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'member', ?3)", spaceId, userId, t),
+      stmt(db, "UPDATE spaces SET member_count = member_count + 1, updated_at = ?2 WHERE id = ?1", spaceId, t),
+    ]);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw err.conflict("already_member");
+    throw e;
+  }
+
+  const row = await first<SpaceRow>(db, "SELECT * FROM spaces WHERE id = ?1", spaceId);
+  if (row === null) throw err.notFound("space");
+  const memberRow: SpaceMemberRow = { space_id: spaceId, user_id: userId, role: "member", joined_at: t };
+  const [detail, [member]] = await Promise.all([serializeSpaceDetail(db, userId, row), serializeSpaceMembers(db, [memberRow])]);
+  await publishEvent(rt, { users: [userId] }, "space.joined", { space: detail });
+  if (member) await publishEvent(rt, { space: spaceId }, "space.member_joined", { space_id: spaceId, member }, { exclude: [userId] });
+  if (row.default_channel_id !== null) {
+    await postSystemMessage(rt, row.default_channel_id, userId, { event: "member_joined", actor_id: userId, target_user_id: userId, data: {} });
+  }
+  return detail;
+}
+
+/**
+ * Takes `userId` out of a live space (permission checks are the caller's: api.md 3.5). One batch for every reason, each
+ * statement gated on the membership row so a lost race writes nothing: the private text channels of the space lose
+ * this user's channel_members rows (member_count - 1 each), (banned) a space_bans row, then the space_members row and
+ * spaces.member_count - 1. 404 when the user was not a member.
+ * After commit: space.member_left{space_id, user_id, reason} to the members + the removed user, space.removed to the
+ * removed user, channel.member_removed per private channel left to its remaining members, then the system message
+ * member_left (reason "left") or member_kicked (kicked and banned) in the default channel.
+ */
+export async function removeFromSpace(
+  rt: Runtime,
+  spaceId: string,
+  userId: string,
+  actorId: string,
+  reason: SpaceRemovalReason,
+  banReason?: string,
+): Promise<void> {
+  const db = rt.env.DB;
+  const space = await first<SpaceRow>(db, "SELECT * FROM spaces WHERE id = ?1 AND deleted_at IS NULL", spaceId);
+  if (space === null) throw err.notFound("space");
+  const t = now();
+  const privateOfSpace = "SELECT id FROM channels WHERE space_id = ?1 AND kind = 'text' AND is_private = 1";
+  const isMember = "EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2)";
+  const stmts: D1PreparedStatement[] = [
+    // which private channels this removal takes the user out of (read inside the transaction, before the deletes)
+    stmt(db, `SELECT channel_id FROM channel_members WHERE user_id = ?2 AND channel_id IN (${privateOfSpace}) AND ${isMember}`, spaceId, userId),
+    stmt(
+      db,
+      `UPDATE channels SET member_count = MAX(member_count - 1, 0), updated_at = ?3
+        WHERE id IN (${privateOfSpace})
+          AND EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = channels.id AND cm.user_id = ?2)
+          AND ${isMember}`,
+      spaceId,
+      userId,
+      t,
+    ),
+    stmt(db, `DELETE FROM channel_members WHERE user_id = ?2 AND channel_id IN (${privateOfSpace}) AND ${isMember}`, spaceId, userId),
+  ];
+  if (reason === "banned") {
+    stmts.push(
+      stmt(
+        db,
+        `INSERT INTO space_bans (space_id, user_id, banned_by, reason, created_at)
+         SELECT ?1, ?2, ?3, ?4, ?5 WHERE ${isMember}
+         ON CONFLICT (space_id, user_id) DO UPDATE SET banned_by = excluded.banned_by, reason = excluded.reason, created_at = excluded.created_at`,
+        spaceId,
+        userId,
+        actorId,
+        banReason ?? "",
+        t,
+      ),
+    );
+  }
+  const deleteIdx = stmts.length;
+  stmts.push(
+    stmt(db, "DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, userId),
+    stmt(db, "UPDATE spaces SET member_count = MAX(member_count - 1, 0), updated_at = ?2 WHERE id = ?1 AND changes() > 0", spaceId, t),
+  );
+  const results = await batch(db, stmts);
+  if ((results[deleteIdx]!.meta.changes ?? 0) === 0) throw err.notFound("member");
+  const leftChannels = (results[0]!.results as Array<{ channel_id: string }>).map((r) => r.channel_id);
+
+  await publishEvent(rt, { space: spaceId }, "space.member_left", { space_id: spaceId, user_id: userId, reason }, { includeSelf: userId });
+  await publishEvent(rt, { users: [userId] }, "space.removed", { space_id: spaceId, reason });
+  for (const channelId of leftChannels) {
+    await publishEvent(rt, { channel: channelId }, "channel.member_removed", { channel_id: channelId, user_id: userId });
+  }
+  if (space.default_channel_id !== null) {
+    const system =
+      reason === "left"
+        ? { event: "member_left" as const, actor_id: userId, target_user_id: userId, data: {} }
+        : { event: "member_kicked" as const, actor_id: actorId, target_user_id: userId, data: {} };
+    await postSystemMessage(rt, space.default_channel_id, system.actor_id, system);
   }
 }

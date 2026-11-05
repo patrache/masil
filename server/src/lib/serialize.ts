@@ -19,6 +19,10 @@ import type {
   RollResult,
   Session,
   Settings,
+  Space,
+  SpaceDetail,
+  SpaceMember,
+  SpaceRole,
   SystemEvent,
   UnreadState,
   UserStatus,
@@ -34,6 +38,9 @@ import type {
   PollOptionRow,
   PollRow,
   SessionRow,
+  SpaceBanRow,
+  SpaceMemberRow,
+  SpaceRow,
   UserPresenceRow,
   UserRow,
   UserSettingsRow,
@@ -666,5 +673,100 @@ export async function serializeMessages(db: D1Database, viewerId: string | null,
         deleted,
       },
     ];
+  });
+}
+
+// ---- spaces (plan 01 Task 21) ----
+
+function toSpace(row: SpaceRow, myRole: SpaceRole): Space {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    icon_emoji: row.icon_emoji,
+    member_count: row.member_count,
+    owner_id: row.owner_id,
+    default_channel_id: row.default_channel_id ?? "",
+    created_at: iso(row.created_at),
+    my_role: myRole,
+  };
+}
+
+/**
+ * spaces rows -> Space (api.md 2), in row order; the viewer's roles are batch-loaded in one query. With
+ * viewerId === null (event payloads) my_role is the events.md 4.4 default "member"; so is a viewer who is not a member.
+ */
+export async function serializeSpaces(db: D1Database, viewerId: string | null, rows: SpaceRow[]): Promise<Space[]> {
+  if (rows.length === 0) return [];
+  const roles =
+    viewerId === null
+      ? new Map<string, SpaceRole>()
+      : new Map(
+          (
+            await all<{ space_id: string; role: SpaceRole }>(
+              db,
+              "SELECT space_id, role FROM space_members WHERE user_id = ?1 AND space_id IN (SELECT value FROM json_each(?2))",
+              viewerId,
+              jsonList(rows.map((r) => r.id)),
+            )
+          ).map((r) => [r.space_id, r.role]),
+        );
+  return rows.map((r) => toSpace(r, roles.get(r.id) ?? "member"));
+}
+
+export async function serializeSpace(db: D1Database, viewerId: string | null, row: SpaceRow): Promise<Space> {
+  const [space] = await serializeSpaces(db, viewerId, [row]);
+  return space!;
+}
+
+/** Text channels of `spaceId` that `viewerId` can see (public, or private with a channel_members row), by position. */
+export async function serializeSpaceChannels(db: D1Database, viewerId: string, spaceId: string): Promise<Channel[]> {
+  const rows = await all<ChannelRow>(
+    db,
+    `SELECT c.* FROM channels c
+      WHERE c.space_id = ?1 AND c.kind = 'text' AND c.deleted_at IS NULL
+        AND (c.is_private = 0 OR EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?2))
+      ORDER BY c.position, c.created_at, c.id`,
+    spaceId,
+    viewerId,
+  );
+  return serializeChannels(db, viewerId, rows);
+}
+
+/** Space + the text channels visible to the viewer, ordered by position (api.md SpaceDetail). Membership is the caller's job. */
+export async function serializeSpaceDetail(db: D1Database, viewerId: string, row: SpaceRow): Promise<SpaceDetail> {
+  const [space, channels] = await Promise.all([serializeSpace(db, viewerId, row), serializeSpaceChannels(db, viewerId, row.id)]);
+  return { ...space, channels };
+}
+
+/** space_members rows -> SpaceMember (api.md 2), in row order; users batch-loaded (one query). Gone users are dropped. */
+export async function serializeSpaceMembers(db: D1Database, rows: SpaceMemberRow[]): Promise<SpaceMember[]> {
+  const users = await loadUserSummaries(
+    db,
+    rows.map((r) => r.user_id),
+  );
+  return rows.flatMap((r) => {
+    const user = users.get(r.user_id);
+    return user ? [{ user, role: r.role, joined_at: iso(r.joined_at) }] : [];
+  });
+}
+
+export interface SpaceBan {
+  user: UserSummary;
+  banned_by: UserSummary;
+  reason: string;
+  created_at: string;
+}
+
+/** space_bans rows -> api.md 5.7 GET /spaces/{id}/bans items, in row order; both users batch-loaded (one query). */
+export async function serializeSpaceBans(db: D1Database, rows: SpaceBanRow[]): Promise<SpaceBan[]> {
+  const users = await loadUserSummaries(
+    db,
+    rows.flatMap((r) => [r.user_id, r.banned_by]),
+  );
+  return rows.flatMap((r) => {
+    const user = users.get(r.user_id);
+    const by = users.get(r.banned_by);
+    return user && by ? [{ user, banned_by: by, reason: r.reason, created_at: iso(r.created_at) }] : [];
   });
 }
