@@ -145,6 +145,12 @@ var chatRouteTable = []chatRoute{
 	{"POST /v1/channels/{id}/members", "POST /v1/channels/01JBPROBE00000000000000000/members", echoAddMembers},
 	{"DELETE /v1/channels/{id}/members/{user}", "DELETE /v1/channels/01JBPROBE00000000000000000/members/@me", noContent},
 	{"GET /v1/spaces/{id}/members", "GET /v1/spaces/01JBPROBE00000000000000000/members", spaceMembers},
+	{"POST /v1/spaces", "POST /v1/spaces", echoCreateSpace},
+	{"GET /v1/invites/{code}", "GET /v1/invites/AB12CD34", getInvite},
+	{"POST /v1/invites/{code}/accept", "POST /v1/invites/PROBE123/accept", acceptInvite},
+	{"POST /v1/direct-invites/{id}/accept", "POST /v1/direct-invites/01JKPROBE00000000000000000/accept", acceptDirectInvite},
+	{"POST /v1/direct-invites/{id}/decline", "POST /v1/direct-invites/01JKPROBE00000000000000000/decline", noContent},
+	{"POST /v1/reports", "POST /v1/reports", echoReport},
 }
 
 // newAPI is apitest.New + fixtures.RegisterAPI + chatRoutes, in this order (tests overlay after it).
@@ -461,6 +467,105 @@ func spaceMembers(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": nil})
+}
+
+// ---- spaces and invites ----
+
+// Space / invite test ids: POST /v1/spaces answers newSpace*; invite testInviteCode
+// previews 노바 개발방 (from 민지), joinInviteCode 보드게임 모임 (joinSpace*), which
+// every accept (link or direct) joins.
+const (
+	newSpaceID        = "01JB00000000000000NEWSP001"
+	newSpaceChannelID = "01JB00000000000000NEWCH001"
+	joinSpaceID       = "01JB0000000000000000JOIN01"
+	joinChannelID     = "01JB0000000000000000JOINC1"
+	testInviteCode    = "AB12CD34"
+	joinInviteCode    = "JN12KL34"
+)
+
+// spaceChannel is the text channel 일반 of a new or joined space.
+func spaceChannel(id, space string) api.Channel {
+	name := "일반"
+	return api.Channel{ID: id, Kind: api.ChannelText, SpaceID: &space, Name: &name, MemberCount: 1,
+		CreatedAt: routeNow(), My: api.ChannelMyState{Notify: "all"}}
+}
+
+// joinedSpace is 보드게임 모임 (owner 민지, 5 members) as I see it after joining.
+func joinedSpace() api.SpaceDetail {
+	return api.SpaceDetail{
+		Space: api.Space{
+			SpacePreview: api.SpacePreview{ID: joinSpaceID, Name: "보드게임 모임", Description: "주말마다 보드게임", IconEmoji: ptrTo("🎲"), MemberCount: 5},
+			OwnerID:      fixtures.UserMinji, DefaultChannelID: joinChannelID, CreatedAt: time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), MyRole: api.RoleMember,
+		},
+		Channels: []api.Channel{spaceChannel(joinChannelID, joinSpaceID)},
+	}
+}
+
+// invitePreview is the preview of code: testInviteCode = 노바 개발방, else 보드게임
+// 모임; from 민지, expiring in 7 days, not yet a member.
+func invitePreview(code string) api.InvitePreview {
+	s := seeded()
+	space := joinedSpace().SpacePreview
+	if code == testInviteCode {
+		space = s.Spaces[fixtures.SpaceNova].SpacePreview
+	}
+	exp := routeNow().Add(7 * 24 * time.Hour)
+	return api.InvitePreview{Code: code, Space: space, CreatedBy: *s.User(fixtures.UserMinji), ExpiresAt: &exp}
+}
+
+// echoCreateSpace answers POST /v1/spaces with newSpaceID (me = owner) and its 일반 channel.
+func echoCreateSpace(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		IconEmoji   string `json:"icon_emoji"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	sp := api.SpacePreview{ID: newSpaceID, Name: in.Name, Description: in.Description, MemberCount: 1}
+	if in.IconEmoji != "" {
+		sp.IconEmoji = &in.IconEmoji
+	}
+	d := api.SpaceDetail{
+		Space:    api.Space{SpacePreview: sp, OwnerID: fixtures.UserSam, DefaultChannelID: newSpaceChannelID, CreatedAt: routeNow(), MyRole: api.RoleOwner},
+		Channels: []api.Channel{spaceChannel(newSpaceChannelID, newSpaceID)},
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"space": d})
+}
+
+// getInvite answers GET /v1/invites/{code}: the two known codes, else 404.
+func getInvite(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	if code != testInviteCode && code != joinInviteCode {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"code": "not_found", "message": "no such invite"}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"invite": invitePreview(code)})
+}
+
+// acceptInvite answers POST /v1/invites/{code}/accept: testInviteCode joins 노바
+// 개발방 (the seeded detail), anything else joinedSpace.
+func acceptInvite(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("code") == testInviteCode {
+		s := seeded()
+		d := *s.Spaces[fixtures.SpaceNova]
+		d.Channels = []api.Channel{}
+		for _, ch := range s.SpaceChannels(fixtures.SpaceNova) {
+			d.Channels = append(d.Channels, *ch)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"space": d})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"space": joinedSpace()})
+}
+
+// acceptDirectInvite answers POST /v1/direct-invites/{id}/accept with joinedSpace.
+func acceptDirectInvite(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"space": joinedSpace()})
+}
+
+// echoReport answers POST /v1/reports (201, a report id).
+func echoReport(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusCreated, map[string]any{"report_id": "01JR" + echoID()[4:]})
 }
 
 // ---- harness helpers ----

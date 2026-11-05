@@ -16,7 +16,11 @@ import (
 
 func init() {
 	ui.RegisterPane(layout.SlotRail, newRail)
+	ui.RegisterOverlay(overlaySpaceAdd, func(*ui.Context, string) ui.Overlay { return newSpaceAddMenu() })
 }
+
+// overlaySpaceAdd is the registered rail "+" menu.
+const overlaySpaceAdd = "chat.space_add"
 
 // Rail item ids: home, one per space ("space:<id>"), and the add button.
 const (
@@ -295,12 +299,12 @@ func goSpace(ctx *ui.Context, id string) tea.Cmd {
 	return ui.Navigate(ui.Route{Kind: ui.RouteChannel, ID: target})
 }
 
-// newSpaceAddMenu is the rail "+" menu (chat.space_add, registered by Task 18):
+// newSpaceAddMenu is the rail "+" menu (chat.space_add):
 // 방 만들기 → chat.space_create, 초대 코드로 참여 → chat.space_join.
 func newSpaceAddMenu() ui.Overlay {
 	return newMenu("방 추가", []menuItem{
-		{Label: "방 만들기", Run: openRegistered("chat.space_create", "")},
-		{Label: "초대 코드로 참여", Run: openRegistered("chat.space_join", "")},
+		{Label: "방 만들기", Run: openRegistered(overlaySpaceCreate, "")},
+		{Label: "초대 코드로 참여", Run: openRegistered(overlaySpaceJoin, "")},
 	})
 }
 
