@@ -52,5 +52,5 @@ func AllSizes() []Size {
 
 // ForEachSize runs fn in a subtest per "WxH", with a fresh harness each.
 func ForEachSize(t *testing.T, sizes []Size, fn func(t *testing.T, h *Harness)) {
-	// TODO(core): Task 20
+	// TODO(core): Task 25 (needs New)
 }
