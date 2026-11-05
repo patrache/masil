@@ -555,3 +555,17 @@ func TestChatRoutesServe(t *testing.T) {
 		t.Fatalf("reqs read = %d", n)
 	}
 }
+
+// paneText is the text inside slot's inner rect (rows joined by newlines); fails without the pane.
+func paneText(t testing.TB, h *uitest.Harness, slot layout.SlotID) string {
+	t.Helper()
+	p, ok := h.Model.Frame().Layout.Pane(slot)
+	if !ok {
+		t.Fatalf("no %s pane", slot)
+	}
+	in := p.Rect
+	if p.Bordered {
+		in = in.Inner()
+	}
+	return columnText(h.Screen(), in)
+}

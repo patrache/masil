@@ -250,37 +250,49 @@ func (p *railPane) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 // run activates an entry: 홈 → RouteHome, a space → select it + its default
 // channel, + → the space add menu.
 func (p *railPane) run(ctx *ui.Context, it railItem) tea.Cmd {
-	c := chatOf(ctx)
 	switch {
 	case it.ID == railHome:
-		if c != nil {
-			c.SetSelectedSpace("")
-		}
-		return ui.Navigate(ui.Route{Kind: ui.RouteHome})
+		return goHome(ctx)
 	case it.ID == railAdd:
 		return ui.OpenOverlay(newSpaceAddMenu())
 	case strings.HasPrefix(it.ID, railSpacePrefix):
-		id := strings.TrimPrefix(it.ID, railSpacePrefix)
-		sd := ctx.Store.Spaces[id]
-		if sd == nil {
-			return nil
-		}
-		if c != nil {
-			c.SetSelectedSpace(id)
-		}
-		target := sd.DefaultChannelID
-		if target == "" || ctx.Store.Channels[target] == nil {
-			target = ""
-			if chs := ctx.Store.SpaceChannels(id); len(chs) > 0 {
-				target = chs[0].ID
-			}
-		}
-		if target == "" {
-			return nil
-		}
-		return ui.Navigate(ui.Route{Kind: ui.RouteChannel, ID: target})
+		return goSpace(ctx, strings.TrimPrefix(it.ID, railSpacePrefix))
 	}
 	return nil
+}
+
+// goHome clears the space selection and opens RouteHome (rail 홈, space switcher 홈).
+func goHome(ctx *ui.Context) tea.Cmd {
+	if c := chatOf(ctx); c != nil {
+		c.SetSelectedSpace("")
+	}
+	return ui.Navigate(ui.Route{Kind: ui.RouteHome})
+}
+
+// goSpace selects space id and opens its default channel (else its first channel;
+// nil when the space is unknown or has none).
+func goSpace(ctx *ui.Context, id string) tea.Cmd {
+	if ctx == nil || ctx.Store == nil {
+		return nil
+	}
+	sd := ctx.Store.Spaces[id]
+	if sd == nil {
+		return nil
+	}
+	if c := chatOf(ctx); c != nil {
+		c.SetSelectedSpace(id)
+	}
+	target := sd.DefaultChannelID
+	if target == "" || ctx.Store.Channels[target] == nil {
+		target = ""
+		if chs := ctx.Store.SpaceChannels(id); len(chs) > 0 {
+			target = chs[0].ID
+		}
+	}
+	if target == "" {
+		return nil
+	}
+	return ui.Navigate(ui.Route{Kind: ui.RouteChannel, ID: target})
 }
 
 // newSpaceAddMenu is the rail "+" menu (chat.space_add, registered by Task 18):
