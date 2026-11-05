@@ -22,14 +22,12 @@ type Rect struct{ X, Y, W, H int }
 
 // Contains reports whether (x, y) is inside r.
 func (r Rect) Contains(x, y int) bool {
-	// TODO(core): Task 18
-	return false
+	return x >= r.X && x < r.X+r.W && y >= r.Y && y < r.Y+r.H
 }
 
 // Inner returns r minus a 1-cell border on each side.
 func (r Rect) Inner() Rect {
-	// TODO(core): Task 18
-	return Rect{}
+	return Rect{X: r.X + 1, Y: r.Y + 1, W: max(r.W-2, 0), H: max(r.H-2, 0)}
 }
 
 // Pane is one placed slot.
@@ -53,19 +51,106 @@ type Layout struct {
 }
 
 // Compute returns the pane geometry (CA 5.2.2); never panics.
+//
+// Negative sizes count as 0; an empty screen has no panes. Any mode on a screen below the
+// fixed 20x6 minimum is laid out as ModeTooSmall. For in-domain inputs (a mode chosen by
+// Resolve) the CA formulas apply verbatim; for out-of-domain inputs (a mode far below its
+// minimum size) widths are clamped to what is left, so panes still tile the screen without
+// overlaps, empty panes are dropped, and a slot is bordered only if its inner rect is >= 1x1.
 func Compute(mode Mode, cols, rows int, st State) Layout {
-	// TODO(core): Task 18
-	return Layout{}
+	w, h := max(cols, 0), max(rows, 0)
+	l := Layout{Mode: mode, Cols: w, Rows: h}
+	if mode < ModeTooSmall || mode > ModeCommand || w < 20 || h < 6 {
+		l.Mode = ModeTooSmall
+	}
+	if w == 0 || h == 0 {
+		return l
+	}
+	add := func(s SlotID, x, y, pw, ph int, bordered bool) {
+		if pw <= 0 || ph <= 0 {
+			return
+		}
+		l.Panes = append(l.Panes, Pane{
+			Slot:     s,
+			Rect:     Rect{X: x, Y: y, W: pw, H: ph},
+			Bordered: bordered && pw >= 3 && ph >= 3,
+		})
+	}
+	if l.Mode == ModeTooSmall {
+		add(SlotMain, 0, 0, w, h, false)
+		return l
+	}
+	b := h - 1 // body height; the last row is the status line in every mode
+	switch l.Mode {
+	case ModeCommand:
+		rail := min(6, w)
+		side := min(clamp(w*13/100, 24, 34), w-rail)
+		right := min(clamp(w*17/100, 32, 48), w-rail-side)
+		rest := w - rail - side - right
+		chat := rest * 7 / 12
+		feed := rest - chat
+		x := 0
+		add(SlotRail, x, 0, rail, b, true)
+		x += rail
+		add(SlotSidebar, x, 0, side, b, true)
+		x += side
+		add(SlotMain, x, 0, chat, b, true)
+		x += chat
+		add(SlotFeed, x, 0, feed, b, true)
+		x += feed
+		top := b * 55 / 100
+		upper := SlotMembers
+		if st.ThreadOpen {
+			upper = SlotThread
+		}
+		add(upper, x, 0, right, top, true)
+		add(SlotNotifications, x, top, right, b-top, true)
+	case ModeStandard:
+		side := min(clamp(w*22/100, 24, 32), w)
+		main := w - side
+		add(SlotSidebar, 0, 0, side, b, true)
+		top := max(10, b*60/100)
+		if st.ThreadOpen && !st.FeedSwapped && b-top >= 6 {
+			add(SlotMain, side, 0, main, top, true)
+			add(SlotThread, side, top, main, b-top, true)
+		} else {
+			add(SlotMain, side, 0, main, b, true)
+		}
+	case ModeCompact:
+		add(SlotTabs, 0, 0, w, 1, false)
+		add(SlotMain, 0, 1, w, b-1, true)
+	case ModeWidget:
+		add(SlotTabs, 0, 0, w, 1, false)
+		add(SlotContext, 0, 1, w, 1, false)
+		add(SlotMain, 0, 2, w, b-2, true)
+	case ModeTiny:
+		add(SlotTabs, 0, 0, w, 1, false)
+		add(SlotMain, 0, 1, w, b-1, false)
+	}
+	add(SlotStatus, 0, b, w, 1, false)
+	return l
+}
+
+func clamp(v, lo, hi int) int {
+	return min(max(v, lo), hi)
 }
 
 // Pane returns the pane for slot s.
 func (l Layout) Pane(s SlotID) (Pane, bool) {
-	// TODO(core): Task 18
+	for _, p := range l.Panes {
+		if p.Slot == s {
+			return p, true
+		}
+	}
 	return Pane{}, false
 }
 
 // At returns the pane containing (x, y).
 func (l Layout) At(x, y int) (Pane, bool) {
-	// TODO(core): Task 18
+	for _, p := range l.Panes {
+		if p.Rect.Contains(x, y) {
+			return p, true
+		}
+	}
 	return Pane{}, false
 }
