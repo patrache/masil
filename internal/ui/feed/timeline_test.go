@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -409,5 +410,57 @@ func TestStoryRingOpensStories(t *testing.T) {
 	h.Press("s")
 	if top := feedTop(h); top.Kind != ui.RouteStories || top.ID != userOf("hana").ID {
 		t.Fatalf("s: feed top = %+v, want stories of hana", top)
+	}
+}
+
+// newDiscoverPair is discoverNew's two new items without the overlap.
+func newDiscoverPair() []api.TimelineItem { return discoverNew().Items[:2] }
+
+func TestDiscoverBannerEmptyWindow(t *testing.T) {
+	// An empty discover window has no overlap anchor: the check goes out without
+	// since and every returned item counts as new.
+	srv := snsAPI(t, false)
+	var calls atomic.Int32
+	srv.Handle("GET /v1/timeline/discover", func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			writeJSON(w, api.TimelinePage{Items: []api.TimelineItem{}})
+			return
+		}
+		writeJSON(w, api.TimelinePage{Items: newDiscoverPair()})
+	})
+	h := uitest.New(t, uitest.WithAPI(srv), uitest.WithSeed(fixtures.Seed),
+		uitest.WithRoute(ui.Route{Kind: ui.RouteFeed, Arg: "discover"}))
+	n := len(reqsTo(h, "GET", "/v1/timeline/discover"))
+	h.Advance(30 * time.Second)
+	reqs := reqsTo(h, "GET", "/v1/timeline/discover")
+	if len(reqs) != n+1 || strings.Contains(reqs[len(reqs)-1].Query, "since") {
+		t.Fatalf("discover requests after 30s = %+v, want one more without since", reqs)
+	}
+	if s := h.Screen(); !strings.Contains(s, "새 글 2개 · enter") {
+		t.Fatalf("banner missing on an empty window:\n%s", s)
+	}
+}
+
+func TestDiscoverBannerOneItemWindow(t *testing.T) {
+	// A one-item window has no overlap anchor either: the check uses that item's
+	// ID as since, and the echoed item is not counted.
+	only := fixtures.Timeline()[0]
+	srv := snsAPI(t, false)
+	srv.Handle("GET /v1/timeline/discover", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("since") {
+			writeJSON(w, api.TimelinePage{Items: append(newDiscoverPair(), only)})
+			return
+		}
+		writeJSON(w, api.TimelinePage{Items: []api.TimelineItem{only}})
+	})
+	h := uitest.New(t, uitest.WithAPI(srv), uitest.WithSeed(fixtures.Seed),
+		uitest.WithRoute(ui.Route{Kind: ui.RouteFeed, Arg: "discover"}))
+	h.Advance(30 * time.Second)
+	r, ok := lastReq(h, "GET", "/v1/timeline/discover")
+	if !ok || !strings.Contains(r.Query, "since="+only.ID) {
+		t.Fatalf("last discover request = %+v (ok=%v), want since=%s", r, ok, only.ID)
+	}
+	if s := h.Screen(); !strings.Contains(s, "새 글 2개 · enter") {
+		t.Fatalf("banner missing on a one-item window:\n%s", s)
 	}
 }

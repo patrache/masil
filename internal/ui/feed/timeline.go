@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -258,14 +259,27 @@ func (t *timeline) onPoll(ctx *ui.Context, m pollMsg) tea.Cmd {
 	}
 	var cmds []tea.Cmd
 	if fs := t.fs(ctx); fs != nil {
-		if since := fs.Timeline(t.kind).OverlapAnchor(5 * time.Second); since != "" {
-			get := t.fetch(t.kind)
-			cmds = append(cmds, ui.Do(ctx, tagDiscoverNew+t.kind, func(c context.Context, a *api.Client) (*api.TimelinePage, error) {
-				return get(a, c, api.TimelineQuery{Since: since, PageOpts: api.PageOpts{Limit: discoverLimit}})
-			}))
-		}
+		since := discoverSince(fs.Timeline(t.kind))
+		get := t.fetch(t.kind)
+		cmds = append(cmds, ui.Do(ctx, tagDiscoverNew+t.kind, func(c context.Context, a *api.Client) (*api.TimelinePage, error) {
+			return get(a, c, api.TimelineQuery{Since: since, PageOpts: api.PageOpts{Limit: discoverLimit}})
+		}))
 	}
 	return tea.Batch(append(cmds, t.armPoll(ctx))...)
+}
+
+// discoverSince is the since of a discover check: the 5 s overlap anchor, else
+// (one item, or all within 5 s of the newest) the oldest item's ID, else (empty
+// window) "" so the check asks for the newest page and counts all of it.
+// countNew drops the overlap either way.
+func discoverSince(w *store.Window[api.TimelineItem]) string {
+	if since := w.OverlapAnchor(5 * time.Second); since != "" {
+		return since
+	}
+	if items := w.Items(); len(items) > 0 {
+		return items[0].ID
+	}
+	return ""
 }
 
 // countNew is the banner count of a since-check: items newer than the window's
