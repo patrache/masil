@@ -9,6 +9,18 @@ type UpdateProfileRequest struct {
 	Bio            Opt[string]
 	AvatarUploadID Opt[string]
 } // json display_name,bio,avatar_upload_id omitzero
+// updateProfileBody is the PATCH /v1/me/profile wire body.
+type updateProfileBody struct {
+	DisplayName    Opt[string] `json:"display_name,omitzero"`
+	Bio            Opt[string] `json:"bio,omitzero"`
+	AvatarUploadID Opt[string] `json:"avatar_upload_id,omitzero"`
+}
+
+// userEnvelope is {"user": Me}.
+type userEnvelope struct {
+	User Me `json:"user"`
+}
+
 type UpdateSettingsRequest struct {
 	DMPolicy        Opt[string]
 	IsPrivate       Opt[bool]
@@ -24,14 +36,21 @@ type SetStatusRequest struct {
 
 // GetMe: GET /v1/me
 func (c *Client) GetMe(ctx context.Context) (*Me, error) {
-	// TODO(core): Task 10
-	return nil, nil
+	var out userEnvelope
+	if _, err := c.call(ctx, request{Method: "GET", Path: "/v1/me", Auth: true}, &out); err != nil {
+		return nil, err
+	}
+	return &out.User, nil
 }
 
 // UpdateProfile: PATCH /v1/me/profile
 func (c *Client) UpdateProfile(ctx context.Context, r UpdateProfileRequest) (*Me, error) {
-	// TODO(core): Task 10
-	return nil, nil
+	var out userEnvelope
+	body := updateProfileBody{DisplayName: r.DisplayName, Bio: r.Bio, AvatarUploadID: r.AvatarUploadID}
+	if _, err := c.call(ctx, request{Method: "PATCH", Path: "/v1/me/profile", Body: body, Auth: true}, &out); err != nil {
+		return nil, err
+	}
+	return &out.User, nil
 }
 
 // GetSettings: GET /v1/me/settings

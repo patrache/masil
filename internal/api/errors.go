@@ -1,7 +1,12 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
 	"time"
 )
 
@@ -16,30 +21,76 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	// TODO(core): Task 8
-	return ""
+	s := fmt.Sprintf("api: %d %s", e.Status, e.Code)
+	if e.Message != "" {
+		s += ": " + e.Message
+	}
+	if e.RequestID != "" {
+		s += " (request " + e.RequestID + ")"
+	}
+	return s
+}
+
+// details decodes e.Details into v; false if absent or not an object of that shape.
+func (e *Error) details(v any) bool {
+	if len(e.Details) == 0 {
+		return false
+	}
+	return json.Unmarshal(e.Details, v) == nil
 }
 
 // Fields returns details.fields for invalid_request.
 func (e *Error) Fields() map[string]string {
-	// TODO(core): Task 8
-	return nil
+	var d struct {
+		Fields map[string]string `json:"fields"`
+	}
+	if !e.details(&d) || len(d.Fields) == 0 {
+		return nil
+	}
+	return d.Fields
 }
 
 // Limiter returns details.limiter for rate_limited.
 func (e *Error) Limiter() string {
-	// TODO(core): Task 8
-	return ""
+	var d struct {
+		Limiter string `json:"limiter"`
+	}
+	e.details(&d)
+	return d.Limiter
 }
+
+// timeoutError (errRequestTimeout) marks the client's own default timeout (15s/120s) firing
+// while the caller's ctx is still alive: a slow or unreachable server, so it
+// classifies as "network", not "canceled".
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "request timed out" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+
+var errRequestTimeout net.Error = timeoutError{}
 
 // CodeOf returns "" if err is not *Error; "network" for transport errors; "canceled" for ctx cancel.
 func CodeOf(err error) string {
-	// TODO(core): Task 8
+	if err == nil {
+		return ""
+	}
+	var e *Error
+	if errors.As(err, &e) {
+		return e.Code
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return "canceled"
+	}
+	var ue *url.Error
+	var ne net.Error
+	if errors.As(err, &ue) || errors.As(err, &ne) {
+		return "network"
+	}
 	return ""
 }
 
 // IsCode reports CodeOf(err) == code.
 func IsCode(err error, code string) bool {
-	// TODO(core): Task 8
-	return false
+	return CodeOf(err) == code
 }

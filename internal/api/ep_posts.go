@@ -2,6 +2,10 @@ package api
 
 import (
 	"context"
+	"net/http"
+	"strings"
+
+	"github.com/patrache/masil/internal/ids"
 )
 
 type CreatePostRequest struct {
@@ -10,9 +14,35 @@ type CreatePostRequest struct {
 	ReplyToID, QuoteOfID string
 	Poll                 *PollInput
 } // omitempty
+
+// createPostBody is the POST /v1/posts wire body (api.md 5.15).
+type createPostBody struct {
+	ClientNonce    string     `json:"client_nonce"`
+	Body           string     `json:"body"`
+	MediaUploadIDs []string   `json:"media_upload_ids,omitempty"`
+	ReplyToID      string     `json:"reply_to_id,omitempty"`
+	QuoteOfID      string     `json:"quote_of_id,omitempty"`
+	Poll           *PollInput `json:"poll,omitempty"`
+}
+
+// postEnvelope is {"post": Post}.
+type postEnvelope struct {
+	Post Post `json:"post"`
+}
+
+// CreatePost: POST /v1/posts. created = 201 (200 = duplicate nonce). An empty
+// ClientNonce gets a fresh ULID. No auto-retry (CA 4.3.1: messages only).
 func (c *Client) CreatePost(ctx context.Context, r CreatePostRequest) (p *Post, created bool, err error) {
-	// TODO(core): Task 11
-	return
+	if r.ClientNonce == "" {
+		r.ClientNonce = ids.New()
+	}
+	var out postEnvelope
+	body := createPostBody{ClientNonce: r.ClientNonce, Body: r.Body, MediaUploadIDs: r.MediaUploadIDs, ReplyToID: r.ReplyToID, QuoteOfID: r.QuoteOfID, Poll: r.Poll}
+	st, err := c.call(ctx, request{Method: "POST", Path: "/v1/posts", Body: body, Limiter: rlPost, Auth: true}, &out)
+	if err != nil {
+		return nil, false, err
+	}
+	return &out.Post, st == http.StatusCreated, nil
 }
 
 func (c *Client) GetPost(ctx context.Context, postID string) (*Post, error) {
@@ -35,9 +65,13 @@ func (c *Client) DeletePost(ctx context.Context, postID string) error {
 	return nil
 }
 
+// Like: PUT /v1/posts/{id}/like.
 func (c *Client) Like(ctx context.Context, postID string) (*LikeResult, error) {
-	// TODO(core): Task 11
-	return nil, nil
+	var out LikeResult
+	if _, err := c.call(ctx, request{Method: "PUT", Path: escPath("v1", "posts", postID, "like"), Limiter: rlReact, Auth: true}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (c *Client) Unlike(ctx context.Context, postID string) (*LikeResult, error) {
@@ -85,9 +119,14 @@ func (c *Client) DiscoverTimeline(ctx context.Context, q TimelineQuery) (*Timeli
 	return nil, nil
 }
 
+// HashtagPosts: GET /v1/hashtags/{tag}/posts; tag without "#" (a leading "#" is dropped), path-escaped.
 func (c *Client) HashtagPosts(ctx context.Context, tag string, p PageOpts) (*Page[Post], error) {
-	// TODO(core): Task 11
-	return nil, nil
+	var out Page[Post]
+	path := escPath("v1", "hashtags", strings.TrimPrefix(tag, "#"), "posts")
+	if _, err := c.call(ctx, request{Method: "GET", Path: path, Query: p.values(nil), Auth: true}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (c *Client) Trends(ctx context.Context) (*Trends, error) {

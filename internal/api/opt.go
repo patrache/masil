@@ -1,9 +1,30 @@
 package api
 
+import (
+	"encoding/json"
+	"net/url"
+	"strconv"
+	"strings"
+)
+
 // PageOpts selects a cursor page.
 type PageOpts struct {
 	Cursor string // "" = first page
 	Limit  int    // 0 = server default
+}
+
+// values encodes cursor/limit (omitted when zero) into q (allocated if nil).
+func (p PageOpts) values(q url.Values) url.Values {
+	if q == nil {
+		q = url.Values{}
+	}
+	if p.Cursor != "" {
+		q.Set("cursor", p.Cursor)
+	}
+	if p.Limit > 0 {
+		q.Set("limit", strconv.Itoa(p.Limit))
+	}
+	return q
 }
 
 // Page is a cursor page of items.
@@ -14,8 +35,7 @@ type Page[T any] struct {
 
 // Done reports whether there is no next page.
 func (p *Page[T]) Done() bool {
-	// TODO(core): Task 8
-	return false
+	return p == nil || p.NextCursor == nil
 }
 
 // Opt distinguishes "omit" from "send null" (api.md optional+nullable fields).
@@ -28,26 +48,25 @@ type Opt[T any] struct {
 
 // Some returns a set Opt holding v.
 func Some[T any](v T) Opt[T] {
-	// TODO(core): Task 8
-	return Opt[T]{}
+	return Opt[T]{Set: true, Value: v}
 }
 
 // Null returns a set Opt that marshals to null.
 func Null[T any]() Opt[T] {
-	// TODO(core): Task 8
-	return Opt[T]{}
+	return Opt[T]{Set: true, Null: true}
 }
 
 // IsZero reports !Set (for omitzero).
 func (o Opt[T]) IsZero() bool {
-	// TODO(core): Task 8
-	return false
+	return !o.Set
 }
 
 // MarshalJSON writes null or the value.
 func (o Opt[T]) MarshalJSON() ([]byte, error) {
-	// TODO(core): Task 8
-	return nil, nil
+	if !o.Set || o.Null {
+		return []byte("null"), nil
+	}
+	return json.Marshal(o.Value)
 }
 
 // UserRef is "{user}" (api.md 0.2): "@handle", "<ULID>", or "@me". Escaped per path segment.
@@ -61,13 +80,12 @@ type UserRef string
 const MeRef UserRef = "@me"
 
 // Handle returns "@" + lowercase(h).
+// A leading "@" in h is accepted and not doubled.
 func Handle(h string) UserRef {
-	// TODO(core): Task 8
-	return ""
+	return UserRef("@" + strings.ToLower(strings.TrimPrefix(h, "@")))
 }
 
 // UserID wraps a user ID.
 func UserID(id string) UserRef {
-	// TODO(core): Task 8
-	return ""
+	return UserRef(id)
 }
