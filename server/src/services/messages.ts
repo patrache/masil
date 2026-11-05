@@ -14,6 +14,7 @@ import { isoOrNull, now } from "../lib/time";
 import type { Message, PollInput, RollResult, SystemEvent, ThreadSummary } from "../types/api";
 import type { ChannelRow, MessageRow } from "../types/rows";
 import { pollInsertStmts } from "./polls";
+import { errFields } from "../lib/log";
 
 /** api.md 0.3 message body 1..4000 code points (after NFC + trim). */
 export const MESSAGE_BODY_MAX = 4000;
@@ -130,7 +131,7 @@ function loadChannel(db: D1Database, channelId: string): Promise<ChannelRow | nu
 
 /** Notification fan-out after commit + publish: awaited in tests, waitUntil otherwise; failures are logged only. */
 function scheduleNotifications(rt: Runtime, label: string, work: () => Promise<void>): Promise<void> {
-  const p = work().catch((e) => console.error(`messages: ${label} failed`, e));
+  const p = work().catch((e) => console.error("messages background task failed", { label, err: errFields(e) }));
   if (rt.env.APP_ENV === "test") return p;
   rt.waitUntil(p);
   return Promise.resolve();

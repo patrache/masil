@@ -3,6 +3,7 @@
 import { HTTPException } from "hono/http-exception";
 import type { AppContext } from "../env";
 import { isoOrNull } from "./time";
+import { errFields } from "./log";
 
 export type ErrorCode =
   | "invalid_json"
@@ -107,7 +108,7 @@ export function onError(e: unknown, c: AppContext): Response {
     if (e.status === 400) return envelope(c, new ApiError(400, "invalid_json", "request body is not valid JSON"));
     if (e.status === 413) return envelope(c, new ApiError(413, "payload_too_large", "request body too large"));
   }
-  console.error("unhandled error", c.req.method, c.req.path, e);
+  console.error("unhandled error", { method: c.req.method, path: c.req.path, err: errFields(e) });
   return envelope(c, new ApiError(500, "internal_error", "internal error"));
 }
 

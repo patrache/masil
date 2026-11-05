@@ -61,6 +61,7 @@ server/
       uploads.ts                 # 이미지 판별, R2 키, R2 삭제
       search.ts                  # FTS 질의 생성, 하이라이트
       version.ts                 # User-Agent 파싱, min_client_version 검사 미들웨어
+      log.ts                     # errFields(): 던져진 값 → 로그용 평범한 JSON 필드 (3.6 로그 형식)
     services/                    # 여러 라우트·운영자·DO 가 같이 쓰는 도메인 로직
       membership.ts              # 방 가입/탈퇴/강퇴, 채널 멤버 추가/제거
       messages.ts                # 메시지·스레드 답글 생성/수정/삭제, 시스템 메시지
@@ -271,6 +272,17 @@ export class TopicHub extends DurableObject<Env> {
 2. `publishEvent` 는 내부적으로 Promise 를 만들어 `rt.waitUntil()` 에 넘기고 즉시 반환한다(응답 지연 없음). **`env.APP_ENV === "test"` 면 끝까지 await** 해서 테스트가 결정적이 되게 한다.
 3. 팬아웃 실패(DO 오류)는 `console.error` 만 하고 재시도하지 않는다 — 클라이언트 재동기화가 메운다.
 4. 같은 요청에서 여러 이벤트를 같은 청중에 보내면 `publishEvents` 로 묶어 UserHub RPC 를 1회로 줄인다.
+
+### 3.6 로그 형식
+
+- 모든 `console.*` 호출은 **상수 메시지 + 구조화 필드 객체 하나(선택)** 다:
+  `console.error("TopicHub deliver failed", { topic, target, err: errFields(e) })`.
+- 값(토픽·사용자 ID·요청 경로·라벨·오류 문자열)을 메시지에 넣지 않는다 — 템플릿 리터럴·문자열 연결·메시지 뒤 위치 인자 모두 금지.
+  메시지에 섞인 값은 줄바꿈 등으로 로그 줄을 위조·분할할 수 있고, 첫 인자의 `%` 는 console 서식 지시자가 되어 다음 인자를 먹는다.
+  메시지에는 `%` 도 쓰지 않는다.
+- 오류는 `err: errFields(e)` 로 넣는다(`src/lib/log.ts`). Error 의 name·message·stack 은 열거되지 않는 속성이라 필드 객체 안에
+  그대로 두면 JSON 으로 `{}` 가 된다. Workers Logs 는 객체의 키를 필드로 색인한다.
+- `test/unit/log-format.test.ts` 가 `src/**/*.ts` 전체를 훑어 이 형식을 강제한다.
 
 ## 4. 공유 헬퍼 시그니처
 

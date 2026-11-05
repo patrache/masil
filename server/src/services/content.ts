@@ -15,6 +15,7 @@ import type { AdminAction } from "../types/api";
 import type { AdminActionRow, GuestbookRow, ReportRow, SpaceRow, StoryRow, UploadRow } from "../types/rows";
 import { deleteMessage } from "./messages";
 import { deletePost } from "./posts";
+import { errFields } from "../lib/log";
 
 export type RemovableType = "message" | "post" | "story" | "guestbook_entry" | "upload" | "space";
 
@@ -62,7 +63,7 @@ async function removeUploadsLogged(rt: Runtime, ids: string[], what: string): Pr
   try {
     await removeUploads(rt.env, ids);
   } catch (e) {
-    console.error("content: media removal failed", what, e); // rows stay non-removed; retried by cleanup
+    console.error("content: media removal failed", { what, err: errFields(e) }); // rows stay non-removed; retried by cleanup
   }
 }
 

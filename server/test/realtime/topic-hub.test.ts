@@ -1,5 +1,5 @@
 import { env, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { OutboundEvent } from "../../src/do/user-hub";
 import { newId } from "../../src/lib/ids";
 import { connectWs, signup } from "../helpers";
@@ -46,5 +46,26 @@ describe("TopicHub", () => {
     const t2 = `post:${newId()}`; const stub = env.TOPIC_HUB.getByName(t2); await stub.join(u.user.id, 1000);
     await runInDurableObject(stub, (inst) => { (inst as any).now = () => Date.now() + 2000; }); await runDurableObjectAlarm(stub);
     expect(await stub.inspect()).toEqual({ watchers: 0 });
+  });
+
+  it("a failed deliver logs a constant message with topic/target/err as fields (pending item 7)", async () => {
+    const topic = `post:${newId()}`; const target = "u_x\nFAKE LOG LINE %s"; const stub = env.TOPIC_HUB.getByName(topic);
+    await stub.join(target, 300_000);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const n = await runInDurableObject(stub, (inst) => {
+        const boom = new Error("deliver boom");
+        (inst as any).env = { ...(inst as any).env, USER_HUB: { getByName: () => ({ deliver: () => Promise.reject(boom) }) } };
+        return inst.publish(topic, [replyEvent()]);
+      });
+      expect(n).toBe(0);
+      expect(spy).toHaveBeenCalledTimes(1);
+      const [msg, fields] = spy.mock.calls[0];
+      expect(msg).toBe("TopicHub deliver failed");
+      expect(spy.mock.calls[0]).toHaveLength(2);
+      expect(fields).toMatchObject({ topic, target, err: { name: "Error", message: "deliver boom" } });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

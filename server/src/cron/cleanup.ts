@@ -4,6 +4,7 @@ import type { Env } from "../env";
 import { all, batch, jsonList, run, stmt } from "../lib/db";
 import { removeUploads } from "../lib/uploads";
 import { now } from "../lib/time";
+import { errFields } from "../lib/log";
 
 const BATCH_LIMIT = 500;
 const HOUR_MS = 3_600_000;
@@ -111,7 +112,7 @@ export async function runCleanup(env: Env): Promise<void> {
     try {
       await fn();
     } catch (e) {
-      console.error("cleanup task failed", name, e);
+      console.error("cleanup task failed", { task: name, err: errFields(e) });
     }
   }
 }

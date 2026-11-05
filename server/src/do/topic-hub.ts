@@ -5,6 +5,7 @@ import { DurableObject } from "cloudflare:workers";
 import { all, jsonList } from "../lib/db";
 import type { VisibilitySpec } from "../lib/realtime";
 import type { OutboundEvent } from "./user-hub";
+import { errFields } from "../lib/log";
 
 const SCHEMA = "CREATE TABLE IF NOT EXISTS watchers (user_id TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)";
 
@@ -65,7 +66,7 @@ export class TopicHub extends DurableObject<Cloudflare.Env> {
       const results = await Promise.allSettled(chunk.map((userId) => this.env.USER_HUB.getByName(userId).deliver({ userId, events: tagged })));
       results.forEach((r, j) => {
         if (r.status === "fulfilled") delivered++;
-        else console.error(`TopicHub ${topic}: deliver to ${chunk[j]} failed`, r.reason);
+        else console.error("TopicHub deliver failed", { topic, target: chunk[j], err: errFields(r.reason) });
       });
     }
     return delivered;

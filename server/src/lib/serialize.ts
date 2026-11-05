@@ -75,6 +75,7 @@ import { err } from "./errors";
 import { idFloor } from "./ids";
 import { canDm, canDmMany, canViewUserContent, presenceVisible } from "./permissions";
 import { iso, isoOrNull, now } from "./time";
+import { errFields } from "./log";
 
 function toUserStatus(row: UserRow, nowMs: number): UserStatus | null {
   if (row.status_text === null && row.status_emoji === null) return null;
@@ -195,7 +196,7 @@ export async function serializeMeLive(env: Env, userId: string): Promise<Me> {
       .then(
         (p): PresenceState | null => p,
         (e: unknown) => {
-          console.error("serializeMeLive: UserHub presence read failed, using the D1 mirror", e);
+          console.error("serializeMeLive: UserHub presence read failed, using the D1 mirror", { err: errFields(e) });
           return null;
         },
       ),

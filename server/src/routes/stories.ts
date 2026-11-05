@@ -19,6 +19,7 @@ import { removeUploads } from "../lib/uploads";
 import { vJson, vQuery, zId, zText } from "../lib/validate";
 import type { Story, StoryGroup, UserSummary } from "../types/api";
 import type { StoryRow, StoryViewRow, UploadRow } from "../types/rows";
+import { errFields } from "../lib/log";
 
 /** api.md 0.3: story body 0..200 code points. */
 export const STORY_BODY_MAX = 200;
@@ -303,7 +304,7 @@ storyRoutes.delete("/stories/:story_id", requireAuth, async (c) => {
     try {
       await removeUploads(c.env, [story.media_upload_id]);
     } catch (e) {
-      console.error("stories: media removal failed", story.id, e);
+      console.error("stories: media removal failed", { story_id: story.id, err: errFields(e) });
     }
   }
   await publishEvent(

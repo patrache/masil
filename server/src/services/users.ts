@@ -9,6 +9,7 @@ import { now } from "../lib/time";
 import type { AdminUserView } from "../types/api";
 import type { UserRow } from "../types/rows";
 import { resolveReports } from "./content";
+import { errFields } from "../lib/log";
 
 export type RevokeReason = "logout" | "revoked" | "password_changed" | "suspended";
 
@@ -47,7 +48,7 @@ export async function revokeSessions(
   try {
     await rt.env.USER_HUB.getByName(userId).revokeSessions(userId, targets, reason);
   } catch (e) {
-    console.error("revokeSessions: UserHub call failed", e);
+    console.error("revokeSessions: UserHub call failed", { err: errFields(e) });
   }
 }
 
