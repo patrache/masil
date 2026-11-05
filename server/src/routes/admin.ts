@@ -73,10 +73,6 @@ function nextIdCursor<T extends { id: string }>(rows: T[], n: number): string | 
   return rows.length > n && last !== undefined ? encodeCursor({ k: last.id, i: last.id }) : null;
 }
 
-/** Escapes LIKE wildcards for `... LIKE ? ESCAPE '\'`. */
-function likeEscape(s: string): string {
-  return s.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-}
 
 async function loadReport(db: D1Database, id: string): Promise<ReportRow> {
   const row = isId(id) ? await first<ReportRow>(db, "SELECT * FROM reports WHERE id = ?1", id) : null;
@@ -187,15 +183,15 @@ adminRoutes.get("/admin/users", vQuery(UsersQuery), async (c) => {
   const rows = await all<UserRow>(
     db,
     `SELECT * FROM users u
-      WHERE (?1 = '' OR u.handle LIKE ?2 ESCAPE '\\' OR u.display_name LIKE ?3 ESCAPE '\\')
+      WHERE (?1 = '' OR substr(u.handle, 1, length(?2)) = ?2 OR instr(lower(u.display_name), lower(?3)) > 0)
         AND (?4 IS NULL OR ?4 = (CASE WHEN u.suspended_at IS NOT NULL AND (u.suspended_until IS NULL OR u.suspended_until > ?5)
                                       THEN 1 ELSE 0 END))
         AND (?6 IS NULL OR u.id < ?6)
       ORDER BY u.id DESC
       LIMIT ${n + 1}`,
     q,
-    `${likeEscape(handleQ)}%`,
-    `%${likeEscape(q)}%`,
+    handleQ,
+    q,
     suspended,
     now(),
     before,

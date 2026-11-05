@@ -73,10 +73,6 @@ const HashtagSearchQuery = z.object({
   limit: z.string().optional(),
 });
 
-/** Escapes LIKE wildcards for `... LIKE ? ESCAPE '\'`. */
-function likeEscape(s: string): string {
-  return s.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-}
 
 /** Newest-first cursor {k: id, i: id}: anything else is 400 fields.cursor. */
 function cursorId(raw: string | undefined): string | null {
@@ -136,15 +132,16 @@ searchRoutes.get("/search/messages", requireAuth, limit("RL_SEARCH"), vQuery(Mes
       n + 1,
     );
   } else {
-    // Every escaped term must appear: no json_each row may fail its LIKE (one param for any number of terms).
+    // Every term must appear (one param for any number of terms). instr(lower(), lower()), not LIKE: D1 rejects LIKE
+    // patterns over 50 bytes, and lower() folds ASCII only, exactly like LIKE's case-insensitivity.
     rows = await all<MessageRow>(
       db,
       `SELECT * FROM (SELECT m.* FROM messages m
                         WHERE ${filters} AND m.id >= ?7
                         ORDER BY m.id DESC LIMIT ${LIKE_SCAN_MAX}) m
-        WHERE NOT EXISTS (SELECT 1 FROM json_each(?1) t WHERE m.body NOT LIKE '%' || t.value || '%' ESCAPE '\\')
+        WHERE NOT EXISTS (SELECT 1 FROM json_each(?1) t WHERE instr(lower(m.body), lower(t.value)) = 0)
         ORDER BY m.id DESC LIMIT ?6`,
-      JSON.stringify(search.terms.map(likeEscape)),
+      JSON.stringify(search.terms),
       jsonList(scope),
       me,
       authorId,
@@ -206,17 +203,17 @@ searchRoutes.get("/search/posts", requireAuth, limit("RL_SEARCH"), vQuery(PostSe
       n + 1,
     );
   } else {
-    // Every escaped term must appear: no json_each row may fail its LIKE (one param for any number of terms).
+    // Every term must appear (one param for any number of terms); instr, not LIKE (see /search/messages).
     rows = await all<PostRow>(
       db,
       `SELECT * FROM (SELECT p.* FROM posts p
                         WHERE ${conds.join(" AND ")} AND p.id >= ?
                         ORDER BY p.id DESC LIMIT ${LIKE_SCAN_MAX}) p
-        WHERE NOT EXISTS (SELECT 1 FROM json_each(?) t WHERE p.body NOT LIKE '%' || t.value || '%' ESCAPE '\\')
+        WHERE NOT EXISTS (SELECT 1 FROM json_each(?) t WHERE instr(lower(p.body), lower(t.value)) = 0)
         ORDER BY p.id DESC LIMIT ?`,
       ...condParams,
       idFloor(now() - LIKE_WINDOW_MS),
-      JSON.stringify(search.terms.map(likeEscape)),
+      JSON.stringify(search.terms),
       n + 1,
     );
   }

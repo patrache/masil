@@ -92,13 +92,8 @@ async function loadMember(db: D1Database, spaceId: string, userId: string): Prom
   return first<SpaceMemberRow>(db, "SELECT * FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, userId);
 }
 
-/** LIKE pattern for a substring match with `\` as the escape character. */
 function isUniqueViolation(e: unknown): boolean {
   return e instanceof Error && /UNIQUE constraint failed/i.test(e.message);
-}
-
-function likeContains(s: string): string {
-  return `%${s.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
 }
 
 export const spaceRoutes = new Hono<AppEnv>();
@@ -277,8 +272,9 @@ spaceRoutes.get("/spaces/:space_id/members", requireAuth, vQuery(MembersQuery), 
     const len = charCount(q);
     if (len < 1) throw err.invalid({ q: "too_short" });
     if (len > 100) throw err.invalid({ q: "too_long" });
-    const pat = p(likeContains(q));
-    where.push(`(u.handle LIKE ${pat} ESCAPE '\\' OR u.display_name LIKE ${pat} ESCAPE '\\')`);
+    // instr(lower(), lower()), not LIKE: D1 rejects LIKE patterns over 50 bytes; lower() folds ASCII like LIKE does.
+    const pat = p(q);
+    where.push(`(instr(lower(u.handle), lower(${pat})) > 0 OR instr(lower(u.display_name), lower(${pat})) > 0)`);
   }
   if (qy.role !== undefined) where.push(`m.role = ${p(qy.role)}`);
   if (cursor !== null) {

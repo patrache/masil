@@ -25,10 +25,6 @@ const IdsQuery = z.object({ ids: z.string() });
 const PageQuery = z.object({ cursor: z.string().optional(), limit: z.string().optional() });
 const PostsTabQuery = PageQuery.extend({ filter: z.enum(["posts", "replies", "media"]).optional() });
 
-/** Escapes LIKE wildcards for `... LIKE ? ESCAPE '\'`. */
-function likeEscape(s: string): string {
-  return s.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-}
 
 export const userRoutes = new Hono<AppEnv>();
 
@@ -46,17 +42,16 @@ userRoutes.get("/users/search", requireAuth, limit("RL_SEARCH"), vQuery(SearchQu
   const rows = await all<UserRow>(
     c.env.DB,
     `SELECT u.* FROM users u
-      WHERE (u.handle LIKE ?1 ESCAPE '\\' OR u.display_name LIKE ?2 ESCAPE '\\')
+      WHERE (substr(u.handle, 1, length(?1)) = ?1 OR instr(lower(u.display_name), lower(?2)) > 0)
         AND (u.suspended_at IS NULL OR (u.suspended_until IS NOT NULL AND u.suspended_until <= ?4))
         AND NOT EXISTS (SELECT 1 FROM blocks b
                          WHERE (b.blocker_id = ?3 AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?3))
-      ORDER BY CASE WHEN u.handle = ?5 THEN 0 WHEN u.handle LIKE ?1 ESCAPE '\\' THEN 1 ELSE 2 END, u.handle
-      LIMIT ?6`,
-    `${likeEscape(handleQ)}%`,
-    `%${likeEscape(q)}%`,
+      ORDER BY CASE WHEN u.handle = ?1 THEN 0 WHEN substr(u.handle, 1, length(?1)) = ?1 THEN 1 ELSE 2 END, u.handle
+      LIMIT ?5`,
+    handleQ,
+    q,
     me,
     t,
-    handleQ,
     n,
   );
   return c.json({ items: rows.map((r) => toUserSummary(r, t)) });
