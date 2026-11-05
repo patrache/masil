@@ -179,3 +179,61 @@ describe("5MB upload cap", () => {
     expect(((await small.json()) as { upload: { size: number } }).upload.size).toBe(PNG_1X1.length);
   });
 });
+
+// GET/HEAD cannot carry a body in the Fetch API (`new Request(getReq, { body })` throws), but workerd hands the
+// Worker a non-null (possibly empty) body stream whenever the request has body framing (Content-Length or
+// Transfer-Encoding). Such a body is ignored — never buffered into a rebuilt Request (that threw -> 500 on every route).
+describe("GET/HEAD with body framing", () => {
+  const cases: { name: string; extra: Record<string, string> }[] = [
+    { name: "Content-Length: 0", extra: { "Content-Length": "0" } },
+    { name: "Transfer-Encoding: chunked", extra: { "Transfer-Encoding": "chunked" } },
+    { name: "declared Content-Length over the cap", extra: { "Content-Length": String(JSON_BODY_MAX_BYTES + 1) } },
+    { name: "JSON Content-Type + Content-Length: 0", extra: { "Content-Type": "application/json", "Content-Length": "0" } },
+    // stripInternalHeaders rebuilds the Request first (no body in init) — that path must survive a framed GET too
+    { name: "X-Masil-* header + Content-Length: 0", extra: { "X-Masil-Auth": "{}", "Content-Length": "0" } },
+  ];
+
+  for (const { name, extra } of cases) {
+    test(`${name}: answers exactly as without the header`, async () => {
+      const a = await signup();
+      const probes: { method: string; path: string; token?: string; want: number }[] = [
+        { method: "GET", path: "/v1/meta", want: 200 },
+        { method: "HEAD", path: "/v1/meta", want: 200 },
+        { method: "GET", path: "/v1/me", want: 401 },
+        { method: "GET", path: "/v1/me", token: a.token, want: 200 },
+        { method: "HEAD", path: "/v1/me", token: a.token, want: 200 },
+        { method: "GET", path: "/v1/timeline/following", token: a.token, want: 200 },
+      ];
+      for (const p of probes) {
+        const plain = await SELF.fetch(BASE + p.path, { method: p.method, headers: headers({}, p.token) });
+        const framed = await SELF.fetch(BASE + p.path, { method: p.method, headers: headers(extra, p.token) });
+        expect({ ...p, status: plain.status }).toEqual({ ...p, status: p.want });
+        expect({ ...p, status: framed.status }).toEqual({ ...p, status: p.want });
+      }
+    });
+  }
+
+  test("a GET carrying a huge streamed body: never 500, and the body is not pulled", async () => {
+    // The Fetch API refuses to build a GET with a body, so present a POST-built request as GET — the same shape
+    // (method GET, non-null body stream) workerd gives the Worker for a GET that arrives with a body.
+    class GetWithBody extends Request {
+      override get method() {
+        return "GET";
+      }
+    }
+    const a = await signup();
+    for (const path of ["/v1/meta", "/v1/me"]) {
+      const { stream, counter } = countingStream(50 * 1024 * 1024);
+      const req = new GetWithBody(BASE + path, {
+        method: "POST",
+        headers: headers({ "Content-Type": "application/json" }, a.token),
+        body: stream,
+      });
+      expect(req.method).toBe("GET");
+      expect(req.body).not.toBeNull();
+      const r = await createApp().fetch(req, env);
+      expect({ path, status: r.status }).toEqual({ path, status: 200 });
+      expect(counter.pulled).toBeLessThanOrEqual(JSON_BODY_MAX_BYTES + 2 * CHUNK);
+    }
+  });
+});

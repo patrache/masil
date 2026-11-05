@@ -59,3 +59,20 @@ export function withBufferedBody(req: Request, bytes: Uint8Array): Request {
   headers.delete("Transfer-Encoding");
   return new Request(req, { headers, body: bytes });
 }
+
+/** GET and HEAD can never carry a body in the Fetch API: `new Request(getReq, { body })` throws a TypeError. */
+export const isBodylessMethod = (method: string) => method === "GET" || method === "HEAD";
+
+/**
+ * The same request without a body and without body-framing headers. For a GET/HEAD that arrived with
+ * Content-Length or Transfer-Encoding (workerd then exposes a non-null, possibly empty, body stream): the body is
+ * cancelled unread — it has no meaning for these methods, so it is never buffered or counted.
+ * Built from the URL rather than from `req`, because the Fetch API refuses a GET/HEAD whose source has a body.
+ */
+export async function withoutBody(req: Request): Promise<Request> {
+  await req.body?.cancel().catch(() => undefined);
+  const headers = new Headers(req.headers);
+  headers.delete("Content-Length");
+  headers.delete("Transfer-Encoding");
+  return new Request(req.url, { method: req.method, headers, redirect: req.redirect, signal: req.signal });
+}

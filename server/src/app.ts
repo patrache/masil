@@ -2,7 +2,7 @@
 // under "/v1/*" — and route modules attach requireAuth per route (plan 01 Global Constraints).
 import { Hono, type MiddlewareHandler } from "hono";
 import type { AppContext, AppEnv } from "./env";
-import { readBodyCapped, withBufferedBody } from "./lib/body";
+import { isBodylessMethod, readBodyCapped, withBufferedBody, withoutBody } from "./lib/body";
 import { ApiError, notFoundHandler, onError } from "./lib/errors";
 import { newId } from "./lib/ids";
 import { clientVersionGate } from "./lib/version";
@@ -72,9 +72,15 @@ const isUploadPost = (method: string, path: string) => method === "POST" && path
 /**
  * Buffers the request body (at most JSON_BODY_MAX_BYTES, counted on the bytes received — Content-Length is not
  * trusted) and swaps it into c.req.raw, or throws 413. Returns the bytes. No body -> null, nothing changes.
+ * GET/HEAD -> any body is dropped unread (c.req.raw becomes body-less) and null is returned: a GET with
+ * `Content-Length: 0` is ordinary, and rebuilding a GET Request with a body would throw (500 on every route).
  */
 async function bufferCappedBody(c: AppContext): Promise<Uint8Array | null> {
   if (c.req.raw.body === null) return null;
+  if (isBodylessMethod(c.req.raw.method)) {
+    c.req.raw = await withoutBody(c.req.raw);
+    return null;
+  }
   const bytes = await readBodyCapped(c.req.raw, JSON_BODY_MAX_BYTES);
   if (bytes === null) throw jsonTooLarge();
   c.req.raw = withBufferedBody(c.req.raw, bytes);

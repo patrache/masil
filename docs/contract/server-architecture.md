@@ -641,7 +641,8 @@ export function createApp(): Hono<AppEnv> {
   app.use("*", stripInternalHeaders); // delete X-Masil-* from incoming requests
   app.use("*", clientVersionGate);
   app.use("*", jsonBodyLimit);        // 64KB, counted on received bytes (lib/body.ts readBodyCapped; Content-Length is
-                                      // not trusted, so not hono/body-limit); skipped for POST /v1/uploads (5MB guard inside route)
+                                      // not trusted, so not hono/body-limit); skipped for POST /v1/uploads (5MB guard inside route);
+                                      // GET/HEAD: any body is dropped unread (never rebuilt into a Request -> no 500 on `Content-Length: 0`)
   app.use("*", jsonParseCheck);       // JSON-typed body that does not parse -> 400 invalid_json; reads <= 64KB itself; skips uploads
   app.onError(onError);
   app.notFound(notFoundHandler);
@@ -836,7 +837,7 @@ export function makeSpace(owner: TestUser, members?: TestUser[]): Promise<{ spac
 - sns: 비공개 계정 열람·승인, 차단 양방향 숨김, 리포스트·인용 금지(비공개), 타임라인 `since`/`gap`, 해시태그 정규화(한글), 트렌드 cron, 스토리 만료 cleanup.
 - search: `0002_search.sql` 적용 + 한글 3글자 FTS + 2글자 LIKE 폴백 + 접근 범위.
 - uploads: 매직 넘버 판별, 5MB 초과 413, 형식 불일치 415, 미디어 열람 권한.
-- body-limits: 본문 상한(JSON 64KB·업로드 5MB)은 `Content-Length` 가 아니라 실제로 받은 바이트로 판정 — 위조된 작은 `Content-Length`·chunked 거대 본문 → 413, 상한 직후에서 읽기 중단(전체 버퍼링 없음).
+- body-limits: 본문 상한(JSON 64KB·업로드 5MB)은 `Content-Length` 가 아니라 실제로 받은 바이트로 판정 — 위조된 작은 `Content-Length`·chunked 거대 본문 → 413, 상한 직후에서 읽기 중단(전체 버퍼링 없음). GET/HEAD 에 `Content-Length: 0`·`Transfer-Encoding`·거대 본문이 붙어 와도 본문은 읽지 않고 버리며 헤더가 없을 때와 같은 상태 코드(500 금지).
 - admin: 신고→강제 삭제(R2 삭제 확인)→신고 자동 처리, 정지 시 소켓 4003.
 
 ## 8. 로컬 개발 명령
