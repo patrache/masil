@@ -66,6 +66,7 @@ const (
 	textPosted        = "올렸어요"
 	textStoryPosted   = "스토리를 올렸어요"
 	textStillUpload   = "사진을 올리는 중이에요"
+	textStillSending  = "올리는 중이에요 · 잠시만 기다려 주세요"
 	textUploadFailed  = "✕ 업로드 실패"
 	textDiscardAsk    = "작성 중인 글을 버릴까요?"
 	textDiscardBody   = "쓴 내용과 첨부한 사진이 사라져요."
@@ -251,21 +252,29 @@ func (c *compose) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	cmds := []tea.Cmd{applyResults(ctx, msg)}
 	switch m := msg.(type) {
 	case tea.PasteMsg:
-		cmds = append(cmds, c.input.Update(ctx, m))
+		if !c.sending { // the draft being sent is read-only
+			cmds = append(cmds, c.input.Update(ctx, m))
+		}
 	case ui.RouteUpdatedMsg:
 		cmds = append(cmds, c.onRouteUpdated(ctx, m.Route))
 	case ui.FocusChangedMsg:
 		c.paneFocused = m.RouteKey == c.key
 	case attachPickMsg:
 		if m.Route == c.key {
-			cmds = append(cmds, c.onPick(ctx, m))
+			if c.sending {
+				cmds = append(cmds, ui.Toast(textStillSending, ui.ToastInfo))
+			} else {
+				cmds = append(cmds, c.onPick(ctx, m))
+			}
 		}
 	case attachedMsg:
 		if m.Route == c.key {
 			cmds = append(cmds, c.onAttached(ctx, m.A))
 		}
 	case discardMsg:
-		if m.Route == c.key {
+		// never while sending: the uploads belong to the in-flight request and
+		// the post would be published anyway (leave refuses to ask then)
+		if m.Route == c.key && !c.sending {
 			cmds = append(cmds, c.discard(ctx))
 		}
 	case ui.ResultMsg[*api.Post]:
@@ -948,6 +957,9 @@ func (c *compose) Resize(ctx *ui.Context, size ui.Size) {
 func (c *compose) focusInput() tea.Cmd { return c.input.Focus() }
 
 func (c *compose) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	if c.sending {
+		return c.handleKeySending(ctx, msg)
+	}
 	km := ctx.Keys
 	s := msg.String()
 	if c.input.Focused() {
@@ -977,6 +989,30 @@ func (c *compose) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 		return true, nil
 	case km.Matches(msg, keymap.ComposeLeave):
 		return true, c.leave()
+	}
+	return false, nil
+}
+
+// handleKeySending is HandleKey while the draft is being sent: the draft is
+// read-only (onSent clears what was sent; CreatePost refers to the uploads),
+// so typing, x, o / ctrl+o and b do nothing, and esc cannot leave (the
+// "버리기" dialog would delete uploads of a post that is published anyway).
+// esc in the input still ends the input, and ctrl+c goes to the app.
+func (c *compose) handleKeySending(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	km := ctx.Keys
+	s := msg.String()
+	switch {
+	case s == "ctrl+c":
+		return false, nil
+	case c.input.Focused():
+		if km.Matches(msg, keymap.ComposeLeave) {
+			c.input.Blur()
+		}
+		return true, nil
+	case km.Matches(msg, keymap.ComposeFocus), s == "enter":
+		return true, c.focusInput()
+	case s == "o", s == "ctrl+o", s == "x", s == "b" && c.story(), km.Matches(msg, keymap.ComposeLeave):
+		return true, ui.Toast(textStillSending, ui.ToastInfo)
 	}
 	return false, nil
 }

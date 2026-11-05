@@ -698,3 +698,60 @@ func TestAttachExpandsHome(t *testing.T) {
 		t.Fatalf("atts = %+v", c.atts)
 	}
 }
+
+// While a post is being sent the draft is read-only: typing, paste, x, o and
+// ctrl+o change nothing, esc cannot open "버리기", and a discard that slips
+// through deletes no upload of the in-flight request. The result then clears
+// the draft it actually sent. (The harness runs requests synchronously, so the
+// in-flight state is set by hand and the result delivered with Send.)
+func TestComposeReadOnlyWhileSending(t *testing.T) {
+	h := uitest.New(t, composeOpts(t, ui.Route{Kind: ui.RouteCompose, Arg: "post"})...)
+	h.Type("보낼 글")
+	attach(h, writePNG(t))
+	c := composeAt(t, h, keyComposePost)
+	if !c.input.Focused() || len(c.atts) != 1 {
+		t.Fatalf("precondition: focused %v atts %d", c.input.Focused(), len(c.atts))
+	}
+	c.sending = true
+	h.Type("더")
+	h.Paste("붙임")
+	h.Press("backspace", "ctrl+o")
+	if v := c.input.Value(); v != "보낼 글" {
+		t.Fatalf("draft edited while sending: %q", v)
+	}
+	if n := len(h.Model.Frame().Overlays); n != 0 {
+		t.Fatalf("ctrl+o opened %d overlays while sending", n)
+	}
+	h.Press("esc", "x", "o", "ctrl+o", "esc")
+	if n := len(h.Model.Frame().Overlays); n != 0 {
+		t.Fatalf("overlay opened while sending:\n%s", overlayText(h))
+	}
+	if top := feedTop(h); top.Kind != ui.RouteCompose {
+		t.Fatalf("left the composer while sending: %+v", top)
+	}
+	h.Send(discardMsg{Route: keyComposePost})
+	if len(c.atts) != 1 || c.input.Value() != "보낼 글" {
+		t.Fatalf("draft changed while sending: %q %+v", c.input.Value(), c.atts)
+	}
+	if rs := reqsTo(h, "DELETE", "/v1/uploads/01JDUPL0000000000000000001"); len(rs) != 0 {
+		t.Fatalf("in-flight upload deleted: %+v", rs)
+	}
+	sent := mkPost(950, "sam", "보낼 글", 0)
+	h.Send(ui.ResultMsg[*composeResult]{Tag: tagComposeSend + keyComposePost, Value: &composeResult{Post: &sent, Mode: modePost}})
+	if c.sending || c.input.Value() != "" || len(c.atts) != 0 {
+		t.Fatalf("after the result: sending %v draft %q atts %+v", c.sending, c.input.Value(), c.atts)
+	}
+}
+
+// A story being sent keeps its background: b does nothing.
+func TestComposeStoryBGFixedWhileSending(t *testing.T) {
+	h := uitest.New(t, composeOpts(t, ui.Route{Kind: ui.RouteCompose, Arg: "story"})...)
+	h.Type("눈")
+	c := composeAt(t, h, keyComposeStory)
+	c.sending = true
+	bg := c.bg
+	h.Press("esc", "b")
+	if c.bg != bg {
+		t.Fatalf("bg %q -> %q while sending", bg, c.bg)
+	}
+}
