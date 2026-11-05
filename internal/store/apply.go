@@ -11,7 +11,10 @@ import (
 // Unknown types and undecodable payloads are skipped by the core but still passed to reducers.
 func (s *Store) Apply(ev realtime.Event) {
 	if v, err := ev.Decode(); err == nil && v != nil {
+		s.applying = true
 		s.applyCore(ev, v)
+		s.applying = false
+		s.recordEvent(ev, v)
 	}
 	for _, r := range s.reducerOrder {
 		r.Apply(s, ev)
@@ -54,7 +57,7 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 		s.dropChannel(d.ChannelID)
 	case realtime.ChannelMemberAdded:
 		s.ObserveUser(d.User)
-		if ch := s.Channels[d.ChannelID]; ch != nil {
+		if ch := s.Channels[d.ChannelID]; ch != nil && (isDM(ch) || !s.replaying) {
 			if isDM(ch) {
 				for _, m := range ch.Members {
 					if m.ID == d.User.ID {
@@ -67,7 +70,7 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 			s.syncSpaceChannel(ch)
 		}
 	case realtime.ChannelMemberRemoved:
-		if ch := s.Channels[d.ChannelID]; ch != nil {
+		if ch := s.Channels[d.ChannelID]; ch != nil && (isDM(ch) || !s.replaying) {
 			if isDM(ch) {
 				found := false
 				out := make([]api.UserSummary, 0, len(ch.Members))
@@ -116,7 +119,7 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 		}
 		switch ev.Type {
 		case "space.member_joined":
-			if !s.IsMe(d.Member.User.ID) {
+			if !s.IsMe(d.Member.User.ID) && !s.replaying {
 				sd.MemberCount++
 			}
 		case "space.member_updated":
@@ -125,7 +128,7 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 			}
 		}
 	case realtime.SpaceMemberLeft:
-		if sd := s.Spaces[d.SpaceID]; sd != nil && sd.MemberCount > 0 && !s.IsMe(d.UserID) {
+		if sd := s.Spaces[d.SpaceID]; sd != nil && sd.MemberCount > 0 && !s.IsMe(d.UserID) && !s.replaying {
 			sd.MemberCount--
 		}
 	case realtime.InviteReceived:
@@ -244,6 +247,9 @@ func (s *Store) messageCreated(m api.Message) {
 		}
 	}
 	defer s.syncSpaceChannel(ch)
+	if s.replaying && s.inSnapshot(ch.ID, m.ID) {
+		return // the snapshot's counts already include it
+	}
 	if !s.counted.Add(m.ID) {
 		return // duplicate delivery
 	}
@@ -270,7 +276,7 @@ func (s *Store) hereMention(n api.Notification) {
 		return
 	}
 	ch := s.Channels[*n.Context.ChannelID]
-	if ch == nil || s.Viewing(ch.ID) {
+	if ch == nil || s.Viewing(ch.ID) || s.replaying && s.inSnapshot(ch.ID, *n.Context.MessageID) {
 		return
 	}
 	s.countMention(ch, *n.Context.MessageID)

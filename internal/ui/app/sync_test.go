@@ -326,6 +326,58 @@ func TestPruneUnknownTabsAfterBootstrap(t *testing.T) {
 	h.Check()
 }
 
+// events.md 5.3 step 5: an event applied while the bootstrap is in flight
+// (here from inside its last REST request) survives the older snapshot, and
+// the tab of a channel it created is not pruned.
+func TestBootstrapKeepsEventsDuringFlight(t *testing.T) {
+	const fresh = "01JB00000000000000000FRESH"
+	srv := apitest.New(t)
+	fixtures.RegisterAPI(srv)
+	var h *uitest.Harness
+	var once sync.Once
+	srv.Handle("GET /v1/blocks", func(w http.ResponseWriter, r *http.Request) {
+		// The Update goroutine is waiting on the bootstrap Cmd, so touching the
+		// Store here stands in for events applied during the flight.
+		once.Do(func() {
+			st := h.Context().Store
+			name := "새채널"
+			sid := fixtures.SpaceNova
+			seq := int64(1)
+			st.Apply(realtime.Event{Type: "channel.created", Seq: &seq, TS: h.Clock().Now(),
+				Data: json.RawMessage(mustMarshal(t, map[string]any{"channel": api.Channel{
+					ID: fresh, Kind: api.ChannelText, SpaceID: &sid, Name: &name, Position: 9, CreatedAt: h.Clock().Now()}}))})
+			seq2 := int64(2)
+			st.Apply(realtime.Event{Type: "channel.deleted", Seq: &seq2, TS: h.Clock().Now(),
+				Data: json.RawMessage(mustMarshal(t, map[string]any{"channel_id": fixtures.ChDeploy, "space_id": fixtures.SpaceNova, "reason": "deleted"}))})
+		})
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		fmt.Fprint(w, `{"items":[]}`)
+	})
+	h = uitest.New(t, uitest.WithAPI(srv), uitest.WithSeed(func(*store.Store) {}))
+	h.Send(ui.NavigateMsg{Route: channelRoute(fresh)})
+	h.Send(ui.NavigateMsg{Route: channelRoute(fixtures.ChDev)})
+
+	h.Event("ready", readyEvent(false, false))
+	st := h.Context().Store
+	if s := st.Sync; !s.Bootstrapped || s.Err != nil {
+		t.Fatalf("sync = %+v", s)
+	}
+	if st.Channels[fresh] == nil {
+		t.Error("channel.created during the flight was undone by the snapshot")
+	}
+	if st.Channels[fixtures.ChDeploy] != nil {
+		t.Error("channel.deleted during the flight was undone by the snapshot")
+	}
+	var roots []string
+	for _, tab := range h.Nav().Tabs {
+		roots = append(roots, tab.Stack[0].Key())
+	}
+	if !slices.Contains(roots, channelKey(fresh)) || !slices.Contains(roots, channelKey(fixtures.ChDev)) {
+		t.Errorf("tabs after bootstrap = %v, want the fresh channel's tab kept", roots)
+	}
+	h.Check()
+}
+
 func TestEventAppliedAndBroadcast(t *testing.T) {
 	h := uitest.New(t) // home first, then #개발: two live instances
 	h.Send(ui.NavigateMsg{Route: channelRoute(fixtures.ChDev)})

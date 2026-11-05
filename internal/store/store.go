@@ -38,6 +38,11 @@ type Store struct {
 	counted   *idSet // message.created IDs already applied to unread/mention counters
 	mentioned *idSet // message IDs whose mention was already counted (direct or @here notification)
 	now       func() time.Time
+
+	flight       *flight           // open while a bootstrap is in flight (flight.go)
+	replaying    bool              // replayFlight is re-applying the journal
+	applying     bool              // inside Apply (ObserveChannel calls are journaled by the event)
+	snapshotLast map[string]string // during a replay: channel id -> snapshot last_message_id
 }
 
 // PresenceEntry is a cached presence value.
@@ -54,6 +59,7 @@ type SyncState struct {
 	Bootstrapped bool // step-1 REST done at least once
 	LastResync   time.Time
 	Err          error
+	Stale        bool // the last ApplyBootstrap could not re-apply its flight journal (too many events): bootstrap again
 }
 
 const (
@@ -93,6 +99,7 @@ func (s *Store) clear() {
 	s.viewing = map[string]bool{}
 	s.counted = newIDSet(dedupeIDs)
 	s.mentioned = newIDSet(dedupeIDs)
+	s.flight, s.replaying, s.applying, s.snapshotLast = nil, false, false, nil
 }
 
 // ObserveUser updates the user cache, keeping the newest (last observed value wins).
@@ -117,11 +124,15 @@ func (s *Store) observeChannelUsers(ch *api.Channel) {
 }
 
 // ObserveChannel merges ch; never overwrites per-viewer fields from event payloads (events.md 4.4 rule).
+// Called outside Apply while a bootstrap is in flight, it is journaled and re-applied over the snapshot.
 // A new channel is stored as given; an existing one keeps My, ReadOnly, ReadOnlyReason and
 // the newer of the two last-message pointers.
 func (s *Store) ObserveChannel(ch api.Channel) {
 	if ch.ID == "" {
 		return
+	}
+	if !s.applying {
+		s.record(func() { s.ObserveChannel(ch) })
 	}
 	s.observeChannelUsers(&ch)
 	cur := s.Channels[ch.ID]

@@ -106,6 +106,9 @@ func (m *Model) startBootstrap() tea.Cmd {
 	m.booting = true
 	m.bootGen++
 	gen := m.bootGen
+	// Events (and channel observations) from now until the result lands are
+	// re-applied over the older snapshot by ApplyBootstrap (events.md 5.3 step 5).
+	m.ctx.Store.BeginBootstrap()
 	boot := store.Bootstrap(m.ctx.API)
 	return tea.Batch(
 		m.broadcast(ui.ResyncStartedMsg{}),
@@ -170,8 +173,13 @@ func (m *Model) onBootstrapDone(msg bootstrapDoneMsg) tea.Cmd {
 		cmds = append(cmds, m.relayout(), m.broadcast(ui.ResyncDoneMsg{Err: res.Err}))
 		return tea.Batch(cmds...)
 	}
+	// Channels created during the flight were re-applied by ApplyBootstrap, so
+	// only tabs of channels that are really gone are dropped.
 	m.nav = m.nav.pruneChannels(func(id string) bool { return m.ctx.Store.Channels[id] != nil })
 	cmds = append(cmds, m.relayout(), m.broadcast(ui.ResyncDoneMsg{}))
+	if m.ctx.Store.Sync.Stale { // the flight journal overflowed: the snapshot may be behind
+		m.bootAgain = true
+	}
 	if m.bootAgain {
 		m.bootAgain = false
 		cmds = append(cmds, m.startBootstrap())

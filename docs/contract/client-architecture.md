@@ -1134,7 +1134,8 @@ type BootstrapMsg struct {
 	NotifUnread int; Friends []api.Friend; FriendReqIn []api.FriendRequest
 	DirectInvites []api.DirectInvite; Blocks []api.BlockEntry; Err error
 }
-func (s *Store) ApplyBootstrap(m BootstrapMsg) tea.Cmd // replaces core entities, then batches every Resyncer
+func (s *Store) BeginBootstrap()                       // the app calls it as a fetch starts: journals core events (and ObserveChannel calls) until ApplyBootstrap
+func (s *Store) ApplyBootstrap(m BootstrapMsg) tea.Cmd // replaces core entities (a nil field = failed request, kept), re-applies the journal over the older snapshot (events.md 5.3 step 5), then batches every Resyncer
 
 // Generic ordered window (ascending by ID) used by chatstore/feedstore.
 type Window[T any] struct{ /* unexported */ }

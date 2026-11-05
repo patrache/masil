@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"testing"
@@ -403,5 +404,92 @@ func TestApplyBootstrapBatchesResyncers(t *testing.T) {
 	}
 	if !s3.Sync.Bootstrapped {
 		t.Error("Bootstrapped not set")
+	}
+}
+
+// events.md 5.3 step 5: realtime events (and local observations) that arrive
+// while the bootstrap is in flight survive the older REST snapshot.
+func TestApplyBootstrapReappliesFlightEvents(t *testing.T) {
+	srv := apitest.New(t)
+	cannedBootstrap(srv)
+	m := runBootstrap(t, srv.Client()) // the snapshot, fetched "before" the events below
+	if m.Err != nil {
+		t.Fatal(m.Err)
+	}
+	s := New()
+	s.ApplyBootstrap(m)
+
+	s.BeginBootstrap()
+	s.Apply(ev(t, "channel.deleted", map[string]any{"channel_id": "CS1a", "space_id": "S1", "reason": "deleted"}))
+	s.Apply(ev(t, "space.removed", map[string]any{"space_id": "S2", "reason": "kicked"}))
+	s.Apply(ev(t, "channel.created", map[string]any{"channel": textChannel("CS1z", "S1", "새방", 5)}))
+	s.Apply(ev(t, "space.joined", map[string]any{"space": api.SpaceDetail{
+		Space:    api.Space{SpacePreview: api.SpacePreview{ID: "S3", Name: "새 방"}, MyRole: api.RoleMember},
+		Channels: []api.Channel{textChannel("CS3a", "S3", "일반", 0)}}}))
+	s.Apply(ev(t, "friend.added", map[string]any{"friend": api.Friend{User: uJunho, Since: testTS, Presence: api.PresenceOnline}}))
+	s.Apply(ev(t, "block.updated", map[string]any{"user_id": uHana.ID, "blocked": true}))
+	s.Apply(ev(t, "block.updated", map[string]any{"user_id": "U9BAD", "blocked": false}))
+	// M8 <= the snapshot's last message M9: already in the REST unread count.
+	s.Apply(ev(t, "message.created", map[string]any{"message": msg("M8", "CS1b", uMinji)}))
+	// M95 is newer than the snapshot: its increment must survive.
+	m10 := msg("M95", "CS1b", uMinji)
+	m10.Mentions = []api.MentionRef{{UserID: uMe.ID, Handle: uMe.Handle}}
+	s.Apply(ev(t, "message.created", map[string]any{"message": m10}))
+	s.Apply(ev(t, "message.created", map[string]any{"message": msg("M3", "D1MJ", uMinji)}))
+	s.Apply(ev(t, "alert", map[string]any{"alert": api.Alert{ID: "A1", Kind: api.AlertMention, Title: "t", CreatedAt: testTS}}))
+	// A DM the user just opened (REST response observed outside Apply).
+	s.ObserveChannel(dmChannel("D9NEW", uMe, uHana))
+	if got := s.Channels["CS1b"].My.UnreadCount; got != 6 {
+		t.Fatalf("live unread before apply = %d, want 6", got)
+	}
+
+	s.ApplyBootstrap(m) // the older snapshot lands now
+
+	switch {
+	case s.Channels["CS1a"] != nil:
+		t.Error("channel.deleted undone: CS1a is back")
+	case s.Spaces["S2"] != nil || s.Channels["CS2a"] != nil || slices.Contains(s.SpaceOrder, "S2"):
+		t.Error("space.removed undone: S2 is back")
+	case s.Channels["CS1z"] == nil || s.Spaces["S3"] == nil || s.Channels["CS3a"] == nil:
+		t.Error("channel.created / space.joined lost")
+	case s.Channels["D9NEW"] == nil || !slices.Contains(s.DMOrder, "D9NEW"):
+		t.Error("DM observed during the flight lost")
+	}
+	if _, ok := s.Friends[uJunho.ID]; !ok || len(s.Friends) != 2 {
+		t.Errorf("friend.added lost: %v", s.Friends)
+	}
+	if !s.IsBlocked(uHana.ID) || s.IsBlocked("U9BAD") {
+		t.Errorf("block.updated reverted: %v", s.Blocks)
+	}
+	if ch := s.Channels["CS1b"]; ch.My.UnreadCount != 5 || ch.My.MentionCount != 2 || *ch.LastMessageID != "M95" {
+		t.Errorf("CS1b unread/mention/last = %d/%d/%s, want 5/2/M95", ch.My.UnreadCount, ch.My.MentionCount, *ch.LastMessageID)
+	}
+	if ch := s.Channels["D1MJ"]; ch.My.UnreadCount != 3 {
+		t.Errorf("D1MJ unread = %d, want 3 (snapshot 2 + M3)", ch.My.UnreadCount)
+	}
+	if n := len(s.Alerts.Items()); n != 1 {
+		t.Errorf("alerts = %d, want 1 (not re-pushed)", n)
+	}
+
+	// The flight ended with that ApplyBootstrap: nothing is replayed again.
+	s.ApplyBootstrap(m)
+	if s.Channels["CS1a"] == nil || s.Channels["CS1b"].My.UnreadCount != 4 {
+		t.Error("a bootstrap without BeginBootstrap must apply the snapshot as is")
+	}
+}
+
+func TestFlightJournalOverflowMarksStale(t *testing.T) {
+	s := New()
+	s.BeginBootstrap()
+	for i := 0; i <= maxFlightOps; i++ {
+		s.Apply(ev(t, "block.updated", map[string]any{"user_id": "U" + strconv.Itoa(i), "blocked": true}))
+	}
+	s.ApplyBootstrap(BootstrapMsg{Blocks: []api.BlockEntry{}})
+	if !s.Sync.Stale {
+		t.Error("overflowed journal must mark Sync.Stale")
+	}
+	s.ApplyBootstrap(BootstrapMsg{Blocks: []api.BlockEntry{}})
+	if s.Sync.Stale {
+		t.Error("Stale must clear on the next ApplyBootstrap")
 	}
 }

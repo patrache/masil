@@ -183,7 +183,8 @@ func allPages[T any](ctx context.Context, list func(context.Context, api.PageOpt
 	return out, nil
 }
 
-// ApplyBootstrap replaces core entities, then batches every Resyncer.
+// ApplyBootstrap replaces core entities, re-applies the flight journal opened by BeginBootstrap
+// (events and channel observations since; see flight.go), then batches every Resyncer.
 // Fields whose request failed (nil) keep their current value; NotifUnread is replaced only when Err is nil.
 // Users is filled from every embedded UserSummary.
 func (s *Store) ApplyBootstrap(m BootstrapMsg) tea.Cmd {
@@ -282,6 +283,10 @@ func (s *Store) ApplyBootstrap(m BootstrapMsg) tea.Cmd {
 			s.Blocks[b.User.ID] = b.CreatedAt
 		}
 	}
+
+	// Re-apply what changed while the snapshot was in flight (events.md 5.3 step 5).
+	s.Sync.Stale = false
+	s.replayFlight()
 
 	s.Sync.Err = m.Err
 	if m.Err == nil {
