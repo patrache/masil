@@ -44,7 +44,11 @@ func mustEqualDefaults(t *testing.T, c *config.Config) {
 	if c == nil {
 		t.Fatal("config is nil")
 	}
-	if want := config.Defaults(); !reflect.DeepEqual(c, want) {
+	// Every exported value; Load's internal "did not load" mark is checked apart
+	// (TestSaveRefusesAfterFailedLoad).
+	want := config.Defaults()
+	if c.Server != want.Server || c.Theme != want.Theme || c.Layout != want.Layout ||
+		c.UI != want.UI || c.Notify != want.Notify || !reflect.DeepEqual(c.Keys, want.Keys) {
 		t.Fatalf("config = %+v, want defaults %+v", *c, *want)
 	}
 }
@@ -443,4 +447,57 @@ func TestLoadWrongTypeTableKeepsOtherFields(t *testing.T) {
 			t.Errorf("error %q does not name %s", err, field)
 		}
 	}
+}
+
+// A config.toml that did not load must never be overwritten by the defaults
+// Load fell back to (one typo would erase the server URL and key overrides).
+func TestSaveRefusesAfterFailedLoad(t *testing.T) {
+	t.Run("syntax error", func(t *testing.T) {
+		p := testPaths(t)
+		body := "server = \"https://my.server.example\"\ntheme = \"cream\n[keys]\n\"palette.open\" = [\"ctrl+p\"]\n"
+		writeConfig(t, p, body, 0o600)
+		c, err := config.Load(p)
+		if !errors.Is(err, config.ErrPartial) {
+			t.Fatalf("Load err = %v, want ErrPartial", err)
+		}
+		c.Theme = "midnight"
+		if err := config.Save(p, c); !errors.Is(err, config.ErrNotLoaded) {
+			t.Fatalf("Save err = %v, want ErrNotLoaded", err)
+		}
+		if b, _ := os.ReadFile(p.Config); string(b) != body {
+			t.Fatalf("config.toml overwritten:\n%s", b)
+		}
+		// A copy keeps the mark (the app shares and copies *Config).
+		cp := *c
+		if err := config.Save(p, &cp); !errors.Is(err, config.ErrNotLoaded) {
+			t.Fatalf("Save(copy) err = %v, want ErrNotLoaded", err)
+		}
+	})
+	t.Run("read error", func(t *testing.T) {
+		p := testPaths(t)
+		if err := os.Mkdir(p.Config, 0o700); err != nil { // unreadable as a file
+			t.Fatal(err)
+		}
+		c, err := config.Load(p)
+		if !errors.Is(err, config.ErrPartial) {
+			t.Fatalf("Load err = %v, want ErrPartial", err)
+		}
+		if err := config.Save(p, c); !errors.Is(err, config.ErrNotLoaded) {
+			t.Fatalf("Save err = %v, want ErrNotLoaded", err)
+		}
+	})
+	t.Run("invalid values still save", func(t *testing.T) {
+		p := testPaths(t)
+		writeConfig(t, p, "server = \"https://my.server.example\"\nlayout.pin = \"sideways\"\n", 0o600)
+		c, err := config.Load(p)
+		if !errors.Is(err, config.ErrPartial) {
+			t.Fatalf("Load err = %v, want ErrPartial", err)
+		}
+		if err := config.Save(p, c); err != nil {
+			t.Fatalf("Save after a partial (parsed) load: %v", err)
+		}
+		if got, _ := config.Load(p); got.Server != "https://my.server.example" {
+			t.Fatalf("server = %q", got.Server)
+		}
+	})
 }

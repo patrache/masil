@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"log/slog"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,6 +21,7 @@ import (
 const (
 	unavailableText = "지금은 쓸 수 없는 명령이에요"
 	saveFailedText  = "설정을 저장하지 못했어요"
+	fixConfigText   = "config.toml 을 고친 뒤 다시 해 주세요"
 	reconnectText   = "다시 연결해요"
 )
 
@@ -159,7 +161,8 @@ func (m *Model) runCommand(msg ui.RunCommandMsg) tea.Cmd {
 }
 
 // setTheme switches the theme at runtime (CA 5.1): ctx.Theme, Config.Theme and
-// config.toml (failure => toast), then ThemeChangedMsg to every live component and
+// config.toml (failure => toast; a config.toml that did not load is left alone =>
+// "fix it" toast), then ThemeChangedMsg to every live component and
 // overlay. An unknown name is ignored.
 func (m *Model) setTheme(n theme.Name) tea.Cmd {
 	name, ok := theme.Parse(string(n))
@@ -170,7 +173,10 @@ func (m *Model) setTheme(n theme.Name) tea.Cmd {
 	m.ctx.Theme = t
 	m.ctx.Config.Theme = string(name)
 	var cmds []tea.Cmd
-	if err := config.Save(m.ctx.Paths, m.ctx.Config); err != nil {
+	if err := config.Save(m.ctx.Paths, m.ctx.Config); errors.Is(err, config.ErrNotLoaded) {
+		// config.toml did not load: keep the theme for this run, never overwrite the file.
+		cmds = append(cmds, m.toasts.push(m.ctx, ui.ToastMsg{Text: fixConfigText, Kind: ui.ToastError}))
+	} else if err != nil {
 		slog.Warn("save config", "err", err)
 		cmds = append(cmds, m.toasts.push(m.ctx, ui.ToastMsg{Text: saveFailedText, Kind: ui.ToastError}))
 	}

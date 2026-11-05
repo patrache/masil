@@ -20,6 +20,12 @@ var DefaultServer = "http://localhost:8787"
 // ErrPartial reports that Load replaced some invalid values with defaults.
 var ErrPartial = errors.New("config: some values were invalid and replaced by defaults")
 
+// ErrNotLoaded is returned by Save for a Config that Load built from Defaults()
+// because config.toml could not be read or parsed: saving it would overwrite the
+// user's file (server URL, key overrides, ...) with defaults. The caller keeps the
+// change in memory only and asks the user to fix the file.
+var ErrNotLoaded = errors.New("config: config.toml did not load; not overwriting it")
+
 // Config mirrors config.toml (CA 3.3).
 type Config struct {
 	Server string              `toml:"server"`
@@ -28,6 +34,8 @@ type Config struct {
 	UI     UIConfig            `toml:"ui"`
 	Notify NotifyConfig        `toml:"notify"`
 	Keys   map[string][]string `toml:"keys"`
+
+	notLoaded bool // Load fell back to Defaults() on a read/parse failure => Save refuses
 }
 
 // LayoutConfig is the [layout] table.
@@ -96,8 +104,9 @@ var (
 // invalid values => default + warning in the returned error wrapper ErrPartial.
 // Invalid is per field: a wrong-typed value (e.g. mouse="no") resets only that
 // key and every other decoded field is kept; the error names the reset keys.
-// Only a file that does not parse at all (toml.ParseError) yields Defaults()
-// and an ErrPartial-wrapped error.
+// Only a file that cannot be read or does not parse at all (toml.ParseError)
+// yields Defaults() and an ErrPartial-wrapped error; that Config (and any copy of
+// it) is marked so Save refuses it with ErrNotLoaded instead of overwriting the file.
 // The returned *Config is never nil.
 func Load(p Paths) (*Config, error) {
 	b, err := os.ReadFile(p.Config)
@@ -105,7 +114,7 @@ func Load(p Paths) (*Config, error) {
 		return Defaults(), nil
 	}
 	if err != nil {
-		return Defaults(), fmt.Errorf("%w: read %s: %v", ErrPartial, p.Config, err)
+		return fallback(), fmt.Errorf("%w: read %s: %v", ErrPartial, p.Config, err)
 	}
 	permErr := fixPerm(p.Config, 0o600)
 
@@ -114,7 +123,7 @@ func Load(p Paths) (*Config, error) {
 	var raw map[string]toml.Primitive
 	md, err := toml.Decode(string(b), &raw)
 	if err != nil {
-		return Defaults(), errors.Join(fmt.Errorf("%w: %v", ErrPartial, err), permErr)
+		return fallback(), errors.Join(fmt.Errorf("%w: %v", ErrPartial, err), permErr)
 	}
 	c := Defaults()
 	bad := decodeFields(&md, raw, reflect.ValueOf(c).Elem(), "")
@@ -126,6 +135,13 @@ func Load(p Paths) (*Config, error) {
 		return c, errors.Join(fmt.Errorf("%w: %s", ErrPartial, strings.Join(bad, ", ")), permErr)
 	}
 	return c, permErr
+}
+
+// fallback is Defaults() marked as not loaded from the existing file (Save refuses it).
+func fallback() *Config {
+	c := Defaults()
+	c.notLoaded = true
+	return c
 }
 
 // decodeFields decodes each key of prims into the matching (toml-tagged) field
@@ -244,10 +260,14 @@ func (c *Config) validate() []string {
 	return bad
 }
 
-// Save writes config.toml atomically with 0600.
+// Save writes config.toml atomically with 0600. A Config that Load could not
+// read from the file (see Load) is refused with ErrNotLoaded and nothing is written.
 func Save(p Paths, c *Config) error {
 	if c == nil {
 		return errors.New("config: Save: nil config")
+	}
+	if c.notLoaded {
+		return ErrNotLoaded
 	}
 	var buf bytes.Buffer
 	if err := toml.NewEncoder(&buf).Encode(c); err != nil {

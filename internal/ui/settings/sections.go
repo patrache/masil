@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"slices"
@@ -138,6 +139,7 @@ const (
 	textNoSessions    = "다른 세션이 없어요"
 	textCurrentDevice = "현재 기기"
 	textSaveFailed    = "설정을 저장하지 못했어요"
+	textFixConfig     = "config.toml 을 고친 뒤 다시 해 주세요"
 	textSettingsLoad  = "서버 설정을 불러오지 못했어요"
 	textFocusRange    = "1~720 사이의 분으로 입력해 주세요"
 	textPwButton      = "[ 비밀번호 바꾸기 ]"
@@ -413,14 +415,17 @@ func (s *screen) cycle(ctx *ui.Context, r row, dir int) tea.Cmd {
 }
 
 // saveLocal applies a config.toml change at once (ctx.Config is shared with the app)
-// and saves it; a failed save keeps the change for this run and shows an inline error.
+// and saves it; a failed save keeps the change for this run and shows an inline error
+// (a config.toml that did not load is never overwritten: "fix the file" instead).
 func (s *screen) saveLocal(ctx *ui.Context, id string, apply func(*config.Config)) tea.Cmd {
 	if ctx.Config == nil {
 		return nil
 	}
 	apply(ctx.Config)
 	delete(s.rowErr, id)
-	if err := config.Save(ctx.Paths, ctx.Config); err != nil {
+	if err := config.Save(ctx.Paths, ctx.Config); errors.Is(err, config.ErrNotLoaded) {
+		s.rowErr[id] = textFixConfig // config.toml did not load: never overwrite it
+	} else if err != nil {
 		slog.Warn("save config", "err", err)
 		s.rowErr[id] = textSaveFailed
 	}

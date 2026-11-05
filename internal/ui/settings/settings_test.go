@@ -375,6 +375,30 @@ func TestLocalToggles(t *testing.T) {
 	})
 }
 
+// A config.toml that failed to parse is never overwritten from the settings screen:
+// the change applies for this run and the row asks to fix the file first.
+func TestLocalSaveKeepsBrokenConfigFile(t *testing.T) {
+	h, _ := newSettings(t, "display")
+	paths := h.Context().Paths
+	body := "server = \"https://my.server.example\"\ntheme = \"cream\n[keys]\n\"palette.open\" = [\"ctrl+p\"]\n"
+	if err := os.WriteFile(paths.Config, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _ := config.Load(paths)
+	*h.Context().Config = *cfg
+	selectRow(t, h, "시계")
+	h.Press("right")
+	if h.Context().Config.UI.Clock != "12h" {
+		t.Fatalf("clock must change in memory: %q", h.Context().Config.UI.Clock)
+	}
+	if b, _ := os.ReadFile(paths.Config); string(b) != body {
+		t.Fatalf("config.toml overwritten:\n%s", b)
+	}
+	if !strings.Contains(h.Screen(), "config.toml 을 고친 뒤 다시 해 주세요") {
+		t.Fatalf("fix-the-file hint missing:\n%s", h.Screen())
+	}
+}
+
 func TestServerSettings(t *testing.T) {
 	h, _ := newSettings(t, "notify")
 	if n := len(requests(h.API, "GET", "/v1/me/settings")); n != 1 {

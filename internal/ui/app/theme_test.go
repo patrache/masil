@@ -218,3 +218,26 @@ func TestCoreCommandsRegistered(t *testing.T) {
 		}
 	}
 }
+
+// A config.toml that failed to parse is not overwritten by a theme switch: the
+// theme applies for this run only and a toast asks to fix the file.
+func TestThemeKeepsBrokenConfigFile(t *testing.T) {
+	h := uitest.New(t)
+	paths := h.Context().Paths
+	body := "server = \"https://my.server.example\"\ntheme = \"cream\n[keys]\n\"palette.open\" = [\"ctrl+p\"]\n"
+	if err := os.WriteFile(paths.Config, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _ := config.Load(paths)
+	*h.Context().Config = *cfg // what main hands the app after a failed Load
+	runCmd(h, "theme.set.midnight")
+	if n := h.Context().Theme.Name; n != theme.Midnight {
+		t.Fatalf("theme must still switch in memory: %v", n)
+	}
+	if b, _ := os.ReadFile(paths.Config); string(b) != body {
+		t.Fatalf("config.toml overwritten:\n%s", b)
+	}
+	if s := h.Screen(); !strings.Contains(s, "config.toml 을 고친 뒤 다시 해 주세요") {
+		t.Fatalf("fix-the-file toast missing:\n%s", s)
+	}
+}
