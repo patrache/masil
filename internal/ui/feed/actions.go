@@ -194,8 +194,11 @@ func deletePost(ctx *ui.Context, postID string) tea.Cmd {
 //     Store.Blocks[id] = now, FeedStore.HideAuthor(id), toast "차단했어요". The
 //     event that follows only rebuilds the same state.
 //   - delete: FeedStore.MarkDeleted (the post.deleted rule).
+//   - poll vote / retract / close / refresh: applyPoll.
 func applyResults(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
+	case ui.ResultMsg[*pollOutcome]:
+		return applyPoll(ctx, m)
 	case ui.ResultMsg[*toggleOutcome]:
 		o := m.Value
 		if (!strings.HasPrefix(m.Tag, tagLike) && !strings.HasPrefix(m.Tag, tagRepost)) || !o.take() {
@@ -323,10 +326,12 @@ func handlePostKey(ctx *ui.Context, msg tea.KeyPressMsg, p *api.Post) (bool, tea
 }
 
 // handlePostHit handles a click on a card region of p: hashtag -> RouteHashtag,
-// author -> RouteProfile, image -> feed.media, quote -> RoutePost. Poll options
-// are Task 10.
+// author -> RouteProfile, image -> feed.media, quote -> RoutePost, poll option
+// -> vote (single choice) or feed.poll_vote pre-checked (multi).
 func handlePostHit(ctx *ui.Context, h cardHit, p *api.Post) tea.Cmd {
 	switch h.Kind {
+	case hitPollOption:
+		return pollHit(ctx, p, h.Value)
 	case hitHashtag:
 		return ui.Navigate(ui.Route{Kind: ui.RouteHashtag, ID: h.Value})
 	case hitAuthor:

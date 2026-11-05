@@ -335,14 +335,20 @@ func newPostActions(ctx *ui.Context, postID string) *menu {
 	}
 	author := p.Author
 	name := displayName(author)
-	items := []menuItem{
+	var items []menuItem
+	if p.Poll != nil {
+		items = append(items, menuItem{label: textPollMenu, open: func(ctx *ui.Context) ui.Overlay {
+			return pollVoteOverlay(ctx, postID)
+		}})
+	}
+	items = append(items, []menuItem{
 		{label: textMenuLikes, open: func(ctx *ui.Context) ui.Overlay { return newUserList(ctx, listLikes+" "+postID) }},
 		{label: textMenuReposts, open: func(ctx *ui.Context) ui.Overlay { return newUserList(ctx, listReposts+" "+postID) }},
 		{label: textMenuQuotes, open: func(*ui.Context) ui.Overlay { return newQuotes(postID) }},
 		{label: textMenuAuthor, run: func(*ui.Context) tea.Cmd {
 			return ui.Navigate(ui.Route{Kind: ui.RouteProfile, ID: author.ID})
 		}},
-	}
+	}...)
 	if ctx.Store.IsMe(author.ID) {
 		items = append(items, menuItem{label: textMenuDelete, open: func(ctx *ui.Context) ui.Overlay {
 			return widgets.Confirm(textDeleteAsk, "", textDeleteYes, textCancel, deletePost(ctx, postID))
