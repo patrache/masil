@@ -64,6 +64,13 @@ var timelineIDs atomic.Int64
 // pollMsg is the discover new-posts timer of timeline id, current while gen matches.
 type pollMsg struct{ id, gen int }
 
+// storiesRetryMsg wakes timeline id when its story-ring retry delay is over.
+type storiesRetryMsg struct{ id int }
+
+// storiesBackoff are the delays before refetching a stale story ring after
+// failed GET /v1/stories/feed calls in a row; the last one repeats.
+var storiesBackoff = []time.Duration{5 * time.Second, 10 * time.Second, 30 * time.Second, time.Minute, 5 * time.Minute}
+
 // timelineState is the Persistent state.
 type timelineState struct {
 	Selected string
@@ -97,6 +104,8 @@ type timeline struct {
 	loadingFirst   bool
 	loadingMore    bool
 	storiesLoading bool
+	storiesFails   int       // failed story-ring loads in a row
+	storiesRetryAt time.Time // no stale-ring refetch before this
 	selectFirst    bool // after a banner refresh: select the first card once the items are in
 	bannerSel      bool
 	gPending       bool
@@ -212,6 +221,16 @@ func (t *timeline) loadStories(ctx *ui.Context) tea.Cmd {
 	return ui.Do(ctx, tagStories, func(c context.Context, a *api.Client) ([]api.StoryGroup, error) {
 		return a.StoryFeed(c)
 	})
+}
+
+// storiesFailed backs off after a failed story-ring load: a stale ring is
+// refetched only once the next storiesBackoff delay is over (not from every
+// Update, which spun offline and spent the RL_API budget on 429).
+func (t *timeline) storiesFailed(ctx *ui.Context) tea.Cmd {
+	d := storiesBackoff[min(t.storiesFails, len(storiesBackoff)-1)]
+	t.storiesFails++
+	t.storiesRetryAt = ctx.Now().Add(d)
+	return ui.After(ctx, d, storiesRetryMsg{id: t.id})
 }
 
 // maybeMore loads the next page when the selection is within moreThreshold of the end.
@@ -370,8 +389,13 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			t.storiesLoading = false
 			if m.Err == nil {
 				fs.SetStories(m.Value)
+				t.storiesFails, t.storiesRetryAt = 0, time.Time{}
+			} else {
+				cmds = append(cmds, t.storiesFailed(ctx))
 			}
 		}
+	case storiesRetryMsg:
+		force = false // the stale-ring check below does the work
 	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
 		imagesChanged = true
 	case ui.EventMsg:
@@ -393,7 +417,7 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	if ctx.Now().Before(t.fadeUntil) {
 		force = true
 	}
-	if fs.StoriesStale() && !t.storiesLoading {
+	if fs.StoriesStale() && !t.storiesLoading && !ctx.Now().Before(t.storiesRetryAt) {
 		cmds = append(cmds, t.loadStories(ctx))
 	}
 	fs.PruneStories(ctx.Now())

@@ -525,3 +525,52 @@ func TestTimelineCursorSurvivesEviction(t *testing.T) {
 		t.Fatalf("second page not shown:\n%s", h.Screen())
 	}
 }
+
+// A stale story ring whose GET /v1/stories/feed fails is not refetched from
+// every Update (that was a busy loop offline and drained RL_API on 429): one
+// request, then retries only after a growing delay; success stops the retries.
+func TestStoriesStaleErrorBacksOff(t *testing.T) {
+	srv := snsAPI(t, false)
+	var fail atomic.Bool
+	srv.Handle("GET /v1/stories/feed", func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"error":{"code":"unavailable","message":"down","details":{}}}`))
+			return
+		}
+		writeJSON(w, itemsOf(storyGroups()))
+	})
+	h := uitest.New(t, uitest.WithAPI(srv), uitest.WithSeed(fixtures.Seed),
+		uitest.WithRoute(ui.Route{Kind: ui.RouteFeed, Arg: "following"}))
+	h.Resize(120, 40)
+	base := len(reqsTo(h, "GET", "/v1/stories/feed"))
+	fail.Store(true)
+	exp := h.Context().Now().Add(20 * time.Hour).UTC().Format(time.RFC3339)
+	h.Event("story.created", map[string]any{"user_id": fixtures.UserDevKim, "story_id": sid(70), "expires_at": exp})
+	if n := len(reqsTo(h, "GET", "/v1/stories/feed")) - base; n != 1 {
+		t.Fatalf("stories/feed requests after one story.created = %d, want 1", n)
+	}
+	h.Press("j", "k") // more Updates must not retry yet
+	h.Advance(time.Second)
+	if n := len(reqsTo(h, "GET", "/v1/stories/feed")) - base; n != 1 {
+		t.Fatalf("stories/feed requests before the retry delay = %d, want 1", n)
+	}
+	h.Advance(5 * time.Second)
+	if n := len(reqsTo(h, "GET", "/v1/stories/feed")) - base; n != 2 {
+		t.Fatalf("stories/feed requests after the first delay = %d, want 2", n)
+	}
+	h.Advance(6 * time.Second) // second delay is longer than the first
+	if n := len(reqsTo(h, "GET", "/v1/stories/feed")) - base; n != 2 {
+		t.Fatalf("stories/feed requests inside the second delay = %d, want 2", n)
+	}
+	fail.Store(false)
+	h.Advance(10 * time.Second)
+	if n := len(reqsTo(h, "GET", "/v1/stories/feed")) - base; n != 3 {
+		t.Fatalf("stories/feed requests after the second delay = %d, want 3", n)
+	}
+	h.Advance(5 * time.Minute)
+	if n := len(reqsTo(h, "GET", "/v1/stories/feed")) - base; n != 3 {
+		t.Fatalf("stories/feed requests after a success = %d, want 3", n)
+	}
+}
