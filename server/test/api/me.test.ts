@@ -14,6 +14,25 @@ async function makeFriendsSql(a: U, b: U): Promise<void> {
   await env.DB.prepare("INSERT INTO friendships (user_a, user_b, created_at) VALUES (?1, ?2, ?3)").bind(lo, hi, Date.now()).run();
 }
 
+/** A follows row as the follow service writes it; an active one also bumps follower_count/following_count. */
+async function followSql(follower: U, followee: U, status: "active" | "pending"): Promise<void> {
+  const t = Date.now();
+  const stmts = [
+    env.DB.prepare("INSERT INTO follows (follower_id, followee_id, status, created_at, accepted_at) VALUES (?1, ?2, ?3, ?4, ?5)").bind(
+      follower.user.id,
+      followee.user.id,
+      status,
+      t,
+      status === "active" ? t : null,
+    ),
+  ];
+  if (status === "active") {
+    stmts.push(env.DB.prepare("UPDATE users SET follower_count = follower_count + 1 WHERE id = ?1").bind(followee.user.id));
+    stmts.push(env.DB.prepare("UPDATE users SET following_count = following_count + 1 WHERE id = ?1").bind(follower.user.id));
+  }
+  await env.DB.batch(stmts);
+}
+
 // 1x1 transparent PNG
 const PNG = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="), (ch) => ch.charCodeAt(0));
 
@@ -142,5 +161,36 @@ describe("me", () => {
     expect((await wf.next("user.updated")).data.user.status).toEqual({ emoji: "🇰🇷", text: "", expires_at: null });
     expect((await api(a.token).del("/v1/me/status")).status).toBe(204);
     expect((await wf.next("user.updated")).data.user.status).toBeNull();
+  });
+
+  it("going public approves pending follow requests and notifies requesters", async () => {
+    const [p, r1] = await Promise.all([signup(), signup()]);
+    await api(p.token).patch("/v1/me/settings", { is_private: true });
+    await followSql(r1, p, "pending");
+    const c = await connectWs(r1.token);
+    await api(p.token).patch("/v1/me/settings", { is_private: false });
+    expect((await c.next("notification.created")).data.notification.type).toBe("follow_accepted");
+    expect((await env.DB.prepare("SELECT status FROM follows WHERE follower_id=?").bind(r1.user.id).first<any>()).status).toBe("active");
+  });
+
+  it("going public: counters move once per approved request, actor is the account owner, active rows untouched", async () => {
+    const [p, r1, r2, old] = await Promise.all([signup(), signup(), signup(), signup()]);
+    await followSql(old, p, "active");
+    await api(p.token).patch("/v1/me/settings", { is_private: true });
+    await Promise.all([followSql(r1, p, "pending"), followSql(r2, p, "pending")]);
+    await api(p.token).patch("/v1/me/settings", { is_private: false });
+    const meOf = async (u: { token: string }) => (await api(u.token).get<any>("/v1/me")).body.user;
+    expect((await meOf(p)).follower_count).toBe(3);
+    expect((await meOf(r1)).following_count).toBe(1);
+    expect((await meOf(r2)).following_count).toBe(1);
+    expect((await meOf(old)).following_count).toBe(1);
+    for (const r of [r1, r2]) {
+      const inbox = await env.DB.prepare("SELECT type, actor_id, subject_type, subject_id FROM notifications WHERE user_id=?").bind(r.user.id).all<any>();
+      expect(inbox.results).toEqual([{ type: "follow_accepted", actor_id: p.user.id, subject_type: "user", subject_id: p.user.id }]);
+    }
+    expect((await env.DB.prepare("SELECT COUNT(*) n FROM notifications WHERE user_id=?").bind(old.user.id).first<any>()).n).toBe(0);
+    // a second no-op PATCH (already public) approves nothing more
+    await api(p.token).patch("/v1/me/settings", { is_private: false });
+    expect((await meOf(p)).follower_count).toBe(3);
   });
 });

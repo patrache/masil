@@ -14,6 +14,7 @@ import { isSingleEmoji, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
 import { removeUploads } from "../lib/uploads";
 import { vJson, zText } from "../lib/validate";
+import { approveAllPendingFollows } from "../services/relations";
 import type { UserRow } from "../types/rows";
 
 const STATUS_EMOJI_MAX_BYTES = 16; // data-model.md users.status_emoji
@@ -156,11 +157,12 @@ meRoutes.patch("/me/settings", requireAuth, vJson(SettingsBody), async (c) => {
   }
   if (privacyChanged) stmts.push(updateStmt(db, "users", "id", me, { is_private: body.is_private ? 1 : 0, updated_at: t }));
   await batch(db, stmts);
-  // is_private true -> false also approves every pending follow request (api.md 3.3) — wired in Task 18.
 
   const meNow = await serializeMe(db, me);
   await publishEvent(rt(c), { users: [me] }, "settings.updated", { settings: meNow.settings });
   if (privacyChanged) await publishUserUpdated(c, await loadMyRow(db, me));
+  // is_private true -> false also approves every pending follow request (api.md 3.3), after the settings commit.
+  if (privacyChanged && body.is_private === false) await approveAllPendingFollows(rt(c), me);
   return c.json({ settings: meNow.settings });
 });
 
