@@ -46,7 +46,15 @@ describe("dms", () => {
   it("group dm: 3..10, failing ids reported, channel.created to all", async () => {
     const me = await signup();
     const fs = await Promise.all(Array.from({ length: 9 }, () => signup()));
-    for (const f of fs) await makeFriends(me, f);
+    // seed the 9 friendships in one D1 batch (rows as the friends service writes them, user_a < user_b):
+    // 9 sequential request+accept round-trips pushed this test past the 5s default under a busy pool.
+    const t = Date.now();
+    await env.DB.batch(
+      fs.map((f) => {
+        const [lo, hi] = me.user.id < f.user.id ? [me.user.id, f.user.id] : [f.user.id, me.user.id];
+        return env.DB.prepare("INSERT INTO friendships (user_a, user_b, created_at) VALUES (?1, ?2, ?3)").bind(lo, hi, t);
+      }),
+    );
     const c1 = await connectWs(fs[0].token);
     const stranger = await signup();
     const bad = await api(me.token).post<any>("/v1/dms", { users: [`@${fs[0].handle}`, `@${stranger.handle}`] });
