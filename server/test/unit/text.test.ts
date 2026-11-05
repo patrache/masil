@@ -2,7 +2,7 @@ import { it, expect } from "vitest";
 import * as t from "../../src/lib/text";
 
 it("normalize NFD->NFC and trim; count code points", () => {
-  expect(t.normalizeText("  각 ")).toBe("각");
+  expect(t.normalizeText("  \u1100\u1161\u11a8 ")).toBe("\uac01");
   expect(t.charCount("가😀a")).toBe(3);
 });
 it("mentions: regex, lowercase, unique, skips code", () => {
