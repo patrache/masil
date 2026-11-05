@@ -149,12 +149,12 @@ type slowSink struct {
 	seen  []string
 }
 
-func (s *slowSink) Handle(a api.Alert, _ notify.Input) (notify.Decision, error) {
+func (s *slowSink) Handle(a api.Alert, _ notify.Input) (notify.Decision, bool, error) {
 	time.Sleep(s.delay)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.seen = append(s.seen, a.ID)
-	return notify.Popup, nil
+	return notify.Popup, true, nil
 }
 
 func (s *slowSink) ids() []string {

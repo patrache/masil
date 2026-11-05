@@ -12,9 +12,11 @@ import (
 	"github.com/patrache/masil/internal/realtime"
 )
 
-// alertSink decides and shows one alert; *notify.Notifier satisfies it.
+// alertSink decides and shows one alert (*ledgerSink in production). shown
+// reports whether a notification was actually displayed: a Popup decision for
+// an alert the ledger already had displays nothing.
 type alertSink interface {
-	Handle(a api.Alert, in notify.Input) (notify.Decision, error)
+	Handle(a api.Alert, in notify.Input) (dec notify.Decision, shown bool, err error)
 }
 
 // deferred is an alert held for the TUI grace period, judged again once.
@@ -149,7 +151,7 @@ func (h *handler) onAlert(ctx context.Context, ev realtime.Event) {
 
 // show hands the alert to the sink and logs the outcome without title or body.
 func (h *handler) show(a api.Alert, replayed, present bool) {
-	dec, err := h.sink.Handle(a, notify.Input{
+	dec, shown, err := h.sink.Handle(a, notify.Input{
 		Role:           notify.RoleDaemon,
 		Now:            h.now(),
 		Replayed:       replayed,
@@ -160,9 +162,12 @@ func (h *handler) show(a api.Alert, replayed, present bool) {
 		h.log.Warn("alert display failed", "alert_id", a.ID, "kind", string(a.Kind), "err", err)
 		return
 	}
-	msg := "alert skipped"
-	if dec == notify.Popup {
-		msg = "alert shown"
+	switch {
+	case shown:
+		h.log.Info("alert shown", "alert_id", a.ID, "kind", string(a.Kind), "decision", dec.String())
+	case dec == notify.Popup: // already in the ledger: nothing was displayed
+		h.log.Info("alert skipped", "alert_id", a.ID, "kind", string(a.Kind), "decision", "duplicate")
+	default:
+		h.log.Info("alert skipped", "alert_id", a.ID, "kind", string(a.Kind), "decision", dec.String())
 	}
-	h.log.Info(msg, "alert_id", a.ID, "kind", string(a.Kind), "decision", dec.String())
 }

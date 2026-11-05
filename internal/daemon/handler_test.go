@@ -27,9 +27,9 @@ type fakeSink struct {
 	err   error
 }
 
-func (f *fakeSink) Handle(a api.Alert, in notify.Input) (notify.Decision, error) {
+func (f *fakeSink) Handle(a api.Alert, in notify.Input) (notify.Decision, bool, error) {
 	f.calls <- sinkCall{a, in}
-	return notify.Popup, f.err
+	return notify.Popup, f.err == nil, f.err
 }
 
 // alertEvent builds a logged "alert" event; created is alert.created_at.
@@ -165,12 +165,19 @@ func TestHandlerOrderAndIgnoredTypes(t *testing.T) {
 	waitFor(t, func() bool { return slices.Equal(marks(), []int64{10, 11, 12}) })
 }
 
-// Uses the real core notifier + ledger + Recorder backend (events.md 4.7 / 7).
+// Uses the daemon's real sink + core ledger + Recorder backend (events.md 4.7 / 7).
+// daemon.log must say what actually happened: an alert the ledger already had
+// (the TUI showed it, or a replay) is "alert skipped" decision=duplicate, never
+// "alert shown", so counting "alert shown" lines matches shown notifications.
 func TestHandlerReplayAgeAndLedger(t *testing.T) {
 	p := testPaths(t)
 	rec := &lockedRecorder{} // mutex-wrapped notify.Backend
-	n := notify.New(rec, notify.OpenLedger(p), slog.New(slog.DiscardHandler))
-	h := runHandlerWith(t, n, func() (bool, error) { return false, nil })
+	var logs syncBuffer
+	log := slog.New(slog.NewTextHandler(&logs, nil))
+	now := func() time.Time { return t0 }
+	h := newHandler(newLedgerSink(rec, notify.OpenLedger(p), log), newPresence(func() (bool, error) { return false, nil }, now),
+		func() bool { return true }, now, time.After, func(int64) {}, log)
+	go h.run(t.Context())
 
 	h.onEvent(alertEvent(1, "F1", t0.Add(-time.Minute), false, true, "dm")) // suppressed (focus)
 	h.onEvent(alertEvent(2, "S1", t0.Add(-time.Minute), false, false, "focus_summary"))
@@ -189,6 +196,21 @@ func TestHandlerReplayAgeAndLedger(t *testing.T) {
 	}
 	if all := rec.all(); all[0].Title == "" || all[0].Body == "" {
 		t.Fatalf("notification not formatted: %+v", all[0])
+	}
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "alert_id=T1") })
+	out := logs.String()
+	if n := strings.Count(out, `msg="alert shown"`); n != len(rec.ids()) {
+		t.Fatalf("%d \"alert shown\" lines for %d shown notifications:\n%s", n, len(rec.ids()), out)
+	}
+	for _, want := range []string{
+		`level=INFO msg="alert shown" alert_id=S1 kind=focus_summary decision=popup`,
+		`level=INFO msg="alert skipped" alert_id=S1 kind=focus_summary decision=duplicate`,
+		`level=INFO msg="alert shown" alert_id=R9 kind=mention decision=popup`,
+		`level=INFO msg="alert skipped" alert_id=T1 kind=dm decision=duplicate`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("log missing %q:\n%s", want, out)
+		}
 	}
 }
 
