@@ -136,3 +136,46 @@ func TestAdminCmdHidden(t *testing.T) {
 		t.Fatalf("admin command registered=%v hidden=%v", ok, c.Hidden)
 	}
 }
+
+// Help and usage errors are decided before credentials are loaded (CA 2.4, CR-D):
+// logged out, `admin --help` prints usage on stdout and exits 0, and a bad or
+// missing subcommand exits 2 without the login hint.
+func TestAdminCmdHelpAndUsageWithoutCredentials(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		code int
+	}{
+		{[]string{"admin", "--help"}, 0},
+		{[]string{"admin", "-h"}, 0},
+		{[]string{"admin", "help"}, 0},
+		{[]string{"admin", "users", "--help"}, 0},
+		{[]string{"admin"}, 2},
+		{[]string{"admin", "bogus"}, 2},
+		{[]string{"admin", "users", "--nope"}, 2},
+		{[]string{"admin", "suspend", "notahandle"}, 2},
+		{[]string{"admin", "remove", "post", "01ARZ3NDEKTSV4RRFFQ69G5FAV"}, 2},
+	} {
+		env, stdout, stderr := adminTestEnv(t)
+		code := run(context.Background(), tc.args, env)
+		if code != tc.code {
+			t.Errorf("%v => %d, want %d (stderr %q)", tc.args, code, tc.code, stderr)
+		}
+		if strings.Contains(stderr.String(), "로그인하지 않았습니다") {
+			t.Errorf("%v: login hint printed before argument checks: %q", tc.args, stderr)
+		}
+		if tc.code == 0 && !strings.Contains(stdout.String(), admincli.Usage) {
+			t.Errorf("%v: stdout = %q, want usage", tc.args, stdout)
+		}
+	}
+}
+
+// A valid command still needs credentials: the login hint and a non-zero exit.
+func TestAdminCmdValidArgsStillNeedLogin(t *testing.T) {
+	env, _, stderr := adminTestEnv(t)
+	if code := run(context.Background(), []string{"admin", "users"}, env); code == 0 || code == 2 {
+		t.Fatalf("admin users logged out => %d, want a non-usage failure", code)
+	}
+	if !strings.Contains(stderr.String(), "로그인하지 않았습니다 — 먼저 'masil login'") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+}

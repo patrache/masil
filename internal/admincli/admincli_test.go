@@ -2,6 +2,7 @@ package admincli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -429,5 +430,24 @@ func TestParseFor(t *testing.T) {
 		if got, err := ParseFor(s); err == nil {
 			t.Errorf("ParseFor(%q) = %d, want error", s, got)
 		}
+	}
+}
+
+// RunLazy builds the client only after the arguments are valid.
+func TestRunLazySkipsClientOnHelpAndUsage(t *testing.T) {
+	for _, args := range [][]string{{}, {"--help"}, {"bogus"}, {"users", "-h"}, {"users", "--x"}, {"suspend", "nope"}} {
+		called := false
+		mk := func() (*api.Client, error) { called = true; return nil, errors.New("no client") }
+		var out, errb bytes.Buffer
+		_ = RunLazy(context.Background(), mk, args, IO{Stdout: &out, Stderr: &errb})
+		if called {
+			t.Errorf("%v: client constructor called", args)
+		}
+	}
+	sentinel := errors.New("no creds")
+	var out, errb bytes.Buffer
+	err := RunLazy(context.Background(), func() (*api.Client, error) { return nil, sentinel }, []string{"users"}, IO{Stdout: &out, Stderr: &errb})
+	if !errors.Is(err, sentinel) || errors.Is(err, ErrUsage) {
+		t.Fatalf("err = %v, want the constructor error", err)
 	}
 }

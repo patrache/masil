@@ -98,9 +98,27 @@ var subs = map[string]sub{
 // runner carries one Run call's client and IO.
 type runner struct {
 	ctx  context.Context
+	mk   ClientFunc
 	c    *api.Client
 	o    IO
 	name string // the subcommand
+}
+
+// ClientFunc makes the API client. RunLazy calls it only after the arguments
+// parsed, so help and usage errors never need credentials. An error from it is
+// returned as is (the function explains it on its own).
+type ClientFunc func() (*api.Client, error)
+
+// client returns the API client, building it on first use.
+func (r *runner) client() (*api.Client, error) {
+	if r.c == nil {
+		c, err := r.mk()
+		if err != nil {
+			return nil, err
+		}
+		r.c = c
+	}
+	return r.c, nil
 }
 
 // Run dispatches args (without the leading "admin") to one of the eight
@@ -108,6 +126,12 @@ type runner struct {
 // error sends no request and returns an error wrapping ErrUsage; an API error
 // is explained on Stderr and returned.
 func Run(ctx context.Context, c *api.Client, args []string, o IO) error {
+	return RunLazy(ctx, func() (*api.Client, error) { return c, nil }, args, o)
+}
+
+// RunLazy is Run with a client made by mk only once the arguments are valid:
+// -h/--help and usage errors are handled without calling mk (CA 2.4, CR-D).
+func RunLazy(ctx context.Context, mk ClientFunc, args []string, o IO) error {
 	if o.Loc == nil {
 		o.Loc = time.Local
 	}
@@ -133,7 +157,7 @@ func Run(ctx context.Context, c *api.Client, args []string, o IO) error {
 			return usage(o, "", args[0]+": missing arguments")
 		}
 	}
-	r := &runner{ctx: ctx, c: c, o: o, name: args[0]}
+	r := &runner{ctx: ctx, mk: mk, o: o, name: args[0]}
 	return s.run(r, pos, rest[s.npos:])
 }
 
@@ -210,7 +234,11 @@ func (r *runner) reports(_ []string, flags []string) error {
 	if err := r.checkLimit(q.PageOpts); err != nil {
 		return err
 	}
-	p, err := r.c.AdminListReports(r.ctx, q)
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	p, err := c.AdminListReports(r.ctx, q)
 	if err != nil {
 		return r.apiErr(err)
 	}
@@ -234,7 +262,11 @@ func (r *runner) report(pos []string, flags []string) error {
 	if done, err := r.parse(flags, func(*flag.FlagSet) {}); done {
 		return err
 	}
-	rep, err := r.c.AdminGetReport(r.ctx, pos[0])
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	rep, err := c.AdminGetReport(r.ctx, pos[0])
 	if err != nil {
 		return r.apiErr(err)
 	}
@@ -284,7 +316,11 @@ func (r *runner) resolve(pos []string, flags []string) error {
 	if !slices.Contains(resolutions, pos[1]) {
 		return usage(r.o, "처리는 content_removed, user_suspended, no_action 중 하나입니다", "resolve: bad resolution")
 	}
-	rep, err := r.c.AdminResolveReport(r.ctx, pos[0], pos[1], note)
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	rep, err := c.AdminResolveReport(r.ctx, pos[0], pos[1], note)
 	if err != nil {
 		return r.apiErr(err)
 	}
@@ -310,7 +346,11 @@ func (r *runner) remove(pos []string, flags []string) error {
 	if strings.TrimSpace(reason) == "" {
 		return usage(r.o, "--reason 으로 삭제 사유를 적어 주세요", "remove: missing reason")
 	}
-	act, err := r.c.AdminRemoveContent(r.ctx, api.AdminRemoveRequest{TargetType: pos[0], TargetID: pos[1], Reason: reason, ReportID: reportID})
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	act, err := c.AdminRemoveContent(r.ctx, api.AdminRemoveRequest{TargetType: pos[0], TargetID: pos[1], Reason: reason, ReportID: reportID})
 	if err != nil {
 		return r.apiErr(err)
 	}
@@ -342,7 +382,11 @@ func (r *runner) suspend(pos []string, flags []string) error {
 	if strings.TrimSpace(reason) == "" {
 		return usage(r.o, "--reason 으로 정지 사유를 적어 주세요", "suspend: missing reason")
 	}
-	v, err := r.c.AdminSuspend(r.ctx, u, req)
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	v, err := c.AdminSuspend(r.ctx, u, req)
 	if err != nil {
 		return r.apiErr(err)
 	}
@@ -362,7 +406,11 @@ func (r *runner) unsuspend(pos []string, flags []string) error {
 	if done, err := r.parse(flags, func(*flag.FlagSet) {}); done {
 		return err
 	}
-	if _, err := r.c.AdminUnsuspend(r.ctx, u); err != nil {
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	if _, err := c.AdminUnsuspend(r.ctx, u); err != nil {
 		return r.apiErr(err)
 	}
 	fmt.Fprintf(r.o.Stdout, "정지를 풀었습니다: %s\n", r.shownUser(pos[0], u, nil))
@@ -390,7 +438,11 @@ func (r *runner) users(_ []string, flags []string) error {
 	if err := r.checkLimit(q.PageOpts); err != nil {
 		return err
 	}
-	p, err := r.c.AdminListUsers(r.ctx, q)
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	p, err := c.AdminListUsers(r.ctx, q)
 	if err != nil {
 		return r.apiErr(err)
 	}
@@ -422,7 +474,11 @@ func (r *runner) actions(_ []string, flags []string) error {
 	if err := r.checkLimit(q.PageOpts); err != nil {
 		return err
 	}
-	p, err := r.c.AdminListActions(r.ctx, q)
+	c, err := r.client()
+	if err != nil {
+		return err
+	}
+	p, err := c.AdminListActions(r.ctx, q)
 	if err != nil {
 		return r.apiErr(err)
 	}

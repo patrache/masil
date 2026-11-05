@@ -25,14 +25,13 @@ var adminClientFn = adminClient
 // errAdminClient is returned after adminClient explained the problem on stderr.
 var errAdminClient = errors.New("admin: no usable credentials")
 
-// adminCmd runs `masil admin …`. A usage error from admincli is marked with
-// the package-main usage marker so `run` exits with code 2 (CA 2.4, CR-D).
+// adminCmd runs `masil admin …`. The client (saved credentials, server check)
+// is built only after admincli accepted the arguments, so -h/--help and usage
+// errors work logged out. A usage error from admincli is marked with the
+// package-main usage marker so `run` exits with code 2 (CA 2.4, CR-D).
 func adminCmd(ctx context.Context, env *Env, args []string) error {
-	c, err := adminClientFn(env)
-	if err != nil {
-		return err
-	}
-	err = admincli.Run(ctx, c, args, admincli.IO{Stdout: env.Stdout, Stderr: env.Stderr, Now: time.Now(), Loc: time.Local})
+	mk := func() (*api.Client, error) { return adminClientFn(env) }
+	err := admincli.RunLazy(ctx, mk, args, admincli.IO{Stdout: env.Stdout, Stderr: env.Stderr, Now: time.Now(), Loc: time.Local})
 	if errors.Is(err, admincli.ErrUsage) {
 		return usageErr(err)
 	}
