@@ -475,3 +475,62 @@ func TestResyncNotificationsSetsPageState(t *testing.T) {
 		t.Fatalf("window = %v, want %v", got, want)
 	}
 }
+
+// replyTo is p as a reply to parent.
+func replyTo(p api.Post, parent string) api.Post {
+	p.ReplyToID = &parent
+	return p
+}
+
+// Resync also refetches the first page of every reply window loaded deeper in
+// an open post's tree (events.md 5.3 step 4: "답글 트리도 다시 받는다"); post
+// detail's expand only loads a window that does not exist yet, so a deeper
+// window would otherwise stay stale for the session. Windows outside every
+// open tree are left alone, and a window that is itself an open post is
+// fetched once (by its post refetch).
+func TestResyncRefetchesExpandedReplyWindows(t *testing.T) {
+	s, f := newFeed(t)
+	f.ObservePosts(post("P", hana, "원글", 0), post("Q", minji, "다른 글", 0))
+	r1 := replyTo(post("R1", minji, "답글", 1), "P")
+	s1 := replyTo(post("S1", devKim, "답글의 답글", 2), "R1")
+	page := func(ps ...api.Post) *api.Page[api.Post] { return &api.Page[api.Post]{Items: ps} }
+	f.SetRepliesPage("P", page(r1)) // as loaded by post detail (posts cached too)
+	f.SetRepliesPage("R1", page(s1))
+	f.SetRepliesPage("S1", page(replyTo(post("T0", hana, "지워진 깊은 답글", 3), "S1")))
+	f.SetRepliesPage("Q", page(replyTo(post("Q1", hana, "남의 답글", 3), "Q")))
+	f.SetOpen("post:P", true)
+	f.SetOpen("post:R1", true)
+
+	tNew := replyTo(post("T1", minji, "오프라인 중 단 답글", 4), "S1")
+	srv := apitest.New(t)
+	srv.Handle("GET /v1/posts/{id}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, map[string]any{"post": post(r.PathValue("id"), hana, "글", 0)})
+	})
+	srv.Handle("GET /v1/posts/{id}/replies", func(w http.ResponseWriter, r *http.Request) {
+		items := map[string][]api.Post{"P": {r1}, "R1": {s1}, "S1": {tNew}}[r.PathValue("id")]
+		writeJSON(t, w, api.Page[api.Post]{Items: items})
+	})
+
+	ms := resyncMsgs(t, f.Resync(s, srv.Client()))
+	count := map[string]int{}
+	for _, r := range srv.Requests() {
+		count[r.Method+" "+r.Path]++
+	}
+	for _, want := range []string{"GET /v1/posts/P/replies", "GET /v1/posts/R1/replies", "GET /v1/posts/S1/replies"} {
+		if count[want] != 1 {
+			t.Fatalf("%s requested %d times, want 1 (all: %v)", want, count[want], count)
+		}
+	}
+	if count["GET /v1/posts/Q/replies"] != 0 {
+		t.Fatalf("a window outside the open trees was refetched: %v", count)
+	}
+	for _, m := range ms {
+		f.ApplyResync(m)
+	}
+	if got := postIDs(f.Replies("S1").Items()); !eqStrings(got, []string{"T1"}) {
+		t.Fatalf("deep window = %v, want [T1]", got)
+	}
+	if got := postIDs(f.Replies("Q").Items()); !eqStrings(got, []string{"Q1"}) {
+		t.Fatalf("unrelated window = %v", got)
+	}
+}

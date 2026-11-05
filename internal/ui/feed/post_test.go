@@ -337,3 +337,33 @@ func TestPostWatchTopics(t *testing.T) {
 		t.Fatalf("WatchTopics = %v", got)
 	}
 }
+
+// A resync also refetches reply windows expanded deeper in the tree: a reply
+// posted under an expanded reply while offline shows up after the resync.
+func TestResyncRefreshesExpandedSubtree(t *testing.T) {
+	hana := postBy("hana").ID
+	top, _ := replyTree()
+	junho := top[1].ID
+	edits := &postEdits{}
+	h := uitest.New(t, postOpts(t, hana, false, withPostEdits(edits))...)
+	h.Resize(120, 40)
+	selectRow(t, h, hana, rowReply, junho)
+	h.Press("space")
+	if !strings.Contains(h.Screen(), "고마워요") {
+		t.Fatalf("precondition: junho's replies not expanded:\n%s", h.Screen())
+	}
+	nr := mkPost(36, "minji", "오프라인 중 달린 깊은 답글", 0)
+	nr.ReplyToID, nr.RootID = ptr(junho), ptr(hana)
+	edits.mu.Lock()
+	edits.ExtraReplies[junho] = []api.Post{nr}
+	edits.mu.Unlock()
+	before := len(reqsTo(h, "GET", "/v1/posts/"+junho+"/replies"))
+	ctx := h.Context()
+	sendCmd(h, feedstore.Get(ctx.Store).Resync(ctx.Store, ctx.API))
+	if got := len(reqsTo(h, "GET", "/v1/posts/"+junho+"/replies")); got != before+1 {
+		t.Fatalf("expanded window refetches = %d, want 1", got-before)
+	}
+	if s := h.Screen(); !strings.Contains(s, "오프라인 중 달린 깊은 답글") {
+		t.Fatalf("resynced deep reply not shown:\n%s", s)
+	}
+}

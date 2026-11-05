@@ -22,6 +22,11 @@ const (
 	keyStories       = "stories"
 	keyNotifications = "notifications"
 	keyPostPrefix    = "post:"
+	// keyRepliesPrefix is a ResyncMsg for a reply window deeper in an open
+	// post's tree ("replies:<parent id>"); it is not a SetOpen key.
+	keyRepliesPrefix = "replies:"
+	// maxReplyWalk bounds the reply_to_id walk from a window to an open post.
+	maxReplyWalk = 64
 )
 
 // ResyncMsg is one refetched open window (events.md 5.3 step 4). The app
@@ -40,7 +45,8 @@ type ResyncMsg struct {
 }
 
 // Resync implements store.Resyncer: it returns one command per open window
-// ("timeline:following", "timeline:discover", each open "post:<id>",
+// ("timeline:following", "timeline:discover", each open "post:<id>", each
+// reply window loaded deeper in an open post's tree as "replies:<parent>",
 // "stories", "notifications"), batched, or nil when nothing is open (or there
 // is no client). It runs on the Update goroutine; the commands only call the
 // API and never touch the store. Results land through ApplyResync.
@@ -59,6 +65,9 @@ func (f *FeedStore) Resync(_ *store.Store, c *api.Client) tea.Cmd {
 		if f.open[key] {
 			cmds = append(cmds, resyncPost(c, f.nextSeq(), key))
 		}
+	}
+	for _, parent := range f.openSubtrees() {
+		cmds = append(cmds, resyncReplies(c, f.nextSeq(), parent))
 	}
 	if f.open[keyStories] {
 		cmds = append(cmds, resyncStories(c, f.nextSeq()))
@@ -129,6 +138,60 @@ func resyncPost(c *api.Client, seq uint64, key string) tea.Cmd {
 	}
 }
 
+// openSubtrees is every loaded reply window (by parent ID, sorted) that hangs
+// below an open post, except the open posts' own windows (resyncPost fetches
+// those). Post detail only loads a window that does not exist yet, so without
+// this the deeper windows the user expanded would stay stale after a resync.
+func (f *FeedStore) openSubtrees() []string {
+	roots := map[string]bool{}
+	for _, key := range f.openPosts {
+		if f.open[key] {
+			roots[strings.TrimPrefix(key, keyPostPrefix)] = true
+		}
+	}
+	if len(roots) == 0 {
+		return nil
+	}
+	var out []string
+	for parent := range f.replies {
+		if !roots[parent] && f.underAny(parent, roots) {
+			out = append(out, parent)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// underAny reports whether post id is a (cached) descendant of one of roots,
+// following reply_to_id through the post cache.
+func (f *FeedStore) underAny(id string, roots map[string]bool) bool {
+	for range maxReplyWalk {
+		p := f.posts[id]
+		if p == nil || p.ReplyToID == nil || *p.ReplyToID == "" {
+			return false
+		}
+		id = *p.ReplyToID
+		if roots[id] {
+			return true
+		}
+	}
+	return false
+}
+
+// RepliesResyncParent is the parent ID of a ResyncMsg that refetched a reply
+// window deeper in an open post's tree, and false for every other ResyncMsg.
+func RepliesResyncParent(m ResyncMsg) (string, bool) {
+	return strings.CutPrefix(m.Key, keyRepliesPrefix)
+}
+
+// resyncReplies refetches the first page of parent's reply window.
+func resyncReplies(c *api.Client, seq uint64, parent string) tea.Cmd {
+	return func() tea.Msg {
+		page, err := c.ListReplies(context.Background(), parent, api.PageOpts{})
+		return ResyncMsg{Key: keyRepliesPrefix + parent, Seq: seq, Replies: page, Err: err}
+	}
+}
+
 func resyncStories(c *api.Client, seq uint64) tea.Cmd {
 	return func() tea.Msg {
 		gs, err := c.StoryFeed(context.Background())
@@ -169,6 +232,10 @@ func (f *FeedStore) ApplyResync(m ResyncMsg) {
 		}
 		if m.Replies != nil {
 			f.SetRepliesPage(id, m.Replies)
+		}
+	case strings.HasPrefix(m.Key, keyRepliesPrefix):
+		if m.Replies != nil {
+			f.SetRepliesPage(strings.TrimPrefix(m.Key, keyRepliesPrefix), m.Replies)
 		}
 	case m.Key == keyStories:
 		if m.Err == nil {

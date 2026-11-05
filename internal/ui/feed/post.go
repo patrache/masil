@@ -276,9 +276,13 @@ func (v *postView) setCursor(parent string, next *string) {
 
 func (v *postView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	if forwardResync(ctx, msg) {
-		if m := msg.(feedstore.ResyncMsg); m.Key == "post:"+v.id && m.Replies != nil {
+		m := msg.(feedstore.ResyncMsg)
+		if m.Key == "post:"+v.id && m.Replies != nil {
 			v.setCursor(v.id, m.Replies.NextCursor)
 			v.repliesLoaded = true
+		}
+		if parent, ok := feedstore.RepliesResyncParent(m); ok && m.Replies != nil {
+			v.setCursor(parent, m.Replies.NextCursor) // the window is its first page again
 		}
 	}
 	fs := v.fs(ctx)
