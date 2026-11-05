@@ -24,6 +24,9 @@ builds:
     goarch:
       - amd64
       - arm64
+    # With -trimpath the go command leaves -ldflags out of the embedded build info
+    # (go.dev/issue/52372), so `go version -m` never shows the -X values below.
+    # Verify the default server with scripts/check-release-binary.sh instead.
     flags:
       - -trimpath
     mod_timestamp: "{{ .CommitTimestamp }}"
@@ -32,7 +35,9 @@ builds:
       - -X github.com/patrache/masil/internal/version.Version={{ .Version }}
       - -X github.com/patrache/masil/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/patrache/masil/internal/version.Date={{ .Date }}
-      # The release workflow refuses to run unless MASIL_DEFAULT_SERVER is https://.
+      # The release workflow refuses to run unless MASIL_DEFAULT_SERVER is https://,
+      # and afterwards runs scripts/check-release-binary.sh on the built binary
+      # (not `go version -m | grep DefaultServer=`, which -trimpath makes always fail).
       - -X github.com/patrache/masil/internal/config.DefaultServer={{ envOrDefault "MASIL_DEFAULT_SERVER" "http://localhost:8787" }}
 
 archives:
