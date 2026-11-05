@@ -457,3 +457,38 @@ func TestHyperlinkTarget(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderLinkGraphemes: underlined link text must keep multi-rune graphemes
+// (flags) in one SGR run, or each lone regional indicator measures 2 cells and
+// the styled line overflows Width (padding then deletes text).
+func TestRenderLinkGraphemes(t *testing.T) {
+	bodies := []string{
+		"[🇰🇷 국가대표 경기](https://example.com)",
+		"[🇯🇵🇺🇸🇰🇷 q̃ x](https://example.com/a)",
+		"https://example.com/🇰🇷",
+		"보기 https://example.com/🇰🇷🇯🇵?q=1 끝",
+	}
+	for _, body := range bodies {
+		d := markup.Parse(body, markup.ParseOptions{})
+		for _, w := range []int{80, 24, 10, 7, 3} {
+			for _, hl := range []bool{false, true} {
+				lines := markup.Render(d, amber, markup.RenderOptions{Width: w, Hyperlinks: hl})
+				checkLines(t, lines, w)
+				for i, l := range lines {
+					plain := ansi.Strip(l)
+					if got := ansi.StringWidth(l); got != ansi.StringWidth(plain) {
+						t.Errorf("%q w=%d hl=%v line %d: styled width %d != plain width %d", body, w, hl, i, got, ansi.StringWidth(plain))
+					}
+					if padded := ansi.Strip(textwidth.PadRight(l, w)); !strings.HasPrefix(padded, plain) {
+						t.Errorf("%q w=%d hl=%v line %d: PadRight lost text: %q -> %q", body, w, hl, i, plain, padded)
+					}
+				}
+			}
+		}
+	}
+	// The link stays underlined, in one run around the whole flag text.
+	lines := markup.Render(markup.Parse(bodies[0], markup.ParseOptions{}), amber, markup.RenderOptions{Width: 80})
+	if len(lines) != 1 || !strings.Contains(lines[0], "\x1b[4m") || !strings.Contains(lines[0], "🇰🇷 국가대표 경기") {
+		t.Errorf("link not underlined as one run: %q", lines)
+	}
+}

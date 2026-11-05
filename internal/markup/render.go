@@ -380,10 +380,31 @@ func renderLine(l line, t *theme.Theme) string {
 			run.WriteString(l[j].g)
 			j++
 		}
-		b.WriteString(style(t, l[i].key).Render(run.String()))
+		b.WriteString(renderRun(style(t, l[i].key), run.String()))
 		i = j
 	}
 	return b.String()
+}
+
+// renderRun renders s in st as one SGR run. lipgloss styles an underlined or
+// struck-through string rune by rune (to treat spaces apart), which splits
+// multi-rune graphemes such as flags (🇰🇷) into separate SGR runs; each lone
+// regional indicator then measures 2 cells and the line overflows its width.
+// So those two attributes are dropped from st and set around the whole run
+// instead (the run's closing reset clears them).
+func renderRun(st lipgloss.Style, s string) string {
+	under, strike := st.GetUnderline(), st.GetStrikethrough()
+	if !under && !strike {
+		return st.Render(s)
+	}
+	var pre ansi.Style
+	if under {
+		pre = pre.UnderlineStyle(st.GetUnderlineStyle()) // an underline color stays in st
+	}
+	if strike {
+		pre = pre.Strikethrough(true)
+	}
+	return pre.String() + st.UnsetUnderline().UnsetStrikethrough().Render(s) + ansi.ResetStyle
 }
 
 // HyperlinkTarget percent-encodes u for an OSC 8 target: every byte outside
