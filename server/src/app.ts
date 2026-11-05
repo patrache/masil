@@ -60,14 +60,22 @@ const limitJsonBody = bodyLimit({
   },
 });
 
+/** POST /v1/uploads carries raw image bytes (never JSON) and enforces its own 5MB guard after auth. */
+const isUploadPost = (method: string, path: string) => method === "POST" && path === "/v1/uploads";
+
 /** 64KB body cap for everything except POST /v1/uploads (that route enforces its own 5MB guard). */
 export const jsonBodyLimit: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (c.req.method === "POST" && c.req.path === "/v1/uploads") return next();
+  if (isUploadPost(c.req.method, c.req.path)) return next();
   return limitJsonBody(c, next);
 };
 
-/** A JSON-typed, non-empty body that does not parse -> 400 invalid_json (before any route runs). */
+/**
+ * A JSON-typed, non-empty body that does not parse -> 400 invalid_json (before any route runs).
+ * Skips POST /v1/uploads: that body is uncapped here, so reading it would let an unauthenticated client make the
+ * isolate buffer and parse megabytes before auth; the route itself rejects a non-image Content-Type with 415.
+ */
 export const jsonParseCheck: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (isUploadPost(c.req.method, c.req.path)) return next();
   const contentType = c.req.header("Content-Type");
   if (c.req.raw.body && contentType && JSON_CONTENT_TYPE_RE.test(contentType)) {
     const text = await c.req.text(); // cached by HonoRequest; c.req.json() later reuses it

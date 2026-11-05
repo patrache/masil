@@ -28,6 +28,15 @@ test("content-type mismatch -> 415, unknown bytes -> 415, >5MB -> 413, bad purpo
   expect((await r.json() as any).error.code).toBe("payload_too_large");
   expect((await post(a.token, "banner", PNG_1X1)).status).toBe(400);
 });
+test("POST /v1/uploads never parses a JSON-typed body: unauth + application/json >64KB -> 401, not invalid_json", async () => {
+  const body = "{" + "a".repeat(70_000); // invalid JSON: if the global JSON check read it, this would be 400 invalid_json
+  const r = await api().raw("/v1/uploads?purpose=post", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+  expect(r.status).toBe(401);
+  expect((await r.json() as any).error.code).not.toBe("invalid_json");
+  const authed = await signup();
+  const r2 = await post(authed.token, "post", new TextEncoder().encode(body), "application/json");
+  expect(r2.status).toBe(415);
+});
 test("21st pending upload -> 422 pending_uploads", async () => {
   const a = await signup();
   await env.DB.prepare(`INSERT INTO uploads (id, owner_id, purpose, r2_key, content_type, size, status, created_at)
