@@ -4,7 +4,7 @@ import type { Runtime } from "../env";
 import { batch, first, stmt } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
 import { isId } from "../lib/ids";
-import { canViewPost, requireChannelRead } from "../lib/permissions";
+import { canViewPost, requireChannelRead, requireChannelWrite } from "../lib/permissions";
 import { publishEvent, type VisibilitySpec } from "../lib/realtime";
 import { serializePolls } from "../lib/serialize";
 import { now } from "../lib/time";
@@ -70,8 +70,17 @@ type PollTarget = { kind: "message"; channelId: string } | { kind: "post"; postI
 /**
  * The poll row and its event target when userId may read the message / post it belongs to (api.md 5.19: same as the
  * read permission of that message / post), else 404 not_found (existence hidden).
+ * mode "write" (vote, retract, close — they all send poll.updated to the conversation): a message poll follows the
+ * reaction rule (api.md 5.12) — read access, and a 1:1 dm also needs can_dm, so a read-only dm (block, lost
+ * eligibility) -> 403 read_only for both sides. A post poll follows the post interaction rule (like / reply): the post
+ * must be viewable, and can_view_post already hides it on a block either way -> 404, like PUT /posts/:id/like.
  */
-async function requirePollAccess(db: D1Database, pollId: string, userId: string): Promise<{ poll: PollRow; target: PollTarget }> {
+async function requirePollAccess(
+  db: D1Database,
+  pollId: string,
+  userId: string,
+  mode: "read" | "write",
+): Promise<{ poll: PollRow; target: PollTarget }> {
   const poll = isId(pollId) ? await first<PollRow>(db, "SELECT * FROM polls WHERE id = ?1", pollId) : null;
   if (poll === null) throw err.notFound("poll");
   if (poll.context_type === "message") {
@@ -83,7 +92,8 @@ async function requirePollAccess(db: D1Database, pollId: string, userId: string)
     );
     if (msg === null || msg.deleted_at !== null) throw err.notFound("poll");
     try {
-      await requireChannelRead(db, msg.channel_id, userId);
+      // requireChannelWrite runs the read check first: 404 without read access, then 403 read_only
+      await (mode === "write" ? requireChannelWrite : requireChannelRead)(db, msg.channel_id, userId);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) throw err.notFound("poll");
       throw e;
@@ -116,19 +126,20 @@ async function viewerPoll(db: D1Database, pollId: string, userId: string): Promi
 
 /** GET /polls/:poll_id — the poll as userId sees it (my_votes filled); 404 without read access to its message / post. */
 export async function getPoll(rt: Runtime, pollId: string, userId: string): Promise<Poll> {
-  const { poll } = await requirePollAccess(rt.env.DB, pollId, userId);
+  const { poll } = await requirePollAccess(rt.env.DB, pollId, userId, "read");
   return viewerPoll(rt.env.DB, poll.id, userId);
 }
 
 /**
- * PUT (optionIdxs) / DELETE (null) /polls/:poll_id/vote. A vote replaces the user's previous one. Closed poll -> 409
+ * PUT (optionIdxs) / DELETE (null) /polls/:poll_id/vote — both are writes (requirePollAccess "write": a read-only
+ * 1:1 dm -> 403 read_only, a post hidden by a block -> 404). A vote replaces the user's previous one. Closed poll -> 409
  * poll_closed. Option list: single -> exactly 1, multi -> 1..option count, distinct, 0 <= idx < option count, else
  * 400 fields.option_idxs. One batch: undo the old votes (counters guarded by the existing rows), then insert the new
  * ones, every statement guarded by "still open" — so two concurrent votes by the same user leave voter_count 1.
  */
 export async function vote(rt: Runtime, pollId: string, userId: string, optionIdxs: number[] | null): Promise<Poll> {
   const db = rt.env.DB;
-  const { poll, target } = await requirePollAccess(db, pollId, userId);
+  const { poll, target } = await requirePollAccess(db, pollId, userId, "write");
   const t = now();
   if (isClosed(poll, t)) throw err.conflict("poll_closed");
 
@@ -194,12 +205,14 @@ export async function vote(rt: Runtime, pollId: string, userId: string, optionId
 }
 
 /**
- * POST /polls/:poll_id/close — creator only (else 403 forbidden, after the 404 read check). An already closed poll
+ * POST /polls/:poll_id/close — creator only (else 403 forbidden), after the write check: a creator who left the
+ * channel / can no longer view the post -> 404, a read-only 1:1 dm -> 403 read_only (closing sends poll.updated to the
+ * other side, so a blocked creator could otherwise still signal the blocker). An already closed poll
  * (manually or by closes_at) is returned as is without an event; otherwise closed_at = now and poll.updated goes out.
  */
 export async function closePoll(rt: Runtime, pollId: string, userId: string): Promise<Poll> {
   const db = rt.env.DB;
-  const { poll, target } = await requirePollAccess(db, pollId, userId);
+  const { poll, target } = await requirePollAccess(db, pollId, userId, "write");
   if (poll.creator_id !== userId) throw err.forbidden("forbidden", "only the poll creator can close it");
   const t = now();
   if (!isClosed(poll, t)) {

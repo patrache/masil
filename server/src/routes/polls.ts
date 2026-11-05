@@ -1,5 +1,6 @@
 // Polls (api.md 5.19): GET /polls/:poll_id, PUT|DELETE /polls/:poll_id/vote (RL_REACT), POST /polls/:poll_id/close
 // (plan 02 Task 11). Polls are created with their message / post; read access = that message's / post's read access.
+// Vote / retract / close are writes (services/polls.ts requirePollAccess "write"): a read-only 1:1 dm -> 403 read_only.
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";

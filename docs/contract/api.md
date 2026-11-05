@@ -1297,7 +1297,10 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 ### 5.19 투표
 
-투표는 메시지(`POST /v1/channels/{id}/messages`, `kind:"poll"`) 또는 글(`POST /v1/posts`, `poll`) 생성 시 같이 만든다. 열람·투표 권한 = 그 메시지/글의 읽기 권한.
+투표는 메시지(`POST /v1/channels/{id}/messages`, `kind:"poll"`) 또는 글(`POST /v1/posts`, `poll`) 생성 시 같이 만든다. 열람 권한 = 그 메시지/글의 읽기 권한(없으면 `404`).
+- 투표·투표 취소·마감은 대화에 `poll.updated` 를 보내는 **쓰기**다.
+  - 메시지 투표: 리액션(5.12)과 같은 규칙 — 읽기 권한 + 1:1 DM 은 `can_dm`. 읽기 전용 1:1 DM(차단·조건 소멸, 3.1)에서는 양쪽 모두 `403 read_only`(`details.reason` 은 3.1 과 같음). 열람(`GET`)은 그대로 된다. 채널·그룹 DM·방에서 빠진 사람(만든 사람 포함)은 `404`.
+  - 글 투표: 글 상호작용(좋아요·답글) 규칙 — 글을 볼 수 있어야 한다. 차단 관계(어느 방향이든)면 글이 숨겨지므로(3.2 양방향 숨김) 좋아요와 같이 `404`.
 
 #### `GET /v1/polls/{poll_id}`
 - `200 { "poll": Poll }`
@@ -1305,13 +1308,13 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `PUT /v1/polls/{poll_id}/vote`
 - `RL_REACT`. 요청: `{ "option_idxs": number[] }` — 단일 선택이면 정확히 1개, 복수면 1..선택지 수. 기존 투표를 **대체**한다.
 - `200 { "poll": Poll }` · 이벤트: `poll.updated`(메시지 투표: 채널 청중 / 글 투표: 토픽 `post:<id>`)
-- 오류: `409 poll_closed`, `400`
+- 오류: `409 poll_closed`, `400`, `403 read_only`, `404`
 
 #### `DELETE /v1/polls/{poll_id}/vote`
-- 내 투표 취소. `200 { "poll": Poll }` · 이벤트 동일
+- 내 투표 취소. 권한은 투표와 같다(`403 read_only`, `404`). `200 { "poll": Poll }` · 이벤트 동일
 
 #### `POST /v1/polls/{poll_id}/close`
-- 만든 사람. `200 { "poll": Poll }` · 이벤트 동일
+- 만든 사람(아니면 `403 forbidden`), 위 쓰기 규칙도 적용(읽기 전용 1:1 DM `403 read_only`, 대화에서 빠졌으면 `404`). `200 { "poll": Poll }` · 이벤트 동일
 
 ### 5.20 방명록
 
