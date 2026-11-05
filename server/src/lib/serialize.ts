@@ -2,6 +2,7 @@
 // fields always exist (null when absent, [] when empty). List serializers batch-load related rows with
 // json_each (no N+1).
 import type {
+  AdminAction,
   Channel,
   ChannelMyState,
   ChannelRef,
@@ -41,6 +42,7 @@ import type {
 } from "../types/api";
 import type { PresenceItem } from "../types/events";
 import type {
+  AdminActionRow,
   ChannelPrefsRow,
   ChannelRow,
   FriendRequestRow,
@@ -1217,6 +1219,34 @@ export async function serializeGuestbook(db: D1Database, viewerId: string, rows:
         hidden,
         created_at: iso(r.created_at),
         deleted,
+      },
+    ];
+  });
+}
+
+/**
+ * AdminAction list (api.md 4.9 / 5.22, plan 02 Task 15 addition) in input order. Admin summaries in one query; a row
+ * whose admin no longer exists is dropped.
+ */
+export async function serializeAdminActions(db: D1Database, rows: AdminActionRow[]): Promise<AdminAction[]> {
+  if (rows.length === 0) return [];
+  const admins = await loadUserSummaries(
+    db,
+    rows.map((r) => r.admin_id),
+  );
+  return rows.flatMap((r): AdminAction[] => {
+    const admin = admins.get(r.admin_id);
+    if (admin === undefined) return [];
+    return [
+      {
+        id: r.id,
+        admin,
+        action: r.action,
+        target_type: r.target_type,
+        target_id: r.target_id,
+        report_id: r.report_id,
+        reason: r.reason,
+        created_at: iso(r.created_at),
       },
     ];
   });

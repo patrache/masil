@@ -6,6 +6,7 @@ import type { AppEnv } from "./env";
 import { ApiError, notFoundHandler, onError } from "./lib/errors";
 import { newId } from "./lib/ids";
 import { clientVersionGate } from "./lib/version";
+import { adminRoutes } from "./routes/admin";
 import { authRoutes } from "./routes/auth";
 import { blockRoutes } from "./routes/blocks";
 import { channelRoutes } from "./routes/channels";
@@ -130,6 +131,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", pollRoutes);
   app.route("/v1", guestbookRoutes);
   app.route("/v1", reportRoutes);
+  app.route("/v1", adminRoutes);
   app.route("/v1", wsRoutes);
   return app;
 }
