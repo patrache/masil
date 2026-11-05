@@ -34,14 +34,19 @@ type ChatStore struct {
 
 	typing map[typingKey]*typers
 
+	pins       map[string][]api.Message // channel id -> pinned messages, newest pin first
+	pinsLoaded map[string]bool          // channel id -> pins came from REST (SetPins) and are kept live
+	missing    map[string][]string      // channel id -> in-range message ids we hold no copy of (TakeMissing)
+
 	selectedSpace string
 	activeChannel string
 }
 
 type threadState struct {
-	root    *api.Message
-	replies *store.Window[api.Message]
-	open    bool
+	root      *api.Message
+	replies   *store.Window[api.Message]
+	open      bool
+	channelID string // learned from the root or a reply ("" until then)
 }
 
 type openState struct {
@@ -64,6 +69,9 @@ func (c *ChatStore) clear() {
 	c.pending = map[string][]PendingMessage{}
 	c.polls = map[string]map[string]*api.PollInput{}
 	c.typing = map[typingKey]*typers{}
+	c.pins = map[string][]api.Message{}
+	c.pinsLoaded = map[string]bool{}
+	c.missing = map[string][]string{}
 	c.selectedSpace = ""
 	c.activeChannel = ""
 }
@@ -77,17 +85,9 @@ func Get(s *store.Store) *ChatStore {
 // Name is the reducer name.
 func (c *ChatStore) Name() string { return name }
 
-// Apply applies a realtime event to chat state.
-func (c *ChatStore) Apply(s *store.Store, ev realtime.Event) {
-	v, err := ev.Decode()
-	if err != nil || v == nil {
-		return
-	}
-	switch d := v.(type) {
-	case realtime.Typing:
-		c.applyTyping(d)
-	}
-}
+// Apply applies a realtime event to chat state (events.md 4.2-4.4; rules in apply.go).
+// The core store has already applied the event when reducers run.
+func (c *ChatStore) Apply(s *store.Store, ev realtime.Event) { c.apply(s, ev) }
 
 // Reset clears everything (logout / user switch); the instance is kept.
 func (c *ChatStore) Reset() { c.clear() }
