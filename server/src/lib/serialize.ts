@@ -1,9 +1,9 @@
 // Row -> api.md object serializers (server-architecture.md 4.9). Every response JSON is built here so that
 // fields always exist (null when absent, [] when empty). List serializers batch-load related rows with
 // json_each (no N+1).
-import type { Focus, Me, PresenceState, Session, Settings, UserStatus, UserSummary } from "../types/api";
+import type { Focus, Me, Notification, PresenceState, Session, Settings, UserStatus, UserSummary } from "../types/api";
 import type { PresenceItem } from "../types/events";
-import type { SessionRow, UserPresenceRow, UserRow, UserSettingsRow } from "../types/rows";
+import type { NotificationRow, SessionRow, UserPresenceRow, UserRow, UserSettingsRow } from "../types/rows";
 import { isSuspendedNow } from "./auth";
 import { all, batch, jsonList, stmt } from "./db";
 import { err } from "./errors";
@@ -125,4 +125,47 @@ export function serializeSession(row: SessionRow, currentSessionId: string): Ses
     expires_at: iso(row.expires_at),
     current: row.id === currentSessionId,
   };
+}
+
+/** What `notifications.extra` holds (written by lib/notify.ts): the preview and the non-null context fields. */
+export interface NotificationExtra {
+  preview?: string;
+  context?: Partial<Notification["context"]>;
+}
+
+function parseNotificationExtra(extra: string | null): NotificationExtra {
+  if (extra === null) return {};
+  try {
+    const v: unknown = JSON.parse(extra);
+    return v !== null && typeof v === "object" ? (v as NotificationExtra) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Inbox rows -> Notification (api.md 2), in row order. Actors are batch-loaded (one query); a missing actor is null. */
+export async function serializeNotifications(db: D1Database, rows: NotificationRow[]): Promise<Notification[]> {
+  const actorIds = rows.flatMap((r) => (r.actor_id === null ? [] : [r.actor_id]));
+  const actors = await loadUserSummaries(db, actorIds);
+  return rows.map((r) => {
+    const extra = parseNotificationExtra(r.extra);
+    const c = extra.context ?? {};
+    return {
+      id: r.id,
+      type: r.type,
+      actor: r.actor_id === null ? null : (actors.get(r.actor_id) ?? null),
+      subject: { type: r.subject_type, id: r.subject_id },
+      preview: typeof extra.preview === "string" ? extra.preview : "",
+      context: {
+        post_id: c.post_id ?? null,
+        channel_id: c.channel_id ?? null,
+        message_id: c.message_id ?? null,
+        thread_root_id: c.thread_root_id ?? null,
+        space_id: c.space_id ?? null,
+        space_name: c.space_name ?? null,
+      },
+      created_at: iso(r.created_at),
+      read: r.read_at !== null,
+    };
+  });
 }

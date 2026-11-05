@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import type { Runtime } from "../../src/env";
 import { deliverToUsers, publishEvent, publishEvents, resolveOnlineAudience } from "../../src/lib/realtime";
 import { newId } from "../../src/lib/ids";
+import { notify, sendAlerts } from "../../src/lib/notify";
 import type { Alert } from "../../src/types/api";
 import { connectWs, signup, uniqueHandle } from "../helpers";
 
@@ -92,6 +93,33 @@ async function seedUsers(n: number): Promise<U[]> {
   );
   return users;
 }
+
+/** blocker blocks blocked (raw row). */
+const blockSql = (blocker: U, blocked: U) => block(blocker, blocked);
+
+/** 1:1 dm channel between a and b (raw rows); returns channelId. */
+async function dmSql(a: U, b: U): Promise<string> {
+  const id = newId();
+  const t = Date.now();
+  const key = a.user.id < b.user.id ? `${a.user.id}:${b.user.id}` : `${b.user.id}:${a.user.id}`;
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO channels (id, kind, created_by, dm_key, member_count, created_at, updated_at) VALUES (?1, 'dm', ?2, ?3, 2, ?4, ?4)").bind(id, a.user.id, key, t),
+    env.DB.prepare("INSERT INTO channel_members (channel_id, user_id, joined_at) VALUES (?1, ?2, ?3)").bind(id, a.user.id, t),
+    env.DB.prepare("INSERT INTO channel_members (channel_id, user_id, joined_at) VALUES (?1, ?2, ?3)").bind(id, b.user.id, t),
+  ]);
+  return id;
+}
+
+/** Alert target with every optional field null. */
+const target = (type: Alert["target"]["type"], id: string): Alert["target"] => ({
+  type,
+  id,
+  channel_id: null,
+  message_id: null,
+  thread_root_id: null,
+  post_id: null,
+  space_id: null,
+});
 
 const sorted = (ids: string[]) => [...ids].sort();
 
@@ -266,5 +294,68 @@ describe("publish", () => {
     await publishEvent(rtFor(env), { channel: ch }, "message.created", { message: fakeMessage(ch) } as any);
     const seqs = await Promise.all([owner, ...members].map((u) => env.USER_HUB.getByName(u.user.id).inspect().then((x) => x.seq)));
     expect(seqs.every((n) => n === 1)).toBe(true);
+  });
+});
+
+describe("notify", () => {
+  it("creates inbox row + notification.created + alert when switch on", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const cb = await connectWs(b.token);
+    await notify(rtFor(env), {
+      userId: b.user.id,
+      type: "friend_request",
+      actorId: a.user.id,
+      subject: { type: "friend_request", id: newId() },
+      alert: { kind: "friend_request", title: "t", body: "b", target: target("user", a.user.id) },
+    });
+    const n = await cb.next("notification.created");
+    expect(n.data.unread_count).toBe(1);
+    expect(n.data.notification).toMatchObject({ type: "friend_request", actor: { id: a.user.id }, read: false, context: { post_id: null } });
+    expect((await cb.next("alert")).data.alert).toMatchObject({ kind: "friend_request", actor: { id: a.user.id } });
+  });
+
+  it("switch off -> no alert; self or blocked -> nothing; dedupe", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await env.DB.prepare("UPDATE user_settings SET notify_social=0 WHERE user_id=?").bind(b.user.id).run();
+    const cb = await connectWs(b.token);
+    const inp = {
+      userId: b.user.id,
+      type: "follow" as const,
+      actorId: a.user.id,
+      subject: { type: "user" as const, id: a.user.id },
+      dedupeKey: `follow:${a.user.id}`,
+      alert: { kind: "social" as const, title: "t", body: "", target: target("user", a.user.id) },
+    };
+    await notify(rtFor(env), inp);
+    await notify(rtFor(env), inp);
+    await settle();
+    expect(cb.frames.filter((f) => f.type === "notification.created")).toHaveLength(1);
+    expect(cb.frames.some((f) => f.type === "alert")).toBe(false);
+    await notify(rtFor(env), { ...inp, actorId: b.user.id, dedupeKey: undefined });
+    await blockSql(b, a);
+    await notify(rtFor(env), { ...inp, dedupeKey: "other" });
+    expect((await env.DB.prepare("SELECT COUNT(*) n FROM notifications WHERE user_id=?").bind(b.user.id).first<any>()).n).toBe(1);
+  });
+
+  it("sendAlerts respects muted / notify:none channel prefs", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const ch = await dmSql(a, b);
+    const cb = await connectWs(b.token);
+    await env.DB.prepare("INSERT INTO channel_prefs VALUES (?1, ?2, 'all', 1, 0)").bind(b.user.id, ch).run();
+    await sendAlerts(rtFor(env), [{ userId: b.user.id, kind: "dm", actorId: a.user.id, title: "a", body: "hi", target: target("message", newId()), channelId: ch }]);
+    await settle();
+    expect(cb.frames.some((f) => f.type === "alert")).toBe(false);
+    // notify:'none' (not muted) also suppresses
+    await env.DB.prepare("UPDATE channel_prefs SET muted=0, notify='none' WHERE user_id=?1 AND channel_id=?2").bind(b.user.id, ch).run();
+    await sendAlerts(rtFor(env), [{ userId: b.user.id, kind: "dm", actorId: a.user.id, title: "a", body: "hi", target: target("message", newId()), channelId: ch }]);
+    await settle();
+    expect(cb.frames.some((f) => f.type === "alert")).toBe(false);
+    // no prefs row -> dm default 'all': delivered, clipped to 80/200 code points
+    await env.DB.prepare("DELETE FROM channel_prefs WHERE user_id=?1 AND channel_id=?2").bind(b.user.id, ch).run();
+    await sendAlerts(rtFor(env), [{ userId: b.user.id, kind: "dm", actorId: a.user.id, title: "가".repeat(90), body: "나".repeat(250), target: target("message", newId()), channelId: ch }]);
+    const al = (await cb.next("alert")).data.alert;
+    expect(al).toMatchObject({ kind: "dm", actor: { id: a.user.id }, suppressed: false, suppressed_reason: null });
+    expect([...al.title]).toHaveLength(80);
+    expect([...al.body]).toHaveLength(200);
   });
 });
