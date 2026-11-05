@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store/chatstore"
+	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/widgets"
@@ -41,7 +42,7 @@ type historyPage struct {
 	W *api.MessageWindow
 }
 
-// channelSaved is the Persistent state of a conversation (Draft: Task 9).
+// channelSaved is the Persistent state of a conversation.
 type channelSaved struct {
 	Anchor   widgets.ScrollAnchor
 	Selected string
@@ -50,9 +51,11 @@ type channelSaved struct {
 
 // channelView is RouteChannel: one channel's (text / DM / group DM) conversation.
 type channelView struct {
-	route ui.Route
-	pane  *msgPane
-	size  ui.Size
+	route    ui.Route
+	pane     *msgPane
+	composer *chatComposer
+	size     ui.Size
+	inputY   int // row of the composer (or read-only line) in the last View
 
 	readGen  uint64 // latest read arming
 	readSent string // message id of the read request in flight / done
@@ -76,7 +79,7 @@ var (
 // newChannel is the RouteChannel factory. The unread divider pointer is frozen
 // here, from the channel's read pointer when the view opens.
 func newChannel(ctx *ui.Context, r ui.Route) ui.Component {
-	v := &channelView{route: r, pane: newMsgPane(r.ID, "")}
+	v := &channelView{route: r, pane: newMsgPane(r.ID, ""), composer: newChatComposer(r.ID, nil, placeholderShort)}
 	if ch := v.channel(ctx); ch != nil && ch.My.LastReadMessageID != nil {
 		v.pane.lastRead = *ch.My.LastReadMessageID
 	}
@@ -112,6 +115,7 @@ func (v *channelView) Init(ctx *ui.Context) tea.Cmd {
 		cmds = append(cmds, v.fetchHistory(ctx, v.route.Anchor))
 	}
 	v.pane.refresh(ctx)
+	v.syncComposer(ctx)
 	if v.pane.loading {
 		cmds = append(cmds, v.pane.startLoading(ctx))
 	}
@@ -266,7 +270,19 @@ func (v *channelView) syncOpen(ctx *ui.Context) {
 
 func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	cmds := []tea.Cmd{v.pane.update(ctx, msg)}
+	defer v.syncComposer(ctx)
 	switch m := msg.(type) {
+	case tea.PasteMsg:
+		if v.composer.focused() && !v.inputBlocked(ctx) {
+			cmds = append(cmds, v.composer.update(ctx, m))
+		}
+	case ui.ResultMsg[sendOutcome]:
+		if strings.HasPrefix(m.Tag, "chat.send:") && m.Value.ChannelID == v.id() {
+			applySend(ctx, m)
+			v.pane.refresh(ctx)
+			v.syncOpen(ctx)
+			cmds = append(cmds, v.maybeArmRead(ctx))
+		}
 	case ui.EventMsg:
 		cmds = append(cmds, v.onEvent(ctx, m.Event))
 	case chatstore.ResyncResultMsg:
@@ -306,6 +322,11 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			cmds = append(cmds, v.onHistory(ctx, m))
 		}
 	case ui.ResultMsg[*api.Message]:
+		if strings.HasPrefix(m.Tag, "chat.edit:") {
+			cmds = append(cmds, v.composer.onEditResult(ctx, m))
+			v.pane.refresh(ctx)
+			break
+		}
 		if strings.HasPrefix(m.Tag, "chat.fetch:") && m.Err == nil && m.Value != nil && m.Value.ChannelID == v.id() {
 			if c := chatOf(ctx); c != nil {
 				c.UpsertMessage(*m.Value)
@@ -360,12 +381,117 @@ func (v *channelView) View(ctx *ui.Context, focused bool) string {
 	if v.gone(ctx) {
 		return widgets.Empty(themeOf(ctx), v.size, "", goneTitle, goneHint)
 	}
-	return v.pane.view(ctx, v.size, focused)
+	v.syncComposer(ctx)
+	t := themeOf(ctx)
+	w := v.size.W
+	var bottom string
+	bh := 0
+	if text, ro := v.readOnlyText(ctx); ro {
+		bottom, bh = cell(t.S.Dim.Render, text, w), 1
+	} else {
+		cc := v.composer
+		cc.placeholder = v.placeholder(ctx)
+		label := 0
+		if cc.editing != nil {
+			label = 1
+		}
+		// the box (border 2) keeps at least one list line above it
+		cc.maxRows = max(1, min(composerMaxRows(ctx.Density()), v.size.H-1-2-label))
+		bottom, bh = cc.view(ctx, w), cc.height(w)
+	}
+	listH := max(0, v.size.H-bh)
+	v.inputY = listH
+	var out []string
+	if listH > 0 {
+		out = append(out, strings.Split(v.pane.view(ctx, ui.Size{W: w, H: listH}, focused && !v.composer.focused()), "\n")...)
+	} else {
+		v.pane.view(ctx, ui.Size{}, false)
+	}
+	out = append(out, strings.Split(bottom, "\n")...)
+	return strings.Join(textwidth.Fit(out, w, v.size.H), "\n")
+}
+
+// readOnlyText is the line drawn instead of the composer in a read-only
+// conversation (ok=false: the conversation takes input).
+func (v *channelView) readOnlyText(ctx *ui.Context) (string, bool) {
+	ch := v.channel(ctx)
+	if ch == nil || !ch.ReadOnly {
+		return "", false
+	}
+	if ch.ReadOnlyReason != nil && *ch.ReadOnlyReason == "blocked" {
+		return readOnlyBlocked, true
+	}
+	return readOnlyText, true
+}
+
+// inputBlocked: the conversation takes no input (gone or read-only).
+func (v *channelView) inputBlocked(ctx *ui.Context) bool {
+	_, ro := v.readOnlyText(ctx)
+	return ro || v.gone(ctx)
+}
+
+// syncComposer drops the composer's focus once the conversation takes no input.
+func (v *channelView) syncComposer(ctx *ui.Context) {
+	if v.composer.focused() && v.inputBlocked(ctx) {
+		v.composer.blur()
+	}
+}
+
+// placeholder is the composer placeholder of the density: Full "› # 개발에 메시지
+// 보내기" (DM "› 민지에게 메시지 보내기"), Line "› # 개발", Bubble/Minimal "›".
+func (v *channelView) placeholder(ctx *ui.Context) string {
+	d := ctx.Density()
+	ch := v.channel(ctx)
+	if ch == nil || d == ui.DensityBubble || d == ui.DensityMinimal {
+		return placeholderShort
+	}
+	title := channelTitle(ctx, ch, false)
+	if ch.Kind == api.ChannelDM {
+		title = textwidth.Sanitize(ctx.Store.ChannelLabel(ch.ID))
+	}
+	if d == ui.DensityLine {
+		return placeholderShort + " " + title
+	}
+	if ch.Kind == api.ChannelDM {
+		return placeholderShort + " " + title + "에게 메시지 보내기"
+	}
+	return placeholderShort + " " + title + "에 메시지 보내기"
 }
 
 func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if v.gone(ctx) {
 		return false, nil
+	}
+	v.syncComposer(ctx)
+	if v.composer.focused() {
+		wasEmpty := v.composer.c.Value() == ""
+		handled, cmd := v.composer.handleKey(ctx, msg)
+		if ctx.Keys.Matches(msg, keymap.ComposeSend) && !wasEmpty && v.composer.editing == nil && v.composer.c.Value() == "" {
+			cmd = tea.Batch(cmd, v.afterSend(ctx))
+		}
+		return handled, cmd
+	}
+	if ctx.Keys.Matches(msg, keymap.ComposeFocus) {
+		if v.inputBlocked(ctx) {
+			return false, nil
+		}
+		return true, v.composer.focus()
+	}
+	if r, ok := v.pane.selected(); ok && r.Kind == rowPending && r.Pending != nil && r.Pending.Failed != nil {
+		switch {
+		case ctx.Keys.Matches(msg, keymap.ComposeSend):
+			cmd := resendCmd(ctx, v.id(), r.Pending.Nonce)
+			v.pane.refresh(ctx)
+			return true, cmd
+		case ctx.Keys.Matches(msg, keymap.MsgDelete):
+			if c := chatOf(ctx); c != nil {
+				c.DropPending(v.id(), r.Pending.Nonce)
+			}
+			v.pane.refresh(ctx)
+			v.pane.snap(-1)
+			v.syncOpen(ctx)
+			return true, nil
+		}
 	}
 	if ctx.Keys.Matches(msg, keymap.MsgThread) {
 		r, ok := v.pane.selected()
@@ -399,11 +525,31 @@ func (v *channelView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Po
 	return tea.Batch(cmd, v.maybeArmRead(ctx))
 }
 
-// CapturesInput: no text field yet (the composer comes with Task 9).
-func (v *channelView) CapturesInput() bool { return false }
+// afterSend follows a send: the list shows the new pending row at the bottom
+// (the latest page is fetched first when an older page is shown).
+func (v *channelView) afterSend(ctx *ui.Context) tea.Cmd {
+	var cmd tea.Cmd
+	if w := v.pane.window(ctx); w != nil && w.HasMoreAfter() {
+		cmd = v.fetchHistory(ctx, "")
+	}
+	v.pane.refresh(ctx)
+	v.pane.selectID(v.pane.lastSelectable())
+	v.syncOpen(ctx)
+	return cmd
+}
 
-// Cursor: none while nothing captures input.
-func (v *channelView) Cursor() *tea.Cursor { return nil }
+// CapturesInput: while the composer has the sub-focus.
+func (v *channelView) CapturesInput() bool { return v.composer.focused() }
+
+// Cursor: the composer's real cursor (IME) inside the pane, nil while it is blurred.
+func (v *channelView) Cursor() *tea.Cursor {
+	c := v.composer.cursor()
+	if c == nil {
+		return nil
+	}
+	c.Y += v.inputY
+	return c
+}
 
 func (v *channelView) ViewingChannels() []string { return []string{v.id()} }
 
@@ -416,11 +562,14 @@ func (v *channelView) Title(ctx *ui.Context) (string, ui.Badge) {
 }
 
 func (v *channelView) Help(ctx *ui.Context) []key.Binding {
+	if v.composer.focused() {
+		return ctx.Keys.Help(keymap.ComposeSend, keymap.ComposeNewline, keymap.ComposeLeave, keymap.ComposeEditLast)
+	}
 	return ctx.Keys.Help(keymap.MsgThread, keymap.MsgReact, keymap.ComposeFocus, keymap.ChannelSearch)
 }
 
 func (v *channelView) SaveState() any {
-	st := channelSaved{Anchor: v.pane.list.Anchor()}
+	st := channelSaved{Anchor: v.pane.list.Anchor(), Draft: v.composer.draft()}
 	if r, ok := v.pane.selected(); ok {
 		st.Selected = r.ID
 	}
@@ -439,6 +588,9 @@ func (v *channelView) LoadState(s any) {
 		st = *x
 	default:
 		return
+	}
+	if st.Draft != "" && v.composer.c.Value() == "" && v.composer.editing == nil {
+		v.composer.setDraft(st.Draft)
 	}
 	v.pane.restore = &st
 	if v.pane.started {

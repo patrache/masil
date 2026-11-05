@@ -704,3 +704,55 @@ func threadRoute(h *uitest.Harness) (ui.Route, bool) {
 	}
 	return ui.Route{}, false
 }
+
+// ---- composer helpers (Task 9) ----
+
+// ptrTo returns a pointer to v.
+func ptrTo[T any](v T) *T { return &v }
+
+// mustJSONField fails unless the string field key of the JSON object body satisfies ok.
+func mustJSONField(t testing.TB, body []byte, key string, ok func(string) bool) {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(body, &m); err != nil {
+		t.Fatalf("body is not a JSON object: %v: %s", err, body)
+	}
+	v, isStr := m[key].(string)
+	if !isStr || !ok(v) {
+		t.Fatalf("field %q = %#v rejected in %s", key, m[key], body)
+	}
+}
+
+// mustJSONEq fails unless the string field key of the JSON object body equals want.
+func mustJSONEq(t testing.TB, body []byte, key, want string) {
+	t.Helper()
+	mustJSONField(t, body, key, func(v string) bool { return v == want })
+}
+
+// myLastID is the id of my newest text / me message in the #개발 window.
+func myLastID(t testing.TB, h *uitest.Harness) string {
+	t.Helper()
+	items := chatOf(h.Context()).Window(devID(t, h)).Items()
+	for i := len(items) - 1; i >= 0; i-- {
+		m := items[i]
+		if h.Context().Store.IsMe(m.Author.ID) && (m.Kind == "text" || m.Kind == "me") && !m.Deleted {
+			return m.ID
+		}
+	}
+	t.Fatal("no message of mine in #개발")
+	return ""
+}
+
+// lastLineWith is lineWith for the LAST line holding s (the composer sits below
+// the list, whose messages may hold the same text).
+func lastLineWith(t testing.TB, screen, s string) (row, col int) {
+	t.Helper()
+	lines := strings.Split(screen, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if j := strings.Index(lines[i], s); j >= 0 {
+			return i, textwidth.Width(lines[i][:j])
+		}
+	}
+	t.Fatalf("%q not on screen:\n%s", s, screen)
+	return -1, -1
+}

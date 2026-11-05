@@ -73,6 +73,7 @@ const (
 	sendingText     = " · 보내는 중…"
 	failedText      = " · 전송 실패 — enter 다시 보내기 · d 버리기"
 	failedShort     = " · 전송 실패"
+	failedHint      = " — enter 다시 보내기 · d 버리기"
 	pendingBodyMin  = 10 // one-line densities keep this much of a pending body before shortening the status
 	loadingText     = "불러오는 중…"
 	unknownUser     = "알 수 없는 사용자"
@@ -506,7 +507,8 @@ func alignRight(t *theme.Theme, lines []string, width int) []string {
 // ---- pending sends ----
 
 // renderPending: my optimistic send, dim body + " · 보내는 중…", or the failed
-// state in S.Error.
+// state in S.Error with the reason (api.Describe) — its own line(s) in the
+// multi-line densities, inside the status of the one-line ones while it fits.
 func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage, st msgStyle) []string {
 	var me api.UserSummary
 	if m := ctx.Me(); m != nil {
@@ -528,11 +530,18 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 			head = t.S.Timestamp.Render(clockOf(ctx, p.SentAt)) + blank(t, 1) +
 				textwidth.Truncate(widgets.UserName(t, me, true), lineNameMax, "…") + blank(t, 1)
 		}
-		// one line: keep some of the body visible, falling back to the short status.
+		// one line: keep some of the body visible, shortening the failed status
+		// (with reason + hint → with reason → bare) until it does.
 		room := st.Width - textwidth.Width(head) - textwidth.Width(status)
-		if room < min(textwidth.Width(body), pendingBodyMin) && p.Failed != nil {
-			status = stStyle.Render(failedShort)
-			room = st.Width - textwidth.Width(head) - textwidth.Width(status)
+		if p.Failed != nil {
+			reason := failedReason(p)
+			for _, alt := range []string{failedShort + ": " + reason + failedHint, failedShort + ": " + reason, failedShort} {
+				status = stStyle.Render(alt)
+				room = st.Width - textwidth.Width(head) - textwidth.Width(status)
+				if room >= min(textwidth.Width(body), pendingBodyMin) {
+					break
+				}
+			}
 		}
 		if room <= 0 {
 			status = textwidth.Truncate(status, max(0, st.Width-textwidth.Width(head)), "…")
@@ -553,6 +562,11 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 		for _, l := range textwidth.Wrap(strings.TrimPrefix(statusPlain(p), " · "), st.Width) {
 			out = append(out, stStyle.Render(l))
 		}
+		if p.Failed != nil {
+			for _, l := range textwidth.Wrap(failedReason(p), st.Width) {
+				out = append(out, stStyle.Render(l))
+			}
+		}
 		return alignRight(t, out, st.Width)
 	}
 	var out []string
@@ -562,10 +576,20 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 	ind := indentOf(st.Width)
 	bw := st.Width - ind
 	lines := appendSuffix(dimWrap(t, body, bw), statusPlain(p), stStyle, bw)
+	if p.Failed != nil {
+		for _, l := range textwidth.Wrap(failedReason(p), max(1, bw)) {
+			lines = append(lines, stStyle.Render(l))
+		}
+	}
 	for _, l := range lines {
 		out = append(out, blank(t, ind)+l)
 	}
 	return out
+}
+
+// failedReason is the user-facing reason of a failed send (sanitized for display).
+func failedReason(p *chatstore.PendingMessage) string {
+	return textwidth.Sanitize(api.Describe(p.Failed))
 }
 
 func statusPlain(p *chatstore.PendingMessage) string {
