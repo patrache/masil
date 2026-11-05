@@ -24,20 +24,25 @@ const PENDING_ROW = "EXISTS (SELECT 1 FROM follows WHERE follower_id = ?1 AND fo
 
 /**
  * Deletes the follow row follower -> followee (active or pending; `pendingOnly` restricts it to a pending request).
- * Guarded decrements first, so a pending row never moves the counters. Returns whether a row was deleted.
+ * Guarded decrements first, so a pending row never moves the counters. With `pendingOnly` the counter statements are
+ * left out entirely: deleting a pending row never moves them, and an active row must not be decremented when the
+ * DELETE (status = 'pending') would not remove it. Returns whether a row was deleted.
  */
 async function deleteFollow(db: D1Database, followerId: string, followeeId: string, pendingOnly = false): Promise<boolean> {
-  const results = await batch(db, [
-    stmt(db, `UPDATE users SET following_count = MAX(following_count - 1, 0) WHERE id = ?1 AND ${ACTIVE_ROW}`, followerId, followeeId),
-    stmt(db, `UPDATE users SET follower_count = MAX(follower_count - 1, 0) WHERE id = ?2 AND ${ACTIVE_ROW}`, followerId, followeeId),
-    stmt(
-      db,
-      `DELETE FROM follows WHERE follower_id = ?1 AND followee_id = ?2${pendingOnly ? " AND status = 'pending'" : ""} RETURNING follower_id`,
-      followerId,
-      followeeId,
-    ),
-  ]);
-  return results[2]!.results.length > 0;
+  const del = stmt(
+    db,
+    `DELETE FROM follows WHERE follower_id = ?1 AND followee_id = ?2${pendingOnly ? " AND status = 'pending'" : ""} RETURNING follower_id`,
+    followerId,
+    followeeId,
+  );
+  const counters = pendingOnly
+    ? []
+    : [
+        stmt(db, `UPDATE users SET following_count = MAX(following_count - 1, 0) WHERE id = ?1 AND ${ACTIVE_ROW}`, followerId, followeeId),
+        stmt(db, `UPDATE users SET follower_count = MAX(follower_count - 1, 0) WHERE id = ?2 AND ${ACTIVE_ROW}`, followerId, followeeId),
+      ];
+  const results = await batch(db, [...counters, del]);
+  return results[counters.length]!.results.length > 0;
 }
 
 export const followRoutes = new Hono<AppEnv>();

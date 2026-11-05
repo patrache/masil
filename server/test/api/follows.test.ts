@@ -51,6 +51,20 @@ test("cancelling a pending request or removing a pending follower leaves counter
   expect((await me(p)).follower_count).toBe(1); expect((await me(c)).following_count).toBe(0);
   expect((await api(p.token).get<any>("/v1/me/follow-requests")).body.items).toEqual([]);
 });
+test("declining an already-active follower -> 404 and counters unchanged (repeated)", async () => {
+  const p = await signup(); const a = await signup();
+  await api(p.token).patch("/v1/me/settings", { is_private: true });
+  expect(await follow(a, p)).toBe("pending");
+  expect((await api(p.token).post(`/v1/me/follow-requests/@${a.handle}/accept`)).status).toBe(204);
+  expect((await me(p)).follower_count).toBe(1); expect((await me(a)).following_count).toBe(1);
+  for (let i = 0; i < 2; i++) {
+    expect((await api(p.token).post(`/v1/me/follow-requests/@${a.handle}/decline`)).status).toBe(404);
+    expect((await me(p)).follower_count).toBe(1); expect((await me(a)).following_count).toBe(1);
+  }
+  // the active follow row is still there and still removable normally
+  expect((await api(p.token).del(`/v1/users/@${a.handle}/follower`)).status).toBe(204);
+  expect((await me(p)).follower_count).toBe(0); expect((await me(a)).following_count).toBe(0);
+});
 test("going public approves all pending and notifies each requester", async () => {
   const p = await signup(); const a = await signup(); const b = await signup();
   await api(p.token).patch("/v1/me/settings", { is_private: true });
