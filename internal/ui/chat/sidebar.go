@@ -213,7 +213,7 @@ func (p *sidebarPane) render(ctx *ui.Context, it sideItem, selected bool, width 
 	case sideLabel, sideNotice:
 		body = cell(t.S.Dim.Render, it.Text, cw)
 	case sideChannel:
-		body = p.channelRow(ctx, t, it.Ch, cw)
+		body = channelRow(ctx, t, it.Ch, cw)
 	}
 	return []string{cur + body}
 }
@@ -222,7 +222,7 @@ func (p *sidebarPane) render(ctx *ui.Context, it sideItem, selected bool, width 
 // "<presence> 이름" for a 1:1 DM, "◇ 라벨" for a group DM, then the right-aligned
 // badge. Viewed = S.Selected, unread (not muted) = S.Bold, muted or a read-only DM =
 // S.Dim.
-func (p *sidebarPane) channelRow(ctx *ui.Context, t *theme.Theme, ch *api.Channel, cw int) string {
+func channelRow(ctx *ui.Context, t *theme.Theme, ch *api.Channel, cw int) string {
 	s := ctx.Store
 	st := t.S.Base
 	dm := ch.Kind == api.ChannelDM || ch.Kind == api.ChannelGroupDM
