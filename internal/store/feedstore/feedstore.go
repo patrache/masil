@@ -40,6 +40,8 @@ type FeedStore struct {
 	posts        map[string]*api.Post
 	replies      map[string]*store.Window[api.Post]
 	notifs       *store.Window[api.Notification]
+	notifsLoaded bool    // a first page (GET /v1/notifications or its resync) filled notifs
+	notifsCursor *string // next_cursor of the newest-first paging (nil = no older page)
 	stories      []api.StoryGroup
 	storiesStale bool
 	trends       *api.Trends
@@ -81,6 +83,7 @@ func (f *FeedStore) clear() {
 		w.Clear()
 	}
 	f.notifs.Clear()
+	f.notifsLoaded, f.notifsCursor = false, nil
 	f.posts = map[string]*api.Post{}
 	f.replies = map[string]*store.Window[api.Post]{}
 	f.stories = nil
@@ -121,6 +124,61 @@ func (f *FeedStore) Post(id string) *api.Post { return f.posts[id] }
 
 // Notifications returns the notification inbox window.
 func (f *FeedStore) Notifications() *store.Window[api.Notification] { return f.notifs }
+
+// NotificationsLoaded reports whether a first page filled the inbox window
+// (an inbox built later need not refetch). notification.created alone never
+// sets it.
+func (f *FeedStore) NotificationsLoaded() bool { return f.notifsLoaded }
+
+// NotificationsCursor is the cursor of the next older inbox page (nil = none).
+func (f *FeedStore) NotificationsCursor() *string { return f.notifsCursor }
+
+// SetNotificationsPage replaces the inbox window with a first page and marks it
+// loaded. Window items the page does not hold are kept when they are not older
+// than the page's oldest item (notification.created that raced the request), or
+// all of them when the page is empty; older ones belong to older pages.
+func (f *FeedStore) SetNotificationsPage(p *api.NotificationPage) {
+	if p == nil {
+		return
+	}
+	var oldest time.Time
+	for i, n := range p.Items {
+		if i == 0 || n.CreatedAt.Before(oldest) {
+			oldest = n.CreatedAt
+		}
+	}
+	var keep []api.Notification
+	for _, n := range f.notifs.Items() {
+		if len(p.Items) == 0 || !n.CreatedAt.Before(oldest) {
+			keep = append(keep, n)
+		}
+	}
+	f.setNotifsCursor(p)
+	f.notifs.Replace(keep, f.notifsCursor != nil, false)
+	f.notifs.Upsert(p.Items...) // the page's copy wins
+	f.notifsLoaded = true
+}
+
+// AddOlderNotifications merges an older inbox page and moves the cursor.
+func (f *FeedStore) AddOlderNotifications(p *api.NotificationPage) {
+	if p == nil {
+		return
+	}
+	f.setNotifsCursor(p)
+	f.notifs.PrependOlder(p.Items, f.notifsCursor != nil)
+}
+
+// setNotifsCursor keeps p's next cursor; an empty page never loops.
+func (f *FeedStore) setNotifsCursor(p *api.NotificationPage) {
+	f.notifsCursor = p.NextCursor
+	if len(p.Items) == 0 {
+		f.notifsCursor = nil
+	}
+	if f.notifsCursor != nil {
+		c := *f.notifsCursor
+		f.notifsCursor = &c
+	}
+}
 
 // Stories returns the story ring groups (nil until SetStories).
 func (f *FeedStore) Stories() []api.StoryGroup { return f.stories }

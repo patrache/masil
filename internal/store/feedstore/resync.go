@@ -176,9 +176,7 @@ func (f *FeedStore) ApplyResync(m ResyncMsg) {
 			f.SetStories(m.Stories)
 		}
 	case m.Key == keyNotifications:
-		if m.Notifs != nil {
-			f.notifs.Replace(m.Notifs.Items, m.Notifs.NextCursor != nil, false)
-		}
+		f.SetNotificationsPage(m.Notifs)
 	}
 }
 

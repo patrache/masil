@@ -138,7 +138,6 @@ type notifications struct {
 	fade  widgets.Fade
 
 	fadeUntil   time.Time
-	cursor      *string
 	loading     bool
 	loadingMore bool
 	loaded      bool
@@ -170,8 +169,9 @@ func (n *notifications) fs(ctx *ui.Context) *feedstore.FeedStore {
 	return feedstore.Get(ctx.Store)
 }
 
-// Init marks the inbox open for resync and loads the first page unless the
-// window already holds one.
+// Init marks the inbox open for resync and loads the first page unless one
+// already filled the window (items that only notification.created added do
+// not count: the inbox may be built after they arrived).
 func (n *notifications) Init(ctx *ui.Context) tea.Cmd {
 	fs := n.fs(ctx)
 	if fs == nil {
@@ -179,7 +179,7 @@ func (n *notifications) Init(ctx *ui.Context) tea.Cmd {
 	}
 	fs.SetOpen(notifOpenKey, true)
 	var cmd tea.Cmd
-	if fs.Notifications().Len() == 0 {
+	if !fs.NotificationsLoaded() {
 		cmd = n.load(ctx, "")
 	} else {
 		n.loaded = true
@@ -207,12 +207,15 @@ func (n *notifications) load(ctx *ui.Context, cursor string) tea.Cmd {
 	}))
 }
 
+// maybeMore loads the next older page (FeedStore keeps its cursor, so a
+// rebuilt inbox still pages) once the selection nears the end.
 func (n *notifications) maybeMore(ctx *ui.Context) tea.Cmd {
-	if n.cursor == nil || len(n.items) == 0 {
+	fs := n.fs(ctx)
+	if fs == nil || fs.NotificationsCursor() == nil || len(n.items) == 0 {
 		return nil
 	}
 	if i := n.selectedIndex(); i >= len(n.items)-moreThreshold {
-		return n.load(ctx, *n.cursor)
+		return n.load(ctx, *fs.NotificationsCursor())
 	}
 	return nil
 }
@@ -233,7 +236,6 @@ func (n *notifications) selectedIndex() int {
 func (n *notifications) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	if forwardResync(ctx, msg) {
 		if m := msg.(feedstore.ResyncMsg); m.Key == notifOpenKey && m.Notifs != nil {
-			n.cursor = m.Notifs.NextCursor
 			n.loaded = true
 		}
 	}
@@ -302,16 +304,11 @@ func (n *notifications) onPage(ctx *ui.Context, m ui.ResultMsg[*api.Notification
 	if fs == nil {
 		return nil
 	}
-	hasMore := m.Value.NextCursor != nil
 	if more {
-		fs.Notifications().PrependOlder(m.Value.Items, hasMore)
+		fs.AddOlderNotifications(m.Value)
 	} else {
-		fs.Notifications().Replace(m.Value.Items, hasMore, false)
+		fs.SetNotificationsPage(m.Value)
 		ctx.Store.NotifUnread = m.Value.UnreadCount
-	}
-	n.cursor = m.Value.NextCursor
-	if len(m.Value.Items) == 0 {
-		n.cursor = nil // an empty page never loops
 	}
 	return nil
 }

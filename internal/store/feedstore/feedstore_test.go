@@ -665,3 +665,66 @@ func TestRemoveStory(t *testing.T) {
 		t.Fatalf("after removing hana's only story: %+v", gs)
 	}
 }
+
+func notif(id string, min int) api.Notification {
+	a := hana
+	return api.Notification{ID: id, Type: "post_like", Actor: &a, CreatedAt: base.Add(time.Duration(min) * time.Minute)}
+}
+
+func notifIDs(f *feedstore.FeedStore) []string {
+	var out []string
+	for _, n := range f.Notifications().Items() {
+		out = append(out, n.ID)
+	}
+	return out
+}
+
+// An inbox window filled only by notification.created is not loaded; a first
+// page replaces it, keeps event items the page does not hold yet, and keeps
+// the next cursor so a rebuilt inbox can still page older items.
+func TestNotificationsPageStateSurvivesEvents(t *testing.T) {
+	s, f := newFeed(t)
+	s.Apply(ev(t, "notification.created", map[string]any{"notification": notif("N9", 9), "unread_count": 1}))
+	if f.NotificationsLoaded() || f.NotificationsCursor() != nil {
+		t.Fatalf("event-only window: loaded=%v cursor=%v, want false/nil", f.NotificationsLoaded(), f.NotificationsCursor())
+	}
+	f.SetNotificationsPage(&api.NotificationPage{Items: []api.Notification{notif("N5", 5), notif("N4", 4)}, NextCursor: strp("c4")})
+	if !f.NotificationsLoaded() {
+		t.Fatal("NotificationsLoaded = false after a first page")
+	}
+	if c := f.NotificationsCursor(); c == nil || *c != "c4" {
+		t.Fatalf("cursor = %v, want c4", c)
+	}
+	if got, want := notifIDs(f), []string{"N4", "N5", "N9"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("window = %v, want %v (event item kept)", got, want)
+	}
+	if !f.Notifications().HasMoreBefore() {
+		t.Fatal("HasMoreBefore = false with a next cursor")
+	}
+	f.AddOlderNotifications(&api.NotificationPage{Items: []api.Notification{notif("N3", 3)}})
+	if f.NotificationsCursor() != nil || f.Notifications().HasMoreBefore() {
+		t.Fatalf("after the last page: cursor=%v more=%v, want nil/false", f.NotificationsCursor(), f.Notifications().HasMoreBefore())
+	}
+	if got, want := notifIDs(f), []string{"N3", "N4", "N5", "N9"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("window = %v, want %v", got, want)
+	}
+	f.Reset()
+	if f.NotificationsLoaded() || f.NotificationsCursor() != nil || f.Notifications().Len() != 0 {
+		t.Fatal("Reset kept notification page state")
+	}
+}
+
+// A first page drops window items older than the page (they belong to older
+// pages) and keeps everything when the page is empty.
+func TestNotificationsPageDropsOlderKeepsAllOnEmpty(t *testing.T) {
+	_, f := newFeed(t)
+	f.Notifications().Upsert(notif("N1", 1), notif("N9", 9))
+	f.SetNotificationsPage(&api.NotificationPage{Items: []api.Notification{notif("N5", 5)}})
+	if got, want := notifIDs(f), []string{"N5", "N9"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("window = %v, want %v", got, want)
+	}
+	f.SetNotificationsPage(&api.NotificationPage{Items: []api.Notification{}})
+	if got, want := notifIDs(f), []string{"N5", "N9"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("empty page: window = %v, want %v", got, want)
+	}
+}

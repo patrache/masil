@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -452,5 +453,25 @@ func TestResyncErrorKeepsWindow(t *testing.T) {
 	f.ApplyResync(m)
 	if got := itemIDs(f.Timeline(feedstore.KindFollowing).Items()); !eqStrings(got, []string{"T1"}) {
 		t.Fatalf("window = %v", got)
+	}
+}
+
+// A notifications resync loads the window like a first page: loaded, the next
+// cursor kept, event items the page does not hold yet kept.
+func TestResyncNotificationsSetsPageState(t *testing.T) {
+	s, f := newFeed(t)
+	f.SetOpen("notifications", true)
+	s.Apply(ev(t, "notification.created", map[string]any{"notification": notif("N9", 9), "unread_count": 1}))
+	srv := apitest.New(t)
+	srv.JSON("GET /v1/notifications", http.StatusOK, api.NotificationPage{Items: []api.Notification{notif("N5", 5)}, NextCursor: strp("c5"), UnreadCount: 1})
+	f.ApplyResync(byKey(t, resyncMsgs(t, f.Resync(s, srv.Client())), "notifications"))
+	if !f.NotificationsLoaded() {
+		t.Fatal("NotificationsLoaded = false after a resync")
+	}
+	if c := f.NotificationsCursor(); c == nil || *c != "c5" {
+		t.Fatalf("cursor = %v, want c5", c)
+	}
+	if got, want := notifIDs(f), []string{"N5", "N9"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("window = %v, want %v", got, want)
 	}
 }

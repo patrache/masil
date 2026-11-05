@@ -358,3 +358,45 @@ func TestNotificationSpaceInviteRoutes(t *testing.T) {
 		}
 	}
 }
+
+// A notification.created that arrives before the inbox exists (single-pane
+// modes build RouteNotifications only when opened) must not stop the inbox
+// from loading its first page: the fixture rows and the event row all show.
+func TestNotificationsEventBeforeOpenStillLoads(t *testing.T) {
+	feedRoute := ui.Route{Kind: ui.RouteFeed, Arg: "following"}
+	h := uitest.New(t, notifOpts(t, false, &feedRoute)...)
+	h.Resize(80, 24)
+	if c := notifInstance(h); c != nil {
+		t.Fatalf("80x24 built the inbox before it was opened: %T", c)
+	}
+	n := api.Notification{
+		ID: discoverNewID(5), Type: "post_reply", Actor: ptr(userOf("junho")),
+		Subject: api.NotificationSubject{Type: "post", ID: myPost().ID}, Preview: "저도 갈래요",
+		Context: api.NotificationContext{PostID: ptr(myPost().ID)}, CreatedAt: at(0),
+	}
+	h.Event("notification.created", map[string]any{"notification": n, "unread_count": 3})
+	before := len(h.API.Requests())
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteNotifications}})
+	got := 0
+	for _, r := range h.API.Requests()[before:] {
+		if r.Method == http.MethodGet && r.Path == "/v1/notifications" {
+			got++
+		}
+	}
+	if got != 1 {
+		t.Fatalf("opening the inbox sent %d GET /v1/notifications, want 1; requests %+v", got, h.API.Requests()[before:])
+	}
+	ids := NotifIDs(notifInstance(h))
+	want := map[string]bool{n.ID: true}
+	for _, x := range notificationsAll() {
+		want[x.ID] = true
+	}
+	if len(ids) != len(want) || ids[0] != n.ID {
+		t.Fatalf("rows = %v (%d), want the event row first plus %d fixture rows", ids, len(ids), len(want)-1)
+	}
+	for _, id := range ids {
+		if !want[id] {
+			t.Fatalf("unexpected row %s in %v", id, ids)
+		}
+	}
+}
