@@ -6,6 +6,7 @@ import type { AppEnv } from "./env";
 import { ApiError, notFoundHandler, onError } from "./lib/errors";
 import { newId } from "./lib/ids";
 import { clientVersionGate } from "./lib/version";
+import { authRoutes } from "./routes/auth";
 import { metaRoutes } from "./routes/meta";
 
 export const JSON_BODY_MAX_BYTES = 64 * 1024;
@@ -79,5 +80,6 @@ export function createApp(): Hono<AppEnv> {
   app.notFound(notFoundHandler);
   // Route modules in server-architecture.md section 2 order; each task adds its own line.
   app.route("/v1", metaRoutes);
+  app.route("/v1", authRoutes);
   return app;
 }

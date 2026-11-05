@@ -1,5 +1,6 @@
-// Shared test helpers (server-architecture.md 7.2). Later tasks add signup/login/connectWs/makeFriends/makeSpace.
+// Shared test helpers (server-architecture.md 7.2). Later tasks add connectWs/makeFriends/makeSpace.
 import { SELF } from "cloudflare:test";
+import type { Me } from "../src/types/api";
 
 export const BASE = "http://masil.test" as const;
 
@@ -81,4 +82,29 @@ export function api(token?: string): ApiClient {
     del: (path) => call("DELETE", path),
     raw,
   };
+}
+
+export interface TestUser {
+  token: string;
+  user: Me;
+  handle: string;
+  password: string;
+}
+
+/** POST /v1/auth/signup with a fresh handle (and IP); throws unless 201. */
+export async function signup(opts: { handle?: string; password?: string; displayName?: string } = {}): Promise<TestUser> {
+  const handle = opts.handle ?? uniqueHandle();
+  const password = opts.password ?? `pw-${randomBase36(12)}`;
+  const body: Record<string, unknown> = { handle, password };
+  if (opts.displayName !== undefined) body.display_name = opts.displayName;
+  const r = await api().post<{ token: string; user: Me }>("/v1/auth/signup", body);
+  if (r.status !== 201) throw new Error(`signup ${handle} failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return { token: r.body.token, user: r.body.user, handle: r.body.user.handle, password };
+}
+
+/** POST /v1/auth/login; throws unless 200. */
+export async function login(handle: string, password: string): Promise<{ token: string }> {
+  const r = await api().post<{ token: string }>("/v1/auth/login", { handle, password });
+  if (r.status !== 200) throw new Error(`login ${handle} failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return { token: r.body.token };
 }
