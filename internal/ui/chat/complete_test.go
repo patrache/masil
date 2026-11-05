@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -307,5 +308,39 @@ func TestCompletionEnterOnExactTokenSends(t *testing.T) {
 	h.Press("enter")
 	if v := channelOf(t, h).composer.c.Value(); v != "@minji " {
 		t.Fatalf("got %q", v)
+	}
+}
+
+func TestMentionMembersFollowMembership(t *testing.T) {
+	srv := newAPI(t)
+	dev := chanID(t, seeded(), "개발")
+	users := seededMembers(t)
+	liveMembers(srv, dev, &users)
+	h := openWith(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteChannel, ID: dev}, srv, uitest.WithSeed(bootstrappedSeed))
+	membersGets := func() int { return len(reqs(srv, "GET", "/v1/channels/"+dev+"/members")) }
+	h.Press("i")
+	h.Type("@mi")
+	if !hasDetail(popupItems(t, h), "@minji") || membersGets() != 1 {
+		t.Fatalf("precondition: %+v (%d GETs)", popupItems(t, h), membersGets())
+	}
+
+	// 민지 is kicked from the space while the popup is open: she leaves it
+	users = withoutID(users, fixtures.UserMinji)
+	h.Event("space.member_left", realtime.SpaceMemberLeft{SpaceID: fixtures.SpaceNova, UserID: fixtures.UserMinji, Reason: "kicked"})
+	if hasDetail(popupItems(t, h), "@minji") {
+		t.Fatalf("a departed member is still offered: %+v", popupItems(t, h))
+	}
+
+	// a newcomer joins the channel: the next mention offers them
+	users = append(users, newbie)
+	h.Event("channel.member_added", realtime.ChannelMemberAdded{ChannelID: dev, User: newbie})
+	h.Type(" @ne")
+	if !hasDetail(popupItems(t, h), "@newbie") {
+		t.Fatalf("a member who joined cannot be mentioned: %+v", popupItems(t, h))
+	}
+	n := membersGets()
+	h.Type("w")
+	if membersGets() != n {
+		t.Fatal("the refetched list is cached again")
 	}
 }

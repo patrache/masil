@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/slash"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
@@ -44,6 +45,7 @@ type completer struct {
 	members       []api.UserSummary // text channel members (ListChannelMembers, cached)
 	membersLoaded bool
 	membersBusy   bool
+	membersAgain  bool // a membership event arrived while the list was in flight
 
 	seen  string               // the value the popup was last computed for
 	rows  int                  // popup rows the owner has room for (0 = none)
@@ -295,14 +297,22 @@ func (cc *chatComposer) fetchMembers(ctx *ui.Context) tea.Cmd {
 }
 
 // onMembers lands the member list: cached, and the open @mention popup is
-// refreshed. A failure leaves the list unloaded (the next mention retries).
-func (cc *chatComposer) onMembers(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.ChannelMember]]) {
+// refreshed. A failure leaves the list unloaded (the next mention retries); a
+// list read before a membership change that arrived meanwhile is asked again.
+func (cc *chatComposer) onMembers(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.ChannelMember]]) tea.Cmd {
 	if m.Tag != "chat.members:"+cc.channelID {
-		return
+		return nil
 	}
 	cc.comp.membersBusy = false
+	if cc.comp.membersAgain {
+		cc.comp.membersAgain = false
+		if cc.comp.kind == completionMention {
+			return cc.fetchMembers(ctx)
+		}
+		return nil // unloaded: the next mention fetches it
+	}
 	if m.Err != nil || m.Value == nil {
-		return
+		return nil
 	}
 	cc.comp.members = cc.comp.members[:0]
 	for _, it := range m.Value.Items {
@@ -312,6 +322,27 @@ func (cc *chatComposer) onMembers(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.
 	if cc.comp.kind == completionMention {
 		cc.setItems(cc.candidates(ctx))
 	}
+	return nil
+}
+
+// onMembersEvent follows membership events of the composer's channel: the
+// cached list is no longer loaded (the next mention, or the open @mention
+// popup at once, fetches it again) and a member who left leaves it now.
+func (cc *chatComposer) onMembersEvent(ctx *ui.Context, ev realtime.Event) tea.Cmd {
+	mc, ok := memberChangeOf(ev)
+	if !ok || !mc.affects(cc.channel(ctx)) {
+		return nil
+	}
+	cc.comp.members = withoutUser(cc.comp.members, mc.gone)
+	cc.comp.membersLoaded = false
+	if cc.comp.membersBusy {
+		cc.comp.membersAgain = true
+	}
+	if cc.comp.kind != completionMention {
+		return nil
+	}
+	cc.setItems(cc.candidates(ctx))
+	return cc.fetchMembers(ctx)
 }
 
 // setItems replaces the candidates (the selection is clamped) and redraws the popup.

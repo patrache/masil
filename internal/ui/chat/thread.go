@@ -378,7 +378,7 @@ func (v *threadView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.EventMsg:
 		v.pane.refresh(ctx)
-		cmds = append(cmds, typingTick(ctx, m.Event, v.channelID(), v.rootID()))
+		cmds = append(cmds, typingTick(ctx, m.Event, v.channelID(), v.rootID()), v.composer.onMembersEvent(ctx, m.Event))
 	case ui.ResultMsg[msgAction]:
 		cmds = append(cmds, landAction(ctx, m))
 		v.pane.refresh(ctx)
@@ -430,7 +430,7 @@ func (v *threadView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			v.pane.refresh(ctx)
 		}
 	case ui.ResultMsg[*api.Page[api.ChannelMember]]:
-		v.composer.onMembers(ctx, m)
+		cmds = append(cmds, v.composer.onMembers(ctx, m))
 	case ui.ResultMsg[*api.Invite]:
 		cmds = append(cmds, v.composer.onInviteCreated(m))
 	case ui.ResultMsg[*api.DirectInvite]:

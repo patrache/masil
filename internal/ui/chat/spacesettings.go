@@ -16,6 +16,7 @@ import (
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
+	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/palette"
 	"github.com/patrache/masil/internal/ui/widgets"
 )
@@ -164,6 +165,13 @@ type spaceSettingsView struct {
 	hasFocus      bool // the app's focus is on this route (FocusChangedMsg / input)
 	homeAfterBack bool // stepped back after leaving: open home once the focus moved
 
+	// shown: the route is on screen. A route is placed when it is navigated to
+	// (created then, or reused with the focus moving to it), and another route
+	// replaces it in its slot by a navigation, which moves the focus to that
+	// route in that slot; a focus move to another slot leaves it shown.
+	shown bool
+	slot  layout.SlotID // the slot the route was last focused in ("" = Main)
+
 	actCur int // overview: selected action
 	actTop int // overview: first drawn line (mouse)
 	actRow int // overview: line of the first action
@@ -187,7 +195,7 @@ var (
 
 // newSpaceSettings is the RouteSpaceSettings factory (r.ID = the space).
 func newSpaceSettings(_ *ui.Context, r ui.Route) ui.Component {
-	v := &spaceSettingsView{spaceID: r.ID, tabs: widgets.NewTabs()}
+	v := &spaceSettingsView{spaceID: r.ID, tabs: widgets.NewTabs(), shown: true}
 	v.members = newSpaceMembers(v)
 	v.invites = newSpaceInvites(v)
 	v.channels = newSpaceChannels(v)
@@ -229,13 +237,28 @@ func (v *spaceSettingsView) setTab(ctx *ui.Context, i int) tea.Cmd {
 	}
 	v.members.blur()
 	v.tab = set[i]
+	presence := v.members.syncPresence(ctx) // members tab shown: poll; left: stop
 	switch v.tab {
 	case tabInvites:
-		return v.invites.fetch(ctx)
+		return tea.Batch(presence, v.invites.fetch(ctx))
 	case tabBans:
-		return v.bans.fetch(ctx)
+		return tea.Batch(presence, v.bans.fetch(ctx))
 	}
-	return nil
+	return presence
+}
+
+// onFocus follows whether the route is shown (see shown) from a focus change.
+func (v *spaceSettingsView) onFocus(m ui.FocusChangedMsg) {
+	slot := v.slot
+	if slot == "" {
+		slot = layout.SlotMain
+	}
+	switch {
+	case m.RouteKey == v.routeKey():
+		v.shown, v.slot = true, m.Slot
+	case m.RouteKey != "" && m.Slot == slot:
+		v.shown = false // another route took the slot
+	}
 }
 
 func (v *spaceSettingsView) tabIndex(ctx *ui.Context) int {
@@ -484,6 +507,17 @@ func (v *spaceSettingsView) Init(ctx *ui.Context) tea.Cmd {
 func (v *spaceSettingsView) Resize(_ *ui.Context, size ui.Size) { v.size = size }
 
 func (v *spaceSettingsView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
+	if r, ok := msg.(ui.RouteUpdatedMsg); ok && r.Route.Key() == v.routeKey() {
+		v.shown = true
+	}
+	if f, ok := msg.(ui.FocusChangedMsg); ok {
+		v.onFocus(f)
+	}
+	cmd := v.update(ctx, msg)
+	return tea.Batch(cmd, v.members.syncPresence(ctx))
+}
+
+func (v *spaceSettingsView) update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case ui.ResultMsg[spaceGot]:
 		if m.Value.owner != v {
@@ -558,7 +592,12 @@ func (v *spaceSettingsView) routeKey() string {
 }
 
 func (v *spaceSettingsView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
-	v.hasFocus = true
+	v.hasFocus, v.shown = true, true
+	handled, cmd := v.handleKey(ctx, msg)
+	return handled, tea.Batch(cmd, v.members.syncPresence(ctx))
+}
+
+func (v *spaceSettingsView) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if v.space(ctx) == nil {
 		return false, nil
 	}
@@ -600,7 +639,11 @@ func (v *spaceSettingsView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (boo
 
 // HandleMouse: a click on the tab row switches tabs; the body goes to the tab.
 func (v *spaceSettingsView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
-	v.hasFocus = true
+	v.hasFocus, v.shown = true, true
+	return tea.Batch(v.handleMouse(ctx, msg, local), v.members.syncPresence(ctx))
+}
+
+func (v *spaceSettingsView) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
 	if v.space(ctx) == nil {
 		return nil
 	}

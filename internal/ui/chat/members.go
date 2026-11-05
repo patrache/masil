@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -83,6 +84,8 @@ type membersPane struct {
 	ch      string // channel the current generation polls
 
 	pages   map[string]*memberPage // text channel -> its first member page
+	stale   map[string]bool        // a membership event changed the cached page: refetch it
+	again   map[string]bool        // a membership event arrived while the page was in flight
 	busy    map[string]bool        // member page in flight
 	failed  map[string]bool        // the last member page request failed
 	pending map[string]bool        // presence waits for this channel's member page
@@ -99,8 +102,8 @@ var (
 // newMembers is the SlotMembers pane factory.
 func newMembers(ctx *ui.Context) ui.Component {
 	p := &membersPane{
-		pages: map[string]*memberPage{}, busy: map[string]bool{},
-		failed: map[string]bool{}, pending: map[string]bool{},
+		pages: map[string]*memberPage{}, stale: map[string]bool{}, again: map[string]bool{},
+		busy: map[string]bool{}, failed: map[string]bool{}, pending: map[string]bool{},
 	}
 	p.list = widgets.NewList(func(it memberItem) string { return it.ID }, p.render)
 	return p
@@ -159,7 +162,7 @@ func (p *membersPane) poll(ctx *ui.Context, ch *api.Channel) tea.Cmd {
 	if ch.Kind != api.ChannelText {
 		return p.fetchPresence(ctx, ch.ID, ch.Members)
 	}
-	if pg := p.pages[ch.ID]; pg != nil {
+	if pg := p.pages[ch.ID]; pg != nil && !p.stale[ch.ID] {
 		return p.fetchPresence(ctx, ch.ID, pg.users)
 	}
 	p.pending[ch.ID] = true
@@ -180,26 +183,13 @@ func (p *membersPane) fetchMembers(ctx *ui.Context, id string) tea.Cmd {
 
 // fetchPresence requests the presence of users (me excluded, ≤100 per request).
 func (p *membersPane) fetchPresence(ctx *ui.Context, channelID string, users []api.UserSummary) tea.Cmd {
-	var ids []string
-	for _, u := range users {
-		if u.ID == "" || isMe(ctx, u.ID) || slices.Contains(ids, u.ID) {
-			continue
-		}
-		ids = append(ids, u.ID)
-	}
+	ids := presenceIDs(ctx, users)
 	if len(ids) == 0 {
 		return nil
 	}
 	return ui.Do(ctx, "chat.presence:"+channelID, func(c context.Context, cl *api.Client) (presenceResult, error) {
-		out := presenceResult{ChannelID: channelID}
-		for chunk := range slices.Chunk(ids, presenceChunk) {
-			items, err := cl.GetPresence(c, chunk)
-			out.Items = append(out.Items, items...)
-			if err != nil {
-				return out, err
-			}
-		}
-		return out, nil
+		items, err := getPresence(c, cl, ids)
+		return presenceResult{ChannelID: channelID, Items: items}, err
 	})
 }
 
@@ -211,9 +201,14 @@ func (p *membersPane) onMembers(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.Ch
 		return nil
 	}
 	p.busy[id] = false
+	if p.again[id] {
+		// read before a membership change that arrived meanwhile: ask again
+		delete(p.again, id)
+		return p.fetchMembers(ctx, id)
+	}
 	if m.Err != nil || m.Value == nil {
-		p.failed[id] = true
-		delete(p.pending, id) // the next tick retries the page
+		p.failed[id] = p.pages[id] == nil // a stale page stays shown; the next tick retries
+		delete(p.pending, id)
 		return nil
 	}
 	pg := &memberPage{more: !m.Value.Done()}
@@ -221,6 +216,7 @@ func (p *membersPane) onMembers(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.Ch
 		pg.users = append(pg.users, it.User)
 	}
 	p.pages[id] = pg
+	delete(p.stale, id)
 	p.failed[id] = false
 	if !p.pending[id] {
 		return nil
@@ -229,10 +225,108 @@ func (p *membersPane) onMembers(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.Ch
 	return p.fetchPresence(ctx, id, pg.users)
 }
 
+// memberChange is what a membership event changes: a channel's members
+// (channel.member_added / removed) or a space's (space.member_joined / left /
+// updated, which every text channel of the space lists). gone is the user who
+// left ("" when nobody did).
+type memberChange struct {
+	channelID, spaceID, gone string
+}
+
+// memberChangeOf decodes a membership event (ok false for any other event).
+func memberChangeOf(ev realtime.Event) (memberChange, bool) {
+	switch ev.Type {
+	case "channel.member_added", "channel.member_removed",
+		"space.member_joined", "space.member_left", "space.member_updated":
+	default:
+		return memberChange{}, false
+	}
+	v, err := ev.Decode()
+	if err != nil {
+		return memberChange{}, false
+	}
+	switch d := v.(type) {
+	case realtime.ChannelMemberAdded:
+		return memberChange{channelID: d.ChannelID}, true
+	case realtime.ChannelMemberRemoved:
+		return memberChange{channelID: d.ChannelID, gone: d.UserID}, true
+	case realtime.SpaceMemberEvent:
+		return memberChange{spaceID: d.SpaceID}, true
+	case realtime.SpaceMemberLeft:
+		return memberChange{spaceID: d.SpaceID, gone: d.UserID}, true
+	}
+	return memberChange{}, false
+}
+
+// affects reports whether the change alters text channel ch's member list.
+func (mc memberChange) affects(ch *api.Channel) bool {
+	if ch == nil || ch.Kind != api.ChannelText {
+		return false
+	}
+	if mc.channelID != "" {
+		return mc.channelID == ch.ID
+	}
+	return ch.SpaceID != nil && *ch.SpaceID == mc.spaceID
+}
+
+// withoutUser is users without id (a new slice; users is not changed).
+func withoutUser(users []api.UserSummary, id string) []api.UserSummary {
+	if id == "" {
+		return users
+	}
+	return slices.DeleteFunc(slices.Clone(users), func(u api.UserSummary) bool { return u.ID == id })
+}
+
+// onEvent follows membership events: a member who left leaves the cached page
+// at once, and every cached page the event changed is refetched (the viewed
+// channel's now, the others when they are viewed again), so joiners appear and
+// nobody gone is polled any longer.
+func (p *membersPane) onEvent(ctx *ui.Context, ev realtime.Event) tea.Cmd {
+	mc, ok := memberChangeOf(ev)
+	if !ok || ctx == nil || ctx.Store == nil {
+		return nil
+	}
+	ids := map[string]bool{}
+	for id := range p.pages {
+		ids[id] = true
+	}
+	for id, b := range p.busy {
+		ids[id] = ids[id] || b
+	}
+	var cmds []tea.Cmd
+	for id := range ids {
+		ch := ctx.Store.Channels[id]
+		if !mc.affects(ch) {
+			continue
+		}
+		if pg := p.pages[id]; pg != nil {
+			pg.users = withoutUser(pg.users, mc.gone)
+		}
+		p.stale[id] = true
+		if p.busy[id] {
+			p.again[id] = true
+			continue
+		}
+		if p.polling && p.ch == id && shown(ctx) {
+			p.pending[id] = true
+			cmds = append(cmds, p.fetchMembers(ctx, id))
+		}
+	}
+	return tea.Batch(cmds...)
+}
+
 // onPresence stores a presence poll. A failed poll keeps the cached values (the
 // next tick retries; a background poll raises no toast).
 func (p *membersPane) onPresence(ctx *ui.Context, m ui.ResultMsg[presenceResult]) {
 	if !strings.HasPrefix(m.Tag, "chat.presence:") || ctx == nil || ctx.Store == nil {
+		return
+	}
+	storePresence(ctx, m.Value.Items)
+}
+
+// storePresence lands a GET /v1/presence answer in Store.Presence (fetched now).
+func storePresence(ctx *ui.Context, items []api.PresenceItem) {
+	if ctx == nil || ctx.Store == nil {
 		return
 	}
 	s := ctx.Store
@@ -240,12 +334,37 @@ func (p *membersPane) onPresence(ctx *ui.Context, m ui.ResultMsg[presenceResult]
 		s.Presence = map[string]store.PresenceEntry{}
 	}
 	now := ctx.Now()
-	for _, it := range m.Value.Items {
+	for _, it := range items {
 		if it.UserID == "" {
 			continue
 		}
 		s.Presence[it.UserID] = store.PresenceEntry{Status: it.Status, LastSeenAt: it.LastSeenAt, FetchedAt: now}
 	}
+}
+
+// presenceIDs are the distinct ids of users to poll (me and empty ids left out).
+func presenceIDs(ctx *ui.Context, users []api.UserSummary) []string {
+	var ids []string
+	for _, u := range users {
+		if u.ID == "" || isMe(ctx, u.ID) || slices.Contains(ids, u.ID) {
+			continue
+		}
+		ids = append(ids, u.ID)
+	}
+	return ids
+}
+
+// getPresence is GET /v1/presence of ids in requests of at most presenceChunk.
+func getPresence(c context.Context, cl *api.Client, ids []string) ([]api.PresenceItem, error) {
+	var out []api.PresenceItem
+	for chunk := range slices.Chunk(ids, presenceChunk) {
+		items, err := cl.GetPresence(c, chunk)
+		out = append(out, items...)
+		if err != nil {
+			return out, err
+		}
+	}
+	return out, nil
 }
 
 func (p *membersPane) Init(ctx *ui.Context) tea.Cmd { return p.ensurePolling(ctx) }
@@ -261,6 +380,8 @@ func (p *membersPane) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		p.onPresence(ctx, m)
 	case ui.ResultMsg[msgAction]:
 		cmds = append(cmds, landAction(ctx, m)) // once-guarded: whoever sees it first lands it
+	case ui.EventMsg:
+		cmds = append(cmds, p.onEvent(ctx, m.Event))
 	}
 	cmds = append(cmds, p.ensurePolling(ctx))
 	return tea.Batch(cmds...)

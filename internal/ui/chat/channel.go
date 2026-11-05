@@ -411,7 +411,7 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			cmds = append(cmds, v.maybeArmRead(ctx))
 		}
 	case ui.EventMsg:
-		cmds = append(cmds, v.onEvent(ctx, m.Event))
+		cmds = append(cmds, v.onEvent(ctx, m.Event), v.composer.onMembersEvent(ctx, m.Event))
 	case ui.ResultMsg[msgAction]:
 		cmds = append(cmds, landAction(ctx, m))
 		v.pane.refresh(ctx)
@@ -486,7 +486,7 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			cmds = append(cmds, v.maybeArmRead(ctx))
 		}
 	case ui.ResultMsg[*api.Page[api.ChannelMember]]:
-		v.composer.onMembers(ctx, m)
+		cmds = append(cmds, v.composer.onMembers(ctx, m))
 	case ui.ResultMsg[*api.Invite]:
 		cmds = append(cmds, v.composer.onInviteCreated(m))
 	case ui.ResultMsg[*api.DirectInvite]:

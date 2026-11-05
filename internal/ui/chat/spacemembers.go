@@ -53,21 +53,22 @@ const (
 	banReasonTooLong  = "사유는 200자까지예요"
 	bannedSuffix      = "님을 방에서 차단했어요"
 
-	bansLoading     = "불러오는 중…"
-	bansFailed      = "차단 목록을 불러오지 못했어요"
-	bansNone        = "차단한 사람이 없어요"
-	unbanAskSuffix  = "님의 차단을 풀까요?"
-	unbanBody       = "차단을 풀어도 다시 초대해야 들어올 수 있어요"
-	unbanYes        = "풀기"
-	unbannedSuffix  = "님의 차단을 풀었어요"
-	unbanFailed     = "차단을 풀지 못했어요"
-	tagSpaceBans    = "chat.space_bans:"
-	tagSpaceRole    = "chat.space_role:"
-	tagSpaceKick    = "chat.space_kick:"
-	tagSpaceBan     = "chat.space_ban:"
-	tagSpaceUnban   = "chat.space_unban:"
-	bannedByPrefix  = "차단: "
-	memberLineInset = 1 // the filter row above the list
+	bansLoading      = "불러오는 중…"
+	bansFailed       = "차단 목록을 불러오지 못했어요"
+	bansNone         = "차단한 사람이 없어요"
+	unbanAskSuffix   = "님의 차단을 풀까요?"
+	unbanBody        = "차단을 풀어도 다시 초대해야 들어올 수 있어요"
+	unbanYes         = "풀기"
+	unbannedSuffix   = "님의 차단을 풀었어요"
+	unbanFailed      = "차단을 풀지 못했어요"
+	tagSpaceBans     = "chat.space_bans:"
+	tagSpaceRole     = "chat.space_role:"
+	tagSpaceKick     = "chat.space_kick:"
+	tagSpaceBan      = "chat.space_ban:"
+	tagSpaceUnban    = "chat.space_unban:"
+	tagSpacePresence = "chat.presence:"
+	bannedByPrefix   = "차단: "
+	memberLineInset  = 1 // the filter row above the list
 )
 
 // spaceMemberMsg tells the settings of SpaceID that a member changed after one
@@ -231,9 +232,24 @@ type memberFilterMsg struct {
 	gen   int
 }
 
+// spacePresenceTick is the members tab's presence re-poll tick of one polling generation.
+type spacePresenceTick struct {
+	owner *memberTab
+	gen   uint64
+}
+
+// spacePresenceResult is one presence poll of the members tab.
+type spacePresenceResult struct {
+	owner *memberTab
+	items []api.PresenceItem
+}
+
 // memberTab is the members tab: the "/" filter input (300ms debounce,
 // ListSpaceMembers{Q}), the members in the server's order (role, then name)
-// with presence and role labels, the next page fetched at the bottom.
+// with presence and role labels, the next page fetched at the bottom. The
+// server pushes no presence of members who are not friends or DM peers
+// (events.md 4.6), so the listed members' presence is polled (GET
+// /v1/presence, tag chat.presence:<space>) every 60s while the tab is shown.
 type memberTab struct {
 	v     *spaceSettingsView
 	items []api.SpaceMember
@@ -251,6 +267,9 @@ type memberTab struct {
 	query     string // the query of the shown list
 	filterGen int
 	curX      int // the filter cursor column (last View)
+
+	presPolling bool   // a spacePresenceTick of presGen is pending
+	presGen     uint64 // latest presence polling generation
 }
 
 func newSpaceMembers(v *spaceSettingsView) *memberTab {
@@ -279,6 +298,59 @@ func (s *memberTab) fetch(ctx *ui.Context, more bool) tea.Cmd {
 	return ui.Do(ctx, tagSpaceMembers+id, func(c context.Context, cl *api.Client) (spaceMembersPage, error) {
 		p, err := cl.ListSpaceMembers(c, id, q)
 		return spaceMembersPage{owner: s, gen: gen, more: more, page: p}, err
+	})
+}
+
+// presenceShown: the members tab of a space I still see is shown.
+func (s *memberTab) presenceShown(ctx *ui.Context) bool {
+	return s.v.shown && s.v.tab == tabMembers && s.v.space(ctx) != nil
+}
+
+// syncPresence starts polling once the tab is shown with its members loaded
+// (a poll at once, then every presenceEvery), and stops it when the tab or the
+// route is hidden, so a pending tick of the old generation is dropped and the
+// next show polls at once again.
+func (s *memberTab) syncPresence(ctx *ui.Context) tea.Cmd {
+	if !s.presenceShown(ctx) {
+		if s.presPolling {
+			s.presPolling = false
+			s.presGen++
+		}
+		return nil
+	}
+	if s.presPolling || !s.loaded {
+		return nil
+	}
+	s.presPolling = true
+	s.presGen++
+	return tea.Batch(s.pollPresence(ctx, s.items), ui.After(ctx, presenceEvery, spacePresenceTick{owner: s, gen: s.presGen}))
+}
+
+// onPresenceTick re-polls and re-arms while shown; hidden, polling stops.
+func (s *memberTab) onPresenceTick(ctx *ui.Context, m spacePresenceTick) tea.Cmd {
+	if m.owner != s || m.gen != s.presGen || !s.presPolling {
+		return nil
+	}
+	if !s.presenceShown(ctx) {
+		s.presPolling = false
+		return nil
+	}
+	return tea.Batch(s.pollPresence(ctx, s.items), ui.After(ctx, presenceEvery, spacePresenceTick{owner: s, gen: s.presGen}))
+}
+
+// pollPresence requests the presence of members (me excluded, ≤100 per request).
+func (s *memberTab) pollPresence(ctx *ui.Context, members []api.SpaceMember) tea.Cmd {
+	users := make([]api.UserSummary, 0, len(members))
+	for _, m := range members {
+		users = append(users, m.User)
+	}
+	ids := presenceIDs(ctx, users)
+	if len(ids) == 0 {
+		return nil
+	}
+	return ui.Do(ctx, tagSpacePresence+s.v.spaceID, func(c context.Context, cl *api.Client) (spacePresenceResult, error) {
+		items, err := getPresence(c, cl, ids)
+		return spacePresenceResult{owner: s, items: items}, err
 	})
 }
 
@@ -392,6 +464,16 @@ func (s *memberTab) update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			s.items = slices.Clone(items)
 		}
 		s.sync()
+		if s.presPolling && s.presenceShown(ctx) {
+			return s.pollPresence(ctx, items) // a new page or filter: its members' presence now
+		}
+		return nil
+	case spacePresenceTick:
+		return s.onPresenceTick(ctx, m)
+	case ui.ResultMsg[spacePresenceResult]:
+		if m.Value.owner == s {
+			storePresence(ctx, m.Value.items) // a failed background poll keeps the old values, no toast
+		}
 		return nil
 	case memberFilterMsg:
 		if m.owner == s && m.gen == s.filterGen {

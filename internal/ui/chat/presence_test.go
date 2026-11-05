@@ -356,3 +356,82 @@ func TestMembersPaneExactSize(t *testing.T) {
 func TestMembersHostileIntegrity(t *testing.T) {
 	forEachSize(t, uitest.ModeSizes[layout.ModeCommand], hostileOpen, func(t *testing.T, h *uitest.Harness) { h.Check() })
 }
+
+// ---- membership changes ----
+
+// newbie is a user who joins during a test (not in the seed).
+var newbie = api.UserSummary{ID: "01JA0000000000000000NEWB01", Handle: "newbie", DisplayName: "새내기"}
+
+// liveMembers serves GET …/members of channel ch from *users (read per request).
+func liveMembers(srv interface {
+	Handle(string, http.HandlerFunc)
+}, ch string, users *[]api.UserSummary) {
+	srv.Handle("GET /v1/channels/"+ch+"/members", func(w http.ResponseWriter, _ *http.Request) {
+		items := []api.ChannelMember{}
+		for _, u := range *users {
+			items = append(items, api.ChannelMember{User: u, JoinedAt: memberJoined})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": nil})
+	})
+}
+
+// seededMembers is the seeded channel member list (memberHandles).
+func seededMembers(t testing.TB) []api.UserSummary {
+	t.Helper()
+	s := seeded()
+	var out []api.UserSummary
+	for _, h := range memberHandles {
+		out = append(out, userBy(t, s, h))
+	}
+	return out
+}
+
+func withoutID(us []api.UserSummary, id string) []api.UserSummary {
+	return slices.DeleteFunc(slices.Clone(us), func(u api.UserSummary) bool { return u.ID == id })
+}
+
+func TestMembersPaneFollowsMembership(t *testing.T) {
+	srv := newAPI(t)
+	dev := chanID(t, seeded(), "개발")
+	users := seededMembers(t)
+	liveMembers(srv, dev, &users)
+	h := openWith(t, uitest.Size{W: 200, H: 60}, ui.Route{Kind: ui.RouteChannel, ID: dev}, srv, uitest.WithSeed(bootstrappedSeed))
+	if sp := h.Context().Store.Channels[dev].SpaceID; sp == nil || *sp != fixtures.SpaceNova {
+		t.Fatal("precondition: #개발 is in 노바 개발방")
+	}
+	membersGets := func() int { return len(reqs(srv, "GET", "/v1/channels/"+dev+"/members")) }
+	mustContain(t, paneText(t, h, layout.SlotMembers), "민지")
+	n := membersGets()
+
+	// 민지 leaves the space: she leaves the pane at once and the page is refetched
+	users = withoutID(users, fixtures.UserMinji)
+	h.Event("space.member_left", realtime.SpaceMemberLeft{SpaceID: fixtures.SpaceNova, UserID: fixtures.UserMinji, Reason: "kicked"})
+	if pane := paneText(t, h, layout.SlotMembers); strings.Contains(pane, "민지") {
+		t.Fatalf("a departed member stays listed:\n%s", pane)
+	}
+	if got := membersGets(); got != n+1 {
+		t.Fatalf("member page refetched %d times, want 1", got-n)
+	}
+	// and her presence is no longer polled
+	h.Advance(61 * time.Second)
+	pr := reqs(srv, "GET", "/v1/presence")
+	if last := pr[len(pr)-1].Query; strings.Contains(last, fixtures.UserMinji) || !strings.Contains(last, fixtures.UserJunho) {
+		t.Fatalf("presence still polls the departed member: %s", last)
+	}
+
+	// a newcomer added to the channel appears
+	users = append(users, newbie)
+	h.Event("channel.member_added", realtime.ChannelMemberAdded{ChannelID: dev, User: newbie})
+	mustContain(t, paneText(t, h, layout.SlotMembers), "새내기")
+	if got := membersGets(); got != n+2 {
+		t.Fatalf("member page refetched %d times, want 2", got-n)
+	}
+
+	// another space's or channel's membership leaves the page alone
+	h.Event("space.member_joined", realtime.SpaceMemberEvent{SpaceID: "01JB0000000000000000OTHER1", Member: api.SpaceMember{User: newbie, Role: api.RoleMember}})
+	h.Event("channel.member_removed", realtime.ChannelMemberRemoved{ChannelID: "01JB0000000000000000OTHER2", UserID: fixtures.UserJunho})
+	if got := membersGets(); got != n+2 {
+		t.Fatalf("unrelated membership refetched (%d)", got-n)
+	}
+	mustContain(t, paneText(t, h, layout.SlotMembers), "준호")
+}

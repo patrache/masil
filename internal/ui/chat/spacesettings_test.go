@@ -961,3 +961,86 @@ func TestPaletteLeaveLandsAnywhere(t *testing.T) {
 		t.Fatalf("the confirmation is closed after a failure:\n%s", h.Screen())
 	}
 }
+
+// memberRowText is the members-tab line of display name name.
+func memberRowText(t testing.TB, h *uitest.Harness, name string) string {
+	t.Helper()
+	for _, l := range strings.Split(paneText(t, h, layout.SlotMain), "\n") {
+		if strings.Contains(l, name+" @") {
+			return l
+		}
+	}
+	t.Fatalf("no member row %q:\n%s", name, paneText(t, h, layout.SlotMain))
+	return ""
+}
+
+// The members tab polls the presence of the members it lists (the server pushes
+// none for non-friends, events.md 4.6) every 60s while it is shown.
+func TestSpaceMembersPresencePolling(t *testing.T) {
+	srv := settingsServer(t, api.RoleOwner)
+	srv.JSON("GET /v1/presence", http.StatusOK, map[string]any{"items": []api.PresenceItem{
+		{UserID: fixtures.UserJunho, Status: api.PresenceOnline},
+		{UserID: fixtures.UserMinji, Status: api.PresenceOnline},
+	}})
+	seed := func(s *store.Store) {
+		settingsSeed(api.RoleOwner)(s)
+		delete(s.Presence, fixtures.UserJunho) // nothing pushed for 준호: no friend, no DM peer
+		delete(s.Friends, fixtures.UserJunho)
+	}
+	h := openWith(t, uitest.Size{W: 120, H: 40}, novaSettings(), srv, uitest.WithSeed(seed))
+	polls := func() int { return len(reqs(srv, "GET", "/v1/presence")) }
+	if polls() != 0 {
+		t.Fatal("no presence poll on the overview tab")
+	}
+	toMembers(h)
+	if polls() != 1 {
+		t.Fatalf("presence fetched as soon as the members tab shows (%d)", polls())
+	}
+	q := reqs(srv, "GET", "/v1/presence")[0].Query
+	if !strings.Contains(q, fixtures.UserJunho) || !strings.Contains(q, fixtures.UserDevKim) || strings.Contains(q, fixtures.UserSam) {
+		t.Fatalf("presence asks the listed members but me: %s", q)
+	}
+	if e := h.Context().Store.Presence[fixtures.UserJunho]; e.Status != api.PresenceOnline || !e.FetchedAt.Equal(h.Context().Now()) {
+		t.Fatalf("the poll lands in Store.Presence: %+v", e)
+	}
+	if row := memberRowText(t, h, "준호"); !strings.Contains(row, "●") {
+		t.Fatalf("an online non-friend member shows online: %q", row)
+	}
+
+	h.Advance(60 * time.Second)
+	if polls() != 2 {
+		t.Fatalf("re-poll every 60s while shown (%d)", polls())
+	}
+	h.Press("h") // overview: the tab is hidden, polling stops
+	h.Advance(120 * time.Second)
+	if polls() != 2 {
+		t.Fatalf("no polling while the tab is hidden (%d)", polls())
+	}
+	toMembers(h) // shown again: polls at once
+	if polls() != 3 {
+		t.Fatalf("restart on show (%d)", polls())
+	}
+	h.Advance(59 * time.Second)
+	if polls() != 3 {
+		t.Fatal("next poll only at 60s")
+	}
+	h.Advance(time.Second)
+	if polls() != 4 {
+		t.Fatalf("re-armed after restart (%d)", polls())
+	}
+
+	// another route replaces the settings: no polling for the hidden route
+	v := settingsOf(t, h)
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteChannel, ID: chanID(t, seeded(), "개발")}})
+	h.Advance(120 * time.Second)
+	if polls() != 4 {
+		t.Fatalf("no polling while the route is hidden (%d)", polls())
+	}
+	h.Send(ui.NavigateMsg{Route: novaSettings()}) // the cached settings are shown again on their members tab
+	if top(h).Kind != ui.RouteSpaceSettings || settingsOf(t, h) != v || v.tab != tabMembers {
+		t.Fatalf("precondition: the same settings instance on its members tab, top %+v", top(h))
+	}
+	if polls() != 5 {
+		t.Fatalf("restart when the route is shown again (%d)", polls())
+	}
+}
