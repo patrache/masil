@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
@@ -13,6 +14,7 @@ import (
 	"github.com/patrache/masil/internal/ui/app"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/uitest"
+	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 )
 
 // runInit runs m.Init()'s Cmd tree synchronously (expanding tea.BatchMsg) and
@@ -51,7 +53,8 @@ func newModel(t *testing.T, cfg *config.Config) *app.Model {
 		t.Fatal(err)
 	}
 	clk := uitest.NewFakeClock(time.Date(2026, 11, 5, 2, 5, 0, 0, time.UTC))
-	return app.New(app.Options{Paths: paths, Config: cfg, Now: clk.Now, Timers: clk, DisableRealtime: true})
+	creds := &auth.Credentials{Version: 1, Token: "msl_test", UserID: fixtures.UserSam, Handle: "sam"} // logged in: the shell, not the login screen
+	return app.New(app.Options{Paths: paths, Config: cfg, Credentials: creds, Now: clk.Now, Timers: clk, DisableRealtime: true})
 }
 
 func hasToast(msgs []tea.Msg, want ui.ToastMsg) bool {

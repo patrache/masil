@@ -86,6 +86,12 @@ func (m *Model) routeKey(msg tea.KeyPressMsg) tea.Cmd {
 	if len(m.overlays) > 0 {
 		return m.overlayKey(msg)
 	}
+	// Logged out: every key but ctrl+c goes to the login screen (no globals).
+	if m.login != nil {
+		m.prefix = prefixNone
+		_, cmd := m.handleKey(m.focusedComponent(), msg)
+		return cmd
+	}
 	// 2.2 the ctrl+w prefix.
 	if m.prefix == prefixWindow {
 		m.prefix = prefixNone
@@ -223,6 +229,17 @@ const maxOverlays = 3
 
 // applyNavigate applies a NavigateMsg (CA 5.3.3) and relayouts.
 func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
+	switch {
+	case msg.Route.Kind == ui.RouteLogin: // the login screen only (outside the shell)
+		r := msg.Route
+		m.login = &r
+		m.nav, m.intent = newNavState(), FocusIntent{Slot: layout.SlotMain}
+		return m.relayout()
+	case m.creds == nil: // logged out: nothing but the login screen
+		return nil
+	case m.login != nil: // a forced login screen is left by navigating
+		m.login = nil
+	}
 	n, intent := m.nav.navigate(msg, m.lay.Mode)
 	m.nav = n
 	if intent.Slot != "" {

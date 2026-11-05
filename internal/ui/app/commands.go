@@ -26,10 +26,10 @@ const (
 // helpMsg opens the help overlay (the "help" command).
 type helpMsg struct{}
 
-// logoutConfirmedMsg is sent when the logout Confirm is accepted (logout flow: Task 30).
+// logoutConfirmedMsg is sent when the logout Confirm is accepted (logoutConfirmed, sync.go).
 type logoutConfirmedMsg struct{}
 
-// reconnectMsg restarts the realtime client (the "reconnect" command).
+// reconnectMsg restarts the realtime client (the "reconnect" command, bridge.go).
 type reconnectMsg struct{}
 
 // themeKeywords are the theme.set.<name> search keywords (titles use theme.Label).
@@ -176,9 +176,4 @@ func (m *Model) setTheme(n theme.Name) tea.Cmd {
 	}
 	cmds = append(cmds, m.broadcast(ui.ThemeChangedMsg{Theme: t}))
 	return tea.Batch(cmds...)
-}
-
-// reconnect restarts the realtime client; with realtime disabled it only toasts.
-func (m *Model) reconnect() tea.Cmd {
-	return m.toasts.push(m.ctx, ui.ToastMsg{Text: reconnectText, Kind: ui.ToastInfo})
 }

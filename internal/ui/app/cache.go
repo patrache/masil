@@ -48,17 +48,17 @@ func (c *instanceCache) lookup(key string) *instance {
 
 // get returns the instance for r, creating it (registered RouteFactory, else a
 // placeholder) when missing. A new instance gets its saved state back (Persistent)
-// and its Init Cmd is returned. An existing instance shown for a different
-// Anchor/Query receives ui.RouteUpdatedMsg (only it), whose Cmd is returned too.
-func (c *instanceCache) get(ctx *ui.Context, r ui.Route) (*instance, tea.Cmd) {
+// and its Init Cmd is returned. updated reports an existing instance now shown for a
+// different Anchor/Query: the caller sends it ui.RouteUpdatedMsg (only it) once the
+// projection is complete (CR-C: after Store.SetViewing).
+func (c *instanceCache) get(ctx *ui.Context, r ui.Route) (in *instance, cmd tea.Cmd, updated bool) {
 	key := r.Key()
 	if in := c.byKey[key]; in != nil {
-		var cmd tea.Cmd
 		if in.route.Anchor != r.Anchor || !maps.Equal(in.route.Query, r.Query) {
 			in.route = r
-			cmd = in.comp.Update(ctx, ui.RouteUpdatedMsg{Route: r})
+			return in, nil, true
 		}
-		return in, cmd
+		return in, nil, false
 	}
 	var comp ui.Component
 	if f := ui.Registered().Routes[r.Kind]; f != nil {
@@ -73,10 +73,10 @@ func (c *instanceCache) get(ctx *ui.Context, r ui.Route) (*instance, tea.Cmd) {
 		}
 		delete(c.saved, key)
 	}
-	in := &instance{route: r, comp: comp}
+	in = &instance{route: r, comp: comp}
 	c.byKey[key] = in
 	c.order = append(c.order, key)
-	return in, comp.Init(ctx)
+	return in, comp.Init(ctx), false
 }
 
 // evict releases the least recently seen instances beyond maxInstances. Keys in

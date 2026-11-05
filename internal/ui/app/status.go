@@ -63,6 +63,15 @@ type statusInput struct {
 // carries, in order: the newest toast when toasts fall back to the status line (it
 // replaces the hints), else the pin fallback notice followed by the hints.
 func (m *Model) statusLine(w int) string {
+	if m.login != nil { // logged out: the pill and the login notice (or the newest toast)
+		in := statusInput{Mode: m.lay.Mode}
+		if t := m.statusToast(); t != "" {
+			in.Hints = []string{t}
+		} else if n := m.loginNotice(); n != "" {
+			in.Hints = []string{n}
+		}
+		return renderStatus(m.ctx, w, in)
+	}
 	in := statusInput{Mode: m.lay.Mode, Right: m.rightItems()}
 	switch {
 	case m.statusToast() != "":
@@ -223,9 +232,10 @@ func overlaps(b key.Binding, shown map[string]bool) bool {
 	return slices.ContainsFunc(b.Keys(), func(k string) bool { return shown[k] })
 }
 
-// connectionItem is the realtime/presence item (CA 5.4): live => my presence
-// (online when unknown), connecting => "◌ 연결 중…", syncing => "◌ 동기화 중…",
-// else offline.
+// connectionItem is the realtime/presence item (CA 5.4): a too-old client =>
+// "✕ 업데이트 필요"; no bootstrap yet and the last one failed => offline (the server is
+// unreachable); live => my presence (online when unknown), connecting => "◌ 연결 중…",
+// syncing => "◌ 동기화 중…", else offline.
 func (m *Model) connectionItem() statusItem {
 	s := m.ctx.Theme.S
 	bar := s.StatusBar
@@ -234,6 +244,12 @@ func (m *Model) connectionItem() statusItem {
 			return bar.Foreground(c)
 		}
 		return bar
+	}
+	if m.upgradeRequired {
+		return statusItem{"✕ 업데이트 필요", tint(s.Offline), true}
+	}
+	if sy := m.ctx.Store.Sync; !sy.Bootstrapped && sy.Err != nil {
+		return statusItem{"✕ 오프라인", tint(s.Offline), true}
 	}
 	switch m.ctx.RT.State().Phase {
 	case realtime.PhaseLive:

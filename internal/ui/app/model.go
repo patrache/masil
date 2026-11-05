@@ -2,8 +2,10 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,6 +20,7 @@ import (
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/authui"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/palette"
@@ -79,6 +82,41 @@ type Model struct {
 	toasts    toastState // queued toasts (newest last) and the drawn box
 	tickArmed bool       // a statusTickMsg is pending
 	tickGen   int        // generation of the pending statusTickMsg
+
+	// Session (Task 30).
+	login      *ui.Route   // non-nil: the login screen is shown instead of the shell (logged out or RouteLogin forced)
+	loggingOut bool        // the logout command's POST /v1/auth/logout is in flight
+	unauthFlag atomic.Bool // set by api.WithOnUnauthorized (HTTP goroutine), taken at the start of Update
+	// upgradeFlag is set by api.WithOnUpgradeRequired (HTTP goroutine).
+	upgradeFlag     atomic.Bool
+	upgradeRequired bool // 426 / close 4010 seen: status "✕ 업데이트 필요"
+
+	// Realtime bridge (Task 30, bridge.go).
+	send         func(tea.Msg) // tea.Program.Send (Run); nil = no realtime, hooks only set flags
+	rtDial       dialFunc      // tests: scripted socket (nil = coder/websocket)
+	rt           *realtime.Client
+	rtRun        *rtRun
+	rtCancel     context.CancelFunc
+	rtGen        int                  // generation of the current realtime run (readyTimeoutMsg)
+	resume       realtime.ResumePoint // position the next run resumes from
+	offRT        ui.Realtime          // the disabled no-op restored when realtime stops
+	readyThisRun bool                 // ready received on the current run
+	observe      func(tea.Msg)        // tests: sees every broadcast msg
+
+	// Bootstrap / resync (Task 30, sync.go).
+	booting       bool // a bootstrap is in flight
+	bootAgain     bool // another resync was asked for while booting
+	bootGen       int  // generation of the latest bootstrap (bootstrapDoneMsg / bootstrapRetryMsg)
+	resyncOnReady bool // the socket was late: resync once more on the next ready
+
+	// Idle and watch (Task 30, bridge.go).
+	lastInput time.Time
+	idle      bool
+	idleArmed bool
+	idleGen   int
+	watchGen  int
+	watched   []string // topics of the last Watch
+	watchSent bool
 }
 
 var _ tea.Model = (*Model)(nil)
@@ -132,9 +170,11 @@ func New(o Options) *Model {
 		timers = ui.RealTimers()
 	}
 	// ⑥ API (same clock as the UI so cooldowns compare deterministically).
+	// Without credentials (login screen) the client is built the same way, tokenless;
+	// authui.LoggedInMsg sets the token. The hooks only set flags (HTTP goroutine).
 	client := o.API
 	if client == nil {
-		opts := []api.Option{api.WithClock(now)}
+		opts := []api.Option{api.WithClock(now), api.WithOnUnauthorized(m.onUnauthorized), api.WithOnUpgradeRequired(m.onUpgrade)}
 		if o.Credentials != nil && o.Credentials.Token != "" {
 			opts = append(opts, api.WithToken(o.Credentials.Token))
 		}
@@ -145,13 +185,14 @@ func New(o Options) *Model {
 		m.notifier = notify.New(notify.NewOSBackend("masil"), notify.OpenLedger(o.Paths), slog.Default())
 	}
 
+	m.offRT = noopRealtime{state: realtime.State{Phase: realtime.PhaseLive}}
 	m.ctx = &ui.Context{
 		Theme:  theme.Get(name),
 		Mode:   layout.ModeTooSmall,
 		Keys:   keys,
 		Store:  store.New(),
 		API:    client,
-		RT:     noopRealtime{state: realtime.State{Phase: realtime.PhaseLive}},
+		RT:     m.offRT,
 		Config: cfg,
 		Paths:  o.Paths,
 		Caps:   caps,
@@ -164,7 +205,9 @@ func New(o Options) *Model {
 	if pm, ok := layout.ParseMode(cfg.Layout.Pin); ok && pm != layout.ModeTooSmall {
 		m.pin = &pm
 	}
-	if o.InitialRoute != nil {
+	if o.Credentials == nil { // CA 5.4 start order: no credentials => the login screen
+		m.login = &ui.Route{Kind: ui.RouteLogin}
+	} else if o.InitialRoute != nil {
 		m.nav, m.intent = m.nav.navigate(ui.NavigateMsg{Route: *o.InitialRoute}, m.ctx.Mode)
 		if m.intent.Slot == "" {
 			m.intent = FocusIntent{Slot: layout.SlotMain}
@@ -173,10 +216,12 @@ func New(o Options) *Model {
 	return m
 }
 
-// Init implements tea.Model.
+// Init implements tea.Model. With credentials and realtime enabled it starts the
+// realtime bridge (once a sender is set, i.e. under Run).
 func (m *Model) Init() tea.Cmd {
 	cmds := m.initCmds
 	m.initCmds = nil
+	cmds = append(cmds, m.startRealtime())
 	return tea.Batch(cmds...)
 }
 
@@ -184,11 +229,19 @@ func (m *Model) Init() tea.Cmd {
 // (and a change broadcast) and the status-line countdown tick is (re)armed when a
 // focus session or a 429 cooldown is showing.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// API hook flags first (401 / 426 seen on an HTTP goroutine since the last Update).
+	pre := m.takeFlags()
+	var watch tea.Cmd
+	switch msg.(type) {
+	case tea.KeyPressMsg, tea.MouseMsg, tea.PasteMsg:
+		m.noteInput()
+		watch = m.armWatch() // input may scroll
+	}
 	_, cmd := m.dispatch(msg)
 	m.syncOverlays()
 	// The focus slot is resolved at the end of every Update (CA 5.3.5); a change is
 	// broadcast as ui.FocusChangedMsg after this Update's relayout/projection.
-	return m, tea.Batch(cmd, m.syncFocus(), m.armStatusTick())
+	return m, tea.Batch(pre, watch, cmd, m.syncFocus(), m.armStatusTick(), m.armIdle())
 }
 
 // dispatch handles one message (CA 5.3.4 steps).
@@ -202,6 +255,9 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ui.ToastMsg:
 		return m, m.toasts.push(m.ctx, msg)
 	case ui.ErrorMsg:
+		if api.CodeOf(msg.Err) == "unauthorized" { // the session ends instead (takeFlags)
+			return m, nil
+		}
 		return m, m.toasts.push(m.ctx, errorToast(msg))
 	case toastExpireMsg:
 		m.toasts.remove(msg.id)
@@ -251,8 +307,33 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case ui.EventMsg:
-		m.ctx.Store.Apply(msg.Event)
-		return m, m.broadcast(msg)
+		return m, m.onEvent(msg)
+	case ui.RealtimeStateMsg:
+		cmd := m.onRealtimeState(msg.State)
+		return m, tea.Batch(cmd, m.broadcast(msg))
+	case readyTimeoutMsg:
+		return m, m.onReadyTimeout(msg)
+	case bootstrapDoneMsg:
+		return m, m.onBootstrapDone(msg)
+	case bootstrapRetryMsg:
+		return m, m.onBootstrapRetry(msg)
+	case idleMsg:
+		m.onIdle(msg)
+		return m, nil
+	case watchDebounceMsg:
+		m.onWatch(msg)
+		return m, nil
+	case unauthorizedMsg, upgradeMsg: // the flags were taken at the start of Update
+		return m, nil
+	case logoutConfirmedMsg:
+		return m, m.logoutConfirmed()
+	case logoutDoneMsg:
+		if msg.err != nil {
+			slog.Debug("logout request failed; logging out locally", "err", msg.err)
+		}
+		return m, m.logout(reasonLogout)
+	case authui.LoggedInMsg:
+		return m, m.loggedIn(msg)
 	}
 	return m, m.broadcast(msg)
 }
@@ -261,6 +342,9 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 // then pane-factory components, then the open overlays bottom -> top (CA 5.3.4 steps
 // 5–6).
 func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
+	if m.observe != nil {
+		m.observe(msg)
+	}
 	var cmds []tea.Cmd
 	for _, in := range m.cache.all() {
 		cmds = append(cmds, in.comp.Update(m.ctx, msg))
@@ -277,32 +361,54 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 }
 
 // relayout is CA 5.3.4 step 1: Resolve → Compute(…, nav.LayoutState(mode)) → Project →
-// Resize the placed instances whose inner size (or mode) changed → ModeChangedMsg when
-// the mode changed. New instances' Init Cmds are returned with it.
+// Resize the placed instances whose inner size (or mode) changed → Store.SetViewing
+// (CR-C: right after the projection, before any broadcast of this Update) →
+// RouteUpdatedMsg to reused instances shown with a new Anchor/Query → ModeChangedMsg
+// when the mode changed. New instances' Init Cmds are returned with it, and the watch
+// debounce restarts. While logged out the login route fills the body (loginLayout).
 func (m *Model) relayout() tea.Cmd {
 	if !m.sized {
 		return nil
 	}
 	prev := m.lay.Mode
 	mode, fell := layout.Resolve(m.cols, m.rows, m.bp, m.pin)
-	l := layout.Compute(mode, m.cols, m.rows, m.nav.LayoutState(mode))
-	routes := Project(l, m.nav)
+	var l layout.Layout
+	var routes map[layout.SlotID]ui.Route
+	switch {
+	case m.login != nil && mode != layout.ModeTooSmall:
+		l = loginLayout(mode, m.cols, m.rows)
+		routes = map[layout.SlotID]ui.Route{layout.SlotMain: *m.login}
+	default:
+		l = layout.Compute(mode, m.cols, m.rows, m.nav.LayoutState(mode))
+		routes = Project(l, m.nav)
+		if m.login != nil {
+			routes = map[layout.SlotID]ui.Route{}
+		}
+	}
 	m.lay, m.routes, m.pinFell = l, routes, fell
 	m.ctx.Mode, m.ctx.Layout = l.Mode, l
 
 	var cmds []tea.Cmd
+	var updated []*instance
 	m.cache.tick++
 	pinned := map[string]bool{}
 	for _, k := range m.nav.Keys() {
 		pinned[k] = true
 	}
+	if m.login != nil {
+		pinned[m.login.Key()] = true
+	}
 	for _, p := range l.Panes {
 		var in *instance
 		var cmd tea.Cmd
 		if r, ok := routes[p.Slot]; ok {
-			in, cmd = m.cache.get(m.ctx, r)
+			var upd bool
+			in, cmd, upd = m.cache.get(m.ctx, r)
 			in.lastSeen = m.cache.tick
 			pinned[r.Key()] = true
+			if upd {
+				updated = append(updated, in)
+			}
 		} else if isFactorySlot(p.Slot) {
 			in, cmd = m.pane(p.Slot)
 		} else {
@@ -317,10 +423,15 @@ func (m *Model) relayout() tea.Cmd {
 	}
 	m.cache.evict(pinned)
 	m.focus = resolveFocus(m.intent, l, routes)
+	m.updateViewing()
+	for _, in := range updated {
+		cmds = append(cmds, in.comp.Update(m.ctx, ui.RouteUpdatedMsg{Route: in.route}))
+	}
 	if m.laidOut && prev != l.Mode {
 		cmds = append(cmds, m.broadcast(ui.ModeChangedMsg{From: prev, To: l.Mode}))
 	}
 	m.laidOut = true
+	cmds = append(cmds, m.armWatch())
 	return tea.Batch(cmds...)
 }
 
