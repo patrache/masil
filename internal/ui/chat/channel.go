@@ -589,6 +589,9 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 			return true, nil
 		}
 	}
+	if ctx.Keys.Matches(msg, keymap.ChannelSearch) {
+		return true, ui.Navigate(ui.Route{Kind: ui.RouteSearch, ID: v.id()})
+	}
 	if ctx.Keys.Matches(msg, keymap.MsgThread) {
 		r, ok := v.pane.selected()
 		if !ok || r.Kind != rowMessage || r.Msg == nil {

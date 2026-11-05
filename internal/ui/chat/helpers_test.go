@@ -163,6 +163,7 @@ var chatRouteTable = []chatRoute{
 	{"DELETE /v1/invites/{code}", "DELETE /v1/invites/PROBE123", noContent},
 	{"POST /v1/spaces/{id}/direct-invites", "POST /v1/spaces/01JBPROBE00000000000000000/direct-invites", echoDirectInvite},
 	{"POST /v1/spaces/{id}/channels", "POST /v1/spaces/01JBPROBE00000000000000000/channels", echoCreateChannel},
+	{"GET /v1/search/messages", "GET /v1/search/messages?q=probe", searchMessages},
 }
 
 // newAPI is apitest.New + fixtures.RegisterAPI + chatRoutes, in this order (tests overlay after it).
@@ -479,6 +480,63 @@ func spaceMembers(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": nil})
+}
+
+// searchMessages answers GET /v1/search/messages over the seeded top-level
+// messages: case-insensitive substring of q (every occurrence highlighted, in code
+// points), scoped by channel_id > space_id > everything, newest first, limit
+// (default 20), cursor = the offset of the next page.
+func searchMessages(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	term := []rune(strings.ToLower(q.Get("q")))
+	s := seeded()
+	var hits []api.MessageSearchHit
+	for _, ch := range s.Channels {
+		if id := q.Get("channel_id"); id != "" && id != ch.ID {
+			continue
+		}
+		if sp := q.Get("space_id"); sp != "" && (ch.SpaceID == nil || *ch.SpaceID != sp) {
+			continue
+		}
+		ref := api.ChannelRef{ID: ch.ID, Kind: ch.Kind, Name: ch.Name, SpaceID: ch.SpaceID}
+		if ch.SpaceID != nil {
+			if sd := s.Spaces[*ch.SpaceID]; sd != nil {
+				ref.SpaceName = ptrTo(sd.Name)
+			}
+		}
+		for _, m := range fixtures.Messages(ch.ID) {
+			body := []rune(strings.ToLower(m.Body))
+			var hs []api.SearchHighlight
+			for i := 0; len(term) > 0 && i+len(term) <= len(body); i++ {
+				if string(body[i:i+len(term)]) == string(term) {
+					hs = append(hs, api.SearchHighlight{Start: i, Length: len(term)})
+				}
+			}
+			if len(hs) > 0 {
+				hits = append(hits, api.MessageSearchHit{Message: m, Channel: ref, Highlights: hs})
+			}
+		}
+	}
+	slices.SortFunc(hits, func(a, b api.MessageSearchHit) int {
+		if c := b.Message.CreatedAt.Compare(a.Message.CreatedAt); c != 0 {
+			return c
+		}
+		return strings.Compare(b.Message.ID, a.Message.ID)
+	})
+	limit, off := 20, 0
+	fmt.Sscan(q.Get("limit"), &limit)
+	fmt.Sscan(q.Get("cursor"), &off)
+	off = min(max(off, 0), len(hits))
+	end := min(off+max(limit, 1), len(hits))
+	var next *string
+	if end < len(hits) {
+		next = ptrTo(fmt.Sprint(end))
+	}
+	items := hits[off:end]
+	if items == nil {
+		items = []api.MessageSearchHit{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": next})
 }
 
 // ---- spaces and invites ----
