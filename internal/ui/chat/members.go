@@ -131,23 +131,21 @@ func (p *membersPane) ensurePolling(ctx *ui.Context) tea.Cmd {
 	return tea.Batch(p.poll(ctx, ch), ui.After(ctx, presenceEvery, presencePollMsg{gen: p.gen}))
 }
 
-// onTick re-polls and re-arms while shown; hidden, polling stops (the next
-// ensurePolling starts it again).
+// onTick re-polls and re-arms while shown with a viewed channel; hidden or with
+// no viewed channel (Home, Feed …), polling stops (the next ensurePolling starts
+// it again) so nobody's presence is polled while the pane lists no one.
 func (p *membersPane) onTick(ctx *ui.Context, m presencePollMsg) tea.Cmd {
 	if m.gen != p.gen {
 		return nil
 	}
-	if !shown(ctx) {
+	ch := viewedChannel(ctx)
+	if !shown(ctx) || ch == nil {
 		p.polling = false
 		return nil
 	}
-	ch := viewedChannel(ctx)
-	if ch != nil && ch.ID != p.ch {
+	if ch.ID != p.ch {
 		p.polling = false
 		return p.ensurePolling(ctx)
-	}
-	if ch == nil {
-		ch = ctx.Store.Channels[p.ch]
 	}
 	return tea.Batch(p.poll(ctx, ch), ui.After(ctx, presenceEvery, presencePollMsg{gen: p.gen}))
 }

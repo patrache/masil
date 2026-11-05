@@ -246,6 +246,26 @@ func TestMembersPaneFollowsViewedChannel(t *testing.T) {
 	}
 }
 
+func TestMembersPaneStopsPollingWithoutViewedChannel(t *testing.T) {
+	h := devChannel(t, uitest.Size{W: 200, H: 60})
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteHome}})
+	h.Screen()
+	if _, ok := h.Context().Layout.Pane(layout.SlotMembers); !ok {
+		t.Fatal("precondition: the members pane stays on screen on Home")
+	}
+	mustContain(t, paneText(t, h, layout.SlotMembers), membersNone)
+	n0 := len(reqs(h.API, "GET", "/v1/presence"))
+	h.Advance(120 * time.Second)
+	if n := len(reqs(h.API, "GET", "/v1/presence")); n != n0 {
+		t.Fatalf("no presence poll for the last channel while none is viewed (%d -> %d)", n0, n)
+	}
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteChannel, ID: devID(t, h)}})
+	h.Screen()
+	if n := len(reqs(h.API, "GET", "/v1/presence")); n != n0+1 {
+		t.Fatalf("viewing a channel again restarts the poll at once (%d -> %d)", n0, n)
+	}
+}
+
 func TestMembersPaneActions(t *testing.T) {
 	srv := newAPI(t)
 	st := seeded()
