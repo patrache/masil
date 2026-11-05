@@ -30,6 +30,7 @@ import type {
   SpaceMember,
   SpacePreview,
   SpaceRole,
+  Story,
   SystemEvent,
   TimelineItem,
   UnreadState,
@@ -53,6 +54,7 @@ import type {
   SpaceInviteRow,
   SpaceMemberRow,
   SpaceRow,
+  StoryRow,
   TimelineRow,
   UploadRow,
   UserPresenceRow,
@@ -1119,5 +1121,68 @@ export async function serializeTimelineItems(db: D1Database, viewerId: string, r
     const reposted_by = r.type === "repost" && r.reposter_id !== null ? (reposters.get(r.reposter_id) ?? null) : null;
     if (r.type === "repost" && reposted_by === null) return [];
     return [{ id: r.item_id, type: r.type, post, reposted_by, at: iso(r.at) }];
+  });
+}
+
+/**
+ * stories rows -> Story (contract 4.9), input order kept; rows whose author is gone are dropped. One query per related
+ * table whatever the row count: author summaries, media (removed uploads -> media null), the viewer's story_views on
+ * other people's stories (seen) and view counts of the viewer's own stories. The author's own story is always seen and
+ * only the author gets a numeric view_count. Visibility (expiry, deletion, blocks, private, suspension) is the caller's
+ * SQL; this function does not filter.
+ */
+export async function serializeStories(db: D1Database, viewerId: string, rows: StoryRow[]): Promise<Story[]> {
+  if (rows.length === 0) return [];
+  const mediaIds = rows.flatMap((r) => (r.media_upload_id !== null ? [r.media_upload_id] : []));
+  const ownIds = rows.filter((r) => r.author_id === viewerId).map((r) => r.id);
+  const otherIds = rows.filter((r) => r.author_id !== viewerId).map((r) => r.id);
+  const [authors, media, seenRows, countRows] = await Promise.all([
+    loadUserSummaries(
+      db,
+      rows.map((r) => r.author_id),
+    ),
+    mediaIds.length === 0
+      ? Promise.resolve([] as UploadRow[])
+      : all<UploadRow>(
+          db,
+          "SELECT * FROM uploads WHERE id IN (SELECT value FROM json_each(?1)) AND status <> 'removed'",
+          jsonList([...new Set(mediaIds)]),
+        ),
+    otherIds.length === 0
+      ? Promise.resolve([] as Array<{ story_id: string }>)
+      : all<{ story_id: string }>(
+          db,
+          "SELECT story_id FROM story_views WHERE viewer_id = ?1 AND story_id IN (SELECT value FROM json_each(?2))",
+          viewerId,
+          jsonList(otherIds),
+        ),
+    ownIds.length === 0
+      ? Promise.resolve([] as Array<{ story_id: string; n: number }>)
+      : all<{ story_id: string; n: number }>(
+          db,
+          "SELECT story_id, COUNT(*) AS n FROM story_views WHERE story_id IN (SELECT value FROM json_each(?1)) GROUP BY story_id",
+          jsonList(ownIds),
+        ),
+  ]);
+  const mediaById = new Map(media.map((u) => [u.id, serializeMedia(u)]));
+  const seen = new Set(seenRows.map((v) => v.story_id));
+  const counts = new Map(countRows.map((v) => [v.story_id, v.n]));
+  return rows.flatMap((r): Story[] => {
+    const author = authors.get(r.author_id);
+    if (author === undefined) return [];
+    const own = r.author_id === viewerId;
+    return [
+      {
+        id: r.id,
+        author,
+        body: r.body,
+        media: r.media_upload_id !== null ? (mediaById.get(r.media_upload_id) ?? null) : null,
+        bg: r.bg,
+        created_at: iso(r.created_at),
+        expires_at: iso(r.expires_at),
+        seen: own || seen.has(r.id),
+        view_count: own ? (counts.get(r.id) ?? 0) : null,
+      },
+    ];
   });
 }
