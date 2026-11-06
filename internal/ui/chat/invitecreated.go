@@ -57,6 +57,9 @@ func newInviteCreated(inv api.Invite) ui.Overlay {
 // share is the string people paste to join (api.md 5.8: "masil join <code>").
 func (o *inviteCreated) share() string { return inviteJoinPrefix + o.inv.Code }
 
+// clipboard is share() as it goes to tea.SetClipboard (clipboardLine).
+func (o *inviteCreated) clipboard() string { return clipboardLine(o.share()) }
+
 func (o *inviteCreated) Init(*ui.Context) tea.Cmd             { return nil }
 func (o *inviteCreated) Update(*ui.Context, tea.Msg) tea.Cmd  { return nil }
 func (o *inviteCreated) Resize(_ *ui.Context, size ui.Size)   { o.size = size }
@@ -71,7 +74,7 @@ func (o *inviteCreated) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, t
 	case ctx.Keys.Matches(msg, keymap.NavBack):
 		return false, nil // the app closes the overlay
 	case ctx.Keys.Matches(msg, keymap.MsgCopy):
-		return true, tea.Batch(tea.SetClipboard(o.share()), ui.Toast(inviteCopied, ui.ToastSuccess))
+		return true, tea.Batch(tea.SetClipboard(o.clipboard()), ui.Toast(inviteCopied, ui.ToastSuccess))
 	}
 	return false, nil
 }

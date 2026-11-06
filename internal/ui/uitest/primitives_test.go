@@ -234,6 +234,85 @@ func TestIntegrityDetects(t *testing.T) {
 			replaceCell(l, 3, 5, "\u0085 ")
 			return l
 		}},
+		// Format characters and line/paragraph separators are zero-width in
+		// both width models, so check 1 never sees them (pending-fixes 1).
+		{name: "bidi override", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u202e ")
+			return l
+		}},
+		{name: "bidi isolate", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u2067 ")
+			return l
+		}},
+		{name: "zero-width space", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 5, 2, "\u200b줄")
+			return l
+		}},
+		{name: "BOM", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufeff ")
+			return l
+		}},
+		{name: "soft hyphen", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u00ad ")
+			return l
+		}},
+		{name: "ZWJ", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u200d ")
+			return l
+		}},
+		// Default-ignorable runes outside Cf are just as invisible (or a blank
+		// cell): "ad\u034fmin" reads "admin" (pending-fixes 1 review).
+		{name: "combining grapheme joiner", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u034f ")
+			return l
+		}},
+		{name: "variation selector 1", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufe00 ")
+			return l
+		}},
+		{name: "variation selector 17", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\U000e0100 ")
+			return l
+		}},
+		{name: "Mongolian free variation selector", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u180b ")
+			return l
+		}},
+		{name: "Khmer inherent vowel", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u17b4 ")
+			return l
+		}},
+		{name: "Hangul filler", want: "invisible", edit: func(l []string) []string {
+			r := []rune(l[3]) // two cells wide: replace two spaces
+			l[3] = string(r[:5]) + "\u3164" + string(r[7:])
+			return l
+		}},
+		{name: "halfwidth Hangul filler", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\uffa0")
+			return l
+		}},
+		// Noncharacters: U+FFFE/U+FFFF are zero-width in both width models,
+		// "ad\ufffemin" reads "admin" (pending-fixes 1, second review).
+		{name: "noncharacter U+FFFE", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufffe ")
+			return l
+		}},
+		{name: "noncharacter U+FFFF", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\uffff ")
+			return l
+		}},
+		{name: "noncharacter U+FDD0", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufdd0")
+			return l
+		}},
+		{name: "line separator", want: "separator", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u2028 ")
+			return l
+		}},
+		{name: "paragraph separator", want: "separator", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u2029 ")
+			return l
+		}},
 		{name: "invalid utf8", want: "UTF-8", edit: func(l []string) []string {
 			replaceCell(l, 3, 5, "\xed\xa0\x80") // CESU-8 encoded lone surrogate
 			return l
@@ -261,6 +340,36 @@ func TestIntegrityDetects(t *testing.T) {
 			return []Box{{Rect: layout.Rect{X: 0, Y: 0, W: 20, H: 6}, Bordered: true, Z: 0}}
 		}},
 		{name: "wrong border set", want: "corner", border: lipgloss.RoundedBorder()},
+		// Escape sequences other than SGR and a clean OSC 8 (pending-fixes 0-b):
+		// ansi.Strip hides them from the rune check, so they are checked raw.
+		{name: "OSC 52 clipboard write", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]52;c;ZXZpbA==\x07" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "OSC 0 window title", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]0;PWNED\x1b\\" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "CSI clear screen", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b[2J" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "CSI cursor move", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b[1;1H" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "C1 CSI", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\u009b2J" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "OSC 8 target with ESC inside", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]8;;https://a.b/\x1b[2J\x07링크\x1b]8;;\x07" + strings.Repeat(" ", 14) + "║"
+			return l
+		}},
+		{name: "OSC 8 target with raw UTF-8", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]8;;https://a.b/서울\x07링크\x1b]8;;\x07" + strings.Repeat(" ", 14) + "║"
+			return l
+		}},
 		// Not violations:
 		{name: "covered pane border", want: "", edit: func(l []string) []string {
 			for i := 1; i <= 2; i++ {
@@ -277,6 +386,11 @@ func TestIntegrityDetects(t *testing.T) {
 			return l
 		}, boxes: func(b []Box) []Box {
 			return append(b, Box{Rect: layout.Rect{X: 19, Y: 0, W: 1, H: 1}, Bordered: false, Z: 100})
+		}},
+		{name: "clean OSC 8 and SGR", want: "", edit: func(l []string) []string {
+			l[2] = "║\x1b[4;38:2::1:2:3m\x1b]8;id=1;https://a.b/%EC%84%9C?q=1\x07링크\x1b]8;;\x07\x1b[m" + strings.Repeat(" ", 14) + "║"
+			l[3] = "║\x1b]8;;https://a.b/\x1b\\링크\x1b]8;;\x1b\\" + strings.Repeat(" ", 14) + "║"
+			return l
 		}},
 		{name: "title segment", want: "", edit: func(l []string) []string {
 			l[0] = "╔═ 제목 ═══════════╗"
@@ -402,5 +516,29 @@ func TestBoxesOf(t *testing.T) {
 	}
 	if got := BoxesOf(app.FrameInfo{}); len(got) != 0 {
 		t.Fatalf("empty frame => no boxes, got %+v", got)
+	}
+}
+
+// AssertTitle reports controls and every Hidden rune of a window title, and
+// nothing in a clean one (pending-fixes 0-b, 1).
+func TestAssertTitle(t *testing.T) {
+	clean := &recTB{TB: t}
+	AssertTitle(clean, "clean", "masil · #일반 · 민지 👍 ❄")
+	if len(clean.errs) != 0 {
+		t.Fatalf("clean title reported: %q", clean.errs)
+	}
+	for _, r := range []rune{0x1b, 0x07, 0x9c, 0x202e, 0x2067, 0x200e, 0x200b, 0x200d, 0xfeff, 0x00ad,
+		0xe0041, 0x2028, 0x2029, 0x034f, 0xfe00, 0xfe0f, 0xe0100, 0x180b, 0x17b4, 0x115f, 0x3164, 0xffa0,
+		0xfdd0, 0xfffe, 0xffff, 0x10ffff} {
+		rec := &recTB{TB: t}
+		AssertTitle(rec, "hostile", "masil · #"+string(r)+"일반")
+		if len(rec.errs) == 0 {
+			t.Errorf("title with %U not reported", r)
+		}
+	}
+	rec := &recTB{TB: t}
+	AssertTitle(rec, "broken", "masil \xff")
+	if len(rec.errs) == 0 {
+		t.Error("invalid UTF-8 title not reported")
 	}
 }

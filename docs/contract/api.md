@@ -1182,7 +1182,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 헤더: `Content-Type: image/png|image/jpeg|image/gif|image/webp`, `Content-Length` 필수.
 - 서버는 앞부분 바이트(매직 넘버)로 실제 형식을 판별하고 `Content-Type` 과 다르면 `415`. 크기 1..5,242,880 바이트(초과 `413`). 가로·세로는 헤더에서 읽는다(실패 시 `null`).
 - 크기는 `Content-Length` 값이 아니라 **실제로 받은 바이트**로 판정한다. `Content-Length` 가 5,242,880 을 넘으면 본문을 읽기 전에 `413`, 값이 작게 위조돼도 받는 중 상한을 넘는 순간 읽기를 멈추고 `413`. (JSON 본문 64KB 상한도 같은 방식 — chunked·위조 `Content-Length` 무관. GET/HEAD 요청에 붙은 본문·`Content-Length`는 읽지 않고 무시한다 — `Content-Length: 0` 이 붙은 GET 도 평소와 같이 응답.)
-- 메타데이터 제거(EXIF 등)는 **클라이언트 책임**: 클라이언트는 JPEG 를 다시 인코딩해 보낸다. 서버는 바이트를 그대로 저장한다.
+- 메타데이터 제거(EXIF 등)는 **클라이언트 책임**: 클라이언트는 JPEG·PNG 를 다시 인코딩하고, WebP·GIF 는 픽셀·애니메이션 블록만 남기고 다시 써서 보낸다(아래 허용 목록. WebP 는 VP8X 의 ICC·EXIF·XMP 플래그도 끔, GIF 는 일반 텍스트 확장(0x01)과 그 그래픽 제어 확장도 지움). 구조를 정확히 읽을 수 없는 WebP·GIF 는 그대로 보내지 않고 업로드를 거부한다. 서버는 바이트를 그대로 저장한다.
 - 단, 서버는 WebP·GIF 를 검사한다: WebP 는 `VP8 `·`VP8L`·`VP8X`·`ALPH`·`ANIM`·`ANMF` 이외의 청크(`EXIF`·`XMP `·`ICCP`·알 수 없는 청크), GIF 는 주석 확장(0xFE)·`NETSCAPE2.0`/`ANIMEXTS1.0` 이외의 애플리케이션 확장·알 수 없는 확장이 있으면 `400 invalid_request`, `details.fields.body="not_allowed"`. 청크 크기·RIFF 크기·블록 구조가 깨졌거나 GIF 끝(0x3B)이 없으면 `400`, `body="invalid"`. 클라이언트는 이런 블록을 지운 뒤 보낸다.
 - 업로드는 `pending` 으로 시작하고, 글/스토리/아바타에 붙으면 `attached`. 24시간 안에 안 붙으면 cron 이 지운다. 사용자당 `pending` 20개 한도(`422 limit_exceeded`, `pending_uploads`).
 - `201 { "upload": Upload }`

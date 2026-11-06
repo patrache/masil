@@ -1,5 +1,7 @@
 package imgrender
 
+import "bytes"
+
 // Fit exposes fit to the external test package.
 var Fit = fit
 
@@ -36,3 +38,18 @@ func DecodePeak(c *Cache) int32 { return c.decodePeak.Load() }
 
 // MaxDecodes is how many decodes a Cache runs at once.
 const MaxDecodes = maxDecodes
+
+// DecodeCost is the pre-decode estimate of the bytes decoding data allocates.
+func DecodeCost(data []byte, ct string) (int64, error) {
+	cfg, err := codecs[ct].config(bytes.NewReader(data))
+	if err != nil {
+		return 0, err
+	}
+	return decodeCost(ct, data, cfg)
+}
+
+// DisplayImage is the shrink Cache.Load applies after decoding.
+var DisplayImage = displayImage
+
+// DownscaleToFit is PrepareUpload's re-encode-and-shrink loop.
+var DownscaleToFit = downscaleToFit

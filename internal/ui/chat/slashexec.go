@@ -168,7 +168,7 @@ func directInviteDone(ctx *ui.Context, m ui.ResultMsg[*api.DirectInvite]) tea.Cm
 	}
 	inv := m.Value
 	who := inv.Invitee.DisplayName
-	if who == "" {
+	if textwidth.Blank(who) { // nothing visible: name the handle (pending-fixes 1)
 		who = string(api.Handle(inv.Invitee.Handle))
 	}
 	space := inv.Space.Name

@@ -9,9 +9,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/app"
+	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/palette"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/ui/uitest/fixtures"
@@ -265,5 +267,31 @@ func TestRunCommandMsgDispatch(t *testing.T) {
 	}
 	if seen != 0 {
 		t.Fatalf("RunCommandMsg was broadcast to components %d times", seen)
+	}
+}
+
+// TestPaletteHostileNames (pending-fixes 1): palette results built from other
+// users' channel and display names, and a pasted query, show no bidi
+// control, invisible format character or line separator (uitest check 3).
+func TestPaletteHostileNames(t *testing.T) {
+	t.Cleanup(palette.SnapshotForTest())
+	seed := func(s *store.Store) {
+		fixtures.Seed(s)
+		fixtures.Hostile(s)
+	}
+	for _, sz := range uitest.AllSizes() {
+		t.Run(fmt.Sprintf("%dx%d", sz.W, sz.H), func(t *testing.T) {
+			h := uitest.New(t, uitest.WithSeed(seed))
+			h.Resize(sz.W, sz.H)
+			h.Press("ctrl+k")
+			h.Type("제어")
+			bp := layout.DefaultBreakpoints()
+			if s := h.Screen(); sz.W >= bp.MinCols && sz.H >= bp.MinRows && !strings.Contains(s, "제어문자") {
+				t.Fatalf("no hostile channel in the results for 제어:\n%s", s)
+			}
+			h.Check()
+			h.Paste(fixtures.FormatSoup)
+			h.Check()
+		})
 	}
 }

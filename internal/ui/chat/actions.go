@@ -297,12 +297,25 @@ func blockCmd(ctx *ui.Context, u api.UserSummary) tea.Cmd {
 func copyText(m api.Message) string {
 	switch {
 	case m.Kind == "roll" && m.Roll != nil:
-		return rollText(*m.Roll)
+		return clipboardText(rollText(*m.Roll))
 	case m.Kind == "poll" && m.Poll != nil:
-		return m.Poll.Question
+		return clipboardText(m.Poll.Question)
 	}
-	return m.Body
+	return clipboardText(m.Body)
 }
+
+// clipboardText is someone else's text made safe to hand to tea.SetClipboard
+// (pending-fixes 0-b): the server keeps control characters in bodies, and the
+// screen (Sanitize) drops escape sequences with their contents, so the raw text
+// could copy a bracketed-paste end, CRs and a hidden command that the screen
+// never showed ("pastejacking"). SanitizeInput keeps "\n" (CR/CRLF/U+2028/
+// U+2029 become "\n") and is otherwise what the screen shows.
+func clipboardText(s string) string { return textwidth.SanitizeInput(s) }
+
+// clipboardLine is clipboardText for a one-line value meant to be pasted as a
+// command ("masil join <code>"): no newline survives, so a code from the
+// server can never paste as a second command line.
+func clipboardLine(s string) string { return textwidth.Sanitize(s) }
 
 func copyCmd(m api.Message) tea.Cmd {
 	return tea.Batch(tea.SetClipboard(copyText(m)), ui.Toast(msgCopied, ui.ToastSuccess))

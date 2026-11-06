@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
@@ -319,18 +320,51 @@ func TestParseURLControlBytes(t *testing.T) {
 			}
 		}
 	}
-	// The bare-URL scan ends at the first control rune.
-	got := nonText(markup.Parse("go https://a.com/x\x07y", markup.ParseOptions{}))
-	want := []markup.Inline{{Kind: markup.Link, Text: "https://a.com/x", URL: "https://a.com/x"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("bare URL with BEL = %+v, want %+v", got, want)
+	// A bare URL that runs into a control rune is plain text, not a link to
+	// its clean prefix (pending-fixes 0-b ①: "any one => not a link").
+	if got := nonText(markup.Parse("go https://a.com/x\x07y", markup.ParseOptions{})); len(got) != 0 {
+		t.Errorf("bare URL with BEL = %+v, want plain text", got)
 	}
-	// A [t](u) link whose URL holds a control rune is not a link; only the
-	// clean prefix may still match as a bare URL.
-	got = nonText(markup.Parse("[t](https://a.com/\x1bx)", markup.ParseOptions{}))
-	want = []markup.Inline{{Kind: markup.Link, Text: "https://a.com/", URL: "https://a.com/"}}
+	// A [t](u) link whose URL holds a control rune is not a link, and neither
+	// is the bare URL inside it.
+	if got := nonText(markup.Parse("[t](https://a.com/\x1bx)", markup.ParseOptions{})); len(got) != 0 {
+		t.Errorf("bracket link with ESC = %+v, want plain text", got)
+	}
+	// Visible whitespace still ends a bare URL; the next URL is a link again.
+	got := nonText(markup.Parse("https://a.com/\x01x https://b.com/\nhttps://c.com/\r\nhttps://d.com/\tx", markup.ParseOptions{}))
+	want := []markup.Inline{
+		{Kind: markup.Link, Text: "https://b.com/", URL: "https://b.com/"},
+		{Kind: markup.Link, Text: "https://c.com/", URL: "https://c.com/"},
+		{Kind: markup.Link, Text: "https://d.com/", URL: "https://d.com/"},
+	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("bracket link with ESC = %+v, want %+v", got, want)
+		t.Errorf("bare URLs around whitespace = %+v, want %+v", got, want)
+	}
+}
+
+// TestBareURLInvisibleSplit (pending-fixes 0-b ①): a bare URL is its own link
+// text, so it must never link to a prefix cut at a rune Sanitize hides. Here
+// the screen reads "https://secure-paypa1.com.paypal.com/login" while a
+// prefix link would open https://secure-paypa1.com.
+func TestBareURLInvisibleSplit(t *testing.T) {
+	for _, sep := range []string{"\u0085", "\x01", "\x7f", "\x1b", "\x07", "\u009c", "\u2028", "\u2029", "\f", "\v", "\r", "\xff"} {
+		u := "https://secure-paypa1.com" + sep + ".paypal.com/login"
+		for _, body := range []string{u, "보기 " + u + " 끝", "(" + u + ")"} {
+			d := markup.Parse(body, markup.ParseOptions{})
+			if got := nonText(d); len(got) != 0 {
+				t.Errorf("Parse(%q) = %+v, want plain text only", body, got)
+			}
+			lines := markup.Render(d, amber, markup.RenderOptions{Width: 80, Hyperlinks: true})
+			for _, l := range lines {
+				checkOnlyOSC8(t, l)
+				if strings.Contains(l, "\x1b]8;") {
+					t.Errorf("Render(%q) hyperlinks a prefix: %q", body, l)
+				}
+			}
+			if got := ansi.Strip(strings.Join(lines, "\n")); !strings.Contains(got, "https://secure-paypa1.com") {
+				t.Errorf("Render(%q) lost the text: %q", body, got)
+			}
+		}
 	}
 }
 
@@ -490,5 +524,181 @@ func TestRenderLinkGraphemes(t *testing.T) {
 	lines := markup.Render(markup.Parse(bodies[0], markup.ParseOptions{}), amber, markup.RenderOptions{Width: 80})
 	if len(lines) != 1 || !strings.Contains(lines[0], "\x1b[4m") || !strings.Contains(lines[0], "🇰🇷 국가대표 경기") {
 		t.Errorf("link not underlined as one run: %q", lines)
+	}
+}
+
+// TestRenderLinkURLEscapes (pending-fixes 0-b): a link URL carrying ESC, BEL,
+// C1 or invalid UTF-8 must never reach the terminal as an escape; the text is
+// shown as plain (sanitized) text instead of a link.
+func TestRenderLinkURLEscapes(t *testing.T) {
+	urls := []string{
+		"https://a.b/\x1b]52;c;ZXZpbA==\x07",
+		"https://a.b/\x9b31m",
+		"https://a.b/\u009b31m",
+		"https://a.b/x\x07y",
+		"https://a.b/\xff\xfe",
+		"https://a.b/\xc3\x28",
+		"https://a.b/\xed\xa0\x80", // CESU-8 lone surrogate
+		"https://a.b/\x1b\\",
+	}
+	for _, u := range urls {
+		for _, body := range []string{u, "보기 " + u + " 끝", "[링크](" + u + ")"} {
+			d := markup.Parse(body, markup.ParseOptions{})
+			for _, in := range nonText(d) {
+				if in.Kind == markup.Link && !cleanURL(in.URL) {
+					t.Errorf("Parse(%q): link URL %q is not clean ASCII/UTF-8", body, in.URL)
+				}
+			}
+			// Bare or bracketed, a hostile URL is plain text: no Link at all
+			// (not even a link to its clean prefix).
+			for _, in := range nonText(d) {
+				if in.Kind == markup.Link {
+					t.Errorf("Parse(%q): hostile URL still yields link %+v", body, in)
+				}
+			}
+			for _, w := range []int{80, 12} {
+				for _, o := range []markup.RenderOptions{{Width: w, Hyperlinks: true}, {Width: w, Hyperlinks: true, Compact: true}} {
+					lines := markup.Render(d, amber, o)
+					checkLines(t, lines, w)
+					for _, l := range lines {
+						checkOnlyOSC8(t, l)
+						checkOSC8Targets(t, l)
+						if strings.Contains(l, "\x1b]8;") {
+							t.Errorf("Render(%q): hostile URL hyperlinked: %q", body, l)
+						}
+					}
+					if got := ansi.Strip(strings.Join(lines, "")); !strings.Contains(got, "https://a.b/") && w == 80 {
+						t.Errorf("Render(%q): URL text not shown: %q", body, got)
+					}
+				}
+			}
+		}
+	}
+	// "[링크](u)" with a hostile u shows its source as plain text.
+	lines := markup.Render(markup.Parse("[링크](https://a.b/\x1b]52;c;ZXZpbA==\x07)", markup.ParseOptions{}), amber,
+		markup.RenderOptions{Width: 80, Hyperlinks: true})
+	if got := ansi.Strip(strings.Join(lines, "\n")); !strings.Contains(got, "[링크](") {
+		t.Errorf("hostile bracket link not shown as text: %q", got)
+	}
+}
+
+// TestRenderHyperlinkSanitizedOnly (pending-fixes 0-b ②): style() emits no
+// OSC 8 for a URL holding a rune Sanitize would hide (control, invalid UTF-8,
+// format character, line/paragraph separator) or ESC/BEL, whatever a caller
+// put in the Doc.
+func TestRenderHyperlinkSanitizedOnly(t *testing.T) {
+	for _, u := range []string{
+		"https://a.b/‮exe.txt", // bidi override: Sanitize drops it
+		"https://a.b/​x",       // zero-width space
+		"https://a.b/\xff",
+		"https://a.b/\x1b]52;c;ZXZpbA==\x07",
+		"https://a.b/\u009bx",
+		"https://a.b/\tx",
+		"https://a.b/\u2066x\u2069",              // bidi isolate
+		"https://a.b/\u200ex",                    // LRM
+		"https://a.b/\u2060x",                    // word joiner
+		"https://a.b/\ufeffx",                    // BOM
+		"https://a.b/\u00adx",                    // soft hyphen
+		"https://a.b/pay\u200dpal",               // ZWJ between letters
+		"https://a.b/\U0001F468\u200d\U0001F469", // ZWJ emoji: screen shows only the first
+		"https://a.b/\U000E0041x",                // tag character
+		"https://a.b/\u2028x",                    // line separator
+		"https://a.b/\u2029x",                    // paragraph separator
+		"https://a.b/pay\u034fpal",               // combining grapheme joiner
+		"https://a.b/pay\ufe00pal",               // VS1
+		"https://a.b/pay\U000e0100pal",           // VS17
+		"https://a.b/\u3164x",                    // Hangul filler
+	} {
+		d := markup.Doc{Blocks: []markup.Block{{Kind: markup.Paragraph, Inline: []markup.Inline{
+			{Kind: markup.Link, Text: "t", URL: u},
+		}}}}
+		lines := markup.Render(d, amber, markup.RenderOptions{Width: 20, Hyperlinks: true})
+		checkLines(t, lines, 20)
+		for _, l := range lines {
+			checkOnlyOSC8(t, l)
+			if strings.Contains(l, "\x1b]8;") {
+				t.Errorf("URL %q hyperlinked although it holds a hidden rune: %q", u, l)
+			}
+		}
+	}
+	// A clean URL is still hyperlinked.
+	d := markup.Parse("https://example.com/a?b=1", markup.ParseOptions{})
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 80, Hyperlinks: true})
+	if len(lines) != 1 || !strings.Contains(lines[0], "\x1b]8;;https://example.com/a?b=1") {
+		t.Errorf("clean URL not hyperlinked: %q", lines)
+	}
+}
+
+// TestRenderHyperlinkScripts (pending-fixes 0-b ②, 0-c): a URL is an OSC 8
+// hyperlink only when the text the viewer reads (Sanitize) is the target
+// itself up to NFC. Scripts Sanitize leaves alone stay clickable with their
+// exact percent-encoded target; URLs whose display Sanitize changes (dropped
+// vowel signs, VS16, skin tones) are shown as plain link-styled text instead,
+// so the shown address and the opened address can never disagree.
+func TestRenderHyperlinkScripts(t *testing.T) {
+	render := func(body string) string {
+		d := markup.Parse(body, markup.ParseOptions{})
+		lines := markup.Render(d, amber, markup.RenderOptions{Width: 120, Hyperlinks: true})
+		checkLines(t, lines, 120)
+		joined := strings.Join(lines, "\n")
+		checkOnlyOSC8(t, joined)
+		checkOSC8Targets(t, joined)
+		return joined
+	}
+	for _, u := range []string{
+		"https://example.com/cafe\u0301", // NFD café: only NFC differs
+		"https://ko.wikipedia.org/wiki/대한민국",
+		"https://ja.wikipedia.org/wiki/日本語",
+		"https://th.wikipedia.org/wiki/ภาษาไทย",
+		"https://ar.wikipedia.org/wiki/عربي",
+	} {
+		want := "\x1b]8;;" + markup.HyperlinkTarget(u) + "\x07"
+		for _, body := range []string{u, "보기 " + u + " 끝", "[문서](" + u + ")"} {
+			if joined := render(body); !strings.Contains(joined, want) {
+				t.Errorf("Render(%q): no OSC 8 to %q in %q", body, markup.HyperlinkTarget(u), joined)
+			}
+		}
+	}
+	for _, u := range []string{
+		"https://hi.wikipedia.org/wiki/हिन्दी",
+		"https://hi.wikipedia.org/wiki/क्षत्रिय",
+		"https://ta.wikipedia.org/wiki/தமிழ்",
+		"https://bn.wikipedia.org/wiki/বাংলা_ভাষা",
+		"https://emojipedia.org/❤️",
+		"https://emojipedia.org/👍🏽",
+	} {
+		for _, body := range []string{u, "보기 " + u + " 끝", "[문서](" + u + ")"} {
+			if joined := render(body); strings.Contains(joined, "\x1b]8;") {
+				t.Errorf("Render(%q): display differs from target but hyperlinked: %q", body, joined)
+			}
+		}
+	}
+}
+
+// cleanURL: valid UTF-8 without C0, DEL or C1.
+func cleanURL(u string) bool {
+	return utf8.ValidString(u) && !hasControl(u)
+}
+
+// checkOSC8Targets fails if an OSC 8 target holds anything but printable ASCII.
+func checkOSC8Targets(t *testing.T, l string) {
+	t.Helper()
+	for rest := l; ; {
+		i := strings.Index(rest, "\x1b]8;")
+		if i < 0 {
+			return
+		}
+		rest = rest[i+len("\x1b]8;"):]
+		end := strings.IndexAny(rest, "\x07\x1b")
+		if end < 0 {
+			t.Errorf("unterminated OSC 8 in %q", l)
+			return
+		}
+		for j := 0; j < end; j++ {
+			if c := rest[j]; c <= 0x20 || c >= 0x7f {
+				t.Errorf("OSC 8 target byte %#x in %q", c, l)
+			}
+		}
+		rest = rest[end:]
 	}
 }

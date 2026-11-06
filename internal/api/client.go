@@ -182,6 +182,12 @@ type request struct {
 }
 
 // escPath joins segments into "/seg/seg", escaping each with url.PathEscape.
+//
+// url.PathEscape leaves "." and ".." as they are and an empty value leaves
+// "//", so a caller value like a pasted invite code ".." would build
+// /v1/invites/.. — which WHATWG URL parsing (Workers, Hono) and Cloudflare URL
+// normalisation turn into /v1/, another endpoint (pending-fixes 5). do()
+// rejects such a path with checkPath before anything is sent.
 func escPath(segs ...string) string {
 	var b strings.Builder
 	for _, s := range segs {
@@ -189,6 +195,48 @@ func escPath(segs ...string) string {
 		b.WriteString(url.PathEscape(s))
 	}
 	return b.String()
+}
+
+// checkPath returns a client-side 400 invalid_request {"fields":{"path":
+// "invalid"}} when the request URL's path is one a URL normaliser on the way
+// would rewrite, so the request could land on a different endpoint: an empty
+// segment ("//", a trailing "/"; Cloudflare merges successive slashes), a
+// "." or ".." segment, also percent-encoded (".%2e", "%2E"; WHATWG and
+// RFC 3986 normalisation decode them as dot segments), or a raw backslash
+// (WHATWG and Cloudflare read it as "/"). Every path this package builds
+// passes; only bad caller or server-supplied values (IDs, codes, Media.URL)
+// trip it.
+func checkPath(method, rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil // http.NewRequest reports it
+	}
+	bad := func(why string) error {
+		return invalidRequest("path", "invalid", fmt.Sprintf("api: %s %s: refusing request path (%s)", method, u.EscapedPath(), why))
+	}
+	if strings.Contains(rawURL, `\`) { // escPath sends a value's "\" as %5C; a raw one only comes from a server URL
+		return bad("backslash")
+	}
+	p := u.EscapedPath()
+	if p == "" {
+		return nil
+	}
+	if !strings.HasPrefix(p, "/") {
+		return bad("relative path")
+	}
+	for _, seg := range strings.Split(p[1:], "/") {
+		dec, err := url.PathUnescape(seg)
+		if err != nil {
+			dec = seg
+		}
+		switch dec {
+		case "":
+			return bad("empty segment")
+		case ".", "..":
+			return bad("dot segment")
+		}
+	}
+	return nil
 }
 
 // rawResponse is an out value for call that receives a non-JSON body
@@ -251,6 +299,13 @@ func (c *Client) do(ctx context.Context, r request, out any, checkCooldown bool)
 	if err := ctx.Err(); err != nil {
 		return 0, fmt.Errorf("api: %s %s: %w", r.Method, r.Path, err)
 	}
+	u := c.base + r.Path
+	if r.URL != "" {
+		u = r.URL
+	}
+	if e := checkPath(r.Method, u); e != nil {
+		return 0, e
+	}
 	if checkCooldown {
 		ls := []string{r.Limiter}
 		if r.Auth {
@@ -272,10 +327,6 @@ func (c *Client) do(ctx context.Context, r request, out any, checkCooldown bool)
 		defer cancel()
 	}
 
-	u := c.base + r.Path
-	if r.URL != "" {
-		u = r.URL
-	}
 	if len(r.Query) > 0 {
 		sep := "?"
 		if strings.Contains(u, "?") {

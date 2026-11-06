@@ -417,7 +417,7 @@ func TestFocusSummaryHostile(t *testing.T) {
 		fixtures.Seed(s)
 		fixtures.Hostile(s)
 	}
-	evil := "\x1b[31m빨강\x1b]8;;http://x\x07링크\r\t" + strings.Repeat("긴👨‍👩‍👧", 40)
+	evil := "\x1b[31m빨강\x1b]8;;http://x\x07링크\r\t" + fixtures.FormatSoup + strings.Repeat("긴👨‍👩‍👧", 40)
 	sum := summary()
 	for i := range sum.Items {
 		sum.Items[i].Title = evil

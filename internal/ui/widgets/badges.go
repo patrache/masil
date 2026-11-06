@@ -56,7 +56,7 @@ func Avatar(t *theme.Theme, u api.UserSummary, w int) string {
 	}
 	initial := handleInitial(u.Handle)
 	if w >= 2 {
-		if name := textwidth.Sanitize(u.DisplayName); name != "" {
+		if name := textwidth.Sanitize(u.DisplayName); !textwidth.Blank(name) {
 			if g, _ := ansi.FirstGraphemeCluster(name, ansi.GraphemeWidth); g != "" {
 				initial = g
 			}
@@ -80,10 +80,12 @@ func handleInitial(handle string) string {
 }
 
 // UserName renders a display name in the user's color (bold; self => acc).
-// An empty display name falls back to the handle; the text is sanitized.
+// A display name the screen shows as nothing (textwidth.Blank: empty, only
+// runes Sanitize drops, or blank-cell runes like U+2800) falls back to the
+// handle (pending-fixes 1); the text is sanitized.
 func UserName(t *theme.Theme, u api.UserSummary, self bool) string {
 	name := textwidth.Sanitize(u.DisplayName)
-	if name == "" {
+	if textwidth.Blank(name) {
 		name = textwidth.Sanitize(u.Handle)
 	}
 	return t.S.Base.Foreground(t.UserColor(u.ID, self)).Bold(true).Render(name)

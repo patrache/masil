@@ -6,10 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/textwidth"
 )
 
 func apiErr(code, details string) *api.Error {
@@ -35,6 +39,7 @@ func TestDescribe(t *testing.T) {
 		{apiErr("invalid_request", `{"fields":{"q":"too_short"}}`), "검색어: 너무 짧아요"},
 		{apiErr("invalid_request", `{"fields":{"password":"invalid"}}`), "비밀번호: 형식이 맞지 않아요"},
 		{apiErr("invalid_request", `{"fields":{"cursor":"invalid"}}`), "cursor: 형식이 맞지 않아요"},
+		{apiErr("invalid_request", `{"fields":{"path":"invalid"}}`), "ID·코드: 형식이 맞지 않아요"},
 		{apiErr("invalid_request", `{"fields":{"topic":"weird"}}`), "topic: weird"},
 		{apiErr("invalid_request", `{}`), "입력값을 확인해 주세요"},
 		{apiErr("invalid_request", ""), "입력값을 확인해 주세요"},
@@ -76,5 +81,73 @@ func TestDescribe(t *testing.T) {
 		if got := api.Describe(tc.err); got != tc.want {
 			t.Errorf("Describe(%v) = %q, want %q", tc.err, got, tc.want)
 		}
+	}
+}
+
+// hasEscape reports ESC, BEL or any other C0/DEL/C1 control, a format
+// character (Cf: bidi, zero-width, BOM, soft hyphen, tags), U+2028/U+2029, or
+// invalid UTF-8.
+func hasEscape(s string) bool {
+	if !utf8.ValidString(s) {
+		return true
+	}
+	for _, r := range s {
+		if r < 0x20 || r >= 0x7f && r <= 0x9f || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestDescribeSanitizesServerStrings (pending-fixes 0-b): every string the
+// server supplies (code, field name, field reason, min version, message,
+// request id) reaches the screen without escape sequences and length-capped.
+func TestDescribeSanitizesServerStrings(t *testing.T) {
+	const clear, osc52, osc0 = "\x1b[2J", "\x1b]52;c;ZXZpbA==\x07", "\x1b]0;PWNED\x07"
+	long := strings.Repeat("가", 500)
+	for _, err := range []error{
+		apiErr("teapot"+clear+osc52, ""),
+		apiErr("\x9b2J\u009b2J"+osc0, ""),
+		apiErr("\xff\xfe"+clear, ""),
+		apiErr("invalid_request", `{"fields":{"\u001b]52;c;ZXZpbA==\u0007":"invalid"}}`),
+		apiErr("invalid_request", `{"fields":{"handle":"\u001b[2J\u001b]0;PWNED\u0007\u009b31m"}}`),
+		apiErr("invalid_request", `{"fields":{"\u001b[2J":"\u001b]52;c;ZXZpbA==\u0007"}}`),
+		apiErr("invalid_request", `{"fields":{"x":"`+long+`"}}`),
+		apiErr("invalid_request", `{"fields":{"`+long+`":"invalid"}}`),
+		apiErr("upgrade_required", `{"min_client_version":"9.9.9\u001b[2J\u001b]52;c;ZXZpbA==\u0007"}`),
+		apiErr("upgrade_required", `{"min_client_version":"`+long+`"}`),
+		apiErr(long+clear, ""),
+		// bidi controls, invisible format characters and line separators
+		// make the line read differently (pending-fixes 1)
+		apiErr("teapot\u202etxt.exe\u2067x\u2069\u200b\ufeff\u00ad\u2028", ""),
+		apiErr("invalid_request", `{"fields":{"\u202ehandle\u2066":"\u200e\u200f\u061c\u2060\u2029bad"}}`),
+		apiErr("upgrade_required", `{"min_client_version":"9.9.9\u202e\u200b"}`),
+	} {
+		got := api.Describe(err)
+		if hasEscape(got) || strings.Contains(got, "[2J") || strings.Contains(got, "]52;") || strings.Contains(got, "]0;") {
+			t.Errorf("Describe(%q) = %q: carries an escape", err.(*api.Error).Code, got)
+		}
+		if got != textwidth.Sanitize(got) {
+			t.Errorf("Describe = %q: not sanitized", got)
+		}
+		if w := textwidth.Width(got); w > 80 {
+			t.Errorf("Describe = %q: width %d > 80", got, w)
+		}
+	}
+	// Ordinary unknown values still show.
+	if got := api.Describe(apiErr("invalid_request", `{"fields":{"topic":"weird"}}`)); got != "topic: weird" {
+		t.Errorf("plain unknown field = %q", got)
+	}
+}
+
+// TestErrorStringSanitized: (*Error).Error() reaches stderr and toasts as is,
+// so the server's code, message and X-Request-Id carry no escapes either.
+func TestErrorStringSanitized(t *testing.T) {
+	e := &api.Error{Status: 400, Code: "x\x1b[2J\u202e", Message: "m\x1b]52;c;ZXZpbA==\x07\u009b31m\u200b\u2028", RequestID: "r\x1b]0;T\x07\u2067"}
+	if got := e.Error(); hasEscape(got) || strings.Contains(got, "]52;") || strings.Contains(got, "]0;") || strings.Contains(got, "[2J") {
+		t.Errorf("Error() = %q: carries an escape", got)
+	}
+	if got := (&api.Error{Status: 404, Code: "not_found", Message: "no such user", RequestID: "abc"}).Error(); got != "api: 404 not_found: no such user (request abc)" {
+		t.Errorf("plain Error() = %q", got)
 	}
 }

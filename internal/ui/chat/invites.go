@@ -283,7 +283,7 @@ func revokeInviteCmd(ctx *ui.Context, spaceID, code string) tea.Cmd {
 
 // copyInviteCmd copies "masil join <code>".
 func copyInviteCmd(code string) tea.Cmd {
-	return tea.Batch(tea.SetClipboard(inviteJoinPrefix+code), ui.Toast(inviteCopied, ui.ToastSuccess))
+	return tea.Batch(tea.SetClipboard(clipboardLine(inviteJoinPrefix+code)), ui.Toast(inviteCopied, ui.ToastSuccess))
 }
 
 // ---- the invites tab ----

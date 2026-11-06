@@ -19,7 +19,6 @@ import (
 	"os"
 	"strings"
 
-	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/webp"
 )
 
@@ -36,7 +35,8 @@ var (
 
 // limits bound a decode before any pixel buffer is allocated, so a tiny file
 // claiming huge dimensions (or a deep bit depth) cannot exhaust memory.
-// bytes is checked against width*height*bytesPerPixel(ColorModel).
+// bytes is checked against decodeCost: what the format's decoder allocates
+// for the header, not just its colour model (cost.go).
 type limits struct {
 	pixels int64
 	bytes  int64
@@ -49,7 +49,8 @@ var (
 	// displayLimits apply to remote media (Cache.Load). The server stores
 	// uploads as sent (api.md 5.14), so anyone could post a few-hundred-KB
 	// 16-bit PNG that decodes to ~400MB; every viewer would pay for it.
-	// 24MP keeps 24MP camera photos (8-bit) viewable; 16-bit images get 12MP.
+	// 24MP keeps 24MP camera photos (baseline 8-bit JPEG, 8-bit PNG)
+	// viewable; 16-bit images get 12MP, progressive 4:2:0 JPEGs about 13MP.
 	displayLimits = limits{pixels: 24_000_000, bytes: 96 << 20}
 )
 
@@ -118,7 +119,7 @@ func decodeAs(data []byte, ct string, lim limits) (image.Image, error) {
 }
 
 // checkConfig reads only the header and rejects bombs before decoding: too
-// many pixels, or too many bytes once decoded at the header's color model.
+// many pixels, or more bytes than the decoder would allocate (decodeCost).
 func checkConfig(c codec, data []byte, ct string, lim limits) error {
 	cfg, err := c.config(bytes.NewReader(data))
 	if err != nil {
@@ -131,37 +132,25 @@ func checkConfig(c codec, data []byte, ct string, lim limits) error {
 	if px > lim.pixels {
 		return fmt.Errorf("%w: %dx%d pixels", ErrTooLarge, cfg.Width, cfg.Height)
 	}
-	if n := px * bytesPerPixel(cfg.ColorModel); n > lim.bytes {
+	n, err := decodeCost(ct, data, cfg)
+	if err != nil {
+		return err
+	}
+	if n > lim.bytes {
 		return fmt.Errorf("%w: %dx%d pixels decode to about %d MB", ErrTooLarge, cfg.Width, cfg.Height, n>>20)
 	}
 	return nil
-}
-
-// bytesPerPixel is the decoded size of one pixel for a DecodeConfig color
-// model (the worst case where it varies: YCbCr counts as 4:4:4). Unknown
-// models count as 8 bytes.
-func bytesPerPixel(m color.Model) int64 {
-	if _, ok := m.(color.Palette); ok {
-		return 1
-	}
-	switch m {
-	case color.GrayModel, color.AlphaModel:
-		return 1
-	case color.Gray16Model, color.Alpha16Model:
-		return 2
-	case color.YCbCrModel:
-		return 3
-	case color.RGBAModel, color.NRGBAModel, color.CMYKModel, color.NYCbCrAModel:
-		return 4
-	}
-	return 8 // RGBA64Model, NRGBA64Model and anything unknown
 }
 
 // PrepareUpload reads an image file and returns bytes safe to upload with
 // their Content-Type. The format is sniffed from the bytes (the extension is
 // ignored). JPEG and PNG are decoded and re-encoded, which drops all metadata
 // (Exif, text chunks); a JPEG's Exif orientation is applied to the pixels
-// first. GIF and WebP are passed through unchanged. If the result exceeds
+// first. GIF and WebP keep their pixel and animation data byte for byte but
+// are rewritten without metadata (stripMetadata: WebP EXIF/XMP/ICCP and
+// unknown chunks, GIF comments, plain text and application extensions other
+// than the NETSCAPE2.0/ANIMEXTS1.0 loop count); a container that cannot be
+// walked exactly fails with ErrMalformed instead of being sent. If the result exceeds
 // MaxUploadBytes, the (first frame of the) image is re-encoded as JPEG q=85,
 // shrinking the long side by 0.8 each attempt; once the long side would drop
 // below 320 pixels it gives up with ErrTooLarge.
@@ -196,8 +185,11 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 			return nil, "", fmt.Errorf("imgrender: encode png: %w", err)
 		}
 		out = b.Bytes()
-	default: // GIF, WebP: pass through, but only real, sane images.
-		if err = checkConfig(c, in, ct, uploadLimits); err != nil {
+	default: // GIF, WebP: rewritten without metadata, then checked.
+		if out, err = stripMetadata(in, ct); err != nil {
+			return nil, "", err
+		}
+		if err = headerErr(checkConfig(c, out, ct, uploadLimits)); err != nil {
 			return nil, "", err
 		}
 	}
@@ -206,7 +198,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 	}
 
 	if img == nil {
-		if img, err = decodeAs(in, ct, uploadLimits); err != nil {
+		if img, err = decodeAs(out, ct, uploadLimits); err != nil {
 			return nil, "", err
 		}
 	}
@@ -243,7 +235,7 @@ func encodeJPEG(img image.Image, quality int) ([]byte, error) {
 
 // downscaleToFit flattens img onto white (JPEG has no alpha) and re-encodes
 // it as JPEG q=85, first at full size and then with the long side shrunk by
-// 0.8 per attempt, until it fits MaxUploadBytes.
+// 0.8 per attempt (area average, shrinkInto), until it fits MaxUploadBytes.
 func downscaleToFit(img image.Image) ([]byte, error) {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -255,11 +247,12 @@ func downscaleToFit(img image.Image) ([]byte, error) {
 		dw := max(1, (w*side+long/2)/long)
 		dh := max(1, (h*side+long/2)/long)
 		dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
-		draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 		if dw == w && dh == h {
+			draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 			draw.Draw(dst, dst.Bounds(), img, b.Min, draw.Over)
 		} else {
-			xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, b, xdraw.Over, nil)
+			shrinkInto(dst, img, b)
+			flattenOverWhite(dst)
 		}
 		out, err := encodeJPEG(dst, 85)
 		if err != nil {

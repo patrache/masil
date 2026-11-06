@@ -293,7 +293,7 @@ func (d *reportDialog) layout(t *theme.Theme) (rows []string, curX, curY int) {
 	var status string
 	switch {
 	case d.errMsg != "":
-		status = t.S.Error.Render(textwidth.Truncate("✕ "+d.errMsg, cw, "…"))
+		status = t.S.Error.Render(textwidth.Truncate("✕ "+textwidth.Sanitize(d.errMsg), cw, "…"))
 	case d.busy:
 		status = t.S.Dim.Render("보내는 중…")
 	default:

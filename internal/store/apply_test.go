@@ -574,6 +574,22 @@ func TestChannelLabel(t *testing.T) {
 	}
 }
 
+// A display name the screen shows as nothing (only Hangul fillers, zero-width,
+// bidi runes, noncharacters or U+2800 BRAILLE PATTERN BLANK; Sanitize drops them all) falls back to the handle, so a DM
+// label never looks nameless (pending-fixes 1).
+func TestChannelLabelInvisibleNameFallsBack(t *testing.T) {
+	s := meStore(t)
+	for _, name := range []string{"\u3164", "\u3164\uffa0\u115f\u1160", "\u200b\u202e", "\u034f\U000e0100",
+		"\ufffe", "\uffff\ufdd0", "\u2800", "\u2800 \u2800", "\U0001d159"} {
+		mj := uMinji
+		mj.DisplayName = name
+		s.ObserveUser(mj)
+		if got := s.ChannelLabel("D1MJ"); got != uMinji.Handle {
+			t.Errorf("DisplayName %q: ChannelLabel = %q, want the handle %q", name, got, uMinji.Handle)
+		}
+	}
+}
+
 func TestTotalUnreadSkipsMuted(t *testing.T) {
 	s := meStore(t)
 	s.Channels["C1DEV"].My = api.ChannelMyState{UnreadCount: 5, MentionCount: 1}

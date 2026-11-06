@@ -9,6 +9,7 @@ import (
 	"github.com/sahilm/fuzzy"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 )
 
@@ -377,7 +378,7 @@ func (spaceSource) Items(ctx *ui.Context, q string) []Item {
 // personItem is a person row (-> RouteProfile{ID: "@handle"}).
 func personItem(u api.UserSummary) Item {
 	name := u.DisplayName
-	if name == "" {
+	if textwidth.Blank(name) { // nothing visible (pending-fixes 1)
 		name = u.Handle
 	}
 	return Item{

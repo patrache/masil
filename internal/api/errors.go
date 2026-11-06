@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/patrache/masil/internal/textwidth"
 )
 
 // Error is the decoded error envelope (api.md 0.5).
@@ -20,16 +23,23 @@ type Error struct {
 	RetryAfter time.Duration   // 429 only
 }
 
+// Error renders the envelope for logs and plain stderr lines. Code, Message
+// and RequestID come from the server (body and X-Request-Id header), so each
+// is sanitized and length-capped: a caller that prints err.Error() can never
+// write an escape sequence to the terminal (pending-fixes 0-b).
 func (e *Error) Error() string {
-	s := fmt.Sprintf("api: %d %s", e.Status, e.Code)
+	s := fmt.Sprintf("api: %d %s", e.Status, serverText(e.Code))
 	if e.Message != "" {
-		s += ": " + e.Message
+		s += ": " + strings.TrimRight(textwidth.Truncate(textwidth.Sanitize(e.Message), maxServerMessage, "…"), " ")
 	}
 	if e.RequestID != "" {
-		s += " (request " + e.RequestID + ")"
+		s += " (request " + serverText(e.RequestID) + ")"
 	}
 	return s
 }
+
+// maxServerMessage caps, in cells, the server's error message in Error().
+const maxServerMessage = 200
 
 // details decodes e.Details into v; false if absent or not an object of that shape.
 func (e *Error) details(v any) bool {

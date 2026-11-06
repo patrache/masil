@@ -225,8 +225,8 @@ cd server && npx wrangler d1 execute DB --local --command "UPDATE users SET role
 
 ## 문제 해결
 
-- **macOS 에서 알림이 안 뜸**: masil 은 `terminal-notifier` 가 설치돼 있으면 그것을, 없으면 `osascript`(AppleScript)를 써서 알림을 띄웁니다. 시스템 설정 → 알림 에서 **"스크립트 편집기"**(`terminal-notifier` 를 쓰면 "terminal-notifier") 알림을 허용하세요.
-- **Linux 에서 알림이 안 뜸**: 데스크톱 알림 데몬(D-Bus `org.freedesktop.Notifications`, GNOME·KDE 등에 기본 포함)이 필요합니다. 없으면 `notify-send` 로 대신 시도합니다. 화면 없는 서버에서는 알림이 뜨지 않습니다.
+- **macOS 에서 알림이 안 뜸**: masil 은 `/usr/bin/osascript`(AppleScript)로만 알림을 띄웁니다(`terminal-notifier` 등 다른 도구는 쓰지 않음). 알림은 **"스크립트 편집기"** 이름으로 뜨므로 시스템 설정 → 알림 에서 "스크립트 편집기" 알림을 허용하세요.
+- **Linux 에서 알림이 안 뜸**: masil 은 D-Bus 세션 버스로 데스크톱 알림 데몬(`org.freedesktop.Notifications`, GNOME·KDE 등에 기본 포함)에 직접 알림을 보냅니다. `notify-send` 등 다른 프로그램으로 대신 시도하지 않고, 세션 버스를 새로 띄우지도(`dbus-launch`) 않습니다 — 알림 데몬과 세션 버스(`DBUS_SESSION_BUS_ADDRESS`)가 있어야 합니다. 화면 없는 서버에서는 알림이 뜨지 않습니다.
 - **알림이 전혀 안 옴**: `masil daemon status` 를 보세요. 로그인한 서버와 데몬이 쓰는 서버가 다르다는 `⚠` 경고가 있으면 같은 서버로 다시 로그인하거나 `config.toml` 의 `server` 를 맞추세요([설정](#설정) 참고). `알림 꺼짐` 이면 `config.toml` 의 `[notify] desktop` 을 `true` 로 바꾸세요.
 - **테두리가 어긋나거나 한글·상자 문자가 겹침**: iTerm2 의 "Ambiguous characters are double-width"(Profiles → Text)를 끄세요. 모호 폭 문자를 2칸으로 그리는 터미널 설정은 지원하지 않습니다.
 

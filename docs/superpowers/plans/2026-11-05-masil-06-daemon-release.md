@@ -6,7 +6,7 @@
 
 **Architecture:** 데몬은 core 의 `realtime`(ModeNotify)·`notify`·`instance`·`auth`·`config` 위에 얇게 얹는다. 데몬 고유 로직은 세 덩어리 — (1) `daemon-state.json` 재개 지점, (2) TUI 존재 판정(`tui.lock` 우선, 실패 시 서버 신호 + 3초 유예), (3) alert 처리 큐(무제한·순서 유지, `notify.Notifier.Handle` 위임) — 와 자격 증명 대기 루프(설정 실시간 반영, 데몬이 본 서버 주소를 `daemon-status.json` 에 기록, 실행 파일이 바뀌면 종료 코드 1 로 나가 감독자가 새 버전으로 재시작)다. 자동 시작은 OS별 등록 파일을 **순수 생성 함수**(골든 시험)와 **명령 실행부**(가짜 runner 로 기록 시험)로 나눈다. 릴리스는 태그 푸시에서만 도는 워크플로가 시험 → goreleaser → tap 갱신 → 설치 스모크 순으로 진행한다.
 
-**Tech Stack:** Go 1.26.1 (`charm.land/*/v2` 는 이 범위에서 쓰지 않음), `github.com/coder/websocket` v1.8.15(시험의 `CloseError` 만), `golang.org/x/sys` v0.49.0(`windows/registry`, `windows`), `github.com/charmbracelet/x/exp/golden` v0.1.0, goreleaser v2.19.0, `goreleaser/goreleaser-action@v7.3.0`, `actions/checkout@v7.0.1`, `actions/setup-go@v7.0.0`, `actions/setup-node@v7.1.0`, actionlint v1.7.12, Node 24(wrangler 4.157.0 는 `node >=22.0.0`).
+**Tech Stack:** Go 1.26.1 (`charm.land/*/v2` 는 이 범위에서 쓰지 않음), `github.com/coder/websocket` v1.8.15(시험의 `CloseError` 만), `golang.org/x/sys` v0.49.0(`windows/registry`, `windows`), `github.com/charmbracelet/x/exp/golden` v0.1.0, goreleaser v2.19.0, `goreleaser/goreleaser-action@v7.3.0`, `actions/checkout@v7.0.1`, `actions/setup-go@v7.0.0`, `actions/setup-node@v7.1.0`, actionlint v1.7.12, Node 24(wrangler 4.157.0 는 `node >=22.0.0`). **워크플로우의 `uses:` 에는 위 태그를 그대로 쓰지 않는다** — 보류 항목 2(공급망)에 따라 각 태그를 `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` 로 조회한 40자 커밋 SHA 로 고정하고 `# vX.Y.Z` 주석을 붙인다(예: `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`). `cmd/masil/workflow_pins_test.go` 가 이를 강제한다.
 
 **Spec:** `docs/superpowers/specs/2026-11-05-masil-design.md` (2장 전역 운영자, 3.3 데스크톱 알림·데몬·"CPU·메모리 사용 최소", 5.1 배포, 5.3 로컬 E2E, 6장 운영 윤허, 7장 마일스톤 순서). 계약: `docs/contract/client-architecture.md` 2.1·3장·4.4·4.6·9.2·10.3, `docs/contract/events.md` 3.2~3.5·4.7·4.9·7장, `docs/contract/server-architecture.md` 7·8장, `docs/superpowers/plans/00-brief.md`.
 
@@ -1391,6 +1391,8 @@ git commit -m "build: homebrew tap formula template"
 
 **Files:**
 - Create: `.github/workflows/server-ci.yml`, `.github/workflows/release.yml`
+
+> **SHA 고정 (보류 항목 2):** 아래에 태그로 적힌 액션(`actions/checkout@v7.0.1`, `actions/setup-node@v7.1.0`, `actions/setup-go@v7.0.0`, `goreleaser/goreleaser-action@v7.3.0`, `actions/upload-artifact@v7.0.2`, `actions/download-artifact@v8.0.2`)은 버전을 가리킬 뿐이다. 실제 `uses:` 는 `owner/repo@<40자 커밋 SHA> # vX.Y.Z` 로 쓴다(SHA 는 `gh api` 로 조회, 기억으로 쓰지 않음). 태그로 쓰면 `TestWorkflowActionsPinnedToSHA` 가 실패한다.
 
 **Interfaces:**
 - Consumes: Task 9~11 산출물, `server/` 의 `npm ci`·`npx tsc --noEmit`·`npm test`(server-architecture 8장; `package-lock.json` 은 server 계획이 커밋), core `ci.yml`(Go 시험은 거기서 — 이 계획은 고치지 않음)

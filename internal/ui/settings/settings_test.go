@@ -792,3 +792,20 @@ func TestSettingsCursor(t *testing.T) {
 		t.Fatalf("cursor row %d not on the field:\n%s", c.Y, h.Screen())
 	}
 }
+
+// A blocked user whose display name shows nothing (U+2800 BRAILLE PATTERN
+// BLANK, Hangul filler, noncharacter) is listed by handle, not as a blank row
+// (pending-fixes 1).
+func TestBlocksSectionBlankNameFallsBack(t *testing.T) {
+	for _, name := range []string{"\u2800", "\u3164", "\ufffe", "\u2800 \u2800"} {
+		h := uitest.New(t)
+		fs := setup(h)
+		blank := hana
+		blank.DisplayName = name
+		fs.blocks = []api.BlockEntry{blockOf(blank)}
+		open(h, "blocks")
+		if line := selectedLine(h); strings.Count(line, "hana") < 2 {
+			t.Errorf("name %q: blocked row %q does not show the handle as its label", name, line)
+		}
+	}
+}

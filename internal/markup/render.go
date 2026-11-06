@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
+	"golang.org/x/text/unicode/norm"
 )
 
 // RenderOptions controls Render.
@@ -147,7 +148,7 @@ func inlineSegs(ins []Inline, o RenderOptions) []seg {
 			k.kind = kInlineCode
 		case Link:
 			k.kind = kLink
-			if o.Hyperlinks && SafeURL(in.URL) {
+			if o.Hyperlinks && hyperlinkable(in.URL) {
 				k.url = in.URL
 			}
 		case Mention:
@@ -347,7 +348,7 @@ func style(t *theme.Theme, k styleKey) lipgloss.Style {
 	case kInlineCode:
 		return t.S.InlineCode
 	case kLink:
-		if k.url != "" && SafeURL(k.url) { // second guard: never put control bytes in OSC 8
+		if k.url != "" && hyperlinkable(k.url) { // second guard: never put control bytes in OSC 8
 			return t.S.Link.Hyperlink(HyperlinkTarget(k.url))
 		}
 		return t.S.Link
@@ -405,6 +406,30 @@ func renderRun(st lipgloss.Style, s string) string {
 		pre = pre.Strikethrough(true)
 	}
 	return pre.String() + st.UnsetUnderline().UnsetStrikethrough().Render(s) + ansi.ResetStyle
+}
+
+// hyperlinkable reports whether u may become an OSC 8 target (pending-fixes
+// 0-b ②): SafeURL (valid UTF-8, no C0/DEL/C1), no ESC or BEL, and no rune
+// Sanitize hides from the link text (textwidth.Invisible: format characters
+// such as bidi, zero-width, ZWJ, BOM, soft hyphen and tags, line/paragraph
+// separators, CGJ, variation selectors, Hangul fillers), so the target cannot
+// differ invisibly from what the viewer reads (pending-fixes 1). VS15/VS16
+// and Sanitize's other rules (NFC, skin-tone removal, rule 7 placeholders)
+// only change how a visible character is drawn, so Indic, NFD and emoji URLs
+// stay clickable.
+func hyperlinkable(u string) bool {
+	if u == "" || !SafeURL(u) || strings.ContainsAny(u, "\x1b\x07") {
+		return false
+	}
+	for _, r := range u {
+		if hidden(r) && r != 0xfe0e && r != 0xfe0f {
+			return false
+		}
+	}
+	// Pending fix 0-c: what the screen shows must be the target itself (only
+	// NFC normalization may differ), or the shown address and the one OSC 8
+	// opens could disagree.
+	return norm.NFC.String(u) == textwidth.Sanitize(u)
 }
 
 // HyperlinkTarget percent-encodes u for an OSC 8 target: every byte outside

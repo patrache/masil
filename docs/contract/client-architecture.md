@@ -43,16 +43,18 @@ require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
+	git.sr.ht/~jackmordaunt/go-toast v1.1.2
 	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/exp/golden v0.1.0
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261101151554-27ecf3e4d454
 	github.com/coder/websocket v1.8.15
-	github.com/gen2brain/beeep v0.11.3
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gofrs/flock v0.13.1
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/sahilm/fuzzy v0.1.3
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
@@ -67,11 +69,13 @@ require (
 | x/ansi (+ `ansi/kitty`, `ansi/iterm2`) | 폭 계산·자르기·줄바꿈(`textwidth`), kitty/iTerm2 이미지 이스케이프 |
 | chroma/v2 | 코드 블록 문법 강조(`markup`) |
 | coder/websocket | 실시간 소켓(`realtime`) |
-| beeep | OS 데스크톱 알림(`notify`) |
+| godbus/dbus/v5 | Linux 데스크톱 알림 — `org.freedesktop.Notifications.Notify` 직접 호출(`notify`) |
+| go-toast (`wintoast` 만) | Windows 토스트 — WinRT COM 으로 직접 표시(`notify`), PowerShell 경로는 쓰지 않음 |
 | gofrs/flock | 파일 잠금(`instance`, `notify` 기록 파일) |
 | oklog/ulid/v2 | `device_id`, `client_nonce` 생성(`ids`) |
 | BurntSushi/toml | `config.toml` |
 | sahilm/fuzzy | 명령 팔레트 퍼지 검색 |
+| go.yaml.in/yaml/v3 | **시험 전용** — `cmd/masil/workflow_pins_test.go` 가 `.github` 워크플로우를 YAML 로 읽어 모든 `uses` 키(따옴표·`? uses` 복합 키·이스케이프 표기 포함)가 SHA 로 고정됐는지 검사(보류 항목 2). 배포 바이너리에는 링크되지 않는다. 이미 gofrs/flock 의 간접 의존으로 go.sum 에 있던 버전 |
 | x/image (`webp`, `draw`) | WebP 디코드, 이미지 축소 |
 | x/sys (`windows/registry`) | Windows 자동 시작 등록(`autostart`) |
 | x/text (`unicode/norm`) | 입력 NFC 정규화(`textwidth.Sanitize`, 8.2 규칙 6) |
@@ -82,6 +86,7 @@ require (
 - `github.com/mattn/go-runewidth` 는 직접 쓰지 않는다. lipgloss v2 가 `x/ansi` 의 그래핌 폭을 쓰므로 폭 계산을 `x/ansi` 하나로 통일한다(8장). go-runewidth 는 간접 의존으로만 남는다.
 - teatest v2 는 태그가 없어 의사 버전(2026-11-01 커밋)을 고정한다. 이 커밋의 go.mod 는 `charm.land/bubbletea/v2` 를 가져온다 **[검증]**.
 - golden 은 태그 `v0.1.0` 을 쓴다(teatest 가 요구하는 의사 버전보다 높음, 최소 버전 선택으로 이것이 채택됨) **[검증]**.
+- `github.com/gen2brain/beeep` 는 **쓰지 않는다 [보안 결정, 2026-11-06]**. beeep 는 알림 제목·본문(다른 사용자가 보낸 텍스트)을 macOS 에선 AppleScript 문자열(`%q`)에, Windows 에선 go-toast 의 CDATA 템플릿과 PowerShell here-string 폴백 스크립트에 끼워 넣는다 → `]]>`·`"@` 등으로 명령 실행이 가능하다. OS 알림은 4.6 의 "OS 백엔드 규칙" 대로 `notify` 가 직접 한다.
 
 ### 1.3 go.mod 관리 규칙
 
@@ -102,6 +107,7 @@ import (
 	_ "charm.land/bubbles/v2/viewport"
 	_ "charm.land/bubbletea/v2"
 	_ "charm.land/lipgloss/v2"
+	_ "git.sr.ht/~jackmordaunt/go-toast/wintoast"
 	_ "github.com/BurntSushi/toml"
 	_ "github.com/alecthomas/chroma/v2"
 	_ "github.com/alecthomas/chroma/v2/lexers"
@@ -111,10 +117,11 @@ import (
 	_ "github.com/charmbracelet/x/exp/golden"
 	_ "github.com/charmbracelet/x/exp/teatest/v2"
 	_ "github.com/coder/websocket"
-	_ "github.com/gen2brain/beeep"
+	_ "github.com/godbus/dbus/v5"
 	_ "github.com/gofrs/flock"
 	_ "github.com/oklog/ulid/v2"
 	_ "github.com/sahilm/fuzzy"
+	_ "go.yaml.in/yaml/v3"
 	_ "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 	_ "golang.org/x/sys/windows/registry"
@@ -585,6 +592,8 @@ func UserID(id string) UserRef
 동작 규칙:
 - 요청마다 `Authorization: Bearer`(토큰 있을 때), `User-Agent`, `Accept: application/json`. JSON 본문은 `Content-Type: application/json; charset=utf-8`.
 - 경로 매개변수는 `url.PathEscape` 로 세그먼트 단위 이스케이프(이모지 리액션, 해시태그, `@handle`).
+- 요청 경로(서버가 준 `Media.URL` 포함)에 빈 조각(`//`, 끝의 `/`)·`.`·`..`(퍼센트 인코딩된 `%2e` 꼴 포함)·생 백슬래시가 있으면 보내지 않고 `400 invalid_request` `{"fields":{"path":"invalid"}}` 를 돌려준다(네트워크 요청 0회). WHATWG URL 해석·Cloudflare URL 정규화가 이런 경로를 다른 엔드포인트로 바꾸기 때문이다(예: 초대 코드 `..` → `DELETE /v1/invites/..` 가 `/v1/` 로).
+- `FetchMedia` 는 API 출처(토큰을 붙이는 곳)에서는 `<BaseURL 경로>/v1/media/<조각 하나>` 만 가져온다. 다른 경로(`/v1/me`, `/v1/auth/sessions`, `/v1/media/a/b`, 디코딩하면 `/`·`\` 가 생기는 조각)는 보내지 않고 같은 `400 invalid_request` `{"fields":{"path":"invalid"}}` 를 돌려준다 — 악의적인 `Media.URL` 이 토큰을 다른 엔드포인트로 보내지 못하게. 다른 출처는 토큰 없이 그대로 가져온다.
 - 응답의 모르는 필드는 무시(`encoding/json` 기본). 2xx 인데 본문이 비어야 하는 엔드포인트(`204`)는 본문을 읽지 않는다.
 - **속도 제한**: 엔드포인트→리미터 표(api.md 0.7)를 정적 표로 가진다. `429` 를 받으면 `Cooldown[limiter] = now + retry_after_sec`. 쿨다운 중 같은 리미터 요청은 네트워크 없이 즉시 `&Error{Status:429, Code:"rate_limited", RetryAfter: 남은 시간}` 을 돌려준다. **자동 재시도는 `SendMessage`/`ReplyThread` 만 1회**: `RetryAfter ≤ 10s` 이면 그만큼 기다렸다가 같은 `client_nonce` 로 다시 보낸다(ctx 취소 존중).
 - `401 unauthorized` → `OnUnauthorized` 호출(같은 토큰에 대해 1회). `426` → `OnUpgradeRequired(details.min_client_version)`.
@@ -1193,7 +1202,7 @@ const (RoleTUI Role = iota; RoleDaemon)
 type OSNotification struct{ Title, Body string; AlertID string }
 
 type Backend interface{ Show(n OSNotification) error }
-func NewOSBackend(appName string) Backend   // beeep.Notify; beeep.AppName = appName ("masil")
+func NewOSBackend(appName string) Backend   // per-OS backend below; appName = "masil"
 type Recorder struct{ Shown []OSNotification } // test backend
 func (r *Recorder) Show(n OSNotification) error
 
@@ -1239,12 +1248,21 @@ func (n *Notifier) Show(a api.Alert) error                         // ledger.Mar
 5. TUI 이고 `TerminalFocusKnown && TerminalFocused && ViewingTarget` → `Silent`(보고 있는 것을 또 알리지 않음).
 6. 나머지 → `Popup`. (포커스 보고를 지원하지 않는 터미널이면 `TerminalFocusKnown=false` → 항상 Popup: "다른 창에서 일하다가도 놓치지 않는다")
 
+**OS 백엔드 규칙 [보안 결정, 2026-11-06]** — 제목·본문은 다른 사용자가 만든 텍스트다. 어떤 백엔드도 그것을 스크립트·셸 명령·마크업 문서에 **문자열로 끼워 넣지 않는다**(값은 데이터로만 넘긴다). TUI 와 데몬이 같은 `NewOSBackend` 를 쓴다.
+- 공통: `Show` 는 표시 직전에 `Format` 과 같은 sanitize + 길이 제한(제목 80, 본문 200 코드 포인트)을 다시 적용한다 — `Format` 을 거치지 않은 호출도 제어 문자·무제한 길이가 OS 에 닿지 않는다. bidi·보이지 않는 서식 문자(Cf)·줄·문단 구분자(U+2028/U+2029)·변이 선택자·그 밖의 기본 무시 문자·비문자 제거는 `textwidth.Sanitize`(8.2 규칙 1) 를 그대로 따른다.
+- macOS: 셸 없이 `/usr/bin/osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title (item 1 of argv)' -e 'end run' -- <제목> <본문>` — 프로그램은 상수, 제목·본문은 `--` 뒤 argv 항목(`-e` 같은 값도 옵션이 아님).
+- Linux: D-Bus `org.freedesktop.Notifications.Notify` 직접 호출(exec 없음, 세션 버스 자동 기동(`dbus-launch`) 안 함). summary 는 명세상 일반 텍스트지만 마크업으로 그리는 서버도 있으므로 `<`·`>` 를 `‹`(U+2039)·`›`(U+203A) 로 바꾼다(엔티티 이스케이프는 명세를 따르는 서버에서 `&amp;` 로 보이므로 쓰지 않음; `<` 가 없으면 엔티티만으로는 태그가 생기지 않는다). body 는 서버가 `body-markup` 능력을 밝히면(또는 능력 조회 실패 시) `& < >` 를 이스케이프하고, 밝히지 않으면 summary 와 같이 `<`·`>` 를 `‹`·`›` 로 바꾼다(능력을 밝히지 않고 마크업으로 그리는 서버에도 `<a href>`·`<img src>` 가 닿지 않음). 능력은 연결마다가 아니라 **알림마다** 조회한다(연결이 살아 있는 동안 알림 서버가 바뀔 수 있음). actions·icon·hints 는 비움.
+- Windows: WinRT 토스트 COM API(`go-toast/wintoast.Push`, 옵션 없이 — PowerShell 폴백·우선 옵션 금지). 토스트 XML 은 직접 만들고 제목·본문은 `encoding/xml.EscapeText` 로 이스케이프한 문자 데이터(CDATA 금지).
+- 그 외 OS: 오류(배포 대상 아님).
+- 구조: 각 OS 의 `show`(실제 실행 경로)는 빌드 제약 없는 `backend_platform.go` 에 두고 마지막 OS 호출만 주입받는다 — macOS `darwinPlatform.run`(실물 `execRun` = `exec.CommandContext(ctx, name, args...).CombinedOutput()`, 셸 없음), Windows `windowsPlatform.setAppID`/`push`(실물 `wintoast.SetAppData`/`wintoast.Push(doc)`), Linux `dbusPlatform.dial`(실물 세션 버스 연결; `alive`·`close`·GetCapabilities·Notify). GOOS 전용 파일(`backend_darwin.go`·`backend_windows.go`·`backend_dbus.go`)은 그 실물을 끼우는 배선만 하고 `OSNotification`·텍스트 빌더를 참조하지 않는다.
+- 시험: 각 OS 의 인자/XML/D-Bus 호출을 만드는 순수 함수를 모든 OS 에서 적대적 입력(`$(...)`, 백틱, `"@`, `]]>`, `" & do shell script "id" & "`, 줄바꿈, U+2028/U+2029, `-e`, `<a href>`, bidi 제어(U+202E 등)·보이지 않는 서식 문자)으로 단언한다. 그리고 **모든 OS 에서** 가짜 실행기를 넣은 각 플랫폼으로 `Show` 를 불러, 실제로 넘긴 argv·토스트 XML·Notify 인자가 빌더 결과(`darwinCommand`·`toastXML`·`dbusCall`)와 같고 비활성인지 단언한다(빌더만 시험하면 `show` 가 빌더를 건너뛰어도 잡히지 않음). `Show` 자체가 sanitize·길이 제한을 하는지도 `Show` 를 불러 단언하며, macOS 에선 `Show`→`execRun` 으로 실제 osascript 를 돌려 같은 argv 가 그대로 돌아오는지(명령 미실행) 확인한다. 각 OS 에선 `NewOSBackend` 가 실물 배선(`execRun`·`setToastAppID`/`pushToast`·`dialSessionBus`)을 쓰는지, Linux 에선 godbus 어댑터가 Notify 인자를 그대로 넘기는지 단언한다. 소스 검사: beeep·PowerShell 옵션·셸 리터럴·CDATA 리터럴 금지, `show` 메서드는 `backend_platform.go` 에만, `os/exec` 는 `execRun` 에서만(본문 고정), `wintoast.Push` 는 문서 인자 하나만.
+
 ### 4.7 `internal/textwidth` — 폭 계산 (8장 상세)
 
 ```go
 package textwidth
 func Sanitize(s string) string                    // display-only normalization (8.2); idempotent; every grapheme of the result has StringWidth == StringWidthWc
-func SanitizeInput(s string) string               // text-entry normalization (8.4): same rules as Sanitize except "\n" is kept ("\r\n"/"\r" -> "\n"); idempotent
+func SanitizeInput(s string) string               // text-entry normalization (8.4): same rules as Sanitize except "\n" is kept ("\r\n"/"\r"/U+2028/U+2029 -> "\n"); idempotent
 func Width(s string) int                          // ansi.StringWidth(s) — call on sanitized text
 func Truncate(s string, w int, tail string) string // grapheme-safe, ANSI-aware, never splits a wide char; result Width <= w
 func TruncateLeft(s string, w int, head string) string
@@ -1292,6 +1310,8 @@ func Plain(body string, maxCells int) string        // markdown stripped one-lin
 ```
 
 - 코드 블록은 왼쪽 막대 `▎`(acc) + codebg 배경 + chroma 강조. 언어 미지정/모름 → `lexers.Fallback`.
+- 링크 안전 규칙(pending-fixes 0-b): `[t](u)` 의 u 에 공백·제어 문자(C0·DEL·C1)·잘못된 UTF-8 이 하나라도 있으면 링크가 아니라 원문 텍스트. 맨 URL 은 보이는 공백(스페이스·탭·`\n`·`\r\n`)이나 `<>"\``에서 끝나며, 그 전에 화면에 안 보이는 끊김(그 밖의 제어 문자·잘못된 UTF-8·U+2028/U+2029)이나 **보이지 않는 문자(`textwidth.Invisible`, VS15/VS16 제외)** 를 만나면 **앞부분도 링크로 만들지 않고** 전체를 텍스트로 둔다(보이는 주소와 여는 주소가 달라지지 않게). OSC 8 은 제어 문자·ESC/BEL·잘못된 UTF-8·보이지 않는 문자(`textwidth.Invisible`: Cf — bidi·zero-width·ZWJ·BOM·soft hyphen·태그 — ·U+2028/U+2029·CGJ·VS1–14/VS17–256·한글 채움 문자·비문자 등, VS15/VS16 제외)가 없는 URL 에만 붙이고, 대상은 `HyperlinkTarget` 으로 0x80 이상 바이트를 퍼센트 인코딩한 인쇄 가능 ASCII. **또한 `norm.NFC.String(u) == textwidth.Sanitize(u)` 일 때만 OSC 8 을 붙인다 [보안 결정, 2026-11-06, pending-fixes 0-c]** — 표시용 Sanitize 가 지우거나 바꾸는 글자(VS15/VS16, 피부색 U+1F3FB–1F3FF, 키캡 U+20E3, 태그 문자, rule 7 치환으로 빠지는 인도계 모음 기호 등)가 든 URL 은 보이는 주소와 여는 주소가 달라지므로 링크 모양의 일반 텍스트로만 보인다(NFD 처럼 NFC 차이만 있는 URL 은 눌린다).
+- **토큰 경계는 화면 기준 [보안 결정, 2026-11-06, pending-fixes 1]**: `Parse` 는 원문을 파싱하고 조각은 그 뒤에 `Sanitize` 하므로, 보이지 않는 문자(`textwidth.Invisible`, ZWJ 포함)가 멘션·해시태그·맨 URL 의 경계를 몰래 바꾸지 못하게 한다. (a) 앞 글자 검사(`(?<![A-Za-z0-9_])` 등)는 보이지 않는 문자를 건너뛴 **앞의 보이는 글자**로 한다(`sam`+U+200B+`@minji` 는 멘션 아님). (b) 토큰이 보이지 않는 문자 연속에서 끊기고 그 뒤 첫 보이는 글자가 토큰을 이어 갈 글자면(`#공지`+U+200B+`사항`, `@sam`+U+034F+`_admin`), 화면에는 한 낱말로 보이므로 그 낱말 전체를 **일반 텍스트**로 둔다. 보이지 않는 문자 뒤가 공백·문장부호·끝이면 토큰은 그대로다. 서버의 멘션 추출은 원문 기준이라 이런 본문에서는 서버 멘션과 화면이 다를 수 있다(화면은 누를 수 있는 것만 강조).
 - 링크는 텍스트에 밑줄 + acc4, 맨 URL 도 같음. 멘션은 `selbg` 배경 + `acc` 글자(mockup `.mention`). 내 멘션·`@here` 는 굵게.
 
 ### 4.9 `internal/humanize`, `internal/slash`, `internal/termcaps` (core)
@@ -1888,7 +1908,7 @@ type Box struct{ Rect layout.Rect; Bordered bool }
 func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Program (alt screen via View), start realtime bridge, run, save state.json on exit
 ```
 
-`View()` 가 매 프레임 설정하는 것: `AltScreen=true`, `MouseMode=MouseModeCellMotion`(설정 `ui.mouse=false` 면 None), `ReportFocus=true`, `Cursor`=오버레이가 열려 있으면 5.3.7 규칙(맨 위 오버레이 기준, `Cursorer` 아니면 nil), 아니면 포커스 컴포넌트의 `Cursorer` 결과에 그 창 내부 원점을 더한 값(없으면 nil), `WindowTitle="masil · <현재 경로 제목>"`, `BackgroundColor/ForegroundColor`(5.1).
+`View()` 가 매 프레임 설정하는 것: `AltScreen=true`, `MouseMode=MouseModeCellMotion`(설정 `ui.mouse=false` 면 None), `ReportFocus=true`, `Cursor`=오버레이가 열려 있으면 5.3.7 규칙(맨 위 오버레이 기준, `Cursorer` 아니면 nil), 아니면 포커스 컴포넌트의 `Cursorer` 결과에 그 창 내부 원점을 더한 값(없으면 nil), `WindowTitle="masil · <현재 경로 제목>"`(경로 제목은 `currentTitle` 에서 `textwidth.Sanitize` — 제어 문자뿐 아니라 bidi·보이지 않는 문자도 지운다. 창·탭 제목은 터미널 격자가 아니라 OS GUI 글자 엔진이 bidi 를 온전히 적용해 그리므로 DM 상대 이름의 U+202E 가 제목을 뒤집을 수 있다. 시험: `uitest.AssertTitle`, pending-fixes 0-b·1), `BackgroundColor/ForegroundColor`(5.1).
 
 시작 순서: 자격 증명 없음 → `RouteLogin`. 있음 → realtime `Run`(full) 시작, `PhaseSyncing` 동안 상태줄 "동기화 중…" → `ready` 를 받으면 `store.Bootstrap` → `ApplyBootstrap` → 각 Resyncer. 소켓이 5초 안에 `ready` 를 못 주면(오프라인 등) REST 부트스트랩을 먼저 하고, 나중에 `ready` 가 오면 한 번 더 재동기화한다.
 
@@ -2201,10 +2221,11 @@ func (c *Cache) Load(ctx context.Context, a *api.Client, m api.Media) (image.Ima
 func Decode(data []byte, contentType string) (image.Image, error)                          // png/jpeg/gif(first frame)/webp
 
 // Upload preparation: strip metadata (api.md 5.14: client responsibility).
-func PrepareUpload(path string) (data []byte, contentType string, err error) // JPEG & PNG re-encoded (JPEG q=90); GIF/WebP passed through; >5MB => downscale JPEG until fit or error
+func PrepareUpload(path string) (data []byte, contentType string, err error) // JPEG & PNG re-encoded (JPEG q=90); GIF/WebP rewritten keeping only pixel/animation blocks (api.md 5.14), malformed => ErrMalformed; >5MB => downscale JPEG until fit or error
 ```
 
 - **하프블록**(기본·모든 터미널): 한 칸 = 위/아래 픽셀 2개. 축소는 `x/image/draw.CatmullRom`.
+- 큰 이미지 축소(`Cache.Load` 의 긴 변 2048 맞춤, `PrepareUpload` 의 5MB 초과 재인코딩)는 `CatmullRom` 이 아니라 행 단위 면적 평균(`shrinkInto`)이다 — 커널 축소기는 출력 폭×원본 높이×32B 임시 버퍼를 잡아(6000×4000 → 약 262MB) 디코드 전 바이트 판정(~96MB)을 무력화하기 때문이다. 축소에 드는 메모리는 출력 버퍼 + 행 버퍼뿐이다 [보안 결정, 2026-11-06, pending-fixes 13].
 - **kitty**(`GraphicsKitty`): 유니코드 자리표시자 방식 — `Setup` 에 `kitty.EncodeGraphics(..., &kitty.Options{Action: 'T'(transmit+place), ID: id, VirtualPlacement: true, Columns: cols, Rows: rows, Quiet: 2})`, 각 칸은 `kitty.Placeholder` + `kitty.Diacritic(row)` + `kitty.Diacritic(col)`, 글자색 = 이미지 ID(24비트). 자리표시자 한 칸 폭은 그래핌·wcwidth 모두 1 **[검증]** 이라 셀 렌더러와 충돌하지 않는다. tmux 안에서는 쓰지 않는다.
 - **iTerm2**(`GraphicsITerm2`): 셀 렌더러가 덮어쓰는 문제 때문에 **목록·카드에서는 하프블록**, 전체 화면 이미지 보기(`o`)에서만 빈 칸으로 자리를 비우고 `tea.Raw(커서 저장 + 위치 이동 + iterm2 파일 이스케이프 + 커서 복원)` 를 크기·내용이 바뀔 때마다 다시 보낸다. 실패하거나 깨지면 하프블록으로 되돌린다(설계서 "가능하면").
 - 골든 테스트에서는 항상 `GraphicsHalfBlock`.
@@ -2254,7 +2275,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 화면에 그릴 **모든 외부 문자열**(사용자 이름·본문·채널 이름·상태 메시지·알림 문구·리액션 이모지 표시)은 그리기 직전에 `Sanitize` 를 거친다. 결과 문자열의 **모든 그래핌**은 그래핌 폭 = wcwidth 폭이 되어(규칙 7 이 보장), 렌더러 방식과 무관하게 같은 칸을 차지한다.
 
-1. 제어 문자(C0/C1, `\t` 는 공백 4칸으로) 제거, ANSI 이스케이프가 섞인 사용자 입력은 `ansi.Strip`.
+1. 제어 문자(C0/C1, `\t` 는 공백 4칸으로) 제거, ANSI 이스케이프가 섞인 사용자 입력은 `ansi.Strip`. **서식 문자(유니코드 범주 Cf) 전부와 줄·문단 구분자 U+2028/U+2029 도 제거 [보안 결정, 2026-11-06]** — bidi embedding/override/isolate(U+202A–202E, U+2066–2069)·방향 표시(U+200E, U+200F, U+061C)·보이지 않는 문자(U+200B, U+200C, U+2060–2064, U+FEFF, U+00AD) 등으로 남이 보낸 이름·메시지·알림이 보낸 것과 다르게 보이게(`U+202E`+`txt.exe` → "exe.txt", 가짜 둘째 줄) 할 수 없게 한다. **Cf 밖의 기본 무시 문자도 제거 [보안 결정, 2026-11-06, pending-fixes 1 재검토]** — 변이 선택자(`unicode.Variation_Selector`: VS1–16 U+FE00–FE0F, VS17–256 U+E0100–E01EF, 몽골 FVS U+180B–180D·U+180F)와 `unicode.Other_Default_Ignorable_Code_Point`(CGJ U+034F, 한글 채움 문자 U+115F·U+1160·U+3164·U+FFA0, 크메르 U+17B4·U+17B5, 미할당 무시 문자). 이들도 두 폭 방식에서 폭 0(채움 문자는 빈칸)이라 `ad`+U+034F+`min` 이 "admin" 으로 보이고, VS17–256 에는 숨은 데이터를 실을 수 있으며, U+3164 만으로 된 표시 이름은 이름 없는 발신자처럼 보인다. **비문자(`unicode.Noncharacter_Code_Point`: U+FDD0–FDEF, 모든 평면의 U+nFFFE/U+nFFFF)도 제거** — 교환용이 아닌 코드 포인트이고, U+FFFE/U+FFFF 는 두 폭 방식 모두 폭 0 이라 CGJ 와 똑같이 `ad`+U+FFFE+`min` 이 "admin" 으로 보인다(나머지는 빈칸·두부 칸). 이 집합(Cf ∪ Zl ∪ Zp ∪ Variation_Selector ∪ Other_Default_Ignorable_Code_Point ∪ Noncharacter_Code_Point)을 `textwidth.Invisible(r)` 로 공개해 파서(4.8 토큰 경계)·OSC 8 검사가 같은 기준을 쓴다. 이체자 선택(IVS, 예: `葛`+U+E0100)은 기본 글리프로 보이게 된다. 예외는 ZWJ(U+200D) 하나 — 규칙 3 이 이모지 시퀀스를 자르는 데 쓰고, 규칙 3 뒤에는 남지 않는다. 태그 문자(규칙 4)도 Cf 라 여기서 함께 빠진다. 결합 문자를 뺀 rune 중 두 폭 방식에서 모두 폭 0 인 것은 전부 `Invisible` 에 든다(시험 `TestNoZeroWidthRuneOutsideInvisible` — 라이브러리 폭 표가 바뀌어도 새 구멍이 생기면 실패). **빈 이름 대체**: 표시 이름이 화면에 아무것도 남기지 않으면(`textwidth.Blank(s)` — `Sanitize(s)` 가 비었거나 공백 구분자(Zs)와 빈 칸으로 그려지는 글자 U+2800 BRAILLE PATTERN BLANK·U+1D159 MUSICAL SYMBOL NULL NOTEHEAD 만으로 됨) 비어 있을 때와 똑같이 핸들로 대체한다. U+2800 은 JS `trim` 이 지우지 않아 서버가 받아 주므로 클라이언트가 막는다. 본문 속 U+2800 은 공백처럼 보일 뿐이라 지우지 않는다. 적용 위치: `widgets.UserName`·`Avatar`, 채팅 `displayName`·멘션 완성 Label·직접 초대 토스트, 피드 `displayName`·알림 문구, 팔레트 사람 행, 설정 차단 목록, DM 이름 `Store.ChannelLabel`. 입력 정규화(8.4)에서는 U+2028/U+2029 가 `"\n"` 이 된다(`\r` 과 같음).
 2. U+FE0F(VS16), U+FE0E 제거 → `❄️` 는 `❄`(1칸).
 3. ZWJ 시퀀스는 첫 구성 이모지만 남김 → `👨‍👩‍👧` → `👨`.
 4. 피부색 수식자 U+1F3FB–1F3FF 제거, 키캡 U+20E3 제거, 태그 문자 U+E0020–E007F 제거.
@@ -2264,6 +2285,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 - `Sanitize` 결과는 다시 `Sanitize` 해도 같다(멱등). 단위 시험이 위 예와 함께 "결과의 모든 그래핌 g 에 대해 `StringWidth(g)==StringWidthWc(g)`" 를 무작위 유니코드 문자열(시드 고정)로 검사한다.
 - 받은 데이터를 그릴 때의 `Sanitize` 는 전송 데이터(메시지 본문·리액션 키 등)에 **절대 적용하지 않는다**(화면 전용). 입력창이 사용자가 **치는** 글을 정규화하는 것은 별개 규칙이다(8.4).
+- **클립보드(OSC 52, `tea.SetClipboard`) [보안 결정, 2026-11-06]**: 남이 보낸 글을 복사할 때는 화면에 보인 것만 넣는다. 서버는 본문의 제어 문자를 지우지 않고 화면은 ESC 시퀀스를 내용째 지우므로, 원문을 그대로 넣으면 보이지 않던 괄호 붙여넣기 종료(`ESC[201~`)·CR·숨은 명령이 셸에 붙여 넣어진다(pastejacking). `msg.copy`(본문·투표 질문·주사위 결과)는 `textwidth.SanitizeInput`(줄바꿈 유지), 명령으로 붙여 넣는 한 줄 값(`masil join <code>`)은 `textwidth.Sanitize`(줄바꿈 없음)를 거친다.
 - East Asian Ambiguous 를 2칸으로 그리는 터미널 설정(iTerm2 "Ambiguous characters are double-width" 등)은 지원하지 않는다 — 상자 문자 자체가 깨지므로. 도움말에 안내.
 
 ### 8.3 자르기·줄바꿈·채우기
@@ -2278,7 +2300,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 - 조합 중 글자는 터미널이 그리므로 앱은 완성 음절만 받는다(`KeyPressMsg.Text`). 붙여넣기는 `tea.PasteMsg`.
 - 입력창이 포커스일 때는 `InputCapturer=true` → 한글·영문 글자가 단축키로 해석되지 않는다.
 - **입력 정규화 [결정]**: textarea/textinput 은 자기가 가진 원문을 그대로 그리므로, `❄️`·`👍🏽`·ZWJ 이모지를 그대로 담으면 2027 미지원 터미널에서 그 줄이 밀려 테두리가 깨진다. 그래서 **모든 텍스트 입력 위젯**(`widgets.Composer`, 팔레트·대화상자의 `textinput`, 로그인 화면의 handle·표시 이름 칸)은 `KeyPressMsg.Text`·`PasteMsg.Content`·`SetValue` 를 `textwidth.SanitizeInput` 으로 거른 **뒤에** 위젯에 넣는다. 결과: 입력창에 보이는 글 = 보내는 글이고, 모든 그래핌이 두 폭 방식에서 같다.
-  - 이는 **의도된 전송 내용 변경**이다: 이 클라이언트에서 친 글에는 VS16·피부색·ZWJ 꼬리·키캡·태그 문자가 빠지고, 규칙 7 대상 그래핌은 대체된다(`👍🏽`→`👍`, `❄️`→`❄`, `👨‍👩‍👧`→`👨`). 다른 클라이언트·서버가 만든 데이터는 바꾸지 않는다. 내 메시지 수정(`compose.edit_last`)은 `SetValue` 를 거치므로 원문에 그런 문자가 있었다면 수정 저장 시 함께 정규화된다 — 도움말에 한 줄 안내.
+  - 이는 **의도된 전송 내용 변경**이다: 이 클라이언트에서 친 글에는 VS16·피부색·ZWJ 꼬리·키캡·태그 문자·서식 문자(bidi 제어·보이지 않는 문자)·변이 선택자·CGJ·한글 채움 문자·비문자(8.2 규칙 1)가 빠지고(U+2028/U+2029 는 줄바꿈이 되고), 규칙 7 대상 그래핌은 대체된다(`👍🏽`→`👍`, `❄️`→`❄`, `👨‍👩‍👧`→`👨`). 다른 클라이언트·서버가 만든 데이터는 바꾸지 않는다. 내 메시지 수정(`compose.edit_last`)은 `SetValue` 를 거치므로 원문에 그런 문자가 있었다면 수정 저장 시 함께 정규화된다 — 도움말에 한 줄 안내.
   - 비밀번호 칸은 예외: 값은 그대로 두고(`EchoPassword` 가림 문자만 그려지므로 폭 문제 없음) 전송한다.
   - 정규화된 텍스트는 그래핌·wcwidth 폭이 같으므로 textarea 의 커서 열 = 커서 앞 글의 `ansi.StringWidth` 이다. 하네스가 이를 검사한다(10.3 입력창 골든).
 
@@ -2425,9 +2447,10 @@ func AssertIntegrity(tb testing.TB, content string, w, h int, boxes []Box, borde
 `AssertIntegrity` 검사(`Golden`·`Check` 에서 자동). 보이는 상자 = `BoxesOf(Model.Frame())` — 레이아웃의 테두리 있는 창 + 열린 오버레이의 최종 사각형(5.3.7, 테두리 여부 포함) + 토스트 상자. 높은 `Z` 가 낮은 것을 가린다.
 1. 줄 수 == H, 각 줄 `ansi.StringWidth == W` **그리고** `ansi.StringWidthWc == W`(두 렌더러 방식에서 같은 폭 — 8.2 정규화 검증).
 2. 테두리: `Bordered` 인 상자마다 네 모서리(테마 Border 의 TopLeft/TopRight/BottomLeft/BottomRight)와 **네 변 전부**(위·아래 = Top/Bottom 문자, 왼쪽·오른쪽 = Left/Right 문자 — 제목·배지가 들어가는 위 변의 제목 구간은 제외)가 정확한 칸에 있다. 단 **더 높은 Z 상자에 덮인 칸은 검사하지 않는다**(오버레이 아래 창 테두리). 오버레이·토스트 자신의 테두리는 가려지지 않으므로 항상 전부 검사된다.
-3. `U+FFFD`, 제어 문자, 짝 없는 서로게이트 없음.
+3. `U+FFFD`, 제어 문자, 짝 없는 서로게이트 없음. **서식 문자(유니코드 범주 Cf — bidi embedding/override/isolate·방향 표시·ZWSP/ZWNJ/ZWJ·WJ·BOM·soft hyphen·태그 문자)와 줄·문단 구분자(U+2028/U+2029), 변이 선택자·그 밖의 기본 무시 문자(CGJ·한글 채움 문자·크메르 U+17B4/U+17B5 등)·비문자(U+FDD0–FDEF, U+nFFFE/U+nFFFF) (`uitest.Hidden`)도 없음** [보안 결정, 2026-11-06, pending-fixes 1] — 두 폭 방식 모두에서 폭 0(채움 문자는 빈칸)이라 검사 1 이 잡지 못하지만, 8.2 규칙 1 이 지우지 않은 화면에서는 남이 보낸 이름·메시지가 보낸 것과 다르게 읽힌다.
 4. 상태줄(TooSmall 제외)이 마지막 줄에 있음.
 5. 모든 상자는 화면 안(`0 ≤ X, X+W ≤ cols, 0 ≤ Y, Y+H ≤ rows`)이고, 오버레이·토스트는 상태줄을 덮지 않는다.
+6. 원시(raw) 줄에는 SGR(`CSI … m`)과 대상이 인쇄 가능 ASCII 인 OSC 8 말고 어떤 이스케이프·제어 시퀀스도 없다. OSC 8 대상이 `fixtures.InjectedLinkHost`(적대적 세트가 원문에 숨긴 OSC 8 의 호스트)이면 실패(pending-fixes 0-b). 앱 합성기(lipgloss v2.0.6 `Compositor`)가 OSC 52·OSC 0/2·CSI 2J 를 스스로 지우므로, 위젯의 정리를 증명하는 적대적 페이로드는 합성기를 통과하는 APC·DCS·SOS·PM·C1·OSC 8 이어야 한다.
 
 `internal/ui/uitest/stub` (core, **시험 전용** — `_test.go` 에서만 import, 제품 코드·`ui/e2e` 는 import 금지):
 
@@ -2489,7 +2512,7 @@ func HostileTimeline() []api.TimelineItem
 func RegisterAPI(srv *apitest.Server)             // canned responses for the above (normal + hostile)
 func TestImage() image.Image                      // 64x48 gradient (mockup .img colors)
 ```
-**적대적(hostile) 세트** `Hostile`: 32자 handle·32자 표시 이름(한글 16자), 50자 채널 이름(한글), 50자 방 이름, 4,000자 메시지(한글·영문·공백 없는 긴 단어 섞음), 500자 글, 탭·`\r`·C0/C1 제어 문자·ANSI 이스케이프(`\x1b[31m`, OSC 8) 섞인 본문·이름, VS16(`❄️ ⚠️`)·피부색(`👍🏽`)·ZWJ(`👨‍👩‍👧`)·단독 지역 표시자(`🇰`)·국기(`🇰🇷`)·키캡(`1️⃣`)·데바나가리(`क्षि`)·조합형 자모(`ᄀ`+`ᅡ`)·결합 악센트 단독, 공백 없는 300자 URL, 리액션 20종(이모지 키 위 문자들), 답글 9,999개, 안 읽음 9,999, 멘션 `@here` + 32자 handle 멘션, 상태 메시지 이모지 + 긴 문구.
+**적대적(hostile) 세트** `Hostile`: 32자 handle·32자 표시 이름(한글 16자), 50자 채널 이름(한글), 50자 방 이름, 4,000자 메시지(한글·영문·공백 없는 긴 단어 섞음), 500자 글, 탭·`\r`·C0/C1 제어 문자·ANSI 이스케이프(`\x1b[31m`, OSC 8, 합성기를 통과하는 APC(kitty 그래픽)·DCS·SOS·PM·8비트 CSI, OSC 52·CSI 2J) 섞인 본문·이름, bidi 제어·보이지 않는 서식 문자·U+2028/U+2029 묶음(`fixtures.FormatSoup`, 10.2 검사 3)이 든 본문·표시 이름·상태 메시지·채널 이름, VS16(`❄️ ⚠️`)·피부색(`👍🏽`)·ZWJ(`👨‍👩‍👧`)·단독 지역 표시자(`🇰`)·국기(`🇰🇷`)·키캡(`1️⃣`)·데바나가리(`क्षि`)·조합형 자모(`ᄀ`+`ᅡ`)·결합 악센트 단독, 공백 없는 300자 URL, 리액션 20종(이모지 키 위 문자들), 답글 9,999개, 안 읽음 9,999, 멘션 `@here` + 32자 handle 멘션, 상태 메시지 이모지 + 긴 문구.
 
 chat·sns-fun 은 자기 테스트 전용 데이터를 자기 패키지 `testdata` 나 `_test.go` 에 추가한다(fixtures 패키지를 고치지 않는다). 단 자기 화면마다 `fixtures.Hostile` 을 넣은 **무결성 전용**(골든 없음) 시험 × `AllSizes` 를 반드시 둔다(`h.Check()`).
 
