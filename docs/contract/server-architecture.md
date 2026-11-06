@@ -61,6 +61,7 @@ server/
       uploads.ts                 # 이미지 판별, R2 키, R2 삭제
       search.ts                  # FTS 질의 생성, 하이라이트
       version.ts                 # User-Agent 파싱, min_client_version 검사 미들웨어
+      log.ts                     # errFields(): 던져진 값 → 로그용 평범한 JSON 필드 (3.6 로그 형식)
     services/                    # 여러 라우트·운영자·DO 가 같이 쓰는 도메인 로직
       membership.ts              # 방 가입/탈퇴/강퇴, 채널 멤버 추가/제거
       messages.ts                # 메시지·스레드 답글 생성/수정/삭제, 시스템 메시지
@@ -272,6 +273,24 @@ export class TopicHub extends DurableObject<Env> {
 3. 팬아웃 실패(DO 오류)는 `console.error` 만 하고 재시도하지 않는다 — 클라이언트 재동기화가 메운다.
 4. 같은 요청에서 여러 이벤트를 같은 청중에 보내면 `publishEvents` 로 묶어 UserHub RPC 를 1회로 줄인다.
 
+### 3.6 로그 형식
+
+- 모든 `console.*` 호출은 **구조화 객체 하나**만 넘기고, 그 첫 키는 상수 메시지 `msg` 다:
+  `console.error({ msg: "TopicHub deliver failed", topic, target, err: errFields(e) })`.
+  Workers Logs 문서가 필드로 색인된다고 보여 주는 모양이 이 단일 객체 형식이다(workers-logs 문서 "log in JSON format").
+  `console.error("msg", {...})` 같은 두 인자 형식이 어떻게 색인되는지는 문서에 없으므로 쓰지 않는다.
+- 값(토픽·사용자 ID·요청 경로·라벨·오류 문자열)을 `msg` 에 넣지 않는다 — 템플릿 리터럴·문자열 연결·객체 뒤 위치 인자 모두 금지.
+  메시지에 섞인 값은 줄바꿈 등으로 로그 줄을 위조·분할할 수 있다. `msg` 는 이스케이프 없는 큰따옴표 상수 문자열이고,
+  객체에 `msg` 를 다시 쓰거나 펼침(`...`)·계산된 키를 쓰지 않는다(`msg` 를 덮어쓸 수 있으므로).
+- `console` 은 `console.<log|info|warn|error|debug>(` 호출로만 쓴다 — 별칭(`const log = console.error`, `const { error } = console`),
+  `.call`/`.apply`, `console?.`, `console["error"]` 금지(검사기가 모양을 볼 수 없다).
+- 오류는 `err: errFields(e)` 로 넣는다(`src/lib/log.ts`). Error 의 name·message·stack 은 열거되지 않는 속성이라 필드 객체 안에
+  그대로 두면 JSON 으로 `{}` 가 된다. `errFields` 는 **절대 던지지 않는다** — `blockConcurrencyWhile` 안의 catch 와 `.catch`
+  처리기에서 불리므로, 문자열 변환이 실패하는 값(`Object.create(null)` 등)은 `"[unprintable thrown value]"` 로 남긴다.
+- `test/unit/log-format.test.ts` 가 `src/**/*.ts` 전체를 (주석·문자열을 걷어 낸 코드에서) 훑어 이 형식을 강제한다.
+- 범위: Workers 로그로 가는 `server/src` 만이다. `server/scripts/`(예: `smoke.mjs`)는 개발자 터미널에 사람이 읽을 출력을 내는
+  로컬 Node CLI 라 Workers Logs 에 닿지 않으므로 이 규칙에서 뺀다.
+
 ## 4. 공유 헬퍼 시그니처
 
 ### 4.1 `src/env.ts`
@@ -453,7 +472,13 @@ export function accessibleChannelIds(db: D1Database, userId: string, opts?: { sp
 /** SQL fragment + params enforcing api.md 3.4 for alias `p` (posts) and viewer. Use in every post query. */
 export function postVisibilitySql(viewerId: string, alias?: string): { sql: string; params: unknown[] };
 export function canViewPost(db: D1Database, viewerId: string, post: PostRow): Promise<boolean>;
+/** Owner's SNS content (posts tab, stories, guestbook, follow lists, story media, reports of them) for anyone but the
+ *  owner: missing owner, owner suspended now (isSuspendedNow — suspended_until <= now counts as active again, same
+ *  boundary as postVisibilitySql) or block either way -> "hidden" (404); private + not active follower -> "private". */
 export function canViewUserContent(db: D1Database, viewerId: string, ownerId: string): Promise<"ok" | "private" | "hidden">;
+/** SQL fragment + params for guestbook alias `g`: not deleted, author not suspended now, no block either way with the
+ *  viewer. The owner side is checked separately with canViewUserContent. */
+export function guestbookEntryVisibilitySql(viewerId: string, alias?: string): { sql: string; params: unknown[] };
 export function presenceVisible(db: D1Database, viewerId: string, targetIds: string[]): Promise<Set<string>>;  // 3.6
 ```
 
@@ -566,6 +591,12 @@ export interface NotifyInput {
 export function notify(rt: Runtime, input: NotifyInput): Promise<void>;
 export function notifyMany(rt: Runtime, inputs: NotifyInput[]): Promise<void>;
 
+/** The one "inbox row is shown" rule (api.md 5.18) for notifications alias `n`: actor not blocked by the recipient and
+ *  not suspended now (same boundary as postVisibilitySql). Used by GET /v1/notifications and every unread_count. */
+export function inboxRowVisibleSql(userExpr: string, nowExpr: string): string;
+/** Unread rows passing inboxRowVisibleSql (single source for the inbox routes, notification.created, notifications.read). */
+export function unreadNotificationCount(db: D1Database, userId: string): Promise<number>;
+
 /** Alert without an inbox row (DMs, channel_message). Applies settings, channel prefs, blocks. */
 export function sendAlerts(rt: Runtime, items: Array<{ userId: string; kind: AlertKind; actorId: string | null; title: string; body: string; target: Alert["target"]; channelId?: string }>): Promise<void>;
 
@@ -591,8 +622,11 @@ export const clientVersionGate: MiddlewareHandler<AppEnv>;   // UA "masil/x.y.z"
 
 ```ts
 // membership.ts
+/** SQL fragment over space_invites `t`: its creator is still owner·admin of its space (api.md 3.5). Preview, listing and joinSpace all apply it. */
+export function linkIssuerCanInvite(t: string): string;
+/** Via a link: pre-check + conditional UPDATE both require the creator to still be owner·admin (else 410 revoked); via a direct invite: the inviter still a member (else 404). */
 export function joinSpace(rt: Runtime, spaceId: string, userId: string, via: { inviteCode?: string; directInviteId?: string }): Promise<SpaceDetail>;
-/** One batch for every reason: delete space_members row + this user's channel_members rows in all private channels of the space (+ counters). */
+/** One batch for every reason: delete space_members row + this user's channel_members rows in all private channels of the space + cancel this user's pending direct invites to the space + revoke their invite links (+ counters). */
 export function removeFromSpace(rt: Runtime, spaceId: string, userId: string, actorId: string, reason: "left" | "kicked" | "banned", banReason?: string): Promise<void>;
 export function addChannelMembers(rt: Runtime, channelId: string, actorId: string, userIds: string[]): Promise<Channel>;
 export function removeChannelMember(rt: Runtime, channelId: string, actorId: string, userId: string): Promise<void>;
@@ -640,7 +674,10 @@ export function createApp(): Hono<AppEnv> {
   app.use("*", requestId);            // sets c.var.requestId + X-Request-Id header
   app.use("*", stripInternalHeaders); // delete X-Masil-* from incoming requests
   app.use("*", clientVersionGate);
-  app.use("/v1/*", jsonBodyLimit);    // hono/body-limit 64KB, skipped for POST /v1/uploads (5MB guard inside route)
+  app.use("*", jsonBodyLimit);        // 64KB, counted on received bytes (lib/body.ts readBodyCapped; Content-Length is
+                                      // not trusted, so not hono/body-limit); skipped for POST /v1/uploads (5MB guard inside route);
+                                      // GET/HEAD: any body is dropped unread (never rebuilt into a Request -> no 500 on `Content-Length: 0`)
+  app.use("*", jsonParseCheck);       // JSON-typed body that does not parse -> 400 invalid_json; reads <= 64KB itself; skips uploads
   app.onError(onError);
   app.notFound(notFoundHandler);
   app.route("/v1", metaRoutes);
@@ -834,6 +871,7 @@ export function makeSpace(owner: TestUser, members?: TestUser[]): Promise<{ spac
 - sns: 비공개 계정 열람·승인, 차단 양방향 숨김, 리포스트·인용 금지(비공개), 타임라인 `since`/`gap`, 해시태그 정규화(한글), 트렌드 cron, 스토리 만료 cleanup.
 - search: `0002_search.sql` 적용 + 한글 3글자 FTS + 2글자 LIKE 폴백 + 접근 범위.
 - uploads: 매직 넘버 판별, 5MB 초과 413, 형식 불일치 415, 미디어 열람 권한.
+- body-limits: 본문 상한(JSON 64KB·업로드 5MB)은 `Content-Length` 가 아니라 실제로 받은 바이트로 판정 — 위조된 작은 `Content-Length`·chunked 거대 본문 → 413, 상한 직후에서 읽기 중단(전체 버퍼링 없음). GET/HEAD 에 `Content-Length: 0`·`Transfer-Encoding`·거대 본문이 붙어 와도 본문은 읽지 않고 버리며 헤더가 없을 때와 같은 상태 코드(500 금지).
 - admin: 신고→강제 삭제(R2 삭제 확인)→신고 자동 처리, 정지 시 소켓 4003.
 
 ## 8. 로컬 개발 명령

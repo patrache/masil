@@ -123,12 +123,12 @@
 | 리미터(바인딩) | 한도 | 키 | 적용 엔드포인트 |
 |---|---|---|---|
 | `RL_SIGNUP` | 5회 / 60초 | `ip:<CF-Connecting-IP>` | `POST /v1/auth/signup` |
-| `RL_LOGIN` | 10회 / 60초 | `ip:<IP>` **그리고** `handle:<handle>` (둘 다 검사) | `POST /v1/auth/login` |
+| `RL_LOGIN` | 10회 / 60초 | `ip:<IP>` **그리고** `handle:<handle>` (둘 다 검사) | `POST /v1/auth/login`, `POST /v1/auth/password`(현재 비밀번호 확인 — 같은 버킷을 공유) |
 | `RL_MESSAGE` | 20회 / 10초 | `u:<user_id>` | 메시지·스레드 답글 전송, 메시지 수정 |
 | `RL_POST` | 10회 / 60초 | `u:<user_id>` | 글·답글·인용·스토리·방명록 작성 |
 | `RL_REACT` | 30회 / 10초 | `u:<user_id>` | 리액션, 좋아요, 리포스트, 투표, 고정 (읽음 표시는 제외) |
 | `RL_UPLOAD` | 20회 / 60초 | `u:<user_id>` | `POST /v1/uploads` |
-| `RL_SOCIAL` | 30회 / 60초 | `u:<user_id>` | 친구 요청, 팔로우, 차단, DM 생성, 초대 생성·직접 초대, 방 생성, 신고 |
+| `RL_SOCIAL` | 30회 / 60초 | `u:<user_id>` | 친구 요청, 팔로우, 차단, DM 생성, 채널 멤버 추가, 초대 생성·직접 초대, 방 생성, 신고 |
 | `RL_SEARCH` | 30회 / 60초 | `u:<user_id>` | `/v1/search/*`, `/v1/users/search`, `/v1/hashtags/search` |
 | `RL_WS` | 30회 / 60초 | `u:<user_id>` | `GET /v1/ws` 연결 시도 |
 | `RL_API` | 600회 / 60초 | `u:<user_id>` | 인증된 모든 요청(위 전용 리미터와 **추가로**) |
@@ -191,9 +191,10 @@
 - 내 세션만. 해당 세션의 소켓 `4001` 로 닫힘. 응답 `204`. 남의 세션 → `404`.
 
 #### `POST /v1/auth/password`
+- 인증 필요 · `RL_LOGIN`(`ip:<IP>` 와 `handle:<내 handle>`, 로그인과 **같은 버킷**). 현재 비밀번호 확인 전에 검사한다 — 세션 토큰을 가진 사람이 현재 비밀번호를 무제한 대입하지 못하게. 한도 초과 시 요청은 비밀번호를 바꾸지 않으며, 세션도 폐기하지 않는다(`handle:` 버킷은 로그인과 공유라 남이 소진시킬 수 있으므로, 폐기하면 남이 소유자를 로그아웃시킬 수 있다).
 - 요청: `{ "current_password": string, "new_password": string }`
 - 현재 세션을 제외한 모든 세션 폐기(`password_changed`). 응답 `204`.
-- 오류: `401 invalid_credentials`(현재 비밀번호 틀림), `400`.
+- 오류: `401 invalid_credentials`(현재 비밀번호 틀림), `400`, `429 rate_limited`(`RL_LOGIN`).
 
 ---
 
@@ -640,17 +641,18 @@ interface AdminAction {
 
 적용:
 - 1:1 DM 생성·메시지 전송은 매번 `can_dm` 을 검사. 기존 1:1 DM 에서 조건이 사라지면 대화는 남되 `read_only=true`. 전송 시 `403 read_only`. `read_only_reason` 은 차단한 쪽에게만 `"blocked"`, 그 외 `"not_eligible"`.
-- 그룹 DM 생성: 만든 사람 C 에 대해 모든 참여자 X 에 `can_dm(C, X)` 이어야 함(하나라도 실패 → `403 dm_not_allowed`, `details.user_ids` 에 실패한 ID). 참여자 수(만든 사람 포함) 3..10. 2명이면 1:1 DM 으로 처리.
-- 그룹 DM 멤버 추가: 추가하는 사람 M 에 대해 `can_dm(M, X)`, 그리고 기존 멤버 누구와도 X 가 차단 관계가 아니어야 함(아래). 총원 10 초과 → `422 limit_exceeded`.
+- 그룹 DM 생성: 만든 사람 C 에 대해 모든 참여자 X 에 `can_dm(C, X)` 이어야 하고, **참여자끼리도 어느 쌍이든 차단 관계(어느 방향이든)가 없어야** 함(하나라도 실패 → `403 dm_not_allowed`, `details.user_ids` 에 실패한 ID — 차단 쌍은 두 사람 모두, 요청 순서대로). 참여자 수(만든 사람 포함) 3..10. 2명이면 1:1 DM 으로 처리.
+- 그룹 DM 멤버 추가: 추가하는 사람 M 에 대해 `can_dm(M, X)`, 그리고 기존 멤버 누구와도, 함께 추가되는 다른 사람과도 X 가 차단 관계가 아니어야 함(아래). 총원 10 초과 → `422 limit_exceeded`.
 - 그룹 DM 안에서의 전송은 멤버이기만 하면 가능(쌍별 조건 재검사 안 함). **[내 결정 — 설계서 2장과 다름, 오너가 뒤집을 수 있음]** 설계서는 "친구 끊기/방 탈퇴로 조건이 사라지면 기존 대화는 읽기 전용"이라고 하지만, 이 계약은 그 규칙을 **1:1 DM 에만** 적용한다. 그룹 DM 은 여러 사람의 대화라서 두 사람 사이 관계가 끊겼다고 방 전체를 읽기 전용으로 만들면 나머지 멤버까지 막히기 때문이다. 대신:
   - 관계가 끊긴 쪽은 언제든 스스로 나갈 수 있고(`DELETE .../members/@me`), 만든 사람은 멤버를 뺄 수 있다(3.7).
   - **차단은 그룹 DM 안에서도 효과가 있다**(설계서 "차단당한 쪽은 새 메시지·멘션 불가"): 차단당한 B 의 `@a` 는 멘션으로 해석되지 않고(2.1) A 에게 알림·alert·배지가 가지 않는다. A 의 클라이언트는 B 의 메시지를 접어 보인다(3.2). B 가 그룹에 보내는 메시지 자체는 다른 멤버를 위해 막지 않는다.
-  - 차단 관계인 사람을 그룹 DM 에 새로 추가할 수 없다: 추가하는 사람 M 에 대한 `can_dm(M, X)` 에 더해, 기존 멤버 중 X 와 차단 관계인 사람이 있으면 `403 dm_not_allowed`(`details.user_ids` 에 X).
+  - 차단 관계인 사람을 그룹 DM 에 새로 넣을 수 없다(생성·추가 같은 규칙): 넣는 사람 M 에 대한 `can_dm(M, X)` 에 더해, 기존 멤버 또는 함께 들어가는 다른 사람 중 X 와 차단 관계인 사람이 있으면 `403 dm_not_allowed`(`details.user_ids` 에 X). 그래서 A 가 B 를 차단했으면 제3자 C 도 A·B 를 한 그룹 DM 에 넣을 수 없다.
 
 ### 3.2 차단 효과 (A 가 B 를 차단)
 
 차단 순간(같은 batch):
 - 친구 관계 삭제, 양방향 대기 친구 요청 `canceled`, 양방향 팔로우(대기 포함) 삭제, 양방향 대기 직접 초대 `canceled`.
+- 위 정리가 지우는 관계를 새로 만드는 쓰기 — 팔로우(카운터 포함), 친구 요청, 친구 요청 수락(친구 관계), 방 직접 초대 — 는 차단(어느 방향이든)·상대 정지(3.9, `suspended_until <= 지금` 이면 정지 아님) 확인을 사전 확인뿐 아니라 **쓰기 문 자체에도** 넣는다(직접 초대는 친구 관계도). 사전 확인과 쓰기 사이에 차단·정지가 끼어들면 아무것도 만들어지지 않고(카운터도 그대로) `403 action_not_allowed`. 이미 팔로우 중이던 멱등 경우는 지금 상태를 그대로 돌려준다. 메시지·리액션·DM 생성·방명록·글 상호작용처럼 차단 정리가 지우지 않는 쓰기는 사전 확인만 한다(끼어든 차단 직전에 쓴 것과 결과가 같다).
 
 이후:
 - B → A: DM·그룹 DM 초대·친구 요청·팔로우·방 직접 초대·방명록 작성·글에 답글/인용/리포스트/좋아요 불가(`403 action_not_allowed` 또는 `dm_not_allowed`). 1:1 DM 은 양쪽 모두 읽기 전용.
@@ -694,6 +696,7 @@ interface AdminAction {
 | 메시지 작성·리액션·스레드 | ✓ | ✓ | ✓ |
 | 방 나가기 | 위임 후 | ✓ | ✓ |
 
+- 초대는 낸 사람의 권한이 남아 있는 동안만 유효하다. 방에서 빠지면(**나가기·강퇴·밴 모두**) 같은 batch 안에서 그 사람이 그 방에 보낸 대기 중 직접 초대는 `canceled`, 만든 초대 링크는 폐기(`revoked`)된다. admin→member 로 강등되면(링크 권한 상실) 그 사람이 만든 링크도 같은 batch 에서 폐기된다(다시 admin 이 돼도 되살아나지 않음). 직접 초대 수락은 초대한 사람이 아직 방 멤버인지 사전 확인과 조건부 UPDATE 양쪽에서 다시 본다. 링크도 쓸 때마다(조회·수락의 사전 확인·조건부 UPDATE) 만든 사람이 아직 그 방 owner·admin 인지 다시 보며, 아니면 `revoked` 로 취급한다(폐기가 빠진 경로가 있어도 링크로 들어올 수 없음). 만들 때도 링크·직접 초대의 INSERT 자체가 권한(링크: owner·admin, 직접 초대: 멤버)을 다시 확인하므로, 권한 확인과 INSERT 사이에 강등·제거가 끼어들면 아무것도 만들어지지 않는다.
 - 방 멤버가 아니면(또는 방이 삭제됐으면) 방·채널·메시지 모두 `404 not_found`. text 채널의 읽기 검사는 비공개 채널이라도 **방 멤버십과 방 미삭제를 함께** 확인한다(`channel_members` 행만으로 통과하지 않음). 실시간 청중도 같다(`events.md` 6.1).
 - 비공개 채널은 그 채널 멤버만 보고(방장·관리자라도 멤버가 아니면 목록에 안 보임), 공개 채널은 방 멤버 전원.
 - 방에서 빠지면(**스스로 나가기·강퇴·밴 모두**) 같은 batch 안에서 그 방의 모든 비공개 채널의 `channel_members` 행도 지운다(`channels.member_count` 감소 포함). 밴은 강퇴 + 초대 수락 차단.
@@ -726,6 +729,9 @@ interface AdminAction {
 
 - 로그인·API·소켓 불가(`403 account_suspended`). 정지 순간 세션 폐기 + 소켓 `4003` 종료.
 - 다른 사람 화면: `UserSummary.suspended=true`. 정지 계정의 글·스토리·방명록 글은 피드·검색·트렌드에서 빠진다. 채팅 메시지는 남는다.
+- 남의 글에 박힌 정지 계정 글도 숨는다(REST·이벤트 공통): 인용은 `quote: { available:false, reason:"not_visible" }`, 정지 계정 글에 단 답글은 `reply_to_author: null`. 정지가 끝나면 다시 나온다.
+- 정지 중에는 그 계정이 행위자인 알림함 행(미리보기 포함)도 목록·`unread_count` 에서 빠진다(5.18). 정지가 끝나면(`suspended_until` 경과) 다시 보인다.
+- 사용자 목록(남의 팔로워·팔로잉, 글의 좋아요·리포스트 목록)에는 정지 계정이 `suspended=true` 로 남는다. 사용자 검색(5.2)에서는 빠진다.
 - 정지된 사용자에게는 DM·친구 요청·팔로우·초대 불가.
 
 ---
@@ -825,10 +831,10 @@ interface AdminAction {
 #### `GET /v1/users/{user}/posts?filter=posts|replies|media&cursor=&limit=`
 - 열람 규칙 3.4. `posts`(기본): 본인 최상위 글 + 인용 + 리포스트, `replies`: 답글만, `media`: 미디어 있는 글만.
 - `200 { "items": TimelineItem[], "next_cursor": string | null }`
-- 오류: `403 private_account`, `404`.
+- 오류: `403 private_account`, `404`(없는 사용자, 또는 정지 중인 계정 — 본인 외, 3.4 규칙 2·3.9).
 
 #### `GET /v1/users/{user}/followers?cursor=&limit=` / `GET /v1/users/{user}/following?cursor=&limit=`
-- `active` 관계만, 최신순. 비공개 계정은 3.3.
+- `active` 관계만, 최신순. 비공개 계정은 3.3. 정지 중인 계정의 목록은 본인 외 `404`(3.9).
 - `200 { "items": UserSummary[], "next_cursor": string | null }`
 
 ### 5.3 친구
@@ -846,13 +852,14 @@ interface AdminAction {
 #### `POST /v1/friends/requests`
 - `RL_SOCIAL`. 요청: `{ "user": "@junho" }`
 - 결과:
-  - 상대가 이미 나에게 대기 요청을 보냈으면 **자동 수락**: `200 { "request": FriendRequest(status:"accepted"), "friend": Friend }`
+  - 상대가 이미 나에게 대기 요청을 보냈으면 **자동 수락**: `200 { "request": FriendRequest(status:"accepted"), "friend": Friend }` — 수락과 같은 규칙(차단·상대 정지를 수락 batch 안에서도 다시 확인, 3.2)
   - 아니면 `201 { "request": FriendRequest, "friend": null }`
 - 오류: `409 already_exists`(이미 대기/이미 친구 — `details.reason:"pending"|"already_friends"`), `403 action_not_allowed`(차단/정지), `409 conflict`(`reason:"self"`), `422 limit_exceeded`(`pending_friend_requests`, 보낸 대기 100).
 - 이벤트·알림: 받는 사람에게 `friend.request_received` + 알림 `friend_request` + alert `friend_request`.
 
 #### `POST /v1/friends/requests/{request_id}/accept`
 - 받는 사람만. `200 { "friend": Friend }` · 이벤트: `friend.request_accepted`(보낸 사람), `friend.added`(양쪽) · 알림 `friend_accepted`(보낸 사람)
+- 오류: `404`(대기 중이 아님), `403 action_not_allowed`(어느 방향이든 차단·보낸 사람 정지(3.9) — 수락 batch 안에서도 다시 확인, 3.2. 사전 확인 뒤 batch 전에 차단·정지가 끼어들어도 같고, 친구 관계는 만들어지지 않음)
 
 #### `POST /v1/friends/requests/{request_id}/decline`
 - 받는 사람만. `204` · 이벤트: `friend.request_removed`(양쪽, `reason:"declined"`). 보낸 사람에게 알림 없음.
@@ -908,7 +915,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 이벤트: `channel.created`(모든 참여자). 그룹 DM 생성 시 시스템 메시지 없음.
 
 #### `POST /v1/channels/{channel_id}/members`
-- group_dm: 멤버 누구나(3.1 규칙), 비공개 text 채널: 3.5 규칙. 공개 text·dm 채널 → `409 conflict`(`reason:"not_supported"`).
+- `RL_SOCIAL`. group_dm: 멤버 누구나(3.1 규칙), 비공개 text 채널: 3.5 규칙. 공개 text·dm 채널 → `409 conflict`(`reason:"not_supported"`).
 - 요청: `{ "users": ["@hana"] }` (1..9)
 - `200 { "channel": Channel }` · 이벤트: `channel.member_added`(기존 멤버), `channel.created`(새 멤버) · 시스템 메시지 `group_member_added`(group_dm 만)
 - 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`, `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널).
@@ -949,13 +956,14 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `PATCH /v1/spaces/{space_id}/members/{user}`
 - owner. 요청: `{ "role": "admin" | "member" }` (owner 로 바꾸려면 transfer)
+- 부수효과(같은 batch): 대상이 owner·admin 이 아니게 되면 그 사람이 만든 초대 링크 폐기(3.5). 직접 초대는 그대로(멤버 누구나 보낼 수 있음).
 - `200 { "member": SpaceMember }` · 이벤트: `space.member_updated`(방 멤버)
 
 #### `DELETE /v1/spaces/{space_id}/members/{user}?ban=<bool>&reason=<text>`
 - `{user}=@me`: 나가기(owner 는 `409 conflict`, `reason:"owner_cannot_leave"`).
 - 남: 강퇴(3.5 권한). `ban=true` 면 `space_bans` 추가.
-- 부수효과(한 batch, 나가기·강퇴·밴 공통): `space_members` 삭제 + 그 방 **모든 비공개 채널의 `channel_members` 행 삭제**(3.5) + 카운터.
-- `204` · 이벤트: `space.member_left`(방 멤버 + 나간 사람, `reason:"left"|"kicked"|"banned"`), 나간 사람에게 `space.removed`, 빠진 비공개 채널마다 남은 채널 멤버에게 `channel.member_removed` · 시스템 메시지(기본 채널) `member_left`/`member_kicked`
+- 부수효과(한 batch, 나가기·강퇴·밴 공통): `space_members` 삭제 + 그 방 **모든 비공개 채널의 `channel_members` 행 삭제**(3.5) + 그 사람이 그 방에 보낸 **대기 중 직접 초대 `canceled`** + 그 사람이 만든 **초대 링크 폐기** + 카운터.
+- `204` · 이벤트: `space.member_left`(방 멤버 + 나간 사람, `reason:"left"|"kicked"|"banned"`), 나간 사람에게 `space.removed`, 빠진 비공개 채널마다 남은 채널 멤버에게 `channel.member_removed`, 취소된 직접 초대마다 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 나간 사람) · 시스템 메시지(기본 채널) `member_left`/`member_kicked`
 
 #### `GET /v1/spaces/{space_id}/bans`
 - owner·admin. `200 { "items": [ { "user": UserSummary, "banned_by": UserSummary, "reason": string, "created_at": Timestamp } ] }`
@@ -966,35 +974,39 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 ### 5.8 초대
 
 #### `GET /v1/spaces/{space_id}/invites`
-- owner·admin. 폐기되지 않은 링크 전부. `200 { "items": Invite[] }`
+- owner·admin. 폐기되지 않은 링크 전부(만료·소진 포함, 만든 사람이 owner·admin 이 아니게 된 링크는 폐기로 보아 제외 — 3.5). `200 { "items": Invite[] }`
 
 #### `POST /v1/spaces/{space_id}/invites`
 - owner·admin, `RL_SOCIAL`. 요청: `{ "max_uses"?: number | null, "expires_in_sec"?: number | null }`
   - `max_uses` 1..1000, `null`/생략 = 무제한. `expires_in_sec` 300..2592000, **생략 시 604800(7일)**, `null` = 무기한.
 - `201 { "invite": Invite }` — 클라이언트는 `code` 를 보여 주고, 공유 문자열은 `masil join <code>` 형식으로 안내한다.
+- INSERT 가 owner·admin 권한을 다시 확인한다(3.5). 그 사이 방에서 빠졌으면 `404`, member 로 강등됐으면 `403 forbidden` 이고 링크는 생기지 않는다.
 
 #### `DELETE /v1/invites/{code}`
 - 그 방 owner·admin. `204`
+- 만든 사람이 방에서 빠지거나 member 로 강등되면 링크는 자동 폐기된다(3.5) — 이후 조회·수락은 `410 invite_invalid`(`reason:"revoked"`).
 
 #### `GET /v1/invites/{code}`
-- 로그인한 누구나. 무효 코드 → `410 invite_invalid`, 없는 코드 → `404`.
+- 로그인한 누구나. 무효 코드 → `410 invite_invalid`, 없는 코드 → `404`. 만든 사람이 더 이상 그 방 owner·admin 이 아니면 `410`(`reason:"revoked"`, 3.5).
 - `200 { "invite": InvitePreview }`
 
 #### `POST /v1/invites/{code}/accept`
-- 가입. `use_count+1`(같은 batch, 조건부 UPDATE 로 초과 방지).
+- 가입. `use_count+1`(같은 batch, 조건부 UPDATE 로 초과 방지). 사전 확인과 조건부 UPDATE 모두 만든 사람이 아직 owner·admin 인지 본다(아니면 `410`, `reason:"revoked"`).
 - `200 { "space": SpaceDetail }` · 이벤트: `space.joined`(나), `space.member_joined`(기존 멤버) · 시스템 메시지(기본 채널) `member_joined`
 - 오류: `410 invite_invalid`, `409 already_member`, `403 banned_from_space`, `422 limit_exceeded`(`space_members`).
 
 #### `POST /v1/spaces/{space_id}/direct-invites`
 - 방 멤버 누구나(owner·admin 도 같은 조건), `RL_SOCIAL`. 요청: `{ "user": "@hana" }` — **역할과 무관하게 초대하는 사람의 친구**여야 함(3.5 표), 상대가 이미 멤버/밴/차단 관계면 실패. 친구가 아닌 사람은 초대 링크로 들인다.
 - `201 { "invite": DirectInvite }` · 이벤트: `space.invite_received`(상대) · 알림 `space_invite` · alert `invite`
-- 오류: `403 action_not_allowed`(친구 아님·차단), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`.
+- 오류: `403 action_not_allowed`(친구 아님·차단·상대 정지 — 확인 뒤 INSERT 전에 그렇게 돼도 같고, 아무것도 만들어지지 않음, 3.2), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
+- 같은 사람에게 온 대기 초대라도 초대한 사람이 이미 방 멤버가 아니면(수락 불가) `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
 
 #### `GET /v1/me/direct-invites`
-- 나에게 온 대기 초대. `200 { "items": DirectInvite[] }`
+- 나에게 온 대기 초대(초대한 사람이 아직 그 방 멤버인 것만 — 나머지는 수락할 수 없음). `200 { "items": DirectInvite[] }`
 
 #### `POST /v1/direct-invites/{invite_id}/accept`
 - 초대받은 사람. `200 { "space": SpaceDetail }` · 이벤트는 초대 링크 수락과 같음 + `space.invite_removed`(`reason:"accepted"`).
+- 초대한 사람이 더 이상 방 멤버가 아니면 `404`(3.5 — 빠질 때 이미 `canceled` 로 바뀌지만, 수락 쪽도 사전 확인과 조건부 UPDATE 에서 다시 본다).
 
 #### `POST /v1/direct-invites/{invite_id}/decline`
 - `204` · 이벤트: `space.invite_removed`(`reason:"declined"`)
@@ -1137,7 +1149,9 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - `RL_UPLOAD`. **본문은 이미지 원본 바이트**(JSON 아님).
 - 헤더: `Content-Type: image/png|image/jpeg|image/gif|image/webp`, `Content-Length` 필수.
 - 서버는 앞부분 바이트(매직 넘버)로 실제 형식을 판별하고 `Content-Type` 과 다르면 `415`. 크기 1..5,242,880 바이트(초과 `413`). 가로·세로는 헤더에서 읽는다(실패 시 `null`).
+- 크기는 `Content-Length` 값이 아니라 **실제로 받은 바이트**로 판정한다. `Content-Length` 가 5,242,880 을 넘으면 본문을 읽기 전에 `413`, 값이 작게 위조돼도 받는 중 상한을 넘는 순간 읽기를 멈추고 `413`. (JSON 본문 64KB 상한도 같은 방식 — chunked·위조 `Content-Length` 무관. GET/HEAD 요청에 붙은 본문·`Content-Length`는 읽지 않고 무시한다 — `Content-Length: 0` 이 붙은 GET 도 평소와 같이 응답.)
 - 메타데이터 제거(EXIF 등)는 **클라이언트 책임**: 클라이언트는 JPEG 를 다시 인코딩해 보낸다. 서버는 바이트를 그대로 저장한다.
+- 단, 서버는 WebP·GIF 를 검사한다: WebP 는 `VP8 `·`VP8L`·`VP8X`·`ALPH`·`ANIM`·`ANMF` 이외의 청크(`EXIF`·`XMP `·`ICCP`·알 수 없는 청크), GIF 는 주석 확장(0xFE)·`NETSCAPE2.0`/`ANIMEXTS1.0` 이외의 애플리케이션 확장·알 수 없는 확장이 있으면 `400 invalid_request`, `details.fields.body="not_allowed"`. 청크 크기·RIFF 크기·블록 구조가 깨졌거나 GIF 끝(0x3B)이 없으면 `400`, `body="invalid"`. 클라이언트는 이런 블록을 지운 뒤 보낸다.
 - 업로드는 `pending` 으로 시작하고, 글/스토리/아바타에 붙으면 `attached`. 24시간 안에 안 붙으면 cron 이 지운다. 사용자당 `pending` 20개 한도(`422 limit_exceeded`, `pending_uploads`).
 - `201 { "upload": Upload }`
 
@@ -1270,6 +1284,8 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 중복 방지: `post_like`/`post_repost`/`follow` 는 `dedupe_key` 로 같은 (행위자, 대상) 당 1개.
 
+목록과 `unread_count`(목록·`/unread-count`·`notification.created`·`notifications.read` 모두)에서 빠지는 행: 내가 차단한 행위자, 지금 정지 중인 행위자(3.9 — 정지가 끝나면 다시 보인다).
+
 #### `GET /v1/notifications?cursor=&limit=&unread_only=<bool>`
 - `200 { "items": Notification[], "next_cursor": string | null, "unread_count": number }`
 
@@ -1282,7 +1298,10 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 ### 5.19 투표
 
-투표는 메시지(`POST /v1/channels/{id}/messages`, `kind:"poll"`) 또는 글(`POST /v1/posts`, `poll`) 생성 시 같이 만든다. 열람·투표 권한 = 그 메시지/글의 읽기 권한.
+투표는 메시지(`POST /v1/channels/{id}/messages`, `kind:"poll"`) 또는 글(`POST /v1/posts`, `poll`) 생성 시 같이 만든다. 열람 권한 = 그 메시지/글의 읽기 권한(없으면 `404`).
+- 투표·투표 취소·마감은 대화에 `poll.updated` 를 보내는 **쓰기**다.
+  - 메시지 투표: 리액션(5.12)과 같은 규칙 — 읽기 권한 + 1:1 DM 은 `can_dm`. 읽기 전용 1:1 DM(차단·조건 소멸, 3.1)에서는 양쪽 모두 `403 read_only`(`details.reason` 은 3.1 과 같음). 열람(`GET`)은 그대로 된다. 채널·그룹 DM·방에서 빠진 사람(만든 사람 포함)은 `404`.
+  - 글 투표: 글 상호작용(좋아요·답글) 규칙 — 글을 볼 수 있어야 한다. 차단 관계(어느 방향이든)면 글이 숨겨지므로(3.2 양방향 숨김) 좋아요와 같이 `404`.
 
 #### `GET /v1/polls/{poll_id}`
 - `200 { "poll": Poll }`
@@ -1290,13 +1309,13 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `PUT /v1/polls/{poll_id}/vote`
 - `RL_REACT`. 요청: `{ "option_idxs": number[] }` — 단일 선택이면 정확히 1개, 복수면 1..선택지 수. 기존 투표를 **대체**한다.
 - `200 { "poll": Poll }` · 이벤트: `poll.updated`(메시지 투표: 채널 청중 / 글 투표: 토픽 `post:<id>`)
-- 오류: `409 poll_closed`, `400`
+- 오류: `409 poll_closed`, `400`, `403 read_only`, `404`
 
 #### `DELETE /v1/polls/{poll_id}/vote`
-- 내 투표 취소. `200 { "poll": Poll }` · 이벤트 동일
+- 내 투표 취소. 권한은 투표와 같다(`403 read_only`, `404`). `200 { "poll": Poll }` · 이벤트 동일
 
 #### `POST /v1/polls/{poll_id}/close`
-- 만든 사람. `200 { "poll": Poll }` · 이벤트 동일
+- 만든 사람(아니면 `403 forbidden`), 위 쓰기 규칙도 적용(읽기 전용 1:1 DM `403 read_only`, 대화에서 빠졌으면 `404`). `200 { "poll": Poll }` · 이벤트 동일
 
 ### 5.20 방명록
 
@@ -1371,7 +1390,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | POST | /v1/auth/logout | ✓ | |
 | GET | /v1/auth/sessions | ✓ | |
 | DELETE | /v1/auth/sessions/{session_id} | ✓ | |
-| POST | /v1/auth/password | ✓ | |
+| POST | /v1/auth/password | ✓ | RL_LOGIN |
 | GET | /v1/me | ✓ | |
 | PATCH | /v1/me/profile | ✓ | |
 | GET/PATCH | /v1/me/settings | ✓ | |
@@ -1414,7 +1433,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | POST | /v1/direct-invites/{id}/accept, /decline | ✓ | |
 | DELETE | /v1/direct-invites/{id} | ✓ | |
 | GET/PATCH/DELETE | /v1/channels/{channel_id} | ✓ | |
-| GET/POST | /v1/channels/{channel_id}/members | ✓ | |
+| GET/POST | /v1/channels/{channel_id}/members | ✓ | RL_SOCIAL(POST) |
 | DELETE | /v1/channels/{channel_id}/members/{user} | ✓ | |
 | PUT | /v1/channels/{channel_id}/prefs | ✓ | |
 | PUT | /v1/channels/{channel_id}/read | ✓ | |
