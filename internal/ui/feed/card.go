@@ -214,9 +214,10 @@ func (b *cardBuilder) myHandle() string {
 	return ""
 }
 
-// displayName is the sanitized display name, falling back to the handle.
+// displayName is the sanitized display name, falling back to the handle when
+// the screen would show nothing of it (textwidth.Blank, pending-fixes 1).
 func displayName(u api.UserSummary) string {
-	if n := textwidth.Sanitize(u.DisplayName); n != "" {
+	if n := textwidth.Sanitize(u.DisplayName); !textwidth.Blank(n) {
 		return n
 	}
 	return textwidth.Sanitize(u.Handle)

@@ -460,7 +460,7 @@ func notifText(tmpl string, x api.Notification) string {
 	name := textNotifSomeone
 	if x.Actor != nil {
 		name = notifLine(x.Actor.DisplayName)
-		if name == "" {
+		if textwidth.Blank(name) { // nothing visible (pending-fixes 1)
 			name = notifLine(x.Actor.Handle)
 		}
 		if name == "" {

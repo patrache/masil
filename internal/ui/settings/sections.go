@@ -261,7 +261,7 @@ func (s *screen) rows(ctx *ui.Context) []row {
 	for _, b := range s.blocks.items {
 		u := b.User
 		name := textwidth.Sanitize(u.DisplayName)
-		if strings.TrimSpace(name) == "" {
+		if textwidth.Blank(name) { // nothing visible (pending-fixes 1)
 			name = textwidth.Sanitize(u.Handle)
 		}
 		add(row{id: rowBlockPrefix + u.ID, sec: secBlocks, kind: kindAction, label: name,

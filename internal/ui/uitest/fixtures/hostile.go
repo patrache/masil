@@ -30,12 +30,18 @@ const (
 	// and the line/paragraph separators: bidi embeddings, overrides and
 	// isolates ("\u202e"+"txt.exe" reads as "exe.txt"), direction marks,
 	// zero-width space/non-joiner/word joiner, invisible operators, BOM, soft
-	// hyphen, a tag character and U+2028/U+2029 (a fake second line). They are
-	// zero-width, so only uitest check 3 sees one a widget forgot to sanitize
-	// (pending-fixes 1).
+	// hyphen, a tag character and U+2028/U+2029 (a fake second line), plus the
+	// default-ignorable runes outside Cf: combining grapheme joiner, variation
+	// selectors (VS1, VS17), a Mongolian free variation selector, a Khmer
+	// inherent vowel and the Hangul fillers (a name that looks blank), and the
+	// noncharacters (U+FFFE/U+FFFF are zero-width too). They are zero-width
+	// (or a blank cell), so only uitest check 3 sees one a widget forgot to
+	// sanitize (pending-fixes 1).
 	FormatSoup = "\u202atxt\u202c \u202bLRE\u202c \u202dLRO\u202c \u202etxt.exe\u202c " +
 		"\u2066a\u2069 \u2067역방향\u2069 \u2068fsi\u2069 \u200e\u200f\u061c표시 " +
 		"ad\u200bmin z\u200cw \u2060\u2061\u2062\u2063\u2064연산 \ufeffBOM so\u00adft tag\U000e0041 " +
+		"ad\u034fmin v\ufe00s\U000e0100s \u180bfvs \u17b4km \u115f\u1160\u3164\uffa0채움 " +
+		"ad\ufffemin ad\uffffmin \ufdd0\U0010ffff비문자 " +
 		"가짜\u2028[관리자] 줄\u2029문단"
 	// InjectedLinkHost is the target of the raw OSC 8 hyperlink the hostile
 	// set hides in text. No frame may ever hyperlink to it (uitest check 6):
@@ -83,7 +89,7 @@ func hostileCtrl() api.UserSummary {
 		ID:     userHostileCtrl,
 		Handle: "ctrl_user",
 		DisplayName: "제어\x1b[31m빨강\x1b[0m\t탭\r\u0085이름\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J" +
-			"\u202e\u2067역\u2069\u200b\ufeff\u00ad\u2028",
+			"\u202e\u2067역\u2069\u200b\ufeff\u00ad\u2028\u034f\U000e0100\u3164\ufffe",
 		Status: &api.UserStatus{
 			Emoji: ptr("\u202e🎧\u200b"),
 			Text:  "\u202e상태\u2067역\u2069\u200b\u2028둘째 줄\u2029 " + FormatSoup,
@@ -116,7 +122,7 @@ func hostileChannels() []api.Channel {
 	main.Topic = runesOf(emojiSoup+" "+controlSoup+" ", 250)
 	main.MemberCount = 9999
 	main.My.LastReadMessageID = nil
-	ctrl := textChannel(chHostileCtrl, SpaceHostile, "제어\x1b[31m문자\t채널\r\x07\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J\u202e\u2067역\u2069\u200b\u2028", 1, api.ChannelMyState{Notify: "all", UnreadCount: 42})
+	ctrl := textChannel(chHostileCtrl, SpaceHostile, "제어\x1b[31m문자\t채널\r\x07\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J\u202e\u2067역\u2069\u200b\u2028\u034f\ufe00\uffa0", 1, api.ChannelMyState{Notify: "all", UnreadCount: 42})
 	ctrl.My.LastReadMessageID = nil
 	return []api.Channel{main, ctrl}
 }

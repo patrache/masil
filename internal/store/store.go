@@ -8,6 +8,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/textwidth"
 )
 
 // Store holds core entities. Domain stores plug in as reducers.
@@ -282,10 +283,16 @@ func (s *Store) IsMe(userID string) bool {
 	return userID != "" && s.Me != nil && s.Me.ID == userID
 }
 
-// displayName prefers the cached (newest) user over the embedded copy.
+// displayName prefers the cached (newest) user over the embedded copy, and
+// falls back to the handle when the screen would show nothing of the name
+// (textwidth.Blank: only runes Sanitize drops, e.g. Hangul fillers, zero-width
+// runes, noncharacters, or blank-cell runes like U+2800, pending-fixes 1).
 func (s *Store) displayName(u api.UserSummary) string {
 	if c := s.Users[u.ID]; c != nil {
-		return c.DisplayName
+		u = *c
+	}
+	if textwidth.Blank(u.DisplayName) {
+		return u.Handle
 	}
 	return u.DisplayName
 }

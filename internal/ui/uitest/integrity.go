@@ -56,11 +56,14 @@ func BoxesOf(f app.FrameInfo) []Box {
 //  2. every Bordered box has its four corners and all four edges drawn with border's
 //     runes, except the title segment of the top edge and cells covered by a box of
 //     higher Z.
-//  3. no U+FFFD, control characters (C0, DEL, C1), invalid UTF-8 (unpaired surrogates),
-//     format characters (Unicode Cf: bidi embeddings/overrides/isolates and marks,
-//     zero-width space/joiners, BOM, soft hyphen, tags) or line/paragraph separators
-//     (U+2028/U+2029). They are zero-width in both width models, so check 1 cannot see
-//     them, yet they reorder or split what another user sent (pending-fixes 1).
+//  3. no U+FFFD, control characters (C0, DEL, C1), invalid UTF-8 (unpaired surrogates)
+//     or Hidden rune: format characters (Unicode Cf: bidi embeddings/overrides/isolates
+//     and marks, zero-width space/joiners, BOM, soft hyphen, tags), line/paragraph
+//     separators (U+2028/U+2029), variation selectors, other default-ignorable code
+//     points (CGJ, Hangul fillers, Khmer inherent vowels) and noncharacters
+//     (U+FDD0-FDEF, U+nFFFE/U+nFFFF). They are zero-width (or a
+//     blank cell) in both width models, so check 1 cannot see them, yet they reorder,
+//     split or blank what another user sent (pending-fixes 1).
 //  4. outside TooSmall (w < 20 or h < 6), when there is at least one layout pane, the
 //     last row is not part of any Bordered box (it is the status line).
 //  5. every box is on screen (0 <= X, X+W <= w, 0 <= Y, Y+H <= h), and outside TooSmall
@@ -172,8 +175,43 @@ func checkRunes(r *reporter, y int, plain string) {
 			r.errorf("line %d col %d: format character %U (bidi control, zero-width or invisible rune; textwidth.Sanitize drops it, pending-fixes 1)", y, col, c)
 		case unicode.In(c, unicode.Zl, unicode.Zp):
 			r.errorf("line %d col %d: line/paragraph separator %U", y, col, c)
+		case Hidden(c):
+			r.errorf("line %d col %d: invisible default-ignorable rune or noncharacter %U (variation selector, combining grapheme joiner, Hangul filler, U+FFFE...; textwidth.Sanitize drops it, pending-fixes 1)", y, col, c)
 		}
 		i += size
+	}
+}
+
+// Hidden reports whether r is a rune the screen never draws as itself: a
+// format character (Cf), a line/paragraph separator (Zl/Zp), a variation
+// selector, another default-ignorable code point or a noncharacter (U+FDD0-
+// FDEF, U+nFFFE/U+nFFFF; U+FFFE/U+FFFF are zero-width in both width models).
+// It is built from the Unicode tables, not from textwidth, so a regression in
+// textwidth.Sanitize shows up here (check 3, AssertTitle).
+func Hidden(r rune) bool {
+	return unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp,
+		unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point,
+		unicode.Noncharacter_Code_Point)
+}
+
+// AssertTitle fails unless the window title (OSC 0/2) is valid UTF-8 with no
+// control rune (C0, DEL, C1: ESC, BEL or an 8-bit ST/CSI could end the title
+// sequence and inject escapes, pending-fixes 0-b) and no Hidden rune. The
+// title is drawn by the OS GUI text engine, not the terminal grid, and that
+// engine applies bidi in full, so an override or isolate in a channel or DM
+// name would reorder the window/tab title (pending-fixes 1).
+func AssertTitle(tb testing.TB, what, title string) {
+	tb.Helper()
+	if !utf8.ValidString(title) {
+		tb.Errorf("%s: title %q is not valid UTF-8", what, title)
+	}
+	for _, c := range title {
+		switch {
+		case c < 0x20 || c >= 0x7f && c <= 0x9f:
+			tb.Errorf("%s: title %q carries control %U", what, title, c)
+		case Hidden(c):
+			tb.Errorf("%s: title %q carries invisible rune %U (bidi, zero-width, separator, variation selector, filler or noncharacter)", what, title, c)
+		}
 	}
 }
 

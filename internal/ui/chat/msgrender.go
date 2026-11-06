@@ -678,9 +678,13 @@ func nameOf(ctx *ui.Context, id string) string {
 	return unknownUser
 }
 
-// displayName is the display name, falling back to the handle (unsanitized).
+// displayName is the display name, falling back to the handle (unsanitized)
+// when the screen would show nothing of it (textwidth.Blank): a name made only
+// of runes Sanitize drops (Hangul fillers, zero-width, bidi, noncharacters) or
+// blank-cell runes (U+2800) must not make a sender look nameless
+// (pending-fixes 1).
 func displayName(u api.UserSummary) string {
-	if u.DisplayName != "" {
+	if !textwidth.Blank(u.DisplayName) {
 		return u.DisplayName
 	}
 	return u.Handle

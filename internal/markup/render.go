@@ -3,7 +3,6 @@ package markup
 import (
 	"strconv"
 	"strings"
-	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
@@ -410,17 +409,19 @@ func renderRun(st lipgloss.Style, s string) string {
 
 // hyperlinkable reports whether u may become an OSC 8 target (pending-fixes
 // 0-b ②): SafeURL (valid UTF-8, no C0/DEL/C1), no ESC or BEL, and no rune
-// Sanitize hides from the link text: format characters (bidi, zero-width, ZWJ,
-// BOM, soft hyphen, tags) and line/paragraph separators, so the target cannot
-// differ invisibly from what the viewer reads. Sanitize's other rules (NFC,
-// VS16 and skin-tone removal, rule 7 placeholders) only change how a visible
-// character is drawn, so Indic, NFD and emoji URLs stay clickable.
+// Sanitize hides from the link text (textwidth.Invisible: format characters
+// such as bidi, zero-width, ZWJ, BOM, soft hyphen and tags, line/paragraph
+// separators, CGJ, variation selectors, Hangul fillers), so the target cannot
+// differ invisibly from what the viewer reads (pending-fixes 1). VS15/VS16
+// and Sanitize's other rules (NFC, skin-tone removal, rule 7 placeholders)
+// only change how a visible character is drawn, so Indic, NFD and emoji URLs
+// stay clickable.
 func hyperlinkable(u string) bool {
 	if u == "" || !SafeURL(u) || strings.ContainsAny(u, "\x1b\x07") {
 		return false
 	}
 	for _, r := range u {
-		if unicode.Is(unicode.Cf, r) || r == '\u2028' || r == '\u2029' {
+		if hidden(r) && r != 0xfe0e && r != 0xfe0f {
 			return false
 		}
 	}

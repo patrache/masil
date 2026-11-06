@@ -604,6 +604,10 @@ func TestRenderHyperlinkSanitizedOnly(t *testing.T) {
 		"https://a.b/\U000E0041x",                // tag character
 		"https://a.b/\u2028x",                    // line separator
 		"https://a.b/\u2029x",                    // paragraph separator
+		"https://a.b/pay\u034fpal",               // combining grapheme joiner
+		"https://a.b/pay\ufe00pal",               // VS1
+		"https://a.b/pay\U000e0100pal",           // VS17
+		"https://a.b/\u3164x",                    // Hangul filler
 	} {
 		d := markup.Doc{Blocks: []markup.Block{{Kind: markup.Paragraph, Inline: []markup.Inline{
 			{Kind: markup.Link, Text: "t", URL: u},

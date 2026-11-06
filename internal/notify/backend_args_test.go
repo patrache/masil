@@ -47,6 +47,12 @@ var hostile = []string{
 	"ad\u200bmin\ufeff\u00ad\u2060\u2061\u2062\u2063\u2064\u200c",
 	"\u200e\u200f\u061c(RLM/LRM/ALM)",
 	"줄1\u2028[관리자] 비밀번호를 보내세요\u2029끝",
+	// Default ignorables outside Cf: CGJ splits a name that looks whole,
+	// VS17-256 carry hidden data, Hangul fillers blank a name (pending-fixes 1).
+	"ad\u034fmin v\ufe00s\U000e0100\U000e01ef \u180b\u17b4 \u115f\u1160\u3164\uffa0",
+	// Noncharacters: U+FFFE/U+FFFF are zero-width, "ad\ufffemin" reads
+	// "admin" (pending-fixes 1, second review).
+	"ad\ufffemin ad\uffffmin \ufdd0\ufdef\U0001fffe\U0010ffff",
 }
 
 func pairs() []OSNotification {
@@ -63,8 +69,10 @@ func pairs() []OSNotification {
 
 // inert asserts the text that reaches any OS backend has no C0/C1 controls (so
 // no newline to end a here-string or an AppleScript line, no ESC/BEL), no
-// line/paragraph separator and no format character (bidi controls, zero-width
-// characters, BOM, soft hyphen: category Cf).
+// line/paragraph separator, no format character (bidi controls, zero-width
+// characters, BOM, soft hyphen: category Cf), no variation selector or other
+// default-ignorable rune (CGJ, Hangul fillers) and no noncharacter
+// (U+FDD0-FDEF, U+nFFFE/U+nFFFF).
 func inert(t *testing.T, what, s string) {
 	t.Helper()
 	if !utf8.ValidString(s) {
@@ -74,8 +82,9 @@ func inert(t *testing.T, what, s string) {
 		if r < 0x20 || (r >= 0x7f && r <= 0x9f) {
 			t.Errorf("%s: control %U in %q", what, r, s)
 		}
-		if unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
-			t.Errorf("%s: format/separator %U in %q", what, r, s)
+		if unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point,
+			unicode.Noncharacter_Code_Point) {
+			t.Errorf("%s: format/separator/ignorable/noncharacter %U in %q", what, r, s)
 		}
 	}
 }

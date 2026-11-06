@@ -260,6 +260,51 @@ func TestIntegrityDetects(t *testing.T) {
 			replaceCell(l, 3, 5, "\u200d ")
 			return l
 		}},
+		// Default-ignorable runes outside Cf are just as invisible (or a blank
+		// cell): "ad\u034fmin" reads "admin" (pending-fixes 1 review).
+		{name: "combining grapheme joiner", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u034f ")
+			return l
+		}},
+		{name: "variation selector 1", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufe00 ")
+			return l
+		}},
+		{name: "variation selector 17", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\U000e0100 ")
+			return l
+		}},
+		{name: "Mongolian free variation selector", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u180b ")
+			return l
+		}},
+		{name: "Khmer inherent vowel", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u17b4 ")
+			return l
+		}},
+		{name: "Hangul filler", want: "invisible", edit: func(l []string) []string {
+			r := []rune(l[3]) // two cells wide: replace two spaces
+			l[3] = string(r[:5]) + "\u3164" + string(r[7:])
+			return l
+		}},
+		{name: "halfwidth Hangul filler", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\uffa0")
+			return l
+		}},
+		// Noncharacters: U+FFFE/U+FFFF are zero-width in both width models,
+		// "ad\ufffemin" reads "admin" (pending-fixes 1, second review).
+		{name: "noncharacter U+FFFE", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufffe ")
+			return l
+		}},
+		{name: "noncharacter U+FFFF", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\uffff ")
+			return l
+		}},
+		{name: "noncharacter U+FDD0", want: "invisible", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufdd0")
+			return l
+		}},
 		{name: "line separator", want: "separator", edit: func(l []string) []string {
 			replaceCell(l, 3, 5, "\u2028 ")
 			return l
@@ -471,5 +516,29 @@ func TestBoxesOf(t *testing.T) {
 	}
 	if got := BoxesOf(app.FrameInfo{}); len(got) != 0 {
 		t.Fatalf("empty frame => no boxes, got %+v", got)
+	}
+}
+
+// AssertTitle reports controls and every Hidden rune of a window title, and
+// nothing in a clean one (pending-fixes 0-b, 1).
+func TestAssertTitle(t *testing.T) {
+	clean := &recTB{TB: t}
+	AssertTitle(clean, "clean", "masil · #일반 · 민지 👍 ❄")
+	if len(clean.errs) != 0 {
+		t.Fatalf("clean title reported: %q", clean.errs)
+	}
+	for _, r := range []rune{0x1b, 0x07, 0x9c, 0x202e, 0x2067, 0x200e, 0x200b, 0x200d, 0xfeff, 0x00ad,
+		0xe0041, 0x2028, 0x2029, 0x034f, 0xfe00, 0xfe0f, 0xe0100, 0x180b, 0x17b4, 0x115f, 0x3164, 0xffa0,
+		0xfdd0, 0xfffe, 0xffff, 0x10ffff} {
+		rec := &recTB{TB: t}
+		AssertTitle(rec, "hostile", "masil · #"+string(r)+"일반")
+		if len(rec.errs) == 0 {
+			t.Errorf("title with %U not reported", r)
+		}
+	}
+	rec := &recTB{TB: t}
+	AssertTitle(rec, "broken", "masil \xff")
+	if len(rec.errs) == 0 {
+		t.Error("invalid UTF-8 title not reported")
 	}
 }

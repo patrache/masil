@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/patrache/masil/internal/textwidth"
 )
 
 // Doc is a parsed body.
@@ -344,10 +346,13 @@ const urlTrailing = ".,)!?:;"
 // screen does not show as a break (a control other than tab/newline, invalid
 // UTF-8, U+2028/U+2029) is plain text as a whole (pending-fixes 0-b ①):
 // linking the clean prefix would make "https://a.com\u0085.b.com" read as one
-// address while it opens https://a.com.
+// address while it opens https://a.com. A run holding a hidden rune (zero-width,
+// bidi, CGJ, variation selector...) is plain text too, since the screen would
+// read an address the link does not open (pending-fixes 1); VS15/VS16 only pick
+// the presentation of the emoji before them, so emoji URLs stay links.
 func (p *inlineParser) bareURL(i int) int {
 	s := p.s
-	if prev, _ := utf8.DecodeLastRuneInString(s[:i]); i > 0 && isASCIIWord(prev) {
+	if isASCIIWord(prevVisible(s[:i])) {
 		return 0
 	}
 	end := i
@@ -356,7 +361,7 @@ func (p *inlineParser) bareURL(i int) int {
 		if r == ' ' || r == '\t' || r == '\n' || r == '\r' && strings.HasPrefix(s[end+1:], "\n") {
 			break
 		}
-		if unsafeURLRune(r, size) || r == '\u2028' || r == '\u2029' {
+		if unsafeURLRune(r, size) || r == '\u2028' || r == '\u2029' || hidden(r) && r != 0xfe0e && r != 0xfe0f {
 			return p.literal(i, end-i)
 		}
 		if unicode.IsSpace(r) || strings.ContainsRune("<>\"`", r) {
@@ -377,15 +382,19 @@ func isASCIIWord(r rune) bool {
 }
 
 // mention: (?<![A-Za-z0-9_])@([a-z0-9_]{3,20})(?![a-z0-9_]), case-insensitive.
-// Go regexp has no lookbehind, so the previous rune is checked by hand.
+// Go regexp has no lookbehind, so the previous rune is checked by hand. Both
+// look-arounds skip hidden runes, as the screen does (pending-fixes 1).
 func (p *inlineParser) mention(i int) int {
 	s := p.s
-	if prev, _ := utf8.DecodeLastRuneInString(s[:i]); i > 0 && isASCIIWord(prev) {
+	if isASCIIWord(prevVisible(s[:i])) {
 		return 0
 	}
 	n := 0
 	for i+1+n < len(s) && isASCIIWord(rune(s[i+1+n])) {
 		n++
+	}
+	if end, cut := hiddenCut(s, i+1+n, isASCIIWord); cut {
+		return p.literal(i, end-i)
 	}
 	if n < 3 || n > 20 {
 		return 0
@@ -404,10 +413,11 @@ func isTagRune(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsNumber(r)
 }
 
-// hashtag: (?<![\p{L}\p{N}_])#([\p{L}\p{N}_]{1,50}), lowercased.
+// hashtag: (?<![\p{L}\p{N}_])#([\p{L}\p{N}_]{1,50}), lowercased. Both
+// look-arounds skip hidden runes, as the screen does (pending-fixes 1).
 func (p *inlineParser) hashtag(i int) int {
 	s := p.s
-	if prev, _ := utf8.DecodeLastRuneInString(s[:i]); i > 0 && isTagRune(prev) {
+	if isTagRune(prevVisible(s[:i])) {
 		return 0
 	}
 	end, count := i+1, 0
@@ -419,10 +429,63 @@ func (p *inlineParser) hashtag(i int) int {
 		end += size
 		count++
 	}
+	if end, cut := hiddenCut(s, end, isTagRune); cut {
+		return p.literal(i, end-i)
+	}
 	if count == 0 {
 		return 0
 	}
 	text := s[i:end]
 	p.emit(Inline{Kind: Hashtag, Text: text, Handle: strings.ToLower(text[1:])})
 	return end - i
+}
+
+// hidden reports a rune the screen never draws (textwidth.Invisible: format
+// characters including ZWJ, line/paragraph separators, variation selectors,
+// other default ignorables). Sanitize removes it after parsing, so a token
+// boundary it makes would be invisible: "#공지\u200b사항" reads "#공지사항" and
+// "@sam\u200b_admin" reads "@sam_admin" (pending-fixes 1 review ④).
+func hidden(r rune) bool { return textwidth.Invisible(r) }
+
+// prevVisible returns the last rune of s that is not hidden, or
+// utf8.RuneError when there is none (start of text).
+func prevVisible(s string) rune {
+	for s != "" {
+		r, n := utf8.DecodeLastRuneInString(s)
+		if !hidden(r) {
+			return r
+		}
+		s = s[:len(s)-n]
+	}
+	return utf8.RuneError
+}
+
+// hiddenCut reports whether a token scanned up to s[:end] was cut short only
+// by hidden runes: s[end:] starts with a hidden run and the first visible rune
+// after it would have continued the token (word). Then the screen shows one
+// longer word, so the whole word (word and hidden runes from end on) is plain
+// text; the returned index is where that word ends.
+func hiddenCut(s string, end int, word func(rune) bool) (int, bool) {
+	j := end
+	for j < len(s) {
+		r, n := utf8.DecodeRuneInString(s[j:])
+		if !hidden(r) {
+			break
+		}
+		j += n
+	}
+	if j == end || j == len(s) {
+		return end, false
+	}
+	if r, _ := utf8.DecodeRuneInString(s[j:]); !word(r) {
+		return end, false
+	}
+	for j < len(s) {
+		r, n := utf8.DecodeRuneInString(s[j:])
+		if !hidden(r) && !word(r) {
+			break
+		}
+		j += n
+	}
+	return j, true
 }

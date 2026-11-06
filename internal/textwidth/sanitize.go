@@ -55,9 +55,9 @@ func sanitizePass(s string, keepNewlines bool) string {
 		s = lineSeparators.Replace(s)
 	}
 	// Rule 1 (+ plan decision): invalid UTF-8 and U+FFFD become □, ANSI
-	// escapes are stripped, then C0/C1 controls, line/paragraph separators and
-	// format characters (bidi, zero-width, BOM, soft hyphen) removed (tab -> 4
-	// spaces).
+	// escapes are stripped, then C0/C1 controls and every Invisible rune
+	// (format characters, line/paragraph separators, variation selectors,
+	// other default ignorables, noncharacters) removed (tab -> 4 spaces).
 	s = validUTF8(s)
 	s = validUTF8(ansi.Strip(s))
 	s = filterRunes(s, keepNewlines)
@@ -77,15 +77,41 @@ func validUTF8(s string) string {
 	return strings.ReplaceAll(s, string(utf8.RuneError), placeholder)
 }
 
-// filterRunes implements rule 1 (controls, U+2028/U+2029, format characters),
-// rule 2 (VS15/VS16) and rule 4 (skin tones, keycap, tag characters).
+// Invisible reports whether r is a rune the screen never draws as itself:
+// a format character (Unicode Cf: bidi embeddings/overrides/isolates and
+// marks, zero-width space/joiners, BOM, soft hyphen, tags), a line or
+// paragraph separator (Zl/Zp), a variation selector (VS1-256, Mongolian free
+// variation selectors), another default-ignorable code point (combining
+// grapheme joiner, Hangul fillers, Khmer inherent vowels, unassigned
+// ignorables) or a noncharacter (U+FDD0-FDEF, U+nFFFE/U+nFFFF; U+FFFE and
+// U+FFFF are zero-width in both width models). Each is zero-width or a blank
+// cell, so another user can use it to make a name or message read as
+// something other than what was sent (pending-fixes 1). Together with the
+// combining marks this covers every rune that is zero-width in both width
+// models (TestNoZeroWidthRuneOutsideInvisible). Sanitize drops all of them
+// except ZWJ, which rule 3 consumes; parsers use Invisible to see the token
+// boundaries the screen shows.
+func Invisible(r rune) bool {
+	return unicode.In(r, invisibleTables...)
+}
+
+var invisibleTables = []*unicode.RangeTable{
+	unicode.Cf, unicode.Zl, unicode.Zp,
+	unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point,
+	unicode.Noncharacter_Code_Point,
+}
+
+// filterRunes implements rule 1 (controls, Invisible runes), rule 2
+// (VS15/VS16, both Invisible) and rule 4 (skin tones, keycap, tag characters).
 //
-// Format characters (category Cf) are invisible and can make the screen show
-// something other than what was sent: bidi embeddings/overrides/isolates and
-// marks reorder text ("\u202e" + "txt.exe" reads as "exe.txt"), zero-width
-// spaces/joiners/BOM/soft hyphens split or pad a name that looks whole
-// (pending-fixes 1). All of them go except ZWJ, which rule 3 needs to cut an
-// emoji sequence (and which never survives rule 3 either).
+// Invisible runes can make the screen show something other than what was
+// sent: bidi embeddings/overrides/isolates and marks reorder text ("\u202e" +
+// "txt.exe" reads as "exe.txt"), zero-width spaces/joiners/BOM/soft hyphens,
+// the combining grapheme joiner, variation selectors and noncharacters split
+// or pad a name that looks whole, a Hangul filler makes a name look blank
+// (pending-fixes 1).
+// All of them go except ZWJ, which rule 3 needs to cut an emoji sequence (and
+// which never survives rule 3 either).
 func filterRunes(s string, keepNewlines bool) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -96,9 +122,7 @@ func filterRunes(s string, keepNewlines bool) string {
 		case r == '\n' && keepNewlines:
 			b.WriteRune(r)
 		case r < 0x20, r >= 0x7f && r <= 0x9f: // C0, DEL, C1
-		case r == 0x2028, r == 0x2029: // line / paragraph separator
-		case r != zwj && unicode.Is(unicode.Cf, r): // bidi, zero-width, BOM, SHY, tags...
-		case r == 0xfe0e, r == 0xfe0f: // VS15, VS16
+		case r != zwj && Invisible(r): // bidi, zero-width, BOM, SHY, tags, U+2028/9, VS, CGJ, fillers, noncharacters...
 		case r >= 0x1f3fb && r <= 0x1f3ff: // skin tone modifiers
 		case r == 0x20e3: // combining enclosing keycap
 		case r >= 0xe0020 && r <= 0xe007f: // tag characters
@@ -218,6 +242,21 @@ func onlyMarks(g string) bool {
 	}
 	for _, r := range g {
 		if !unicode.Is(unicode.M, r) {
+			return false
+		}
+	}
+	return true
+}
+
+// Blank reports whether the screen shows nothing of s: Sanitize(s) is empty
+// or made only of space separators (Zs) and the graphic runes fonts draw as
+// an empty cell (U+2800 BRAILLE PATTERN BLANK, U+1D159 MUSICAL SYMBOL NULL
+// NOTEHEAD). Such runes stay in text, where they read as a space, but a
+// display name made only of them looks like a nameless sender, so every
+// "name, else handle" choice tests Blank instead of == "" (pending-fixes 1).
+func Blank(s string) bool {
+	for _, r := range Sanitize(s) {
+		if !unicode.Is(unicode.Zs, r) && r != 0x2800 && r != 0x1d159 {
 			return false
 		}
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/slash"
+	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/palette"
@@ -192,7 +193,11 @@ func mentionCandidates(ctx *ui.Context, ch *api.Channel, members []api.UserSumma
 	}
 	out := make([]widgets.Completion, 0, min(len(cands), limit)+1)
 	for _, c := range cands[:min(len(cands), limit)] {
-		out = append(out, widgets.Completion{Label: c.u.DisplayName, Detail: "@" + c.u.Handle, Insert: "@" + c.u.Handle + " "})
+		label := c.u.DisplayName
+		if textwidth.Blank(label) { // nothing visible: label with the handle (pending-fixes 1)
+			label = c.u.Handle
+		}
+		out = append(out, widgets.Completion{Label: label, Detail: "@" + c.u.Handle, Insert: "@" + c.u.Handle + " "})
 	}
 	if here {
 		out = append(out, widgets.Completion{Label: "@" + hereHandle, Detail: hereDetail, Insert: "@" + hereHandle + " "})
