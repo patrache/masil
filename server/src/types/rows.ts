@@ -414,6 +414,7 @@ export interface UserPresenceRow {
   user_id: string;
   status: "online" | "away" | "dnd" | "offline";
   mode: "auto" | "away" | "dnd";
+  focus_started_at: number | null; // 0003_focus_started_at.sql; set together with focus_ends_at
   focus_ends_at: number | null;
   online_until: number;
   notify_online_until: number;

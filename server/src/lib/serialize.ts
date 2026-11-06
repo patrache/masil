@@ -140,10 +140,12 @@ function toPresenceState(p: UserPresenceRow | null, nowMs: number): PresenceStat
   if (p === null) return { status: "offline", mode: "auto", focus: null };
   let focus: Focus | null = null;
   if (p.focus_ends_at !== null && p.focus_ends_at > nowMs) {
-    // D1 keeps only the end time; the start lives in UserHub storage only. updated_at (the row's last write) is just a
-    // stand-in: connects, liveness extensions and disconnects rewrite it. Routes returning Me use serializeMeLive, which
-    // takes the whole PresenceState from the hub; this fallback only serves when the hub is unreachable.
-    focus = { started_at: iso(Math.min(p.updated_at, p.focus_ends_at)), ends_at: iso(p.focus_ends_at) };
+    // UserHub writes focus_started_at and focus_ends_at together (0003_focus_started_at.sql), so the start is exact.
+    // A NULL start beside a live end can only be a row written before that migration; updated_at (the row's last
+    // write) is then the only stand-in left. Routes returning Me still prefer serializeMeLive (the hub's state, whose
+    // status can be ahead of this mirror); this read serves signup and the hub-unreachable fallback.
+    const startedAt = p.focus_started_at ?? Math.min(p.updated_at, p.focus_ends_at);
+    focus = { started_at: iso(startedAt), ends_at: iso(p.focus_ends_at) };
   }
   return { status: p.status, mode: p.mode, focus };
 }
@@ -217,7 +219,7 @@ export async function serializeMe(db: D1Database, userId: string): Promise<Me> {
 
 /**
  * serializeMe with `presence` from the authoritative UserHub state (the one GET /me/focus and focus.started report):
- * D1 has no focus start, and its status can lag the hub. Falls back to the D1 mirror when the hub RPC fails.
+ * the D1 mirror's status can lag the hub. Falls back to the D1 mirror (focus start included) when the hub RPC fails.
  */
 export async function serializeMeLive(env: Env, userId: string): Promise<Me> {
   const [me, live] = await Promise.all([

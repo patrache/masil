@@ -259,7 +259,11 @@ interface Settings {
   focus_default_min: number;         // 1..720, default 25
 }
 
-interface Focus { started_at: Timestamp; ends_at: Timestamp }
+interface Focus {
+  started_at: Timestamp;             // when this focus began; extending it (POST /me/focus while focusing) keeps it.
+                                     // Exact on every path, the D1 mirror included (data-model.md user_presence.focus_started_at)
+  ends_at: Timestamp;
+}
 
 interface PresenceState {
   status: PresenceStatus;            // effective
@@ -815,7 +819,8 @@ interface AdminAction {
 - 용도: 방 멤버 목록처럼 푸시 대상이 아닌 사용자의 상태를 화면에 보일 때(60초 주기로 다시 조회).
 
 #### `POST /v1/me/focus`
-- 요청: `{ "duration_sec"?: number }` — 60..43200, 생략 시 `settings.focus_default_min*60`. 이미 집중 중이면 종료 시각을 새 값으로 바꾼다.
+- 요청: `{ "duration_sec"?: number }` — 60..43200, 생략 시 `settings.focus_default_min*60`. 이미 집중 중이면 종료 시각을 새 값으로 바꾼다(`started_at` 은 처음 시작한 시각 그대로).
+- `Focus.started_at` 은 어느 응답에서나 실제 시작 시각이다 — `GET /me/focus`·`focus.started`·`Me.presence.focus`(UserHub 상태, 닿지 못하면 D1 `user_presence.focus_started_at`)가 모두 같은 값.
 - `200 { "focus": Focus }` · 이벤트: `focus.started`, `presence.updated`
 - 집중 중: 실질 상태 `dnd`, 모든 `alert` 가 `suppressed:true, suppressed_reason:"focus"` 로 나가고 요약에 쌓인다. 알림함·안 읽음 수는 평소대로 쌓인다.
 

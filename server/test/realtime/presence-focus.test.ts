@@ -5,6 +5,7 @@ import type { Runtime } from "../../src/env";
 import { newId } from "../../src/lib/ids";
 import { deliverToUsers } from "../../src/lib/realtime";
 import type { Alert, AlertKind } from "../../src/types/api";
+import { serializeMe } from "../../src/lib/serialize";
 import { api, connectWs, signup } from "../helpers";
 
 // ---- local fixtures (this file only) ----
@@ -108,6 +109,10 @@ describe("focus", () => {
     expect((await api(a.token).del<any>("/v1/me/focus")).status).toBe(409); // already ended: no second summary path
     await settle();
     expect(c.frames.filter((f) => f.type === "alert" && f.data.alert.kind === "focus_summary")).toHaveLength(1);
+    // the D1 mirror drops the focus pair on a natural end too
+    expect(
+      await env.DB.prepare("SELECT focus_started_at, focus_ends_at FROM user_presence WHERE user_id = ?1").bind(a.user.id).first(),
+    ).toEqual({ focus_started_at: null, focus_ends_at: null });
   });
 });
 
@@ -125,6 +130,30 @@ describe("presence regressions", () => {
     expect(relogin.body.user.presence.focus).toEqual(focus);
     const patched = await api(a.token).patch<any>("/v1/me/profile", { bio: "x" });
     expect(patched.body.user.presence.focus).toEqual(focus);
+    c.close();
+  });
+
+  it("D1 mirror keeps the exact focus start (user_presence.focus_started_at): the D1 fallback serializeMe reports it through connects and extensions; cleared on end", async () => {
+    const a = await signup();
+    const mirror = () =>
+      env.DB.prepare("SELECT focus_started_at, focus_ends_at FROM user_presence WHERE user_id = ?1")
+        .bind(a.user.id)
+        .first<{ focus_started_at: number | null; focus_ends_at: number | null }>();
+    const started = (await api(a.token).post<any>("/v1/me/focus", { duration_sec: 600 })).body.focus;
+    expect(await mirror()).toEqual({ focus_started_at: Date.parse(started.started_at), focus_ends_at: Date.parse(started.ends_at) });
+    await settle(30); // the connect below rewrites user_presence.updated_at on a later millisecond than the focus start
+    const c = await connectWs(a.token);
+    await settle(30);
+    // serializeMe is the D1-only path (signup, and serializeMeLive's fallback when the hub is unreachable)
+    expect((await serializeMe(env.DB, a.user.id)).presence.focus).toEqual(started);
+    // extending replaces the end, not the start — in D1 too
+    const extended = (await api(a.token).post<any>("/v1/me/focus", { duration_sec: 1200 })).body.focus;
+    expect(extended.started_at).toBe(started.started_at);
+    expect(await mirror()).toEqual({ focus_started_at: Date.parse(started.started_at), focus_ends_at: Date.parse(extended.ends_at) });
+    expect((await serializeMe(env.DB, a.user.id)).presence.focus).toEqual(extended);
+    expect((await api(a.token).del<any>("/v1/me/focus")).status).toBe(200);
+    expect(await mirror()).toEqual({ focus_started_at: null, focus_ends_at: null });
+    expect((await serializeMe(env.DB, a.user.id)).presence.focus).toBeNull();
     c.close();
   });
 

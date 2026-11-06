@@ -931,11 +931,17 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     return m === "away" || m === "dnd" ? m : "auto";
   }
 
-  /** The active focus, or null (none, or its end time passed and the alarm has not finished it yet). */
-  protected currentFocus(t = this.now()): Focus | null {
+  /** The active focus in ms, or null (none, or its end time passed and the alarm has not finished it yet). */
+  protected currentFocusMs(t = this.now()): { startedAt: number; endsAt: number } | null {
     const ends = this.getMetaNum("focus_ends_at");
     if (ends <= t) return null;
-    return { started_at: iso(this.getMetaNum("focus_started_at")), ends_at: iso(ends) };
+    return { startedAt: this.getMetaNum("focus_started_at"), endsAt: ends };
+  }
+
+  /** The active focus, or null (none, or its end time passed and the alarm has not finished it yet). */
+  protected currentFocus(t = this.now()): Focus | null {
+    const f = this.currentFocusMs(t);
+    return f === null ? null : { started_at: iso(f.startedAt), ends_at: iso(f.endsAt) };
   }
 
   protected presenceState(): PresenceState {
@@ -967,7 +973,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     };
   }
 
-  /** Async half: D1 user_presence(status, mode, focus_ends_at, last_seen_at), then presence.updated to presenceWatchers. */
+  /** Async half: D1 user_presence(status, mode, focus_started_at, focus_ends_at, last_seen_at), then presence.updated to presenceWatchers. */
   protected async finishPresence(plan: PresencePlan | null): Promise<void> {
     if (plan === null) return;
     const write = this.presenceWrites.then(() => this.writePresence(plan.userId));
@@ -1001,16 +1007,27 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     }
   }
 
+  /** The focus pair (start and end, ms) is written together: both set while a focus is active, both NULL otherwise. */
   protected async writePresence(userId: string): Promise<void> {
     const t = this.now();
-    const ends = this.getMetaNum("focus_ends_at");
+    const focus = this.currentFocusMs(t);
     const lastSeen = this.getMetaNum("last_seen_at");
     await this.env.DB.prepare(
-      `INSERT INTO user_presence (user_id, status, mode, focus_ends_at, last_seen_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-       ON CONFLICT (user_id) DO UPDATE SET status = excluded.status, mode = excluded.mode, focus_ends_at = excluded.focus_ends_at,
+      `INSERT INTO user_presence (user_id, status, mode, focus_started_at, focus_ends_at, last_seen_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+       ON CONFLICT (user_id) DO UPDATE SET status = excluded.status, mode = excluded.mode,
+         focus_started_at = excluded.focus_started_at, focus_ends_at = excluded.focus_ends_at,
          last_seen_at = COALESCE(excluded.last_seen_at, user_presence.last_seen_at), updated_at = excluded.updated_at`,
     )
-      .bind(userId, this.getMeta("last_status") ?? "offline", this.manualMode(), ends > t ? ends : null, lastSeen > 0 ? lastSeen : null, t)
+      .bind(
+        userId,
+        this.getMeta("last_status") ?? "offline",
+        this.manualMode(),
+        focus?.startedAt ?? null,
+        focus?.endsAt ?? null,
+        lastSeen > 0 ? lastSeen : null,
+        t,
+      )
       .run();
   }
 
