@@ -398,43 +398,58 @@ export async function insertDirectInvite(
         t,
         id,
       ),
+      // why the INSERT may have written nothing, read in the same transaction (pending item 10-a)
+      stmt(db, `SELECT ${DIRECT_INVITE_REFUSAL_FACTS}`, spaceId, inviterId, inviteeId),
     ]);
   } catch (e) {
     if (isUniqueViolation(e)) throw err.conflict("already_exists"); // a concurrent invite to the same person
     throw e;
   }
   const row = (results[1]!.results as SpaceDirectInviteRow[])[0] ?? null;
-  if (row === null) return refuseDirectInvite(db, spaceId, inviterId, inviteeId);
+  if (row === null) throw directInviteRefusal((results[2]!.results as DirectInviteRefusalFacts[])[0]);
   return { row, stale: results[0]!.results as Array<{ id: string; inviter_id: string }> };
 }
 
-/**
- * Throws the error for a direct invite `inviterId` -> `inviteeId` into `spaceId` that did not happen because something
- * changed after the route's pre-checks: 404 the inviter left / was removed, 409 already_member the invitee joined by
- * another route, else 403 action_not_allowed (unfriended / blocked / invitee suspended).
- */
-export async function refuseDirectInvite(db: D1Database, spaceId: string, inviterId: string, inviteeId: string): Promise<never> {
-  const member = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviterId);
-  if (member === null) throw err.notFound("space");
-  const inside = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviteeId);
-  if (inside !== null) throw err.conflict("already_member");
-  throw err.forbidden("action_not_allowed");
+/** Columns for a direct invite's refusal reason. Params: ?1 space, ?2 inviter, ?3 invitee. */
+const DIRECT_INVITE_REFUSAL_FACTS = `EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2) AS inviter_member,
+  EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?3) AS invitee_inside`;
+
+interface DirectInviteRefusalFacts {
+  inviter_member: number;
+  invitee_inside: number;
 }
 
 /**
- * The direct invite `id` is still pending and acceptable (D_INVITE_ACCEPTABLE: inviter a member, invitee outside, still
- * friends with no block). The create route re-reads this after its batch commits and before it publishes (pending item
+ * The error for a direct invite that did not happen (or died right after) because something changed after the route's
+ * pre-checks, from facts read in one statement: 404 the inviter left / was removed, 409 already_member the invitee
+ * joined by another route, else 403 action_not_allowed (unfriended / blocked / invitee suspended).
+ */
+function directInviteRefusal(f: DirectInviteRefusalFacts | undefined): ApiError {
+  if (!f?.inviter_member) return err.notFound("space");
+  if (f.invitee_inside) return err.conflict("already_member");
+  return err.forbidden("action_not_allowed");
+}
+
+/**
+ * Throws unless the direct invite `id` (`inviterId` -> `inviteeId` into `spaceId`) is still pending and acceptable
+ * (D_INVITE_ACCEPTABLE: inviter a member, invitee outside, still friends with no block); the error is
+ * directInviteRefusal's. The create route re-reads this after its batch commits and before it publishes (pending item
  * 9-b): a join by another route, an unfriend or a block landing in between cancels the row in its own batch and sends
  * space.invite_removed, and announcing the dead invite afterwards would leave a ghost pending invite on the invitee's
- * client plus an inbox space_invite / alert for it.
+ * client plus an inbox space_invite / alert for it. Liveness and the reason are one statement (pending item 10-a), so
+ * a change landing between two reads cannot pair "dead" with a reason that no longer holds.
  */
-export async function directInviteLive(db: D1Database, id: string): Promise<boolean> {
-  const row = await first(
+export async function requireDirectInviteLive(db: D1Database, id: string, spaceId: string, inviterId: string, inviteeId: string): Promise<void> {
+  const row = await first<DirectInviteRefusalFacts & { live: number }>(
     db,
-    `SELECT 1 AS x FROM space_direct_invites d WHERE d.id = ?1 AND d.status = 'pending' AND ${D_INVITE_ACCEPTABLE}`,
+    `SELECT EXISTS (SELECT 1 FROM space_direct_invites d WHERE d.id = ?4 AND d.status = 'pending' AND ${D_INVITE_ACCEPTABLE}) AS live,
+            ${DIRECT_INVITE_REFUSAL_FACTS}`,
+    spaceId,
+    inviterId,
+    inviteeId,
     id,
   );
-  return row !== null;
+  if (!row?.live) throw directInviteRefusal(row ?? undefined);
 }
 
 /** The invite link `code` of `spaceId` with its issuer check; 404 when missing. */
@@ -461,9 +476,9 @@ async function loadInviteOf(db: D1Database, spaceId: string, code: string): Prom
  *   space_members INSERT gated on changes() > 0 -> spaces.member_count+1 gated on changes() > 0.
  *   via {}: the INSERT and the member_count UPDATE without the gates (Task 21).
  *   Then, every route (pending item 9-b): this user's other pending direct invites to the space -> canceled, gated on
- *   the membership row being there.
+ *   the membership row being there. Last, via invite link only, a read of the link (its 410 reason, pending item 10-a).
  * A first statement that changed nothing means the invite was used up / answered meanwhile and nothing was written:
- * 410 with the re-read reason (link) or 404 (direct). A concurrent join of the same user fails the PK and rolls the
+ * 410 with the reason read in the same batch (link) or 404 (direct). A concurrent join of the same user fails the PK and rolls the
  * whole batch back -> 409 already_member.
  * After commit (only when a row went in): space.joined{space} to the user (their own view), space.member_joined
  * {space_id, member} to the other members, (direct) space.invite_removed{invite_id, reason:"accepted"} to the invitee
@@ -550,6 +565,12 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
       t,
     ),
   );
+  // via a link: the link as the use UPDATE saw it, for the 410 reason (pending item 10-a: read in the same transaction,
+  // so an issuer re-promoted right after cannot turn "revoked" into the "exhausted" fallback)
+  const linkIdx = stmts.length;
+  if (via.inviteCode !== undefined) {
+    stmts.push(stmt(db, `SELECT *, ${linkIssuerCanInvite("space_invites")} AS _issuer_ok FROM space_invites WHERE code = ?1 AND space_id = ?2`, via.inviteCode, spaceId));
+  }
   let results: D1Result[];
   try {
     results = await batch(db, stmts);
@@ -559,7 +580,9 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
   }
   if (gated && (results[0]!.meta.changes ?? 0) === 0) {
     if (via.inviteCode !== undefined) {
-      throw err.inviteInvalid(inviteInvalidReason(await loadInviteOf(db, spaceId, via.inviteCode), t) ?? "exhausted");
+      const link = (results[linkIdx]!.results as InviteCheckRow[])[0];
+      if (link === undefined) throw err.notFound("invite");
+      throw err.inviteInvalid(inviteInvalidReason(link, t) ?? "exhausted");
     }
     throw err.notFound("invite");
   }

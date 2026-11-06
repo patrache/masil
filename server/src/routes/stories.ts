@@ -74,8 +74,8 @@ export const storyRoutes = new Hono<AppEnv>();
 /**
  * Body and/or media (both empty -> fields.body required); the media must be my own pending "story" upload
  * (else fields.media_upload_id invalid); 30 active stories already -> 422 limit_exceeded active_stories. One batch:
- * the INSERT is guarded on both rules (a concurrent create or attach makes it a no-op, then re-checked), then the upload
- * is attached as story:<id>. After commit: story.created (ephemeral) to active followers + me.
+ * the INSERT is guarded on both rules (a concurrent create or attach makes it a no-op, reported from a read of both
+ * rules in the same batch), then the upload is attached as story:<id>. After commit: story.created (ephemeral) to active followers + me.
  */
 storyRoutes.post("/stories", requireAuth, limit("RL_POST"), vJson(CreateBody), async (c) => {
   const me = getAuth(c).userId;
@@ -146,11 +146,25 @@ storyRoutes.post("/stories", requireAuth, limit("RL_POST"), vJson(CreateBody), a
       ),
     );
   }
+  // why the INSERT may have written nothing, read in the same transaction (pending item 10-a): same params as the INSERT
+  const whyIdx = stmts.length;
+  stmts.push(
+    stmt(
+      db,
+      `SELECT ?4 IS NULL OR ${MEDIA_PENDING} AS media_ok, ${ACTIVE_COUNT} AS n`,
+      row.id,
+      row.author_id,
+      row.body,
+      row.media_upload_id,
+      row.bg,
+      row.created_at,
+    ),
+  );
   const results = await batch(db, stmts);
   if ((results[0]!.meta.changes ?? 0) === 0) {
-    // lost a race: report whichever rule now fails
-    await checkMedia();
-    await checkActive(now());
+    // lost a race: report the rule the INSERT saw failing (media first, as in the pre-checks)
+    const why = results[whyIdx]!.results[0] as { media_ok: number; n: number } | undefined;
+    if (!why?.media_ok) throw err.invalid({ media_upload_id: "invalid" });
     throw err.limit("active_stories", ACTIVE_STORIES_MAX);
   }
 

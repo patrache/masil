@@ -338,7 +338,7 @@ function userTarget(id: string) {
  * move only when this batch really inserts an active row (data-model 7: counters count active rows only).
  * The block / suspension rule is in the INSERT and the counter guards too (pending item 10): one landing between the
  * pre-check and the batch writes nothing -> 403 action_not_allowed, while a concurrent follow of the same pair that
- * won the race is reported as its current state (idempotent).
+ * won the race is reported as its state (idempotent) — both read in the INSERT's own batch (pending item 10-a).
  * After commit: inbox `follow` (dedupe `follow:<followee>:<follower>`) or `follow_request`
  * (dedupe `follow_request:<followee>:<follower>`), alert kind `social`.
  */
@@ -376,20 +376,23 @@ export async function follow(rt: Runtime, followerId: string, followeeId: string
       followeeId,
       t,
     ),
-  ]);
-  const inserted = (results[2]!.results as Array<Pick<FollowRow, "status">>)[0];
-  if (inserted === undefined) {
-    // Nothing went in: either a block / suspension landed after the pre-check (403, whatever the pre-check said), or a
-    // concurrent follow of the same pair won the race (idempotent: report the row that is there now).
-    const current = await first<{ status: FollowRow["status"] | null; blocked: number; suspended: number }>(
+    // why the INSERT may have written nothing, read inside the same transaction (pending item 10-a: a block lifted or
+    // landing right after the batch cannot change the answer)
+    stmt(
       db,
       `SELECT (SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = ?2) AS status,
               ${blockedEitherSql("?1", "?2")} AS blocked, ${suspendedNowSql("?2", "?3")} AS suspended`,
       followerId,
       followeeId,
       t,
-    );
-    if (current === null || current.blocked || current.suspended || current.status === null) throw err.forbidden("action_not_allowed");
+    ),
+  ]);
+  const inserted = (results[2]!.results as Array<Pick<FollowRow, "status">>)[0];
+  if (inserted === undefined) {
+    // Nothing went in: either a block / suspension was in place at the INSERT (403, whatever the pre-check said), or a
+    // concurrent follow of the same pair won the race (idempotent: report the row the INSERT ran into).
+    const current = (results[3]!.results as Array<{ status: FollowRow["status"] | null; blocked: number; suspended: number }>)[0];
+    if (current === undefined || current.blocked || current.suspended || current.status === null) throw err.forbidden("action_not_allowed");
     return current.status;
   }
 

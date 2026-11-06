@@ -393,6 +393,7 @@ export interface Page<T> { items: T[]; next_cursor: string | null }
 ```
 - `undefined` 파라미터는 `null` 로 바꿔 바인딩한다(D1 은 undefined 를 거부).
 - 바인딩 파라미터 100개 한도 → 가변 목록은 반드시 `jsonList`.
+- 조건부 쓰기(`INSERT … SELECT … WHERE`, `UPDATE … WHERE`, `ON CONFLICT DO NOTHING`)가 0건일 때 어느 오류로 답할지(차단·정지·중복·한도·삭제됨 등)는 **같은 `batch` 안의 SELECT** 로 읽는다. batch 가 끝난 뒤 다시 조회하면 그사이 커밋(차단 해제, 멤버 복귀, 취소, 삭제)이 사유를 바꿔 다른 코드로 답하게 된다(보류 항목 10-a).
 
 ### 4.5 `src/lib/ids.ts`, `src/lib/time.ts`, `src/lib/crypto.ts`
 

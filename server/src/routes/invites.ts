@@ -16,12 +16,11 @@ import { now } from "../lib/time";
 import { vJson, zUserRef } from "../lib/validate";
 import {
   D_INVITE_ACCEPTABLE,
-  directInviteLive,
   insertDirectInvite,
   inviteInvalidReason,
   joinSpace,
   linkIssuerCanInvite,
-  refuseDirectInvite,
+  requireDirectInviteLive,
   type InviteCheckRow,
 } from "../services/membership";
 import type { SpaceDirectInviteRow, SpaceInviteRow, SpaceRow } from "../types/rows";
@@ -176,7 +175,7 @@ inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
  * And on the invitee still being outside the space (9-b): a join by another route landing after the pre-checks
  * writes nothing and gets 409 already_member.
  * One landing after the batch commits (a join, unfriend or block cancels the new row in its own batch and sends
- * space.invite_removed) is caught by re-reading the row before publishing (directInviteLive): no invite_received, no
+ * space.invite_removed) is caught by re-reading the row before publishing (requireDirectInviteLive): no invite_received, no
  * inbox entry or alert, and the same error as if the race had landed before the INSERT.
  */
 inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOCIAL"), vJson(DirectInviteBody), async (c) => {
@@ -216,7 +215,7 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
   if (!invite || space === null) throw err.notFound("space");
   // 9-b: a join by another route / unfriend / block landing after the batch committed has already canceled the row
   // (and sent space.invite_removed); do not announce the dead invite, answer as if the race had landed first.
-  if (!(await directInviteLive(db, row.id))) return refuseDirectInvite(db, spaceId, me, target.id);
+  await requireDirectInviteLive(db, row.id, spaceId, me, target.id);
   const name = users.get(me)?.display_name ?? auth.handle;
   await Promise.all([
     publishEvent(rt(c), { users: [target.id] }, "space.invite_received", { invite }),
