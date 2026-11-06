@@ -3,17 +3,35 @@
 package notify
 
 import (
+	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
-// TestDarwinArgvRoundTripsThroughOsascript runs the real osascript with the
-// exact argv darwinCommand builds, except that the display statement is
-// swapped for one that returns the two items (so no notification pops during
-// tests). Hostile text must come back verbatim and must not run anything.
-func TestDarwinArgvRoundTripsThroughOsascript(t *testing.T) {
+// TestDarwinPlatformUsesExecRun: the macOS backend is darwinPlatform running
+// processes with execRun (no shell, exactly the argv it gets).
+func TestDarwinPlatformUsesExecRun(t *testing.T) {
+	b, ok := NewOSBackend("masil").(osBackend)
+	if !ok {
+		t.Fatalf("NewOSBackend = %T", NewOSBackend("masil"))
+	}
+	p, ok := b.p.(darwinPlatform)
+	if !ok {
+		t.Fatalf("platform = %T, want darwinPlatform", b.p)
+	}
+	if reflect.ValueOf(p.run).Pointer() != reflect.ValueOf(execRun).Pointer() {
+		t.Fatal("darwinPlatform.run is not execRun")
+	}
+}
+
+// TestDarwinShowRoundTripsThroughOsascript runs the real osascript through
+// Show and execRun with the argv show builds, except that the display statement
+// is swapped for one that returns the two items (so no notification pops
+// during tests). Hostile text must come back verbatim and must not run
+// anything.
+func TestDarwinShowRoundTripsThroughOsascript(t *testing.T) {
 	if _, err := os.Stat("/usr/bin/osascript"); err != nil {
 		t.Skip("no osascript")
 	}
@@ -26,17 +44,23 @@ func TestDarwinArgvRoundTripsThroughOsascript(t *testing.T) {
 		{Title: "--", Body: "-e"},
 		{Title: "민지님이 ❤", Body: "안녕 \"하세요\" \\ end run"},
 	}
-	for _, n := range payloads {
-		p := prepare(n)
-		name, args := darwinCommand(p)
-		if args[3] != darwinShowStmt {
-			t.Fatalf("args[3] = %q, want the display statement", args[3])
+	var out []byte
+	run := func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if len(args) != 9 || args[3] != darwinShowStmt {
+			t.Fatalf("show ran %q %q", name, args)
 		}
 		args[3] = `return (item 1 of argv) & linefeed & (item 2 of argv)`
-		out, err := exec.Command(name, args...).Output()
-		if err != nil {
-			t.Fatalf("osascript %q: %v", args, err)
+		var err error
+		out, err = execRun(ctx, name, args...)
+		return out, err
+	}
+	b := osBackend{appName: "masil", p: darwinPlatform{run: run}}
+	for _, n := range payloads {
+		out = nil
+		if err := b.Show(n); err != nil {
+			t.Fatalf("Show %+v: %v (%s)", n, err, out)
 		}
+		p := prepare(n)
 		if got, want := string(out), p.Title+"\n"+p.Body+"\n"; got != want {
 			t.Errorf("round trip = %q, want %q", got, want)
 		}

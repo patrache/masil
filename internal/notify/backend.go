@@ -16,12 +16,14 @@ type Backend interface {
 //   - macOS: /usr/bin/osascript runs a constant AppleScript; title and body are
 //     argv items after "--" (darwinCommand).
 //   - Linux: org.freedesktop.Notifications.Notify over D-Bus, no exec; the
-//     body is markup-escaped when the server renders body markup (dbusCall).
+//     body is markup-escaped when the server renders body markup, and plain
+//     text (summary, other bodies) has < > as look-alike quotes (dbusCall).
 //   - Windows: the WinRT toast COM API with an XML document whose text nodes are
 //     XML-escaped (toastXML); the PowerShell fallback is never enabled.
 //   - other OSes: an error (not a release target).
 //
-// Every backend also re-applies Format's sanitizing and length limits
+// Each platform's show is in backend_platform.go (tested on every OS); the
+// GOOS files only plug in the final OS call. Every backend also re-applies Format's sanitizing and length limits
 // (prepare), so a caller that skips Format cannot reach the OS with control
 // characters or unbounded text.
 func NewOSBackend(appName string) Backend {

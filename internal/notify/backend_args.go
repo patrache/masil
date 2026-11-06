@@ -63,16 +63,16 @@ type dbusNotify struct {
 
 // dbusCall builds the Notify call for n. The body is markup only on servers
 // that list "body-markup", and then & < > are escaped so no <a href> or
-// <img src> can be injected. The summary is plain text by spec, but some
-// servers render it as markup anyway, and entity-escaping it would show
-// "&amp;" on the ones that follow the spec; so its angle brackets become
-// look-alike quotes (summaryText), which read the same on both kinds and leave
-// no '<' to start a tag (entities alone only make characters). No actions, no
-// icon.
+// <img src> can be injected. Text the spec calls plain (the summary always,
+// the body on servers without body-markup) can still be rendered as markup by
+// some servers, and entity-escaping it would show "&amp;" on the ones that
+// follow the spec; so its angle brackets become look-alike quotes
+// (summaryText), which read the same on both kinds and leave no '<' to start a
+// tag (entities alone only make characters). No actions, no icon.
 func dbusCall(appName string, n OSNotification, bodyMarkup bool) dbusNotify {
-	body := n.Body
+	body := summaryText(n.Body)
 	if bodyMarkup {
-		body = escapeMarkup(body)
+		body = escapeMarkup(n.Body)
 	}
 	return dbusNotify{
 		AppName: appName,
@@ -88,7 +88,8 @@ var (
 	summaryQuoter = strings.NewReplacer("<", "‹", ">", "›") // U+2039, U+203A
 )
 
-// summaryText makes a summary that no markup-rendering server can read as a tag.
+// summaryText makes plain text (the summary, a body without body-markup) that
+// no markup-rendering server can read as a tag.
 func summaryText(s string) string {
 	return summaryQuoter.Replace(s)
 }

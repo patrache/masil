@@ -102,27 +102,31 @@ func (f *fakeBus) notify(_ context.Context, c dbusNotify) error {
 // TestDBusShowAsksCapabilitiesEveryCall: the body is escaped by what the server
 // says now, not by what an earlier server on the same bus said (the server can
 // be replaced while the connection lives); unknown capabilities mean escape.
+// Unescaped (plain) bodies still carry no '<' '>': they become ‹ ›.
 func TestDBusShowAsksCapabilitiesEveryCall(t *testing.T) {
 	bus := &fakeBus{caps: []string{"body"}}
 	n := OSNotification{Title: "t", Body: `<a href="file:///etc/passwd">x</a> & y`}
+	const (
+		plain   = `‹a href="file:///etc/passwd"›x‹/a› & y`
+		escaped = `&lt;a href="file:///etc/passwd"&gt;x&lt;/a&gt; &amp; y`
+	)
 	steps := []struct {
 		caps    []string
 		capsErr error
-		escaped bool
+		want    string
 	}{
-		{[]string{"body"}, nil, false},
-		{[]string{"body", "body-markup"}, nil, true},
-		{[]string{"body"}, nil, false},
-		{nil, errors.New("no reply"), true},
+		{[]string{"body"}, nil, plain},
+		{[]string{"body", "body-markup"}, nil, escaped},
+		{[]string{"body"}, nil, plain},
+		{nil, errors.New("no reply"), escaped},
 	}
 	for i, s := range steps {
 		bus.caps, bus.capsErr = s.caps, s.capsErr
 		if err := dbusShow(t.Context(), bus, "masil", n); err != nil {
 			t.Fatal(err)
 		}
-		body := bus.sent[i].Body
-		if s.escaped != !strings.ContainsAny(body, "<>") {
-			t.Fatalf("step %d (caps %v, err %v): body %q", i, s.caps, s.capsErr, body)
+		if body := bus.sent[i].Body; body != s.want {
+			t.Fatalf("step %d (caps %v, err %v): body %q, want %q", i, s.caps, s.capsErr, body, s.want)
 		}
 	}
 }

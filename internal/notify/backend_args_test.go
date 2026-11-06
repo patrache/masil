@@ -130,63 +130,70 @@ func TestDarwinArgsAreData(t *testing.T) {
 func TestToastXMLIsInert(t *testing.T) {
 	for _, n := range pairs() {
 		p := prepare(n)
-		doc := toastXML(p)
-		if strings.Contains(doc, "<![CDATA[") || strings.Contains(doc, "]]>") {
-			t.Errorf("raw CDATA delimiter in %q", doc)
+		assertToast(t, toastXML(p), p)
+	}
+}
+
+// assertToast checks that doc is the fixed toast document carrying exactly p's
+// title and body as character data (shared by the toastXML and the
+// windowsPlatform.show tests).
+func assertToast(t *testing.T, doc string, p OSNotification) {
+	t.Helper()
+	if strings.Contains(doc, "<![CDATA[") || strings.Contains(doc, "]]>") {
+		t.Errorf("raw CDATA delimiter in %q", doc)
+	}
+	var (
+		path  []string
+		texts []string
+		elems []string
+	)
+	d := xml.NewDecoder(strings.NewReader(doc))
+	d.Strict = true
+	for {
+		tok, err := d.Token()
+		if err == io.EOF {
+			break
 		}
-		var (
-			path  []string
-			texts []string
-			elems []string
-		)
-		d := xml.NewDecoder(strings.NewReader(doc))
-		d.Strict = true
-		for {
-			tok, err := d.Token()
-			if err == io.EOF {
-				break
+		if err != nil {
+			t.Fatalf("toast XML does not parse (%v): %q", err, doc)
+		}
+		switch v := tok.(type) {
+		case xml.StartElement:
+			path = append(path, v.Name.Local)
+			elems = append(elems, strings.Join(path, "/"))
+			for _, a := range v.Attr {
+				elems = append(elems, strings.Join(path, "/")+"@"+a.Name.Local+"="+a.Value)
 			}
-			if err != nil {
-				t.Fatalf("toast XML does not parse (%v): %q", err, doc)
+			if v.Name.Local == "text" {
+				texts = append(texts, "")
 			}
-			switch v := tok.(type) {
-			case xml.StartElement:
-				path = append(path, v.Name.Local)
-				elems = append(elems, strings.Join(path, "/"))
-				for _, a := range v.Attr {
-					elems = append(elems, strings.Join(path, "/")+"@"+a.Name.Local+"="+a.Value)
-				}
-				if v.Name.Local == "text" {
-					texts = append(texts, "")
-				}
-			case xml.EndElement:
-				path = path[:len(path)-1]
-			case xml.CharData:
-				if len(path) > 0 && path[len(path)-1] == "text" {
-					texts[len(texts)-1] += string(v)
-				}
-			case xml.ProcInst, xml.Directive, xml.Comment:
-				t.Fatalf("unexpected %T in %q", v, doc)
+		case xml.EndElement:
+			path = path[:len(path)-1]
+		case xml.CharData:
+			if len(path) > 0 && path[len(path)-1] == "text" {
+				texts[len(texts)-1] += string(v)
 			}
+		case xml.ProcInst, xml.Directive, xml.Comment:
+			t.Fatalf("unexpected %T in %q", v, doc)
 		}
-		wantElems := []string{
-			"toast", "toast@duration=short",
-			"toast/visual",
-			"toast/visual/binding", "toast/visual/binding@template=ToastGeneric",
-			"toast/visual/binding/text",
-		}
-		wantTexts := []string{p.Title}
-		if p.Body != "" { // a body sanitized to nothing gets no <text>
-			wantElems = append(wantElems, "toast/visual/binding/text")
-			wantTexts = append(wantTexts, p.Body)
-		}
-		wantElems = append(wantElems, "toast/audio", "toast/audio@silent=true")
-		if !slices.Equal(elems, wantElems) {
-			t.Fatalf("structure for %q:\n got %q\nwant %q", p.Title+"|"+p.Body, elems, wantElems)
-		}
-		if !slices.Equal(texts, wantTexts) {
-			t.Fatalf("texts = %q, want %q", texts, wantTexts)
-		}
+	}
+	wantElems := []string{
+		"toast", "toast@duration=short",
+		"toast/visual",
+		"toast/visual/binding", "toast/visual/binding@template=ToastGeneric",
+		"toast/visual/binding/text",
+	}
+	wantTexts := []string{p.Title}
+	if p.Body != "" { // a body sanitized to nothing gets no <text>
+		wantElems = append(wantElems, "toast/visual/binding/text")
+		wantTexts = append(wantTexts, p.Body)
+	}
+	wantElems = append(wantElems, "toast/audio", "toast/audio@silent=true")
+	if !slices.Equal(elems, wantElems) {
+		t.Fatalf("structure for %q:\n got %q\nwant %q", p.Title+"|"+p.Body, elems, wantElems)
+	}
+	if !slices.Equal(texts, wantTexts) {
+		t.Fatalf("texts = %q, want %q", texts, wantTexts)
 	}
 }
 
@@ -199,7 +206,9 @@ func TestToastXMLOmitsEmptyBody(t *testing.T) {
 
 // TestDBusArgsAreInert: summary is plain text by spec and carries no '<' '>'
 // (TestDBusSummaryCannotCarryTags); the body is markup only when the server
-// says so, and then every & < > is escaped. No actions (an action is a
+// says so, and then every & < > is escaped; otherwise its angle brackets become
+// look-alike quotes like the summary's (a server that renders markup without
+// announcing body-markup gets no tag either). No actions (an action is a
 // clickable command), no icon, no hints.
 func TestDBusArgsAreInert(t *testing.T) {
 	for _, markup := range []bool{false, true} {
@@ -213,14 +222,14 @@ func TestDBusArgsAreInert(t *testing.T) {
 			if strings.ContainsAny(c.Summary, "<>") {
 				t.Fatalf("summary has raw tag chars: %q", c.Summary)
 			}
+			if strings.ContainsAny(c.Body, "<>") {
+				t.Fatalf("body (markup=%v) has raw tag chars: %q", markup, c.Body)
+			}
 			if !markup {
-				if c.Body != p.Body {
-					t.Fatalf("plain body = %q, want %q", c.Body, p.Body)
+				if want := strings.NewReplacer("<", "‹", ">", "›").Replace(p.Body); c.Body != want {
+					t.Fatalf("plain body = %q, want %q", c.Body, want)
 				}
 				continue
-			}
-			if strings.ContainsAny(c.Body, "<>") {
-				t.Fatalf("markup body has raw tag chars: %q", c.Body)
 			}
 			if got := unescapeMarkup(c.Body); got != p.Body {
 				t.Fatalf("markup body round-trip = %q, want %q", got, p.Body)
@@ -237,8 +246,8 @@ func unescapeMarkup(s string) string {
 }
 
 // TestNoScriptingNotifier keeps the old holes closed: no beeep (AppleScript %q,
-// go-toast PowerShell fallback), no PowerShell option of wintoast, no shell, in
-// any file of this package for any GOOS.
+// go-toast PowerShell fallback), no PowerShell option of wintoast, no shell, no
+// CDATA template, in any file of this package for any GOOS.
 func TestNoScriptingNotifier(t *testing.T) {
 	files, err := filepath.Glob("*.go")
 	if err != nil || len(files) == 0 {
@@ -272,7 +281,7 @@ func TestNoScriptingNotifier(t *testing.T) {
 				}
 			case *ast.BasicLit:
 				low := strings.ToLower(v.Value)
-				for _, sh := range []string{"powershell", `"sh"`, `"/bin/sh"`, `"bash"`, "cmd.exe", "do shell script"} {
+				for _, sh := range []string{"powershell", `"sh"`, `"/bin/sh"`, `"bash"`, "cmd.exe", "do shell script", "<![cdata["} {
 					if strings.Contains(low, sh) {
 						t.Errorf("%s has literal %s", f, v.Value)
 					}

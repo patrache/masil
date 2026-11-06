@@ -3,24 +3,20 @@
 package notify
 
 import (
-	"fmt"
-
 	"git.sr.ht/~jackmordaunt/go-toast/wintoast"
 )
 
-type windowsPlatform struct{ appName string }
+// newPlatform wires the WinRT toast COM API in (show: backend_platform.go).
+func newPlatform(appName string) platform {
+	return windowsPlatform{appName: appName, setAppID: setToastAppID, push: pushToast}
+}
 
-func newPlatform(appName string) platform { return windowsPlatform{appName: appName} }
+func setToastAppID(appID string) error {
+	return wintoast.SetAppData(wintoast.AppData{AppID: appID})
+}
 
-// show pushes the escaped toast XML through the WinRT COM API only. wintoast.Push
-// is called without options: its PowerShell paths (a script built from the XML)
-// stay off.
-func (p windowsPlatform) show(n OSNotification) error {
-	if err := wintoast.SetAppData(wintoast.AppData{AppID: p.appName}); err != nil {
-		return fmt.Errorf("notify: toast app data: %w", err)
-	}
-	if err := wintoast.Push(toastXML(n)); err != nil {
-		return fmt.Errorf("notify: toast: %w", err)
-	}
-	return nil
+// pushToast pushes doc through the WinRT COM API only. wintoast.Push is called
+// without options: its PowerShell paths (a script built from the XML) stay off.
+func pushToast(doc string) error {
+	return wintoast.Push(doc)
 }
