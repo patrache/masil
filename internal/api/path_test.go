@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -252,8 +253,9 @@ func TestPathSegmentsLookingLikeDotsAreEscaped(t *testing.T) {
 
 // TestFetchMediaRejectsNormalisedURLs: a server-supplied media URL whose path
 // a normaliser would rewrite (dot segments, encoded dots, "//", raw "\") is
-// never fetched, so a hostile Media.URL cannot aim the bearer token at
-// another endpoint of the API origin.
+// never fetched. checkPath alone only stops paths a normaliser changes; that
+// a Media.URL cannot name another API endpoint at all is
+// TestFetchMediaSameOriginOnlyMediaPath.
 func TestFetchMediaRejectsNormalisedURLs(t *testing.T) {
 	s := apitest.New(t)
 	c := s.Client()
@@ -272,13 +274,92 @@ func TestFetchMediaRejectsNormalisedURLs(t *testing.T) {
 	}
 }
 
+// TestFetchMediaSameOriginOnlyMediaPath: on the API origin (where the bearer
+// token is attached) FetchMedia only GETs <base path>/v1/media/<one segment>.
+// A hostile Media.URL naming another endpoint ("/v1/me", "/v1/auth/sessions")
+// is a client-side invalid_request and nothing is sent, so the token never
+// reaches it. A foreign origin gets no token and keeps working.
+func TestFetchMediaSameOriginOnlyMediaPath(t *testing.T) {
+	s := apitest.New(t)
+	c := s.Client()
+	for _, u := range []string{
+		"/v1/me", "/v1/auth/sessions", "v1/me", "/v1/media", "/v1/mediax/U", "/v2/media/U",
+		"/v1/media/U/extra", "/v1/media/U%2F..", "/V1/media/U", "/x/v1/media/U",
+		s.URL + "/v1/me", s.URL + "/v1/auth/sessions", s.URL + "/v1/media/U/x",
+		strings.ToUpper(s.URL[:4]) + s.URL[4:] + "/v1/me",
+	} {
+		e := asError(t, func() error { _, err := c.FetchMedia(ctx, u, ""); return err }())
+		if e.Status != 400 || e.Code != "invalid_request" || e.Fields()["path"] != "invalid" {
+			t.Errorf("FetchMedia(%q) err = %+v (fields %v), want 400 invalid_request path=invalid", u, e, e.Fields())
+		}
+	}
+	if n := len(s.Requests()); n != 0 {
+		t.Errorf("requests = %d, want 0: %+v", n, s.Requests())
+	}
+
+	// A base URL with a path prefix: only <prefix>/v1/media/<id> is the API's.
+	pc := api.New(s.URL+"/pre/", api.WithToken("msl_test"))
+	for _, u := range []string{s.URL + "/v1/media/U", s.URL + "/pre/v1/me", s.URL + "/prev1/media/U"} {
+		e := asError(t, func() error { _, err := pc.FetchMedia(ctx, u, ""); return err }())
+		if e.Code != "invalid_request" {
+			t.Errorf("prefixed base: FetchMedia(%q) err = %+v, want invalid_request", u, e)
+		}
+	}
+	if n := len(s.Requests()); n != 0 {
+		t.Errorf("prefixed base: requests = %d, want 0: %+v", n, s.Requests())
+	}
+
+	// Well-formed media URLs still go out, relative or absolute, with a query.
+	s.Handle("GET /v1/media/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write([]byte("png"))
+	})
+	for _, u := range []string{"/v1/media/U", "v1/media/U", s.URL + "/v1/media/U", "/v1/media/U?v=2", "/v1/media/%E2%9C%93"} {
+		if _, err := c.FetchMedia(ctx, u, ""); err != nil {
+			t.Errorf("FetchMedia(%q): %v", u, err)
+		}
+	}
+}
+
+// TestPathMethodsScanSeesMethodHelpers: the pathMethods scanner also counts
+// an exported method that reaches escPath through an unexported method
+// helper (c.helper(...)) or a chain of helpers, not only package funcs.
+func TestPathMethodsScanSeesMethodHelpers(t *testing.T) {
+	got := map[string]bool{}
+	for _, m := range scanPathMethods(t, "testdata/pathscan") {
+		got[m] = true
+	}
+	for _, m := range []string{"Direct", "ViaFunc", "ViaMethod", "ViaChain", "ViaGeneric"} {
+		if !got[m] {
+			t.Errorf("scanner missed %s (got %v)", m, got)
+		}
+	}
+	for _, m := range []string{"Constant", "NoPath"} {
+		if got[m] {
+			t.Errorf("scanner listed %s, which puts no caller value in a path", m)
+		}
+	}
+}
+
 // pathMethods lists the exported *Client methods whose request path takes a
 // caller value: they call escPath with a non-literal argument, directly or
-// through a package helper that does (likeOrRepost), plus FetchMedia.
+// through unexported helpers that do — package funcs (likeOrRepost, generic
+// one[T]) or methods on the receiver (c.helper(...)), to any depth — plus
+// FetchMedia.
 func pathMethods(t *testing.T) []string {
 	t.Helper()
+	out := scanPathMethods(t, ".")
+	if len(out) < 80 {
+		t.Fatalf("found only %d path methods: %v (scanner broken?)", len(out), out)
+	}
+	return out
+}
+
+// scanPathMethods is pathMethods over the Go package in dir.
+func scanPathMethods(t *testing.T, dir string) []string {
+	t.Helper()
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, ".", func(fi fs.FileInfo) bool { return !strings.HasSuffix(fi.Name(), "_test.go") }, 0)
+	pkgs, err := parser.ParseDir(fset, dir, func(fi fs.FileInfo) bool { return !strings.HasSuffix(fi.Name(), "_test.go") }, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,9 +373,23 @@ func pathMethods(t *testing.T) []string {
 			}
 		}
 	}
-	// calls reports whether fd calls a function named in names (pred) or
-	// escPath with a non-literal argument.
+	// key names a callee: "f" for package func f, ".m" for method m.
+	key := func(fd *ast.FuncDecl) string {
+		if fd.Recv != nil {
+			return "." + fd.Name.Name
+		}
+		return fd.Name.Name
+	}
+	recvName := func(fd *ast.FuncDecl) string {
+		if fd.Recv == nil || len(fd.Recv.List) == 0 || len(fd.Recv.List[0].Names) == 0 {
+			return ""
+		}
+		return fd.Recv.List[0].Names[0].Name
+	}
+	// usesValue reports whether fd calls escPath with a non-literal argument
+	// or calls a helper already known to (helpers, by key).
 	usesValue := func(fd *ast.FuncDecl, helpers map[string]bool) bool {
+		recv := recvName(fd)
 		found := false
 		ast.Inspect(fd.Body, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -302,31 +397,46 @@ func pathMethods(t *testing.T) []string {
 				return true
 			}
 			fn := call.Fun
-			if ix, ok := fn.(*ast.IndexExpr); ok { // generic helper[T](...)
+			switch ix := fn.(type) { // generic helper[T](...) / helper[K, V](...)
+			case *ast.IndexExpr:
+				fn = ix.X
+			case *ast.IndexListExpr:
 				fn = ix.X
 			}
-			id, ok := fn.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			if helpers[id.Name] {
-				found = true
-			}
-			if id.Name == "escPath" {
-				for _, a := range call.Args {
-					if _, lit := a.(*ast.BasicLit); !lit {
-						found = true
+			switch f := fn.(type) {
+			case *ast.Ident:
+				if helpers[f.Name] {
+					found = true
+				}
+				if f.Name == "escPath" {
+					for _, a := range call.Args {
+						if _, lit := a.(*ast.BasicLit); !lit {
+							found = true
+						}
 					}
+				}
+			case *ast.SelectorExpr: // c.helper(...) on this method's receiver
+				if x, ok := f.X.(*ast.Ident); ok && recv != "" && x.Name == recv && helpers["."+f.Sel.Name] {
+					found = true
 				}
 			}
 			return true
 		})
 		return found
 	}
+	// Unexported helpers that reach escPath, closed over helper chains.
 	helpers := map[string]bool{}
-	for _, fd := range decls {
-		if fd.Recv == nil && fd.Name.Name != "escPath" && !ast.IsExported(fd.Name.Name) && usesValue(fd, nil) {
-			helpers[fd.Name.Name] = true
+	for changed := true; changed; {
+		changed = false
+		for _, fd := range decls {
+			k := key(fd)
+			if fd.Name.Name == "escPath" || ast.IsExported(fd.Name.Name) || helpers[k] {
+				continue
+			}
+			if usesValue(fd, helpers) {
+				helpers[k] = true
+				changed = true
+			}
 		}
 	}
 	var out []string
@@ -337,9 +447,6 @@ func pathMethods(t *testing.T) []string {
 		if usesValue(fd, helpers) || fd.Name.Name == "FetchMedia" {
 			out = append(out, fd.Name.Name)
 		}
-	}
-	if len(out) < 80 {
-		t.Fatalf("found only %d path methods: %v (scanner broken?)", len(out), out)
 	}
 	return out
 }

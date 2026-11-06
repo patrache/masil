@@ -590,6 +590,7 @@ func UserID(id string) UserRef
 - 요청마다 `Authorization: Bearer`(토큰 있을 때), `User-Agent`, `Accept: application/json`. JSON 본문은 `Content-Type: application/json; charset=utf-8`.
 - 경로 매개변수는 `url.PathEscape` 로 세그먼트 단위 이스케이프(이모지 리액션, 해시태그, `@handle`).
 - 요청 경로(서버가 준 `Media.URL` 포함)에 빈 조각(`//`, 끝의 `/`)·`.`·`..`(퍼센트 인코딩된 `%2e` 꼴 포함)·생 백슬래시가 있으면 보내지 않고 `400 invalid_request` `{"fields":{"path":"invalid"}}` 를 돌려준다(네트워크 요청 0회). WHATWG URL 해석·Cloudflare URL 정규화가 이런 경로를 다른 엔드포인트로 바꾸기 때문이다(예: 초대 코드 `..` → `DELETE /v1/invites/..` 가 `/v1/` 로).
+- `FetchMedia` 는 API 출처(토큰을 붙이는 곳)에서는 `<BaseURL 경로>/v1/media/<조각 하나>` 만 가져온다. 다른 경로(`/v1/me`, `/v1/auth/sessions`, `/v1/media/a/b`, 디코딩하면 `/`·`\` 가 생기는 조각)는 보내지 않고 같은 `400 invalid_request` `{"fields":{"path":"invalid"}}` 를 돌려준다 — 악의적인 `Media.URL` 이 토큰을 다른 엔드포인트로 보내지 못하게. 다른 출처는 토큰 없이 그대로 가져온다.
 - 응답의 모르는 필드는 무시(`encoding/json` 기본). 2xx 인데 본문이 비어야 하는 엔드포인트(`204`)는 본문을 읽지 않는다.
 - **속도 제한**: 엔드포인트→리미터 표(api.md 0.7)를 정적 표로 가진다. `429` 를 받으면 `Cooldown[limiter] = now + retry_after_sec`. 쿨다운 중 같은 리미터 요청은 네트워크 없이 즉시 `&Error{Status:429, Code:"rate_limited", RetryAfter: 남은 시간}` 을 돌려준다. **자동 재시도는 `SendMessage`/`ReplyThread` 만 1회**: `RetryAfter ≤ 10s` 이면 그만큼 기다렸다가 같은 `client_nonce` 로 다시 보낸다(ctx 취소 존중).
 - `401 unauthorized` → `OnUnauthorized` 호출(같은 토큰에 대해 1회). `426` → `OnUpgradeRequired(details.min_client_version)`.
