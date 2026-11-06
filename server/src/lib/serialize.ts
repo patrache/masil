@@ -148,25 +148,44 @@ function toPresenceState(p: UserPresenceRow | null, nowMs: number): PresenceStat
   return { status: p.status, mode: p.mode, focus };
 }
 
+/** The PresenceItem anyone but the owner gets for a suspended account (api.md 3.9): no status, no last_seen_at. */
+export function suspendedPresenceItem(userId: string): PresenceItem {
+  return { user_id: userId, status: "offline", last_seen_at: null };
+}
+
 /**
  * PresenceItem (events.md 4.6, api.md 5.1 GET /presence) for existing users, in the order of `ids` (duplicates once).
- * A user without a user_presence row reads as offline / never seen. Visibility (api.md 3.6) is the caller's job.
+ * A user without a user_presence row reads as offline / never seen. A user suspended right now reads as
+ * suspendedPresenceItem (api.md 3.9: its last_seen_at would be, in effect, the suspension time); callers are never the
+ * suspended user (no session). Visibility (api.md 3.6) is the caller's job.
  */
 export async function loadPresenceItems(db: D1Database, ids: readonly string[]): Promise<PresenceItem[]> {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return [];
-  const rows = await all<{ id: string; status: PresenceItem["status"] | null; last_seen_at: number | null }>(
+  const rows = await all<{
+    id: string;
+    status: PresenceItem["status"] | null;
+    last_seen_at: number | null;
+    suspended_at: number | null;
+    suspended_until: number | null;
+  }>(
     db,
-    `SELECT u.id, p.status, p.last_seen_at
+    `SELECT u.id, p.status, p.last_seen_at, u.suspended_at, u.suspended_until
        FROM users u LEFT JOIN user_presence p ON p.user_id = u.id
       WHERE u.id IN (SELECT value FROM json_each(?1))`,
     jsonList(unique),
   );
+  const t = now();
   const byId = new Map(rows.map((r) => [r.id, r]));
   const out: PresenceItem[] = [];
   for (const id of unique) {
     const r = byId.get(id);
-    if (r) out.push({ user_id: r.id, status: r.status ?? "offline", last_seen_at: isoOrNull(r.last_seen_at) });
+    if (!r) continue;
+    out.push(
+      isSuspendedNow(r, t)
+        ? suspendedPresenceItem(r.id)
+        : { user_id: r.id, status: r.status ?? "offline", last_seen_at: isoOrNull(r.last_seen_at) },
+    );
   }
   return out;
 }

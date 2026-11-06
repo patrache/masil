@@ -14,7 +14,7 @@ import { all } from "../lib/db";
 import { newId, isId } from "../lib/ids";
 import { getChannelAccess } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
-import { loadPresenceItems } from "../lib/serialize";
+import { loadPresenceItems, suspendedPresenceItem } from "../lib/serialize";
 import { iso } from "../lib/time";
 import type { Alert, Focus, FocusSummary, PresenceState, PresenceStatus } from "../types/api";
 import type { HelloData, PresenceItem, ReadyData, ReplyErrorCode, ServerEventType } from "../types/events";
@@ -978,7 +978,26 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       console.error({ msg: "UserHub: presence write failed", err: errFields(e) });
     }
     if (plan.watchers !== null) {
-      await publishEvent(this.runtime(), { presenceWatchers: plan.userId }, "presence.updated", plan.watchers, { ephemeral: true });
+      const item = await this.watcherPresence(plan.watchers);
+      await publishEvent(this.runtime(), { presenceWatchers: plan.userId }, "presence.updated", item, { ephemeral: true });
+    }
+  }
+
+  /**
+   * What watchers get: `item`, or suspendedPresenceItem while the user is suspended (api.md 3.9) — the 4003 close on
+   * suspension takes the status offline, and its last_seen_at is in effect the suspension time. Read from D1 here
+   * (status changes only) since suspension is decided outside the hub; if the read fails, last_seen_at is dropped
+   * rather than risk showing it.
+   */
+  protected async watcherPresence(item: PresenceItem): Promise<PresenceItem> {
+    try {
+      const u = await this.env.DB.prepare("SELECT suspended_at, suspended_until FROM users WHERE id = ?1")
+        .bind(item.user_id)
+        .first<{ suspended_at: number | null; suspended_until: number | null }>();
+      return u !== null && isSuspendedNow(u, this.now()) ? suspendedPresenceItem(item.user_id) : item;
+    } catch (e) {
+      console.error({ msg: "UserHub: suspension read for presence.updated failed", err: errFields(e) });
+      return { ...item, last_seen_at: null };
     }
   }
 

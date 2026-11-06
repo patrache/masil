@@ -719,3 +719,29 @@ func TestFriendsHostileIntegrity(t *testing.T) {
 		})
 	}
 }
+
+// A friend's suspension (or its end) arrives as user.updated (api.md 3.9): the
+// open friends list drops the stale status message without a refetch, and shows
+// the restored one after unsuspend.
+func TestFriendsUserUpdatedOnSuspension(t *testing.T) {
+	h := openFriends(t, uitest.Size{W: 120, H: 40})
+	st := seeded()
+	minji := userBy(t, st, "minji")
+	emoji := "🎧"
+	withStatus := minji
+	withStatus.Status = &api.UserStatus{Emoji: &emoji, Text: "회의 중"}
+	h.Event("user.updated", realtime.UserUpdated{User: withStatus})
+	mustContain(t, paneText(t, h, layout.SlotMain), "회의 중")
+
+	suspended := minji
+	suspended.Suspended = true
+	h.Event("user.updated", realtime.UserUpdated{User: suspended})
+	main := paneText(t, h, layout.SlotMain)
+	if strings.Contains(main, "회의 중") {
+		t.Fatalf("a suspended friend's status message is hidden:\n%s", main)
+	}
+	mustContain(t, main, textwidth.Sanitize(minji.DisplayName))
+
+	h.Event("user.updated", realtime.UserUpdated{User: withStatus})
+	mustContain(t, paneText(t, h, layout.SlotMain), "회의 중")
+}

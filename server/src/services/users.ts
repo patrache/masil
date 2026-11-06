@@ -4,7 +4,8 @@ import type { Runtime } from "../env";
 import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { newId } from "../lib/ids";
-import { serializeAdminUsers } from "../lib/serialize";
+import { publishEvent } from "../lib/realtime";
+import { serializeAdminUsers, toUserSummary } from "../lib/serialize";
 import { now } from "../lib/time";
 import type { AdminUserView } from "../types/api";
 import type { UserRow } from "../types/rows";
@@ -50,6 +51,17 @@ export async function revokeSessions(
   } catch (e) {
     console.error({ msg: "revokeSessions: UserHub call failed", err: errFields(e) });
   }
+}
+
+/**
+ * user.updated{user} to the account's presence watchers (events.md 4.5) after suspend / unsuspend: the summary turns
+ * suspended=true with status and avatar_url null (api.md 3.9), or back. The account itself has no live session then.
+ * A suspension that simply runs out (suspended_until) sends nothing; clients see it on their next fetch.
+ */
+async function publishSuspensionChange(rt: Runtime, userId: string): Promise<void> {
+  const row = await first<UserRow>(rt.env.DB, "SELECT * FROM users WHERE id = ?1", userId);
+  if (row === null) return;
+  await publishEvent(rt, { presenceWatchers: userId }, "user.updated", { user: toUserSummary(row) });
 }
 
 function adminActionStmt(
@@ -122,6 +134,7 @@ export async function suspendUser(
   await batch(db, stmts);
 
   await revokeSessions(rt, userId, "all", "suspended");
+  await publishSuspensionChange(rt, userId);
   return adminUserView(db, userId);
 }
 
@@ -139,5 +152,6 @@ export async function unsuspendUser(rt: Runtime, adminId: string, userId: string
     ),
     adminActionStmt(db, t, adminId, "unsuspend_user", userId, null, ""),
   ]);
+  await publishSuspensionChange(rt, userId);
   return adminUserView(db, userId);
 }

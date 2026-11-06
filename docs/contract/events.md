@@ -256,7 +256,7 @@ client                                   server (UserHub)
 | `friend.added` | 각자에게 | `{ friend: Friend }` (상대 정보) |
 | `friend.removed` | 각자에게(차단으로 인한 해제는 차단한 사람에게만) | `{ user_id: ID }` |
 | `block.updated` | `users:[나]` | `{ user_id: ID, blocked: boolean }` |
-| `user.updated` | `presenceWatchers:<user_id>` + 나 | `{ user: UserSummary }` — 이름·아바타·상태 메시지·비공개 여부 변경 |
+| `user.updated` | `presenceWatchers:<user_id>` + 나 | `{ user: UserSummary }` — 이름·아바타·상태 메시지·비공개 여부 변경, 운영자의 정지·정지 해제(`api.md` 3.9, 이때는 `presenceWatchers` 만) |
 | `settings.updated` | `users:[나]` | `{ settings: Settings }` |
 
 모두 기록, F.
@@ -265,8 +265,8 @@ client                                   server (UserHub)
 
 | type | 청중 | 기록 | 모드 | data |
 |---|---|---|---|---|
-| `presence.snapshot` | 이 연결만 | 휘발 | F | `{ items: [ { user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null } ] }` — `ready` 직후, 친구 + DM/그룹 DM 상대 전원 |
-| `presence.updated` | `presenceWatchers:<user_id>` | 휘발 | F | `{ user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null }` |
+| `presence.snapshot` | 이 연결만 | 휘발 | F | `{ items: [ { user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null } ] }` — `ready` 직후, 친구 + DM/그룹 DM 상대 전원. 정지 중인 계정은 `status: "offline"`, `last_seen_at: null`(`api.md` 3.9) |
+| `presence.updated` | `presenceWatchers:<user_id>` | 휘발 | F | `{ user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null }` — 정지 중인 계정은 `status: "offline"`, `last_seen_at: null`(`api.md` 3.9; 정지 순간의 연결 종료 포함) |
 | `presence.self` | `users:[나]` | 휘발 | F | `{ presence: PresenceState }` — 내 상태가 바뀔 때(다른 기기 반영) |
 | `focus.started` | `users:[나]` | 기록 | F/N | `{ focus: Focus }` |
 | `focus.ended` | `users:[나]` | 기록 | F/N | `{ summary: FocusSummary }` |
