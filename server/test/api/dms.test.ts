@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import { newId } from "../../src/lib/ids";
 import { loadUnreadStates } from "../../src/lib/serialize";
-import { addChannelMembers } from "../../src/services/membership";
+import { addChannelMembers, groupDmDenial } from "../../src/services/membership";
 import { api, connectWs, makeFriends, signup } from "../helpers";
 
 // ---- local fixtures (this file only) ----
@@ -298,6 +298,50 @@ describe("dms", () => {
     expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id, p.user.id].sort());
     const ch = await env.DB.prepare("SELECT member_count FROM channels WHERE id = ?1").bind(g.id).first<{ member_count: number }>();
     expect(ch?.member_count).toBe(4);
+  });
+
+  /** A Runtime whose D1 handle counts batch() calls (the member-add insert is the only batch before the refusal). */
+  function countsBatches() {
+    let batches = 0;
+    const db = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "batch") {
+          return async (stmts: D1PreparedStatement[]) => {
+            batches++;
+            return target.batch(stmts);
+          };
+        }
+        const v = Reflect.get(target, key);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    return { rt: { env: { ...env, DB: db }, waitUntil: () => {} }, batches: () => batches };
+  }
+
+  // Pending item 8-b: the block gate has two clauses — the user being added blocked someone in the room, or someone in
+  // the room (an existing member) blocked the user being added. Through the API the in-batch re-check hides a missing
+  // pre-check clause (the insert refuses the same add), so these pin the pre-check itself: it must refuse before the
+  // insert batch runs, for each direction.
+  it("group dm add: the pre-check refuses a block either way with an existing member before the insert batch runs", async () => {
+    const [o, x, y, v, w] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    for (const f of [x, y, v, w]) await makeFriends(o, f);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    // clause 2: y (an existing member) blocked w (the user being added)
+    await api(y.token).put(`/v1/blocks/@${w.handle}`);
+    const memberToNew = countsBatches();
+    await expectHiddenBlockRejection(addChannelMembers(memberToNew.rt, g.id, o.user.id, [w.user.id]), [w.user.id, y.user.id]);
+    expect(memberToNew.batches()).toBe(0);
+    // clause 1: v (the user being added) blocked x (an existing member)
+    await api(v.token).put(`/v1/blocks/@${x.handle}`);
+    const newToMember = countsBatches();
+    await expectHiddenBlockRejection(addChannelMembers(newToMember.rt, g.id, o.user.id, [v.user.id]), [v.user.id, x.user.id]);
+    expect(newToMember.batches()).toBe(0);
+    expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id].sort());
+    // the gate as a plain read: the block from existing member y toward newcomer w refuses; without y in the room it passes
+    const denial = await groupDmDenial(env.DB, o.user.id, [w.user.id], [o.user.id, x.user.id, y.user.id]);
+    expect(denial).toMatchObject({ status: 403, code: "dm_not_allowed" });
+    expect(denial!.details).toEqual({});
+    expect(await groupDmDenial(env.DB, o.user.id, [w.user.id], [o.user.id, x.user.id])).toBeNull();
   });
 
   it("group dm add: concurrent adds of two users who block each other -> at most one gets in, the other 403 dm_not_allowed", async () => {
