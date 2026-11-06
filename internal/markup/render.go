@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
+	"golang.org/x/text/unicode/norm"
 )
 
 // RenderOptions controls Render.
@@ -425,7 +426,10 @@ func hyperlinkable(u string) bool {
 			return false
 		}
 	}
-	return true
+	// Pending fix 0-c: what the screen shows must be the target itself (only
+	// NFC normalization may differ), or the shown address and the one OSC 8
+	// opens could disagree.
+	return norm.NFC.String(u) == textwidth.Sanitize(u)
 }
 
 // HyperlinkTarget percent-encodes u for an OSC 8 target: every byte outside

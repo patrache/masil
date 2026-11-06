@@ -629,20 +629,24 @@ func TestRenderHyperlinkSanitizedOnly(t *testing.T) {
 	}
 }
 
-// TestRenderHyperlinkScripts (pending-fixes 0-b ②): the OSC 8 guard rejects
-// only what can make the target differ from the text the viewer reads
-// (controls, invalid UTF-8, format characters, line separators). Scripts and
-// emoji whose display Sanitize adjusts (Indic clusters, NFD, VS16, skin tones)
-// stay clickable with their exact percent-encoded target.
+// TestRenderHyperlinkScripts (pending-fixes 0-b ②, 0-c): a URL is an OSC 8
+// hyperlink only when the text the viewer reads (Sanitize) is the target
+// itself up to NFC. Scripts Sanitize leaves alone stay clickable with their
+// exact percent-encoded target; URLs whose display Sanitize changes (dropped
+// vowel signs, VS16, skin tones) are shown as plain link-styled text instead,
+// so the shown address and the opened address can never disagree.
 func TestRenderHyperlinkScripts(t *testing.T) {
+	render := func(body string) string {
+		d := markup.Parse(body, markup.ParseOptions{})
+		lines := markup.Render(d, amber, markup.RenderOptions{Width: 120, Hyperlinks: true})
+		checkLines(t, lines, 120)
+		joined := strings.Join(lines, "\n")
+		checkOnlyOSC8(t, joined)
+		checkOSC8Targets(t, joined)
+		return joined
+	}
 	for _, u := range []string{
-		"https://hi.wikipedia.org/wiki/हिन्दी",
-		"https://hi.wikipedia.org/wiki/क्षत्रिय",
-		"https://ta.wikipedia.org/wiki/தமிழ்",
-		"https://bn.wikipedia.org/wiki/বাংলা_ভাষা",
-		"https://example.com/cafe\u0301", // NFD café
-		"https://emojipedia.org/❤️",
-		"https://emojipedia.org/👍🏽",
+		"https://example.com/cafe\u0301", // NFD café: only NFC differs
 		"https://ko.wikipedia.org/wiki/대한민국",
 		"https://ja.wikipedia.org/wiki/日本語",
 		"https://th.wikipedia.org/wiki/ภาษาไทย",
@@ -650,14 +654,22 @@ func TestRenderHyperlinkScripts(t *testing.T) {
 	} {
 		want := "\x1b]8;;" + markup.HyperlinkTarget(u) + "\x07"
 		for _, body := range []string{u, "보기 " + u + " 끝", "[문서](" + u + ")"} {
-			d := markup.Parse(body, markup.ParseOptions{})
-			lines := markup.Render(d, amber, markup.RenderOptions{Width: 120, Hyperlinks: true})
-			checkLines(t, lines, 120)
-			joined := strings.Join(lines, "\n")
-			checkOnlyOSC8(t, joined)
-			checkOSC8Targets(t, joined)
-			if !strings.Contains(joined, want) {
+			if joined := render(body); !strings.Contains(joined, want) {
 				t.Errorf("Render(%q): no OSC 8 to %q in %q", body, markup.HyperlinkTarget(u), joined)
+			}
+		}
+	}
+	for _, u := range []string{
+		"https://hi.wikipedia.org/wiki/हिन्दी",
+		"https://hi.wikipedia.org/wiki/क्षत्रिय",
+		"https://ta.wikipedia.org/wiki/தமிழ்",
+		"https://bn.wikipedia.org/wiki/বাংলা_ভাষা",
+		"https://emojipedia.org/❤️",
+		"https://emojipedia.org/👍🏽",
+	} {
+		for _, body := range []string{u, "보기 " + u + " 끝", "[문서](" + u + ")"} {
+			if joined := render(body); strings.Contains(joined, "\x1b]8;") {
+				t.Errorf("Render(%q): display differs from target but hyperlinked: %q", body, joined)
 			}
 		}
 	}
