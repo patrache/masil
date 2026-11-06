@@ -258,6 +258,31 @@ describe("invites whose inviter lost the right to invite", () => {
     });
   }
 
+  // pending item 9-a (sibling of the link test below): the use-time "inviter is a member" check alone also refuses the
+  // invite while the inviter is out, so it cannot tell whether removal really canceled it. Once the inviter is back in
+  // the space (and still the invitee's friend) only the cancel written at removal keeps the old invite dead.
+  for (const how of ["kicked", "banned", "left"] as const) {
+    it(`direct invite from a member who was ${how}: stays canceled after the inviter rejoins`, async () => {
+      const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+      const { space } = await makeSpace(o, [m]);
+      await makeFriends(m, f);
+      const di = (await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` })).body.invite;
+      const ownerLink = (await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, { max_uses: null, expires_in_sec: null })).body.invite;
+      const path = how === "left" ? `/v1/spaces/${space.id}/members/@me` : `/v1/spaces/${space.id}/members/@${m.handle}${how === "banned" ? "?ban=true" : ""}`;
+      expect((await api(how === "left" ? m.token : o.token).del(path)).status).toBe(204);
+      if (how === "banned") expect((await api(o.token).del(`/v1/spaces/${space.id}/bans/@${m.handle}`)).status).toBe(204);
+      expect((await api(m.token).post(`/v1/invites/${ownerLink.code}/accept`)).status).toBe(200);
+      expect((await api(f.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+      expect((await api(f.token).post(`/v1/direct-invites/${di.id}/accept`)).status).toBe(404);
+      expect((await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(di.id).first<any>()).status).toBe("canceled");
+      expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM space_members WHERE space_id=?1 AND user_id=?2").bind(space.id, f.user.id).first<any>()).n).toBe(0);
+      // a fresh invite from the rejoined member still works: only the old one is dead
+      const fresh = await api(m.token).post<any>(`/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+      expect(fresh.status).toBe(201);
+      expect((await api(f.token).post(`/v1/direct-invites/${fresh.body.invite.id}/accept`)).status).toBe(200);
+    });
+  }
+
   it("direct invite still pending although its inviter is gone (no cancel ran): accept 404, invite untouched", async () => {
     const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
     const { space } = await makeSpace(o, [m]);
