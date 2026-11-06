@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/gif"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"testing"
@@ -574,5 +575,133 @@ func TestPrepareUploadRefusesBrokenGIF(t *testing.T) {
 				t.Fatalf("err = %v, want ErrUnsupported (malformed)", err)
 			}
 		})
+	}
+}
+
+// --- Over MaxUploadBytes: strip, then header check and JPEG downscale ---
+
+// bigGIF returns a GIF of identical side x side noise frames (one 256-colour
+// global palette, no extensions) whose image data alone exceeds
+// MaxUploadBytes, plus the length of its header and the first frame's block.
+// The frames are copies of one encoded frame, so only one is ever encoded;
+// the downscale path decodes just the first.
+func bigGIF(t *testing.T, side int) (b []byte, h int, first *image.Paletted) {
+	t.Helper()
+	pal := make(color.Palette, 256)
+	for i := range pal {
+		pal[i] = color.RGBA{uint8(i), uint8(i * 7), uint8(i * 13), 255}
+	}
+	first = image.NewPaletted(image.Rect(0, 0, side, side), pal)
+	rng := rand.New(rand.NewPCG(3, 4))
+	for i := range first.Pix {
+		first.Pix[i] = uint8(rng.UintN(256))
+	}
+	var one bytes.Buffer
+	if err := gif.Encode(&one, first, &gif.Options{NumColors: 256}); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	enc := one.Bytes()
+	h = gifHeaderLen(enc)
+	frame := enc[h : len(enc)-1] // image descriptor .. LZW data, no trailer
+	b = append([]byte{}, enc[:h]...)
+	for len(b) <= imgrender.MaxUploadBytes+len(frame) {
+		b = append(b, frame...)
+	}
+	return append(b, 0x3B), h, first
+}
+
+// A GIF still over the limit once its metadata is gone is downscaled from
+// the stripped bytes. Go's GIF decoder refuses both inputs below (an unknown
+// extension, a graphic control extension with an extra sub-block), and
+// stripMetadata repairs both, so decoding the original bytes instead of the
+// stripped ones fails the upload.
+func TestPrepareUploadDownscalesStrippedGIF(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a >5MB GIF")
+	}
+	const side = 400
+	clean, h, first := bigGIF(t, side)
+	smuggledGCE := ext(0xF9, subBlocks("\x04\x00\x00\x00", "SECRET"))
+	cases := map[string][]byte{
+		"unknown extension":   insertAt(clean, h, gifComment, gifUnknown, gifXMP),
+		"GCE extra sub-block": insertAt(clean, h, gifComment, smuggledGCE),
+	}
+	for name, in := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := gif.Decode(bytes.NewReader(in)); err == nil {
+				t.Fatal("fixture decodes as it is; it would not tell stripped from original bytes")
+			}
+			out, ct := prepare(t, "big.gif", in)
+			if ct != "image/jpeg" {
+				t.Fatalf("ct = %q, want image/jpeg (downscaled)", ct)
+			}
+			if len(out) > imgrender.MaxUploadBytes {
+				t.Fatalf("len(out) = %d > %d", len(out), imgrender.MaxUploadBytes)
+			}
+			assertNoLeaks(t, out)
+			dec, err := imgrender.Decode(out, ct)
+			if err != nil {
+				t.Fatalf("Decode(output): %v", err)
+			}
+			if s := dec.Bounds().Size(); s.X != side || s.Y != side {
+				t.Fatalf("output size = %v, want the first frame at %dx%d", s, side, side)
+			}
+			// JPEG is lossy: compare the mean channel value with the frame's.
+			var got, want float64
+			for y := 0; y < side; y++ {
+				for x := 0; x < side; x++ {
+					r1, _, _, _ := dec.At(x, y).RGBA()
+					r2, _, _, _ := first.At(x, y).RGBA()
+					got += float64(r1 >> 8)
+					want += float64(r2 >> 8)
+				}
+			}
+			if d := (got - want) / (side * side); d > 4 || d < -4 {
+				t.Fatalf("mean red differs by %.1f from the first frame", d)
+			}
+		})
+	}
+}
+
+// A still WebP over the limit once its metadata is gone is downscaled from
+// the stripped bytes, and the JPEG carries none of the metadata.
+func TestPrepareUploadDownscalesStrippedWebP(t *testing.T) {
+	clean := readFixture(t, "simple-lossless.webp")
+	vp8l := parseRIFF(t, clean)[0]
+	cfg, err := webp.DecodeConfig(bytes.NewReader(clean))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// vp8l stops reading at the end of its bitstream, so zero padding inside
+	// the chunk makes a large file that still decodes.
+	big := riffChunk{"VP8L", append(append([]byte{}, vp8l.data...), make([]byte, imgrender.MaxUploadBytes)...)}
+	vp8x := make([]byte, 10)
+	vp8x[0] = vp8xICC | vp8xEXIF | vp8xXMP
+	w, hh := cfg.Width-1, cfg.Height-1
+	vp8x[4], vp8x[5], vp8x[6] = byte(w), byte(w>>8), byte(w>>16)
+	vp8x[7], vp8x[8], vp8x[9] = byte(hh), byte(hh>>8), byte(hh>>16)
+	in := buildWebP(riffChunk{"VP8X", vp8x},
+		riffChunk{"ICCP", []byte("ICCPROFILE")},
+		big,
+		riffChunk{"EXIF", []byte("Exif\x00\x00MM GPS 37.5665 iPhone")},
+		riffChunk{"XMP ", []byte("<x:xmpmeta>GPS</x:xmpmeta>")})
+	if _, err := webp.Decode(bytes.NewReader(in)); err != nil {
+		t.Fatalf("fixture does not decode: %v", err)
+	}
+
+	out, ct := prepare(t, "big.webp", in)
+	if ct != "image/jpeg" {
+		t.Fatalf("ct = %q, want image/jpeg (downscaled)", ct)
+	}
+	if len(out) > imgrender.MaxUploadBytes {
+		t.Fatalf("len(out) = %d > %d", len(out), imgrender.MaxUploadBytes)
+	}
+	assertNoLeaks(t, out)
+	dec, err := imgrender.Decode(out, ct)
+	if err != nil {
+		t.Fatalf("Decode(output): %v", err)
+	}
+	if s := dec.Bounds().Size(); s.X != cfg.Width || s.Y != cfg.Height {
+		t.Fatalf("output size = %v, want %dx%d", s, cfg.Width, cfg.Height)
 	}
 }
