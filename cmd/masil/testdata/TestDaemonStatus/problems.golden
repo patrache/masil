@@ -1,0 +1,8 @@
+masil 알림 데몬
+  자동 시작  등록됨 · launchd /Users/sam/Library/LaunchAgents/com.patrache.masil.daemon.plist
+  실행       실행 중
+  계정       @sam · http://localhost:8787
+  알림       켜짐
+  동기화     11:04 저장 · seq 1041
+  최근 경고
+    time=2026-11-05T11:04:00+09:00 level=WARN msg="session rejected; waiting for new credentials" reason=unauthorized token="msl_…(redacted)"

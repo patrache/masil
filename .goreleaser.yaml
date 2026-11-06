@@ -1,0 +1,88 @@
+# GoReleaser v2.19.0 configuration for the masil client (plan 06 Task 9).
+# Releases run only from the tag-triggered workflow (.github/workflows/release.yml).
+# Archive names carry no version so releases/latest/download/<name> always
+# resolves to the newest build (install.sh, install.ps1, Homebrew formula).
+version: 2
+
+project_name: masil
+
+before:
+  hooks:
+    # Never `go mod tidy` here: go.mod/go.sum are owned by client core.
+    - go mod download
+
+builds:
+  - id: masil
+    main: ./cmd/masil
+    binary: masil
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # With -trimpath the go command leaves -ldflags out of the embedded build info
+    # (go.dev/issue/52372), so `go version -m` never shows the -X values below.
+    # Verify the default server with scripts/check-release-binary.sh instead.
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w
+      - -X github.com/patrache/masil/internal/version.Version={{ .Version }}
+      - -X github.com/patrache/masil/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/patrache/masil/internal/version.Date={{ .Date }}
+      # The release workflow refuses to run unless MASIL_DEFAULT_SERVER is https://,
+      # and the post hook below checks every built binary before anything is
+      # archived or published (not `go version -m | grep DefaultServer=`, which
+      # -trimpath makes always fail).
+      - -X github.com/patrache/masil/internal/config.DefaultServer={{ envOrDefault "MASIL_DEFAULT_SERVER" "http://localhost:8787" }}
+    # Review Focus 2: a binary that does not embed the https:// default server
+    # (or was not built with CGO_ENABLED=0) fails the build here, so goreleaser
+    # aborts before archiving and before the GitHub release is created. An
+    # unset MASIL_DEFAULT_SERVER is passed as '' and rejected by the script, so
+    # a local `release --snapshot` needs MASIL_DEFAULT_SERVER=https://… too.
+    hooks:
+      post:
+        - cmd: sh scripts/check-release-binary.sh '{{ .Path }}' '{{ envOrDefault "MASIL_DEFAULT_SERVER" "" }}'
+          output: true
+
+archives:
+  - ids:
+      - masil
+    name_template: "masil_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    # The license file is chosen by the owner when the repo goes public.
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: patrache
+    name: masil
+  prerelease: auto
+  draft: false
