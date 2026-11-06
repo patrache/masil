@@ -533,6 +533,7 @@ export type Audience =
   | { space: string }
   | { followers: string }           // active followers of userId (blocked pairs removed)
   | { presenceWatchers: string }    // friends + dm/group_dm co-members of userId
+  | { summaryWatchers: string }     // presenceWatchers + co-members of userId's live spaces (suspend/unsuspend user.updated)
   | { topic: string };              // "post:<id>" -> TopicHub
 
 /** Per-recipient post visibility (events.md 4.8, api.md 3.4). A recipient R passes iff

@@ -737,7 +737,11 @@ interface AdminAction {
   - 프로필(`GET /v1/users/{user}`, 5.2): `bio: ""`, `status: null`, `avatar_url: null`, `follower_count`·`following_count`·`post_count` 는 `0`, `presence`·`last_seen_at` 은 `null`. `id`·`created_at`·`is_private` 와 `relationship`(열람자 자신의 상태 — 내가 차단했는지 등; 정지 중이므로 `can_dm=false`, `can_view_posts=false`)은 그대로.
   - 그 밖의 모든 `UserSummary`(사용자 목록·`GET /v1/users?ids=`·친구·멤버·메시지 작성자·이벤트 등): `status: null`, `avatar_url: null`.
   - 접속 상태(3.6 범위 안의 사람에게도): `GET /v1/presence`·`presence.snapshot`·`presence.updated` 의 항목은 `status: "offline"`, `last_seen_at: null`(결과에서 빠지지는 않는다), `Friend.presence` 는 `offline`. 정지 순간 소켓이 끊겨 나가는 `presence.updated` 도 같다.
-  - 정지·정지 해제(`/v1/admin/users/{user}/suspend`·`/unsuspend`) 때 그 계정의 `presenceWatchers` 에 `user.updated`(`suspended`·`status`·`avatar_url` 이 바뀐 `UserSummary`)가 나간다. `suspended_until` 이 지나 저절로 풀릴 때는 이벤트가 없다(다음 조회에서 보인다).
+  - 친구 목록(`GET /v1/friends`, 5.3)의 정렬·`next_cursor` 도 정지 중인 친구를 offline 으로 친다(실제 `dnd` 여도 offline 무리에 이름순). 정지가 끝나면 실제 상태로 다시 정렬된다.
+  - 정지·정지 해제(`/v1/admin/users/{user}/suspend`·`/unsuspend`) 때:
+    - 그 계정의 `summaryWatchers`(친구 + DM/그룹 DM 상대 + 같은 방 멤버, `events.md` 6.1)에 `user.updated`(`suspended`·`status`·`avatar_url` 이 바뀐 `UserSummary`)가 나간다. 기록 이벤트라서, 끊겼다가 `resume` 하는 사람은 정지 전 이벤트(가리지 않은 작성자 요약)를 재생받은 **뒤에** 이 `user.updated` 를 받는다.
+    - 그 계정의 `presenceWatchers` 에 `presence.updated` 가 상태 변화와 상관없이 나간다 — 정지는 `offline`·`last_seen_at: null`, 해제는 실제 항목. 수동 `dnd`·집중 모드는 소켓이 없어도 유지되므로(`events.md` 6.3) 정지 순간의 연결 종료만으로는 바뀌지 않기 때문이다.
+    - `suspended_until` 이 지나 저절로 풀릴 때는 이벤트가 없다(다음 조회에서 보인다).
   - 그 계정의 아바타 이미지(`GET /v1/media/{upload_id}`, 5.14)는 본인·운영자 외 `404`.
   - 운영자 화면(`/v1/admin/*` 의 `AdminUserView`·`Report.reporter`·`Report.target_user`·`AdminAction.admin`)은 가리지 않는다.
   - 정지가 끝나면(`suspended_until <= 지금`) 모두 다시 보인다. 판정 경계는 3.4 규칙 2 와 같다.
@@ -853,7 +857,7 @@ interface AdminAction {
 ### 5.3 친구
 
 #### `GET /v1/friends?cursor=&limit=`
-- 정렬: 접속 중 먼저, 그다음 display_name. `limit` 최대 100.
+- 정렬: 접속 중 먼저, 그다음 display_name. 정지 중인 친구는 `Friend.presence` 처럼 offline 으로 친다(3.9). `limit` 최대 100.
 - `200 { "items": Friend[], "next_cursor": string | null }`
 
 #### `DELETE /v1/friends/{user}`

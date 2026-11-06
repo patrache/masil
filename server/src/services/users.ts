@@ -5,7 +5,7 @@ import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { newId } from "../lib/ids";
 import { publishEvent } from "../lib/realtime";
-import { serializeAdminUsers, toUserSummary } from "../lib/serialize";
+import { loadPresenceItems, serializeAdminUsers, toUserSummary } from "../lib/serialize";
 import { now } from "../lib/time";
 import type { AdminUserView } from "../types/api";
 import type { UserRow } from "../types/rows";
@@ -54,14 +54,24 @@ export async function revokeSessions(
 }
 
 /**
- * user.updated{user} to the account's presence watchers (events.md 4.5) after suspend / unsuspend: the summary turns
- * suspended=true with status and avatar_url null (api.md 3.9), or back. The account itself has no live session then.
+ * After suspend / unsuspend (api.md 3.9), so open views follow without a refetch. The account itself has no live
+ * session then.
+ * - user.updated{user} (logged, events.md 4.5) to its summaryWatchers — friends, DM / group DM co-members and members
+ *   of its spaces, whose member lists and message authors hold its UserSummary: suspended=true with status and
+ *   avatar_url null, or back. Being logged, a member who resumes replays it after any older event that carried the
+ *   unmasked summary.
+ * - presence.updated (ephemeral, events.md 4.6) to its presenceWatchers: offline / null, or the real item back. The
+ *   4003 close only announces a status change, and a manual dnd or a focus holds with zero sockets (events.md 6.3), so
+ *   without this the watchers would keep showing it as dnd. An online account gets the same offline item twice
+ *   (here and from the close) — harmless, the item is the same.
  * A suspension that simply runs out (suspended_until) sends nothing; clients see it on their next fetch.
  */
 async function publishSuspensionChange(rt: Runtime, userId: string): Promise<void> {
   const row = await first<UserRow>(rt.env.DB, "SELECT * FROM users WHERE id = ?1", userId);
   if (row === null) return;
-  await publishEvent(rt, { presenceWatchers: userId }, "user.updated", { user: toUserSummary(row) });
+  await publishEvent(rt, { summaryWatchers: userId }, "user.updated", { user: toUserSummary(row) });
+  const [item] = await loadPresenceItems(rt.env.DB, [userId]);
+  if (item !== undefined) await publishEvent(rt, { presenceWatchers: userId }, "presence.updated", item, { ephemeral: true });
 }
 
 function adminActionStmt(

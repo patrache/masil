@@ -5,7 +5,7 @@
 // presence watchers, so an open friends list drops (and later restores) the status message and avatar.
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { api, connectWs, makeAdmin, makeFriends, signup, type TestUser } from "../helpers";
+import { api, connectWs, makeAdmin, makeFriends, makeSpace, signup, type TestUser } from "../helpers";
 
 const settle = (ms = 150) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -81,5 +81,64 @@ describe("presence of a suspended account (D1)", () => {
     expect((await api(adm.token).post(`/v1/admin/users/@${o.handle}/unsuspend`)).status).toBe(200);
     const back = await cf.next("user.updated", (d) => d.user.id === o.user.id && d.user.suspended === false);
     expect(back.data.user.status).toEqual(expect.objectContaining({ text: "듣는 중" }));
+  });
+  // A manual dnd (or a focus) holds with zero sockets (events.md 6.3), so the 4003 close does not change the hub's
+  // status and the hub announces nothing: suspension itself must tell the watchers.
+  for (const [label, enter] of [
+    ["manual dnd", (o: TestUser) => api(o.token).put("/v1/me/presence", { mode: "dnd" })],
+    ["focus", (o: TestUser) => api(o.token).post("/v1/me/focus", { duration_sec: 600 })],
+  ] as const) {
+    it(`${label}: suspension sends presence.updated offline / null to friends; unsuspend sends the real presence back`, async () => {
+      const [o, f, adm] = await Promise.all([signup(), signup(), signup()]);
+      await makeAdmin(adm);
+      await makeFriends(o, f);
+      await connectWs(o.token);
+      expect((await enter(o)).status).toBeLessThan(300);
+      const cf = await connectWs(f.token);
+      expect((await cf.next("presence.snapshot")).data.items).toEqual([expect.objectContaining({ user_id: o.user.id, status: "dnd" })]);
+      expect((await api(adm.token).post(`/v1/admin/users/@${o.handle}/suspend`, { reason: "spam" })).status).toBe(200);
+      const off = await cf.next("presence.updated", (d) => d.user_id === o.user.id);
+      expect(off.data).toEqual({ user_id: o.user.id, status: "offline", last_seen_at: null });
+      expect((await api(adm.token).post(`/v1/admin/users/@${o.handle}/unsuspend`)).status).toBe(200);
+      const back = await cf.next("presence.updated", (d) => d.user_id === o.user.id && d.status !== "offline");
+      expect(back.data).toEqual((await presenceOf(f, o))[0]);
+      expect(back.data.status).toBe("dnd");
+    });
+  }
+
+  it("suspend and unsuspend send user.updated to members of the account's spaces too (not friends, no DM)", async () => {
+    const [o, m, adm] = await Promise.all([signup(), signup(), signup()]);
+    await makeAdmin(adm);
+    await makeSpace(m, [o]);
+    expect((await api(o.token).put("/v1/me/status", { emoji: "🎧", text: "듣는 중" })).status).toBe(200);
+    const cm = await connectWs(m.token);
+    expect((await api(adm.token).post(`/v1/admin/users/@${o.handle}/suspend`, { reason: "spam" })).status).toBe(200);
+    const sus = await cm.next("user.updated", (d) => d.user.id === o.user.id && d.user.suspended === true);
+    expect(sus.data.user).toEqual(expect.objectContaining({ status: null, avatar_url: null }));
+    expect((await api(adm.token).post(`/v1/admin/users/@${o.handle}/unsuspend`)).status).toBe(200);
+    const back = await cm.next("user.updated", (d) => d.user.id === o.user.id && d.user.suspended === false);
+    expect(back.data.user.status).toEqual(expect.objectContaining({ text: "듣는 중" }));
+    await settle();
+    expect(cm.frames.filter((x) => x.type === "user.updated" && x.data.user.id === o.user.id)).toHaveLength(2); // once each
+  });
+
+  it("a member who resumes after the suspension replays the stale author summary, then the masking user.updated", async () => {
+    const [o, m, adm] = await Promise.all([signup(), signup(), signup()]);
+    await makeAdmin(adm);
+    const { generalChannelId } = await makeSpace(m, [o]);
+    expect((await api(o.token).put("/v1/me/status", { emoji: "🎧", text: "듣는 중" })).status).toBe(200);
+    const cm = await connectWs(m.token);
+    const ready = cm.frames.find((x) => x.type === "ready")!;
+    expect((await api(o.token).post(`/v1/channels/${generalChannelId}/messages`, { client_nonce: "d1-resume", body: "안녕" })).status).toBe(201);
+    const msg = await cm.next("message.created");
+    expect(msg.data.message.author.status).toEqual(expect.objectContaining({ text: "듣는 중" }));
+    cm.close();
+    await settle();
+    expect((await api(adm.token).post(`/v1/admin/users/@${o.handle}/suspend`, { reason: "spam" })).status).toBe(200);
+    const again = await connectWs(m.token, { resume: { epoch: ready.data.epoch, last_seq: ready.data.seq } });
+    expect(again.frames.find((x) => x.type === "ready")!.data).toEqual(expect.objectContaining({ resumed: true }));
+    const types = again.frames.filter((x) => x.seq !== null && (x.type === "message.created" || x.type === "user.updated"));
+    expect(types.map((x) => x.type)).toEqual(["message.created", "user.updated"]);
+    expect(types[1]!.data.user).toEqual(expect.objectContaining({ id: o.user.id, suspended: true, status: null, avatar_url: null }));
   });
 });

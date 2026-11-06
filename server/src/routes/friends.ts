@@ -8,7 +8,7 @@ import { all, decodeCursor, encodeCursor, first, parseLimit } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId, newId } from "../lib/ids";
 import { notify } from "../lib/notify";
-import { areFriends, isBlockedEither } from "../lib/permissions";
+import { areFriends, isBlockedEither, suspendedNowSql } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { publishEvent } from "../lib/realtime";
 import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "../lib/serialize";
@@ -59,6 +59,9 @@ async function friendOf(db: D1Database, me: string, other: string) {
 
 export const friendRoutes = new Hono<AppEnv>();
 
+// Order: on (rk 0) before offline (rk 1), then display_name, user_id. A friend suspended right now ranks offline, as its
+// Friend.presence reads (api.md 3.9) — the raw user_presence.status (a manual dnd holds with no socket) would otherwise
+// show through the order and next_cursor.
 friendRoutes.get("/friends", requireAuth, vQuery(FriendsQuery), async (c) => {
   const me = getAuth(c).userId;
   const q = c.req.valid("query");
@@ -72,7 +75,7 @@ friendRoutes.get("/friends", requireAuth, vQuery(FriendsQuery), async (c) => {
          FROM friendships fr WHERE fr.user_a = ?1 OR fr.user_b = ?1
      ), r AS (
        SELECT f.user_id, f.created_at, u.display_name,
-              CASE WHEN COALESCE(p.status, 'offline') = 'offline' THEN 1 ELSE 0 END AS rk
+              CASE WHEN COALESCE(p.status, 'offline') = 'offline' OR ${suspendedNowSql("f.user_id", "?6")} THEN 1 ELSE 0 END AS rk
          FROM f JOIN users u ON u.id = f.user_id
          LEFT JOIN user_presence p ON p.user_id = f.user_id
      )
@@ -87,6 +90,7 @@ friendRoutes.get("/friends", requireAuth, vQuery(FriendsQuery), async (c) => {
     key?.name ?? null,
     cur?.i ?? null,
     n + 1,
+    now(),
   );
   const page = rows.slice(0, n);
   const last = page[page.length - 1];

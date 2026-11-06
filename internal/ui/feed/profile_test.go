@@ -218,6 +218,30 @@ func TestProfileSuspendedHeader(t *testing.T) {
 	}
 }
 
+// A suspended profile whose payload still carries an avatar_url (a stale cache,
+// or a server that forgot to mask it) neither fetches nor draws it (D1). The
+// unsuspended run is the control: the same avatar is fetched for the full
+// header, so the suspended run's missing GET is the guard, not the layout.
+func TestProfileSuspendedSkipsStaleAvatar(t *testing.T) {
+	id := sid(4242)
+	withAvatar := func(p *api.Profile) { p.AvatarURL = ptr("/v1/media/" + id) }
+	for _, tc := range []struct {
+		name      string
+		mut       func(*api.Profile)
+		wantFetch bool
+	}{
+		{"unsuspended", withAvatar, true},
+		{"suspended", func(p *api.Profile) { withAvatar(p); suspendedSeen(p) }, false},
+	} {
+		h := uitest.New(t, profileOpts(t, "@hana", false, tc.mut)...)
+		h.Resize(120, 40)
+		h.Screen()
+		if _, got := lastReq(h, "GET", "/v1/media/"+id); got != tc.wantFetch {
+			t.Fatalf("%s: GET /v1/media/<avatar> requested = %v, want %v", tc.name, got, tc.wantFetch)
+		}
+	}
+}
+
 func TestProfileFollowToggle(t *testing.T) {
 	srv := profileSrv(t, false, notFollowing)
 	srv.JSON("PUT /v1/users/{user}/follow", http.StatusOK, map[string]string{"state": "pending"})
