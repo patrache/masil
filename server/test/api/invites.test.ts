@@ -592,3 +592,134 @@ describe("invites are gated on the issuer's right at creation and at use", () =>
     expect(dup.body.error.code).toBe("already_exists");
   });
 });
+
+// D3 (owner decision 2026-11-06): ending a friendship cancels the pending direct invites between the two (both ways),
+// and accepting a direct invite re-checks the friendship (and no block either way) inside the conditional UPDATE.
+describe("direct invites end with the friendship (D3)", () => {
+  async function inviteStatus(id: string): Promise<string> {
+    return (await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(id).first<any>()).status;
+  }
+  async function isMember(spaceId: string, u: TestUser): Promise<boolean> {
+    return (await env.DB.prepare("SELECT COUNT(*) AS n FROM space_members WHERE space_id=?1 AND user_id=?2").bind(spaceId, u.user.id).first<any>()).n === 1;
+  }
+  async function invite(from: TestUser, spaceId: string, to: TestUser): Promise<any> {
+    const r = await api(from.token).post<any>(`/v1/spaces/${spaceId}/direct-invites`, { user: `@${to.handle}` });
+    if (r.status !== 201) throw new Error(`direct invite failed: ${r.status} ${JSON.stringify(r.body)}`);
+    return r.body.invite;
+  }
+  /** Raw DELETE of the friendship row — no unfriend cleanup ran (rows from before D3, a future path that skips it). */
+  async function dropFriendshipRaw(a: TestUser, b: TestUser): Promise<void> {
+    await env.DB.prepare("DELETE FROM friendships WHERE user_a = MIN(?1, ?2) AND user_b = MAX(?1, ?2)").bind(a.user.id, b.user.id).run();
+  }
+
+  it("DELETE /v1/friends/{user} cancels pending direct invites both ways (and only those), with space.invite_removed to both", async () => {
+    const [a, b, c] = await Promise.all([signup(), signup(), signup()]);
+    await makeFriends(a, b);
+    await makeFriends(a, c);
+    const [{ space: sa }, { space: sb }] = await Promise.all([makeSpace(a), makeSpace(b)]);
+    const ab = await invite(a, sa.id, b); // a -> b
+    const ba = await invite(b, sb.id, a); // b -> a
+    const ac = await invite(a, sa.id, c); // a -> c: untouched
+    const [ca, cb] = await Promise.all([connectWs(a.token), connectWs(b.token)]);
+
+    expect((await api(a.token).del(`/v1/friends/@${b.handle}`)).status).toBe(204);
+
+    expect(await inviteStatus(ab.id)).toBe("canceled");
+    expect(await inviteStatus(ba.id)).toBe("canceled");
+    expect(await inviteStatus(ac.id)).toBe("pending");
+    for (const ws of [ca, cb]) {
+      for (const id of [ab.id, ba.id]) {
+        expect((await ws.next("space.invite_removed", (d) => d.invite_id === id)).data).toEqual({ invite_id: id, reason: "canceled" });
+      }
+      await ws.next("friend.removed");
+    }
+    expect(ca.frames.some((f) => f.type === "space.invite_removed" && f.data.invite_id === ac.id)).toBe(false);
+    expect((await api(b.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+    expect((await api(a.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+    expect((await api(b.token).post(`/v1/direct-invites/${ab.id}/accept`)).status).toBe(404);
+    expect((await api(a.token).post(`/v1/direct-invites/${ba.id}/accept`)).status).toBe(404);
+    expect(await isMember(sa.id, b)).toBe(false);
+    expect(await isMember(sb.id, a)).toBe(false);
+    expect((await api(c.token).get<any>("/v1/me/direct-invites")).body.items.map((i: any) => i.id)).toEqual([ac.id]);
+  });
+
+  it("the friendship gone without the cleanup (invite still pending): not listed, accept 404, nothing written", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await makeFriends(a, b);
+    const { space } = await makeSpace(a);
+    const di = await invite(a, space.id, b);
+    await dropFriendshipRaw(a, b);
+    expect((await api(b.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+    expect((await api(b.token).post(`/v1/direct-invites/${di.id}/accept`)).status).toBe(404);
+    expect(await inviteStatus(di.id)).toBe("pending");
+    expect(await isMember(space.id, b)).toBe(false);
+  });
+
+  it("a block row in place (friendship row still there, no cleanup): not listed, accept 404, nothing written", async () => {
+    for (const dir of ["invitee blocks inviter", "inviter blocks invitee"] as const) {
+      const [a, b] = await Promise.all([signup(), signup()]);
+      await makeFriends(a, b);
+      const { space } = await makeSpace(a);
+      const di = await invite(a, space.id, b);
+      const [blocker, blocked] = dir === "invitee blocks inviter" ? [b, a] : [a, b];
+      await env.DB.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?1, ?2, ?3)").bind(blocker.user.id, blocked.user.id, Date.now()).run();
+      expect((await api(b.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+      expect((await api(b.token).post(`/v1/direct-invites/${di.id}/accept`)).status).toBe(404);
+      expect(await inviteStatus(di.id)).toBe("pending");
+      expect(await isMember(space.id, b)).toBe(false);
+    }
+  });
+
+  for (const how of ["friendship dropped", "block row inserted"] as const) {
+    it(`accept: ${how} between the pre-check and the batch -> the conditional UPDATE refuses it`, async () => {
+      const [a, b] = await Promise.all([signup(), signup()]);
+      await makeFriends(a, b);
+      const { space } = await makeSpace(a);
+      const di = await invite(a, space.id, b);
+      let fired = false; // once, before joinSpace's batch (later batches — system message — run untouched)
+      const racing = new Proxy(env.DB, {
+        get(target, prop) {
+          if (prop === "batch") {
+            return async (stmts: D1PreparedStatement[]) => {
+              if (fired) return target.batch(stmts);
+              fired = true;
+              if (how === "friendship dropped") await dropFriendshipRaw(a, b);
+              else await target.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?1, ?2, ?3)").bind(b.user.id, a.user.id, Date.now()).run();
+              return target.batch(stmts);
+            };
+          }
+          const v = Reflect.get(target, prop, target);
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      });
+      const rt = { env: { ...env, DB: racing } as typeof env, waitUntil: () => {} };
+      await expect(joinSpace(rt, space.id, b.user.id, { directInviteId: di.id })).rejects.toMatchObject({ status: 404 });
+      expect(await inviteStatus(di.id)).toBe("pending");
+      expect(await isMember(space.id, b)).toBe(false);
+    });
+  }
+
+  it("a stale invite from an ex-friend (no cleanup ran) does not block a current friend's fresh invite, which replaces it", async () => {
+    const [a, b, m] = await Promise.all([signup(), signup(), signup()]);
+    await makeFriends(a, b);
+    await makeFriends(m, b);
+    const { space } = await makeSpace(a, [m]);
+    const old = await invite(a, space.id, b);
+    await dropFriendshipRaw(a, b);
+    const cb = await connectWs(b.token);
+    const fresh = await invite(m, space.id, b);
+    expect(await inviteStatus(old.id)).toBe("canceled");
+    expect((await cb.next("space.invite_removed", (d) => d.invite_id === old.id)).data).toEqual({ invite_id: old.id, reason: "canceled" });
+    expect((await api(b.token).get<any>("/v1/me/direct-invites")).body.items.map((i: any) => i.id)).toEqual([fresh.id]);
+    expect((await api(b.token).post(`/v1/direct-invites/${fresh.id}/accept`)).status).toBe(200);
+  });
+
+  it("friends still and no block: accept still works (200, member)", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await makeFriends(a, b);
+    const { space } = await makeSpace(a);
+    const di = await invite(a, space.id, b);
+    expect((await api(b.token).post(`/v1/direct-invites/${di.id}/accept`)).status).toBe(200);
+    expect(await isMember(space.id, b)).toBe(true);
+  });
+});

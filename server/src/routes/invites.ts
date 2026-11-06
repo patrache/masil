@@ -15,7 +15,7 @@ import { loadUserSummaries, serializeDirectInvites, serializeInvitePreview, seri
 import { now } from "../lib/time";
 import { vJson, zUserRef } from "../lib/validate";
 import {
-  D_INVITER_IS_MEMBER,
+  D_INVITE_ACCEPTABLE,
   insertDirectInvite,
   inviteInvalidReason,
   joinSpace,
@@ -166,9 +166,9 @@ inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
  * Any member invites one of their own friends (api.md 3.5, any role). 403 action_not_allowed (not friends / blocked
  * either way / invitee currently suspended), 403 banned_from_space, 409 already_member, 409 already_exists (a pending invite to this space).
  * After the insert: space.invite_received{invite} to the invitee + inbox space_invite + alert invite (Task 15 table).
- * One batch (insertDirectInvite, pending item 9): a stale pending invite to the same person whose inviter is no longer
- * a member becomes canceled (space.invite_removed canceled after commit), then the INSERT — both gated on the inviter
- * still being a member, so an inviter removed after requireSpaceRole writes nothing and gets 404, and on the relation
+ * One batch (insertDirectInvite, pending item 9): a stale pending invite to the same person that can no longer be
+ * accepted (its inviter is no longer a member, or no longer their friend / a block either way — D3) becomes canceled
+ * (space.invite_removed canceled after commit), then the INSERT — both gated on the inviter still being a member, so an inviter removed after requireSpaceRole writes nothing and gets 404, and on the relation
  * rules above (pending item 10), so an unfriend / block / suspension landing after the pre-checks writes nothing and
  * gets 403 action_not_allowed.
  */
@@ -188,7 +188,7 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
     `SELECT EXISTS (SELECT 1 FROM space_bans WHERE space_id = ?1 AND user_id = ?2) AS banned,
             EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2) AS member,
             EXISTS (SELECT 1 FROM space_direct_invites d WHERE d.space_id = ?1 AND d.invitee_id = ?2 AND d.status = 'pending'
-                       AND ${D_INVITER_IS_MEMBER}) AS pending`,
+                       AND ${D_INVITE_ACCEPTABLE}) AS pending`,
     spaceId,
     target.id,
   );
@@ -229,14 +229,17 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
   return c.json({ invite }, 201);
 });
 
-/** Pending invites to me in live spaces from inviters who are still members (others cannot be accepted), newest first. */
+/**
+ * Pending invites to me in live spaces from inviters who are still members and still my friends with no block either
+ * way (D3; others cannot be accepted), newest first.
+ */
 inviteRoutes.get("/me/direct-invites", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
   const rows = await all<SpaceDirectInviteRow>(
     db,
     `SELECT d.* FROM space_direct_invites d JOIN spaces s ON s.id = d.space_id AND s.deleted_at IS NULL
-      WHERE d.invitee_id = ?1 AND d.status = 'pending' AND ${D_INVITER_IS_MEMBER}
+      WHERE d.invitee_id = ?1 AND d.status = 'pending' AND ${D_INVITE_ACCEPTABLE}
       ORDER BY d.created_at DESC, d.id DESC`,
     me,
   );

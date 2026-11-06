@@ -647,7 +647,7 @@ export function deletePost(rt: Runtime, postId: string, actorId: string, opts?: 
 export function applyBlock(rt: Runtime, blockerId: string, blockedId: string): Promise<void>;     // api.md 3.2 cleanup batch
 export function removeBlock(rt: Runtime, blockerId: string, blockedId: string): Promise<void>;
 export function makeFriends(rt: Runtime, a: string, b: string, requestId: string): Promise<void>;
-export function unfriend(rt: Runtime, a: string, b: string, opts?: { silentTo?: string }): Promise<void>;
+export function unfriend(rt: Runtime, a: string, b: string, opts?: { silentTo?: string }): Promise<void>; // + pending direct invites both ways -> canceled (D3)
 export function follow(rt: Runtime, followerId: string, followeeId: string): Promise<"active" | "pending">;
 export function approveAllPendingFollows(rt: Runtime, userId: string): Promise<void>;
 

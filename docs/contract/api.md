@@ -699,6 +699,7 @@ interface AdminAction {
 | 방 나가기 | 위임 후 | ✓ | ✓ |
 
 - 초대는 낸 사람의 권한이 남아 있는 동안만 유효하다. 방에서 빠지면(**나가기·강퇴·밴 모두**) 같은 batch 안에서 그 사람이 그 방에 보낸 대기 중 직접 초대는 `canceled`, 만든 초대 링크는 폐기(`revoked`)된다. admin→member 로 강등되면(링크 권한 상실) 그 사람이 만든 링크도 같은 batch 에서 폐기된다(다시 admin 이 돼도 되살아나지 않음). 직접 초대 수락은 초대한 사람이 아직 방 멤버인지 사전 확인과 조건부 UPDATE 양쪽에서 다시 본다. 링크도 쓸 때마다(조회·수락의 사전 확인·조건부 UPDATE) 만든 사람이 아직 그 방 owner·admin 인지 다시 보며, 아니면 `revoked` 로 취급한다(폐기가 빠진 경로가 있어도 링크로 들어올 수 없음). 만들 때도 링크·직접 초대의 INSERT 자체가 권한(링크: owner·admin, 직접 초대: 멤버)을 다시 확인하므로, 권한 확인과 INSERT 사이에 강등·제거가 끼어들면 아무것도 만들어지지 않는다.
+- **친구 끊기 → 직접 초대 취소 [오너 결정 D3]**: 직접 초대는 초대받는 사람이 초대한 사람의 친구인 동안만 유효하다. 친구를 끊으면(`DELETE /v1/friends/{user}`, 5.3) 같은 batch 안에서 두 사람 사이의 대기 중 직접 초대가 **양방향 모두**(어느 방이든) `canceled` 되고, 커밋 뒤 취소된 초대마다 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 초대한 사람)를 보낸다. 차단도 같은 정리를 한다(3.2). 직접 초대 수락은 초대한 사람의 방 멤버십과 함께 **두 사람이 아직 친구이고 어느 방향으로도 차단이 없는지**를 사전 확인과 조건부 UPDATE 양쪽에서 다시 보며, 아니면 `404`(아무것도 쓰지 않음). 이 조건을 못 채우는 대기 초대(정리가 빠진 경로가 있더라도)는 받은 초대 목록에서 빠지고, 새 초대의 `already_exists` 로 세지 않는다(새 초대가 그 묵은 초대를 `canceled` 로 바꾼다, 5.8).
 - 방 멤버가 아니면(또는 방이 삭제됐으면) 방·채널·메시지 모두 `404 not_found`. text 채널의 읽기 검사는 비공개 채널이라도 **방 멤버십과 방 미삭제를 함께** 확인한다(`channel_members` 행만으로 통과하지 않음). 실시간 청중도 같다(`events.md` 6.1).
 - 비공개 채널은 그 채널 멤버만 보고(방장·관리자라도 멤버가 아니면 목록에 안 보임), 공개 채널은 방 멤버 전원.
 - 방에서 빠지면(**스스로 나가기·강퇴·밴 모두**) 같은 batch 안에서 그 방의 모든 비공개 채널의 `channel_members` 행도 지운다(`channels.member_count` 감소 포함). 밴은 강퇴 + 초대 수락 차단.
@@ -847,6 +848,7 @@ interface AdminAction {
 
 #### `DELETE /v1/friends/{user}`
 - 친구 끊기. `204` · 이벤트: `friend.removed`(양쪽). 상대와의 1:1 DM 은 조건 소멸 시 읽기 전용.
+- 부수효과(같은 batch, D3): 두 사람 사이의 대기 중 방 직접 초대(양방향) `canceled` — 취소된 초대마다 `space.invite_removed`(`reason:"canceled"`, 양쪽)(3.5).
 
 #### `GET /v1/friends/requests?direction=incoming|outgoing`
 - 대기(`pending`) 만, 최신순, 최대 200. `200 { "items": FriendRequest[] }`
@@ -1001,14 +1003,14 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 방 멤버 누구나(owner·admin 도 같은 조건), `RL_SOCIAL`. 요청: `{ "user": "@hana" }` — **역할과 무관하게 초대하는 사람의 친구**여야 함(3.5 표), 상대가 이미 멤버/밴/차단 관계면 실패. 친구가 아닌 사람은 초대 링크로 들인다.
 - `201 { "invite": DirectInvite }` · 이벤트: `space.invite_received`(상대) · 알림 `space_invite` · alert `invite`
 - 오류: `403 action_not_allowed`(친구 아님·차단·상대 정지 — 확인 뒤 INSERT 전에 그렇게 돼도 같고, 아무것도 만들어지지 않음, 3.2), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
-- 같은 사람에게 온 대기 초대라도 초대한 사람이 이미 방 멤버가 아니면(수락 불가) `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
+- 같은 사람에게 온 대기 초대라도 수락할 수 없는 것(초대한 사람이 이미 방 멤버가 아님, 또는 두 사람이 더 이상 친구가 아니거나 차단 관계 — 3.5)은 `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
 
 #### `GET /v1/me/direct-invites`
-- 나에게 온 대기 초대(초대한 사람이 아직 그 방 멤버인 것만 — 나머지는 수락할 수 없음). `200 { "items": DirectInvite[] }`
+- 나에게 온 대기 초대(초대한 사람이 아직 그 방 멤버이고 아직 나와 친구이며 어느 방향으로도 차단이 없는 것만 — 나머지는 수락할 수 없음, 3.5). `200 { "items": DirectInvite[] }`
 
 #### `POST /v1/direct-invites/{invite_id}/accept`
 - 초대받은 사람. `200 { "space": SpaceDetail }` · 이벤트는 초대 링크 수락과 같음 + `space.invite_removed`(`reason:"accepted"`).
-- 초대한 사람이 더 이상 방 멤버가 아니면 `404`(3.5 — 빠질 때 이미 `canceled` 로 바뀌지만, 수락 쪽도 사전 확인과 조건부 UPDATE 에서 다시 본다).
+- 초대한 사람이 더 이상 방 멤버가 아니거나, 두 사람이 더 이상 친구가 아니거나, 어느 방향으로든 차단이 있으면 `404`(3.5 — 방에서 빠질 때·친구를 끊을 때·차단할 때 이미 `canceled` 로 바뀌지만, 수락 쪽도 사전 확인과 조건부 UPDATE 에서 다시 본다).
 
 #### `POST /v1/direct-invites/{invite_id}/decline`
 - `204` · 이벤트: `space.invite_removed`(`reason:"declined"`)

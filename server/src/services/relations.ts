@@ -175,20 +175,41 @@ export async function insertFriendRequest(db: D1Database, row: FriendRequestRow,
 }
 
 /**
- * Ends the friendship between a and b (no-op when there is none). After commit: `friend.removed{user_id: other}` to
- * each side, except `opts.silentTo` (block cleanup tells only the blocker — events.md 4.5).
+ * Ends the friendship between a and b, in one batch with its cleanup (D3, api.md 3.5): the friendships row DELETE and
+ * every pending direct space invite between the two, either way -> `canceled` (a direct invite needs the invitee to be
+ * the inviter's friend, so none may outlive the friendship; joinSpace re-checks it too). No-op when there is neither.
+ * After commit: `friend.removed{user_id: other}` to each side if they were friends, and per canceled invite
+ * `space.invite_removed{invite_id, reason:"canceled"}` to its invitee + inviter (events.md) — except `opts.silentTo`
+ * (block cleanup tells only the blocker — events.md 4.5).
  */
 export async function unfriend(rt: Runtime, a: string, b: string, opts: { silentTo?: string } = {}): Promise<void> {
+  const db = rt.env.DB;
   const [lo, hi] = friendPair(a, b);
-  const [res] = await batch(rt.env.DB, [stmt(rt.env.DB, "DELETE FROM friendships WHERE user_a = ?1 AND user_b = ?2", lo, hi)]);
-  if (res!.meta.changes === 0) return;
+  const [res, canceled] = await batch(db, [
+    stmt(db, "DELETE FROM friendships WHERE user_a = ?1 AND user_b = ?2 RETURNING user_a", lo, hi),
+    stmt(
+      db,
+      `UPDATE space_direct_invites SET status = 'canceled', responded_at = ?3
+        WHERE status = 'pending' AND ((inviter_id = ?1 AND invitee_id = ?2) OR (inviter_id = ?2 AND invitee_id = ?1))
+       RETURNING id`,
+      a,
+      b,
+      now(),
+    ),
+  ]);
+  const wasFriend = res!.results.length > 0;
+  const inviteIds = (canceled!.results as Array<{ id: string }>).map((r) => r.id);
+  const to = [
+    { to: a, other: b },
+    { to: b, other: a },
+  ].filter((x) => x.to !== opts.silentTo);
   await Promise.all(
-    [
-      { to: a, other: b },
-      { to: b, other: a },
-    ]
-      .filter((x) => x.to !== opts.silentTo)
-      .map((x) => publishEvent(rt, { users: [x.to] }, "friend.removed", { user_id: x.other })),
+    to.map((x) =>
+      publishEvents(rt, { users: [x.to] }, [
+        ...(wasFriend ? [{ type: "friend.removed" as const, data: { user_id: x.other } }] : []),
+        ...inviteIds.map((id) => ({ type: "space.invite_removed" as const, data: { invite_id: id, reason: "canceled" } })),
+      ]),
+    ),
   );
 }
 

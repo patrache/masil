@@ -308,23 +308,41 @@ export function inviteInvalidReason(row: InviteCheckRow, nowMs: number = now()):
 }
 
 /**
- * A direct invite only counts while its inviter is still a member of the space (pending item 9): removeFromSpace
- * cancels their pending invites, and joinSpace re-checks this in the pre-check and in the conditional UPDATE, so an
- * invite that outlived its inviter (a removal path that skipped the cancel, rows from before the fix) still fails.
- * For a statement over space_direct_invites whose space id is bound as ?2.
+ * SQL for a statement over space_direct_invites referenced as `t` (the table name or its alias): the inviter and the
+ * invitee are still friends and there is no block either way (D3, api.md 3.5). Unfriending and blocking cancel the
+ * pending invites between the two in their own batch; this keeps an invite that outlived the friendship (a path that
+ * skipped the cancel, rows from before D3) from being listed, counted or accepted.
  */
-const INVITER_IS_MEMBER = "EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = ?2 AND im.user_id = space_direct_invites.inviter_id)";
+function inviteRelationLiveSql(t: "space_direct_invites" | "d"): string {
+  const inviter = `${t}.inviter_id`;
+  const invitee = `${t}.invitee_id`;
+  return `EXISTS (SELECT 1 FROM friendships fr WHERE fr.user_a = MIN(${inviter}, ${invitee}) AND fr.user_b = MAX(${inviter}, ${invitee}))
+    AND NOT ${blockedEitherSql(inviter, invitee)}`;
+}
 
 /**
- * For a statement over space_direct_invites aliased `d`: its inviter is still a member of its space. A pending invite
- * whose inviter is gone cannot be accepted (joinSpace), so it is left out of the invitee's list and does not count as
- * the pending invite that blocks a fresh one (pending item 9).
+ * A direct invite only counts while its inviter is still a member of the space (pending item 9) and the two are
+ * still friends with no block either way (D3): removeFromSpace / unfriend / applyBlock cancel the pending invites, and
+ * joinSpace re-checks this in the pre-check and in the conditional UPDATE, so an invite that outlived its inviter's
+ * membership or the friendship (a path that skipped the cancel, rows from before the fix) still fails.
+ * For a statement over space_direct_invites whose space id is bound as ?2.
  */
-export const D_INVITER_IS_MEMBER = "EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = d.space_id AND im.user_id = d.inviter_id)";
+const INVITE_ACCEPTABLE = `EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = ?2 AND im.user_id = space_direct_invites.inviter_id)
+  AND ${inviteRelationLiveSql("space_direct_invites")}`;
+
+/**
+ * For a statement over space_direct_invites aliased `d`: its inviter is still a member of its space (pending item 9)
+ * and still a friend of the invitee with no block either way (D3) — the same rule as joinSpace's INVITE_ACCEPTABLE. A
+ * pending invite failing it cannot be accepted, so it is left out of the invitee's list and does not count as the
+ * pending invite that blocks a fresh one (a fresh invite cancels it as stale).
+ */
+export const D_INVITE_ACCEPTABLE = `EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = d.space_id AND im.user_id = d.inviter_id)
+  AND ${inviteRelationLiveSql("d")}`;
 
 /**
  * Writes a pending direct invite `inviterId` -> `inviteeId` into `spaceId`, in one batch (pending item 9): a stale
- * pending invite to the same person whose inviter is no longer a member becomes canceled, then the INSERT — both gated
+ * pending invite to the same person that can no longer be accepted (its inviter is no longer a member, or no longer
+ * the invitee's friend / a block either way — D3) becomes canceled, then the INSERT — both gated
  * on the inviter still being a member, so an inviter removed after the caller's role check writes nothing (404).
  * Both are also gated on the relation rules (pending item 10, api.md 3.2 / 3.5 / 3.9): the two are still friends, no
  * block either way, the invitee not suspended now. The caller's pre-checks are plain reads, and a block committing
@@ -351,7 +369,7 @@ export async function insertDirectInvite(
       stmt(
         db,
         `UPDATE space_direct_invites AS d SET status = 'canceled', responded_at = ?4
-          WHERE d.space_id = ?1 AND d.invitee_id = ?3 AND d.status = 'pending' AND NOT ${D_INVITER_IS_MEMBER} AND ${gate}
+          WHERE d.space_id = ?1 AND d.invitee_id = ?3 AND d.status = 'pending' AND NOT (${D_INVITE_ACCEPTABLE}) AND ${gate}
          RETURNING id, inviter_id`,
         spaceId,
         inviterId,
@@ -423,7 +441,7 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
     direct = await first<SpaceDirectInviteRow>(
       db,
       `SELECT * FROM space_direct_invites
-        WHERE id = ?1 AND space_id = ?2 AND invitee_id = ?3 AND status = 'pending' AND ${INVITER_IS_MEMBER}`,
+        WHERE id = ?1 AND space_id = ?2 AND invitee_id = ?3 AND status = 'pending' AND ${INVITE_ACCEPTABLE}`,
       via.directInviteId,
       spaceId,
       userId,
@@ -464,7 +482,7 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
       stmt(
         db,
         `UPDATE space_direct_invites SET status = 'accepted', responded_at = ?3
-          WHERE id = ?1 AND space_id = ?2 AND invitee_id = ?4 AND status = 'pending' AND ${INVITER_IS_MEMBER}`,
+          WHERE id = ?1 AND space_id = ?2 AND invitee_id = ?4 AND status = 'pending' AND ${INVITE_ACCEPTABLE}`,
         via.directInviteId,
         spaceId,
         t,
