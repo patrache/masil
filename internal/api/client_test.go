@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -95,6 +96,25 @@ func TestRequestHeadersCustomUserAgentAndNoBody(t *testing.T) {
 	}
 }
 
+func TestErrorUserIDs(t *testing.T) {
+	for _, tc := range []struct {
+		details string
+		want    []string
+	}{
+		{`{"user_ids":["01A","01B"]}`, []string{"01A", "01B"}},
+		{`{}`, nil}, // a group DM block pair names nobody (api.md 3.1)
+		{``, nil},
+	} {
+		e := &api.Error{Code: "dm_not_allowed"}
+		if tc.details != "" {
+			e.Details = json.RawMessage(tc.details)
+		}
+		if got := e.UserIDs(); !slices.Equal(got, tc.want) {
+			t.Errorf("UserIDs(%s) = %v, want %v", tc.details, got, tc.want)
+		}
+	}
+}
+
 func TestErrorEnvelope(t *testing.T) {
 	s := apitest.New(t)
 	s.Handle("GET /v1/me", func(w http.ResponseWriter, r *http.Request) {
@@ -126,8 +146,8 @@ func TestErrorEnvelope(t *testing.T) {
 	if e.Status != 502 || e.Code != "internal_error" {
 		t.Errorf("non-JSON 502 => %+v", e)
 	}
-	if e.Fields() != nil || e.Limiter() != "" {
-		t.Errorf("Fields/Limiter on empty details = %v %q", e.Fields(), e.Limiter())
+	if e.Fields() != nil || e.Limiter() != "" || e.UserIDs() != nil {
+		t.Errorf("Fields/Limiter/UserIDs on empty details = %v %q %v", e.Fields(), e.Limiter(), e.UserIDs())
 	}
 
 	s.Handle("GET /v1/me", func(w http.ResponseWriter, r *http.Request) {

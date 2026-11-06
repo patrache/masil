@@ -254,6 +254,76 @@ func TestDMNewNotAllowed(t *testing.T) {
 	}
 }
 
+// D2 (owner decision 2026-11-06): a group DM refused over a block between two
+// participants comes back as 403 dm_not_allowed with details {} (nobody named);
+// the dialog says so in its own words. A can_dm failure (details.user_ids) and a
+// 1:1 refusal keep the usual dm_not_allowed line.
+func dmNotAllowedWith(details string) []byte {
+	return []byte(`{"error":{"code":"dm_not_allowed","message":"x","details":` + details + `}}`)
+}
+
+func TestDMNewGroupBlockedPair(t *testing.T) {
+	for _, tc := range []struct {
+		name, details, want string
+	}{
+		{"block pair", `{}`, groupDMRefusedText},
+		{"can_dm failure", `{"user_ids":["` + fixtures.UserJunho + `"]}`, api.Describe(&api.Error{Code: "dm_not_allowed"})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newAPI(t)
+			srv.JSON("POST /v1/dms", http.StatusForbidden, dmNotAllowedWith(tc.details))
+			h := openWith(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, srv)
+			h.Send(ui.RunCommandMsg{ID: "dm.new"})
+			h.Type("minji")
+			h.Press("enter")
+			h.Type("junho")
+			h.Press("enter", "enter")
+			if r := reqs(h.API, "POST", "/v1/dms"); len(r) != 1 {
+				t.Fatalf("one POST /v1/dms, got %d", len(r))
+			}
+			if overlays(h) != 1 {
+				t.Fatal("the dialog stays open on an error")
+			}
+			box := overlayText(t, h)
+			mustContain(t, box, tc.want)
+			if tc.want != groupDMRefusedText && strings.Contains(box, groupDMRefusedText) {
+				t.Fatalf("a can_dm failure is not a block pair:\n%s", box)
+			}
+		})
+	}
+}
+
+func TestDMNewOneToOneNotAllowedKeepsText(t *testing.T) {
+	srv := newAPI(t)
+	srv.JSON("POST /v1/dms", http.StatusForbidden, dmNotAllowedWith(`{}`)) // 1:1 refusals carry no details either
+	h := openWith(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, srv)
+	h.Send(ui.RunCommandMsg{ID: "dm.new"})
+	h.Type("minji")
+	h.Press("enter", "enter")
+	box := overlayText(t, h)
+	mustContain(t, box, api.Describe(&api.Error{Code: "dm_not_allowed"}))
+	if strings.Contains(box, groupDMRefusedText) {
+		t.Fatalf("a 1:1 refusal is not about participants:\n%s", box)
+	}
+}
+
+func TestGroupAddBlockedPair(t *testing.T) {
+	srv := newAPI(t)
+	srv.JSON("POST /v1/channels/"+gdmID+"/members", http.StatusForbidden, dmNotAllowedWith(`{}`))
+	h := openChannelWith(t, uitest.Size{W: 120, H: 40}, groupDM(fixtures.UserSam), srv)
+	prefsMenu(t, h)
+	clickOn(t, h, "멤버 추가", tea.MouseLeft)
+	h.Type("hana")
+	h.Press("enter", "enter")
+	if r := reqs(h.API, "POST", "/v1/channels/"+gdmID+"/members"); len(r) != 1 {
+		t.Fatalf("one POST members, got %d", len(r))
+	}
+	if overlays(h) != 1 {
+		t.Fatal("the picker stays open on an error")
+	}
+	mustContain(t, overlayText(t, h), groupDMRefusedText)
+}
+
 func TestDMNewGolden(t *testing.T) {
 	forEachSize(t, overlaySizes, openHome, func(t *testing.T, h *uitest.Harness) {
 		h.Send(ui.RunCommandMsg{ID: "dm.new"})

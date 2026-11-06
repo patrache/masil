@@ -50,6 +50,17 @@ func (e *Error) Fields() map[string]string {
 	return d.Fields
 }
 
+// UserIDs returns details.user_ids for dm_not_allowed: the users who fail
+// can_dm(me, X) in a group DM create/add. Empty for a 1:1 refusal and for a block
+// between two would-be members, which names nobody (api.md 3.1).
+func (e *Error) UserIDs() []string {
+	var d struct {
+		UserIDs []string `json:"user_ids"`
+	}
+	e.details(&d)
+	return d.UserIDs
+}
+
 // Limiter returns details.limiter for rate_limited.
 func (e *Error) Limiter() string {
 	var d struct {

@@ -641,12 +641,14 @@ interface AdminAction {
 
 적용:
 - 1:1 DM 생성·메시지 전송은 매번 `can_dm` 을 검사. 기존 1:1 DM 에서 조건이 사라지면 대화는 남되 `read_only=true`. 전송 시 `403 read_only`. `read_only_reason` 은 차단한 쪽에게만 `"blocked"`, 그 외 `"not_eligible"`.
-- 그룹 DM 생성: 만든 사람 C 에 대해 모든 참여자 X 에 `can_dm(C, X)` 이어야 하고, **참여자끼리도 어느 쌍이든 차단 관계(어느 방향이든)가 없어야** 함(하나라도 실패 → `403 dm_not_allowed`, `details.user_ids` 에 실패한 ID — 차단 쌍은 두 사람 모두, 요청 순서대로). 참여자 수(만든 사람 포함) 3..10. 2명이면 1:1 DM 으로 처리.
+- 그룹 DM 생성: 만든 사람 C 에 대해 모든 참여자 X 에 `can_dm(C, X)` 이어야 하고, **참여자끼리도 어느 쌍이든 차단 관계(어느 방향이든)가 없어야** 함. 참여자 수(만든 사람 포함) 3..10. 2명이면 1:1 DM 으로 처리. 실패 응답은 `403 dm_not_allowed` 하나로, 두 경우를 이 순서로 판정한다(오너 결정 D2, 2026-11-06 — 0.5 "차단 여부를 드러내지 않음"):
+  - `can_dm(C, X)` 실패가 하나라도 있으면 `details.user_ids` 에 그 X 들(요청 순서대로). 1:1 DM 과 같은 규칙이라 그 실패가 차단 때문인지는 드러나지 않는다.
+  - 그렇지 않고 참여자 사이 차단 쌍만 있으면 `details: {}` — **누가 누구를 차단했는지(어느 ID 인지, 어느 방향인지) 응답 어디에도 담지 않는다**(`message` 도 일반 문구). 클라이언트 문구: "함께 대화할 수 없는 참여자가 있어요".
 - 그룹 DM 멤버 추가: 추가하는 사람 M 에 대해 `can_dm(M, X)`, 그리고 기존 멤버 누구와도, 함께 추가되는 다른 사람과도 X 가 차단 관계가 아니어야 함(아래). 총원 10 초과 → `422 limit_exceeded`.
 - 그룹 DM 안에서의 전송은 멤버이기만 하면 가능(쌍별 조건 재검사 안 함). **[내 결정 — 설계서 2장과 다름, 오너가 뒤집을 수 있음]** 설계서는 "친구 끊기/방 탈퇴로 조건이 사라지면 기존 대화는 읽기 전용"이라고 하지만, 이 계약은 그 규칙을 **1:1 DM 에만** 적용한다. 그룹 DM 은 여러 사람의 대화라서 두 사람 사이 관계가 끊겼다고 방 전체를 읽기 전용으로 만들면 나머지 멤버까지 막히기 때문이다. 대신:
   - 관계가 끊긴 쪽은 언제든 스스로 나갈 수 있고(`DELETE .../members/@me`), 만든 사람은 멤버를 뺄 수 있다(3.7).
   - **차단은 그룹 DM 안에서도 효과가 있다**(설계서 "차단당한 쪽은 새 메시지·멘션 불가"): 차단당한 B 의 `@a` 는 멘션으로 해석되지 않고(2.1) A 에게 알림·alert·배지가 가지 않는다. A 의 클라이언트는 B 의 메시지를 접어 보인다(3.2). B 가 그룹에 보내는 메시지 자체는 다른 멤버를 위해 막지 않는다.
-  - 차단 관계인 사람을 그룹 DM 에 새로 넣을 수 없다(생성·추가 같은 규칙): 넣는 사람 M 에 대한 `can_dm(M, X)` 에 더해, 기존 멤버 또는 함께 들어가는 다른 사람 중 X 와 차단 관계인 사람이 있으면 `403 dm_not_allowed`(`details.user_ids` 에 X). 그래서 A 가 B 를 차단했으면 제3자 C 도 A·B 를 한 그룹 DM 에 넣을 수 없다.
+  - 차단 관계인 사람을 그룹 DM 에 새로 넣을 수 없다(생성·추가 같은 규칙): 넣는 사람 M 에 대한 `can_dm(M, X)` 에 더해, 기존 멤버 또는 함께 들어가는 다른 사람 중 X 와 차단 관계인 사람이 있으면 `403 dm_not_allowed`(`details: {}` — 생성과 같이 `can_dm(M, X)` 실패만 `details.user_ids` 로 알리고, 차단 쌍은 어느 ID 도 담지 않는다). 동시 추가 경쟁에서 진 쪽도 같은 응답. 그래서 A 가 B 를 차단했으면 제3자 C 도 A·B 를 한 그룹 DM 에 넣을 수 없다.
 
 ### 3.2 차단 효과 (A 가 B 를 차단)
 
@@ -911,14 +913,14 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `POST /v1/dms`
 - `RL_SOCIAL`. 요청: `{ "users": ["@junho"] }` 또는 `{ "users": ["@junho","@hana", ...], "name"?: "점심팟" }` (나 제외 1..9명)
 - 1명: 1:1 DM. 이미 있으면 `200 { "channel": Channel }`, 없으면 `201`. `can_dm` 실패 → `403 dm_not_allowed`.
-- 2..9명: 항상 새 그룹 DM `201 { "channel": Channel }`. 3.1 규칙.
+- 2..9명: 항상 새 그룹 DM `201 { "channel": Channel }`. 3.1 규칙(`403 dm_not_allowed`: `can_dm` 실패는 `details.user_ids`, 참여자 사이 차단 쌍은 `details: {}` — 누구인지 드러내지 않음).
 - 이벤트: `channel.created`(모든 참여자). 그룹 DM 생성 시 시스템 메시지 없음.
 
 #### `POST /v1/channels/{channel_id}/members`
 - `RL_SOCIAL`. group_dm: 멤버 누구나(3.1 규칙), 비공개 text 채널: 3.5 규칙. 공개 text·dm 채널 → `409 conflict`(`reason:"not_supported"`).
 - 요청: `{ "users": ["@hana"] }` (1..9)
 - `200 { "channel": Channel }` · 이벤트: `channel.member_added`(기존 멤버), `channel.created`(새 멤버) · 시스템 메시지 `group_member_added`(group_dm 만)
-- 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`, `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널).
+- 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`(group_dm, 3.1: `can_dm` 실패는 `details.user_ids`, 차단 쌍은 `details: {}`), `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널).
 
 #### `DELETE /v1/channels/{channel_id}/members/{user}`
 - `{user}=@me` 이면 나가기(group_dm·비공개 text). 남을 빼기: group_dm 은 owner_id 만, 비공개 text 는 방 owner·admin.

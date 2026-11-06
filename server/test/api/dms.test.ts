@@ -30,6 +30,30 @@ async function seedMention(messageId: string, channelId: string, userId: string,
   await env.DB.prepare("INSERT INTO message_mentions (message_id, user_id, channel_id, in_thread) VALUES (?1, ?2, ?3, ?4)").bind(messageId, userId, channelId, inThread ? 1 : 0).run();
 }
 
+/**
+ * D2 (owner decision 2026-11-06): a group DM refused because of a block between two would-be members must not say who
+ * blocked whom — 403 dm_not_allowed, details {}, and none of the block-linked ids anywhere in the response.
+ */
+function expectHiddenBlockDenial(res: { status: number; body: any }, hidden: string[]): void {
+  expect(res.status).toBe(403);
+  expect(res.body.error.code).toBe("dm_not_allowed");
+  expect(res.body.error.details).toEqual({});
+  const raw = JSON.stringify(res.body);
+  for (const id of hidden) expect(raw).not.toContain(id);
+}
+
+/** The same check on an ApiError thrown by a service call. */
+async function expectHiddenBlockRejection(p: Promise<unknown>, hidden: string[]): Promise<void> {
+  const e: any = await p.then(
+    () => null,
+    (x: unknown) => x,
+  );
+  expect(e).toMatchObject({ status: 403, code: "dm_not_allowed" });
+  expect(e.details).toEqual({});
+  const raw = JSON.stringify({ message: e.message, details: e.details });
+  for (const id of hidden) expect(raw).not.toContain(id);
+}
+
 describe("dms", () => {
   it("1:1 dm create is idempotent and requires can_dm", async () => {
     const [a, b, c] = await Promise.all([signup(), signup(), signup()]);
@@ -114,7 +138,7 @@ describe("dms", () => {
     await makeFriends(x, w);
     await api(y.token).put(`/v1/blocks/@${w.handle}`);
     const blk = await api(x.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${w.handle}`] });
-    expect(blk.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [w.user.id] } });
+    expectHiddenBlockDenial(blk, [w.user.id, y.user.id]);
     // 1:1 dm: adding/removing members is not supported
     const d = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`] })).body.channel;
     expect((await api(o.token).post<any>(`/v1/channels/${d.id}/members`, { users: [`@${y.handle}`] })).body.error).toMatchObject({
@@ -139,17 +163,17 @@ describe("dms", () => {
     return r?.n ?? 0;
   }
 
-  it("group dm create: a block between two participants (either direction) -> 403 dm_not_allowed with both ids, nothing created", async () => {
+  it("group dm create: a block between two participants (either direction) -> 403 dm_not_allowed without ids, nothing created", async () => {
     const [c, a, b, d] = await Promise.all([signup(), signup(), signup(), signup()]);
     for (const f of [a, b, d]) await makeFriends(c, f);
     // a blocks b: c may DM both, but must not be able to put them in one room (b could then message a)
     expect((await api(a.token).put(`/v1/blocks/@${b.handle}`)).status).toBeLessThan(300);
     const r1 = await api(c.token).post<any>("/v1/dms", { users: [`@${a.handle}`, `@${b.handle}`, `@${d.handle}`] });
-    expect(r1.status).toBe(403);
-    expect(r1.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [a.user.id, b.user.id] } });
-    // request order is kept in user_ids, and the reverse block direction is caught the same way
+    expectHiddenBlockDenial(r1, [a.user.id, b.user.id]);
+    // the order of the request does not matter, and the response is the same whichever way the block points
     const r2 = await api(c.token).post<any>("/v1/dms", { users: [`@${d.handle}`, `@${b.handle}`, `@${a.handle}`] });
-    expect(r2.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [b.user.id, a.user.id] } });
+    expectHiddenBlockDenial(r2, [a.user.id, b.user.id]);
+    expect(r2.body).toEqual(r1.body);
     expect(await groupDmsBy(c.user.id)).toBe(0);
     // participants with no block between them still pass
     const ok = await api(c.token).post<any>("/v1/dms", { users: [`@${a.handle}`, `@${d.handle}`] });
@@ -164,25 +188,54 @@ describe("dms", () => {
     await makeFriends(c, b);
     await api(b.token).put(`/v1/blocks/@${a.handle}`);
     const r = await api(c.token).post<any>("/v1/dms", { users: [`@${a.handle}`, `@${b.handle}`] });
-    expect(r.status).toBe(403);
-    expect(r.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [a.user.id, b.user.id] } });
+    expectHiddenBlockDenial(r, [a.user.id, b.user.id]);
     expect(await groupDmsBy(c.user.id)).toBe(0);
   });
 
-  it("group dm add: a block between two of the users being added -> 403 with both ids; each alone passes", async () => {
+  // D2: can_dm(me, X) failures keep listing X (api.md 3.1, the rule 1:1 DMs already follow: a failed can_dm does not
+  // say whether it was a block); a block pair between two other people is never named, even next to such a failure.
+  it("group dm create: can_dm failures are still listed, a block pair beside them is not", async () => {
+    const [c, a, b, s] = await Promise.all([signup(), signup(), signup(), signup()]);
+    await makeFriends(c, a);
+    await makeFriends(c, b);
+    await api(a.token).put(`/v1/blocks/@${b.handle}`);
+    const r = await api(c.token).post<any>("/v1/dms", { users: [`@${a.handle}`, `@${s.handle}`, `@${b.handle}`] });
+    expect(r.status).toBe(403);
+    expect(r.body.error).toEqual({ code: "dm_not_allowed", message: expect.any(String), details: { user_ids: [s.user.id] } });
+    const raw = JSON.stringify(r.body);
+    expect(raw).not.toContain(a.user.id);
+    expect(raw).not.toContain(b.user.id);
+    expect(await groupDmsBy(c.user.id)).toBe(0);
+  });
+
+  it("group dm add: can_dm failures are still listed, a block with a member beside them is not", async () => {
+    const [o, x, y, w, s] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    for (const f of [x, y, w]) await makeFriends(o, f);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    await api(w.token).put(`/v1/blocks/@${y.handle}`);
+    const r = await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${w.handle}`, `@${s.handle}`] });
+    expect(r.status).toBe(403);
+    expect(r.body.error.details).toEqual({ user_ids: [s.user.id] });
+    const raw = JSON.stringify(r.body);
+    expect(raw).not.toContain(w.user.id);
+    expect(raw).not.toContain(y.user.id);
+    // without the stranger: refused without naming anyone
+    expectHiddenBlockDenial(await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${w.handle}`] }), [w.user.id, y.user.id]);
+  });
+
+  it("group dm add: a block between two of the users being added -> 403 without ids; each alone passes", async () => {
     const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
     for (const f of [x, y, p, q]) await makeFriends(o, f);
     const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
     await api(p.token).put(`/v1/blocks/@${q.handle}`);
     const both = await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${q.handle}`, `@${p.handle}`] });
-    expect(both.status).toBe(403);
-    expect(both.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [q.user.id, p.user.id] } });
+    expectHiddenBlockDenial(both, [q.user.id, p.user.id]);
     const cnt = await env.DB.prepare("SELECT COUNT(*) AS n FROM channel_members WHERE channel_id = ?1").bind(g.id).first<{ n: number }>();
     expect(cnt?.n).toBe(3);
     // p alone has no block with any current member -> added; then q is refused against p, now a member
     expect((await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${p.handle}`] })).status).toBe(200);
     const qAfter = await api(o.token).post<any>(`/v1/channels/${g.id}/members`, { users: [`@${q.handle}`] });
-    expect(qAfter.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [q.user.id] } });
+    expectHiddenBlockDenial(qAfter, [q.user.id, p.user.id]);
   });
 
   // Pending item 8 (TOCTOU): the pairwise block pre-check is a plain read, so two concurrent adds of p and q (who block
@@ -224,11 +277,7 @@ describe("dms", () => {
     await api(q.token).put(`/v1/blocks/@${p.handle}`);
     // The pre-check saw [o, x, y] only; p's add commits right before this add's batch.
     const { rt, fired } = commitsMemberBeforeBatch(g.id, p.user.id, o.user.id);
-    await expect(addChannelMembers(rt, g.id, o.user.id, [q.user.id])).rejects.toMatchObject({
-      status: 403,
-      code: "dm_not_allowed",
-      details: { user_ids: [q.user.id] },
-    });
+    await expectHiddenBlockRejection(addChannelMembers(rt, g.id, o.user.id, [q.user.id]), [q.user.id, p.user.id]);
     expect(fired()).toBe(true);
     expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id, p.user.id].sort());
     const ch = await env.DB.prepare("SELECT member_count FROM channels WHERE id = ?1").bind(g.id).first<{ member_count: number }>();
@@ -244,11 +293,7 @@ describe("dms", () => {
     await api(p.token).put(`/v1/blocks/@${q.handle}`);
     // The pre-check saw [o, x, y] only; p's add commits right before this add's batch.
     const { rt, fired } = commitsMemberBeforeBatch(g.id, p.user.id, o.user.id);
-    await expect(addChannelMembers(rt, g.id, o.user.id, [q.user.id])).rejects.toMatchObject({
-      status: 403,
-      code: "dm_not_allowed",
-      details: { user_ids: [q.user.id] },
-    });
+    await expectHiddenBlockRejection(addChannelMembers(rt, g.id, o.user.id, [q.user.id]), [q.user.id, p.user.id]);
     expect(fired()).toBe(true);
     expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id, p.user.id].sort());
     const ch = await env.DB.prepare("SELECT member_count FROM channels WHERE id = ?1").bind(g.id).first<{ member_count: number }>();
@@ -271,8 +316,8 @@ describe("dms", () => {
       const ids = await memberIds(g.id);
       expect(ids.includes(p.user.id) && ids.includes(q.user.id)).toBe(false);
       expect([rp.status, rq.status].sort()).toEqual([200, 403]);
-      const [loser, loserId] = rp.status === 403 ? [rp, p.user.id] : [rq, q.user.id];
-      expect(loser.body.error).toMatchObject({ code: "dm_not_allowed", details: { user_ids: [loserId] } });
+      const loser = rp.status === 403 ? rp : rq;
+      expectHiddenBlockDenial(loser, [p.user.id, q.user.id]);
       expect(ids).toHaveLength(4);
     }
   }, 60_000);

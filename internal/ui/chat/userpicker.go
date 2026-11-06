@@ -65,6 +65,9 @@ type pickerSpec struct {
 	Query         string
 	OnPick        func(ctx *ui.Context, users []api.UserSummary, name string) (tag string, cmd tea.Cmd)
 	OnDone        func(ctx *ui.Context, result tea.Msg) (tea.Cmd, ui.Overlay)
+	// DescribeErr words a failed OnPick for the dialog (picked = the chips sent);
+	// nil = api.Describe.
+	DescribeErr func(err error, picked []api.UserSummary) string
 }
 
 // pickerSearchMsg is the debounce tick of one picker's query (gen = the query generation).
@@ -479,7 +482,11 @@ func (p *userPicker) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		p.busy = false
 		p.spinner.Stop()
 		if err != nil {
-			p.errMsg = api.Describe(err)
+			if p.spec.DescribeErr != nil {
+				p.errMsg = p.spec.DescribeErr(err, p.chips)
+			} else {
+				p.errMsg = api.Describe(err)
+			}
 			return landed
 		}
 		return tea.Batch(landed, p.done(ctx, msg))
