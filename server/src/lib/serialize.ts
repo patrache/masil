@@ -83,27 +83,39 @@ function toUserStatus(row: UserRow, nowMs: number): UserStatus | null {
   return { emoji: row.status_emoji, text: row.status_text ?? "", expires_at: isoOrNull(row.status_expires_at) };
 }
 
-/** Expired status -> null; avatar_url "/v1/media/<id>"; suspended = suspended right now. */
-export function toUserSummary(row: UserRow, nowMs: number = now()): UserSummary {
+/**
+ * `reveal`: the summary is for the account's owner or for an operator view (/v1/admin/*), so a suspension masks nothing.
+ * Everywhere else a suspended account shows only handle, display name and suspended=true (owner decision D1, api.md 3.9).
+ */
+export interface SummaryOpts {
+  reveal?: boolean;
+}
+
+/** Expired status -> null; avatar_url "/v1/media/<id>"; suspended = suspended right now — and then (unless `reveal`)
+ *  status and avatar_url are null (D1, api.md 3.9). */
+export function toUserSummary(row: UserRow, nowMs: number = now(), opts: SummaryOpts = {}): UserSummary {
+  const suspended = isSuspendedNow(row, nowMs);
+  const masked = suspended && opts.reveal !== true;
   return {
     id: row.id,
     handle: row.handle,
     display_name: row.display_name,
-    avatar_url: row.avatar_upload_id === null ? null : `/v1/media/${row.avatar_upload_id}`,
-    status: toUserStatus(row, nowMs),
+    avatar_url: masked || row.avatar_upload_id === null ? null : `/v1/media/${row.avatar_upload_id}`,
+    status: masked ? null : toUserStatus(row, nowMs),
     is_private: row.is_private === 1,
-    suspended: isSuspendedNow(row, nowMs),
+    suspended,
   };
 }
 
-/** One query for any number of ids; missing ids are simply absent from the map. */
-export async function loadUserSummaries(db: D1Database, ids: readonly string[]): Promise<Map<string, UserSummary>> {
+/** One query for any number of ids; missing ids are simply absent from the map. Suspended accounts are masked as in
+ *  toUserSummary unless `opts.reveal`. */
+export async function loadUserSummaries(db: D1Database, ids: readonly string[], opts: SummaryOpts = {}): Promise<Map<string, UserSummary>> {
   const out = new Map<string, UserSummary>();
   const unique = [...new Set(ids)];
   if (unique.length === 0) return out;
   const rows = await all<UserRow>(db, "SELECT * FROM users WHERE id IN (SELECT value FROM json_each(?1))", jsonList(unique));
   const t = now();
-  for (const row of rows) out.set(row.id, toUserSummary(row, t));
+  for (const row of rows) out.set(row.id, toUserSummary(row, t, opts));
   return out;
 }
 
@@ -172,7 +184,7 @@ export async function serializeMe(db: D1Database, userId: string): Promise<Me> {
   const presence = (p.results[0] as UserPresenceRow | undefined) ?? null;
   const t = now();
   return {
-    ...toUserSummary(user, t),
+    ...toUserSummary(user, t, { reveal: true }), // my own account
     bio: user.bio,
     created_at: iso(user.created_at),
     role: user.role,
@@ -268,22 +280,27 @@ async function loadRelationship(db: D1Database, viewerId: string, targetId: stri
 /**
  * Profile of `row` as seen by `viewerId`: relationship null for self; presence/last_seen_at null outside api.md 3.6.
  * A block (either way) still yields a profile — with can_dm=false and can_view_posts=false.
+ * A suspended account seen by anyone but its owner (owner decision D1, api.md 3.9 / 5.2): only handle, display name
+ * and suspended=true — bio "", status/avatar_url/presence/last_seen_at null, counts 0 (relationship stays: it is the
+ * viewer's own state, e.g. whether they blocked the account).
  */
 export async function serializeProfile(db: D1Database, viewerId: string, row: UserRow): Promise<Profile> {
   const self = row.id === viewerId;
+  const t = now();
+  const masked = !self && isSuspendedNow(row, t);
   const [visible, presence, relationship] = await Promise.all([
-    self ? Promise.resolve(new Set([row.id])) : presenceVisible(db, viewerId, [row.id]),
-    loadPresenceItems(db, [row.id]),
+    self ? Promise.resolve(new Set([row.id])) : masked ? Promise.resolve(new Set<string>()) : presenceVisible(db, viewerId, [row.id]),
+    masked ? Promise.resolve([]) : loadPresenceItems(db, [row.id]),
     self ? Promise.resolve(null) : loadRelationship(db, viewerId, row.id),
   ]);
   const p = visible.has(row.id) ? (presence[0] ?? null) : null;
   return {
-    ...toUserSummary(row),
-    bio: row.bio,
+    ...toUserSummary(row, t, { reveal: self }),
+    bio: masked ? "" : row.bio,
     created_at: iso(row.created_at),
-    follower_count: row.follower_count,
-    following_count: row.following_count,
-    post_count: row.post_count,
+    follower_count: masked ? 0 : row.follower_count,
+    following_count: masked ? 0 : row.following_count,
+    post_count: masked ? 0 : row.post_count,
     presence: p === null ? null : p.status,
     last_seen_at: p === null ? null : p.last_seen_at,
     relationship,
@@ -1285,6 +1302,7 @@ export async function serializeAdminActions(db: D1Database, rows: AdminActionRow
   const admins = await loadUserSummaries(
     db,
     rows.map((r) => r.admin_id),
+    { reveal: true }, // operator view
   );
   return rows.flatMap((r): AdminAction[] => {
     const admin = admins.get(r.admin_id);
@@ -1332,7 +1350,7 @@ export async function serializeReports(db: D1Database, rows: ReportRow[]): Promi
   }
   const types = [...idsByType.keys()];
   const [people, existsResults, counts] = await Promise.all([
-    loadUserSummaries(db, personIds),
+    loadUserSummaries(db, personIds, { reveal: true }), // operator view: a reported, suspended account stays recognisable
     batch(
       db,
       types.map((type) => {
@@ -1405,7 +1423,7 @@ export async function serializeAdminUsers(db: D1Database, rows: UserRow[]): Prom
   const byUser = new Map(counts.map((c) => [c.target_user_id, c.n]));
   const t = now();
   return rows.map((r) => ({
-    ...toUserSummary(r, t),
+    ...toUserSummary(r, t, { reveal: true }), // operator view
     role: r.role,
     created_at: iso(r.created_at),
     suspended_at: isoOrNull(r.suspended_at),

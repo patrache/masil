@@ -217,8 +217,8 @@ interface UserSummary {              // embedded everywhere
   id: ID;
   handle: string;
   display_name: string;
-  avatar_url: string | null;         // "/v1/media/<upload_id>" (relative; prefix server base URL)
-  status: UserStatus | null;         // null if unset or expired
+  avatar_url: string | null;         // "/v1/media/<upload_id>" (relative; prefix server base URL); null while suspended (3.9)
+  status: UserStatus | null;         // null if unset or expired; null while suspended (3.9)
   is_private: boolean;
   suspended: boolean;
 }
@@ -235,9 +235,9 @@ interface Relationship {             // viewer -> target
 }
 
 interface Profile extends UserSummary {
-  bio: string;
+  bio: string;                       // "" for a suspended account seen by others (3.9)
   created_at: Timestamp;
-  follower_count: number;
+  follower_count: number;            // the three counts are 0 for a suspended account seen by others (3.9)
   following_count: number;
   post_count: number;
   presence: PresenceStatus | null;   // null if not visible to viewer (3.6)
@@ -732,6 +732,12 @@ interface AdminAction {
 
 - 로그인·API·소켓 불가(`403 account_suspended`). 정지 순간 세션 폐기 + 소켓 `4003` 종료.
 - 다른 사람 화면: `UserSummary.suspended=true`. 정지 계정의 글·스토리·방명록 글은 피드·검색·트렌드에서 빠진다. 채팅 메시지는 남는다.
+- **정지 계정은 핸들·표시 이름만 [오너 결정 D1]**: 정지 중에는 본인 외 누구에게나 그 계정이 핸들·표시 이름·`suspended=true` 로만 보인다.
+  - 프로필(`GET /v1/users/{user}`, 5.2): `bio: ""`, `status: null`, `avatar_url: null`, `follower_count`·`following_count`·`post_count` 는 `0`, `presence`·`last_seen_at` 은 `null`. `id`·`created_at`·`is_private` 와 `relationship`(열람자 자신의 상태 — 내가 차단했는지 등; 정지 중이므로 `can_dm=false`, `can_view_posts=false`)은 그대로.
+  - 그 밖의 모든 `UserSummary`(사용자 목록·`GET /v1/users?ids=`·친구·멤버·메시지 작성자·이벤트 등): `status: null`, `avatar_url: null`.
+  - 그 계정의 아바타 이미지(`GET /v1/media/{upload_id}`, 5.14)는 본인·운영자 외 `404`.
+  - 운영자 화면(`/v1/admin/*` 의 `AdminUserView`·`Report.reporter`·`Report.target_user`·`AdminAction.admin`)은 가리지 않는다.
+  - 정지가 끝나면(`suspended_until <= 지금`) 모두 다시 보인다. 판정 경계는 3.4 규칙 2 와 같다.
 - 남의 글에 박힌 정지 계정 글도 숨는다(REST·이벤트 공통): 인용은 `quote: { available:false, reason:"not_visible" }`, 정지 계정 글에 단 답글은 `reply_to_author: null`. 정지가 끝나면 다시 나온다.
 - 정지 중에는 그 계정이 행위자인 알림함 행(미리보기 포함)도 목록·`unread_count` 에서 빠진다(5.18). 정지가 끝나면(`suspended_until` 경과) 다시 보인다.
 - 사용자 목록(남의 팔로워·팔로잉, 글의 좋아요·리포스트 목록)에는 정지 계정이 `suspended=true` 로 남는다. 사용자 검색(5.2)에서는 빠진다.
@@ -823,6 +829,7 @@ interface AdminAction {
 
 #### `GET /v1/users/{user}`
 - `200 { "user": Profile }` · 차단 관계(어느 방향이든)여도 프로필은 200 으로 주되 `can_dm=false`, `can_view_posts=false`.
+- 정지 중인 계정(본인 외): 200 이지만 핸들·표시 이름·`suspended=true` 만 — `bio: ""`, `status`·`avatar_url`·`presence`·`last_seen_at` 은 `null`, 카운트 3개는 `0` [오너 결정 D1, 3.9].
 
 #### `GET /v1/users?ids=<id>,<id>,...`
 - 최대 100개, 없는 ID 는 빠짐. `200 { "items": UserSummary[] }`
@@ -1163,7 +1170,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 소유자, `pending` 만. `204`
 
 #### `GET /v1/media/{upload_id}`
-- 인증 필요. 열람 권한: 아바타는 누구나, 글 이미지는 그 글의 열람 규칙(3.4), 스토리 이미지는 스토리 열람 규칙 + 미만료, `pending` 은 소유자만. 권한 없음/삭제됨 → `404`.
+- 인증 필요. 열람 권한: 아바타는 누구나(단 정지 중인 계정의 아바타는 본인·운영자만, 3.9), 글 이미지는 그 글의 열람 규칙(3.4), 스토리 이미지는 스토리 열람 규칙 + 미만료, `pending` 은 소유자만. 권한 없음/삭제됨 → `404`.
 - `200` 이미지 바이트. 헤더: `Content-Type`, `Content-Length`, `ETag`, `Cache-Control: private, max-age=31536000, immutable`. `If-None-Match` → `304`.
 
 ### 5.15 글(피드)

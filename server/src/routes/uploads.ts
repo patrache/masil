@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import type { AppContext, AppEnv } from "../env";
-import { getAuth, requireAuth } from "../lib/auth";
+import { getAuth, isSuspendedNow, requireAuth } from "../lib/auth";
 import { declaredLength, readBodyCapped } from "../lib/body";
 import { first, run } from "../lib/db";
 import { ApiError, err } from "../lib/errors";
@@ -15,7 +15,7 @@ import { serializeUpload } from "../lib/serialize";
 import { now } from "../lib/time";
 import { imageMetadataCheck, r2Key, removeUploads, sniffImage } from "../lib/uploads";
 import { vQuery } from "../lib/validate";
-import type { PostRow, StoryRow, UploadRow } from "../types/rows";
+import type { PostRow, StoryRow, UploadRow, UserRow } from "../types/rows";
 
 /** api.md 0.3 / 5.14: 1..5,242,880 bytes per image. */
 export const UPLOAD_MAX_BYTES = 5_242_880;
@@ -134,7 +134,8 @@ uploadRoutes.delete("/uploads/:upload_id", requireAuth, async (c) => {
   return c.body(null, 204);
 });
 
-/** api.md 5.14 media access: avatar -> anyone; post -> 3.4; story -> story rules + unexpired; pending -> owner only. */
+/** api.md 5.14 media access: avatar -> anyone, except a suspended owner's avatar -> only the owner and operators (D1,
+ *  3.9); post -> 3.4; story -> story rules + unexpired; pending -> owner only. */
 async function canViewMedia(c: AppContext, viewerId: string, up: UploadRow): Promise<boolean> {
   const db = c.env.DB;
   if (up.status === "removed") return false;
@@ -144,7 +145,15 @@ async function canViewMedia(c: AppContext, viewerId: string, up: UploadRow): Pro
   if (sep < 0) return false;
   const kind = target.slice(0, sep);
   const targetId = target.slice(sep + 1);
-  if (kind === "avatar") return true;
+  if (kind === "avatar") {
+    if (up.owner_id === viewerId || getAuth(c).role === "admin") return true;
+    const owner = await first<Pick<UserRow, "suspended_at" | "suspended_until">>(
+      db,
+      "SELECT suspended_at, suspended_until FROM users WHERE id = ?1",
+      up.owner_id,
+    );
+    return owner !== null && !isSuspendedNow(owner, now());
+  }
   if (kind === "post") {
     const post = await first<PostRow>(db, "SELECT * FROM posts WHERE id = ?1 AND deleted_at IS NULL", targetId);
     return post !== null && (await canViewPost(db, viewerId, post));
