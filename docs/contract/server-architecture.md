@@ -887,5 +887,5 @@ curl "http://localhost:8787/__scheduled?cron=17+*+*+*+*"    # trigger cleanup
 npm test                                             # vitest run
 npm run typecheck                                    # tsc --noEmit (src) + tsc --noEmit -p test (test files); CI runs the same
 ```
-- 클라이언트 연결: `MASIL_SERVER=http://localhost:8787 masil`.
+- 클라이언트 연결: `MASIL_SERVER=http://localhost:8787 masil`. 버전을 넣지 않은 개발 빌드(`version.Version = "0.0.0-dev"`, CA 4.1)는 `MIN_CLIENT_VERSION`(0.1.0) 미만이라 `426 upgrade_required` 를 받는다 — 개발 빌드는 `go run -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./cmd/masil` 처럼 버전을 넣어 실행한다(서버 쪽 게이트·기본값은 그대로).
 - 원격 명령(`--remote`, `wrangler deploy`, `wrangler d1 create`, `wrangler r2 bucket create`)은 오너 승인 전 실행 금지.

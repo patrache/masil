@@ -240,7 +240,9 @@ cd server && npm install && npx wrangler d1 migrations apply DB --local && npx w
 # → http://localhost:8787
 
 # 클라이언트 (다른 터미널에서, 저장소 루트)
-MASIL_SERVER=http://localhost:8787 go run ./cmd/masil
+# 버전을 넣지 않은 개발 빌드는 masil/0.0.0-dev 라서, 서버의 MIN_CLIENT_VERSION(0.1.0)에 걸려
+# "masil을 업데이트해 주세요 (최소 0.1.0)" 가 나온다. 개발 빌드에는 버전을 넣어 실행한다.
+MASIL_SERVER=http://localhost:8787 go run -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./cmd/masil
 
 # 시험
 go test ./...
