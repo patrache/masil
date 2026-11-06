@@ -122,6 +122,18 @@ func (l *List[T]) Selected() (T, bool) {
 	return l.items[l.sel], true
 }
 
+// At is the item drawn at row y of the last View (the item a click on that
+// row selects), and false for a blank row or one outside the view.
+func (l *List[T]) At(y int) (T, bool) {
+	if y >= 0 && y < len(l.rows) {
+		if i := l.rows[y]; i >= 0 && i < len(l.items) {
+			return l.items[i], true
+		}
+	}
+	var zero T
+	return zero, false
+}
+
 // Select selects by ID (unknown IDs are ignored) and scrolls it into view.
 func (l *List[T]) Select(id string) {
 	if i, ok := l.index[id]; ok {

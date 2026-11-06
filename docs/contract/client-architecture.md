@@ -4,8 +4,8 @@
 - 이 문서는 Go 클라이언트를 만드는 **네 계획**이 병렬로 지켜야 할 단일 출처다.
   - **core** — 기반(설정·인증·API·실시간·상태·테마·레이아웃·UI 프레임워크·팔레트·알림 추상화·테스트 하네스·로그인/설정 화면·`masil` 진입점)
   - **chat** — 채팅 화면 전부(방 레일·채널/DM 목록·대화·스레드·멤버·검색·방/초대 관리)와 채팅 상태 저장소
-  - **sns-fun** — 피드·글·프로필·스토리·해시태그/트렌드·알림함·방명록·상태 메시지·집중 모드 UI·이미지 렌더링
-  - **daemon-release** — `masil daemon`, OS 자동 시작 등록, `masil admin`, goreleaser·설치 스크립트·Homebrew tap
+  - **sns-fun** — 피드·글·프로필·스토리·해시태그/트렌드·알림함·방명록·상태 메시지·집중 모드 UI·이미지 렌더링·`masil admin`(운영자 CLI, 범위 지시서 재배정)
+  - **daemon-release** — `masil daemon`, OS 자동 시작 등록, goreleaser·설치 스크립트·Homebrew tap
 - 표기: **[결정]** = 이 문서가 정한 것(설계서가 빌더 재량으로 남긴 부분). **[검증]** = 2026-11-05 에 실제 모듈을 내려받아 `go doc`·소스·시험 코드로 확인한 사실.
 - 문서 언어는 한국어, 코드 식별자·JSON 필드·경로·주석은 영어.
 
@@ -182,7 +182,7 @@ cmd/masil/
   register_chat.go                     chat   (blank import of internal/ui/chat)
   register_sns.go                      sns-fun (blank import of internal/ui/feed, internal/ui/fun)
   cmd_daemon.go                        daemon-release
-  cmd_admin.go                         daemon-release
+  cmd_admin.go                         sns-fun
 
 internal/
   deps/                                core   (tools pin, 1.3)
@@ -207,7 +207,7 @@ internal/
   imgrender/                           sns-fun
   daemon/                              daemon-release
   autostart/                           daemon-release
-  admincli/                            daemon-release
+  admincli/                            sns-fun
   ui/                                  core   (framework: Component, Context, Route, registry, messages)
   ui/layout/                           core
   ui/keymap/                           core
@@ -289,7 +289,7 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 - **종료 코드(CR-D)**: 명령의 `Run` 이 돌려준 오류를 `nil` → 0, `errors.Is(err, errUsage)` → 2, 그 밖 → 1 로 바꾼다(감싼 오류도 `errors.Is` 로 판정 — `fmt.Errorf("…: %w", usageErr(x))` 도 2). 알 수 없는 명령·인자 오류는 명령이 stderr 에 사용법 줄을 쓴 뒤 `usageErr(err)` 로 돌려준다. `-h`/`--help` 는 사용법을 stdout 에 쓰고 0. 사용자에게 보일 문구는 명령이 스스로 `env.Stderr` 에 쓰고, 디스패처는 돌려받은 오류를 다시 출력하지 않는다(로그 파일에만 기록).
 - core 는 `admincli` 를 import 하지 않는다(2.2). 같은 `package main` 인 `cmd_admin.go`(sns-fun)는 `errors.Is(err, admincli.ErrUsage)` 면 `usageErr(err)` 로 감싸고, `cmd_daemon.go`(daemon-release)는 사용법 오류를 `usageErr(…)` 로 돌려준다.
 
-- 명령 소유: core = `tui`(기본), `login`, `signup`, `logout`, `join <code>`, `version`, `config path`, `help`. daemon-release = `daemon run|install|uninstall|status`, `admin ...`.
+- 명령 소유: core = `tui`(기본), `login`, `signup`, `logout`, `join <code>`, `version`, `config path`, `help`. daemon-release = `daemon run|install|uninstall|status`. sns-fun = `admin ...`.
 - `masil join <code>` 은 TUI 를 시작하며 초기 경로를 `ui.Route{Kind: ui.RouteInvite, ID: code}` 로 준다(초대 미리보기 화면은 chat 소유).
 - `register_chat.go`: `import _ "github.com/patrache/masil/internal/ui/chat"`. `register_sns.go`: `import _ ".../internal/ui/feed"; import _ ".../internal/ui/fun"`. 이 import 만으로 각 패키지의 `init()` 이 화면·리듀서·팔레트 명령을 등록한다.
 
@@ -2236,7 +2236,8 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 | 이미지(하프블록·kitty·iTerm2)·업로드 전처리 | sns-fun | imgrender |
 | 알림 정책·공유 기록·OS 백엔드 | core | notify |
 | TUI 의 alert 처리 | core | ui/app |
-| 데몬·자동 시작·운영자 CLI·릴리스 | daemon-release | daemon, autostart, admincli, 릴리스 파일 |
+| 데몬·자동 시작·릴리스 | daemon-release | daemon, autostart, 릴리스 파일 |
+| 운영자 CLI(`masil admin`) | sns-fun | admincli, cmd/masil/cmd_admin.go |
 | 로그인/가입/설정 화면, `masil` 진입점 | core | ui/authui, ui/settings, cmd/masil/main.go |
 
 ---
@@ -2337,7 +2338,7 @@ func Uninstall() error
 func Query() (Status, error)
 ```
 
-`internal/admincli`(daemon-release): `masil admin reports|report <id>|resolve <id> <resolution>|remove <type> <id>|suspend @h [--for 7d]|unsuspend @h|users|actions` — `api.Admin*` 메서드 사용, 표 출력은 `textwidth` 로 정렬.
+`internal/admincli`(sns-fun): `masil admin reports|report <id>|resolve <id> <resolution>|remove <type> <id>|suspend @h [--for 7d]|unsuspend @h|users|actions` — `api.Admin*` 메서드 사용, 표 출력은 `textwidth` 로 정렬.
 
 ---
 

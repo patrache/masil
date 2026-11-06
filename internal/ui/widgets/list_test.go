@@ -423,3 +423,24 @@ func TestListModeChangeSameWidthRerenders(t *testing.T) {
 		t.Fatalf("command at same width: first line = %q, want %q", got, want)
 	}
 }
+
+// At is the item drawn at a row of the last View (what a click there selects).
+func TestListAt(t *testing.T) {
+	ctx := newCtx(nil, false)
+	multi := newTestList()
+	multi.SetItems(items(5, func(int) int { return 2 }, ""))
+	multi.View(ctx, ui.Size{W: 20, H: 10})
+	for y, want := range map[int]string{0: "m0", 2: "m0", 3: "m1", 9: "m3"} { // 3 lines each
+		if it, ok := multi.At(y); !ok || it.id != want {
+			t.Fatalf("At(%d) = %+v %v, want %s", y, it, ok, want)
+		}
+	}
+	short := newTestList()
+	short.SetItems(items(2, nil, ""))
+	short.View(ctx, ui.Size{W: 20, H: 10})
+	for _, y := range []int{-1, 2, 8, 10} {
+		if it, ok := short.At(y); ok {
+			t.Fatalf("At(%d) on a blank row = %+v", y, it)
+		}
+	}
+}
