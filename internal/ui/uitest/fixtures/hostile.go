@@ -15,9 +15,21 @@ const (
 	syllables     = "가나다라마바사아자차카타파하"
 	// emojiSoup mixes every grapheme kind the width rules care about (CA 8.2).
 	emojiSoup = "❄️ ⚠️ 👍🏽 👨‍👩‍👧 🇰 🇰🇷 1️⃣ क्षि 가 é"
-	// controlSoup mixes tab, CR, C0, C1, SGR and OSC 8 into text.
+	// controlSoup mixes tab, CR, C0, C1, SGR and OSC 8 into text, plus the
+	// string sequences the app's lipgloss compositor lets through untouched
+	// (escapeSoup), so a frame-level sweep fails if a widget stops sanitizing.
 	controlSoup = "탭\t문자\r캐리지 \x01\x02\x07 C0 \u0085\u009b C1 \x1b[31m빨강\x1b[0m ANSI " +
-		"\x1b]8;;https://evil.example/\x07링크\x1b]8;;\x07 OSC8 \x00끝"
+		"\x1b]8;;https://" + InjectedLinkHost + "/\x07링크\x1b]8;;\x07 OSC8 " + escapeSoup + " \x00끝"
+	// escapeSoup: APC (kitty graphics), DCS (DECRQSS), SOS, PM, 8-bit CSI,
+	// OSC 52 and CSI 2J. lipgloss v2.0.6's Compositor strips the last two
+	// (and OSC 0/2) but passes APC, DCS, SOS, PM, C1 and OSC 8 to the
+	// terminal (pending-fixes 0-b review).
+	escapeSoup = "\x1b_Ga=T,f=100;iVBORw0KGgo=\x1b\\APC \x1bP1$qm\x1b\\DCS \x1bXsos\x1b\\SOS " +
+		"\x1b^pm\x1b\\PM \u009b2J\u009d0;C1\u009c \x1b]52;c;UFdO\x07 \x1b[2J"
+	// InjectedLinkHost is the target of the raw OSC 8 hyperlink the hostile
+	// set hides in text. No frame may ever hyperlink to it (uitest check 6):
+	// it only appears behind control bytes, so it is never a link of its own.
+	InjectedLinkHost = "evil.example"
 )
 
 var hostileAt = time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
@@ -59,7 +71,7 @@ func hostileCtrl() api.UserSummary {
 	return api.UserSummary{
 		ID:          userHostileCtrl,
 		Handle:      "ctrl_user",
-		DisplayName: "제어\x1b[31m빨강\x1b[0m\t탭\r\u0085이름",
+		DisplayName: "제어\x1b[31m빨강\x1b[0m\t탭\r\u0085이름\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J",
 	}
 }
 
@@ -88,7 +100,7 @@ func hostileChannels() []api.Channel {
 	main.Topic = runesOf(emojiSoup+" "+controlSoup+" ", 250)
 	main.MemberCount = 9999
 	main.My.LastReadMessageID = nil
-	ctrl := textChannel(chHostileCtrl, SpaceHostile, "제어\x1b[31m문자\t채널\r\x07", 1, api.ChannelMyState{Notify: "all", UnreadCount: 42})
+	ctrl := textChannel(chHostileCtrl, SpaceHostile, "제어\x1b[31m문자\t채널\r\x07\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J", 1, api.ChannelMyState{Notify: "all", UnreadCount: 42})
 	ctrl.My.LastReadMessageID = nil
 	return []api.Channel{main, ctrl}
 }

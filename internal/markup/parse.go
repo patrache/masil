@@ -339,7 +339,12 @@ func SafeURL(u string) bool {
 
 const urlTrailing = ".,)!?:;"
 
-// bareURL: "http(s)://..." up to whitespace, minus trailing punctuation.
+// bareURL: "http(s)://..." up to visible whitespace, minus trailing
+// punctuation. A bare URL is its own link text, so a run that hits a rune the
+// screen does not show as a break (a control other than tab/newline, invalid
+// UTF-8, U+2028/U+2029) is plain text as a whole (pending-fixes 0-b ①):
+// linking the clean prefix would make "https://a.com\u0085.b.com" read as one
+// address while it opens https://a.com.
 func (p *inlineParser) bareURL(i int) int {
 	s := p.s
 	if prev, _ := utf8.DecodeLastRuneInString(s[:i]); i > 0 && isASCIIWord(prev) {
@@ -348,7 +353,13 @@ func (p *inlineParser) bareURL(i int) int {
 	end := i
 	for end < len(s) {
 		r, size := utf8.DecodeRuneInString(s[end:])
-		if unicode.IsSpace(r) || strings.ContainsRune("<>\"`", r) || unsafeURLRune(r, size) {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' && strings.HasPrefix(s[end+1:], "\n") {
+			break
+		}
+		if unsafeURLRune(r, size) || r == '\u2028' || r == '\u2029' {
+			return p.literal(i, end-i)
+		}
+		if unicode.IsSpace(r) || strings.ContainsRune("<>\"`", r) {
 			break
 		}
 		end += size

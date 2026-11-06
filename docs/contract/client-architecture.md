@@ -1305,6 +1305,7 @@ func Plain(body string, maxCells int) string        // markdown stripped one-lin
 ```
 
 - 코드 블록은 왼쪽 막대 `▎`(acc) + codebg 배경 + chroma 강조. 언어 미지정/모름 → `lexers.Fallback`.
+- 링크 안전 규칙(pending-fixes 0-b): `[t](u)` 의 u 에 공백·제어 문자(C0·DEL·C1)·잘못된 UTF-8 이 하나라도 있으면 링크가 아니라 원문 텍스트. 맨 URL 은 보이는 공백(스페이스·탭·`\n`·`\r\n`)이나 `<>"\``에서 끝나며, 그 전에 화면에 안 보이는 끊김(그 밖의 제어 문자·잘못된 UTF-8·U+2028/U+2029)을 만나면 **앞부분도 링크로 만들지 않고** 전체를 텍스트로 둔다(보이는 주소와 여는 주소가 달라지지 않게). OSC 8 은 제어 문자·ESC/BEL·잘못된 UTF-8·서식 문자(Cf: bidi·zero-width·ZWJ·BOM·soft hyphen·태그)·U+2028/U+2029 가 없는 URL 에만 붙이고, 대상은 `HyperlinkTarget` 으로 0x80 이상 바이트를 퍼센트 인코딩한 인쇄 가능 ASCII. 표시용 Sanitize 의 다른 규칙(NFC, VS16·피부색 제거, rule 7 □ 치환)은 보이는 글자의 모양만 바꾸므로 인도계 문자·NFD·이모지 URL 은 그대로 눌린다(ZWJ 이모지 URL 은 첫 구성 요소만 보이므로 OSC 8 없음).
 - 링크는 텍스트에 밑줄 + acc4, 맨 URL 도 같음. 멘션은 `selbg` 배경 + `acc` 글자(mockup `.mention`). 내 멘션·`@here` 는 굵게.
 
 ### 4.9 `internal/humanize`, `internal/slash`, `internal/termcaps` (core)
@@ -2442,6 +2443,7 @@ func AssertIntegrity(tb testing.TB, content string, w, h int, boxes []Box, borde
 3. `U+FFFD`, 제어 문자, 짝 없는 서로게이트 없음.
 4. 상태줄(TooSmall 제외)이 마지막 줄에 있음.
 5. 모든 상자는 화면 안(`0 ≤ X, X+W ≤ cols, 0 ≤ Y, Y+H ≤ rows`)이고, 오버레이·토스트는 상태줄을 덮지 않는다.
+6. 원시(raw) 줄에는 SGR(`CSI … m`)과 대상이 인쇄 가능 ASCII 인 OSC 8 말고 어떤 이스케이프·제어 시퀀스도 없다. OSC 8 대상이 `fixtures.InjectedLinkHost`(적대적 세트가 원문에 숨긴 OSC 8 의 호스트)이면 실패(pending-fixes 0-b). 앱 합성기(lipgloss v2.0.6 `Compositor`)가 OSC 52·OSC 0/2·CSI 2J 를 스스로 지우므로, 위젯의 정리를 증명하는 적대적 페이로드는 합성기를 통과하는 APC·DCS·SOS·PM·C1·OSC 8 이어야 한다.
 
 `internal/ui/uitest/stub` (core, **시험 전용** — `_test.go` 에서만 import, 제품 코드·`ui/e2e` 는 import 금지):
 
@@ -2503,7 +2505,7 @@ func HostileTimeline() []api.TimelineItem
 func RegisterAPI(srv *apitest.Server)             // canned responses for the above (normal + hostile)
 func TestImage() image.Image                      // 64x48 gradient (mockup .img colors)
 ```
-**적대적(hostile) 세트** `Hostile`: 32자 handle·32자 표시 이름(한글 16자), 50자 채널 이름(한글), 50자 방 이름, 4,000자 메시지(한글·영문·공백 없는 긴 단어 섞음), 500자 글, 탭·`\r`·C0/C1 제어 문자·ANSI 이스케이프(`\x1b[31m`, OSC 8) 섞인 본문·이름, VS16(`❄️ ⚠️`)·피부색(`👍🏽`)·ZWJ(`👨‍👩‍👧`)·단독 지역 표시자(`🇰`)·국기(`🇰🇷`)·키캡(`1️⃣`)·데바나가리(`क्षि`)·조합형 자모(`ᄀ`+`ᅡ`)·결합 악센트 단독, 공백 없는 300자 URL, 리액션 20종(이모지 키 위 문자들), 답글 9,999개, 안 읽음 9,999, 멘션 `@here` + 32자 handle 멘션, 상태 메시지 이모지 + 긴 문구.
+**적대적(hostile) 세트** `Hostile`: 32자 handle·32자 표시 이름(한글 16자), 50자 채널 이름(한글), 50자 방 이름, 4,000자 메시지(한글·영문·공백 없는 긴 단어 섞음), 500자 글, 탭·`\r`·C0/C1 제어 문자·ANSI 이스케이프(`\x1b[31m`, OSC 8, 합성기를 통과하는 APC(kitty 그래픽)·DCS·SOS·PM·8비트 CSI, OSC 52·CSI 2J) 섞인 본문·이름, VS16(`❄️ ⚠️`)·피부색(`👍🏽`)·ZWJ(`👨‍👩‍👧`)·단독 지역 표시자(`🇰`)·국기(`🇰🇷`)·키캡(`1️⃣`)·데바나가리(`क्षि`)·조합형 자모(`ᄀ`+`ᅡ`)·결합 악센트 단독, 공백 없는 300자 URL, 리액션 20종(이모지 키 위 문자들), 답글 9,999개, 안 읽음 9,999, 멘션 `@here` + 32자 handle 멘션, 상태 메시지 이모지 + 긴 문구.
 
 chat·sns-fun 은 자기 테스트 전용 데이터를 자기 패키지 `testdata` 나 `_test.go` 에 추가한다(fixtures 패키지를 고치지 않는다). 단 자기 화면마다 `fixtures.Hostile` 을 넣은 **무결성 전용**(골든 없음) 시험 × `AllSizes` 를 반드시 둔다(`h.Check()`).
 

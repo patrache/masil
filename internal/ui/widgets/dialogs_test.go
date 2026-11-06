@@ -222,10 +222,17 @@ func TestReportDialogSubmit(t *testing.T) {
 	})
 	// pending-fixes 0-b: a hostile server's error code and details.fields keys
 	// and values reach the inline error line without any escape sequence.
+	// The app's lipgloss Compositor already drops OSC 52, OSC 0/2 and CSI 2J,
+	// so each case also carries what it lets through (APC kitty graphics, DCS,
+	// SOS, PM, 8-bit C1 CSI, OSC 8): with api.Describe's and the dialog's
+	// Sanitize both removed this test fails; either one alone keeps it green
+	// (TestDescribeSanitizesServerStrings and TestReportErrorLineSanitized pin
+	// each layer on its own).
+	const passThrough = "\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\x1bXs\x1b\\\x1b^p\x1b\\\u009b2J\x1b]8;;https://evil.example/\x07L\x1b]8;;\x07"
 	for name, env := range map[string]map[string]any{
-		"hostile code": {"error": map[string]any{"code": "x\x1b[2J\x1b]52;c;ZXZpbA==\x07", "message": "\x1b]0;PWNED\x07"}},
+		"hostile code": {"error": map[string]any{"code": "x\x1b[2J\x1b]52;c;ZXZpbA==\x07" + passThrough, "message": "\x1b]0;PWNED\x07"}},
 		"hostile fields": {"error": map[string]any{"code": "invalid_request", "message": "m",
-			"details": map[string]any{"fields": map[string]string{"\x1b[2J": "\x1b]52;c;ZXZpbA==\x07\u009b31m"}}}},
+			"details": map[string]any{"fields": map[string]string{"\x1b[2J" + passThrough: "\x1b]52;c;ZXZpbA==\x07\u009b31m" + passThrough}}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := uitest.New(t)
@@ -236,7 +243,7 @@ func TestReportDialogSubmit(t *testing.T) {
 			}
 			h.Check() // check 6: only SGR / clean OSC 8 escapes
 			raw := h.Styled()
-			for _, bad := range []string{"\x1b[2J", "]52;", "]0;", "\x07", "\u009b"} {
+			for _, bad := range []string{"\x1b[2J", "]52;", "]0;", "\x07", "\u009b", "\x1b_", "\x1bP", "\x1bX", "\x1b^", "evil.example"} {
 				if strings.Contains(raw, bad) {
 					t.Fatalf("frame carries %q:\n%q", bad, raw)
 				}

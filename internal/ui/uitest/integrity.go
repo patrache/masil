@@ -11,6 +11,7 @@ import (
 
 	"github.com/patrache/masil/internal/ui/app"
 	"github.com/patrache/masil/internal/ui/layout"
+	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 )
 
 // Box is a drawn rectangle. Z: panes 0, overlays 10+i, toast 100.
@@ -60,9 +61,11 @@ func BoxesOf(f app.FrameInfo) []Box {
 //  5. every box is on screen (0 <= X, X+W <= w, 0 <= Y, Y+H <= h), and outside TooSmall
 //     no overlay or toast covers the status line.
 //  6. the raw line holds no escape sequence but SGR (CSI ... m) and OSC 8 hyperlinks
-//     whose target is printable ASCII (pending-fixes 0-b): ansi.Strip would hide an
-//     injected OSC 52 clipboard write, OSC 0/2 title, screen clear or cursor move
-//     from checks 1 and 3.
+//     whose target is printable ASCII and not fixtures.InjectedLinkHost (pending-fixes
+//     0-b): ansi.Strip would hide an injected OSC 52 clipboard write, OSC 0/2 title,
+//     screen clear, cursor move, APC/DCS/SOS/PM string or C1 control from checks 1
+//     and 3. The app's lipgloss Compositor drops OSC 52, OSC 0/2 and CSI 2J itself,
+//     so only APC/DCS/SOS/PM, C1 and OSC 8 payloads prove a widget sanitizes.
 //
 // The screen is ansi.Strip'ed and cut into cells by grapheme width: a wide grapheme
 // occupies its first cell, the following cell(s) hold a continuation marker.
@@ -181,7 +184,7 @@ func checkEscapes(r *reporter, y int, line string) {
 			continue // a printable grapheme
 		}
 		if !allowedEscape(seq) {
-			r.errorf("line %d: escape sequence %q (only SGR and OSC 8 with a printable-ASCII target may reach the terminal)", y, seq)
+			r.errorf("line %d: escape sequence %q (only SGR and OSC 8 with a printable-ASCII target, never the hostile set's injected host, may reach the terminal)", y, seq)
 		}
 	}
 }
@@ -228,7 +231,10 @@ func allowedEscape(seq string) bool {
 			return false
 		}
 	}
-	return true
+	// A clean-looking OSC 8 to the hostile set's injected host came from raw
+	// text (or from a link to a prefix cut at a control rune), never from a
+	// real link: markup never sees that URL as one.
+	return !strings.Contains(payload, fixtures.InjectedLinkHost)
 }
 
 // contCell marks the cells covered by the right part of a wide grapheme.

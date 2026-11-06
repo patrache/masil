@@ -3,6 +3,7 @@ package markup
 import (
 	"strconv"
 	"strings"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
@@ -408,11 +409,22 @@ func renderRun(st lipgloss.Style, s string) string {
 }
 
 // hyperlinkable reports whether u may become an OSC 8 target (pending-fixes
-// 0-b): SafeURL (valid UTF-8, no C0/DEL/C1), no ESC or BEL, and unchanged by
-// textwidth.Sanitize, so no bidi, zero-width or other format character can make
-// the target differ from the link text the viewer reads.
+// 0-b ②): SafeURL (valid UTF-8, no C0/DEL/C1), no ESC or BEL, and no rune
+// Sanitize hides from the link text: format characters (bidi, zero-width, ZWJ,
+// BOM, soft hyphen, tags) and line/paragraph separators, so the target cannot
+// differ invisibly from what the viewer reads. Sanitize's other rules (NFC,
+// VS16 and skin-tone removal, rule 7 placeholders) only change how a visible
+// character is drawn, so Indic, NFD and emoji URLs stay clickable.
 func hyperlinkable(u string) bool {
-	return u != "" && SafeURL(u) && !strings.ContainsAny(u, "\x1b\x07") && u == textwidth.Sanitize(u)
+	if u == "" || !SafeURL(u) || strings.ContainsAny(u, "\x1b\x07") {
+		return false
+	}
+	for _, r := range u {
+		if unicode.Is(unicode.Cf, r) || r == '\u2028' || r == '\u2029' {
+			return false
+		}
+	}
+	return true
 }
 
 // HyperlinkTarget percent-encodes u for an OSC 8 target: every byte outside
