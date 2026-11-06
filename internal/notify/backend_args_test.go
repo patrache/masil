@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -38,6 +39,14 @@ var hostile = []string{
 	"\u0085\u009b31m",
 	"\xff\xfe invalid utf-8",
 	"민지님이 ❤️ 보냄",
+	// Bidi controls and invisible format characters (pending-fixes 0 "common",
+	// 1): U+202E makes "txt.exe" read "exe.txt", zero-width characters split a
+	// handle that looks whole, U+2028/U+2029 fake a second line.
+	"\u202etxt.exe",
+	"\u2067evil\u2069 \u202a\u202b\u202c\u202d\u2066\u2068",
+	"ad\u200bmin\ufeff\u00ad\u2060\u2061\u2062\u2063\u2064\u200c",
+	"\u200e\u200f\u061c(RLM/LRM/ALM)",
+	"줄1\u2028[관리자] 비밀번호를 보내세요\u2029끝",
 }
 
 func pairs() []OSNotification {
@@ -52,9 +61,11 @@ func pairs() []OSNotification {
 	return out
 }
 
-// noControls asserts the text that reaches any OS backend has no C0/C1 controls
-// (so no newline to end a here-string or an AppleScript line, no ESC/BEL).
-func noControls(t *testing.T, what, s string) {
+// inert asserts the text that reaches any OS backend has no C0/C1 controls (so
+// no newline to end a here-string or an AppleScript line, no ESC/BEL), no
+// line/paragraph separator and no format character (bidi controls, zero-width
+// characters, BOM, soft hyphen: category Cf).
+func inert(t *testing.T, what, s string) {
 	t.Helper()
 	if !utf8.ValidString(s) {
 		t.Errorf("%s: invalid UTF-8 %q", what, s)
@@ -63,14 +74,17 @@ func noControls(t *testing.T, what, s string) {
 		if r < 0x20 || (r >= 0x7f && r <= 0x9f) {
 			t.Errorf("%s: control %U in %q", what, r, s)
 		}
+		if unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
+			t.Errorf("%s: format/separator %U in %q", what, r, s)
+		}
 	}
 }
 
 func TestPrepareSanitizesAndLimits(t *testing.T) {
 	for _, n := range pairs() {
 		p := prepare(n)
-		noControls(t, "title", p.Title)
-		noControls(t, "body", p.Body)
+		inert(t, "title", p.Title)
+		inert(t, "body", p.Body)
 		if p.AlertID != n.AlertID {
 			t.Errorf("AlertID changed: %q", p.AlertID)
 		}
@@ -183,9 +197,10 @@ func TestToastXMLOmitsEmptyBody(t *testing.T) {
 	}
 }
 
-// TestDBusArgsAreInert: summary is plain text by spec; the body is markup only
-// when the server says so, and then every & < > is escaped. No actions (an
-// action is a clickable command), no icon, no hints.
+// TestDBusArgsAreInert: summary is plain text by spec and carries no '<' '>'
+// (TestDBusSummaryCannotCarryTags); the body is markup only when the server
+// says so, and then every & < > is escaped. No actions (an action is a
+// clickable command), no icon, no hints.
 func TestDBusArgsAreInert(t *testing.T) {
 	for _, markup := range []bool{false, true} {
 		for _, n := range pairs() {
@@ -194,8 +209,9 @@ func TestDBusArgsAreInert(t *testing.T) {
 			if c.AppName != "masil" || c.ReplacesID != 0 || c.Icon != "" || len(c.Actions) != 0 || c.Timeout != -1 {
 				t.Fatalf("unexpected call fields: %+v", c)
 			}
-			if c.Summary != p.Title {
-				t.Fatalf("summary = %q, want %q", c.Summary, p.Title)
+			inert(t, "summary", c.Summary)
+			if strings.ContainsAny(c.Summary, "<>") {
+				t.Fatalf("summary has raw tag chars: %q", c.Summary)
 			}
 			if !markup {
 				if c.Body != p.Body {

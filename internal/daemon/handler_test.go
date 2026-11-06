@@ -215,7 +215,7 @@ func TestHandlerReplayAgeAndLedger(t *testing.T) {
 }
 
 // A resume after a long sleep replays ~1000 notify-mode events while the sink is slow
-// (osascript/beeep). onEvent must never block, nothing may be dropped, marks stay in seq order.
+// (osascript, D-Bus, WinRT toast). onEvent must never block, nothing may be dropped, marks stay in seq order.
 func TestHandlerBurstNoLossInOrder(t *testing.T) {
 	slow := &slowSink{delay: 2 * time.Millisecond} // records alert IDs in call order, sleeps per call
 	var mu sync.Mutex

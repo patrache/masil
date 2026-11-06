@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/patrache/masil/internal/api"
@@ -12,15 +13,16 @@ import (
 
 // The daemon pops other users' text through the same notify backend as the TUI
 // (pending-fixes 0). Its sink must hand the backend Format's output only:
-// no control characters (newline, ESC, BEL, C1), bounded length, and the text
+// no control characters (newline, ESC, BEL, C1), no bidi/format characters or
+// line separators (pending-fixes 1), bounded length, and the text
 // never reaches daemon.log.
 func TestLedgerSinkShowsFormattedTextOnly(t *testing.T) {
 	p := testPaths(t)
 	rec := &lockedRecorder{}
 	var logs syncBuffer
 	s := newLedgerSink(rec, notify.OpenLedger(p), slog.New(slog.NewTextHandler(&logs, nil)))
-	title := "x\n\"@\nStart-Process calc\n@\" $(touch /tmp/pwn) `id` ]]> \x1b]52;c;ZXZpbA==\x07" + strings.Repeat("가", 200)
-	body := `" & do shell script "id" & "` + "\r\n\u009b2J<a href=\"file:///etc/passwd\">x</a>" + strings.Repeat("b", 500)
+	title := "\u202etxt.exe x\n\"@\nStart-Process calc\n@\" $(touch /tmp/pwn) `id` ]]> \x1b]52;c;ZXZpbA==\x07" + strings.Repeat("가", 200)
+	body := `" & do shell script "id" & "` + "\r\n\u009b2J<a href=\"file:///etc/passwd\">x</a>ad\u200bmin\u2028\u2067\ufeff" + strings.Repeat("b", 500)
 	in := notify.Input{Role: notify.RoleDaemon, Now: t0, DesktopEnabled: true}
 	d, shown, err := s.Handle(api.Alert{ID: "H1", Kind: api.AlertDM, Title: title, Body: body, CreatedAt: t0}, in)
 	if err != nil || !shown || d != notify.Popup {
@@ -38,6 +40,9 @@ func TestLedgerSinkShowsFormattedTextOnly(t *testing.T) {
 		for _, r := range s {
 			if r < 0x20 || (r >= 0x7f && r <= 0x9f) {
 				t.Fatalf("control %U reached the backend: %q", r, s)
+			}
+			if unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) { // bidi, zero-width, U+2028
+				t.Fatalf("format/separator %U reached the backend: %q", r, s)
 			}
 		}
 	}

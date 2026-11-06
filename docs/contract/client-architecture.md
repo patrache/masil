@@ -1244,19 +1244,19 @@ func (n *Notifier) Show(a api.Alert) error                         // ledger.Mar
 6. 나머지 → `Popup`. (포커스 보고를 지원하지 않는 터미널이면 `TerminalFocusKnown=false` → 항상 Popup: "다른 창에서 일하다가도 놓치지 않는다")
 
 **OS 백엔드 규칙 [보안 결정, 2026-11-06]** — 제목·본문은 다른 사용자가 만든 텍스트다. 어떤 백엔드도 그것을 스크립트·셸 명령·마크업 문서에 **문자열로 끼워 넣지 않는다**(값은 데이터로만 넘긴다). TUI 와 데몬이 같은 `NewOSBackend` 를 쓴다.
-- 공통: `Show` 는 표시 직전에 `Format` 과 같은 sanitize + 길이 제한(제목 80, 본문 200 코드 포인트)을 다시 적용한다 — `Format` 을 거치지 않은 호출도 제어 문자·무제한 길이가 OS 에 닿지 않는다. bidi·보이지 않는 서식 문자 제거는 `textwidth.Sanitize`(8.2) 를 그대로 따른다.
+- 공통: `Show` 는 표시 직전에 `Format` 과 같은 sanitize + 길이 제한(제목 80, 본문 200 코드 포인트)을 다시 적용한다 — `Format` 을 거치지 않은 호출도 제어 문자·무제한 길이가 OS 에 닿지 않는다. bidi·보이지 않는 서식 문자(Cf)와 줄·문단 구분자(U+2028/U+2029) 제거는 `textwidth.Sanitize`(8.2 규칙 1) 를 그대로 따른다.
 - macOS: 셸 없이 `/usr/bin/osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title (item 1 of argv)' -e 'end run' -- <제목> <본문>` — 프로그램은 상수, 제목·본문은 `--` 뒤 argv 항목(`-e` 같은 값도 옵션이 아님).
-- Linux: D-Bus `org.freedesktop.Notifications.Notify` 직접 호출(exec 없음, 세션 버스 자동 기동(`dbus-launch`) 안 함). summary 는 일반 텍스트, body 는 서버가 `body-markup` 능력을 밝히면(또는 능력 조회 실패 시) `& < >` 를 이스케이프. actions·icon·hints 는 비움.
+- Linux: D-Bus `org.freedesktop.Notifications.Notify` 직접 호출(exec 없음, 세션 버스 자동 기동(`dbus-launch`) 안 함). summary 는 명세상 일반 텍스트지만 마크업으로 그리는 서버도 있으므로 `<`·`>` 를 `‹`(U+2039)·`›`(U+203A) 로 바꾼다(엔티티 이스케이프는 명세를 따르는 서버에서 `&amp;` 로 보이므로 쓰지 않음; `<` 가 없으면 엔티티만으로는 태그가 생기지 않는다). body 는 서버가 `body-markup` 능력을 밝히면(또는 능력 조회 실패 시) `& < >` 를 이스케이프하며, 능력은 연결마다가 아니라 **알림마다** 조회한다(연결이 살아 있는 동안 알림 서버가 바뀔 수 있음). actions·icon·hints 는 비움.
 - Windows: WinRT 토스트 COM API(`go-toast/wintoast.Push`, 옵션 없이 — PowerShell 폴백·우선 옵션 금지). 토스트 XML 은 직접 만들고 제목·본문은 `encoding/xml.EscapeText` 로 이스케이프한 문자 데이터(CDATA 금지).
 - 그 외 OS: 오류(배포 대상 아님).
-- 시험: 각 OS 의 인자/XML/D-Bus 호출을 만드는 순수 함수를 모든 OS 에서 적대적 입력(`$(...)`, 백틱, `"@`, `]]>`, `" & do shell script "id" & "`, 줄바꿈, `-e`, `<a href>`)으로 단언하고, macOS 에선 실제 osascript 로 같은 argv 가 그대로 돌아오는지(명령 미실행) 확인한다. 패키지 소스에 beeep·PowerShell 옵션이 들어오면 실패하는 시험을 둔다.
+- 시험: 각 OS 의 인자/XML/D-Bus 호출을 만드는 순수 함수를 모든 OS 에서 적대적 입력(`$(...)`, 백틱, `"@`, `]]>`, `" & do shell script "id" & "`, 줄바꿈, U+2028/U+2029, `-e`, `<a href>`, bidi 제어(U+202E 등)·보이지 않는 서식 문자)으로 단언하고, `Show` 자체가 sanitize·길이 제한을 하는지는 가짜 플랫폼을 넣은 백엔드로 `Show` 를 불러 단언하며, macOS 에선 실제 osascript 로 같은 argv 가 그대로 돌아오는지(명령 미실행) 확인한다. 패키지 소스에 beeep·PowerShell 옵션이 들어오면 실패하는 시험을 둔다.
 
 ### 4.7 `internal/textwidth` — 폭 계산 (8장 상세)
 
 ```go
 package textwidth
 func Sanitize(s string) string                    // display-only normalization (8.2); idempotent; every grapheme of the result has StringWidth == StringWidthWc
-func SanitizeInput(s string) string               // text-entry normalization (8.4): same rules as Sanitize except "\n" is kept ("\r\n"/"\r" -> "\n"); idempotent
+func SanitizeInput(s string) string               // text-entry normalization (8.4): same rules as Sanitize except "\n" is kept ("\r\n"/"\r"/U+2028/U+2029 -> "\n"); idempotent
 func Width(s string) int                          // ansi.StringWidth(s) — call on sanitized text
 func Truncate(s string, w int, tail string) string // grapheme-safe, ANSI-aware, never splits a wide char; result Width <= w
 func TruncateLeft(s string, w int, head string) string
@@ -2266,7 +2266,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 화면에 그릴 **모든 외부 문자열**(사용자 이름·본문·채널 이름·상태 메시지·알림 문구·리액션 이모지 표시)은 그리기 직전에 `Sanitize` 를 거친다. 결과 문자열의 **모든 그래핌**은 그래핌 폭 = wcwidth 폭이 되어(규칙 7 이 보장), 렌더러 방식과 무관하게 같은 칸을 차지한다.
 
-1. 제어 문자(C0/C1, `\t` 는 공백 4칸으로) 제거, ANSI 이스케이프가 섞인 사용자 입력은 `ansi.Strip`.
+1. 제어 문자(C0/C1, `\t` 는 공백 4칸으로) 제거, ANSI 이스케이프가 섞인 사용자 입력은 `ansi.Strip`. **서식 문자(유니코드 범주 Cf) 전부와 줄·문단 구분자 U+2028/U+2029 도 제거 [보안 결정, 2026-11-06]** — bidi embedding/override/isolate(U+202A–202E, U+2066–2069)·방향 표시(U+200E, U+200F, U+061C)·보이지 않는 문자(U+200B, U+200C, U+2060–2064, U+FEFF, U+00AD) 등으로 남이 보낸 이름·메시지·알림이 보낸 것과 다르게 보이게(`U+202E`+`txt.exe` → "exe.txt", 가짜 둘째 줄) 할 수 없게 한다. 예외는 ZWJ(U+200D) 하나 — 규칙 3 이 이모지 시퀀스를 자르는 데 쓰고, 규칙 3 뒤에는 남지 않는다. 태그 문자(규칙 4)도 Cf 라 여기서 함께 빠진다. 입력 정규화(8.4)에서는 U+2028/U+2029 가 `"\n"` 이 된다(`\r` 과 같음).
 2. U+FE0F(VS16), U+FE0E 제거 → `❄️` 는 `❄`(1칸).
 3. ZWJ 시퀀스는 첫 구성 이모지만 남김 → `👨‍👩‍👧` → `👨`.
 4. 피부색 수식자 U+1F3FB–1F3FF 제거, 키캡 U+20E3 제거, 태그 문자 U+E0020–E007F 제거.
@@ -2290,7 +2290,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 - 조합 중 글자는 터미널이 그리므로 앱은 완성 음절만 받는다(`KeyPressMsg.Text`). 붙여넣기는 `tea.PasteMsg`.
 - 입력창이 포커스일 때는 `InputCapturer=true` → 한글·영문 글자가 단축키로 해석되지 않는다.
 - **입력 정규화 [결정]**: textarea/textinput 은 자기가 가진 원문을 그대로 그리므로, `❄️`·`👍🏽`·ZWJ 이모지를 그대로 담으면 2027 미지원 터미널에서 그 줄이 밀려 테두리가 깨진다. 그래서 **모든 텍스트 입력 위젯**(`widgets.Composer`, 팔레트·대화상자의 `textinput`, 로그인 화면의 handle·표시 이름 칸)은 `KeyPressMsg.Text`·`PasteMsg.Content`·`SetValue` 를 `textwidth.SanitizeInput` 으로 거른 **뒤에** 위젯에 넣는다. 결과: 입력창에 보이는 글 = 보내는 글이고, 모든 그래핌이 두 폭 방식에서 같다.
-  - 이는 **의도된 전송 내용 변경**이다: 이 클라이언트에서 친 글에는 VS16·피부색·ZWJ 꼬리·키캡·태그 문자가 빠지고, 규칙 7 대상 그래핌은 대체된다(`👍🏽`→`👍`, `❄️`→`❄`, `👨‍👩‍👧`→`👨`). 다른 클라이언트·서버가 만든 데이터는 바꾸지 않는다. 내 메시지 수정(`compose.edit_last`)은 `SetValue` 를 거치므로 원문에 그런 문자가 있었다면 수정 저장 시 함께 정규화된다 — 도움말에 한 줄 안내.
+  - 이는 **의도된 전송 내용 변경**이다: 이 클라이언트에서 친 글에는 VS16·피부색·ZWJ 꼬리·키캡·태그 문자·서식 문자(bidi 제어·보이지 않는 문자, 8.2 규칙 1)가 빠지고(U+2028/U+2029 는 줄바꿈이 되고), 규칙 7 대상 그래핌은 대체된다(`👍🏽`→`👍`, `❄️`→`❄`, `👨‍👩‍👧`→`👨`). 다른 클라이언트·서버가 만든 데이터는 바꾸지 않는다. 내 메시지 수정(`compose.edit_last`)은 `SetValue` 를 거치므로 원문에 그런 문자가 있었다면 수정 저장 시 함께 정규화된다 — 도움말에 한 줄 안내.
   - 비밀번호 칸은 예외: 값은 그대로 두고(`EchoPassword` 가림 문자만 그려지므로 폭 문제 없음) 전송한다.
   - 정규화된 텍스트는 그래핌·wcwidth 폭이 같으므로 textarea 의 커서 열 = 커서 앞 글의 `ansi.StringWidth` 이다. 하네스가 이를 검사한다(10.3 입력창 골든).
 

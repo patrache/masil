@@ -31,7 +31,7 @@ func Sanitize(s string) string {
 }
 
 // SanitizeInput is the text-entry normalization (CA 8.4): same rules as Sanitize
-// except "\n" is kept ("\r\n"/"\r" -> "\n"); idempotent.
+// except "\n" is kept ("\r\n"/"\r"/U+2028/U+2029 -> "\n"); idempotent.
 func SanitizeInput(s string) string {
 	return sanitize(s, true)
 }
@@ -52,9 +52,12 @@ func sanitizePass(s string, keepNewlines bool) string {
 	if keepNewlines {
 		s = strings.ReplaceAll(s, "\r\n", "\n")
 		s = strings.ReplaceAll(s, "\r", "\n")
+		s = lineSeparators.Replace(s)
 	}
 	// Rule 1 (+ plan decision): invalid UTF-8 and U+FFFD become □, ANSI
-	// escapes are stripped, then C0/C1 controls removed (tab -> 4 spaces).
+	// escapes are stripped, then C0/C1 controls, line/paragraph separators and
+	// format characters (bidi, zero-width, BOM, soft hyphen) removed (tab -> 4
+	// spaces).
 	s = validUTF8(s)
 	s = validUTF8(ansi.Strip(s))
 	s = filterRunes(s, keepNewlines)
@@ -65,13 +68,24 @@ func sanitizePass(s string, keepNewlines bool) string {
 	return perGrapheme(s)
 }
 
+// lineSeparators turns U+2028/U+2029 into "\n" for text entry; Sanitize drops
+// them like "\n" (rule 1).
+var lineSeparators = strings.NewReplacer("\u2028", "\n", "\u2029", "\n")
+
 func validUTF8(s string) string {
 	s = strings.ToValidUTF8(s, placeholder)
 	return strings.ReplaceAll(s, string(utf8.RuneError), placeholder)
 }
 
-// filterRunes implements rule 1 (controls), rule 2 (VS15/VS16) and rule 4
-// (skin tones, keycap, tag characters).
+// filterRunes implements rule 1 (controls, U+2028/U+2029, format characters),
+// rule 2 (VS15/VS16) and rule 4 (skin tones, keycap, tag characters).
+//
+// Format characters (category Cf) are invisible and can make the screen show
+// something other than what was sent: bidi embeddings/overrides/isolates and
+// marks reorder text ("\u202e" + "txt.exe" reads as "exe.txt"), zero-width
+// spaces/joiners/BOM/soft hyphens split or pad a name that looks whole
+// (pending-fixes 1). All of them go except ZWJ, which rule 3 needs to cut an
+// emoji sequence (and which never survives rule 3 either).
 func filterRunes(s string, keepNewlines bool) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -82,6 +96,8 @@ func filterRunes(s string, keepNewlines bool) string {
 		case r == '\n' && keepNewlines:
 			b.WriteRune(r)
 		case r < 0x20, r >= 0x7f && r <= 0x9f: // C0, DEL, C1
+		case r == 0x2028, r == 0x2029: // line / paragraph separator
+		case r != zwj && unicode.Is(unicode.Cf, r): // bidi, zero-width, BOM, SHY, tags...
 		case r == 0xfe0e, r == 0xfe0f: // VS15, VS16
 		case r >= 0x1f3fb && r <= 0x1f3ff: // skin tone modifiers
 		case r == 0x20e3: // combining enclosing keycap

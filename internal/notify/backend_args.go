@@ -1,7 +1,9 @@
 package notify
 
 import (
+	"context"
 	"encoding/xml"
+	"slices"
 	"strings"
 )
 
@@ -59,9 +61,14 @@ type dbusNotify struct {
 	Timeout    int32
 }
 
-// dbusCall builds the Notify call for n. The summary is plain text by spec; the
-// body is markup only on servers that list "body-markup", and then & < > are
-// escaped so no <a href> or <img src> can be injected. No actions, no icon.
+// dbusCall builds the Notify call for n. The body is markup only on servers
+// that list "body-markup", and then & < > are escaped so no <a href> or
+// <img src> can be injected. The summary is plain text by spec, but some
+// servers render it as markup anyway, and entity-escaping it would show
+// "&amp;" on the ones that follow the spec; so its angle brackets become
+// look-alike quotes (summaryText), which read the same on both kinds and leave
+// no '<' to start a tag (entities alone only make characters). No actions, no
+// icon.
 func dbusCall(appName string, n OSNotification, bodyMarkup bool) dbusNotify {
 	body := n.Body
 	if bodyMarkup {
@@ -69,17 +76,42 @@ func dbusCall(appName string, n OSNotification, bodyMarkup bool) dbusNotify {
 	}
 	return dbusNotify{
 		AppName: appName,
-		Summary: n.Title,
+		Summary: summaryText(n.Title),
 		Body:    body,
 		Actions: []string{},
 		Timeout: -1, // server default
 	}
 }
 
-var markupEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+var (
+	markupEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	summaryQuoter = strings.NewReplacer("<", "‹", ">", "›") // U+2039, U+203A
+)
+
+// summaryText makes a summary that no markup-rendering server can read as a tag.
+func summaryText(s string) string {
+	return summaryQuoter.Replace(s)
+}
 
 // escapeMarkup escapes the characters the freedesktop body-markup subset
 // interprets.
 func escapeMarkup(s string) string {
 	return markupEscaper.Replace(s)
+}
+
+// dbusSender is the part of the notification server the Linux backend talks
+// to (backend_dbus.go wraps a godbus object; tests use a fake).
+type dbusSender interface {
+	capabilities(ctx context.Context) ([]string, error)
+	notify(ctx context.Context, c dbusNotify) error
+}
+
+// dbusShow asks the server for its capabilities on every notification, not
+// once per connection: the notification server can be replaced while the bus
+// connection lives, and a body escaped by a stale "no body-markup" answer
+// would reach a markup server raw. Unknown capabilities mean escape.
+func dbusShow(ctx context.Context, s dbusSender, appName string, n OSNotification) error {
+	caps, err := s.capabilities(ctx)
+	markup := err != nil || slices.Contains(caps, "body-markup")
+	return s.notify(ctx, dbusCall(appName, n, markup))
 }
