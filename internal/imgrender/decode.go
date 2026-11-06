@@ -36,7 +36,8 @@ var (
 
 // limits bound a decode before any pixel buffer is allocated, so a tiny file
 // claiming huge dimensions (or a deep bit depth) cannot exhaust memory.
-// bytes is checked against width*height*bytesPerPixel(ColorModel).
+// bytes is checked against decodeCost: what the format's decoder allocates
+// for the header, not just its colour model (cost.go).
 type limits struct {
 	pixels int64
 	bytes  int64
@@ -49,7 +50,8 @@ var (
 	// displayLimits apply to remote media (Cache.Load). The server stores
 	// uploads as sent (api.md 5.14), so anyone could post a few-hundred-KB
 	// 16-bit PNG that decodes to ~400MB; every viewer would pay for it.
-	// 24MP keeps 24MP camera photos (8-bit) viewable; 16-bit images get 12MP.
+	// 24MP keeps 24MP camera photos (baseline 8-bit JPEG, 8-bit PNG)
+	// viewable; 16-bit images get 12MP, progressive 4:2:0 JPEGs about 13MP.
 	displayLimits = limits{pixels: 24_000_000, bytes: 96 << 20}
 )
 
@@ -118,7 +120,7 @@ func decodeAs(data []byte, ct string, lim limits) (image.Image, error) {
 }
 
 // checkConfig reads only the header and rejects bombs before decoding: too
-// many pixels, or too many bytes once decoded at the header's color model.
+// many pixels, or more bytes than the decoder would allocate (decodeCost).
 func checkConfig(c codec, data []byte, ct string, lim limits) error {
 	cfg, err := c.config(bytes.NewReader(data))
 	if err != nil {
@@ -131,30 +133,10 @@ func checkConfig(c codec, data []byte, ct string, lim limits) error {
 	if px > lim.pixels {
 		return fmt.Errorf("%w: %dx%d pixels", ErrTooLarge, cfg.Width, cfg.Height)
 	}
-	if n := px * bytesPerPixel(cfg.ColorModel); n > lim.bytes {
+	if n := decodeCost(ct, data, cfg); n > lim.bytes {
 		return fmt.Errorf("%w: %dx%d pixels decode to about %d MB", ErrTooLarge, cfg.Width, cfg.Height, n>>20)
 	}
 	return nil
-}
-
-// bytesPerPixel is the decoded size of one pixel for a DecodeConfig color
-// model (the worst case where it varies: YCbCr counts as 4:4:4). Unknown
-// models count as 8 bytes.
-func bytesPerPixel(m color.Model) int64 {
-	if _, ok := m.(color.Palette); ok {
-		return 1
-	}
-	switch m {
-	case color.GrayModel, color.AlphaModel:
-		return 1
-	case color.Gray16Model, color.Alpha16Model:
-		return 2
-	case color.YCbCrModel:
-		return 3
-	case color.RGBAModel, color.NRGBAModel, color.CMYKModel, color.NYCbCrAModel:
-		return 4
-	}
-	return 8 // RGBA64Model, NRGBA64Model and anything unknown
 }
 
 // PrepareUpload reads an image file and returns bytes safe to upload with
