@@ -134,6 +134,11 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 	case realtime.InviteReceived:
 		s.ObserveUser(d.Invite.Inviter)
 		s.ObserveUser(d.Invite.Invitee)
+		// 9-b: the server can announce an invite that a join / unfriend / block canceled a moment earlier, and the two
+		// events may arrive in either order. An invite to a space I am already in, or one already removed, is dead.
+		if s.Spaces[d.Invite.Space.ID] != nil || s.removedInv.Has(d.Invite.ID) {
+			return
+		}
 		for _, in := range s.DirectInvites {
 			if in.ID == d.Invite.ID {
 				return
@@ -141,6 +146,7 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 		}
 		s.DirectInvites = append(s.DirectInvites, d.Invite)
 	case realtime.InviteRemoved:
+		s.removedInv.Add(d.InviteID)
 		out := make([]api.DirectInvite, 0, len(s.DirectInvites))
 		for _, in := range s.DirectInvites {
 			if in.ID != d.InviteID {

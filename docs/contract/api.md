@@ -1023,6 +1023,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 방 멤버 누구나(owner·admin 도 같은 조건), `RL_SOCIAL`. 요청: `{ "user": "@hana" }` — **역할과 무관하게 초대하는 사람의 친구**여야 함(3.5 표), 상대가 이미 멤버/밴/차단 관계면 실패. 친구가 아닌 사람은 초대 링크로 들인다.
 - `201 { "invite": DirectInvite }` · 이벤트: `space.invite_received`(상대) · 알림 `space_invite` · alert `invite`
 - 오류: `403 action_not_allowed`(친구 아님·차단·상대 정지 — 확인 뒤 INSERT 전에 그렇게 돼도 같고, 아무것도 만들어지지 않음, 3.2), `409 already_member`(사전 확인 뒤 INSERT 전에 상대가 다른 경로로 방에 들어와도 같고, 아무것도 만들어지지 않음 — 3.5), `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
+- INSERT 가 커밋된 뒤 이벤트·알림을 보내기 전에 상대가 다른 경로로 방에 들어오거나, 친구가 끊기거나, 차단되면 그쪽 batch 가 새 초대를 `canceled` 로 바꾸고 `space.invite_removed` 를 보낸다(3.5). 서버는 보내기 직전에 초대가 아직 대기 중이고 수락할 수 있는지(`GET /v1/me/direct-invites` 와 같은 조건) 다시 읽어, 아니면 `space.invite_received`·알림·alert 를 보내지 않고 그 경쟁이 INSERT 전에 일어난 것과 같은 오류(`409 already_member` / `403 action_not_allowed` / `404`)로 답한다. 그래도 남는 틈(다시 읽은 뒤 보내기 전)은 클라이언트가 막는다: 이미 들어가 있는 방의 초대, 이미 `space.invite_removed` 로 지운 초대 id 의 `space.invite_received` 는 무시한다.
 - 같은 사람에게 온 대기 초대라도 수락할 수 없는 것(초대한 사람이 이미 방 멤버가 아님, 또는 두 사람이 더 이상 친구가 아니거나 차단 관계 — 3.5)은 `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
 
 #### `GET /v1/me/direct-invites`

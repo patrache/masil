@@ -6,6 +6,12 @@ import { api, connectWs, makeFriends, makeSpace, signup, uniqueIp, type TestUser
 
 // ---- local fixtures (this file only) ----
 
+/**
+ * Per-test budget for this file. Its tests sign up several users, build spaces, join and open WebSockets; the slowest
+ * (9-b) take 2-2.6 s alone and went past vitest's 5 s default under a full parallel run.
+ */
+const SLOW_TEST_MS = 20_000;
+
 /** POST /v1/spaces by `owner`; throws unless 201. Returns the SpaceDetail. */
 async function spaceViaApi(owner: TestUser, name = "초대방"): Promise<any> {
   const r = await api(owner.token).post<any>("/v1/spaces", { name });
@@ -84,7 +90,7 @@ async function fetchWith(db: D1Database, token: string, method: string, path: st
   return { status: res.status, body: text === "" ? null : JSON.parse(text) };
 }
 
-describe("invites", () => {
+describe("invites", { timeout: SLOW_TEST_MS }, () => {
   it("link: create (default 7d), preview, accept, system message, use_count", async () => {
     const [o, m] = await Promise.all([signup(), signup()]);
     const s = await spaceViaApi(o);
@@ -302,7 +308,7 @@ describe("invites", () => {
 });
 
 // pending item 9: an invite only counts while the person behind it could still issue it.
-describe("invites whose inviter lost the right to invite", () => {
+describe("invites whose inviter lost the right to invite", { timeout: SLOW_TEST_MS }, () => {
   /** A link's state as seen by a stranger: GET status + reason, accept status + reason. */
   async function linkState(code: string): Promise<{ get: number; reason?: string; accept: number; acceptReason?: string }> {
     const u = await signup();
@@ -474,7 +480,7 @@ describe("invites whose inviter lost the right to invite", () => {
 
 // pending item 9 (follow-up): the issuer's right is checked where the invite is created and every time it is used, not
 // only when the issuer is removed or demoted. The races below interpose between the route's role check and its write.
-describe("invites are gated on the issuer's right at creation and at use", () => {
+describe("invites are gated on the issuer's right at creation and at use", { timeout: SLOW_TEST_MS }, () => {
   async function linkState(code: string): Promise<{ get: number; reason?: string; accept: number; acceptReason?: string }> {
     const u = await signup();
     const g = await api(u.token).get<any>(`/v1/invites/${code}`);
@@ -620,7 +626,7 @@ describe("invites are gated on the issuer's right at creation and at use", () =>
 
 // D3 (owner decision 2026-11-06): ending a friendship cancels the pending direct invites between the two (both ways),
 // and accepting a direct invite re-checks the friendship (and no block either way) inside the conditional UPDATE.
-describe("direct invites end with the friendship (D3)", () => {
+describe("direct invites end with the friendship (D3)", { timeout: SLOW_TEST_MS }, () => {
   async function inviteStatus(id: string): Promise<string> {
     return (await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(id).first<any>()).status;
   }
@@ -754,7 +760,7 @@ describe("direct invites end with the friendship (D3)", () => {
 // to someone already in (the INSERT re-checks it, so a join landing after the route's pre-check writes nothing); and
 // one left pending anyway (rows from before the fix, a future path that skips the cleanup) is not listed and is
 // canceled when its invitee is removed — so an old invite can never carry a kicked member back in.
-describe("direct invites to someone who is already in the space (9-b)", () => {
+describe("direct invites to someone who is already in the space (9-b)", { timeout: SLOW_TEST_MS }, () => {
   async function inviteStatus(id: string): Promise<string> {
     return (await env.DB.prepare("SELECT status FROM space_direct_invites WHERE id=?").bind(id).first<any>()).status;
   }
@@ -866,6 +872,42 @@ describe("direct invites to someone who is already in the space (9-b)", () => {
       expect((await api(f.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
       expect((await api(f.token).post(`/v1/direct-invites/${di.id}/accept`)).status).toBe(404);
       expect(await isMember(space.id, f)).toBe(false);
+    });
+  }
+
+  // The race after the INSERT commits: the invitee joins by another route (or the friendship ends — D3) after the
+  // invite row is in but before the route publishes it. The join's batch cancels the row and sends invite_removed;
+  // the route must not then announce a dead invite (a ghost "받은 방 초대" for a space they are already in, an inbox
+  // space_invite and an alert): it re-reads the row before publishing and answers as if the race had landed first.
+  for (const race of ["joins through a link", "is unfriended"] as const) {
+    it(`direct invite create: the invitee ${race} after the INSERT commits, before the publish -> no invite_received, no notification`, async () => {
+      const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+      const { space } = await makeSpace(o, [m]);
+      await makeFriends(m, f);
+      const link = (await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, { max_uses: null, expires_in_sec: null })).body.invite;
+      const cf = await connectWs(f.token);
+      // the route's space read comes after insertDirectInvite's batch and before its publish/notify
+      const db = hookDb(/^SELECT \* FROM spaces WHERE id = \?1$/, "before", async () => {
+        if (race === "joins through a link") expect((await api(f.token).post(`/v1/invites/${link.code}/accept`)).status).toBe(200);
+        else expect((await api(m.token).del(`/v1/friends/@${f.handle}`)).status).toBe(204);
+      });
+      const r = await fetchWith(db, m.token, "POST", `/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+      if (race === "joins through a link") {
+        expect(r.status).toBe(409);
+        expect(r.body.error.code).toBe("already_member");
+      } else {
+        expect(r.status).toBe(403);
+        expect(r.body.error.code).toBe("action_not_allowed");
+      }
+      const rows = await env.DB.prepare("SELECT id, status FROM space_direct_invites WHERE space_id=?1 AND invitee_id=?2").bind(space.id, f.user.id).all<any>();
+      expect(rows.results.map((x: any) => x.status)).toEqual(["canceled"]);
+      expect((await cf.next("space.invite_removed")).data).toEqual({ invite_id: rows.results[0].id, reason: "canceled" });
+      await new Promise<void>((res) => setTimeout(res, 150));
+      expect(cf.frames.filter((x) => x.type === "space.invite_received")).toEqual([]);
+      const notes = await env.DB.prepare("SELECT COUNT(*) AS n FROM notifications WHERE user_id=?1 AND type='space_invite'").bind(f.user.id).first<any>();
+      expect(notes.n).toBe(0);
+      expect((await api(f.token).get<any>("/v1/me/direct-invites")).body.items).toEqual([]);
+      expect(await isMember(space.id, f)).toBe(race === "joins through a link");
     });
   }
 

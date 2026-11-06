@@ -34,10 +34,11 @@ type Store struct {
 	reducers     map[string]Reducer
 	reducerOrder []Reducer
 
-	viewing   map[string]bool
-	counted   *idSet // message.created IDs already applied to unread/mention counters
-	mentioned *idSet // message IDs whose mention was already counted (direct or @here notification)
-	now       func() time.Time
+	viewing    map[string]bool
+	counted    *idSet // message.created IDs already applied to unread/mention counters
+	mentioned  *idSet // message IDs whose mention was already counted (direct or @here notification)
+	removedInv *idSet // direct invite IDs already dropped by space.invite_removed (a late invite_received is ignored)
+	now        func() time.Time
 
 	flight       *flight           // open while a bootstrap is in flight (flight.go)
 	replaying    bool              // replayFlight is re-applying the journal
@@ -99,6 +100,7 @@ func (s *Store) clear() {
 	s.viewing = map[string]bool{}
 	s.counted = newIDSet(dedupeIDs)
 	s.mentioned = newIDSet(dedupeIDs)
+	s.removedInv = newIDSet(dedupeIDs)
 	s.flight, s.replaying, s.applying, s.snapshotLast = nil, false, false, nil
 }
 

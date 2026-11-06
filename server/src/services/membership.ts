@@ -332,12 +332,16 @@ const INVITE_ACCEPTABLE = `EXISTS (SELECT 1 FROM space_members im WHERE im.space
 
 /**
  * For a statement over space_direct_invites aliased `d`: its inviter is still a member of its space (pending item 9)
- * and still a friend of the invitee with no block either way (D3) — the same rule as joinSpace's INVITE_ACCEPTABLE. A
- * pending invite failing it cannot be accepted, so it is left out of the invitee's list and does not count as the
- * pending invite that blocks a fresh one (a fresh invite cancels it as stale).
- * Also: its invitee is not in the space already (pending item 9-b). Joining by any route cancels their pending invite to
- * the space in the join's batch; one left pending anyway (no cleanup ran) is not listed — accepting it is 409
- * already_member (joinSpace's own pre-check) — and removeFromSpace cancels it when they leave, so it never revives.
+ * and still a friend of the invitee with no block either way (D3) — INVITE_ACCEPTABLE's rule — and, on top of it, its
+ * invitee is not in the space already (pending item 9-b). A pending invite failing it cannot be accepted, so it is left
+ * out of the invitee's list and does not count as the pending invite that blocks a fresh one (a fresh invite cancels it
+ * as stale).
+ * INVITE_ACCEPTABLE (the accept path's pre-check and conditional UPDATE) leaves the invitee-outside part out on
+ * purpose: joinSpace already refuses a member with its own pre-check (409 already_member), and a join committing after
+ * that pre-check makes the membership INSERT fail its primary key, rolling the whole batch back (UPDATE included).
+ * Joining by any route cancels the invitee's pending invite to the space in the join's batch; one left pending anyway
+ * (no cleanup ran) is not listed, accepting it is 409 already_member, and removeFromSpace cancels it when they leave,
+ * so it never revives.
  */
 export const D_INVITE_ACCEPTABLE = `EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = d.space_id AND im.user_id = d.inviter_id)
   AND NOT EXISTS (SELECT 1 FROM space_members ie WHERE ie.space_id = d.space_id AND ie.user_id = d.invitee_id)
@@ -400,14 +404,37 @@ export async function insertDirectInvite(
     throw e;
   }
   const row = (results[1]!.results as SpaceDirectInviteRow[])[0] ?? null;
-  if (row === null) {
-    const member = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviterId);
-    if (member === null) throw err.notFound("space"); // the inviter left / was removed after the role check
-    const inside = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviteeId);
-    if (inside !== null) throw err.conflict("already_member"); // the invitee joined by another route after the pre-check
-    throw err.forbidden("action_not_allowed"); // unfriended / blocked / invitee suspended after the pre-checks
-  }
+  if (row === null) return refuseDirectInvite(db, spaceId, inviterId, inviteeId);
   return { row, stale: results[0]!.results as Array<{ id: string; inviter_id: string }> };
+}
+
+/**
+ * Throws the error for a direct invite `inviterId` -> `inviteeId` into `spaceId` that did not happen because something
+ * changed after the route's pre-checks: 404 the inviter left / was removed, 409 already_member the invitee joined by
+ * another route, else 403 action_not_allowed (unfriended / blocked / invitee suspended).
+ */
+export async function refuseDirectInvite(db: D1Database, spaceId: string, inviterId: string, inviteeId: string): Promise<never> {
+  const member = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviterId);
+  if (member === null) throw err.notFound("space");
+  const inside = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviteeId);
+  if (inside !== null) throw err.conflict("already_member");
+  throw err.forbidden("action_not_allowed");
+}
+
+/**
+ * The direct invite `id` is still pending and acceptable (D_INVITE_ACCEPTABLE: inviter a member, invitee outside, still
+ * friends with no block). The create route re-reads this after its batch commits and before it publishes (pending item
+ * 9-b): a join by another route, an unfriend or a block landing in between cancels the row in its own batch and sends
+ * space.invite_removed, and announcing the dead invite afterwards would leave a ghost pending invite on the invitee's
+ * client plus an inbox space_invite / alert for it.
+ */
+export async function directInviteLive(db: D1Database, id: string): Promise<boolean> {
+  const row = await first(
+    db,
+    `SELECT 1 AS x FROM space_direct_invites d WHERE d.id = ?1 AND d.status = 'pending' AND ${D_INVITE_ACCEPTABLE}`,
+    id,
+  );
+  return row !== null;
 }
 
 /** The invite link `code` of `spaceId` with its issuer check; 404 when missing. */
