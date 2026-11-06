@@ -45,5 +45,11 @@ func DecodeCost(data []byte, ct string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return decodeCost(ct, data, cfg), nil
+	return decodeCost(ct, data, cfg)
 }
+
+// DisplayImage is the shrink Cache.Load applies after decoding.
+var DisplayImage = displayImage
+
+// DownscaleToFit is PrepareUpload's re-encode-and-shrink loop.
+var DownscaleToFit = downscaleToFit

@@ -407,3 +407,24 @@ func TestDecodeCostCoversDecoderAllocations(t *testing.T) {
 		})
 	}
 }
+
+// TestWebPVP8ChunkLongerThanFileIsRefused: x/image/vp8 sizes its partition
+// buffer from the chunk length the RIFF header claims, before reading any of
+// it, so the check must not trust a claim the file cannot back.
+func TestWebPVP8ChunkLongerThanFileIsRefused(t *testing.T) {
+	ok := buildWebP(vp8Chunk(64, 64))
+	for _, display := range []bool{true, false} {
+		if err := imgrender.CheckHeader(ok, ctWebP, display); err != nil {
+			t.Fatalf("honest VP8 chunk display=%v: %v", display, err)
+		}
+	}
+	bad := append([]byte{}, ok...)
+	const claim = 100 << 20
+	binary.LittleEndian.PutUint32(bad[4:], claim+64) // RIFF size covers the claim
+	binary.LittleEndian.PutUint32(bad[16:], claim)   // VP8 chunk length
+	for _, display := range []bool{true, false} {
+		if err := imgrender.CheckHeader(bad, ctWebP, display); err == nil {
+			t.Fatalf("display=%v: VP8 chunk claiming %d bytes in a %d-byte file accepted", display, claim, len(bad))
+		}
+	}
+}

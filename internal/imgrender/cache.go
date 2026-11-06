@@ -16,8 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	xdraw "golang.org/x/image/draw"
-
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/config"
 )
@@ -329,9 +327,10 @@ func (c *Cache) memPut(id string, img image.Image) {
 	}
 }
 
-// displayImage returns img, or a copy scaled (CatmullRom, alpha kept) so its
-// long side is maxDisplaySide when it is longer. The copy is a compact
-// 8-bit RGBA whatever the source's pixel format.
+// displayImage returns img, or a copy shrunk (area average, alpha kept;
+// shrinkInto) so its long side is maxDisplaySide when it is longer. The copy
+// is a compact 8-bit RGBA whatever the source's pixel format, and the shrink
+// needs only the copy plus row buffers (no kernel scaler temporaries).
 func displayImage(img image.Image) image.Image {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -342,7 +341,7 @@ func displayImage(img image.Image) image.Image {
 	dw := max(1, (w*maxDisplaySide+long/2)/long)
 	dh := max(1, (h*maxDisplaySide+long/2)/long)
 	dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
-	xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, b, xdraw.Src, nil)
+	shrinkInto(dst, img, b)
 	return dst
 }
 

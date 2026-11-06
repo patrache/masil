@@ -3,6 +3,7 @@ package imgrender
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"image"
 	"image/color"
 )
@@ -39,8 +40,9 @@ import (
 const decodeOverhead = 1 << 20
 
 // decodeCost is the most bytes decoding data (of type ct, header cfg) can
-// allocate.
-func decodeCost(ct string, data []byte, cfg image.Config) int64 {
+// allocate. It fails for a header the decoder would size a buffer from but
+// that the file cannot back (a WebP VP8 chunk longer than the bytes left).
+func decodeCost(ct string, data []byte, cfg image.Config) (int64, error) {
 	w, h := int64(cfg.Width), int64(cfg.Height)
 	var n int64
 	switch ct {
@@ -51,11 +53,14 @@ func decodeCost(ct string, data []byte, cfg image.Config) int64 {
 	case ctGIF:
 		n = 2 * w * h
 	case ctWebP:
-		n = webpCost(data, w, h)
+		var err error
+		if n, err = webpCost(data, w, h); err != nil {
+			return 0, err
+		}
 	default:
 		n = 8 * w * h
 	}
-	return n + decodeOverhead
+	return n + decodeOverhead, nil
 }
 
 func ceilDiv(a, b int64) int64 { return (a + b - 1) / b }
@@ -264,17 +269,28 @@ func parseSOF(seg []byte, progressive bool) (jpegFrame, bool) {
 
 // --- WebP ---
 
-func webpCost(data []byte, w, h int64) int64 {
+// maxVP8FirstPartition is the largest first partition a VP8 frame header can
+// name (19 bits); x/image/vp8 allocates it before reading it.
+const maxVP8FirstPartition = 1<<19 - 1
+
+func webpCost(data []byte, w, h int64) (int64, error) {
 	mbs := ceilDiv(w, 16) * ceilDiv(h, 16)
 	// 4:2:0 frame over whole macroblocks, per-macroblock state, partitions.
-	vp8 := 400*mbs + 64*ceilDiv(w, 16) + int64(len(data))
+	frame := 400*mbs + 64*ceilDiv(w, 16) + maxVP8FirstPartition
+	vp8 := frame + int64(len(data))
 	vp8l := vp8lCost(w, h)
 	alpha := vp8l + w*h
-	id, alph := webpBitstream(data)
+	id, alph, claimed, present := webpBitstream(data)
 	cost := max(vp8, vp8l)
 	switch id {
 	case "VP8 ":
-		cost = vp8
+		// x/image/vp8 allocates the partition buffer at the length the
+		// chunk header claims and only then reads it, so a claim beyond the
+		// file is refused (decoding it would fail anyway).
+		if claimed > present {
+			return 0, fmt.Errorf("imgrender: decode %s: VP8 chunk claims %d bytes, %d present", ctWebP, claimed, present)
+		}
+		cost = frame + claimed
 	case "VP8L":
 		cost = vp8l
 	default:
@@ -283,7 +299,7 @@ func webpCost(data []byte, w, h int64) int64 {
 	if alph {
 		cost += alpha
 	}
-	return cost
+	return cost, nil
 }
 
 // vp8lCost: the decoded pixels; with colour indexing of 16 or fewer colours,
@@ -296,19 +312,19 @@ func vp8lCost(w, h int64) int64 {
 }
 
 // webpBitstream walks the RIFF chunks the way golang.org/x/image/riff does
-// and returns the first VP8 or VP8L chunk (the one x/image/webp decodes)
-// and whether an ALPH chunk came before it. id is "" when the walk ends
-// before one.
-func webpBitstream(b []byte) (id string, alph bool) {
+// and returns the first VP8 or VP8L chunk (the one x/image/webp decodes),
+// whether an ALPH chunk came before it, the length its header claims and the
+// bytes of it the file really holds. id is "" when the walk ends before one.
+func webpBitstream(b []byte) (id string, alph bool, claimed, present int64) {
 	if len(b) < 12 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WEBP" {
-		return "", alph
+		return "", alph, 0, 0
 	}
 	end := min(int64(len(b)), 8+int64(binary.LittleEndian.Uint32(b[4:])))
 	for i := int64(12); i+8 <= end; {
 		cid := string(b[i : i+4])
 		n := int64(binary.LittleEndian.Uint32(b[i+4:]))
 		if cid == "VP8 " || cid == "VP8L" {
-			return cid, alph
+			return cid, alph, n, int64(len(b)) - (i + 8)
 		}
 		if cid == "ALPH" {
 			alph = true
@@ -318,5 +334,5 @@ func webpBitstream(b []byte) (id string, alph bool) {
 			break
 		}
 	}
-	return "", alph
+	return "", alph, 0, 0
 }

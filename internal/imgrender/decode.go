@@ -19,7 +19,6 @@ import (
 	"os"
 	"strings"
 
-	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/webp"
 )
 
@@ -133,7 +132,11 @@ func checkConfig(c codec, data []byte, ct string, lim limits) error {
 	if px > lim.pixels {
 		return fmt.Errorf("%w: %dx%d pixels", ErrTooLarge, cfg.Width, cfg.Height)
 	}
-	if n := decodeCost(ct, data, cfg); n > lim.bytes {
+	n, err := decodeCost(ct, data, cfg)
+	if err != nil {
+		return err
+	}
+	if n > lim.bytes {
 		return fmt.Errorf("%w: %dx%d pixels decode to about %d MB", ErrTooLarge, cfg.Width, cfg.Height, n>>20)
 	}
 	return nil
@@ -232,7 +235,7 @@ func encodeJPEG(img image.Image, quality int) ([]byte, error) {
 
 // downscaleToFit flattens img onto white (JPEG has no alpha) and re-encodes
 // it as JPEG q=85, first at full size and then with the long side shrunk by
-// 0.8 per attempt, until it fits MaxUploadBytes.
+// 0.8 per attempt (area average, shrinkInto), until it fits MaxUploadBytes.
 func downscaleToFit(img image.Image) ([]byte, error) {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -244,11 +247,12 @@ func downscaleToFit(img image.Image) ([]byte, error) {
 		dw := max(1, (w*side+long/2)/long)
 		dh := max(1, (h*side+long/2)/long)
 		dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
-		draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 		if dw == w && dh == h {
+			draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 			draw.Draw(dst, dst.Bounds(), img, b.Min, draw.Over)
 		} else {
-			xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, b, xdraw.Over, nil)
+			shrinkInto(dst, img, b)
+			flattenOverWhite(dst)
 		}
 		out, err := encodeJPEG(dst, 85)
 		if err != nil {
