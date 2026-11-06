@@ -33,6 +33,7 @@ jobs:
       - name: install
         run: npm ci
       - name: typecheck
-        run: npx tsc --noEmit
+        # server/package.json "typecheck" = tsc --noEmit (src) + tsc --noEmit -p test (test files)
+        run: npm run typecheck
       - name: test
         run: npm test

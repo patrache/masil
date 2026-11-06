@@ -885,7 +885,7 @@ npx wrangler dev --test-scheduled                    # http://localhost:8787 (lo
 curl "http://localhost:8787/__scheduled?cron=*/5+*+*+*+*"   # trigger the trends cron locally (spaces as '+')
 curl "http://localhost:8787/__scheduled?cron=17+*+*+*+*"    # trigger cleanup
 npm test                                             # vitest run
-npx tsc --noEmit
+npm run typecheck                                    # tsc --noEmit (src) + tsc --noEmit -p test (test files); CI runs the same
 ```
 - 클라이언트 연결: `MASIL_SERVER=http://localhost:8787 masil`.
 - 원격 명령(`--remote`, `wrangler deploy`, `wrangler d1 create`, `wrangler r2 bucket create`)은 오너 승인 전 실행 금지.
