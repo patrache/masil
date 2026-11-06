@@ -40,7 +40,7 @@ func (c *Client) AddChannelMembers(ctx context.Context, channelID string, users 
 	if users == nil {
 		users = []UserRef{}
 	}
-	v, _, err := one[Channel](ctx, c, request{Method: "POST", Path: escPath("v1", "channels", channelID, "members"), Body: usersBody{users}, Auth: true}, "channel")
+	v, _, err := one[Channel](ctx, c, request{Method: "POST", Path: escPath("v1", "channels", channelID, "members"), Body: usersBody{users}, Limiter: rlSocial, Auth: true}, "channel")
 	return v, err
 }
 

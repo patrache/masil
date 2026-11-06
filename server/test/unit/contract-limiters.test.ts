@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 import { createApp } from "../../src/app";
 
 const routeSources = import.meta.glob("../../src/routes/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const allSources = import.meta.glob("../../src/**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const docs = import.meta.glob("../../../docs/contract/api.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -57,6 +58,40 @@ function parseDocTable(md: string): Map<string, string[]> {
     }
   }
   return out;
+}
+
+/**
+ * scanRouteLimiters only sees `limit("RL_X"` and `checkLimit(c.env, "RL_X"` written in src/routes. A limiter applied any
+ * other way (in src/services or another module, through a constant/variable/single-quoted name, an import alias, or a
+ * direct `env.RL_X.limit(...)` binding call) would be invisible to it, and the table could silently lack a limiter the
+ * code checks. So every rate-limit call in src must be in a form the scanner reads; this returns the ones that are not.
+ * src/lib/ratelimit.ts defines the helpers; requireAuth (src/lib/auth.ts) applies the base RL_API, which the table omits.
+ */
+function unscannableLimiterCalls(sources: Record<string, string>): string[] {
+  const bad: string[] = [];
+  for (const [file, src] of Object.entries(sources)) {
+    const rel = file.replace(/^(\.\.\/)+/, "");
+    if (rel === "src/lib/ratelimit.ts") continue;
+    const inRoutes = /^src\/routes\/[^/]+\.ts$/.test(rel);
+    // Only a module that imports limit/checkLimit can call them (aliases and namespace imports are rejected).
+    const imported = new Set<string>();
+    for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*["'][^"']*\/ratelimit["']/g)) {
+      if (/\b(limit|checkLimit)\s+as\b/.test(m[1])) bad.push(`${rel}: aliased limiter import: ${m[0]}`);
+      for (const n of m[1].split(",").map((x) => x.trim())) imported.add(n);
+    }
+    for (const m of src.matchAll(/import\s*\*\s*as\s+\w+\s+from\s*["'][^"']*\/ratelimit["']/g)) bad.push(`${rel}: namespace limiter import: ${m[0]}`);
+    for (const m of imported.has("limit") ? src.matchAll(/(?<![.\w])limit\([^\n]*/g) : []) {
+      if (!inRoutes) bad.push(`${rel}: limit() outside src/routes: ${m[0]}`);
+      else if (!/^limit\(\s*"RL_[A-Z]+"/.test(m[0])) bad.push(`${rel}: limit() without a "RL_X" literal: ${m[0]}`);
+    }
+    for (const m of imported.has("checkLimit") ? src.matchAll(/(?<![.\w])checkLimit\([^\n]*/g) : []) {
+      if (rel === "src/lib/auth.ts" && /^checkLimit\(\s*c\.env\s*,\s*"RL_API"/.test(m[0])) continue;
+      if (!inRoutes) bad.push(`${rel}: checkLimit() outside src/routes: ${m[0]}`);
+      else if (!/^checkLimit\(\s*c\.env\s*,\s*"RL_[A-Z]+"/.test(m[0])) bad.push(`${rel}: checkLimit() not as checkLimit(c.env, "RL_X": ${m[0]}`);
+    }
+    for (const m of src.matchAll(/\bRL_[A-Z]+["'`]?\s*\]?\s*\.\s*limit\(/g)) bad.push(`${rel}: direct binding call: ${m[0]}`);
+  }
+  return bad;
 }
 
 /** "METHOD /path-pattern" -> sorted additional limiters, from every `xRoutes.<method>("/path", ...)` in src/routes. */
@@ -141,6 +176,32 @@ describe("api.md 6 summary table: additional limiters match the code (pending it
 
   it("every row of the table is a route the code registers", () => {
     expect([...doc.keys()].filter((k) => !code.has(k))).toEqual([]);
+  });
+
+  it("every rate-limit call in src is in a form the route scanner reads", () => {
+    expect(Object.keys(allSources).length).toBeGreaterThan(Object.keys(routeSources).length);
+    expect(unscannableLimiterCalls(allSources)).toEqual([]);
+  });
+
+  it("the guard flags limiter calls the scanner would miss", () => {
+    const flagged = unscannableLimiterCalls({
+      "../../src/services/x.ts": 'import { checkLimit, limit } from "../lib/ratelimit";\nawait checkLimit(rt.env, "RL_SOCIAL", k);\nreturn limit("RL_POST");',
+      "../../src/routes/a.ts": "import { limit } from '../lib/ratelimit';\naRoutes.post(\"/a\", limit('RL_POST'), h);\naRoutes.post(\"/b\", limit(NAME), h);",
+      "../../src/routes/b.ts": 'import { checkLimit } from "../lib/ratelimit";\nawait checkLimit(env, "RL_LOGIN", k);\nawait c.env.RL_POST.limit({ key });\nawait c.env["RL_POST"].limit({ key });',
+      "../../src/routes/c.ts": 'import { limit as rl } from "../lib/ratelimit";\nimport * as R from "../lib/ratelimit";',
+      "../../src/lib/auth.ts": 'import { checkLimit } from "./ratelimit";\nawait checkLimit(c.env, "RL_API", k);\nawait checkLimit(c.env, "RL_SOCIAL", k);',
+      // the forms the scanner reads, and things that only look alike
+      "../../src/routes/ok.ts": 'import { checkLimit, clientIp, limit } from "../lib/ratelimit";\nokRoutes.post("/x", limit("RL_POST"), h);\nawait checkLimit(c.env, "RL_LOGIN", k);\nthrow err.limit("owned_spaces", 3);',
+      "../../src/lib/errors.ts": "export const err = { limit(what: string, limit: number) { return x; } };",
+      "../../src/lib/ratelimit.ts": "export function limit(name) { return checkLimit(env, name, k); }",
+    });
+    expect(flagged.map((f) => f.slice(0, f.indexOf(":")))).toEqual([
+      "src/services/x.ts", "src/services/x.ts",
+      "src/routes/a.ts", "src/routes/a.ts",
+      "src/routes/b.ts", "src/routes/b.ts", "src/routes/b.ts",
+      "src/routes/c.ts", "src/routes/c.ts",
+      "src/lib/auth.ts",
+    ]);
   });
 
   it("the parser reads per-method limiter cells and suffix paths", () => {
