@@ -218,6 +218,29 @@ func TestCacheLoadNotFound(t *testing.T) {
 	}
 }
 
+// TestCacheLoadRefusesDotSegmentMedia (pending-fixes 5): a server-supplied
+// media id or URL that a URL normaliser would rewrite ("..", "%2e%2e", "//")
+// is refused by the api client before any request, so it cannot aim the
+// bearer-token fetch at another endpoint.
+func TestCacheLoadRefusesDotSegmentMedia(t *testing.T) {
+	srv := apitest.New(t)
+	for _, m := range []api.Media{
+		{ID: "..", ContentType: "image/png"},
+		{ID: ".", ContentType: "image/png"},
+		{ID: "up_1", URL: "/v1/media/../auth/sessions", ContentType: "image/png"},
+		{ID: "up_2", URL: "/v1/media/%2e%2e/auth/sessions", ContentType: "image/png"},
+		{ID: "up_3", URL: "/v1//media/up_3", ContentType: "image/png"},
+	} {
+		_, err := imgrender.NewCache(testPaths(t)).Load(context.Background(), srv.Client(), m)
+		if !api.IsCode(err, "invalid_request") {
+			t.Errorf("Load(%+v) err = %v, want invalid_request", m, err)
+		}
+	}
+	if n := len(srv.Requests()); n != 0 {
+		t.Errorf("requests = %d, want 0: %+v", n, srv.Requests())
+	}
+}
+
 func TestCacheRejectsUndecodable(t *testing.T) {
 	srv := apitest.New(t)
 	srv.Handle("GET /v1/media/{id}", func(w http.ResponseWriter, r *http.Request) {

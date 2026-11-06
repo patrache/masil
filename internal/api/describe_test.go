@@ -39,6 +39,7 @@ func TestDescribe(t *testing.T) {
 		{apiErr("invalid_request", `{"fields":{"q":"too_short"}}`), "검색어: 너무 짧아요"},
 		{apiErr("invalid_request", `{"fields":{"password":"invalid"}}`), "비밀번호: 형식이 맞지 않아요"},
 		{apiErr("invalid_request", `{"fields":{"cursor":"invalid"}}`), "cursor: 형식이 맞지 않아요"},
+		{apiErr("invalid_request", `{"fields":{"path":"invalid"}}`), "ID·코드: 형식이 맞지 않아요"},
 		{apiErr("invalid_request", `{"fields":{"topic":"weird"}}`), "topic: weird"},
 		{apiErr("invalid_request", `{}`), "입력값을 확인해 주세요"},
 		{apiErr("invalid_request", ""), "입력값을 확인해 주세요"},

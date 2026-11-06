@@ -61,6 +61,7 @@ var fieldLabel = map[string]string{
 	"bio":          "소개",
 	"text":         "상태 글",
 	"q":            "검색어",
+	"path":         "ID·코드", // client-side checkPath: an ID or code that would rewrite the URL path
 }
 
 // fieldReason names details.fields values; unknown reasons are shown as-is.
