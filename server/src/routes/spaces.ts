@@ -187,6 +187,9 @@ spaceRoutes.patch("/spaces/:space_id", requireAuth, vJson(PatchBody), async (c) 
 /**
  * owner; soft-deletes the space and its channels in one batch. The {space} audience drops deleted spaces, so the member
  * ids are read before the batch and space.deleted goes to {users} after the commit (plan 01 Global Constraints).
+ * The UPDATE re-checks ownership; when it changes nothing, the answer is what it saw, read first in its own batch
+ * (server-architecture.md 4.4, pending item 10-a): 404 (I am out / the space deleted), 403 (no longer owner — a
+ * transfer committed after the pre-check) — the pre-check's codes.
  */
 spaceRoutes.delete("/spaces/:space_id", requireAuth, async (c) => {
   const me = getAuth(c).userId;
@@ -195,11 +198,16 @@ spaceRoutes.delete("/spaces/:space_id", requireAuth, async (c) => {
   await requireSpaceRole(db, spaceId, me, "owner");
   const memberIds = (await all<{ user_id: string }>(db, "SELECT user_id FROM space_members WHERE space_id = ?1", spaceId)).map((r) => r.user_id);
   const t = now();
-  const [res] = await batch(db, [
+  const [myRole, res] = await batch(db, [
+    spaceRoleStmt(db, spaceId, me),
     stmt(db, "UPDATE spaces SET deleted_at = ?2, updated_at = ?2 WHERE id = ?1 AND owner_id = ?3 AND deleted_at IS NULL", spaceId, t, me),
+    // changes() is the spaces UPDATE's (the statement right before)
     stmt(db, "UPDATE channels SET deleted_at = ?2, updated_at = ?2 WHERE space_id = ?1 AND deleted_at IS NULL AND changes() > 0", spaceId, t),
   ]);
-  if ((res!.meta.changes ?? 0) === 0) throw err.notFound("space");
+  if ((res!.meta.changes ?? 0) === 0) {
+    assertSpaceRole(spaceRoleFrom(myRole), "owner");
+    throw new Error("space delete: 0-row UPDATE with no reason");
+  }
   await publishEvent(rt(c), { users: memberIds }, "space.deleted", { space_id: spaceId });
   return c.body(null, 204);
 });
@@ -321,6 +329,10 @@ spaceRoutes.get("/spaces/:space_id/members", requireAuth, vQuery(MembersQuery), 
  * owner; role admin|member (owner only through transfer). One batch: the role UPDATE, then the target's invite links
  * are revoked when they no longer hold owner·admin (links need that role, api.md 3.5; pending item 9). Direct invites
  * stay: any member may send those.
+ * The role UPDATE is gated on me still being the owner of a live space (a transfer or delete committing after the
+ * pre-check writes nothing), and when it changes nothing the answer is what it saw, read first in its own batch
+ * (server-architecture.md 4.4, pending item 10-a): 404 (I am out / the space deleted), 403 (no longer owner — also when
+ * ownership moved to the target itself), 404 member (the target left) — the pre-check's codes.
  */
 spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody), async (c) => {
   const auth = getAuth(c);
@@ -330,8 +342,20 @@ spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody
   const target = await resolveUserRef(db, c.req.param("user"), auth);
   if (target.id === auth.userId) throw err.conflict("conflict", "self");
   const role = c.req.valid("json").role;
-  const [upd] = await batch(db, [
-    stmt(db, "UPDATE space_members SET role = ?3 WHERE space_id = ?1 AND user_id = ?2 AND role <> 'owner' RETURNING *", spaceId, target.id, role),
+  const [myRole, upd] = await batch(db, [
+    spaceRoleStmt(db, spaceId, auth.userId),
+    stmt(
+      db,
+      `UPDATE space_members SET role = ?3
+        WHERE space_id = ?1 AND user_id = ?2 AND role <> 'owner'
+          AND EXISTS (SELECT 1 FROM space_members m JOIN spaces s ON s.id = m.space_id AND s.deleted_at IS NULL
+                       WHERE m.space_id = ?1 AND m.user_id = ?4 AND m.role = 'owner')
+       RETURNING *`,
+      spaceId,
+      target.id,
+      role,
+      auth.userId,
+    ),
     stmt(
       db,
       `UPDATE space_invites SET revoked_at = ?3
@@ -343,7 +367,10 @@ spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody
     ),
   ]);
   const row = (upd!.results as SpaceMemberRow[])[0] ?? null;
-  if (row === null) throw err.notFound("member");
+  if (row === null) {
+    assertSpaceRole(spaceRoleFrom(myRole), "owner");
+    throw err.notFound("member"); // I am still the owner, so the target is not a member (the owner row is mine)
+  }
   const [member] = await serializeSpaceMembers(db, [row]);
   await publishEvent(rt(c), { space: spaceId }, "space.member_updated", { space_id: spaceId, member: member! });
   return c.json({ member });

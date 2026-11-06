@@ -878,6 +878,7 @@ interface AdminAction {
 - 결과:
   - 상대가 이미 나에게 대기 요청을 보냈으면 **자동 수락**: `200 { "request": FriendRequest(status:"accepted"), "friend": Friend }` — 수락과 같은 규칙(차단·상대 정지를 수락 batch 안에서도 다시 확인, 3.2)
     - 읽은 뒤 수락 batch 전에 상대 요청이 취소·거절·다른 경로로 수락되면(수락 batch 가 직접 읽음) `404` 가 아니라, 그 일이 먼저 일어났을 때와 같은 답을 처음부터 다시 정해 준다: 새 요청 `201`, 이미 친구면 `409 already_exists`(`already_friends`) 등.
+    - 다시 정하기는 모두 3번까지다. 세 번째 판정에서는 상대의 대기 요청이 또 새로 보여도 자동 수락하지 않고 내 요청을 새로 연다(`201`, 서로 엇갈린 대기 요청 두 개). 둘 중 어느 쪽을 수락해도 엇갈린 요청은 함께 `accepted` 가 되고 친구가 된다.
   - 아니면 `201 { "request": FriendRequest, "friend": null }`
 - 오류: `409 already_exists`(이미 대기/이미 친구 — `details.reason:"pending"|"already_friends"`), `403 action_not_allowed`(차단/정지), `409 conflict`(`reason:"self"`), `422 limit_exceeded`(`pending_friend_requests`, 보낸 대기 100).
 - 이벤트·알림: 받는 사람에게 `friend.request_received` + 알림 `friend_request` + alert `friend_request`.
@@ -969,6 +970,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `DELETE /v1/spaces/{space_id}`
 - owner. 소프트 삭제(방·채널). `204` · 이벤트: `space.deleted`(방 멤버). 이후 그 방의 채널은 `channel_members` 행이 남아 있어도 읽기·청중에서 빠진다(3.5).
+- 오류: `404`(방 없음·삭제됨·내가 멤버 아님), `403 forbidden`(owner 아님). UPDATE 가 owner 를 다시 확인하고, 사전 확인 뒤 소유권이 넘어가거나 방이 지워져 아무것도 바뀌지 않으면 같은 batch 에서 읽은 사유로 위 코드 중 하나로 답한다(소유권 이전이 먼저면 `403`).
 
 #### `POST /v1/spaces/{space_id}/transfer`
 - owner. 요청: `{ "user": "@hana" }` (방 멤버여야 함). 이전 owner 는 admin 이 된다.
@@ -984,6 +986,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - owner. 요청: `{ "role": "admin" | "member" }` (owner 로 바꾸려면 transfer)
 - 부수효과(같은 batch): 대상이 owner·admin 이 아니게 되면 그 사람이 만든 초대 링크 폐기(3.5). 직접 초대는 그대로(멤버 누구나 보낼 수 있음).
 - `200 { "member": SpaceMember }` · 이벤트: `space.member_updated`(방 멤버)
+- 오류: `404`(방 없음·삭제됨·내가 멤버 아님), `403 forbidden`(owner 아님), `409 conflict`(`reason:"self"`), `404`(대상이 방 멤버 아님). 역할 UPDATE 자체가 내가 아직 살아 있는 방의 owner 인지 다시 확인하므로, 사전 확인 뒤 소유권이 넘어가거나(대상에게 넘어간 경우 포함) 방이 지워지면 아무것도 바뀌지 않고, 같은 batch 에서 읽은 사유로 위 코드 중 하나로 답한다.
 
 #### `DELETE /v1/spaces/{space_id}/members/{user}?ban=<bool>&reason=<text>`
 - `{user}=@me`: 나가기(owner 는 `409 conflict`, `reason:"owner_cannot_leave"`).
@@ -1026,6 +1029,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - `201 { "invite": DirectInvite }` · 이벤트: `space.invite_received`(상대) · 알림 `space_invite` · alert `invite`
 - 오류: `403 action_not_allowed`(친구 아님·차단·상대 정지 — 확인 뒤 INSERT 전에 그렇게 돼도 같고, 아무것도 만들어지지 않음, 3.2), `409 already_member`(사전 확인 뒤 INSERT 전에 상대가 다른 경로로 방에 들어와도 같고, 아무것도 만들어지지 않음 — 3.5), `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
 - INSERT 가 커밋된 뒤 이벤트·알림을 보내기 전에 상대가 다른 경로로 방에 들어오거나, 친구가 끊기거나, 차단되면 그쪽 batch 가 새 초대를 `canceled` 로 바꾸고 `space.invite_removed` 를 보낸다(3.5). 서버는 보내기 직전에 초대가 아직 대기 중이고 수락할 수 있는지(`GET /v1/me/direct-invites` 와 같은 조건) 다시 읽어, 아니면 `space.invite_received`·알림·alert 를 보내지 않고 그 경쟁이 INSERT 전에 일어난 것과 같은 오류(`409 already_member` / `403 action_not_allowed` / `404`)로 답한다. 그래도 남는 틈(다시 읽은 뒤 보내기 전)은 클라이언트가 막는다: 이미 들어가 있는 방의 초대, 이미 `space.invite_removed` 로 지운 초대 id 의 `space.invite_received` 는 무시한다.
+- 반대로 새 초대의 id 를 알아야만 일어나는 일 — 상대가 `GET /v1/me/direct-invites` 로 보고 거절·수락하거나, 초대한 사람·방 owner·admin 이 id 로 취소함 — 은 어느 직렬 순서에서도 INSERT 뒤이므로 `201 { "invite" }`(만들 때의 `pending`)로 답한다. 다만 이미 대기 중이 아니므로 `space.invite_received`·알림·alert 는 보내지 않는다(그 일의 `space.invite_removed` 는 이미 갔다). 취소된 초대는, 다시 읽을 때 위의 취소 사유(상대가 방 안·친구 아님·차단·초대한 사람이 방 밖)가 남아 있으면 그 오류로, 없으면 id 로 취소된 것으로 본다.
 - 같은 사람에게 온 대기 초대라도 수락할 수 없는 것(초대한 사람이 이미 방 멤버가 아님, 또는 두 사람이 더 이상 친구가 아니거나 차단 관계 — 3.5)은 `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
 
 #### `GET /v1/me/direct-invites`

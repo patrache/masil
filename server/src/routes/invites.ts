@@ -20,7 +20,7 @@ import {
   inviteInvalidReason,
   joinSpace,
   linkIssuerCanInvite,
-  requireDirectInviteLive,
+  directInviteAnnounceable,
   type InviteCheckRow,
 } from "../services/membership";
 import type { SpaceDirectInviteRow, SpaceInviteRow, SpaceRow } from "../types/rows";
@@ -180,8 +180,10 @@ inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
  * And on the invitee still being outside the space (9-b): a join by another route landing after the pre-checks
  * writes nothing and gets 409 already_member.
  * One landing after the batch commits (a join, unfriend or block cancels the new row in its own batch and sends
- * space.invite_removed) is caught by re-reading the row before publishing (requireDirectInviteLive): no invite_received, no
+ * space.invite_removed) is caught by re-reading the row before publishing (directInviteAnnounceable): no invite_received, no
  * inbox entry or alert, and the same error as if the race had landed before the INSERT.
+ * One that needs the new invite's id (the invitee declines / accepts it, the inviter or an admin cancels it) can only
+ * come after the INSERT in any serial order: 201 (pending item 10-a), but nothing announced — it is no longer pending.
  */
 inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOCIAL"), vJson(DirectInviteBody), async (c) => {
   const auth = getAuth(c);
@@ -219,8 +221,9 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
   ]);
   if (!invite || space === null) throw err.notFound("space");
   // 9-b: a join by another route / unfriend / block landing after the batch committed has already canceled the row
-  // (and sent space.invite_removed); do not announce the dead invite, answer as if the race had landed first.
-  await requireDirectInviteLive(db, row.id, spaceId, me, target.id);
+  // (and sent space.invite_removed); do not announce the dead invite, answer as if the race had landed first (throws).
+  // 10-a: an answer / cancel by id came after the INSERT in every order -> 201, but no announcement of a settled invite.
+  if (!(await directInviteAnnounceable(db, row.id, spaceId, me, target.id))) return c.json({ invite }, 201);
   const name = users.get(me)?.display_name ?? auth.handle;
   await Promise.all([
     publishEvent(rt(c), { users: [target.id] }, "space.invite_received", { invite }),

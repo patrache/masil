@@ -924,6 +924,38 @@ describe("direct invites to someone who is already in the space (9-b)", { timeou
     });
   }
 
+  // The same window, but the change is one only possible *after* the INSERT: the invitee answers the new invite (they
+  // saw its id in GET /me/direct-invites), or the inviter / an admin cancels it by id. Every serial order puts the
+  // INSERT first, so the answer is 201 (pending item 10-a) — but the invite is no longer pending, so the route does not
+  // announce it either (no ghost invite_received / inbox entry / alert after the invitee already handled it).
+  for (const race of ["declines it", "accepts it", "the inviter cancels it", "an admin cancels it"] as const) {
+    it(`direct invite create: ${race} after the INSERT commits, before the publish -> 201, no invite_received, no notification`, async () => {
+      const [o, m, f] = await Promise.all([signup(), signup(), signup()]);
+      const { space } = await makeSpace(o, [m]);
+      await makeFriends(m, f);
+      const cf = await connectWs(f.token);
+      const db = hookDb(/^SELECT \* FROM spaces WHERE id = \?1$/, "before", async () => {
+        const items = (await api(f.token).get<any>("/v1/me/direct-invites")).body.items;
+        expect(items.length).toBe(1);
+        const id: string = items[0].id;
+        if (race === "declines it") expect((await api(f.token).post(`/v1/direct-invites/${id}/decline`)).status).toBe(204);
+        else if (race === "accepts it") expect((await api(f.token).post(`/v1/direct-invites/${id}/accept`)).status).toBe(200);
+        else expect((await api(race === "the inviter cancels it" ? m.token : o.token).del(`/v1/direct-invites/${id}`)).status).toBe(204);
+      });
+      const r = await fetchWith(db, m.token, "POST", `/v1/spaces/${space.id}/direct-invites`, { user: `@${f.handle}` });
+      expect({ s: r.status, code: r.body?.error?.code }).toEqual({ s: 201, code: undefined });
+      expect(r.body.invite).toMatchObject({ status: "pending", space: { id: space.id } });
+      const want = race === "declines it" ? "declined" : race === "accepts it" ? "accepted" : "canceled";
+      expect(await inviteStatus(r.body.invite.id)).toBe(want);
+      expect((await cf.next("space.invite_removed")).data).toEqual({ invite_id: r.body.invite.id, reason: want });
+      await new Promise<void>((res) => setTimeout(res, 150));
+      expect(cf.frames.filter((x) => x.type === "space.invite_received")).toEqual([]);
+      const notes = await env.DB.prepare("SELECT COUNT(*) AS n FROM notifications WHERE user_id=?1 AND type='space_invite'").bind(f.user.id).first<any>();
+      expect(notes.n).toBe(0);
+      expect(await isMember(space.id, f)).toBe(race === "accepts it");
+    });
+  }
+
   it("a pending invite to a member does not block nor get canceled by someone else's removal", async () => {
     const [o, m, k, f] = await Promise.all([signup(), signup(), signup(), signup()]);
     const { space } = await makeSpace(o, [m, k]);

@@ -443,25 +443,34 @@ function directInviteRefusal(f: DirectInviteRefusalFacts | undefined): ApiError 
 }
 
 /**
- * Throws unless the direct invite `id` (`inviterId` -> `inviteeId` into `spaceId`) is still pending and acceptable
- * (D_INVITE_ACCEPTABLE: inviter a member, invitee outside, still friends with no block); the error is
- * directInviteRefusal's. The create route re-reads this after its batch commits and before it publishes (pending item
- * 9-b): a join by another route, an unfriend or a block landing in between cancels the row in its own batch and sends
- * space.invite_removed, and announcing the dead invite afterwards would leave a ghost pending invite on the invitee's
- * client plus an inbox space_invite / alert for it. Liveness and the reason are one statement (pending item 10-a), so
- * a change landing between two reads cannot pair "dead" with a reason that no longer holds.
+ * Whether the create route announces the direct invite `id` (`inviterId` -> `inviteeId` into `spaceId`) it has just
+ * committed. The create route reads this after its batch commits and before it publishes (pending item 9-b), all in one
+ * statement (pending item 10-a: a change landing between two reads cannot pair a status with a reason that no longer
+ * holds):
+ * - still pending and acceptable (D_INVITE_ACCEPTABLE: inviter a member, invitee outside, still friends with no block)
+ *   -> true: announce it.
+ * - answered by the invitee (declined / accepted), or canceled while nothing that cancels invites on its own holds
+ *   (canceled by id — by the inviter or an owner·admin) -> false: 201 but no announcement. Those changes need the
+ *   invite's id, so every serial order puts the INSERT first (the 201 is right), and the invitee has already handled
+ *   it (announcing it now would leave a ghost pending invite plus an inbox space_invite / alert).
+ * - otherwise (a join by another route, an unfriend or a block canceled it in its own batch and sent
+ *   space.invite_removed) -> throws directInviteRefusal's error, as if that had landed before the INSERT.
  */
-export async function requireDirectInviteLive(db: D1Database, id: string, spaceId: string, inviterId: string, inviteeId: string): Promise<void> {
-  const row = await first<DirectInviteRefusalFacts & { live: number }>(
+export async function directInviteAnnounceable(db: D1Database, id: string, spaceId: string, inviterId: string, inviteeId: string): Promise<boolean> {
+  const row = await first<DirectInviteRefusalFacts & { status: SpaceDirectInviteRow["status"] | null; acceptable: number }>(
     db,
-    `SELECT EXISTS (SELECT 1 FROM space_direct_invites d WHERE d.id = ?4 AND d.status = 'pending' AND ${D_INVITE_ACCEPTABLE}) AS live,
+    `SELECT (SELECT status FROM space_direct_invites WHERE id = ?4) AS status,
+            EXISTS (SELECT 1 FROM space_direct_invites d WHERE d.id = ?4 AND ${D_INVITE_ACCEPTABLE}) AS acceptable,
             ${DIRECT_INVITE_REFUSAL_FACTS}`,
     spaceId,
     inviterId,
     inviteeId,
     id,
   );
-  if (!row?.live) throw directInviteRefusal(row ?? undefined);
+  if (row?.status === "pending" && row.acceptable) return true;
+  if (row?.status === "declined" || row?.status === "accepted") return false;
+  if (row?.status === "canceled" && row.acceptable) return false;
+  throw directInviteRefusal(row ?? undefined);
 }
 
 /** The invite link `code` of `spaceId` with its issuer check; 404 when missing. */
