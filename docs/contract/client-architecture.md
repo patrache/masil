@@ -43,13 +43,14 @@ require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
+	git.sr.ht/~jackmordaunt/go-toast v1.1.2
 	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/exp/golden v0.1.0
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261101151554-27ecf3e4d454
 	github.com/coder/websocket v1.8.15
-	github.com/gen2brain/beeep v0.11.3
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gofrs/flock v0.13.1
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/sahilm/fuzzy v0.1.3
@@ -67,7 +68,8 @@ require (
 | x/ansi (+ `ansi/kitty`, `ansi/iterm2`) | 폭 계산·자르기·줄바꿈(`textwidth`), kitty/iTerm2 이미지 이스케이프 |
 | chroma/v2 | 코드 블록 문법 강조(`markup`) |
 | coder/websocket | 실시간 소켓(`realtime`) |
-| beeep | OS 데스크톱 알림(`notify`) |
+| godbus/dbus/v5 | Linux 데스크톱 알림 — `org.freedesktop.Notifications.Notify` 직접 호출(`notify`) |
+| go-toast (`wintoast` 만) | Windows 토스트 — WinRT COM 으로 직접 표시(`notify`), PowerShell 경로는 쓰지 않음 |
 | gofrs/flock | 파일 잠금(`instance`, `notify` 기록 파일) |
 | oklog/ulid/v2 | `device_id`, `client_nonce` 생성(`ids`) |
 | BurntSushi/toml | `config.toml` |
@@ -82,6 +84,7 @@ require (
 - `github.com/mattn/go-runewidth` 는 직접 쓰지 않는다. lipgloss v2 가 `x/ansi` 의 그래핌 폭을 쓰므로 폭 계산을 `x/ansi` 하나로 통일한다(8장). go-runewidth 는 간접 의존으로만 남는다.
 - teatest v2 는 태그가 없어 의사 버전(2026-11-01 커밋)을 고정한다. 이 커밋의 go.mod 는 `charm.land/bubbletea/v2` 를 가져온다 **[검증]**.
 - golden 은 태그 `v0.1.0` 을 쓴다(teatest 가 요구하는 의사 버전보다 높음, 최소 버전 선택으로 이것이 채택됨) **[검증]**.
+- `github.com/gen2brain/beeep` 는 **쓰지 않는다 [보안 결정, 2026-11-06]**. beeep 는 알림 제목·본문(다른 사용자가 보낸 텍스트)을 macOS 에선 AppleScript 문자열(`%q`)에, Windows 에선 go-toast 의 CDATA 템플릿과 PowerShell here-string 폴백 스크립트에 끼워 넣는다 → `]]>`·`"@` 등으로 명령 실행이 가능하다. OS 알림은 4.6 의 "OS 백엔드 규칙" 대로 `notify` 가 직접 한다.
 
 ### 1.3 go.mod 관리 규칙
 
@@ -102,6 +105,7 @@ import (
 	_ "charm.land/bubbles/v2/viewport"
 	_ "charm.land/bubbletea/v2"
 	_ "charm.land/lipgloss/v2"
+	_ "git.sr.ht/~jackmordaunt/go-toast/wintoast"
 	_ "github.com/BurntSushi/toml"
 	_ "github.com/alecthomas/chroma/v2"
 	_ "github.com/alecthomas/chroma/v2/lexers"
@@ -111,7 +115,7 @@ import (
 	_ "github.com/charmbracelet/x/exp/golden"
 	_ "github.com/charmbracelet/x/exp/teatest/v2"
 	_ "github.com/coder/websocket"
-	_ "github.com/gen2brain/beeep"
+	_ "github.com/godbus/dbus/v5"
 	_ "github.com/gofrs/flock"
 	_ "github.com/oklog/ulid/v2"
 	_ "github.com/sahilm/fuzzy"
@@ -1193,7 +1197,7 @@ const (RoleTUI Role = iota; RoleDaemon)
 type OSNotification struct{ Title, Body string; AlertID string }
 
 type Backend interface{ Show(n OSNotification) error }
-func NewOSBackend(appName string) Backend   // beeep.Notify; beeep.AppName = appName ("masil")
+func NewOSBackend(appName string) Backend   // per-OS backend below; appName = "masil"
 type Recorder struct{ Shown []OSNotification } // test backend
 func (r *Recorder) Show(n OSNotification) error
 
@@ -1238,6 +1242,14 @@ func (n *Notifier) Show(a api.Alert) error                         // ledger.Mar
 4. 데몬이고 `in.TUIPresent` → `Skip`.
 5. TUI 이고 `TerminalFocusKnown && TerminalFocused && ViewingTarget` → `Silent`(보고 있는 것을 또 알리지 않음).
 6. 나머지 → `Popup`. (포커스 보고를 지원하지 않는 터미널이면 `TerminalFocusKnown=false` → 항상 Popup: "다른 창에서 일하다가도 놓치지 않는다")
+
+**OS 백엔드 규칙 [보안 결정, 2026-11-06]** — 제목·본문은 다른 사용자가 만든 텍스트다. 어떤 백엔드도 그것을 스크립트·셸 명령·마크업 문서에 **문자열로 끼워 넣지 않는다**(값은 데이터로만 넘긴다). TUI 와 데몬이 같은 `NewOSBackend` 를 쓴다.
+- 공통: `Show` 는 표시 직전에 `Format` 과 같은 sanitize + 길이 제한(제목 80, 본문 200 코드 포인트)을 다시 적용한다 — `Format` 을 거치지 않은 호출도 제어 문자·무제한 길이가 OS 에 닿지 않는다. bidi·보이지 않는 서식 문자 제거는 `textwidth.Sanitize`(8.2) 를 그대로 따른다.
+- macOS: 셸 없이 `/usr/bin/osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title (item 1 of argv)' -e 'end run' -- <제목> <본문>` — 프로그램은 상수, 제목·본문은 `--` 뒤 argv 항목(`-e` 같은 값도 옵션이 아님).
+- Linux: D-Bus `org.freedesktop.Notifications.Notify` 직접 호출(exec 없음, 세션 버스 자동 기동(`dbus-launch`) 안 함). summary 는 일반 텍스트, body 는 서버가 `body-markup` 능력을 밝히면(또는 능력 조회 실패 시) `& < >` 를 이스케이프. actions·icon·hints 는 비움.
+- Windows: WinRT 토스트 COM API(`go-toast/wintoast.Push`, 옵션 없이 — PowerShell 폴백·우선 옵션 금지). 토스트 XML 은 직접 만들고 제목·본문은 `encoding/xml.EscapeText` 로 이스케이프한 문자 데이터(CDATA 금지).
+- 그 외 OS: 오류(배포 대상 아님).
+- 시험: 각 OS 의 인자/XML/D-Bus 호출을 만드는 순수 함수를 모든 OS 에서 적대적 입력(`$(...)`, 백틱, `"@`, `]]>`, `" & do shell script "id" & "`, 줄바꿈, `-e`, `<a href>`)으로 단언하고, macOS 에선 실제 osascript 로 같은 argv 가 그대로 돌아오는지(명령 미실행) 확인한다. 패키지 소스에 beeep·PowerShell 옵션이 들어오면 실패하는 시험을 둔다.
 
 ### 4.7 `internal/textwidth` — 폭 계산 (8장 상세)
 
