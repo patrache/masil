@@ -59,6 +59,10 @@ func BoxesOf(f app.FrameInfo) []Box {
 //     last row is not part of any Bordered box (it is the status line).
 //  5. every box is on screen (0 <= X, X+W <= w, 0 <= Y, Y+H <= h), and outside TooSmall
 //     no overlay or toast covers the status line.
+//  6. the raw line holds no escape sequence but SGR (CSI ... m) and OSC 8 hyperlinks
+//     whose target is printable ASCII (pending-fixes 0-b): ansi.Strip would hide an
+//     injected OSC 52 clipboard write, OSC 0/2 title, screen clear or cursor move
+//     from checks 1 and 3.
 //
 // The screen is ansi.Strip'ed and cut into cells by grapheme width: a wide grapheme
 // occupies its first cell, the following cell(s) hold a continuation marker.
@@ -80,6 +84,7 @@ func AssertIntegrity(tb testing.TB, content string, w, h int, boxes []Box, borde
 			r.errorf("line %d: StringWidthWc %d, want %d (grapheme/wcwidth renderers disagree, CA 8.2): %q",
 				y, wc, w, ansi.Strip(line))
 		}
+		checkEscapes(r, y, line)
 		plain := ansi.Strip(line)
 		checkRunes(r, y, plain)
 		grid[y] = toCells(plain)
@@ -158,6 +163,72 @@ func checkRunes(r *reporter, y int, plain string) {
 		}
 		i += size
 	}
+}
+
+// checkEscapes reports every escape or control sequence of a raw line other
+// than SGR and a clean OSC 8 hyperlink (check 6).
+func checkEscapes(r *reporter, y int, line string) {
+	var state byte
+	for rest := line; rest != ""; {
+		seq, width, n, ns := ansi.DecodeSequence(rest, state, nil)
+		state = ns
+		if n <= 0 { // defensive: never loop forever
+			n = 1
+			seq = rest[:1]
+		}
+		rest = rest[n:]
+		if width > 0 && !escapeLike(seq) {
+			continue // a printable grapheme
+		}
+		if !allowedEscape(seq) {
+			r.errorf("line %d: escape sequence %q (only SGR and OSC 8 with a printable-ASCII target may reach the terminal)", y, seq)
+		}
+	}
+}
+
+// escapeLike reports a sequence that starts with ESC or a raw C1 byte, or holds
+// a C0/DEL/C1 rune.
+func escapeLike(seq string) bool {
+	if seq == "" {
+		return false
+	}
+	if c := seq[0]; c == 0x1b || c >= 0x80 && c <= 0x9f {
+		return true
+	}
+	for _, c := range seq {
+		if c < 0x20 || c >= 0x7f && c <= 0x9f {
+			return true
+		}
+	}
+	return false
+}
+
+// allowedEscape: not escape-like, an SGR sequence, or an OSC 8 hyperlink
+// (BEL or ST terminated) whose parameters and target are printable ASCII.
+func allowedEscape(seq string) bool {
+	if !escapeLike(seq) {
+		return true
+	}
+	if body, ok := strings.CutPrefix(seq, "\x1b["); ok {
+		params, ok := strings.CutSuffix(body, "m")
+		return ok && strings.Trim(params, "0123456789;:") == ""
+	}
+	body, ok := strings.CutPrefix(seq, "\x1b]8;")
+	if !ok {
+		return false
+	}
+	payload, ok := strings.CutSuffix(body, "\x07")
+	if !ok {
+		if payload, ok = strings.CutSuffix(body, "\x1b\\"); !ok {
+			return false
+		}
+	}
+	for i := 0; i < len(payload); i++ {
+		if c := payload[i]; c <= 0x20 || c >= 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // contCell marks the cells covered by the right part of a wide grapheme.

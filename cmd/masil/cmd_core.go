@@ -80,6 +80,16 @@ func parseArgs(env *Env, name, usage string, args []string, setup func(fs *flag.
 
 // usageError writes an optional reason and the usage line to stderr and returns
 // a usage error (exit code 2) wrapping cause.
+// errText is err as one line safe for the terminal: an error can wrap text
+// from the server, a file name or a peer, so it is sanitized before printing
+// (pending-fixes 0-b).
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return textwidth.Sanitize(err.Error())
+}
+
 func usageError(env *Env, usage, reason string, cause error) error {
 	if reason != "" {
 		fmt.Fprintln(env.Stderr, textwidth.Sanitize(reason))
@@ -121,7 +131,7 @@ func tuiOptions(env *Env) app.Options {
 // startTUI runs the app and explains a failure on stderr.
 func startTUI(ctx context.Context, env *Env, o app.Options) error {
 	if err := runTUI(ctx, o); err != nil {
-		fmt.Fprintf(env.Stderr, "masil을 실행하지 못했어요: %s\n", textwidth.Sanitize(err.Error()))
+		fmt.Fprintf(env.Stderr, "masil을 실행하지 못했어요: %s\n", errText(err))
 		return err
 	}
 	return nil
@@ -189,7 +199,7 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 	defer cancel()
 	res, err := client.Login(c, api.LoginRequest{Handle: handle, Password: password, Client: clientName, DeviceName: deviceName()})
 	if err != nil {
-		fmt.Fprintln(env.Stderr, api.Describe(err))
+		fmt.Fprintln(env.Stderr, textwidth.Sanitize(api.Describe(err)))
 		return err
 	}
 	cr := &auth.Credentials{
@@ -242,7 +252,7 @@ func cmdLogout(ctx context.Context, env *Env, args []string) error {
 	defer cancel()
 	if err := api.New(cr.Server, api.WithToken(cr.Token)).Logout(c); err != nil && api.CodeOf(err) != "unauthorized" {
 		slog.Warn("server logout failed", "err", err)
-		fmt.Fprintf(env.Stderr, "서버에 로그아웃을 알리지 못했어요 (%s). 이 기기의 로그인 정보는 지울게요\n", api.Describe(err))
+		fmt.Fprintf(env.Stderr, "서버에 로그아웃을 알리지 못했어요 (%s). 이 기기의 로그인 정보는 지울게요\n", textwidth.Sanitize(api.Describe(err)))
 	}
 	if err := auth.Clear(env.Paths); err != nil {
 		fmt.Fprintln(env.Stderr, "로그인 정보를 지우지 못했어요")

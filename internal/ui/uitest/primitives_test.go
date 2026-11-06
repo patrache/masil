@@ -261,6 +261,36 @@ func TestIntegrityDetects(t *testing.T) {
 			return []Box{{Rect: layout.Rect{X: 0, Y: 0, W: 20, H: 6}, Bordered: true, Z: 0}}
 		}},
 		{name: "wrong border set", want: "corner", border: lipgloss.RoundedBorder()},
+		// Escape sequences other than SGR and a clean OSC 8 (pending-fixes 0-b):
+		// ansi.Strip hides them from the rune check, so they are checked raw.
+		{name: "OSC 52 clipboard write", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]52;c;ZXZpbA==\x07" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "OSC 0 window title", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]0;PWNED\x1b\\" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "CSI clear screen", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b[2J" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "CSI cursor move", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b[1;1H" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "C1 CSI", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\u009b2J" + strings.Repeat(" ", 18) + "║"
+			return l
+		}},
+		{name: "OSC 8 target with ESC inside", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]8;;https://a.b/\x1b[2J\x07링크\x1b]8;;\x07" + strings.Repeat(" ", 14) + "║"
+			return l
+		}},
+		{name: "OSC 8 target with raw UTF-8", want: "escape", edit: func(l []string) []string {
+			l[2] = "║\x1b]8;;https://a.b/서울\x07링크\x1b]8;;\x07" + strings.Repeat(" ", 14) + "║"
+			return l
+		}},
 		// Not violations:
 		{name: "covered pane border", want: "", edit: func(l []string) []string {
 			for i := 1; i <= 2; i++ {
@@ -277,6 +307,11 @@ func TestIntegrityDetects(t *testing.T) {
 			return l
 		}, boxes: func(b []Box) []Box {
 			return append(b, Box{Rect: layout.Rect{X: 19, Y: 0, W: 1, H: 1}, Bordered: false, Z: 100})
+		}},
+		{name: "clean OSC 8 and SGR", want: "", edit: func(l []string) []string {
+			l[2] = "║\x1b[4;38:2::1:2:3m\x1b]8;id=1;https://a.b/%EC%84%9C?q=1\x07링크\x1b]8;;\x07\x1b[m" + strings.Repeat(" ", 14) + "║"
+			l[3] = "║\x1b]8;;https://a.b/\x1b\\링크\x1b]8;;\x1b\\" + strings.Repeat(" ", 14) + "║"
+			return l
 		}},
 		{name: "title segment", want: "", edit: func(l []string) []string {
 			l[0] = "╔═ 제목 ═══════════╗"

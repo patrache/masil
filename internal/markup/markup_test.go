@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
@@ -490,5 +491,114 @@ func TestRenderLinkGraphemes(t *testing.T) {
 	lines := markup.Render(markup.Parse(bodies[0], markup.ParseOptions{}), amber, markup.RenderOptions{Width: 80})
 	if len(lines) != 1 || !strings.Contains(lines[0], "\x1b[4m") || !strings.Contains(lines[0], "🇰🇷 국가대표 경기") {
 		t.Errorf("link not underlined as one run: %q", lines)
+	}
+}
+
+// TestRenderLinkURLEscapes (pending-fixes 0-b): a link URL carrying ESC, BEL,
+// C1 or invalid UTF-8 must never reach the terminal as an escape; the text is
+// shown as plain (sanitized) text instead of a link.
+func TestRenderLinkURLEscapes(t *testing.T) {
+	urls := []string{
+		"https://a.b/\x1b]52;c;ZXZpbA==\x07",
+		"https://a.b/\x9b31m",
+		"https://a.b/\u009b31m",
+		"https://a.b/x\x07y",
+		"https://a.b/\xff\xfe",
+		"https://a.b/\xc3\x28",
+		"https://a.b/\xed\xa0\x80", // CESU-8 lone surrogate
+		"https://a.b/\x1b\\",
+	}
+	for _, u := range urls {
+		for _, body := range []string{u, "보기 " + u + " 끝", "[링크](" + u + ")"} {
+			d := markup.Parse(body, markup.ParseOptions{})
+			for _, in := range nonText(d) {
+				if in.Kind == markup.Link && !cleanURL(in.URL) {
+					t.Errorf("Parse(%q): link URL %q is not clean ASCII/UTF-8", body, in.URL)
+				}
+			}
+			if strings.HasPrefix(body, "[") {
+				for _, in := range nonText(d) {
+					if in.Kind == markup.Link && in.Text == "링크" {
+						t.Errorf("Parse(%q): bracket link with a hostile URL is still a link", body)
+					}
+				}
+			}
+			for _, w := range []int{80, 12} {
+				for _, o := range []markup.RenderOptions{{Width: w, Hyperlinks: true}, {Width: w, Hyperlinks: true, Compact: true}} {
+					lines := markup.Render(d, amber, o)
+					checkLines(t, lines, w)
+					for _, l := range lines {
+						checkOnlyOSC8(t, l)
+						checkOSC8Targets(t, l)
+					}
+				}
+			}
+		}
+	}
+	// "[링크](u)" with a hostile u shows its source as plain text.
+	lines := markup.Render(markup.Parse("[링크](https://a.b/\x1b]52;c;ZXZpbA==\x07)", markup.ParseOptions{}), amber,
+		markup.RenderOptions{Width: 80, Hyperlinks: true})
+	if got := ansi.Strip(strings.Join(lines, "\n")); !strings.Contains(got, "[링크](") {
+		t.Errorf("hostile bracket link not shown as text: %q", got)
+	}
+}
+
+// TestRenderHyperlinkSanitizedOnly (pending-fixes 0-b ②): style() only emits
+// OSC 8 for a URL that Sanitize leaves unchanged and that holds no ESC/BEL,
+// whatever a caller put in the Doc.
+func TestRenderHyperlinkSanitizedOnly(t *testing.T) {
+	for _, u := range []string{
+		"https://a.b/‮exe.txt", // bidi override: Sanitize drops it
+		"https://a.b/​x",       // zero-width space
+		"https://a.b/\xff",
+		"https://a.b/\x1b]52;c;ZXZpbA==\x07",
+		"https://a.b/\u009bx",
+		"https://a.b/\tx",
+	} {
+		d := markup.Doc{Blocks: []markup.Block{{Kind: markup.Paragraph, Inline: []markup.Inline{
+			{Kind: markup.Link, Text: "t", URL: u},
+		}}}}
+		lines := markup.Render(d, amber, markup.RenderOptions{Width: 20, Hyperlinks: true})
+		checkLines(t, lines, 20)
+		for _, l := range lines {
+			checkOnlyOSC8(t, l)
+			if strings.Contains(l, "\x1b]8;") {
+				t.Errorf("URL %q hyperlinked although Sanitize changes it: %q", u, l)
+			}
+		}
+	}
+	// A clean URL is still hyperlinked.
+	d := markup.Parse("https://example.com/a?b=1", markup.ParseOptions{})
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 80, Hyperlinks: true})
+	if len(lines) != 1 || !strings.Contains(lines[0], "\x1b]8;;https://example.com/a?b=1") {
+		t.Errorf("clean URL not hyperlinked: %q", lines)
+	}
+}
+
+// cleanURL: valid UTF-8 without C0, DEL or C1.
+func cleanURL(u string) bool {
+	return utf8.ValidString(u) && !hasControl(u)
+}
+
+// checkOSC8Targets fails if an OSC 8 target holds anything but printable ASCII.
+func checkOSC8Targets(t *testing.T, l string) {
+	t.Helper()
+	for rest := l; ; {
+		i := strings.Index(rest, "\x1b]8;")
+		if i < 0 {
+			return
+		}
+		rest = rest[i+len("\x1b]8;"):]
+		end := strings.IndexAny(rest, "\x07\x1b")
+		if end < 0 {
+			t.Errorf("unterminated OSC 8 in %q", l)
+			return
+		}
+		for j := 0; j < end; j++ {
+			if c := rest[j]; c <= 0x20 || c >= 0x7f {
+				t.Errorf("OSC 8 target byte %#x in %q", c, l)
+			}
+		}
+		rest = rest[end:]
 	}
 }

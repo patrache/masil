@@ -6,7 +6,22 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
+
+	"github.com/patrache/masil/internal/textwidth"
 )
+
+// maxServerText caps, in cells, each string the server supplies to Describe.
+const maxServerText = 40
+
+// serverText makes a server-supplied string (error code, field name or reason,
+// version) safe to show (pending-fixes 0-b): textwidth.Sanitize drops escape
+// sequences and control/format characters, and the result is cut to
+// maxServerText cells, so a hostile or broken server cannot write ESC/BEL/C1
+// (screen clears, OSC 52 clipboard writes, titles) through an error line.
+func serverText(s string) string {
+	return strings.TrimRight(textwidth.Truncate(textwidth.Sanitize(s), maxServerText, "…"), " ")
+}
 
 // describeText is the fixed Korean line per error code (plan 03 Task 8 table).
 var describeText = map[string]string{
@@ -58,11 +73,16 @@ var fieldReason = map[string]string{
 }
 
 // Describe returns a Korean, user-facing, one-line description (table per code + fields).
-// nil => "".
+// nil => "". Every server-supplied piece goes through serverText and the whole
+// line through textwidth.Sanitize, so the result is always safe to print.
 func Describe(err error) string {
 	if err == nil {
 		return ""
 	}
+	return textwidth.Sanitize(describe(err))
+}
+
+func describe(err error) string {
 	code := CodeOf(err)
 	var e *Error
 	errors.As(err, &e)
@@ -85,11 +105,11 @@ func Describe(err error) string {
 		name := names[0]
 		label, ok := fieldLabel[name]
 		if !ok {
-			label = name
+			label = serverText(name)
 		}
 		reason, ok := fieldReason[f[name]]
 		if !ok {
-			reason = f[name]
+			reason = serverText(f[name])
 		}
 		return label + ": " + reason
 	case "limit_exceeded":
@@ -97,7 +117,7 @@ func Describe(err error) string {
 			Limit *json.Number `json:"limit"`
 		}
 		if e != nil && e.details(&d) && d.Limit != nil {
-			return fmt.Sprintf("한도를 넘었어요 (최대 %s)", d.Limit.String())
+			return fmt.Sprintf("한도를 넘었어요 (최대 %s)", serverText(d.Limit.String()))
 		}
 		return "한도를 넘었어요"
 	case "upgrade_required":
@@ -105,7 +125,7 @@ func Describe(err error) string {
 			Min string `json:"min_client_version"`
 		}
 		if e != nil && e.details(&d) && d.Min != "" {
-			return fmt.Sprintf("masil을 업데이트해 주세요 (최소 %s)", d.Min)
+			return fmt.Sprintf("masil을 업데이트해 주세요 (최소 %s)", serverText(d.Min))
 		}
 		return "masil을 업데이트해 주세요"
 	case "rate_limited":
@@ -117,5 +137,5 @@ func Describe(err error) string {
 	if s, ok := describeText[code]; ok {
 		return s
 	}
-	return fmt.Sprintf("알 수 없는 오류예요 (%s)", code)
+	return fmt.Sprintf("알 수 없는 오류예요 (%s)", serverText(code))
 }

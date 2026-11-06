@@ -115,7 +115,7 @@ func daemonRun(ctx context.Context, env *Env, args []string) error {
 		// The child gets the same command line; Detach marks it so it runs here.
 		detached, err := detachFn(append([]string{"daemon"}, args...))
 		if err != nil {
-			fmt.Fprintf(env.Stderr, "데몬을 백그라운드로 띄우지 못했습니다: %v\n", err)
+			fmt.Fprintf(env.Stderr, "데몬을 백그라운드로 띄우지 못했습니다: %s\n", errText(err))
 			return err
 		}
 		if detached {
@@ -130,7 +130,7 @@ func daemonRun(ctx context.Context, env *Env, args []string) error {
 	}
 	logger, closer, err := daemon.NewLogger(env.Paths, extra)
 	if err != nil {
-		fmt.Fprintf(env.Stderr, "데몬 로그 파일(%s)을 열지 못했습니다: %v\n", logPath, err)
+		fmt.Fprintf(env.Stderr, "데몬 로그 파일(%s)을 열지 못했습니다: %s\n", textwidth.Sanitize(logPath), errText(err))
 		return err
 	}
 	defer closer.Close()
@@ -150,7 +150,7 @@ func daemonRun(ctx context.Context, env *Env, args []string) error {
 		fmt.Fprintln(env.Stderr, "실행 파일이 바뀌어 종료합니다 — 자동 시작이 새 버전으로 다시 띄웁니다.")
 		return err
 	default:
-		fmt.Fprintf(env.Stderr, "데몬이 오류로 멈췄습니다: %v\n", err)
+		fmt.Fprintf(env.Stderr, "데몬이 오류로 멈췄습니다: %s\n", errText(err))
 		return err
 	}
 }
@@ -162,16 +162,16 @@ func daemonRun(ctx context.Context, env *Env, args []string) error {
 func daemonInstall(env *Env) error {
 	exe, err := executableFn()
 	if err != nil {
-		fmt.Fprintf(env.Stderr, "실행 파일 경로를 찾지 못했습니다: %v\n", err)
+		fmt.Fprintf(env.Stderr, "실행 파일 경로를 찾지 못했습니다: %s\n", errText(err))
 		return err
 	}
 	exe, err = autostart.StableExecutable(exe)
 	if err != nil {
-		fmt.Fprintln(env.Stderr, err)
+		fmt.Fprintln(env.Stderr, errText(err))
 		return err
 	}
 	if err := autostartInstallFn(exe, env.Paths); err != nil {
-		fmt.Fprintf(env.Stderr, "자동 시작을 등록하지 못했습니다: %v\n", err)
+		fmt.Fprintf(env.Stderr, "자동 시작을 등록하지 못했습니다: %s\n", errText(err))
 		return err
 	}
 	detail := exe
@@ -209,7 +209,7 @@ func writeServerMismatch(w io.Writer, indent, credServer, daemonServer string) {
 // daemonUninstall removes the autostart registration.
 func daemonUninstall(env *Env) error {
 	if err := autostartUninstallFn(); err != nil {
-		fmt.Fprintf(env.Stderr, "자동 시작을 해제하지 못했습니다: %v\n", err)
+		fmt.Fprintf(env.Stderr, "자동 시작을 해제하지 못했습니다: %s\n", errText(err))
 		return err
 	}
 	fmt.Fprintln(env.Stdout, "자동 시작을 해제했습니다.")

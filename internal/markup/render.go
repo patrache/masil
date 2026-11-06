@@ -147,7 +147,7 @@ func inlineSegs(ins []Inline, o RenderOptions) []seg {
 			k.kind = kInlineCode
 		case Link:
 			k.kind = kLink
-			if o.Hyperlinks && SafeURL(in.URL) {
+			if o.Hyperlinks && hyperlinkable(in.URL) {
 				k.url = in.URL
 			}
 		case Mention:
@@ -347,7 +347,7 @@ func style(t *theme.Theme, k styleKey) lipgloss.Style {
 	case kInlineCode:
 		return t.S.InlineCode
 	case kLink:
-		if k.url != "" && SafeURL(k.url) { // second guard: never put control bytes in OSC 8
+		if k.url != "" && hyperlinkable(k.url) { // second guard: never put control bytes in OSC 8
 			return t.S.Link.Hyperlink(HyperlinkTarget(k.url))
 		}
 		return t.S.Link
@@ -405,6 +405,14 @@ func renderRun(st lipgloss.Style, s string) string {
 		pre = pre.Strikethrough(true)
 	}
 	return pre.String() + st.UnsetUnderline().UnsetStrikethrough().Render(s) + ansi.ResetStyle
+}
+
+// hyperlinkable reports whether u may become an OSC 8 target (pending-fixes
+// 0-b): SafeURL (valid UTF-8, no C0/DEL/C1), no ESC or BEL, and unchanged by
+// textwidth.Sanitize, so no bidi, zero-width or other format character can make
+// the target differ from the link text the viewer reads.
+func hyperlinkable(u string) bool {
+	return u != "" && SafeURL(u) && !strings.ContainsAny(u, "\x1b\x07") && u == textwidth.Sanitize(u)
 }
 
 // HyperlinkTarget percent-encodes u for an OSC 8 target: every byte outside

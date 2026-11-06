@@ -220,6 +220,29 @@ func TestReportDialogSubmit(t *testing.T) {
 		}
 		h.Check()
 	})
+	// pending-fixes 0-b: a hostile server's error code and details.fields keys
+	// and values reach the inline error line without any escape sequence.
+	for name, env := range map[string]map[string]any{
+		"hostile code": {"error": map[string]any{"code": "x\x1b[2J\x1b]52;c;ZXZpbA==\x07", "message": "\x1b]0;PWNED\x07"}},
+		"hostile fields": {"error": map[string]any{"code": "invalid_request", "message": "m",
+			"details": map[string]any{"fields": map[string]string{"\x1b[2J": "\x1b]52;c;ZXZpbA==\x07\u009b31m"}}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := uitest.New(t)
+			h.API.JSON("POST /v1/reports", 400, env)
+			submit(h)
+			if overlayCount(h) != 1 {
+				t.Fatal("400: the dialog must stay open")
+			}
+			h.Check() // check 6: only SGR / clean OSC 8 escapes
+			raw := h.Styled()
+			for _, bad := range []string{"\x1b[2J", "]52;", "]0;", "\x07", "\u009b"} {
+				if strings.Contains(raw, bad) {
+					t.Fatalf("frame carries %q:\n%q", bad, raw)
+				}
+			}
+		})
+	}
 	t.Run("note limit and newline", func(t *testing.T) {
 		h := uitest.New(t)
 		h.API.JSON("POST /v1/reports", 201, map[string]string{"report_id": "R3"})

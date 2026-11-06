@@ -73,24 +73,24 @@ func realMain() int {
 
 	paths, err := config.ResolvePaths()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "설정 폴더를 찾지 못했어요: %v\n", err)
+		fmt.Fprintf(os.Stderr, "설정 폴더를 찾지 못했어요: %s\n", errText(err))
 		return 1
 	}
 	if err := config.EnsureDir(paths); err != nil {
-		fmt.Fprintf(os.Stderr, "설정 폴더를 만들지 못했어요: %v\n", err)
+		fmt.Fprintf(os.Stderr, "설정 폴더를 만들지 못했어요: %s\n", errText(err))
 		return 1
 	}
 	cfg, err := config.Load(paths)
 	if err != nil {
 		// Load always returns a usable Config (defaults for the bad parts).
-		fmt.Fprintf(os.Stderr, "config.toml 일부를 읽지 못해 기본값을 썼어요: %v\n", err)
+		fmt.Fprintf(os.Stderr, "config.toml 일부를 읽지 못해 기본값을 썼어요: %s\n", errText(err))
 	}
 	if cfg == nil {
 		cfg = config.Defaults()
 	}
 	logger, closeLog, err := openLog(paths, "masil")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "로그 파일을 열지 못했어요: %v\n", err)
+		fmt.Fprintf(os.Stderr, "로그 파일을 열지 못했어요: %s\n", errText(err))
 		logger, closeLog = slog.New(slog.DiscardHandler), func() {}
 	}
 	defer closeLog()
