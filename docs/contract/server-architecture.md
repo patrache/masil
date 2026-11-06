@@ -625,9 +625,9 @@ export const clientVersionGate: MiddlewareHandler<AppEnv>;   // UA "masil/x.y.z"
 // membership.ts
 /** SQL fragment over space_invites `t`: its creator is still owner·admin of its space (api.md 3.5). Preview, listing and joinSpace all apply it. */
 export function linkIssuerCanInvite(t: string): string;
-/** Via a link: pre-check + conditional UPDATE both require the creator to still be owner·admin (else 410 revoked); via a direct invite: the inviter still a member (else 404). */
+/** Via a link: pre-check + conditional UPDATE both require the creator to still be owner·admin (else 410 revoked); via a direct invite: the inviter still a member (else 404). Every route also cancels, in the same batch, the user's other pending direct invites to the space (9-b). */
 export function joinSpace(rt: Runtime, spaceId: string, userId: string, via: { inviteCode?: string; directInviteId?: string }): Promise<SpaceDetail>;
-/** One batch for every reason: delete space_members row + this user's channel_members rows in all private channels of the space + cancel this user's pending direct invites to the space + revoke their invite links (+ counters). */
+/** One batch for every reason: delete space_members row + this user's channel_members rows in all private channels of the space + cancel the pending direct invites this user sent in the space and any still pending to them for it (9-b) + revoke their invite links (+ counters). */
 export function removeFromSpace(rt: Runtime, spaceId: string, userId: string, actorId: string, reason: "left" | "kicked" | "banned", banReason?: string): Promise<void>;
 export function addChannelMembers(rt: Runtime, channelId: string, actorId: string, userIds: string[]): Promise<Channel>;
 export function removeChannelMember(rt: Runtime, channelId: string, actorId: string, userId: string): Promise<void>;

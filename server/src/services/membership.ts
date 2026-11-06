@@ -335,8 +335,12 @@ const INVITE_ACCEPTABLE = `EXISTS (SELECT 1 FROM space_members im WHERE im.space
  * and still a friend of the invitee with no block either way (D3) — the same rule as joinSpace's INVITE_ACCEPTABLE. A
  * pending invite failing it cannot be accepted, so it is left out of the invitee's list and does not count as the
  * pending invite that blocks a fresh one (a fresh invite cancels it as stale).
+ * Also: its invitee is not in the space already (pending item 9-b). Joining by any route cancels their pending invite to
+ * the space in the join's batch; one left pending anyway (no cleanup ran) is not listed — accepting it is 409
+ * already_member (joinSpace's own pre-check) — and removeFromSpace cancels it when they leave, so it never revives.
  */
 export const D_INVITE_ACCEPTABLE = `EXISTS (SELECT 1 FROM space_members im WHERE im.space_id = d.space_id AND im.user_id = d.inviter_id)
+  AND NOT EXISTS (SELECT 1 FROM space_members ie WHERE ie.space_id = d.space_id AND ie.user_id = d.invitee_id)
   AND ${inviteRelationLiveSql("d")}`;
 
 /**
@@ -348,6 +352,8 @@ export const D_INVITE_ACCEPTABLE = `EXISTS (SELECT 1 FROM space_members im WHERE
  * block either way, the invitee not suspended now. The caller's pre-checks are plain reads, and a block committing
  * after them (its cleanup deletes the friendship and cancels pending invites both ways) would otherwise leave a fresh
  * pending invite behind -> 403 action_not_allowed, nothing written.
+ * Both are gated on the invitee not being in the space either (pending item 9-b): a join committing after the caller's
+ * member pre-check would otherwise leave a pending invite to a member -> 409 already_member, nothing written.
  * A concurrent invite to the same person fails the unique index -> 409 already_exists.
  * Returns the new row and the stale invites it canceled (the caller publishes space.invite_removed for those).
  */
@@ -362,7 +368,8 @@ export async function insertDirectInvite(
   const inviterIsMember = "EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2)";
   const related = `EXISTS (SELECT 1 FROM friendships f WHERE f.user_a = MIN(?2, ?3) AND f.user_b = MAX(?2, ?3))
     AND NOT ${blockedEitherSql("?2", "?3")} AND NOT ${suspendedNowSql("?3", "?4")}`;
-  const gate = `${inviterIsMember} AND ${related}`;
+  const inviteeOutside = "NOT EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?3)";
+  const gate = `${inviterIsMember} AND ${inviteeOutside} AND ${related}`;
   let results: D1Result[];
   try {
     results = await batch(db, [
@@ -396,6 +403,8 @@ export async function insertDirectInvite(
   if (row === null) {
     const member = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviterId);
     if (member === null) throw err.notFound("space"); // the inviter left / was removed after the role check
+    const inside = await first(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, inviteeId);
+    if (inside !== null) throw err.conflict("already_member"); // the invitee joined by another route after the pre-check
     throw err.forbidden("action_not_allowed"); // unfriended / blocked / invitee suspended after the pre-checks
   }
   return { row, stale: results[0]!.results as Array<{ id: string; inviter_id: string }> };
@@ -424,12 +433,15 @@ async function loadInviteOf(db: D1Database, spaceId: string, code: string): Prom
  *   owner·admin; direct: still pending and its inviter still a member] ->
  *   space_members INSERT gated on changes() > 0 -> spaces.member_count+1 gated on changes() > 0.
  *   via {}: the INSERT and the member_count UPDATE without the gates (Task 21).
+ *   Then, every route (pending item 9-b): this user's other pending direct invites to the space -> canceled, gated on
+ *   the membership row being there.
  * A first statement that changed nothing means the invite was used up / answered meanwhile and nothing was written:
  * 410 with the re-read reason (link) or 404 (direct). A concurrent join of the same user fails the PK and rolls the
  * whole batch back -> 409 already_member.
  * After commit (only when a row went in): space.joined{space} to the user (their own view), space.member_joined
  * {space_id, member} to the other members, (direct) space.invite_removed{invite_id, reason:"accepted"} to the invitee
- * and the inviter, then the system message member_joined in the default channel.
+ * and the inviter, space.invite_removed{invite_id, reason:"canceled"} per invite the join canceled to the user and its
+ * inviter, then the system message member_joined in the default channel.
  */
 export async function joinSpace(rt: Runtime, spaceId: string, userId: string, via: { inviteCode?: string; directInviteId?: string }): Promise<SpaceDetail> {
   const db = rt.env.DB;
@@ -495,6 +507,22 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
     stmt(db, `INSERT INTO space_members (space_id, user_id, role, joined_at) SELECT ?1, ?2, 'member', ?3${gate}`, spaceId, userId, t),
     stmt(db, `UPDATE spaces SET member_count = member_count + 1, updated_at = ?2 WHERE id = ?1${gated ? " AND changes() > 0" : ""}`, spaceId, t),
   );
+  // pending item 9-b: once in, any other pending direct invite to this user for this space is moot — cancel it here so
+  // it cannot be accepted later (e.g. after a kick). Gated on the membership row, so a join that wrote nothing cancels
+  // nothing; via a direct invite there is none (one pending invite per space and invitee, and that one is now accepted).
+  const cancelIdx = stmts.length;
+  stmts.push(
+    stmt(
+      db,
+      `UPDATE space_direct_invites SET status = 'canceled', responded_at = ?3
+        WHERE space_id = ?1 AND invitee_id = ?2 AND status = 'pending'
+          AND EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2)
+       RETURNING id, inviter_id`,
+      spaceId,
+      userId,
+      t,
+    ),
+  );
   let results: D1Result[];
   try {
     results = await batch(db, stmts);
@@ -519,6 +547,9 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
   if (direct !== null) {
     await publishEvent(rt, { users: [direct.invitee_id, direct.inviter_id] }, "space.invite_removed", { invite_id: direct.id, reason: "accepted" });
   }
+  for (const inv of results[cancelIdx]!.results as Array<{ id: string; inviter_id: string }>) {
+    await publishEvent(rt, { users: [userId, inv.inviter_id] }, "space.invite_removed", { invite_id: inv.id, reason: "canceled" });
+  }
   if (row.default_channel_id !== null) {
     await postSystemMessage(rt, row.default_channel_id, userId, { event: "member_joined", actor_id: userId, target_user_id: userId, data: {} });
   }
@@ -529,11 +560,12 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
  * Takes `userId` out of a live space (permission checks are the caller's: api.md 3.5). One batch for every reason, each
  * statement gated on the membership row so a lost race writes nothing: the private text channels of the space lose
  * this user's channel_members rows (member_count - 1 each), (banned) a space_bans row, this user's pending direct
- * invites to the space become canceled and their invite links revoked (pending item 9), then the space_members row
+ * invites to the space become canceled and their invite links revoked (pending item 9) — and so does any pending direct
+ * invite to this user for the space (9-b) — then the space_members row
  * and spaces.member_count - 1. 404 when the user was not a member.
  * After commit: space.member_left{space_id, user_id, reason} to the members + the removed user, space.removed to the
  * removed user, channel.member_removed per private channel left to its remaining members, space.invite_removed
- * {invite_id, reason:"canceled"} per canceled direct invite to its invitee + the removed user, then the system message
+ * {invite_id, reason:"canceled"} per canceled direct invite to its invitee + its inviter, then the system message
  * member_left (reason "left") or member_kicked (kicked and banned) in the default channel.
  */
 export async function removeFromSpace(
@@ -581,14 +613,16 @@ export async function removeFromSpace(
     );
   }
   // pending item 9: what this user issued stops admitting people with them — their pending direct invites are
-  // canceled and their invite links revoked (a link needs owner·admin, a direct invite needs a member: api.md 3.5)
+  // canceled and their invite links revoked (a link needs owner·admin, a direct invite needs a member: api.md 3.5).
+  // pending item 9-b: a pending invite *to* this user for this space (written while they were in — no join cleanup
+  // ran) is canceled too, so it cannot carry them back in after a kick.
   const cancelIdx = stmts.length;
   stmts.push(
     stmt(
       db,
       `UPDATE space_direct_invites SET status = 'canceled', responded_at = ?3
-        WHERE space_id = ?1 AND inviter_id = ?2 AND status = 'pending' AND ${isMember}
-       RETURNING id, invitee_id`,
+        WHERE space_id = ?1 AND (inviter_id = ?2 OR invitee_id = ?2) AND status = 'pending' AND ${isMember}
+       RETURNING id, inviter_id, invitee_id`,
       spaceId,
       userId,
       t,
@@ -603,7 +637,7 @@ export async function removeFromSpace(
   const results = await batch(db, stmts);
   if ((results[deleteIdx]!.meta.changes ?? 0) === 0) throw err.notFound("member");
   const leftChannels = (results[0]!.results as Array<{ channel_id: string }>).map((r) => r.channel_id);
-  const canceledInvites = results[cancelIdx]!.results as Array<{ id: string; invitee_id: string }>;
+  const canceledInvites = results[cancelIdx]!.results as Array<{ id: string; inviter_id: string; invitee_id: string }>;
 
   await publishEvent(rt, { space: spaceId }, "space.member_left", { space_id: spaceId, user_id: userId, reason }, { includeSelf: userId });
   await publishEvent(rt, { users: [userId] }, "space.removed", { space_id: spaceId, reason });
@@ -611,7 +645,7 @@ export async function removeFromSpace(
     await publishEvent(rt, { channel: channelId }, "channel.member_removed", { channel_id: channelId, user_id: userId });
   }
   for (const inv of canceledInvites) {
-    await publishEvent(rt, { users: [inv.invitee_id, userId] }, "space.invite_removed", { invite_id: inv.id, reason: "canceled" });
+    await publishEvent(rt, { users: [inv.invitee_id, inv.inviter_id] }, "space.invite_removed", { invite_id: inv.id, reason: "canceled" });
   }
   if (space.default_channel_id !== null) {
     const system =

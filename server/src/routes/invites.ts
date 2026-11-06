@@ -171,6 +171,8 @@ inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
  * (space.invite_removed canceled after commit), then the INSERT — both gated on the inviter still being a member, so an inviter removed after requireSpaceRole writes nothing and gets 404, and on the relation
  * rules above (pending item 10), so an unfriend / block / suspension landing after the pre-checks writes nothing and
  * gets 403 action_not_allowed.
+ * And on the invitee still being outside the space (9-b): a join by another route landing after the pre-checks
+ * writes nothing and gets 409 already_member.
  */
 inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOCIAL"), vJson(DirectInviteBody), async (c) => {
   const auth = getAuth(c);
@@ -230,8 +232,8 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
 });
 
 /**
- * Pending invites to me in live spaces from inviters who are still members and still my friends with no block either
- * way (D3; others cannot be accepted), newest first.
+ * Pending invites to me in live spaces I am not in yet (9-b) from inviters who are still members and still my friends
+ * with no block either way (D3; others cannot be accepted), newest first.
  */
 inviteRoutes.get("/me/direct-invites", requireAuth, async (c) => {
   const me = getAuth(c).userId;
