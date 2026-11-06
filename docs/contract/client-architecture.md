@@ -2218,7 +2218,7 @@ func (c *Cache) Load(ctx context.Context, a *api.Client, m api.Media) (image.Ima
 func Decode(data []byte, contentType string) (image.Image, error)                          // png/jpeg/gif(first frame)/webp
 
 // Upload preparation: strip metadata (api.md 5.14: client responsibility).
-func PrepareUpload(path string) (data []byte, contentType string, err error) // JPEG & PNG re-encoded (JPEG q=90); GIF/WebP passed through; >5MB => downscale JPEG until fit or error
+func PrepareUpload(path string) (data []byte, contentType string, err error) // JPEG & PNG re-encoded (JPEG q=90); GIF/WebP rewritten keeping only pixel/animation blocks (api.md 5.14), malformed => ErrMalformed; >5MB => downscale JPEG until fit or error
 ```
 
 - **하프블록**(기본·모든 터미널): 한 칸 = 위/아래 픽셀 2개. 축소는 `x/image/draw.CatmullRom`.

@@ -161,7 +161,11 @@ func bytesPerPixel(m color.Model) int64 {
 // their Content-Type. The format is sniffed from the bytes (the extension is
 // ignored). JPEG and PNG are decoded and re-encoded, which drops all metadata
 // (Exif, text chunks); a JPEG's Exif orientation is applied to the pixels
-// first. GIF and WebP are passed through unchanged. If the result exceeds
+// first. GIF and WebP keep their pixel and animation data byte for byte but
+// are rewritten without metadata (stripMetadata: WebP EXIF/XMP/ICCP and
+// unknown chunks, GIF comments, plain text and application extensions other
+// than the NETSCAPE2.0/ANIMEXTS1.0 loop count); a container that cannot be
+// walked exactly fails with ErrMalformed instead of being sent. If the result exceeds
 // MaxUploadBytes, the (first frame of the) image is re-encoded as JPEG q=85,
 // shrinking the long side by 0.8 each attempt; once the long side would drop
 // below 320 pixels it gives up with ErrTooLarge.
@@ -196,8 +200,11 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 			return nil, "", fmt.Errorf("imgrender: encode png: %w", err)
 		}
 		out = b.Bytes()
-	default: // GIF, WebP: pass through, but only real, sane images.
-		if err = checkConfig(c, in, ct, uploadLimits); err != nil {
+	default: // GIF, WebP: rewritten without metadata, then checked.
+		if out, err = stripMetadata(in, ct); err != nil {
+			return nil, "", err
+		}
+		if err = headerErr(checkConfig(c, out, ct, uploadLimits)); err != nil {
 			return nil, "", err
 		}
 	}
@@ -206,7 +213,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) {
 	}
 
 	if img == nil {
-		if img, err = decodeAs(in, ct, uploadLimits); err != nil {
+		if img, err = decodeAs(out, ct, uploadLimits); err != nil {
 			return nil, "", err
 		}
 	}
