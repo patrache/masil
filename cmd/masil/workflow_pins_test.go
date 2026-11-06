@@ -1,12 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v3"
 )
 
 // Pending fix 2 (supply chain): a tag such as actions/checkout@v7 can be moved
@@ -77,6 +82,22 @@ func TestCheckActionPinsRejectsMutableRefs(t *testing.T) {
 			"      - uses: actions/checkout@" + strings.Repeat("a", 40) + " # v7.0.1\n",
 		"same sha, two versions": "      - uses: actions/checkout@" + sha + " # v7.0.1\n" +
 			"      - uses: actions/checkout@" + sha + " # v7.0.2\n",
+		// Every spelling below is the same `uses` key to a YAML parser (and to
+		// GitHub); a line-oriented `uses:` match saw none of them.
+		"space before colon":     "      - uses : actions/checkout@v7\n",
+		"double-quoted key":      "      - \"uses\": actions/checkout@v7\n",
+		"double-quoted flow key": "      - {\"uses\": actions/checkout@v7}\n",
+		"single-quoted key":      "      - 'uses': actions/checkout@v7\n",
+		"complex key":            "      - ? uses\n        : actions/checkout@v7\n",
+		"escaped key":            "      - \"u\\x73es\": actions/checkout@v7\n",
+		"tagged key":             "      - !!str uses: actions/checkout@v7\n",
+		"aliased key":            "      - &k uses: actions/checkout@" + sha + " # v7.0.1\n      - *k : actions/checkout@v7\n",
+		"aliased value":          "x: &ref actions/checkout@v7\nsteps:\n  - uses: *ref\n",
+		"folded value":           "      - uses: >-\n          actions/checkout@v7\n",
+		"second document":        "a: 1\n---\nsteps:\n  - uses: actions/checkout@v7\n",
+		"capitalised key":        "      - Uses: actions/checkout@v7\n",
+		"reusable workflow tag":  "jobs:\n  call:\n    uses: octo/repo/.github/workflows/ci.yml@main\n",
+		"unparseable yaml":       "steps:\n  - uses: actions/checkout@" + sha + " # v7.0.1\n bad: [\n",
 	}
 	for name, wf := range bad {
 		if _, errs := checkActionPins(map[string]string{"wf.yml": wf}); len(errs) == 0 {
@@ -102,57 +123,97 @@ func TestCheckActionPinsRejectsMutableRefs(t *testing.T) {
 }
 
 var (
-	usesLine   = regexp.MustCompile(`^\s*(?:-\s+)?uses:\s*(.*?)\s*$`)
-	pinnedUses = regexp.MustCompile(`^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[^@\s]+)?)@([0-9a-f]{40})\s+#\s*(v\d+\.\d+\.\d+)$`)
+	pinnedRef  = regexp.MustCompile(`^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[^@\s]+)?)@([0-9a-f]{40})$`)
+	versionTag = regexp.MustCompile(`^#\s*(v\d+\.\d+\.\d+)$`)
 	dockerUses = regexp.MustCompile(`^docker://[^@\s]+@sha256:[0-9a-f]{64}$`)
 )
 
-// checkActionPins checks every `uses:` in the given files (path -> content)
+// checkActionPins checks every `uses` key in the given files (path -> content)
 // and returns how many it saw plus one error per violation.
+//
+// The files are read with a YAML parser, not line by line: `uses : x`,
+// `"uses": x`, `'uses': x`, `? uses` / `: x`, `"u\x73es": x` and `{"uses": x}`
+// are all the same key to GitHub, and a text match on `uses:` misses them.
+// Keys match case-insensitively and an alias as the value is refused, so the
+// check errs towards failing. A file that does not parse is an error too.
 func checkActionPins(files map[string]string) (int, []error) {
 	var errs []error
 	n := 0
 	versionSHA := map[string]string{} // action@version -> sha
 	shaVersion := map[string]string{} // action@sha -> version
-	for path, content := range files {
-		for i, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
-			at := fmt.Sprintf("%s:%d", path, i+1)
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "#") {
-				continue
+	check := func(path string, key, val *yaml.Node) {
+		n++
+		at := fmt.Sprintf("%s:%d", path, val.Line)
+		if val.Kind != yaml.ScalarNode {
+			errs = append(errs, fmt.Errorf("%s: `uses` value must be a plain string, not an alias, mapping or sequence", at))
+			return
+		}
+		v := strings.TrimSpace(val.Value)
+		switch {
+		case strings.HasPrefix(v, "./"):
+			return // local action in this repository: same commit as the workflow
+		case strings.HasPrefix(v, "docker://"):
+			if !dockerUses.MatchString(v) {
+				errs = append(errs, fmt.Errorf("%s: docker action must be pinned by @sha256 digest: %q", at, v))
 			}
-			m := usesLine.FindStringSubmatch(line)
-			if m == nil {
-				if strings.Contains(line, "uses:") {
-					errs = append(errs, fmt.Errorf("%s: `uses:` in a form this check cannot read: %q", at, trimmed))
+			return
+		}
+		comment := strings.TrimSpace(val.LineComment)
+		if comment == "" {
+			comment = strings.TrimSpace(key.LineComment)
+		}
+		p, c := pinnedRef.FindStringSubmatch(v), versionTag.FindStringSubmatch(comment)
+		if p == nil || c == nil {
+			errs = append(errs, fmt.Errorf("%s: action must be pinned as owner/repo@<40-hex commit sha> # vX.Y.Z: %q %q", at, v, comment))
+			return
+		}
+		action, sha, version := p[1], p[2], c[1]
+		if prev, ok := versionSHA[action+"@"+version]; ok && prev != sha {
+			errs = append(errs, fmt.Errorf("%s: %s %s pinned to %s here but %s elsewhere", at, action, version, sha, prev))
+		}
+		versionSHA[action+"@"+version] = sha
+		if prev, ok := shaVersion[action+"@"+sha]; ok && prev != version {
+			errs = append(errs, fmt.Errorf("%s: %s@%s labelled %s here but %s elsewhere", at, action, sha, version, prev))
+		}
+		shaVersion[action+"@"+sha] = version
+	}
+	var walk func(path string, nd *yaml.Node)
+	walk = func(path string, nd *yaml.Node) {
+		// Aliases are not followed: the node they point to is walked where
+		// its anchor is defined.
+		if nd.Kind == yaml.MappingNode {
+			for i := 0; i+1 < len(nd.Content); i += 2 {
+				k := nd.Content[i]
+				if k.Kind == yaml.AliasNode && k.Alias != nil {
+					k = k.Alias
 				}
-				continue
-			}
-			n++
-			v := m[1]
-			switch {
-			case strings.HasPrefix(v, "./"):
-				continue // local action in this repository: same commit as the workflow
-			case strings.HasPrefix(v, "docker://"):
-				if !dockerUses.MatchString(v) {
-					errs = append(errs, fmt.Errorf("%s: docker action must be pinned by @sha256 digest: %q", at, v))
+				if k.Kind == yaml.ScalarNode && strings.EqualFold(k.Value, "uses") {
+					check(path, k, nd.Content[i+1])
 				}
-				continue
 			}
-			p := pinnedUses.FindStringSubmatch(v)
-			if p == nil {
-				errs = append(errs, fmt.Errorf("%s: action must be pinned as owner/repo@<40-hex commit sha> # vX.Y.Z: %q", at, v))
-				continue
+		}
+		for _, c := range nd.Content {
+			walk(path, c)
+		}
+	}
+	paths := make([]string, 0, len(files))
+	for p := range files {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		dec := yaml.NewDecoder(strings.NewReader(files[path]))
+		for {
+			var doc yaml.Node
+			err := dec.Decode(&doc)
+			if errors.Is(err, io.EOF) {
+				break
 			}
-			action, sha, version := p[1], p[2], p[3]
-			if prev, ok := versionSHA[action+"@"+version]; ok && prev != sha {
-				errs = append(errs, fmt.Errorf("%s: %s %s pinned to %s here but %s elsewhere", at, action, version, sha, prev))
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: not valid YAML, so its `uses` cannot be checked: %v", path, err))
+				break
 			}
-			versionSHA[action+"@"+version] = sha
-			if prev, ok := shaVersion[action+"@"+sha]; ok && prev != version {
-				errs = append(errs, fmt.Errorf("%s: %s@%s labelled %s here but %s elsewhere", at, action, sha, version, prev))
-			}
-			shaVersion[action+"@"+sha] = version
+			walk(path, &doc)
 		}
 	}
 	return n, errs

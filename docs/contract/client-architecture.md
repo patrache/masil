@@ -54,6 +54,7 @@ require (
 	github.com/gofrs/flock v0.13.1
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/sahilm/fuzzy v0.1.3
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
@@ -74,6 +75,7 @@ require (
 | oklog/ulid/v2 | `device_id`, `client_nonce` 생성(`ids`) |
 | BurntSushi/toml | `config.toml` |
 | sahilm/fuzzy | 명령 팔레트 퍼지 검색 |
+| go.yaml.in/yaml/v3 | **시험 전용** — `cmd/masil/workflow_pins_test.go` 가 `.github` 워크플로우를 YAML 로 읽어 모든 `uses` 키(따옴표·`? uses` 복합 키·이스케이프 표기 포함)가 SHA 로 고정됐는지 검사(보류 항목 2). 배포 바이너리에는 링크되지 않는다. 이미 gofrs/flock 의 간접 의존으로 go.sum 에 있던 버전 |
 | x/image (`webp`, `draw`) | WebP 디코드, 이미지 축소 |
 | x/sys (`windows/registry`) | Windows 자동 시작 등록(`autostart`) |
 | x/text (`unicode/norm`) | 입력 NFC 정규화(`textwidth.Sanitize`, 8.2 규칙 6) |
@@ -119,6 +121,7 @@ import (
 	_ "github.com/gofrs/flock"
 	_ "github.com/oklog/ulid/v2"
 	_ "github.com/sahilm/fuzzy"
+	_ "go.yaml.in/yaml/v3"
 	_ "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 	_ "golang.org/x/sys/windows/registry"

@@ -17,6 +17,7 @@ require (
 	github.com/gofrs/flock v0.13.1
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/sahilm/fuzzy v0.1.3
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0

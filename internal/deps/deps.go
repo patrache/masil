@@ -26,6 +26,7 @@ import (
 	_ "github.com/gofrs/flock"
 	_ "github.com/oklog/ulid/v2"
 	_ "github.com/sahilm/fuzzy"
+	_ "go.yaml.in/yaml/v3"
 	_ "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 	_ "golang.org/x/sys/windows/registry"
