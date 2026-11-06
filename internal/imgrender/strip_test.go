@@ -298,6 +298,73 @@ func TestPrepareUploadRefusesBrokenWebP(t *testing.T) {
 	}
 }
 
+// anmf wraps sub-chunks in an ANMF payload behind a 16-byte frame header.
+func anmf(header []byte, sub ...riffChunk) riffChunk {
+	return riffChunk{"ANMF", append(append([]byte{}, header[:16]...), buildWebP(sub...)[12:]...)}
+}
+
+// An ALPH chunk that does not sit right before the VP8 bitstream it belongs
+// to (or an alpha flag with no ALPH to back it, or an ALPH without the flag)
+// cannot be carried over faithfully: dropping ALPH while keeping the alpha
+// flag gave an upload that golang.org/x/image/webp refuses ("webp: invalid
+// format"), yet DecodeConfig stops at VP8X and let it through. Such files
+// are refused as malformed instead.
+func TestPrepareUploadRefusesMisplacedALPH(t *testing.T) {
+	src := parseRIFF(t, readFixture(t, "still-alpha-meta.webp")) // VP8X ICCP ALPH VP8 EXIF XMP
+	vp8x, alph, vp8, exif := src[0], src[2], src[3], src[4]
+	if vp8x.data[0]&vp8xAlpha == 0 {
+		t.Fatalf("fixture VP8X flags %#x lack alpha", vp8x.data[0])
+	}
+	noAlphaFlag := riffChunk{"VP8X", append([]byte{0}, vp8x.data[1:]...)}
+	lossless := parseRIFF(t, readFixture(t, "simple-lossless.webp"))[0]
+	anim := parseRIFF(t, readFixture(t, "anim-meta.webp")) // VP8X ICCP ANIM ANMF ANMF EXIF XMP
+	hdr := anim[3].data
+
+	cases := map[string][]byte{
+		"still, ALPH EXIF VP8":         buildWebP(vp8x, alph, exif, vp8),
+		"still, ALPH ALPH VP8":         buildWebP(vp8x, alph, alph, vp8),
+		"still, alpha flag, no ALPH":   buildWebP(vp8x, vp8),
+		"still, ALPH after VP8":        buildWebP(vp8x, vp8, alph),
+		"still, ALPH without the flag": buildWebP(noAlphaFlag, alph, vp8),
+		"still, ALPH before VP8L":      buildWebP(vp8x, alph, lossless),
+		"frame, ALPH EXIF VP8":         buildWebP(anim[0], anim[2], anim[3], anmf(hdr, alph, exif, vp8)),
+		"frame, ALPH before VP8L":      buildWebP(anim[0], anim[2], anim[3], anmf(hdr, alph, lossless)),
+	}
+	for name, in := range cases {
+		t.Run(name, func(t *testing.T) {
+			out, _, err := imgrender.PrepareUpload(writeTemp(t, "x.webp", in))
+			if err == nil {
+				_, derr := webp.Decode(bytes.NewReader(out))
+				t.Fatalf("accepted (%d bytes, chunks %q, decode err %v), want ErrMalformed",
+					len(out), ids(parseRIFF(t, out)), derr)
+			}
+			if !errors.Is(err, imgrender.ErrMalformed) {
+				t.Fatalf("err = %v, want ErrMalformed", err)
+			}
+		})
+	}
+}
+
+// The well-formed shapes around ALPH still go through: a frame's ALPH right
+// before its VP8 is kept, and metadata after the bitstream is dropped.
+func TestPrepareUploadKeepsFrameALPH(t *testing.T) {
+	src := parseRIFF(t, readFixture(t, "still-alpha-meta.webp"))
+	alph, vp8, exif := src[2], src[3], src[4]
+	anim := parseRIFF(t, readFixture(t, "anim-meta.webp"))
+	in := buildWebP(anim[0], anim[2], anim[3], anmf(anim[3].data, alph, vp8, exif))
+
+	out, _ := prepare(t, "x.webp", in)
+	cs := assertServerAcceptsWebP(t, out)
+	if got := ids(cs); len(got) != 4 || got[3] != "ANMF" {
+		t.Fatalf("chunks = %q, want [VP8X ANIM ANMF ANMF]", got)
+	}
+	want := anmf(anim[3].data, alph, vp8).data
+	if !bytes.Equal(cs[3].data, want) {
+		t.Fatalf("second frame = %d bytes, want header + ALPH + VP8 (%d bytes)", len(cs[3].data), len(want))
+	}
+	assertNoLeaks(t, out)
+}
+
 // --- GIF ---
 
 // twoFrameGIF encodes a looping two-frame GIF (Go writes NETSCAPE2.0 and a

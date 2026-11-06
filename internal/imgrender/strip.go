@@ -78,19 +78,36 @@ func writeChunks(w *bytes.Buffer, cs []riffChunk) {
 // imageChunks picks the first bitstream (VP8 or VP8L) of a still image or an
 // animation frame, with the ALPH chunk right before a VP8 one. Everything
 // else (EXIF, XMP, ICCP, unknown chunks, further bitstreams) is dropped.
+//
+// An ALPH chunk anywhere else (separated from its VP8 by another chunk, a
+// second one, one before VP8L or after the bitstream) is refused: dropping
+// it would silently lose the alpha plane, and with the VP8X alpha flag
+// still set golang.org/x/image/webp refuses the result.
 func imageChunks(cs []riffChunk) ([]riffChunk, error) {
-	for k, c := range cs {
-		switch c.id {
-		case "VP8L":
-			return cs[k : k+1], nil
-		case "VP8 ":
-			if k > 0 && cs[k-1].id == "ALPH" {
-				return cs[k-1 : k+1], nil
-			}
-			return cs[k : k+1], nil
+	k := -1
+	for i, c := range cs {
+		if c.id == "VP8 " || c.id == "VP8L" {
+			k = i
+			break
 		}
 	}
-	return nil, malformed("webp: no VP8/VP8L image data")
+	if k < 0 {
+		return nil, malformed("webp: no VP8/VP8L image data")
+	}
+	img := cs[k : k+1]
+	if cs[k].id == "VP8 " && k > 0 && cs[k-1].id == "ALPH" {
+		img = cs[k-1 : k+1]
+	}
+	alphs := 0
+	for _, c := range cs {
+		if c.id == "ALPH" {
+			alphs++
+		}
+	}
+	if alphs > 0 && (alphs > 1 || img[0].id != "ALPH") {
+		return nil, malformed("webp: ALPH chunk not right before its VP8 bitstream")
+	}
+	return img, nil
 }
 
 // stripWebP keeps VP8X (with only its alpha and animation flags), ALPH,
@@ -168,6 +185,11 @@ func stripExtended(cs []riffChunk) ([]riffChunk, error) {
 		img, err := imageChunks(cs[1:])
 		if err != nil {
 			return nil, err
+		}
+		// A lossy still has alpha exactly when VP8X says so (VP8L carries
+		// its own); x/image/webp refuses either mismatch.
+		if hasALPH, flag := img[0].id == "ALPH", vp8x[0]&vp8xAlpha != 0; img[len(img)-1].id == "VP8 " && hasALPH != flag {
+			return nil, malformed("webp: VP8X alpha flag does not match the ALPH chunk")
 		}
 		return append(keep, img...), nil
 	}
