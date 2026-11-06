@@ -145,8 +145,9 @@ client                                   server (UserHub)
 **재전송 때 거르는 알림 [대기 목록 4-a]**: 로그는 소급해서 지우지 않지만, 재전송은 **`resume` 을 처리하는 그 시점**에 알림함이 숨기는 행위자(`api.md` 5.18 — 내가 차단한 사람, 지금 정지 중인 사람(3.9, `suspended_until <= 지금` 이면 정지 아님))가 든 알림 프레임을 다시 보내지 않는다.
 - `notification.created`(`notification.actor`)·`alert`(`alert.actor`)의 행위자가 그 조건에 걸리면 그 프레임을 건너뛴다(`replayed` 에 세지 않는다). 행위자가 없는(`null`) 프레임은 그대로.
 - `focus.ended` 는 `summary.items` 에서 그런 행위자의 alert 만 빼고 보낸다(`counts` 는 기록 당시 값 그대로 — 누구인지 드러내지 않는다).
-- 그 밖의 프레임(`message.created` 의 작성자 요약, `friend.request_received` 등)은 그대로 재전송되고, 정지·차단은 뒤따르는 `user.updated`·`block.updated`·`*_removed` 이벤트로 반영된다(`api.md` 3.9).
-- 서버는 재전송 범위의 행위자를 D1 로 한 번 확인하는 동안 그 UserHub 의 다른 일(발행·알람·다른 프레임)을 막고 확인과 재전송을 한 덩어리로 처리한다 — 이벤트는 재전송 범위 또는 `ready` 뒤 실시간 중 정확히 한쪽으로 간다. 이 확인이 실패하면 거르지 않은 재전송 대신 `1011` 로 닫는다(클라이언트는 1.3 백오프로 재접속).
+- `friend.request_received` 는 `request.from` 이 **지금 정지 중**이면 그 요약을 가려서 보낸다(`suspended: true`, `status: null`, `avatar_url: null` — 그 시점 `GET /v1/friends/requests` 와 같은 값, `api.md` 3.9 오너 결정 D1). 요청자는 대개 친구가 아니라 정지 때의 `user.updated`(대상: `summaryWatchers` — 친구·DM 상대·같은 방 멤버)를 받는 쪽이 아니므로, 뒤따르는 이벤트로는 고쳐지지 않기 때문이다. 내가 차단만 한(정지 아닌) 요청자의 프레임은 기록 그대로 보내고, 차단이 그 요청을 취소하며 남긴 `friend.request_removed{canceled}` 가 로그에서 뒤따른다(`api.md` 3.2). 정지가 끝났으면(`suspended_until <= 지금`) 가리지 않는다.
+- 그 밖의 프레임(`message.created` 의 작성자 요약 등)은 그대로 재전송된다. 거기 실린 요약의 주인은 정지 때 `user.updated` 를 받는 `summaryWatchers` 범위 안의 사람이라, 정지·차단은 로그에서 뒤따르는 `user.updated`·`block.updated`·`*_removed` 이벤트로 반영된다(`api.md` 3.9).
+- 서버는 재전송 범위의 행위자·요청자를 D1 로 한 번 확인하는 동안 그 UserHub 의 다른 일(발행·알람·다른 프레임)을 막고 확인과 재전송을 한 덩어리로 처리한다 — 이벤트는 재전송 범위 또는 `ready` 뒤 실시간 중 정확히 한쪽으로 간다. 이 확인이 실패하면 거르지 않은 재전송 대신 `1011` 로 닫는다(클라이언트는 1.3 백오프로 재접속).
 
 `ready` (서버, 휘발):
 ```json

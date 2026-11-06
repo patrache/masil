@@ -14,7 +14,7 @@ import { all } from "../lib/db";
 import { newId, isId } from "../lib/ids";
 import { getChannelAccess } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
-import { hiddenActors } from "../lib/notify";
+import { actorVisibility, hiddenActors, type ActorVisibility } from "../lib/notify";
 import { loadPresenceItems, suspendedPresenceItem } from "../lib/serialize";
 import { iso } from "../lib/time";
 import type { Alert, Focus, FocusSummary, PresenceState, PresenceStatus } from "../types/api";
@@ -104,16 +104,33 @@ interface ResumePlan {
   epoch: string;
 }
 
-/** Logged frame types that name a notification actor (api.md 5.18 / 3.9): replay and focus summary filter these. */
-const ACTOR_FRAME_TYPES: ReadonlySet<string> = new Set(["alert", "notification.created", "focus.ended"]);
+/**
+ * Logged frame types whose replay depends on who is hidden / suspended right now (pending item 4-a, api.md 3.9 /
+ * 5.18): the notification frames name an actor (replay skips or trims them, the focus summary filters them), and
+ * friend.request_received names its sender — a stranger, outside the suspended account's summaryWatchers, so no later
+ * user.updated would fix an unmasked summary; the replay masks it instead (owner decision D1).
+ */
+const ACTOR_FRAME_TYPES: ReadonlySet<string> = new Set(["alert", "notification.created", "focus.ended", "friend.request_received"]);
+
+type SummaryLike = { id?: unknown; suspended?: unknown; status?: unknown; avatar_url?: unknown };
 
 type ActorFrame = {
-  data?: { alert?: { actor?: { id?: unknown } | null }; notification?: { actor?: { id?: unknown } | null }; summary?: { items?: unknown } };
+  data?: {
+    alert?: { actor?: { id?: unknown } | null };
+    notification?: { actor?: { id?: unknown } | null };
+    summary?: { items?: unknown };
+    request?: { from?: SummaryLike | null };
+  };
 };
 
 function actorIdOf(x: { actor?: { id?: unknown } | null } | null | undefined): string | null {
   const id = x?.actor?.id;
   return typeof id === "string" ? id : null;
+}
+
+function requestFromOf(f: ActorFrame): SummaryLike | null {
+  const from = f.data?.request?.from;
+  return from !== null && typeof from === "object" && typeof from.id === "string" ? from : null;
 }
 
 function parseActorFrame(frame: string): ActorFrame | null {
@@ -125,7 +142,10 @@ function parseActorFrame(frame: string): ActorFrame | null {
   }
 }
 
-/** The notification-actor ids a logged frame of `type` names: alert.actor, notification.actor, focus.ended items' actors. */
+/**
+ * The user ids a logged frame of `type` names that the replay checks: alert.actor, notification.actor, focus.ended
+ * items' actors, friend.request_received's request.from.
+ */
 function frameActorIds(type: string, frame: string): string[] {
   if (!ACTOR_FRAME_TYPES.has(type)) return [];
   const f = parseActorFrame(frame);
@@ -134,17 +154,23 @@ function frameActorIds(type: string, frame: string): string[] {
     const items = f.data?.summary?.items;
     return Array.isArray(items) ? items.flatMap((it) => actorIdOf(it as { actor?: { id?: unknown } }) ?? []) : [];
   }
+  if (type === "friend.request_received") {
+    const from = requestFromOf(f);
+    return from === null ? [] : [from.id as string];
+  }
   const id = actorIdOf(type === "alert" ? f.data?.alert : f.data?.notification);
   return id === null ? [] : [id];
 }
 
 /**
- * A logged frame as replayed to a recipient from whom `hidden` actors are hidden right now (pending item 4-a, api.md
- * 3.9 / 5.18): null = skip it (alert / notification.created of a hidden actor); focus.ended loses those summary items
- * (counts stay — they name nobody); anything else unchanged.
+ * A logged frame as replayed to a recipient, given who is hidden from / suspended for them right now (pending item
+ * 4-a, api.md 3.9 / 5.18): null = skip it (alert / notification.created of a hidden actor); focus.ended loses those
+ * summary items (counts stay — they name nobody); friend.request_received of a sender suspended right now carries the
+ * masked summary (suspended=true, status / avatar_url null — what GET /v1/friends/requests shows; a merely blocked
+ * sender replays as logged, the block's friend.request_removed follows in the log); anything else unchanged.
  */
-function replayFrame(type: string, frame: string, hidden: ReadonlySet<string>): string | null {
-  if (hidden.size === 0 || !ACTOR_FRAME_TYPES.has(type)) return frame;
+function replayFrame(type: string, frame: string, vis: ActorVisibility): string | null {
+  if (vis.hidden.size === 0 || !ACTOR_FRAME_TYPES.has(type)) return frame;
   const f = parseActorFrame(frame);
   if (f === null) return frame;
   if (type === "focus.ended") {
@@ -153,14 +179,22 @@ function replayFrame(type: string, frame: string, hidden: ReadonlySet<string>): 
     if (summary === undefined || !Array.isArray(items)) return frame;
     const kept = items.filter((it) => {
       const id = actorIdOf(it as { actor?: { id?: unknown } });
-      return id === null || !hidden.has(id);
+      return id === null || !vis.hidden.has(id);
     });
     if (kept.length === items.length) return frame;
     summary.items = kept;
     return JSON.stringify(f);
   }
+  if (type === "friend.request_received") {
+    const from = requestFromOf(f);
+    if (from === null || !vis.suspended.has(from.id as string)) return frame;
+    from.suspended = true;
+    from.status = null;
+    from.avatar_url = null;
+    return JSON.stringify(f);
+  }
   const id = actorIdOf(type === "alert" ? f.data?.alert : f.data?.notification);
-  return id !== null && hidden.has(id) ? null : frame;
+  return id !== null && vis.hidden.has(id) ? null : frame;
 }
 
 const KNOWN_CLIENT_TYPES: ReadonlySet<string> = new Set(["resume", "ack", "typing", "idle", "watch"]);
@@ -756,8 +790,8 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
 
   /**
    * events.md 3.3 resume. The replay must not re-send notification frames whose actor the inbox now hides (pending item
-   * 4-a, api.md 3.9 / 5.18 — suspended right now, or blocked by me), which takes one D1 query for the actors named in
-   * the replayed range. The whole thing runs under blockConcurrencyWhile so that nothing — a deliver, the alarm's log
+   * 4-a, api.md 3.9 / 5.18 — suspended right now, or blocked by me), nor a friend.request_received with the unmasked
+   * summary of a sender suspended right now (D1), which takes one D1 query for the users named in the replayed range. The whole thing runs under blockConcurrencyWhile so that nothing — a deliver, the alarm's log
    * trim, this socket's next frame — can interleave between that query and the synchronous replay: an event is still
    * either in the replayed range or sent live after `ready`, never both and never neither. A failure (D1 down) closes
    * the socket with 1011 rather than replaying unfiltered; the client reconnects with backoff (events.md 1.3).
@@ -770,9 +804,9 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
         for (const row of this.sql.exec<{ type: string; frame: string }>("SELECT type, frame FROM events WHERE seq > ? ORDER BY seq", plan.base)) {
           actors.push(...frameActorIds(row.type, row.frame));
         }
-        const hidden = await hiddenActors(this.env.DB, a.userId, actors, this.now());
+        const vis = await actorVisibility(this.env.DB, a.userId, actors, this.now());
         if (ws.readyState !== WebSocket.OPEN) return true; // went away meanwhile: nothing to replay to
-        this.handleResume(ws, a, plan, hidden);
+        this.handleResume(ws, a, plan, vis);
         return true;
       } catch (e) {
         console.error({ msg: "UserHub: resume failed", err: errFields(e) }); // never throw inside blockConcurrencyWhile
@@ -811,15 +845,16 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
 
   /**
    * Replay from `plan.base`, then ready (+ presence.snapshot for full, sent by the caller). Synchronous: nothing can
-   * interleave. Frames naming a `hidden` notification actor are skipped or trimmed (replayFrame); an actor named only
-   * by a frame logged after resume's D1 query is not in `hidden` and replays like a live event would.
+   * interleave. Frames naming a hidden notification actor are skipped or trimmed, and a suspended request sender is
+   * masked (replayFrame); a user named only by a frame logged after resume's D1 query is not in `vis` and replays like
+   * a live event would.
    */
-  protected handleResume(ws: WebSocket, a: ConnAttachment, plan: ResumePlan, hidden: ReadonlySet<string>): void {
+  protected handleResume(ws: WebSocket, a: ConnAttachment, plan: ResumePlan, vis: ActorVisibility): void {
     const { lastSeq, resync, base, seq, epoch } = plan;
     let replayed = 0;
     for (const row of this.sql.exec<{ type: string; frame: string }>("SELECT type, frame FROM events WHERE seq > ? ORDER BY seq", base)) {
       if (a.mode === "notify" && !NOTIFY_ALLOWED_TYPES.has(row.type as ServerEventType)) continue;
-      const out = replayFrame(row.type, row.frame, hidden);
+      const out = replayFrame(row.type, row.frame, vis);
       if (out === null) continue;
       try {
         ws.send(out);
