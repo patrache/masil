@@ -8,7 +8,7 @@ import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, first, jsonList, parseLimit, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { newId } from "../lib/ids";
-import { requireSpaceRole } from "../lib/permissions";
+import { assertSpaceRole, requireSpaceRole, spaceRoleFrom, spaceRoleStmt } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { limit } from "../lib/ratelimit";
 import {
@@ -204,7 +204,11 @@ spaceRoutes.delete("/spaces/:space_id", requireAuth, async (c) => {
   return c.body(null, 204);
 });
 
-/** owner -> another member becomes owner, the previous owner becomes admin. */
+/**
+ * owner -> another member becomes owner, the previous owner becomes admin. The UPDATE re-checks both sides; when it
+ * changes nothing, the answer is what it saw, read first in its own batch (server-architecture.md 4.4): 404 (I am out /
+ * the space deleted), 403 (no longer owner), 404 member (the target left) — the pre-check's codes.
+ */
 spaceRoutes.post("/spaces/:space_id/transfer", requireAuth, vJson(TransferBody), async (c) => {
   const auth = getAuth(c);
   const me = auth.userId;
@@ -219,7 +223,9 @@ spaceRoutes.post("/spaces/:space_id/transfer", requireAuth, vJson(TransferBody),
 
   const t = now();
   const ownerIsTarget = "(SELECT owner_id FROM spaces WHERE id = ?1) = ?3";
-  const [res] = await batch(db, [
+  const [myRole, targetIn, res] = await batch(db, [
+    spaceRoleStmt(db, spaceId, me),
+    stmt(db, "SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, target.id),
     stmt(
       db,
       `UPDATE spaces SET owner_id = ?3, updated_at = ?4
@@ -233,7 +239,11 @@ spaceRoutes.post("/spaces/:space_id/transfer", requireAuth, vJson(TransferBody),
     stmt(db, `UPDATE space_members SET role = 'admin' WHERE space_id = ?1 AND user_id = ?2 AND ${ownerIsTarget}`, spaceId, me, target.id),
     stmt(db, `UPDATE space_members SET role = 'owner' WHERE space_id = ?1 AND user_id = ?3 AND ${ownerIsTarget}`, spaceId, me, target.id),
   ]);
-  if ((res!.meta.changes ?? 0) === 0) throw err.conflict("conflict", "transfer_failed");
+  if ((res!.meta.changes ?? 0) === 0) {
+    assertSpaceRole(spaceRoleFrom(myRole), "owner");
+    if (targetIn!.results.length === 0) throw err.notFound("member");
+    throw new Error("transfer: 0-row UPDATE with no reason");
+  }
 
   const row = await loadSpace(db, spaceId);
   const memberRows = await all<SpaceMemberRow>(

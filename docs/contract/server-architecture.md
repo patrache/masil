@@ -393,7 +393,7 @@ export interface Page<T> { items: T[]; next_cursor: string | null }
 ```
 - `undefined` 파라미터는 `null` 로 바꿔 바인딩한다(D1 은 undefined 를 거부).
 - 바인딩 파라미터 100개 한도 → 가변 목록은 반드시 `jsonList`.
-- 조건부 쓰기(`INSERT … SELECT … WHERE`, `UPDATE … WHERE`, `ON CONFLICT DO NOTHING`)가 0건일 때 어느 오류로 답할지(차단·정지·중복·한도·삭제됨 등)는 **같은 `batch` 안의 SELECT** 로 읽는다. batch 가 끝난 뒤 다시 조회하면 그사이 커밋(차단 해제, 멤버 복귀, 취소, 삭제)이 사유를 바꿔 다른 코드로 답하게 된다(보류 항목 10-a).
+- 조건부 쓰기(`INSERT … SELECT … WHERE`, `UPDATE … WHERE`, `ON CONFLICT DO NOTHING`)가 0건일 때 어느 오류로 답할지(차단·정지·중복·한도·삭제됨 등)는 **같은 `batch` 안의 SELECT** 로 읽는다. batch 가 끝난 뒤 다시 조회하면 그사이 커밋(차단 해제, 멤버 복귀, 취소, 삭제)이 사유를 바꿔 다른 코드로 답하게 된다(보류 항목 10-a). 그 사유가 그 엔드포인트의 계약에 없는 코드가 될 때(예: 교차 친구 요청의 상대 요청이 수락 직전에 사라짐)는 처음부터 다시 판정한다 — 각 판정의 쓰기가 다시 자기 사유를 읽으므로 답은 항상 어떤 직렬 순서의 답이다.
 
 ### 4.5 `src/lib/ids.ts`, `src/lib/time.ts`, `src/lib/crypto.ts`
 
@@ -454,6 +454,10 @@ export function canDmMany(db: D1Database, a: string, others: string[]): Promise<
 export function getSpaceRole(db: D1Database, spaceId: string, userId: string): Promise<SpaceRole | null>;
 /** 404 if not a member (or space deleted); 403 forbidden if below `min`. Returns actual role. */
 export function requireSpaceRole(db: D1Database, spaceId: string, userId: string, min: SpaceRole): Promise<SpaceRole>;
+/** The same role read for a conditional write's own batch (4.4), and requireSpaceRole's 404 / 403 for a role already read. */
+export function spaceRoleStmt(db: D1Database, spaceId: string, userId: string): D1PreparedStatement;
+export function spaceRoleFrom(res: D1Result | undefined): SpaceRole | null;
+export function assertSpaceRole(role: SpaceRole | null, min: SpaceRole): SpaceRole;
 
 export interface ChannelAccess {
   channel: ChannelRow;
@@ -649,6 +653,8 @@ export function deletePost(rt: Runtime, postId: string, actorId: string, opts?: 
 export function applyBlock(rt: Runtime, blockerId: string, blockedId: string): Promise<void>;     // api.md 3.2 cleanup batch
 export function removeBlock(rt: Runtime, blockerId: string, blockedId: string): Promise<void>;
 export function makeFriends(rt: Runtime, a: string, b: string, requestId: string): Promise<void>;
+/** makeFriends without its 404: "gone" when the request is no longer pending (read in the accept batch itself). */
+export function acceptPendingRequest(rt: Runtime, a: string, b: string, requestId: string): Promise<"accepted" | "gone">;
 export function unfriend(rt: Runtime, a: string, b: string, opts?: { silentTo?: string }): Promise<void>; // + pending direct invites both ways -> canceled (D3)
 export function follow(rt: Runtime, followerId: string, followeeId: string): Promise<"active" | "pending">;
 export function approveAllPendingFollows(rt: Runtime, userId: string): Promise<void>;

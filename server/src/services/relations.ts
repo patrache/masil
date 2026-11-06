@@ -30,6 +30,15 @@ function friendPair(a: string, b: string): [string, string] {
  * choice is read in the same batch.
  */
 export async function makeFriends(rt: Runtime, a: string, b: string, requestId: string): Promise<void> {
+  if ((await acceptPendingRequest(rt, a, b, requestId)) === "gone") throw err.notFound("friend request");
+}
+
+/**
+ * makeFriends without the 404: "gone" when the request is not (any longer) pending between a and b — at the first read
+ * or, read in the accept batch itself, at the accept (accepted / declined / canceled meanwhile); the 403 still throws.
+ * For a caller whose answer to "gone" is not 404 (the crossing auto-accept of POST /v1/friends/requests).
+ */
+export async function acceptPendingRequest(rt: Runtime, a: string, b: string, requestId: string): Promise<"accepted" | "gone"> {
   const db = rt.env.DB;
   const req = await first<FriendRequestRow>(
     db,
@@ -40,7 +49,7 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
     a,
     b,
   );
-  if (req === null) throw err.notFound("friend request");
+  if (req === null) return "gone";
   const senderId = req.from_user_id;
   const accepterId = req.to_user_id;
   const [lo, hi] = friendPair(senderId, accepterId);
@@ -99,7 +108,7 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
     // -> 403 like the pre-check; otherwise the request was accepted / declined / canceled meanwhile -> 404
     const why = (results[3]!.results as Array<{ blocked: number; suspended: number }>)[0];
     if (why?.blocked || why?.suspended) throw err.forbidden("action_not_allowed");
-    throw err.notFound("friend request");
+    return "gone";
   }
 
   const friendship = await first<FriendshipRow>(db, "SELECT * FROM friendships WHERE user_a = ?1 AND user_b = ?2", lo, hi);
@@ -130,6 +139,7 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
       alert: null,
     }),
   ]);
+  return "accepted";
 }
 
 /**

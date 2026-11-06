@@ -21,7 +21,7 @@ async function spaceViaApi(owner: TestUser, name = "초대방"): Promise<any> {
 
 /**
  * env.DB, except that the first bound statement whose SQL matches `match` runs `cb` before (or after) it executes
- * through first/run/all. Everything else passes through untouched.
+ * through first/run/all, or through a db.batch holding it. Everything else passes through untouched.
  */
 function hookDb(match: RegExp, when: "before" | "after", cb: () => Promise<void>): D1Database {
   const db = env.DB;
@@ -35,8 +35,9 @@ function hookDb(match: RegExp, when: "before" | "after", cb: () => Promise<void>
     const v = Reflect.get(o, p, o);
     return typeof v === "function" ? v.bind(o) : v;
   };
-  const wrapBound = (bound: D1PreparedStatement): D1PreparedStatement =>
-    new Proxy(bound, {
+  const real = new WeakMap<object, D1PreparedStatement>(); // hooked proxy -> the bound statement it wraps
+  const wrapBound = (bound: D1PreparedStatement): D1PreparedStatement => {
+    const p = new Proxy(bound, {
       get(b, q) {
         if (q === "first" || q === "run" || q === "all") {
           return async (...a: unknown[]) => {
@@ -49,6 +50,9 @@ function hookDb(match: RegExp, when: "before" | "after", cb: () => Promise<void>
         return pass(b, q);
       },
     });
+    real.set(p, bound);
+    return p;
+  };
   return new Proxy(db, {
     get(target, prop) {
       if (prop === "prepare") {
@@ -61,6 +65,15 @@ function hookDb(match: RegExp, when: "before" | "after", cb: () => Promise<void>
               return pass(st, p);
             },
           });
+        };
+      }
+      if (prop === "batch") {
+        return async (stmts: D1PreparedStatement[]) => {
+          const hit = stmts.some((x) => real.has(x));
+          if (hit && when === "before") await fire();
+          const out = await target.batch(stmts.map((x) => real.get(x) ?? x));
+          if (hit && when === "after") await fire();
+          return out;
         };
       }
       return pass(target, prop);

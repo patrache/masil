@@ -4,11 +4,11 @@ import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
 import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
-import { all, first, stmt } from "../lib/db";
+import { all, batch, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId, newId, newInviteCode } from "../lib/ids";
 import { notify } from "../lib/notify";
-import { areFriends, getSpaceRole, isBlockedEither, requireSpaceRole } from "../lib/permissions";
+import { areFriends, assertSpaceRole, getSpaceRole, isBlockedEither, requireSpaceRole, spaceRoleFrom, spaceRoleStmt } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { publishEvent } from "../lib/realtime";
 import { loadUserSummaries, serializeDirectInvites, serializeInvitePreview, serializeInvites } from "../lib/serialize";
@@ -90,7 +90,8 @@ inviteRoutes.get("/spaces/:space_id/invites", requireAuth, async (c) => {
  * owner·admin; max_uses 1..1000 | null (unlimited), expires_in_sec 300..2592000 | null (never), omitted = 7 days.
  * The INSERT itself re-checks the role: a demotion or removal that commits after requireSpaceRole has nothing to revoke
  * yet, so without the gate the link would land live for a plain member / non-member (pending item 9). Refused there:
- * the role check again gives 404 (no longer a member) / 403 (no longer owner·admin).
+ * 404 (no longer a member) / 403 (no longer owner·admin), from the role read in the INSERT's own batch (pending item
+ * 10-a: a re-read after it would see a removal / demotion undone or worsened meanwhile and answer the other code).
  */
 inviteRoutes.post("/spaces/:space_id/invites", requireAuth, limit("RL_SOCIAL"), vJson(CreateInviteBody), async (c) => {
   const me = getAuth(c).userId;
@@ -104,28 +105,32 @@ inviteRoutes.post("/spaces/:space_id/invites", requireAuth, limit("RL_SOCIAL"), 
   let row: SpaceInviteRow | null = null;
   for (let attempt = 0; ; attempt++) {
     try {
-      row = await first<SpaceInviteRow>(
-        db,
-        `INSERT INTO space_invites (id, space_id, code, created_by, max_uses, use_count, expires_at, revoked_at, created_at)
-         SELECT ?1, ?2, ?3, ?4, ?5, 0, ?6, NULL, ?7
-          WHERE EXISTS (SELECT 1 FROM space_members WHERE space_id = ?2 AND user_id = ?4 AND role IN ('owner', 'admin'))
-         RETURNING *`,
-        newId(t),
-        spaceId,
-        newInviteCode(),
-        me,
-        b.max_uses ?? null,
-        expiresAt,
-        t,
-      );
+      const [ins, role] = await batch(db, [
+        stmt(
+          db,
+          `INSERT INTO space_invites (id, space_id, code, created_by, max_uses, use_count, expires_at, revoked_at, created_at)
+           SELECT ?1, ?2, ?3, ?4, ?5, 0, ?6, NULL, ?7
+            WHERE EXISTS (SELECT 1 FROM space_members WHERE space_id = ?2 AND user_id = ?4 AND role IN ('owner', 'admin'))
+           RETURNING *`,
+          newId(t),
+          spaceId,
+          newInviteCode(),
+          me,
+          b.max_uses ?? null,
+          expiresAt,
+          t,
+        ),
+        spaceRoleStmt(db, spaceId, me),
+      ]);
+      row = (ins!.results as SpaceInviteRow[])[0] ?? null;
+      if (row === null) {
+        assertSpaceRole(spaceRoleFrom(role), "admin"); // 404 / 403 for what the INSERT saw
+        throw err.forbidden("forbidden", "requires admin role");
+      }
       break;
     } catch (e) {
       if (!isUniqueViolation(e) || attempt + 1 >= CODE_ATTEMPTS) throw e;
     }
-  }
-  if (row === null) {
-    await requireSpaceRole(db, spaceId, me, "admin"); // 404 / 403 for what changed
-    throw err.forbidden("forbidden", "requires admin role");
   }
   const [invite] = await serializeInvites(db, [row]);
   if (!invite) throw err.notFound("space");

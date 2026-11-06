@@ -167,24 +167,30 @@ export async function addChannelMembers(rt: Runtime, channelId: string, actorId:
  * Private text branch of addChannelMembers (api.md 3.5, 5.6): every target must be a current member of the channel's
  * space (404 otherwise, before anything else), none may already be in the channel (409 already_member). No member cap
  * beyond the space's own. One batch: channel_members INSERT (gated per row on the space membership, skipping rows that
- * appeared meanwhile; RETURNING tells who actually went in) + member_count recount.
+ * appeared meanwhile; RETURNING tells who actually went in) + member_count recount + the same facts SELECT as the
+ * pre-check, so when nobody went in the 404 / 409 choice is what the INSERT saw (server-architecture.md 4.4).
  * Events after commit: channel.member_added{channel_id, user} per new member to the members before the add,
  * channel.created{channel} to the new members. No system message (group_dm only).
  */
 async function addPrivateTextMembers(rt: Runtime, ch: ChannelRow, actorId: string, ids: string[]): Promise<Channel> {
   const db = rt.env.DB;
-  const facts = await all<{ id: string; in_space: number; in_channel: number }>(
-    db,
-    `SELECT j.value AS id,
-            EXISTS (SELECT 1 FROM space_members sm WHERE sm.space_id = ?2 AND sm.user_id = j.value) AS in_space,
-            EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = ?3 AND cm.user_id = j.value) AS in_channel
-       FROM json_each(?1) j`,
-    jsonList(ids),
-    ch.space_id,
-    ch.id,
-  );
-  if (facts.some((f) => !f.in_space)) throw err.notFound("member");
-  if (facts.some((f) => f.in_channel)) throw err.conflict("already_member");
+  const factsStmt = () =>
+    stmt(
+      db,
+      `SELECT j.value AS id,
+              EXISTS (SELECT 1 FROM space_members sm WHERE sm.space_id = ?2 AND sm.user_id = j.value) AS in_space,
+              EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = ?3 AND cm.user_id = j.value) AS in_channel
+         FROM json_each(?1) j`,
+      jsonList(ids),
+      ch.space_id,
+      ch.id,
+    );
+  // api.md 5.6 order: a target outside the space -> 404 before anyone already in the channel -> 409
+  const refuse = (facts: Array<{ in_space: number; in_channel: number }>): void => {
+    if (facts.some((f) => !f.in_space)) throw err.notFound("member");
+    if (facts.some((f) => f.in_channel)) throw err.conflict("already_member");
+  };
+  refuse((await factsStmt().all<{ id: string; in_space: number; in_channel: number }>()).results);
   const before = (
     await all<{ user_id: string }>(
       db,
@@ -197,7 +203,7 @@ async function addPrivateTextMembers(rt: Runtime, ch: ChannelRow, actorId: strin
   ).map((r) => r.user_id);
 
   const t = now();
-  const [ins] = await batch(db, [
+  const [ins, , why] = await batch(db, [
     stmt(
       db,
       `INSERT INTO channel_members (channel_id, user_id, added_by, joined_at)
@@ -212,10 +218,16 @@ async function addPrivateTextMembers(rt: Runtime, ch: ChannelRow, actorId: strin
       ch.space_id,
     ),
     stmt(db, "UPDATE channels SET member_count = (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1), updated_at = ?2 WHERE id = ?1", ch.id, t),
+    factsStmt(),
   ]);
   const insertedSet = new Set((ins!.results as Array<{ user_id: string }>).map((r) => r.user_id));
   const inserted = ids.filter((id) => insertedSet.has(id));
-  if (inserted.length === 0) throw err.conflict("already_member"); // lost a race to a concurrent add
+  if (inserted.length === 0) {
+    // nobody went in: each target was outside the space or already in the channel at the INSERT (read after it, in the
+    // same transaction — with nothing inserted, in_channel is what was there before)
+    refuse(why!.results as Array<{ in_space: number; in_channel: number }>);
+    throw new Error("addPrivateTextMembers: 0-row INSERT with no reason");
+  }
 
   const row = await loadChannel(db, ch.id);
   const [[forEvent], [forActor], users] = await Promise.all([

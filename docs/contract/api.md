@@ -877,6 +877,7 @@ interface AdminAction {
 - `RL_SOCIAL`. 요청: `{ "user": "@junho" }`
 - 결과:
   - 상대가 이미 나에게 대기 요청을 보냈으면 **자동 수락**: `200 { "request": FriendRequest(status:"accepted"), "friend": Friend }` — 수락과 같은 규칙(차단·상대 정지를 수락 batch 안에서도 다시 확인, 3.2)
+    - 읽은 뒤 수락 batch 전에 상대 요청이 취소·거절·다른 경로로 수락되면(수락 batch 가 직접 읽음) `404` 가 아니라, 그 일이 먼저 일어났을 때와 같은 답을 처음부터 다시 정해 준다: 새 요청 `201`, 이미 친구면 `409 already_exists`(`already_friends`) 등.
   - 아니면 `201 { "request": FriendRequest, "friend": null }`
 - 오류: `409 already_exists`(이미 대기/이미 친구 — `details.reason:"pending"|"already_friends"`), `403 action_not_allowed`(차단/정지), `409 conflict`(`reason:"self"`), `422 limit_exceeded`(`pending_friend_requests`, 보낸 대기 100).
 - 이벤트·알림: 받는 사람에게 `friend.request_received` + 알림 `friend_request` + alert `friend_request`.
@@ -942,7 +943,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - `RL_SOCIAL`. group_dm: 멤버 누구나(3.1 규칙), 비공개 text 채널: 3.5 규칙. 공개 text·dm 채널 → `409 conflict`(`reason:"not_supported"`).
 - 요청: `{ "users": ["@hana"] }` (1..9)
 - `200 { "channel": Channel }` · 이벤트: `channel.member_added`(기존 멤버), `channel.created`(새 멤버) · 시스템 메시지 `group_member_added`(group_dm 만)
-- 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`(group_dm, 3.1: `can_dm` 실패는 `details.user_ids`, 차단 쌍은 `details: {}`), `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널).
+- 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`(group_dm, 3.1: `can_dm` 실패는 `details.user_ids`, 차단 쌍은 `details: {}`), `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널). 비공개 채널은 사전 확인 뒤 INSERT 가 아무도 넣지 못하면 같은 batch 에서 읽은 사유로 같은 순서(404 먼저, 그다음 409)로 답한다.
 
 #### `DELETE /v1/channels/{channel_id}/members/{user}`
 - `{user}=@me` 이면 나가기(group_dm·비공개 text). 남을 빼기: group_dm 은 owner_id 만, 비공개 text 는 방 owner·admin.
@@ -972,6 +973,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `POST /v1/spaces/{space_id}/transfer`
 - owner. 요청: `{ "user": "@hana" }` (방 멤버여야 함). 이전 owner 는 admin 이 된다.
 - `200 { "space": Space }` · 이벤트: `space.member_updated` ×2, `space.updated`
+- 오류: `404`(방 없음·삭제됨·내가 멤버 아님), `403 forbidden`(owner 아님), `409 conflict`(`reason:"self"`), `404`(대상이 방 멤버 아님), `422 limit_exceeded`(`owned_spaces`). UPDATE 가 owner·대상 멤버십을 다시 확인하고, 그 사이 바뀌어 아무것도 바뀌지 않으면 같은 batch 에서 읽은 사유로 위 코드 중 하나로 답한다.
 
 #### `GET /v1/spaces/{space_id}/members?q=&role=&cursor=&limit=`
 - 멤버만. 정렬: 역할(owner→admin→member) 후 display_name. `q` 는 handle/display_name 부분 일치.
