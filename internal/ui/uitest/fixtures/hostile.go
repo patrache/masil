@@ -19,13 +19,24 @@ const (
 	// string sequences the app's lipgloss compositor lets through untouched
 	// (escapeSoup), so a frame-level sweep fails if a widget stops sanitizing.
 	controlSoup = "탭\t문자\r캐리지 \x01\x02\x07 C0 \u0085\u009b C1 \x1b[31m빨강\x1b[0m ANSI " +
-		"\x1b]8;;https://" + InjectedLinkHost + "/\x07링크\x1b]8;;\x07 OSC8 " + escapeSoup + " \x00끝"
+		"\x1b]8;;https://" + InjectedLinkHost + "/\x07링크\x1b]8;;\x07 OSC8 " + escapeSoup + " " + FormatSoup + " \x00끝"
 	// escapeSoup: APC (kitty graphics), DCS (DECRQSS), SOS, PM, 8-bit CSI,
 	// OSC 52 and CSI 2J. lipgloss v2.0.6's Compositor strips the last two
 	// (and OSC 0/2) but passes APC, DCS, SOS, PM, C1 and OSC 8 to the
 	// terminal (pending-fixes 0-b review).
 	escapeSoup = "\x1b_Ga=T,f=100;iVBORw0KGgo=\x1b\\APC \x1bP1$qm\x1b\\DCS \x1bXsos\x1b\\SOS " +
 		"\x1b^pm\x1b\\PM \u009b2J\u009d0;C1\u009c \x1b]52;c;UFdO\x07 \x1b[2J"
+	// FormatSoup holds every kind of invisible format character (Unicode Cf)
+	// and the line/paragraph separators: bidi embeddings, overrides and
+	// isolates ("\u202e"+"txt.exe" reads as "exe.txt"), direction marks,
+	// zero-width space/non-joiner/word joiner, invisible operators, BOM, soft
+	// hyphen, a tag character and U+2028/U+2029 (a fake second line). They are
+	// zero-width, so only uitest check 3 sees one a widget forgot to sanitize
+	// (pending-fixes 1).
+	FormatSoup = "\u202atxt\u202c \u202bLRE\u202c \u202dLRO\u202c \u202etxt.exe\u202c " +
+		"\u2066a\u2069 \u2067역방향\u2069 \u2068fsi\u2069 \u200e\u200f\u061c표시 " +
+		"ad\u200bmin z\u200cw \u2060\u2061\u2062\u2063\u2064연산 \ufeffBOM so\u00adft tag\U000e0041 " +
+		"가짜\u2028[관리자] 줄\u2029문단"
 	// InjectedLinkHost is the target of the raw OSC 8 hyperlink the hostile
 	// set hides in text. No frame may ever hyperlink to it (uitest check 6):
 	// it only appears behind control bytes, so it is never a link of its own.
@@ -69,9 +80,14 @@ func hostileLong() api.UserSummary {
 
 func hostileCtrl() api.UserSummary {
 	return api.UserSummary{
-		ID:          userHostileCtrl,
-		Handle:      "ctrl_user",
-		DisplayName: "제어\x1b[31m빨강\x1b[0m\t탭\r\u0085이름\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J",
+		ID:     userHostileCtrl,
+		Handle: "ctrl_user",
+		DisplayName: "제어\x1b[31m빨강\x1b[0m\t탭\r\u0085이름\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J" +
+			"\u202e\u2067역\u2069\u200b\ufeff\u00ad\u2028",
+		Status: &api.UserStatus{
+			Emoji: ptr("\u202e🎧\u200b"),
+			Text:  "\u202e상태\u2067역\u2069\u200b\u2028둘째 줄\u2029 " + FormatSoup,
+		},
 	}
 }
 
@@ -100,7 +116,7 @@ func hostileChannels() []api.Channel {
 	main.Topic = runesOf(emojiSoup+" "+controlSoup+" ", 250)
 	main.MemberCount = 9999
 	main.My.LastReadMessageID = nil
-	ctrl := textChannel(chHostileCtrl, SpaceHostile, "제어\x1b[31m문자\t채널\r\x07\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J", 1, api.ChannelMyState{Notify: "all", UnreadCount: 42})
+	ctrl := textChannel(chHostileCtrl, SpaceHostile, "제어\x1b[31m문자\t채널\r\x07\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\u009b2J\u202e\u2067역\u2069\u200b\u2028", 1, api.ChannelMyState{Notify: "all", UnreadCount: 42})
 	ctrl.My.LastReadMessageID = nil
 	return []api.Channel{main, ctrl}
 }

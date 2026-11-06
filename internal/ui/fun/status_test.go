@@ -422,7 +422,7 @@ func TestStatusOverlaysHostile(t *testing.T) {
 		fixtures.Seed(s)
 		fixtures.Hostile(s)
 		e := "👨‍👩‍👧"
-		s.Me.Status = &api.UserStatus{Emoji: &e, Text: "\x1b[31m빨강\x1b]8;;http://x\x07링크\r\t" + strings.Repeat("긴", 60)}
+		s.Me.Status = &api.UserStatus{Emoji: &e, Text: "\x1b[31m빨강\x1b]8;;http://x\x07링크\r\t" + fixtures.FormatSoup + strings.Repeat("긴", 60)}
 	}
 	opts := []uitest.Option{uitest.WithAPI(statusAPI(t)), uitest.WithSeed(seed)}
 	sizes := append(overlaySizes(), uitest.AllSizes()...)
@@ -430,7 +430,7 @@ func TestStatusOverlaysHostile(t *testing.T) {
 		sweep(t, sizes, "", opts, func(h *uitest.Harness) {
 			runCommand(h, "status.set", "")
 			h.Press("down", "down", "down", "down", "down", "down")
-			h.Paste("\x1b[2J" + strings.Repeat("👍🏽", 40))
+			h.Paste("\x1b[2J" + fixtures.FormatSoup + strings.Repeat("👍🏽", 40))
 		})
 	})
 	t.Run("presence", func(t *testing.T) {

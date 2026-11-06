@@ -12,6 +12,7 @@ import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
+	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
@@ -227,8 +228,10 @@ func TestReportDialogSubmit(t *testing.T) {
 	// SOS, PM, 8-bit C1 CSI, OSC 8): with api.Describe's and the dialog's
 	// Sanitize both removed this test fails; either one alone keeps it green
 	// (TestDescribeSanitizesServerStrings and TestReportErrorLineSanitized pin
-	// each layer on its own).
-	const passThrough = "\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\x1bXs\x1b\\\x1b^p\x1b\\\u009b2J\x1b]8;;https://evil.example/\x07L\x1b]8;;\x07"
+	// each layer on its own). FormatSoup adds the invisible format characters
+	// h.Check's rune check rejects.
+	const passThrough = "\x1b_Gf=100;AAAA\x1b\\\x1bP1$qm\x1b\\\x1bXs\x1b\\\x1b^p\x1b\\\u009b2J\x1b]8;;https://evil.example/\x07L\x1b]8;;\x07" +
+		fixtures.FormatSoup // bidi/zero-width/line separators (pending-fixes 1): check 3
 	for name, env := range map[string]map[string]any{
 		"hostile code": {"error": map[string]any{"code": "x\x1b[2J\x1b]52;c;ZXZpbA==\x07" + passThrough, "message": "\x1b]0;PWNED\x07"}},
 		"hostile fields": {"error": map[string]any{"code": "invalid_request", "message": "m",

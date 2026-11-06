@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 	_ "time/tzdata"
+	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
@@ -164,6 +165,77 @@ func TestAdminOutput(t *testing.T) {
 			}
 			checkTableLines(t, out)
 			golden.RequireEqual(t, out)
+		})
+	}
+}
+
+// spoof holds bidi controls, invisible format characters, line separators
+// and escapes another user can put in a name, a report note or reported
+// content: "\u202e"+"txt.exe" reads as "exe.txt", U+2028 starts a fake line
+// (pending-fixes 1).
+const spoof = "\u202etxt.exe\u202c \u2067역\u2069 \u200e\u200f\u061c ad\u200bmin \u2060\ufeff\u00ad" +
+	"가짜\u2028[관리자]\u2029 \x1b[2J\x1b]52;c;ZXZpbA==\x07\u009b31m tag\U000e0041"
+
+// TestAdminOutputDropsSpoofing: every command that prints user-supplied text
+// (names, notes, snapshots, reasons) prints none of spoof's invisible runes.
+func TestAdminOutputDropsSpoofing(t *testing.T) {
+	evil := func(u api.UserSummary) api.UserSummary { u.DisplayName += spoof; return u }
+	rep := reportFix()[1]
+	rep.Reporter, rep.TargetUser = evil(rep.Reporter), ptr(evil(*rep.TargetUser))
+	rep.Note = spoof
+	rep.ResolutionNote = ptr(spoof)
+	snap, _ := json.Marshal(map[string]string{"body": spoof + "\n" + spoof})
+	keyed, _ := json.Marshal(map[string]string{spoof: spoof})
+	users := userFix()
+	for i := range users {
+		users[i].UserSummary = evil(users[i].UserSummary)
+		users[i].SuspendReason = ptr(spoof)
+	}
+	acts := actionFix()
+	for i := range acts {
+		acts[i].Admin = evil(acts[i].Admin)
+		acts[i].Reason = spoof
+	}
+	for name, tc := range map[string]struct {
+		setup func(srv *apitest.Server)
+		args  []string
+		shown bool // the command prints the spoofed text (the reports list prints no names or notes)
+	}{
+		"reports": {func(srv *apitest.Server) {
+			srv.JSON("GET /v1/admin/reports", 200, api.Page[api.Report]{Items: []api.Report{rep}})
+		}, []string{"reports"}, false},
+		"report body": {func(srv *apitest.Server) {
+			r := rep
+			r.Snapshot = snap
+			srv.JSON("GET /v1/admin/reports/{id}", 200, map[string]any{"report": r})
+		}, []string{"report", r2ID}, true},
+		"report keys": {func(srv *apitest.Server) {
+			r := rep
+			r.Snapshot = keyed
+			srv.JSON("GET /v1/admin/reports/{id}", 200, map[string]any{"report": r})
+		}, []string{"report", r2ID}, true},
+		"users": {func(srv *apitest.Server) {
+			srv.JSON("GET /v1/admin/users", 200, api.Page[api.AdminUserView]{Items: users})
+		}, []string{"users"}, true},
+		"actions": {func(srv *apitest.Server) {
+			srv.JSON("GET /v1/admin/actions", 200, api.Page[api.AdminAction]{Items: acts})
+		}, []string{"actions"}, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := apitest.New(t)
+			tc.setup(srv)
+			out, errOut, err := run(t, srv, tc.args...)
+			if err != nil {
+				t.Fatalf("Run: %v (stderr %q)", err, errOut)
+			}
+			if tc.shown && !strings.Contains(out, "txt.exe") {
+				t.Fatalf("spoofed text not printed at all: %q", out)
+			}
+			for _, r := range out {
+				if r != '\n' && (r < 0x20 || r >= 0x7f && r <= 0x9f || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp)) {
+					t.Fatalf("output carries %U: %q", r, out)
+				}
+			}
 		})
 	}
 }

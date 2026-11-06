@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/patrache/masil/internal/api"
@@ -82,13 +83,15 @@ func TestDescribe(t *testing.T) {
 	}
 }
 
-// hasEscape reports ESC, BEL or any other C0/DEL/C1 control, or invalid UTF-8.
+// hasEscape reports ESC, BEL or any other C0/DEL/C1 control, a format
+// character (Cf: bidi, zero-width, BOM, soft hyphen, tags), U+2028/U+2029, or
+// invalid UTF-8.
 func hasEscape(s string) bool {
 	if !utf8.ValidString(s) {
 		return true
 	}
 	for _, r := range s {
-		if r < 0x20 || r >= 0x7f && r <= 0x9f {
+		if r < 0x20 || r >= 0x7f && r <= 0x9f || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
 			return true
 		}
 	}
@@ -113,6 +116,11 @@ func TestDescribeSanitizesServerStrings(t *testing.T) {
 		apiErr("upgrade_required", `{"min_client_version":"9.9.9\u001b[2J\u001b]52;c;ZXZpbA==\u0007"}`),
 		apiErr("upgrade_required", `{"min_client_version":"`+long+`"}`),
 		apiErr(long+clear, ""),
+		// bidi controls, invisible format characters and line separators
+		// make the line read differently (pending-fixes 1)
+		apiErr("teapot\u202etxt.exe\u2067x\u2069\u200b\ufeff\u00ad\u2028", ""),
+		apiErr("invalid_request", `{"fields":{"\u202ehandle\u2066":"\u200e\u200f\u061c\u2060\u2029bad"}}`),
+		apiErr("upgrade_required", `{"min_client_version":"9.9.9\u202e\u200b"}`),
 	} {
 		got := api.Describe(err)
 		if hasEscape(got) || strings.Contains(got, "[2J") || strings.Contains(got, "]52;") || strings.Contains(got, "]0;") {
@@ -134,7 +142,7 @@ func TestDescribeSanitizesServerStrings(t *testing.T) {
 // TestErrorStringSanitized: (*Error).Error() reaches stderr and toasts as is,
 // so the server's code, message and X-Request-Id carry no escapes either.
 func TestErrorStringSanitized(t *testing.T) {
-	e := &api.Error{Status: 400, Code: "x\x1b[2J", Message: "m\x1b]52;c;ZXZpbA==\x07\u009b31m", RequestID: "r\x1b]0;T\x07"}
+	e := &api.Error{Status: 400, Code: "x\x1b[2J\u202e", Message: "m\x1b]52;c;ZXZpbA==\x07\u009b31m\u200b\u2028", RequestID: "r\x1b]0;T\x07\u2067"}
 	if got := e.Error(); hasEscape(got) || strings.Contains(got, "]52;") || strings.Contains(got, "]0;") || strings.Contains(got, "[2J") {
 		t.Errorf("Error() = %q: carries an escape", got)
 	}

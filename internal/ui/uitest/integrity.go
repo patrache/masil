@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode"
 	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
@@ -55,7 +56,11 @@ func BoxesOf(f app.FrameInfo) []Box {
 //  2. every Bordered box has its four corners and all four edges drawn with border's
 //     runes, except the title segment of the top edge and cells covered by a box of
 //     higher Z.
-//  3. no U+FFFD, control characters (C0, DEL, C1) or invalid UTF-8 (unpaired surrogates).
+//  3. no U+FFFD, control characters (C0, DEL, C1), invalid UTF-8 (unpaired surrogates),
+//     format characters (Unicode Cf: bidi embeddings/overrides/isolates and marks,
+//     zero-width space/joiners, BOM, soft hyphen, tags) or line/paragraph separators
+//     (U+2028/U+2029). They are zero-width in both width models, so check 1 cannot see
+//     them, yet they reorder or split what another user sent (pending-fixes 1).
 //  4. outside TooSmall (w < 20 or h < 6), when there is at least one layout pane, the
 //     last row is not part of any Bordered box (it is the status line).
 //  5. every box is on screen (0 <= X, X+W <= w, 0 <= Y, Y+H <= h), and outside TooSmall
@@ -163,6 +168,10 @@ func checkRunes(r *reporter, y int, plain string) {
 			r.errorf("line %d col %d: U+FFFD replacement character", y, col)
 		case c < 0x20 || c == 0x7f || (c >= 0x80 && c <= 0x9f):
 			r.errorf("line %d col %d: control character %U", y, col, c)
+		case unicode.Is(unicode.Cf, c):
+			r.errorf("line %d col %d: format character %U (bidi control, zero-width or invisible rune; textwidth.Sanitize drops it, pending-fixes 1)", y, col, c)
+		case unicode.In(c, unicode.Zl, unicode.Zp):
+			r.errorf("line %d col %d: line/paragraph separator %U", y, col, c)
 		}
 		i += size
 	}

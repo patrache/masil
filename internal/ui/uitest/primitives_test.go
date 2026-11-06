@@ -234,6 +234,40 @@ func TestIntegrityDetects(t *testing.T) {
 			replaceCell(l, 3, 5, "\u0085 ")
 			return l
 		}},
+		// Format characters and line/paragraph separators are zero-width in
+		// both width models, so check 1 never sees them (pending-fixes 1).
+		{name: "bidi override", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u202e ")
+			return l
+		}},
+		{name: "bidi isolate", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u2067 ")
+			return l
+		}},
+		{name: "zero-width space", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 5, 2, "\u200b줄")
+			return l
+		}},
+		{name: "BOM", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\ufeff ")
+			return l
+		}},
+		{name: "soft hyphen", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u00ad ")
+			return l
+		}},
+		{name: "ZWJ", want: "format character", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u200d ")
+			return l
+		}},
+		{name: "line separator", want: "separator", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u2028 ")
+			return l
+		}},
+		{name: "paragraph separator", want: "separator", edit: func(l []string) []string {
+			replaceCell(l, 3, 5, "\u2029 ")
+			return l
+		}},
 		{name: "invalid utf8", want: "UTF-8", edit: func(l []string) []string {
 			replaceCell(l, 3, 5, "\xed\xa0\x80") // CESU-8 encoded lone surrogate
 			return l

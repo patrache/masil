@@ -353,6 +353,37 @@ func TestHostileSet(t *testing.T) {
 			t.Errorf("hostile messages lack %q", want)
 		}
 	}
+	// Bidi controls, invisible format characters and line separators reach
+	// a message body, a display name, a status and a channel name, so every
+	// hostile sweep proves those paths sanitize them (pending-fixes 1).
+	if !strings.Contains(body, fixtures.FormatSoup) {
+		t.Error("hostile messages lack FormatSoup")
+	}
+	for _, r := range []rune{0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069,
+		0x200e, 0x200f, 0x061c, 0x200b, 0x200c, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0xfeff, 0x00ad,
+		0xe0041, 0x2028, 0x2029} {
+		if !strings.ContainsRune(fixtures.FormatSoup, r) {
+			t.Errorf("FormatSoup lacks %U", r)
+		}
+	}
+	var spoofName, spoofStatus bool
+	for _, u := range s.Users {
+		if strings.ContainsRune(u.DisplayName, 0x202e) && strings.ContainsRune(u.DisplayName, 0x2028) {
+			spoofName = true
+		}
+		if u.Status != nil && strings.Contains(u.Status.Text, fixtures.FormatSoup) {
+			spoofStatus = true
+		}
+	}
+	spoofChannel := false
+	for _, c := range s.SpaceChannels(fixtures.SpaceHostile) {
+		if c.Name != nil && strings.ContainsRune(*c.Name, 0x202e) && strings.ContainsRune(*c.Name, 0x2028) {
+			spoofChannel = true
+		}
+	}
+	if !spoofName || !spoofStatus || !spoofChannel {
+		t.Errorf("hostile format runes: name=%v status=%v channel=%v", spoofName, spoofStatus, spoofChannel)
+	}
 	if got := fixtures.Messages(fixtures.ChHostile); len(got) != len(ms) {
 		t.Errorf("Messages(ChHostile) = %d, want the hostile set (%d)", len(got), len(ms))
 	}
