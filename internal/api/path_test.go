@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -253,7 +254,11 @@ func TestPathSegmentsLookingLikeDotsAreEscaped(t *testing.T) {
 
 // TestFetchMediaRejectsNormalisedURLs: a server-supplied media URL whose path
 // a normaliser would rewrite (dot segments, encoded dots, "//", raw "\") is
-// never fetched. checkPath alone only stops paths a normaliser changes; that
+// never fetched. The encoded-dot cases here carry an extra segment, so
+// checkMediaPath already refuses them; the single-segment ones only
+// checkPath stops are TestFetchMediaRejectsSingleSegmentEncodedDots, a raw
+// "\" off the API origin TestFetchMediaRejectsRawBackslashOffOrigin.
+// checkPath alone only stops paths a normaliser changes; that
 // a Media.URL cannot name another API endpoint at all is
 // TestFetchMediaSameOriginOnlyMediaPath.
 func TestFetchMediaRejectsNormalisedURLs(t *testing.T) {
@@ -271,6 +276,74 @@ func TestFetchMediaRejectsNormalisedURLs(t *testing.T) {
 	}
 	if n := len(s.Requests()); n != 0 {
 		t.Errorf("requests = %d, want 0: %+v", n, s.Requests())
+	}
+}
+
+// encodedDotIDs are single media-path segments that only checkPath's
+// percent-decoding stops: checkMediaPath sees one segment holding no "/"
+// once decoded, yet WHATWG URL parsing decodes them as "." / ".." (Go sends
+// them as they are), so "/v1/media/%2e%2e" lands on "/v1/".
+var encodedDotIDs = []string{"%2e%2e", ".%2E", "%2E", "%2e.", "%2E%2E", "%2e"}
+
+// wantPathInvalid reports err unless it is the client-side 400
+// invalid_request {"fields":{"path":"invalid"}} (not t.Fatal, so a request
+// that did go out is still counted and shown afterwards).
+func wantPathInvalid(t *testing.T, what string, err error) {
+	t.Helper()
+	var e *api.Error
+	if !errors.As(err, &e) || e.Status != 400 || e.Code != "invalid_request" || e.Fields()["path"] != "invalid" {
+		t.Errorf("%s err = %v, want 400 invalid_request path=invalid (nothing sent)", what, err)
+	}
+}
+
+// TestFetchMediaRejectsSingleSegmentEncodedDots (pending-fixes 5): a
+// server-supplied Media.URL whose one media segment is a percent-encoded dot
+// segment is refused before any request, relative or absolute, on the API
+// origin (where the bearer token would be attached) or off it.
+func TestFetchMediaRejectsSingleSegmentEncodedDots(t *testing.T) {
+	s := apitest.New(t)
+	foreign := apitest.New(t)
+	var auth []string
+	s.Handle("GET /", func(w http.ResponseWriter, r *http.Request) {
+		auth = append(auth, r.Header.Get("Authorization"))
+	})
+	c := s.Client()
+	for _, id := range encodedDotIDs {
+		for _, u := range []string{"/v1/media/" + id, "v1/media/" + id, s.URL + "/v1/media/" + id, "/v1/media/" + id + "?v=1", foreign.URL + "/v1/media/" + id} {
+			_, err := c.FetchMedia(ctx, u, "")
+			wantPathInvalid(t, "FetchMedia("+u+")", err)
+		}
+	}
+	if n := len(s.Requests()); n != 0 {
+		t.Errorf("API origin requests = %d (Authorization %q), want 0: %+v", n, auth, s.Requests())
+	}
+	if n := len(foreign.Requests()); n != 0 {
+		t.Errorf("foreign origin requests = %d, want 0: %+v", n, foreign.Requests())
+	}
+}
+
+// TestFetchMediaRejectsRawBackslashOffOrigin (pending-fixes 5): a raw "\" in
+// a request URL is refused by checkPath itself. Off the API origin
+// checkMediaPath does not run, so this is the only check that sees it.
+func TestFetchMediaRejectsRawBackslashOffOrigin(t *testing.T) {
+	s := apitest.New(t)
+	foreign := apitest.New(t)
+	c := s.Client()
+	for _, u := range []string{foreign.URL + `/v1/media\..\me`, foreign.URL + `/img/a\b.png`, foreign.URL + `/a\`} {
+		_, err := c.FetchMedia(ctx, u, "")
+		wantPathInvalid(t, "FetchMedia("+u+")", err)
+	}
+	if n := len(foreign.Requests()) + len(s.Requests()); n != 0 {
+		t.Errorf("requests = %d, want 0: %+v %+v", n, foreign.Requests(), s.Requests())
+	}
+
+	// A well-formed foreign media URL still goes out (without the token).
+	foreign.Handle("GET /img/{name}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write([]byte("png"))
+	})
+	if _, err := c.FetchMedia(ctx, foreign.URL+"/img/a.png", ""); err != nil {
+		t.Errorf("FetchMedia(foreign /img/a.png): %v", err)
 	}
 }
 

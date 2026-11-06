@@ -230,6 +230,13 @@ func TestCacheLoadRefusesDotSegmentMedia(t *testing.T) {
 		{ID: "up_1", URL: "/v1/media/../auth/sessions", ContentType: "image/png"},
 		{ID: "up_2", URL: "/v1/media/%2e%2e/auth/sessions", ContentType: "image/png"},
 		{ID: "up_3", URL: "/v1//media/up_3", ContentType: "image/png"},
+		// One encoded-dot media segment: only checkPath's decoding stops it
+		// (WHATWG would turn "/v1/media/%2e%2e" into "/v1/").
+		{ID: "up_4", URL: "/v1/media/%2e%2e", ContentType: "image/png"},
+		{ID: "up_5", URL: "/v1/media/.%2E", ContentType: "image/png"},
+		{ID: "up_6", URL: "/v1/media/%2E", ContentType: "image/png"},
+		{ID: "up_7", URL: "/v1/media/%2e.", ContentType: "image/png"},
+		{ID: "up_8", URL: srv.URL + "/v1/media/%2e%2e", ContentType: "image/png"},
 	} {
 		_, err := imgrender.NewCache(testPaths(t)).Load(context.Background(), srv.Client(), m)
 		if !api.IsCode(err, "invalid_request") {
