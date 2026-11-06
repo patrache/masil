@@ -113,7 +113,7 @@ server/
                spaces.test.ts invites.test.ts channels.test.ts messages.test.ts threads.test.ts reactions-pins.test.ts
                search.test.ts uploads.test.ts posts.test.ts timelines.test.ts stories.test.ts notifications.test.ts
                polls.test.ts guestbook.test.ts reports-admin.test.ts ratelimit.test.ts permissions.test.ts
-    realtime/  ws-handshake.test.ts ws-resume.test.ts fanout.test.ts presence-focus.test.ts topic-hub.test.ts notify-mode.test.ts
+    realtime/  ws-handshake.test.ts ws-resume.test.ts fanout.test.ts presence-focus.test.ts topic-hub.test.ts notify-mode.test.ts replay-hidden-actors.test.ts
     cron/      trends.test.ts cleanup.test.ts
 ```
 
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY, type TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS device_acks (device_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('full','notify')), epoch TEXT NOT NULL, seq INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (device_id, mode));
 CREATE TABLE IF NOT EXISTS focus_alerts (id TEXT PRIMARY KEY, kind TEXT NOT NULL, alert TEXT NOT NULL, created_at INTEGER NOT NULL);
 ```
-  - `events.frame` = 클라이언트에 보낼 완성 JSON 문자열(seq·ts 포함). 재전송 때 그대로 보낸다.
+  - `events.frame` = 클라이언트에 보낼 완성 JSON 문자열(seq·ts 포함). 재전송 때 그대로 보낸다 — 단, 알림함이 지금 숨기는 행위자의 `notification.created`·`alert` 는 건너뛰고 `focus.ended` 는 그런 `items` 를 뺀 JSON 으로 보낸다(`events.md` 3.3, 대기 목록 4-a).
 - 소켓 수락: `this.ctx.acceptWebSocket(server, tags)` — 태그(최대 10개, 각 256자): `["mode:full"|"mode:notify", "dev:<device_id>", "sess:<session_id>"]`. `getWebSockets("mode:full")`, `getWebSockets("dev:<id>")`, `getWebSockets("sess:<id>")` 로 고른다.
 - 연결별 상태는 `ws.serializeAttachment(att)` (JSON, 최대 16,384바이트):
 
@@ -227,9 +227,10 @@ export interface DeliveryBatch { userId: string; events: OutboundEvent[] }
   - `typing`: 채널 쓰기 권한을 D1 로 확인(`permissions.canWriteChannel`; 결과를 attachment 에 5분 캐시해도 됨) → `publishEvent(..., {channel}, "typing", ..., {ephemeral:true, exclude:[userId]})`.
   - `watch`: 이전/새 토픽 비교 → 이 사용자의 다른 소켓도 안 보는 토픽은 `TopicHub.leave`, 새 목록 전부 `TopicHub.join(userId, 300_000)`(갱신 겸).
   - `ack`: `device_acks` upsert, 키 (`device_id`, 이 연결의 `mode`), 그 모드의 현재 epoch 와 함께. `resume{use_device_ack}` 는 같은 모드의 행만 읽는다(TUI 와 데몬이 같은 `device_id` 를 써도 서로 덮어쓰지 않음).
+  - `resume`: `ctx.blockConcurrencyWhile` 안에서 ① 재전송 기준 계산 ② 범위 안 알림 프레임의 행위자 ID 를 모아 D1 한 번(`lib/notify.ts` `hiddenActors` — 알림함 규칙 `inboxRowVisibleSql` 과 같은 SQL) ③ 동기 재전송(숨는 행위자 프레임 거름) + `ready`. D1 실패 시 `1011`. 그 뒤 full 은 `presence.snapshot`.
 - `webSocketClose`/`webSocketError`: presence 재계산. full 연결이 1→0 이면 워터마크 `full_until=now+120_000` 즉시 반영 + D1 `online_until=now+120_000` + 같은 기기 notify 소켓에 `device.tui_state{tui_connected:false}`. notify 연결이 1→0 이면 `notify_until`·D1 `notify_online_until` 을 같은 방식으로 `now+120_000`. 남은 소켓 0이면 `zero_since=now`, `last_seen_at=now`.
 - `alarm`: 알람은 DO 당 1개이므로 다음 시각 = min(집중 종료, full 소켓이 있으면 now+60초 / notify 소켓만 있으면 now+15분, resume 대기 소켓의 10초 기한).
-  - 집중 종료 처리: `focus.ended` + `alert{kind:"focus_summary"}`(기록), presence 재계산, `focus_alerts` 비움.
+  - 집중 종료 처리: `focus.ended` + `alert{kind:"focus_summary"}`(기록), presence 재계산, `focus_alerts` 비움. 요약을 만들기 전에 `focus_alerts` 의 행위자를 `hiddenActors` 로 확인해 숨는 행위자의 alert 는 `items`·`counts` 에서 뺀다(확인 실패 시 `counts` 전부, `items` 는 행위자 없는 것만). 확인 뒤 같은 집중이 아직 진행 중인지 다시 본다(그 사이 다른 호출이 끝냈거나 새 집중이 시작됐으면 아무것도 안 함).
   - 하트비트: `ctx.getWebSocketAutoResponseTimestamp(ws)`(없으면 connectedAt) 가 120초 넘은 소켓 `close(4002)`. full 소켓은 60초마다 검사하므로 죽은 TUI 는 최대 약 180초 뒤 정리된다(`events.md` 3.4).
   - 놓친 close 처리: `getWebSockets("mode:full")` 이 비었는데 `full_until > now + 120_000` 이면(코드 배포로 인한 강제 끊김, 응답 없는 상대에게 보낸 close, 퇴거 등으로 `webSocketClose` 가 안 돈 경우) 위 full 1→0 처리를 여기서 한다. notify 도 같은 방식. 모든 소켓이 없고 `zero_since` 가 비어 있으면 `zero_since=now`, `last_seen_at=now`.
   - 기한 연장: full 소켓이 있고 `full_until - now < 5분` 이면 D1 `online_until=now+10분` → 성공 후 워터마크 반영(D1 쓰기 약 5분에 1번). notify 소켓이 있으면 D1 `notify_online_until=now+40분` → 성공 후 워터마크 반영(15분에 1번).

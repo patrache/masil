@@ -142,6 +142,12 @@ client                                   server (UserHub)
 
 재전송 이벤트는 원래 `seq`·`ts` 그대로 보낸다. notify 모드 연결에는 7장의 허용 타입만 재전송한다.
 
+**재전송 때 거르는 알림 [대기 목록 4-a]**: 로그는 소급해서 지우지 않지만, 재전송은 **`resume` 을 처리하는 그 시점**에 알림함이 숨기는 행위자(`api.md` 5.18 — 내가 차단한 사람, 지금 정지 중인 사람(3.9, `suspended_until <= 지금` 이면 정지 아님))가 든 알림 프레임을 다시 보내지 않는다.
+- `notification.created`(`notification.actor`)·`alert`(`alert.actor`)의 행위자가 그 조건에 걸리면 그 프레임을 건너뛴다(`replayed` 에 세지 않는다). 행위자가 없는(`null`) 프레임은 그대로.
+- `focus.ended` 는 `summary.items` 에서 그런 행위자의 alert 만 빼고 보낸다(`counts` 는 기록 당시 값 그대로 — 누구인지 드러내지 않는다).
+- 그 밖의 프레임(`message.created` 의 작성자 요약, `friend.request_received` 등)은 그대로 재전송되고, 정지·차단은 뒤따르는 `user.updated`·`block.updated`·`*_removed` 이벤트로 반영된다(`api.md` 3.9).
+- 서버는 재전송 범위의 행위자를 D1 로 한 번 확인하는 동안 그 UserHub 의 다른 일(발행·알람·다른 프레임)을 막고 확인과 재전송을 한 덩어리로 처리한다 — 이벤트는 재전송 범위 또는 `ready` 뒤 실시간 중 정확히 한쪽으로 간다. 이 확인이 실패하면 거르지 않은 재전송 대신 `1011` 로 닫는다(클라이언트는 1.3 백오프로 재접속).
+
 `ready` (서버, 휘발):
 ```json
 { "type": "ready", "seq": null, "ts": "...", "data": { "resumed": true, "resync_required": false, "replayed": 11, "seq": 1041, "epoch": "01JC2..." } }
@@ -269,7 +275,7 @@ client                                   server (UserHub)
 | `presence.updated` | `presenceWatchers:<user_id>` | 휘발 | F | `{ user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null }` — 정지 중인 계정은 `status: "offline"`, `last_seen_at: null`(`api.md` 3.9; 정지 순간의 연결 종료 포함). 운영자의 정지·정지 해제 때는 상태가 바뀌지 않아도(수동 `dnd`·집중 모드는 소켓 0개에서도 유지, 6.3) 한 번 나간다: 정지는 그 가린 항목, 해제는 실제 항목(`GET /v1/presence` 와 같은 값). 온라인이던 계정은 정지 때 같은 offline 항목을 두 번 받을 수 있다 |
 | `presence.self` | `users:[나]` | 휘발 | F | `{ presence: PresenceState }` — 내 상태가 바뀔 때(다른 기기 반영) |
 | `focus.started` | `users:[나]` | 기록 | F/N | `{ focus: Focus }` |
-| `focus.ended` | `users:[나]` | 기록 | F/N | `{ summary: FocusSummary }` |
+| `focus.ended` | `users:[나]` | 기록 | F/N | `{ summary: FocusSummary }` — 종료 시점에 알림함이 숨기는 행위자(`api.md` 5.18: 내가 차단, 지금 정지 중)의 alert 는 `items`·`counts` 에서 빠진다 [대기 목록 4-a]. 그 확인(D1)이 실패하면 `counts` 는 전부 세고 `items` 는 행위자 없는 alert 만 |
 
 - 방 멤버 목록처럼 친구·DM 상대가 아닌 사람의 상태는 푸시하지 않는다 → `GET /v1/presence` 를 60초마다(화면에 보일 때만).
 

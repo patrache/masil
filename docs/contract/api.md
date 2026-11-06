@@ -752,6 +752,7 @@ interface AdminAction {
   - 정지가 끝나면(`suspended_until <= 지금`) 모두 다시 보인다. 판정 경계는 3.4 규칙 2 와 같다.
 - 남의 글에 박힌 정지 계정 글도 숨는다(REST·이벤트 공통): 인용은 `quote: { available:false, reason:"not_visible" }`, 정지 계정 글에 단 답글은 `reply_to_author: null`. 정지가 끝나면 다시 나온다.
 - 정지 중에는 그 계정이 행위자인 알림함 행(미리보기 포함)도 목록·`unread_count` 에서 빠진다(5.18). 정지가 끝나면(`suspended_until` 경과) 다시 보인다.
+- **재생 로그도 같은 규칙 [대기 목록 4-a]**: UserHub 로그(최대 24시간/2,000건, `events.md` 6.2)에 정지 **전에** 기록된 그 계정의 `notification.created`·`alert` 는 `resume` 재전송에서 빠지고, 재전송되는 `focus.ended` 요약의 `items` 에서도 빠진다(`events.md` 3.3 — 로그 자체는 소급 삭제하지 않으므로 정지가 끝난 뒤의 재개에서는 다시 나온다). 집중 모드가 끝날 때 만드는 요약(`focus.ended`·`DELETE /v1/me/focus` 응답·`focus_summary` 의 숫자)도 그때 정지 중인 행위자의 alert 를 `items`·`counts` 에서 뺀다. 판정 기준·경계는 알림함과 같다(5.18).
 - 사용자 목록(남의 팔로워·팔로잉, 글의 좋아요·리포스트 목록)에는 정지 계정이 `suspended=true` 로 남는다. 사용자 검색(5.2)에서는 빠진다.
 - 정지된 사용자에게는 DM·친구 요청·팔로우·초대 불가.
 
@@ -1316,6 +1317,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 중복 방지: `post_like`/`post_repost`/`follow` 는 `dedupe_key` 로 같은 (행위자, 대상) 당 1개.
 
 목록과 `unread_count`(목록·`/unread-count`·`notification.created`·`notifications.read` 모두)에서 빠지는 행: 내가 차단한 행위자, 지금 정지 중인 행위자(3.9 — 정지가 끝나면 다시 보인다).
+같은 규칙이 실시간 재전송에도 걸린다 [대기 목록 4-a]: `resume` 재전송(`events.md` 3.3)은 그 시점에 위 조건에 걸리는 행위자의 `notification.created`·`alert` 를 보내지 않고, `focus.ended` 요약의 `items` 에서도 뺀다. 집중 모드 종료 요약도 종료 시점에 이 조건에 걸리는 행위자의 alert 를 `items`·`counts` 에서 뺀다(`events.md` 4.6). 재전송된 `notification.created` 의 `unread_count` 는 기록 당시 값이다(최신 값은 다음 이벤트 또는 `/unread-count`).
 
 #### `GET /v1/notifications?cursor=&limit=&unread_only=<bool>`
 - `200 { "items": Notification[], "next_cursor": string | null, "unread_count": number }`

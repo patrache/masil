@@ -132,10 +132,37 @@ async function alertAllowed(db: D1Database, items: Array<{ userId: string; kind:
  * Rows without an actor are always shown. Used by the inbox list and by unreadCountSql.
  */
 export function inboxRowVisibleSql(userExpr: string, nowExpr: string): string {
-  return `(NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ${userExpr} AND b.blocked_id = n.actor_id)
-           AND NOT EXISTS (SELECT 1 FROM users nau
-                            WHERE nau.id = n.actor_id AND nau.suspended_at IS NOT NULL
-                              AND (nau.suspended_until IS NULL OR nau.suspended_until > ${nowExpr})))`;
+  return `(NOT ${actorHiddenSql(userExpr, "n.actor_id", nowExpr)})`;
+}
+
+/**
+ * True when notification actor `actorExpr` is hidden from recipient `userExpr` (api.md 5.18 / 3.9): the recipient
+ * blocked the actor, or the actor is suspended right now (suspended_until <= `nowExpr` counts as active again). A NULL
+ * actor is never hidden. The single rule behind inboxRowVisibleSql and hiddenActors (UserHub replay / focus summary).
+ */
+function actorHiddenSql(userExpr: string, actorExpr: string, nowExpr: string): string {
+  return `(EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ${userExpr} AND b.blocked_id = ${actorExpr})
+           OR EXISTS (SELECT 1 FROM users nau
+                       WHERE nau.id = ${actorExpr} AND nau.suspended_at IS NOT NULL
+                         AND (nau.suspended_until IS NULL OR nau.suspended_until > ${nowExpr})))`;
+}
+
+/**
+ * Which of `actorIds` are hidden from `userId` right now (actorHiddenSql — the inbox rule), in one json_each query.
+ * UserHub uses it so frames it stored earlier (the replay log, focus_alerts) never re-send what the inbox hides
+ * (pending item 4-a, api.md 3.9, events.md 3.3).
+ */
+export async function hiddenActors(db: D1Database, userId: string, actorIds: string[], at: number): Promise<Set<string>> {
+  const ids = [...new Set(actorIds)];
+  if (ids.length === 0) return new Set();
+  const rows = await all<{ id: string }>(
+    db,
+    `SELECT j.value AS id FROM json_each(?1) j WHERE ${actorHiddenSql("?2", "j.value", "?3")}`,
+    jsonList(ids),
+    userId,
+    at,
+  );
+  return new Set(rows.map((r) => r.id));
 }
 
 /**
