@@ -33,6 +33,28 @@ export function uniqueIp(): string {
   return `10.${(ipSeq >> 16) & 0xff}.${(ipSeq >> 8) & 0xff}.${ipSeq & 0xff}`;
 }
 
+/**
+ * Runs `attempt` so that every rate-limit hit it makes lands in one limiter window. Miniflare's limiter (the one
+ * vitest-pool-workers runs) counts in fixed windows aligned to the wall clock — `epoch = Math.floor(Date.now() /
+ * (period * 1e3))` in miniflare/dist/src/workers/ratelimit/ratelimit-object.worker.js — and the first hit of a new
+ * window deletes every counter of that period. So a test that spends N hits and expects the (N+1)th to be 429 fails
+ * whenever a boundary falls between them. When `attempt` throws and the clock crossed a `periodSec` boundary during
+ * it, it is run again from scratch (it must make its own fresh users / IPs / keys); the retry starts just after the
+ * boundary, so it has the whole window. A failure within one window is rethrown at once: a crossing can only reset
+ * counts, never cause an early 429, so this hides no real failure.
+ */
+export async function inOneRateWindow<T>(periodSec: 10 | 60, attempt: () => Promise<T>, now: () => number = Date.now): Promise<T> {
+  const windowOf = (t: number) => Math.floor(t / (periodSec * 1000));
+  for (let tries = 1; ; tries++) {
+    const before = windowOf(now());
+    try {
+      return await attempt();
+    } catch (e) {
+      if (tries >= 3 || windowOf(now()) === before) throw e;
+    }
+  }
+}
+
 export interface ApiResult<T> {
   status: number;
   body: T;

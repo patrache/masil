@@ -2,7 +2,7 @@
 
 - 상태: 확정 계약 v1 (2026-11-05). 상위 출처: `docs/superpowers/specs/2026-11-05-masil-design.md`.
 - 짝 문서: `api.md`(REST), `events.md`(WebSocket), `server-architecture.md`(서버 코드 구조).
-- 이 문서의 SQL은 **그대로** `server/migrations/0001_init.sql`, `0002_search.sql` 에 옮긴다. 테이블·컬럼 이름을 바꾸려면 이 문서를 먼저 고친다.
+- 이 문서의 SQL은 **그대로** `server/migrations/0001_init.sql`, `0002_search.sql`, 그리고 이후 추가 마이그레이션(`0003_...`, 해당 표 바로 아래에 따로 적음)에 옮긴다. 테이블·컬럼 이름을 바꾸려면 이 문서를 먼저 고친다.
 
 ## 1. 공통 규칙
 
@@ -58,7 +58,8 @@
 - 위치: `server/migrations/`. 이름: `NNNN_snake_case.sql` (4자리 0채움, 1부터). wrangler 의 `d1 migrations create` 규칙과 같다.
   - `0001_init.sql` — 3장의 모든 테이블·인덱스
   - `0002_search.sql` — 4장의 FTS5 가상 테이블·트리거
-  - 이후 변경은 `0003_...` 부터 **추가만** 한다. 적용된 마이그레이션 파일은 고치지 않는다.
+  - `0003_focus_started_at.sql` — 3.9 `user_presence.focus_started_at` 열 추가(집중 시작 시각)
+  - 이후 변경은 `0004_...` 부터 **추가만** 한다. 적용된 마이그레이션 파일은 고치지 않는다.
 - 로컬 적용: `npx wrangler d1 migrations apply DB --local`. 테스트는 `readD1Migrations()` + `applyD1Migrations()` 로 같은 파일을 적용(`server-architecture.md` 7장).
 - 원격 적용은 **오너 건별 승인 후**에만.
 - 전역 운영자 지정(최초 1회, 오너가 직접): `UPDATE users SET role = 'admin' WHERE handle = '<handle>';` — 운영자 승격 API는 두지 않는다.
@@ -572,6 +573,12 @@ CREATE TABLE user_presence (
   updated_at    INTEGER NOT NULL
 );
 CREATE INDEX idx_user_presence_online ON user_presence(online_until);
+```
+
+`0003_focus_started_at.sql` — D1 미러에 집중 **시작** 시각도 둔다. UserHub 가 `focus_ends_at` 과 **함께** 쓴다(집중 중이면 둘 다 값, 아니면 둘 다 NULL; 집중을 연장해도 시작 시각은 그대로). D1 에서 `PresenceState` 를 읽는 경로(`Me.presence` 의 가입 응답, UserHub 에 닿지 못할 때의 대체 읽기)는 이 값을 `Focus.started_at` 으로 그대로 쓴다.
+
+```sql
+ALTER TABLE user_presence ADD COLUMN focus_started_at INTEGER; -- ms; non-NULL exactly when focus_ends_at is
 ```
 
 ### 3.10 신고·운영

@@ -217,8 +217,8 @@ interface UserSummary {              // embedded everywhere
   id: ID;
   handle: string;
   display_name: string;
-  avatar_url: string | null;         // "/v1/media/<upload_id>" (relative; prefix server base URL)
-  status: UserStatus | null;         // null if unset or expired
+  avatar_url: string | null;         // "/v1/media/<upload_id>" (relative; prefix server base URL); null while suspended (3.9)
+  status: UserStatus | null;         // null if unset or expired; null while suspended (3.9)
   is_private: boolean;
   suspended: boolean;
 }
@@ -235,9 +235,9 @@ interface Relationship {             // viewer -> target
 }
 
 interface Profile extends UserSummary {
-  bio: string;
+  bio: string;                       // "" for a suspended account seen by others (3.9)
   created_at: Timestamp;
-  follower_count: number;
+  follower_count: number;            // the three counts are 0 for a suspended account seen by others (3.9)
   following_count: number;
   post_count: number;
   presence: PresenceStatus | null;   // null if not visible to viewer (3.6)
@@ -259,7 +259,11 @@ interface Settings {
   focus_default_min: number;         // 1..720, default 25
 }
 
-interface Focus { started_at: Timestamp; ends_at: Timestamp }
+interface Focus {
+  started_at: Timestamp;             // when this focus began; extending it (POST /me/focus while focusing) keeps it.
+                                     // Exact on every path, the D1 mirror included (data-model.md user_presence.focus_started_at)
+  ends_at: Timestamp;
+}
 
 interface PresenceState {
   status: PresenceStatus;            // effective
@@ -641,12 +645,14 @@ interface AdminAction {
 
 적용:
 - 1:1 DM 생성·메시지 전송은 매번 `can_dm` 을 검사. 기존 1:1 DM 에서 조건이 사라지면 대화는 남되 `read_only=true`. 전송 시 `403 read_only`. `read_only_reason` 은 차단한 쪽에게만 `"blocked"`, 그 외 `"not_eligible"`.
-- 그룹 DM 생성: 만든 사람 C 에 대해 모든 참여자 X 에 `can_dm(C, X)` 이어야 하고, **참여자끼리도 어느 쌍이든 차단 관계(어느 방향이든)가 없어야** 함(하나라도 실패 → `403 dm_not_allowed`, `details.user_ids` 에 실패한 ID — 차단 쌍은 두 사람 모두, 요청 순서대로). 참여자 수(만든 사람 포함) 3..10. 2명이면 1:1 DM 으로 처리.
+- 그룹 DM 생성: 만든 사람 C 에 대해 모든 참여자 X 에 `can_dm(C, X)` 이어야 하고, **참여자끼리도 어느 쌍이든 차단 관계(어느 방향이든)가 없어야** 함. 참여자 수(만든 사람 포함) 3..10. 2명이면 1:1 DM 으로 처리. 실패 응답은 `403 dm_not_allowed` 하나로, 두 경우를 이 순서로 판정한다(오너 결정 D2, 2026-11-06 — 0.5 "차단 여부를 드러내지 않음"):
+  - `can_dm(C, X)` 실패가 하나라도 있으면 `details.user_ids` 에 그 X 들(요청 순서대로). 1:1 DM 과 같은 규칙이라 그 실패가 차단 때문인지는 드러나지 않는다.
+  - 그렇지 않고 참여자 사이 차단 쌍만 있으면 `details: {}` — **누가 누구를 차단했는지(어느 ID 인지, 어느 방향인지) 응답 어디에도 담지 않는다**(`message` 도 일반 문구). 클라이언트 문구: "함께 대화할 수 없는 참여자가 있어요".
 - 그룹 DM 멤버 추가: 추가하는 사람 M 에 대해 `can_dm(M, X)`, 그리고 기존 멤버 누구와도, 함께 추가되는 다른 사람과도 X 가 차단 관계가 아니어야 함(아래). 총원 10 초과 → `422 limit_exceeded`.
 - 그룹 DM 안에서의 전송은 멤버이기만 하면 가능(쌍별 조건 재검사 안 함). **[내 결정 — 설계서 2장과 다름, 오너가 뒤집을 수 있음]** 설계서는 "친구 끊기/방 탈퇴로 조건이 사라지면 기존 대화는 읽기 전용"이라고 하지만, 이 계약은 그 규칙을 **1:1 DM 에만** 적용한다. 그룹 DM 은 여러 사람의 대화라서 두 사람 사이 관계가 끊겼다고 방 전체를 읽기 전용으로 만들면 나머지 멤버까지 막히기 때문이다. 대신:
   - 관계가 끊긴 쪽은 언제든 스스로 나갈 수 있고(`DELETE .../members/@me`), 만든 사람은 멤버를 뺄 수 있다(3.7).
   - **차단은 그룹 DM 안에서도 효과가 있다**(설계서 "차단당한 쪽은 새 메시지·멘션 불가"): 차단당한 B 의 `@a` 는 멘션으로 해석되지 않고(2.1) A 에게 알림·alert·배지가 가지 않는다. A 의 클라이언트는 B 의 메시지를 접어 보인다(3.2). B 가 그룹에 보내는 메시지 자체는 다른 멤버를 위해 막지 않는다.
-  - 차단 관계인 사람을 그룹 DM 에 새로 넣을 수 없다(생성·추가 같은 규칙): 넣는 사람 M 에 대한 `can_dm(M, X)` 에 더해, 기존 멤버 또는 함께 들어가는 다른 사람 중 X 와 차단 관계인 사람이 있으면 `403 dm_not_allowed`(`details.user_ids` 에 X). 그래서 A 가 B 를 차단했으면 제3자 C 도 A·B 를 한 그룹 DM 에 넣을 수 없다.
+  - 차단 관계인 사람을 그룹 DM 에 새로 넣을 수 없다(생성·추가 같은 규칙): 넣는 사람 M 에 대한 `can_dm(M, X)` 에 더해, 기존 멤버 또는 함께 들어가는 다른 사람 중 X 와 차단 관계인 사람이 있으면 `403 dm_not_allowed`(`details: {}` — 생성과 같이 `can_dm(M, X)` 실패만 `details.user_ids` 로 알리고, 차단 쌍은 어느 ID 도 담지 않는다). 동시 추가 경쟁에서 진 쪽도 같은 응답. 그래서 A 가 B 를 차단했으면 제3자 C 도 A·B 를 한 그룹 DM 에 넣을 수 없다.
 
 ### 3.2 차단 효과 (A 가 B 를 차단)
 
@@ -697,6 +703,8 @@ interface AdminAction {
 | 방 나가기 | 위임 후 | ✓ | ✓ |
 
 - 초대는 낸 사람의 권한이 남아 있는 동안만 유효하다. 방에서 빠지면(**나가기·강퇴·밴 모두**) 같은 batch 안에서 그 사람이 그 방에 보낸 대기 중 직접 초대는 `canceled`, 만든 초대 링크는 폐기(`revoked`)된다. admin→member 로 강등되면(링크 권한 상실) 그 사람이 만든 링크도 같은 batch 에서 폐기된다(다시 admin 이 돼도 되살아나지 않음). 직접 초대 수락은 초대한 사람이 아직 방 멤버인지 사전 확인과 조건부 UPDATE 양쪽에서 다시 본다. 링크도 쓸 때마다(조회·수락의 사전 확인·조건부 UPDATE) 만든 사람이 아직 그 방 owner·admin 인지 다시 보며, 아니면 `revoked` 로 취급한다(폐기가 빠진 경로가 있어도 링크로 들어올 수 없음). 만들 때도 링크·직접 초대의 INSERT 자체가 권한(링크: owner·admin, 직접 초대: 멤버)을 다시 확인하므로, 권한 확인과 INSERT 사이에 강등·제거가 끼어들면 아무것도 만들어지지 않는다.
+- **친구 끊기 → 직접 초대 취소 [오너 결정 D3]**: 직접 초대는 초대받는 사람이 초대한 사람의 친구인 동안만 유효하다. 친구를 끊으면(`DELETE /v1/friends/{user}`, 5.3) 같은 batch 안에서 두 사람 사이의 대기 중 직접 초대가 **양방향 모두**(어느 방이든) `canceled` 되고, 커밋 뒤 취소된 초대마다 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 초대한 사람)를 보낸다. 차단도 같은 정리를 한다(3.2). 직접 초대 수락은 초대한 사람의 방 멤버십과 함께 **두 사람이 아직 친구이고 어느 방향으로도 차단이 없는지**를 사전 확인과 조건부 UPDATE 양쪽에서 다시 보며, 아니면 `404`(아무것도 쓰지 않음). 이 조건을 못 채우는 대기 초대(정리가 빠진 경로가 있더라도)는 받은 초대 목록에서 빠지고, 새 초대의 `already_exists` 로 세지 않는다(새 초대가 그 묵은 초대를 `canceled` 로 바꾼다, 5.8).
+- **이미 방에 들어온 사람에게 걸린 직접 초대 [대기 목록 9-b]**: 직접 초대는 초대받는 사람이 방 밖에 있는 동안만 뜻이 있다. 어떤 경로로든(초대 링크·다른 가입 경로) 방에 들어오면 가입과 같은 batch 안에서 그 사람에게 걸린 그 방의 대기 중 직접 초대가 `canceled` 되고, 커밋 뒤 취소된 초대마다 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 초대한 사람)를 보낸다. 직접 초대의 INSERT 도 초대받는 사람이 아직 방 밖인지 다시 보므로, 사전 확인 뒤 INSERT 전에 그 사람이 들어오면 아무것도 만들어지지 않고 `409 already_member`. 정리가 빠진 경로로 멤버에게 대기 초대가 남아 있어도 받은 초대 목록에서 빠지고(수락은 `409 already_member`), 그 사람이 방에서 빠질 때(나가기·강퇴·밴) 같은 batch 에서 `canceled` 되므로, 옛 초대로 강퇴된 사람이 다시 들어올 수 없다.
 - 방 멤버가 아니면(또는 방이 삭제됐으면) 방·채널·메시지 모두 `404 not_found`. text 채널의 읽기 검사는 비공개 채널이라도 **방 멤버십과 방 미삭제를 함께** 확인한다(`channel_members` 행만으로 통과하지 않음). 실시간 청중도 같다(`events.md` 6.1).
 - 비공개 채널은 그 채널 멤버만 보고(방장·관리자라도 멤버가 아니면 목록에 안 보임), 공개 채널은 방 멤버 전원.
 - 방에서 빠지면(**스스로 나가기·강퇴·밴 모두**) 같은 batch 안에서 그 방의 모든 비공개 채널의 `channel_members` 행도 지운다(`channels.member_count` 감소 포함). 밴은 강퇴 + 초대 수락 차단.
@@ -707,6 +715,7 @@ interface AdminAction {
 ### 3.6 접속 상태 공개 범위
 
 `presence`, `last_seen_at` 은 본인, 친구, 같은 방 멤버, 같은 DM/그룹 DM 멤버에게만 보인다. 그 외에는 `null`.
+- 예외: 정지 중인 계정(3.9)은 이 범위 안의 사람에게도 `offline`·`last_seen_at: null` 로만 보인다(프로필은 `presence`·`last_seen_at` 모두 `null`).
 
 ### 3.7 DM·채널 메시지 권한 요약
 
@@ -729,8 +738,21 @@ interface AdminAction {
 
 - 로그인·API·소켓 불가(`403 account_suspended`). 정지 순간 세션 폐기 + 소켓 `4003` 종료.
 - 다른 사람 화면: `UserSummary.suspended=true`. 정지 계정의 글·스토리·방명록 글은 피드·검색·트렌드에서 빠진다. 채팅 메시지는 남는다.
+- **정지 계정은 핸들·표시 이름만 [오너 결정 D1]**: 정지 중에는 본인 외 누구에게나 그 계정이 핸들·표시 이름·`suspended=true` 로만 보인다.
+  - 프로필(`GET /v1/users/{user}`, 5.2): `bio: ""`, `status: null`, `avatar_url: null`, `follower_count`·`following_count`·`post_count` 는 `0`, `presence`·`last_seen_at` 은 `null`. `id`·`created_at`·`is_private` 와 `relationship`(열람자 자신의 상태 — 내가 차단했는지 등; 정지 중이므로 `can_dm=false`, `can_view_posts=false`)은 그대로.
+  - 그 밖의 모든 `UserSummary`(사용자 목록·`GET /v1/users?ids=`·친구·멤버·메시지 작성자·이벤트 등): `status: null`, `avatar_url: null`.
+  - 접속 상태(3.6 범위 안의 사람에게도): `GET /v1/presence`·`presence.snapshot`·`presence.updated` 의 항목은 `status: "offline"`, `last_seen_at: null`(결과에서 빠지지는 않는다), `Friend.presence` 는 `offline`. 정지 순간 소켓이 끊겨 나가는 `presence.updated` 도 같다.
+  - 친구 목록(`GET /v1/friends`, 5.3)의 정렬·`next_cursor` 도 정지 중인 친구를 offline 으로 친다(실제 `dnd` 여도 offline 무리에 이름순). 정지가 끝나면 실제 상태로 다시 정렬된다.
+  - 정지·정지 해제(`/v1/admin/users/{user}/suspend`·`/unsuspend`) 때:
+    - 그 계정의 `summaryWatchers`(친구 + DM/그룹 DM 상대 + 같은 방 멤버, `events.md` 6.1)에 `user.updated`(`suspended`·`status`·`avatar_url` 이 바뀐 `UserSummary`)가 나간다. 기록 이벤트라서, 끊겼다가 `resume` 하는 사람은 정지 전 이벤트(가리지 않은 작성자 요약)를 재생받은 **뒤에** 이 `user.updated` 를 받는다.
+    - 그 계정의 `presenceWatchers` 에 `presence.updated` 가 상태 변화와 상관없이 나간다 — 정지는 `offline`·`last_seen_at: null`, 해제는 실제 항목. 수동 `dnd`·집중 모드는 소켓이 없어도 유지되므로(`events.md` 6.3) 정지 순간의 연결 종료만으로는 바뀌지 않기 때문이다.
+    - `suspended_until` 이 지나 저절로 풀릴 때는 이벤트가 없다(다음 조회에서 보인다).
+  - 그 계정의 아바타 이미지(`GET /v1/media/{upload_id}`, 5.14)는 본인·운영자 외 `404`.
+  - 운영자 화면(`/v1/admin/*` 의 `AdminUserView`·`Report.reporter`·`Report.target_user`·`AdminAction.admin`)은 가리지 않는다.
+  - 정지가 끝나면(`suspended_until <= 지금`) 모두 다시 보인다. 판정 경계는 3.4 규칙 2 와 같다.
 - 남의 글에 박힌 정지 계정 글도 숨는다(REST·이벤트 공통): 인용은 `quote: { available:false, reason:"not_visible" }`, 정지 계정 글에 단 답글은 `reply_to_author: null`. 정지가 끝나면 다시 나온다.
 - 정지 중에는 그 계정이 행위자인 알림함 행(미리보기 포함)도 목록·`unread_count` 에서 빠진다(5.18). 정지가 끝나면(`suspended_until` 경과) 다시 보인다.
+- **재생 로그도 같은 규칙 [대기 목록 4-a]**: UserHub 로그(최대 24시간/2,000건, `events.md` 6.2)에 정지 **전에** 기록된 그 계정의 `notification.created`·`alert` 는 `resume` 재전송에서 빠지고, 재전송되는 `focus.ended` 요약의 `items` 에서도 빠진다(`events.md` 3.3 — 로그 자체는 소급 삭제하지 않으므로 정지가 끝난 뒤의 재개에서는 다시 나온다). 집중 모드가 끝날 때 만드는 요약(`focus.ended`·`DELETE /v1/me/focus` 응답·`focus_summary` 의 숫자)도 그때 정지 중인 행위자의 alert 를 `items`·`counts` 에서 뺀다. 판정 기준·경계는 알림함과 같다(5.18). 재전송되는 `friend.request_received` 는 요청자가 그때 정지 중이면 `request.from` 을 위 D1 규칙대로 가린다(요청자는 대개 `summaryWatchers` 밖이라 `user.updated` 가 가지 않는다 — `events.md` 3.3).
 - 사용자 목록(남의 팔로워·팔로잉, 글의 좋아요·리포스트 목록)에는 정지 계정이 `suspended=true` 로 남는다. 사용자 검색(5.2)에서는 빠진다.
 - 정지된 사용자에게는 DM·친구 요청·팔로우·초대 불가.
 
@@ -794,12 +816,13 @@ interface AdminAction {
 - 실제 상태 계산은 UserHub DO 가 한다(`events.md` 6.3).
 
 #### `GET /v1/presence?user_ids=<id>,<id>,...`
-- 최대 100개. 공개 범위(3.6) 밖의 사용자는 결과에서 빠진다.
+- 최대 100개. 공개 범위(3.6) 밖의 사용자는 결과에서 빠진다. 정지 중인 계정은 `status: "offline"`, `last_seen_at: null`(3.9).
 - `200 { "items": [ { "user_id": ID, "status": PresenceStatus, "last_seen_at": Timestamp | null } ] }`
 - 용도: 방 멤버 목록처럼 푸시 대상이 아닌 사용자의 상태를 화면에 보일 때(60초 주기로 다시 조회).
 
 #### `POST /v1/me/focus`
-- 요청: `{ "duration_sec"?: number }` — 60..43200, 생략 시 `settings.focus_default_min*60`. 이미 집중 중이면 종료 시각을 새 값으로 바꾼다.
+- 요청: `{ "duration_sec"?: number }` — 60..43200, 생략 시 `settings.focus_default_min*60`. 이미 집중 중이면 종료 시각을 새 값으로 바꾼다(`started_at` 은 처음 시작한 시각 그대로).
+- `Focus.started_at` 은 어느 응답에서나 실제 시작 시각이다 — `GET /me/focus`·`focus.started`·`Me.presence.focus`(UserHub 상태, 닿지 못하면 D1 `user_presence.focus_started_at`)가 모두 같은 값.
 - `200 { "focus": Focus }` · 이벤트: `focus.started`, `presence.updated`
 - 집중 중: 실질 상태 `dnd`, 모든 `alert` 가 `suppressed:true, suppressed_reason:"focus"` 로 나가고 요약에 쌓인다. 알림함·안 읽음 수는 평소대로 쌓인다.
 
@@ -820,6 +843,7 @@ interface AdminAction {
 
 #### `GET /v1/users/{user}`
 - `200 { "user": Profile }` · 차단 관계(어느 방향이든)여도 프로필은 200 으로 주되 `can_dm=false`, `can_view_posts=false`.
+- 정지 중인 계정(본인 외): 200 이지만 핸들·표시 이름·`suspended=true` 만 — `bio: ""`, `status`·`avatar_url`·`presence`·`last_seen_at` 은 `null`, 카운트 3개는 `0` [오너 결정 D1, 3.9].
 
 #### `GET /v1/users?ids=<id>,<id>,...`
 - 최대 100개, 없는 ID 는 빠짐. `200 { "items": UserSummary[] }`
@@ -840,11 +864,12 @@ interface AdminAction {
 ### 5.3 친구
 
 #### `GET /v1/friends?cursor=&limit=`
-- 정렬: 접속 중 먼저, 그다음 display_name. `limit` 최대 100.
+- 정렬: 접속 중 먼저, 그다음 display_name. 정지 중인 친구는 `Friend.presence` 처럼 offline 으로 친다(3.9). `limit` 최대 100.
 - `200 { "items": Friend[], "next_cursor": string | null }`
 
 #### `DELETE /v1/friends/{user}`
 - 친구 끊기. `204` · 이벤트: `friend.removed`(양쪽). 상대와의 1:1 DM 은 조건 소멸 시 읽기 전용.
+- 부수효과(같은 batch, D3): 두 사람 사이의 대기 중 방 직접 초대(양방향) `canceled` — 취소된 초대마다 `space.invite_removed`(`reason:"canceled"`, 양쪽)(3.5).
 
 #### `GET /v1/friends/requests?direction=incoming|outgoing`
 - 대기(`pending`) 만, 최신순, 최대 200. `200 { "items": FriendRequest[] }`
@@ -853,6 +878,8 @@ interface AdminAction {
 - `RL_SOCIAL`. 요청: `{ "user": "@junho" }`
 - 결과:
   - 상대가 이미 나에게 대기 요청을 보냈으면 **자동 수락**: `200 { "request": FriendRequest(status:"accepted"), "friend": Friend }` — 수락과 같은 규칙(차단·상대 정지를 수락 batch 안에서도 다시 확인, 3.2)
+    - 읽은 뒤 수락 batch 전에 상대 요청이 취소·거절·다른 경로로 수락되면(수락 batch 가 직접 읽음) `404` 가 아니라, 그 일이 먼저 일어났을 때와 같은 답을 처음부터 다시 정해 준다: 새 요청 `201`, 이미 친구면 `409 already_exists`(`already_friends`) 등.
+    - 다시 정하기는 모두 3번까지다. 세 번째 판정에서는 상대의 대기 요청이 또 새로 보여도 자동 수락하지 않고 내 요청을 새로 연다(`201`, 서로 엇갈린 대기 요청 두 개). 둘 중 어느 쪽을 수락해도 엇갈린 요청은 함께 `accepted` 가 되고 친구가 된다.
   - 아니면 `201 { "request": FriendRequest, "friend": null }`
 - 오류: `409 already_exists`(이미 대기/이미 친구 — `details.reason:"pending"|"already_friends"`), `403 action_not_allowed`(차단/정지), `409 conflict`(`reason:"self"`), `422 limit_exceeded`(`pending_friend_requests`, 보낸 대기 100).
 - 이벤트·알림: 받는 사람에게 `friend.request_received` + 알림 `friend_request` + alert `friend_request`.
@@ -911,14 +938,14 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `POST /v1/dms`
 - `RL_SOCIAL`. 요청: `{ "users": ["@junho"] }` 또는 `{ "users": ["@junho","@hana", ...], "name"?: "점심팟" }` (나 제외 1..9명)
 - 1명: 1:1 DM. 이미 있으면 `200 { "channel": Channel }`, 없으면 `201`. `can_dm` 실패 → `403 dm_not_allowed`.
-- 2..9명: 항상 새 그룹 DM `201 { "channel": Channel }`. 3.1 규칙.
+- 2..9명: 항상 새 그룹 DM `201 { "channel": Channel }`. 3.1 규칙(`403 dm_not_allowed`: `can_dm` 실패는 `details.user_ids`, 참여자 사이 차단 쌍은 `details: {}` — 누구인지 드러내지 않음).
 - 이벤트: `channel.created`(모든 참여자). 그룹 DM 생성 시 시스템 메시지 없음.
 
 #### `POST /v1/channels/{channel_id}/members`
 - `RL_SOCIAL`. group_dm: 멤버 누구나(3.1 규칙), 비공개 text 채널: 3.5 규칙. 공개 text·dm 채널 → `409 conflict`(`reason:"not_supported"`).
 - 요청: `{ "users": ["@hana"] }` (1..9)
 - `200 { "channel": Channel }` · 이벤트: `channel.member_added`(기존 멤버), `channel.created`(새 멤버) · 시스템 메시지 `group_member_added`(group_dm 만)
-- 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`, `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널).
+- 오류: `422 limit_exceeded`(`group_dm_members`), `403 dm_not_allowed`(group_dm, 3.1: `can_dm` 실패는 `details.user_ids`, 차단 쌍은 `details: {}`), `409 already_member`, `404`(대상이 그 방 멤버가 아님 — 비공개 채널). 비공개 채널은 사전 확인 뒤 INSERT 가 아무도 넣지 못하면 같은 batch 에서 읽은 사유로 같은 순서(404 먼저, 그다음 409)로 답한다.
 
 #### `DELETE /v1/channels/{channel_id}/members/{user}`
 - `{user}=@me` 이면 나가기(group_dm·비공개 text). 남을 빼기: group_dm 은 owner_id 만, 비공개 text 는 방 owner·admin.
@@ -944,10 +971,12 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `DELETE /v1/spaces/{space_id}`
 - owner. 소프트 삭제(방·채널). `204` · 이벤트: `space.deleted`(방 멤버). 이후 그 방의 채널은 `channel_members` 행이 남아 있어도 읽기·청중에서 빠진다(3.5).
+- 오류: `404`(방 없음·삭제됨·내가 멤버 아님), `403 forbidden`(owner 아님). UPDATE 가 owner 를 다시 확인하고, 사전 확인 뒤 소유권이 넘어가거나 방이 지워져 아무것도 바뀌지 않으면 같은 batch 에서 읽은 사유로 위 코드 중 하나로 답한다(소유권 이전이 먼저면 `403`).
 
 #### `POST /v1/spaces/{space_id}/transfer`
 - owner. 요청: `{ "user": "@hana" }` (방 멤버여야 함). 이전 owner 는 admin 이 된다.
 - `200 { "space": Space }` · 이벤트: `space.member_updated` ×2, `space.updated`
+- 오류: `404`(방 없음·삭제됨·내가 멤버 아님), `403 forbidden`(owner 아님), `409 conflict`(`reason:"self"`), `404`(대상이 방 멤버 아님), `422 limit_exceeded`(`owned_spaces`). UPDATE 가 owner·대상 멤버십을 다시 확인하고, 그 사이 바뀌어 아무것도 바뀌지 않으면 같은 batch 에서 읽은 사유로 위 코드 중 하나로 답한다.
 
 #### `GET /v1/spaces/{space_id}/members?q=&role=&cursor=&limit=`
 - 멤버만. 정렬: 역할(owner→admin→member) 후 display_name. `q` 는 handle/display_name 부분 일치.
@@ -958,12 +987,13 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - owner. 요청: `{ "role": "admin" | "member" }` (owner 로 바꾸려면 transfer)
 - 부수효과(같은 batch): 대상이 owner·admin 이 아니게 되면 그 사람이 만든 초대 링크 폐기(3.5). 직접 초대는 그대로(멤버 누구나 보낼 수 있음).
 - `200 { "member": SpaceMember }` · 이벤트: `space.member_updated`(방 멤버)
+- 오류: `404`(방 없음·삭제됨·내가 멤버 아님), `403 forbidden`(owner 아님), `409 conflict`(`reason:"self"`), `404`(대상이 방 멤버 아님). 역할 UPDATE 자체가 내가 아직 살아 있는 방의 owner 인지 다시 확인하므로, 사전 확인 뒤 소유권이 넘어가거나(대상에게 넘어간 경우 포함) 방이 지워지면 아무것도 바뀌지 않고, 같은 batch 에서 읽은 사유로 위 코드 중 하나로 답한다.
 
 #### `DELETE /v1/spaces/{space_id}/members/{user}?ban=<bool>&reason=<text>`
 - `{user}=@me`: 나가기(owner 는 `409 conflict`, `reason:"owner_cannot_leave"`).
 - 남: 강퇴(3.5 권한). `ban=true` 면 `space_bans` 추가.
-- 부수효과(한 batch, 나가기·강퇴·밴 공통): `space_members` 삭제 + 그 방 **모든 비공개 채널의 `channel_members` 행 삭제**(3.5) + 그 사람이 그 방에 보낸 **대기 중 직접 초대 `canceled`** + 그 사람이 만든 **초대 링크 폐기** + 카운터.
-- `204` · 이벤트: `space.member_left`(방 멤버 + 나간 사람, `reason:"left"|"kicked"|"banned"`), 나간 사람에게 `space.removed`, 빠진 비공개 채널마다 남은 채널 멤버에게 `channel.member_removed`, 취소된 직접 초대마다 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 나간 사람) · 시스템 메시지(기본 채널) `member_left`/`member_kicked`
+- 부수효과(한 batch, 나가기·강퇴·밴 공통): `space_members` 삭제 + 그 방 **모든 비공개 채널의 `channel_members` 행 삭제**(3.5) + 그 사람이 그 방에 보낸 **대기 중 직접 초대 `canceled`** + 그 사람에게 걸린 그 방의 대기 중 직접 초대 `canceled`(정리가 빠져 남은 것, 3.5 9-b) + 그 사람이 만든 **초대 링크 폐기** + 카운터.
+- `204` · 이벤트: `space.member_left`(방 멤버 + 나간 사람, `reason:"left"|"kicked"|"banned"`), 나간 사람에게 `space.removed`, 빠진 비공개 채널마다 남은 채널 멤버에게 `channel.member_removed`, 취소된 직접 초대마다 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 초대한 사람) · 시스템 메시지(기본 채널) `member_left`/`member_kicked`
 
 #### `GET /v1/spaces/{space_id}/bans`
 - owner·admin. `200 { "items": [ { "user": UserSummary, "banned_by": UserSummary, "reason": string, "created_at": Timestamp } ] }`
@@ -992,21 +1022,23 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `POST /v1/invites/{code}/accept`
 - 가입. `use_count+1`(같은 batch, 조건부 UPDATE 로 초과 방지). 사전 확인과 조건부 UPDATE 모두 만든 사람이 아직 owner·admin 인지 본다(아니면 `410`, `reason:"revoked"`).
-- `200 { "space": SpaceDetail }` · 이벤트: `space.joined`(나), `space.member_joined`(기존 멤버) · 시스템 메시지(기본 채널) `member_joined`
+- `200 { "space": SpaceDetail }` · 이벤트: `space.joined`(나), `space.member_joined`(기존 멤버), 나에게 걸려 있던 그 방의 대기 중 직접 초대가 있었으면 같은 batch 에서 `canceled` 되고 `space.invite_removed`(`reason:"canceled"`, 나 + 초대한 사람)(3.5) · 시스템 메시지(기본 채널) `member_joined`
 - 오류: `410 invite_invalid`, `409 already_member`, `403 banned_from_space`, `422 limit_exceeded`(`space_members`).
 
 #### `POST /v1/spaces/{space_id}/direct-invites`
 - 방 멤버 누구나(owner·admin 도 같은 조건), `RL_SOCIAL`. 요청: `{ "user": "@hana" }` — **역할과 무관하게 초대하는 사람의 친구**여야 함(3.5 표), 상대가 이미 멤버/밴/차단 관계면 실패. 친구가 아닌 사람은 초대 링크로 들인다.
 - `201 { "invite": DirectInvite }` · 이벤트: `space.invite_received`(상대) · 알림 `space_invite` · alert `invite`
-- 오류: `403 action_not_allowed`(친구 아님·차단·상대 정지 — 확인 뒤 INSERT 전에 그렇게 돼도 같고, 아무것도 만들어지지 않음, 3.2), `409 already_member`, `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
-- 같은 사람에게 온 대기 초대라도 초대한 사람이 이미 방 멤버가 아니면(수락 불가) `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
+- 오류: `403 action_not_allowed`(친구 아님·차단·상대 정지 — 확인 뒤 INSERT 전에 그렇게 돼도 같고, 아무것도 만들어지지 않음, 3.2), `409 already_member`(사전 확인 뒤 INSERT 전에 상대가 다른 경로로 방에 들어와도 같고, 아무것도 만들어지지 않음 — 3.5), `409 already_exists`(대기 중), `403 banned_from_space`, `404`(권한 확인 뒤 INSERT 전에 초대하는 사람이 방에서 빠짐 — 아무것도 만들어지지 않고 상대에게 이벤트·알림도 없음).
+- INSERT 가 커밋된 뒤 이벤트·알림을 보내기 전에 상대가 다른 경로로 방에 들어오거나, 친구가 끊기거나, 차단되면 그쪽 batch 가 새 초대를 `canceled` 로 바꾸고 `space.invite_removed` 를 보낸다(3.5). 서버는 보내기 직전에 초대가 아직 대기 중이고 수락할 수 있는지(`GET /v1/me/direct-invites` 와 같은 조건) 다시 읽어, 아니면 `space.invite_received`·알림·alert 를 보내지 않고 그 경쟁이 INSERT 전에 일어난 것과 같은 오류(`409 already_member` / `403 action_not_allowed` / `404`)로 답한다. 그래도 남는 틈(다시 읽은 뒤 보내기 전)은 클라이언트가 막는다: 이미 들어가 있는 방의 초대, 이미 `space.invite_removed` 로 지운 초대 id 의 `space.invite_received` 는 무시한다.
+- 반대로 새 초대의 id 를 알아야만 일어나는 일 — 상대가 `GET /v1/me/direct-invites` 로 보고 거절·수락하거나, 초대한 사람·방 owner·admin 이 id 로 취소함 — 은 어느 직렬 순서에서도 INSERT 뒤이므로 `201 { "invite" }`(만들 때의 `pending`)로 답한다. 다만 이미 대기 중이 아니므로 `space.invite_received`·알림·alert 는 보내지 않는다(그 일의 `space.invite_removed` 는 이미 갔다). 취소된 초대는, 다시 읽을 때 위의 취소 사유(상대가 방 안·친구 아님·차단·초대한 사람이 방 밖)가 남아 있으면 그 오류로, 없으면 id 로 취소된 것으로 본다.
+- 같은 사람에게 온 대기 초대라도 수락할 수 없는 것(초대한 사람이 이미 방 멤버가 아님, 또는 두 사람이 더 이상 친구가 아니거나 차단 관계 — 3.5)은 `already_exists` 로 세지 않는다. 새 초대와 같은 batch 에서 그 묵은 초대를 `canceled` 로 바꾸고, 커밋 뒤 `space.invite_removed`(`reason:"canceled"`, 초대받은 사람 + 묵은 초대를 보낸 사람)를 보낸다.
 
 #### `GET /v1/me/direct-invites`
-- 나에게 온 대기 초대(초대한 사람이 아직 그 방 멤버인 것만 — 나머지는 수락할 수 없음). `200 { "items": DirectInvite[] }`
+- 나에게 온 대기 초대(초대한 사람이 아직 그 방 멤버이고 아직 나와 친구이며 어느 방향으로도 차단이 없고, 내가 아직 그 방 멤버가 아닌 것만 — 나머지는 수락할 수 없음, 3.5). `200 { "items": DirectInvite[] }`
 
 #### `POST /v1/direct-invites/{invite_id}/accept`
 - 초대받은 사람. `200 { "space": SpaceDetail }` · 이벤트는 초대 링크 수락과 같음 + `space.invite_removed`(`reason:"accepted"`).
-- 초대한 사람이 더 이상 방 멤버가 아니면 `404`(3.5 — 빠질 때 이미 `canceled` 로 바뀌지만, 수락 쪽도 사전 확인과 조건부 UPDATE 에서 다시 본다).
+- 초대한 사람이 더 이상 방 멤버가 아니거나, 두 사람이 더 이상 친구가 아니거나, 어느 방향으로든 차단이 있으면 `404`(3.5 — 방에서 빠질 때·친구를 끊을 때·차단할 때 이미 `canceled` 로 바뀌지만, 수락 쪽도 사전 확인과 조건부 UPDATE 에서 다시 본다).
 
 #### `POST /v1/direct-invites/{invite_id}/decline`
 - `204` · 이벤트: `space.invite_removed`(`reason:"declined"`)
@@ -1159,7 +1191,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 소유자, `pending` 만. `204`
 
 #### `GET /v1/media/{upload_id}`
-- 인증 필요. 열람 권한: 아바타는 누구나, 글 이미지는 그 글의 열람 규칙(3.4), 스토리 이미지는 스토리 열람 규칙 + 미만료, `pending` 은 소유자만. 권한 없음/삭제됨 → `404`.
+- 인증 필요. 열람 권한: 아바타는 누구나(단 정지 중인 계정의 아바타는 본인·운영자만, 3.9), 글 이미지는 그 글의 열람 규칙(3.4), 스토리 이미지는 스토리 열람 규칙 + 미만료, `pending` 은 소유자만. 권한 없음/삭제됨 → `404`.
 - `200` 이미지 바이트. 헤더: `Content-Type`, `Content-Length`, `ETag`, `Cache-Control: private, max-age=31536000, immutable`. `If-None-Match` → `304`.
 
 ### 5.15 글(피드)
@@ -1285,6 +1317,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 중복 방지: `post_like`/`post_repost`/`follow` 는 `dedupe_key` 로 같은 (행위자, 대상) 당 1개.
 
 목록과 `unread_count`(목록·`/unread-count`·`notification.created`·`notifications.read` 모두)에서 빠지는 행: 내가 차단한 행위자, 지금 정지 중인 행위자(3.9 — 정지가 끝나면 다시 보인다).
+같은 규칙이 실시간 재전송에도 걸린다 [대기 목록 4-a]: `resume` 재전송(`events.md` 3.3)은 그 시점에 위 조건에 걸리는 행위자의 `notification.created`·`alert` 를 보내지 않고, `focus.ended` 요약의 `items` 에서도 뺀다. 집중 모드 종료 요약도 종료 시점에 이 조건에 걸리는 행위자의 alert 를 `items`·`counts` 에서 뺀다(`events.md` 4.6). 재전송된 `notification.created` 의 `unread_count` 는 기록 당시 값이다(최신 값은 다음 이벤트 또는 `/unread-count`).
 
 #### `GET /v1/notifications?cursor=&limit=&unread_only=<bool>`
 - `200 { "items": Notification[], "next_cursor": string | null, "unread_count": number }`

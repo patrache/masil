@@ -1,7 +1,7 @@
 // Permission rules (api.md 3장, server-architecture.md 4.8).
 // Every variable-length ID list goes through `jsonList` (one bound param, `json_each`).
 import { isSuspendedNow } from "./auth";
-import { all, first, jsonList } from "./db";
+import { all, first, jsonList, stmt } from "./db";
 import { err } from "./errors";
 import { now } from "./time";
 import type { ChannelRow, PostRow } from "../types/rows";
@@ -152,25 +152,39 @@ export async function canDm(db: D1Database, a: string, b: string): Promise<boole
 // ---------------------------------------------------------------------------
 // spaces (api.md 3.5)
 
+const SPACE_ROLE_SQL = `SELECT m.role FROM space_members m
+       JOIN spaces s ON s.id = m.space_id AND s.deleted_at IS NULL
+      WHERE m.space_id = ?1 AND m.user_id = ?2`;
+
 /** Role in a non-deleted space; null if not a member or the space is deleted. */
 export async function getSpaceRole(db: D1Database, spaceId: string, userId: string): Promise<SpaceRole | null> {
-  const row = await first<{ role: SpaceRole }>(
-    db,
-    `SELECT m.role FROM space_members m
-       JOIN spaces s ON s.id = m.space_id AND s.deleted_at IS NULL
-      WHERE m.space_id = ?1 AND m.user_id = ?2`,
-    spaceId,
-    userId,
-  );
+  const row = await first<{ role: SpaceRole }>(db, SPACE_ROLE_SQL, spaceId, userId);
   return row?.role ?? null;
+}
+
+/**
+ * getSpaceRole's read as a statement, to sit in a conditional write's own batch (server-architecture.md 4.4): its
+ * first result row is `{role}` (none when not a member / space deleted) — pass it to spaceRoleFrom.
+ */
+export function spaceRoleStmt(db: D1Database, spaceId: string, userId: string): D1PreparedStatement {
+  return stmt(db, SPACE_ROLE_SQL, spaceId, userId);
+}
+
+/** The role in a spaceRoleStmt result. */
+export function spaceRoleFrom(res: D1Result | undefined): SpaceRole | null {
+  return (res?.results as Array<{ role: SpaceRole }> | undefined)?.[0]?.role ?? null;
+}
+
+/** requireSpaceRole's answer for a role already read (e.g. by spaceRoleStmt inside a write's batch). */
+export function assertSpaceRole(role: SpaceRole | null, min: SpaceRole): SpaceRole {
+  if (role === null) throw err.notFound("space");
+  if (ROLE_RANK[role] < ROLE_RANK[min]) throw err.forbidden("forbidden", `requires ${min} role`);
+  return role;
 }
 
 /** 404 if not a member (or space deleted); 403 forbidden if below `min`. Returns actual role. */
 export async function requireSpaceRole(db: D1Database, spaceId: string, userId: string, min: SpaceRole): Promise<SpaceRole> {
-  const role = await getSpaceRole(db, spaceId, userId);
-  if (role === null) throw err.notFound("space");
-  if (ROLE_RANK[role] < ROLE_RANK[min]) throw err.forbidden("forbidden", `requires ${min} role`);
-  return role;
+  return assertSpaceRole(await getSpaceRole(db, spaceId, userId), min);
 }
 
 // ---------------------------------------------------------------------------

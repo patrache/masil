@@ -14,7 +14,8 @@ import { all } from "../lib/db";
 import { newId, isId } from "../lib/ids";
 import { getChannelAccess } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
-import { loadPresenceItems } from "../lib/serialize";
+import { actorVisibility, hiddenActors, type ActorVisibility } from "../lib/notify";
+import { loadPresenceItems, suspendedPresenceItem } from "../lib/serialize";
 import { iso } from "../lib/time";
 import type { Alert, Focus, FocusSummary, PresenceState, PresenceStatus } from "../types/api";
 import type { HelloData, PresenceItem, ReadyData, ReplyErrorCode, ServerEventType } from "../types/events";
@@ -92,6 +93,108 @@ interface PresencePlan {
   userId: string;
   self: OutboundEvent; // presence.self (volatile)
   watchers: PresenceItem | null; // presence.updated (volatile) — only when the status changed
+}
+
+/** What handleResume replays from (events.md 3.3 rules 1-4). */
+interface ResumePlan {
+  lastSeq: number | null; // null => rules 1/4 (base = hello.seq)
+  resync: boolean;
+  base: number;
+  seq: number;
+  epoch: string;
+}
+
+/**
+ * Logged frame types whose replay depends on who is hidden / suspended right now (pending item 4-a, api.md 3.9 /
+ * 5.18): the notification frames name an actor (replay skips or trims them, the focus summary filters them), and
+ * friend.request_received names its sender — a stranger, outside the suspended account's summaryWatchers, so no later
+ * user.updated would fix an unmasked summary; the replay masks it instead (owner decision D1).
+ */
+const ACTOR_FRAME_TYPES: ReadonlySet<string> = new Set(["alert", "notification.created", "focus.ended", "friend.request_received"]);
+
+type SummaryLike = { id?: unknown; suspended?: unknown; status?: unknown; avatar_url?: unknown };
+
+type ActorFrame = {
+  data?: {
+    alert?: { actor?: { id?: unknown } | null };
+    notification?: { actor?: { id?: unknown } | null };
+    summary?: { items?: unknown };
+    request?: { from?: SummaryLike | null };
+  };
+};
+
+function actorIdOf(x: { actor?: { id?: unknown } | null } | null | undefined): string | null {
+  const id = x?.actor?.id;
+  return typeof id === "string" ? id : null;
+}
+
+function requestFromOf(f: ActorFrame): SummaryLike | null {
+  const from = f.data?.request?.from;
+  return from !== null && typeof from === "object" && typeof from.id === "string" ? from : null;
+}
+
+function parseActorFrame(frame: string): ActorFrame | null {
+  try {
+    const f = JSON.parse(frame) as unknown;
+    return f !== null && typeof f === "object" ? (f as ActorFrame) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The user ids a logged frame of `type` names that the replay checks: alert.actor, notification.actor, focus.ended
+ * items' actors, friend.request_received's request.from.
+ */
+function frameActorIds(type: string, frame: string): string[] {
+  if (!ACTOR_FRAME_TYPES.has(type)) return [];
+  const f = parseActorFrame(frame);
+  if (f === null) return [];
+  if (type === "focus.ended") {
+    const items = f.data?.summary?.items;
+    return Array.isArray(items) ? items.flatMap((it) => actorIdOf(it as { actor?: { id?: unknown } }) ?? []) : [];
+  }
+  if (type === "friend.request_received") {
+    const from = requestFromOf(f);
+    return from === null ? [] : [from.id as string];
+  }
+  const id = actorIdOf(type === "alert" ? f.data?.alert : f.data?.notification);
+  return id === null ? [] : [id];
+}
+
+/**
+ * A logged frame as replayed to a recipient, given who is hidden from / suspended for them right now (pending item
+ * 4-a, api.md 3.9 / 5.18): null = skip it (alert / notification.created of a hidden actor); focus.ended loses those
+ * summary items (counts stay — they name nobody); friend.request_received of a sender suspended right now carries the
+ * masked summary (suspended=true, status / avatar_url null — what GET /v1/friends/requests shows; a merely blocked
+ * sender replays as logged, the block's friend.request_removed follows in the log); anything else unchanged.
+ */
+function replayFrame(type: string, frame: string, vis: ActorVisibility): string | null {
+  if (vis.hidden.size === 0 || !ACTOR_FRAME_TYPES.has(type)) return frame;
+  const f = parseActorFrame(frame);
+  if (f === null) return frame;
+  if (type === "focus.ended") {
+    const summary = f.data?.summary;
+    const items = summary?.items;
+    if (summary === undefined || !Array.isArray(items)) return frame;
+    const kept = items.filter((it) => {
+      const id = actorIdOf(it as { actor?: { id?: unknown } });
+      return id === null || !vis.hidden.has(id);
+    });
+    if (kept.length === items.length) return frame;
+    summary.items = kept;
+    return JSON.stringify(f);
+  }
+  if (type === "friend.request_received") {
+    const from = requestFromOf(f);
+    if (from === null || !vis.suspended.has(from.id as string)) return frame;
+    from.suspended = true;
+    from.status = null;
+    from.avatar_url = null;
+    return JSON.stringify(f);
+  }
+  const id = actorIdOf(type === "alert" ? f.data?.alert : f.data?.notification);
+  return id !== null && vis.hidden.has(id) ? null : frame;
 }
 
 const KNOWN_CLIENT_TYPES: ReadonlySet<string> = new Set(["resume", "ack", "typing", "idle", "watch"]);
@@ -526,7 +629,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     // Before ready only a valid resume is acceptable; after ready a second resume is a protocol error.
     if (!a.ready) {
       if (!parsed?.success || parsed.data.type !== "resume") return this.closeWs(ws, CloseCode.protocol, "expected resume");
-      this.handleResume(ws, a, parsed.data);
+      await this.resume(ws, a, parsed.data);
       if (a.ready && a.mode === "full") await this.sendPresenceSnapshot(ws, a.userId);
       return;
     }
@@ -685,8 +788,36 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     return p;
   }
 
-  /** events.md 3.3 rules 1-4, then ready (+ presence.snapshot for full). Synchronous: nothing can interleave. */
-  protected handleResume(ws: WebSocket, a: ConnAttachment, frame: Extract<ClientFrame, { type: "resume" }>): void {
+  /**
+   * events.md 3.3 resume. The replay must not re-send notification frames whose actor the inbox now hides (pending item
+   * 4-a, api.md 3.9 / 5.18 — suspended right now, or blocked by me), nor a friend.request_received with the unmasked
+   * summary of a sender suspended right now (D1), which takes one D1 query for the users named in the replayed range. The whole thing runs under blockConcurrencyWhile so that nothing — a deliver, the alarm's log
+   * trim, this socket's next frame — can interleave between that query and the synchronous replay: an event is still
+   * either in the replayed range or sent live after `ready`, never both and never neither. A failure (D1 down) closes
+   * the socket with 1011 rather than replaying unfiltered; the client reconnects with backoff (events.md 1.3).
+   */
+  protected async resume(ws: WebSocket, a: ConnAttachment, frame: Extract<ClientFrame, { type: "resume" }>): Promise<void> {
+    const ok = await this.ctx.blockConcurrencyWhile(async (): Promise<boolean> => {
+      try {
+        const plan = this.resumePlan(a, frame);
+        const actors: string[] = [];
+        for (const row of this.sql.exec<{ type: string; frame: string }>("SELECT type, frame FROM events WHERE seq > ? ORDER BY seq", plan.base)) {
+          actors.push(...frameActorIds(row.type, row.frame));
+        }
+        const vis = await actorVisibility(this.env.DB, a.userId, actors, this.now());
+        if (ws.readyState !== WebSocket.OPEN) return true; // went away meanwhile: nothing to replay to
+        this.handleResume(ws, a, plan, vis);
+        return true;
+      } catch (e) {
+        console.error({ msg: "UserHub: resume failed", err: errFields(e) }); // never throw inside blockConcurrencyWhile
+        return false;
+      }
+    });
+    if (!ok) this.closeWs(ws, CloseCode.internal, "resume failed");
+  }
+
+  /** events.md 3.3 rules 1-4: the replay base and what `ready` will say. */
+  protected resumePlan(a: ConnAttachment, frame: Extract<ClientFrame, { type: "resume" }>): ResumePlan {
     const epoch = this.epochOf(a.mode);
     const seq = this.currentSeq();
     const oldest = this.oldestSeq();
@@ -709,12 +840,24 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       resync = true;
     }
 
-    const base = lastSeq ?? a.helloSeq;
+    return { lastSeq, resync, base: lastSeq ?? a.helloSeq, seq, epoch };
+  }
+
+  /**
+   * Replay from `plan.base`, then ready (+ presence.snapshot for full, sent by the caller). Synchronous: nothing can
+   * interleave. Frames naming a hidden notification actor are skipped or trimmed, and a suspended request sender is
+   * masked (replayFrame); a user named only by a frame logged after resume's D1 query is not in `vis` and replays like
+   * a live event would.
+   */
+  protected handleResume(ws: WebSocket, a: ConnAttachment, plan: ResumePlan, vis: ActorVisibility): void {
+    const { lastSeq, resync, base, seq, epoch } = plan;
     let replayed = 0;
     for (const row of this.sql.exec<{ type: string; frame: string }>("SELECT type, frame FROM events WHERE seq > ? ORDER BY seq", base)) {
       if (a.mode === "notify" && !NOTIFY_ALLOWED_TYPES.has(row.type as ServerEventType)) continue;
+      const out = replayFrame(row.type, row.frame, vis);
+      if (out === null) continue;
       try {
-        ws.send(row.frame);
+        ws.send(out);
         replayed++;
       } catch {
         return; // socket went away mid-replay
@@ -931,11 +1074,17 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     return m === "away" || m === "dnd" ? m : "auto";
   }
 
-  /** The active focus, or null (none, or its end time passed and the alarm has not finished it yet). */
-  protected currentFocus(t = this.now()): Focus | null {
+  /** The active focus in ms, or null (none, or its end time passed and the alarm has not finished it yet). */
+  protected currentFocusMs(t = this.now()): { startedAt: number; endsAt: number } | null {
     const ends = this.getMetaNum("focus_ends_at");
     if (ends <= t) return null;
-    return { started_at: iso(this.getMetaNum("focus_started_at")), ends_at: iso(ends) };
+    return { startedAt: this.getMetaNum("focus_started_at"), endsAt: ends };
+  }
+
+  /** The active focus, or null (none, or its end time passed and the alarm has not finished it yet). */
+  protected currentFocus(t = this.now()): Focus | null {
+    const f = this.currentFocusMs(t);
+    return f === null ? null : { started_at: iso(f.startedAt), ends_at: iso(f.endsAt) };
   }
 
   protected presenceState(): PresenceState {
@@ -967,7 +1116,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     };
   }
 
-  /** Async half: D1 user_presence(status, mode, focus_ends_at, last_seen_at), then presence.updated to presenceWatchers. */
+  /** Async half: D1 user_presence(status, mode, focus_started_at, focus_ends_at, last_seen_at), then presence.updated to presenceWatchers. */
   protected async finishPresence(plan: PresencePlan | null): Promise<void> {
     if (plan === null) return;
     const write = this.presenceWrites.then(() => this.writePresence(plan.userId));
@@ -978,20 +1127,50 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       console.error({ msg: "UserHub: presence write failed", err: errFields(e) });
     }
     if (plan.watchers !== null) {
-      await publishEvent(this.runtime(), { presenceWatchers: plan.userId }, "presence.updated", plan.watchers, { ephemeral: true });
+      const item = await this.watcherPresence(plan.watchers);
+      await publishEvent(this.runtime(), { presenceWatchers: plan.userId }, "presence.updated", item, { ephemeral: true });
     }
   }
 
+  /**
+   * What watchers get: `item`, or suspendedPresenceItem while the user is suspended (api.md 3.9) — the 4003 close on
+   * suspension takes the status offline, and its last_seen_at is in effect the suspension time. Read from D1 here
+   * (status changes only) since suspension is decided outside the hub; if the read fails, last_seen_at is dropped
+   * rather than risk showing it.
+   */
+  protected async watcherPresence(item: PresenceItem): Promise<PresenceItem> {
+    try {
+      const u = await this.env.DB.prepare("SELECT suspended_at, suspended_until FROM users WHERE id = ?1")
+        .bind(item.user_id)
+        .first<{ suspended_at: number | null; suspended_until: number | null }>();
+      return u !== null && isSuspendedNow(u, this.now()) ? suspendedPresenceItem(item.user_id) : item;
+    } catch (e) {
+      console.error({ msg: "UserHub: suspension read for presence.updated failed", err: errFields(e) });
+      return { ...item, last_seen_at: null };
+    }
+  }
+
+  /** The focus pair (start and end, ms) is written together: both set while a focus is active, both NULL otherwise. */
   protected async writePresence(userId: string): Promise<void> {
     const t = this.now();
-    const ends = this.getMetaNum("focus_ends_at");
+    const focus = this.currentFocusMs(t);
     const lastSeen = this.getMetaNum("last_seen_at");
     await this.env.DB.prepare(
-      `INSERT INTO user_presence (user_id, status, mode, focus_ends_at, last_seen_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-       ON CONFLICT (user_id) DO UPDATE SET status = excluded.status, mode = excluded.mode, focus_ends_at = excluded.focus_ends_at,
+      `INSERT INTO user_presence (user_id, status, mode, focus_started_at, focus_ends_at, last_seen_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+       ON CONFLICT (user_id) DO UPDATE SET status = excluded.status, mode = excluded.mode,
+         focus_started_at = excluded.focus_started_at, focus_ends_at = excluded.focus_ends_at,
          last_seen_at = COALESCE(excluded.last_seen_at, user_presence.last_seen_at), updated_at = excluded.updated_at`,
     )
-      .bind(userId, this.getMeta("last_status") ?? "offline", this.manualMode(), ends > t ? ends : null, lastSeen > 0 ? lastSeen : null, t)
+      .bind(
+        userId,
+        this.getMeta("last_status") ?? "offline",
+        this.manualMode(),
+        focus?.startedAt ?? null,
+        focus?.endsAt ?? null,
+        lastSeen > 0 ? lastSeen : null,
+        t,
+      )
       .run();
   }
 
@@ -1056,21 +1235,47 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
    * focus meta cleared, focus_alerts emptied — so a second caller (or the later alarm) finds nothing and the summary
    * alert goes out exactly once. Then presence recompute, and focus.ended + alert{focus_summary} (both logged) in one
    * delivery. The summary alert is never suppressed (events.md 4.7 "항상").
+   * Alerts whose actor the inbox hides by now (pending item 4-a, api.md 3.9 / 5.18 — suspended right now, or blocked by
+   * me) are left out of items and counts: one D1 query before the synchronous part. If that query fails, the counts
+   * keep every alert and items keep only actor-less ones (never show a possibly hidden actor). After the await the focus
+   * is re-checked, so a caller that finished it (or a new focus started) meanwhile makes this one a no-op.
    */
   protected async finishFocus(endedAt: number): Promise<FocusSummary | null> {
-    const endsRaw = this.getMeta("focus_ends_at");
     const userId = this.getMeta("user_id");
-    if (endsRaw === null || endsRaw === "" || userId === null) return null;
+    const startedRaw = this.getMeta("focus_started_at");
+    const endsBefore = this.getMeta("focus_ends_at");
+    if (endsBefore === null || endsBefore === "" || userId === null) return null;
+    const actorIds = this.sql
+      .exec<{ id: string }>(
+        "SELECT DISTINCT json_extract(alert, '$.actor.id') AS id FROM focus_alerts WHERE json_extract(alert, '$.actor.id') IS NOT NULL",
+      )
+      .toArray()
+      .map((r) => r.id);
+    let hidden: string[] | null; // null => lookup failed
+    try {
+      hidden = [...(await hiddenActors(this.env.DB, userId, actorIds, this.now()))];
+    } catch (e) {
+      console.error({ msg: "UserHub: focus summary actor lookup failed", err: errFields(e) });
+      hidden = null;
+    }
+    const endsRaw = this.getMeta("focus_ends_at");
+    if (endsRaw === null || endsRaw === "" || this.getMeta("focus_started_at") !== startedRaw) return null;
     const startedAt = this.getMetaNum("focus_started_at");
+    const hiddenJson = JSON.stringify(hidden ?? []);
+    const actorOk = "COALESCE(json_extract(alert, '$.actor.id'), '') NOT IN (SELECT value FROM json_each(?))";
+    const itemOk = hidden === null ? "json_extract(alert, '$.actor.id') IS NULL" : actorOk;
     const summary = this.ctx.storage.transactionSync((): FocusSummary => {
       const counts: FocusSummary["counts"] = { dm: 0, mention: 0, thread_reply: 0, invite: 0, friend_request: 0, other: 0 };
-      for (const r of this.sql.exec<{ kind: string; n: number }>("SELECT kind, COUNT(*) AS n FROM focus_alerts GROUP BY kind")) {
+      for (const r of this.sql.exec<{ kind: string; n: number }>(`SELECT kind, COUNT(*) AS n FROM focus_alerts WHERE ${actorOk} GROUP BY kind`, hiddenJson)) {
         const k = r.kind;
         if (k === "dm" || k === "mention" || k === "thread_reply" || k === "invite" || k === "friend_request") counts[k] += r.n;
         else counts.other += r.n;
       }
       const items = this.sql
-        .exec<{ alert: string }>(`SELECT alert FROM focus_alerts ORDER BY created_at DESC, rowid DESC LIMIT ${FOCUS_SUMMARY_ITEMS}`)
+        .exec<{ alert: string }>(
+          `SELECT alert FROM focus_alerts WHERE ${itemOk} ORDER BY created_at DESC, rowid DESC LIMIT ${FOCUS_SUMMARY_ITEMS}`,
+          ...(hidden === null ? [] : [hiddenJson]),
+        )
         .toArray()
         .map((r) => JSON.parse(r.alert) as Alert);
       this.setMeta("focus_started_at", "");

@@ -376,6 +376,34 @@ func TestSocialEvents(t *testing.T) {
 	}
 }
 
+// 9-b: the server may announce a direct invite that a join (or unfriend / block) has already canceled, and the two
+// events can arrive in either order. A space.invite_received for a space I am already in, or for an invite id already
+// removed, must not leave a ghost "받은 방 초대" (home badge) until the next bootstrap.
+func TestInviteReceivedIgnoresDeadInvites(t *testing.T) {
+	s := meStore(t)
+	s.Spaces["S9"] = &api.SpaceDetail{Space: api.Space{SpacePreview: api.SpacePreview{ID: "S9", Name: "점심"}}}
+	inv := api.DirectInvite{ID: "DI1", Space: api.SpacePreview{ID: "S9", Name: "점심"}, Inviter: uMinji, Invitee: uMe, Status: "pending", CreatedAt: testTS}
+	s.Apply(ev(t, "space.invite_received", map[string]any{"invite": inv}))
+	if len(s.DirectInvites) != 0 {
+		t.Fatalf("invite to a space I am in kept: %+v", s.DirectInvites)
+	}
+
+	// removed first, received after (another space, not joined)
+	late := api.DirectInvite{ID: "DI2", Space: api.SpacePreview{ID: "S8", Name: "저녁"}, Inviter: uMinji, Invitee: uMe, Status: "pending", CreatedAt: testTS}
+	s.Apply(ev(t, "space.invite_removed", map[string]any{"invite_id": "DI2", "reason": "canceled"}))
+	s.Apply(ev(t, "space.invite_received", map[string]any{"invite": late}))
+	if len(s.DirectInvites) != 0 {
+		t.Fatalf("invite received after its removal kept: %+v", s.DirectInvites)
+	}
+
+	// a live invite still lands
+	live := api.DirectInvite{ID: "DI3", Space: api.SpacePreview{ID: "S7", Name: "아침"}, Inviter: uMinji, Invitee: uMe, Status: "pending", CreatedAt: testTS}
+	s.Apply(ev(t, "space.invite_received", map[string]any{"invite": live}))
+	if len(s.DirectInvites) != 1 || s.DirectInvites[0].ID != "DI3" {
+		t.Fatalf("live invite: %+v", s.DirectInvites)
+	}
+}
+
 func TestUserAndSettings(t *testing.T) {
 	s := meStore(t)
 	me2 := uMe

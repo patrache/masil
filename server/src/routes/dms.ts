@@ -13,7 +13,7 @@ import { publishEvent } from "../lib/realtime";
 import { serializeChannels } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vJson, vQuery, zText, zUserRef } from "../lib/validate";
-import { dmNotAllowed, GROUP_DM_MAX_MEMBERS, groupDmDenied } from "../services/membership";
+import { GROUP_DM_MAX_MEMBERS, groupDmDenial } from "../services/membership";
 import type { ChannelRow } from "../types/rows";
 
 const CreateDmBody = z.object({
@@ -66,7 +66,8 @@ dmRoutes.get("/dms", requireAuth, vQuery(ListQuery), async (c) => {
 /**
  * One other user -> the 1:1 DM (existing: 200, new: 201; creating needs can_dm, else 403 dm_not_allowed).
  * 2..9 others -> always a new group DM (201) owned by me; every participant must pass can_dm(me, X) and have no block
- * either way with another participant (groupDmDenied; 403 dm_not_allowed with details.user_ids). channel.created goes to every participant of a new channel.
+ * either way with another participant (groupDmDenial; 403 dm_not_allowed — details.user_ids for can_dm failures, no ids
+ * for a block pair). channel.created goes to every participant of a new channel.
  */
 dmRoutes.post("/dms", requireAuth, limit("RL_SOCIAL"), vJson(CreateDmBody), async (c) => {
   const auth = getAuth(c);
@@ -117,8 +118,8 @@ dmRoutes.post("/dms", requireAuth, limit("RL_SOCIAL"), vJson(CreateDmBody), asyn
     return c.json({ channel }, created ? 201 : 200);
   }
 
-  const denied = await groupDmDenied(db, me, others, [me]);
-  if (denied.length > 0) throw dmNotAllowed(denied);
+  const denial = await groupDmDenial(db, me, others, [me]);
+  if (denial !== null) throw denial;
   const id = newId(t);
   const members = [me, ...others];
   const name = body.name === undefined || body.name === null || body.name === "" ? null : body.name;

@@ -41,11 +41,19 @@ export function clientIp(c: AppContext): string {
   return c.req.header("CF-Connecting-IP") || "0.0.0.0";
 }
 
+/**
+ * Property key under which limit() records its limiter name on the middleware it returns. The api.md 6 contract test
+ * (test/unit/contract-limiters.test.ts) reads it off createApp().routes, so a limiter reaches the table check however
+ * the middleware was built (inline, hoisted into a constant, or returned by a wrapper).
+ */
+export const LIMITER_OF: unique symbol = Symbol("masil.limiter");
+
 /** Default key: `u:${auth.userId}` — use after requireAuth. */
 export function limit(name: LimiterName, key?: (c: AppContext) => string): MiddlewareHandler<AppEnv> {
-  return async (c, next) => {
+  const mw: MiddlewareHandler<AppEnv> = async (c, next) => {
     const k = key ? key(c) : `u:${c.get("auth").userId}`;
     await checkLimit(c.env, name, k);
     await next();
   };
+  return Object.defineProperty(mw, LIMITER_OF, { value: name });
 }

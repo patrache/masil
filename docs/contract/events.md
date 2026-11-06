@@ -142,6 +142,13 @@ client                                   server (UserHub)
 
 재전송 이벤트는 원래 `seq`·`ts` 그대로 보낸다. notify 모드 연결에는 7장의 허용 타입만 재전송한다.
 
+**재전송 때 거르는 알림 [대기 목록 4-a]**: 로그는 소급해서 지우지 않지만, 재전송은 **`resume` 을 처리하는 그 시점**에 알림함이 숨기는 행위자(`api.md` 5.18 — 내가 차단한 사람, 지금 정지 중인 사람(3.9, `suspended_until <= 지금` 이면 정지 아님))가 든 알림 프레임을 다시 보내지 않는다.
+- `notification.created`(`notification.actor`)·`alert`(`alert.actor`)의 행위자가 그 조건에 걸리면 그 프레임을 건너뛴다(`replayed` 에 세지 않는다). 행위자가 없는(`null`) 프레임은 그대로.
+- `focus.ended` 는 `summary.items` 에서 그런 행위자의 alert 만 빼고 보낸다(`counts` 는 기록 당시 값 그대로 — 누구인지 드러내지 않는다).
+- `friend.request_received` 는 `request.from` 이 **지금 정지 중**이면 그 요약을 가려서 보낸다(`suspended: true`, `status: null`, `avatar_url: null` — 그 시점 `GET /v1/friends/requests` 와 같은 값, `api.md` 3.9 오너 결정 D1). 요청자는 대개 친구가 아니라 정지 때의 `user.updated`(대상: `summaryWatchers` — 친구·DM 상대·같은 방 멤버)를 받는 쪽이 아니므로, 뒤따르는 이벤트로는 고쳐지지 않기 때문이다. 내가 차단만 한(정지 아닌) 요청자의 프레임은 기록 그대로 보내고, 차단이 그 요청을 취소하며 남긴 `friend.request_removed{canceled}` 가 로그에서 뒤따른다(`api.md` 3.2). 정지가 끝났으면(`suspended_until <= 지금`) 가리지 않는다.
+- 그 밖의 프레임(`message.created` 의 작성자 요약 등)은 그대로 재전송된다. 거기 실린 요약의 주인은 정지 때 `user.updated` 를 받는 `summaryWatchers` 범위 안의 사람이라, 정지·차단은 로그에서 뒤따르는 `user.updated`·`block.updated`·`*_removed` 이벤트로 반영된다(`api.md` 3.9).
+- 서버는 재전송 범위의 행위자·요청자를 D1 로 한 번 확인하는 동안 그 UserHub 의 다른 일(발행·알람·다른 프레임)을 막고 확인과 재전송을 한 덩어리로 처리한다 — 이벤트는 재전송 범위 또는 `ready` 뒤 실시간 중 정확히 한쪽으로 간다. 이 확인이 실패하면 거르지 않은 재전송 대신 `1011` 로 닫는다(클라이언트는 1.3 백오프로 재접속).
+
 `ready` (서버, 휘발):
 ```json
 { "type": "ready", "seq": null, "ts": "...", "data": { "resumed": true, "resync_required": false, "replayed": 11, "seq": 1041, "epoch": "01JC2..." } }
@@ -256,7 +263,7 @@ client                                   server (UserHub)
 | `friend.added` | 각자에게 | `{ friend: Friend }` (상대 정보) |
 | `friend.removed` | 각자에게(차단으로 인한 해제는 차단한 사람에게만) | `{ user_id: ID }` |
 | `block.updated` | `users:[나]` | `{ user_id: ID, blocked: boolean }` |
-| `user.updated` | `presenceWatchers:<user_id>` + 나 | `{ user: UserSummary }` — 이름·아바타·상태 메시지·비공개 여부 변경 |
+| `user.updated` | `presenceWatchers:<user_id>` + 나 | `{ user: UserSummary }` — 이름·아바타·상태 메시지·비공개 여부 변경, 운영자의 정지·정지 해제(`api.md` 3.9, 이때는 청중이 `summaryWatchers:<user_id>` — 같은 방 멤버 포함, "나" 없음) |
 | `settings.updated` | `users:[나]` | `{ settings: Settings }` |
 
 모두 기록, F.
@@ -265,11 +272,11 @@ client                                   server (UserHub)
 
 | type | 청중 | 기록 | 모드 | data |
 |---|---|---|---|---|
-| `presence.snapshot` | 이 연결만 | 휘발 | F | `{ items: [ { user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null } ] }` — `ready` 직후, 친구 + DM/그룹 DM 상대 전원 |
-| `presence.updated` | `presenceWatchers:<user_id>` | 휘발 | F | `{ user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null }` |
+| `presence.snapshot` | 이 연결만 | 휘발 | F | `{ items: [ { user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null } ] }` — `ready` 직후, 친구 + DM/그룹 DM 상대 전원. 정지 중인 계정은 `status: "offline"`, `last_seen_at: null`(`api.md` 3.9) |
+| `presence.updated` | `presenceWatchers:<user_id>` | 휘발 | F | `{ user_id: ID, status: PresenceStatus, last_seen_at: Timestamp \| null }` — 정지 중인 계정은 `status: "offline"`, `last_seen_at: null`(`api.md` 3.9; 정지 순간의 연결 종료 포함). 운영자의 정지·정지 해제 때는 상태가 바뀌지 않아도(수동 `dnd`·집중 모드는 소켓 0개에서도 유지, 6.3) 한 번 나간다: 정지는 그 가린 항목, 해제는 실제 항목(`GET /v1/presence` 와 같은 값). 온라인이던 계정은 정지 때 같은 offline 항목을 두 번 받을 수 있다 |
 | `presence.self` | `users:[나]` | 휘발 | F | `{ presence: PresenceState }` — 내 상태가 바뀔 때(다른 기기 반영) |
 | `focus.started` | `users:[나]` | 기록 | F/N | `{ focus: Focus }` |
-| `focus.ended` | `users:[나]` | 기록 | F/N | `{ summary: FocusSummary }` |
+| `focus.ended` | `users:[나]` | 기록 | F/N | `{ summary: FocusSummary }` — 종료 시점에 알림함이 숨기는 행위자(`api.md` 5.18: 내가 차단, 지금 정지 중)의 alert 는 `items`·`counts` 에서 빠진다 [대기 목록 4-a]. 그 확인(D1)이 실패하면 `counts` 는 전부 세고 `items` 는 행위자 없는 alert 만 |
 
 - 방 멤버 목록처럼 친구·DM 상대가 아닌 사람의 상태는 푸시하지 않는다 → `GET /v1/presence` 를 60초마다(화면에 보일 때만).
 
@@ -388,6 +395,7 @@ notify 모드에서 `typing/idle/watch` → `reply{not_allowed_in_mode}`.
 | `space:<id>` | 그 방 멤버 전원 |
 | `followers:<user_id>` | 그 사용자의 `active` 팔로워(차단 관계 제외). SNS 이벤트는 4.8 가시성 필터를 추가로 건다 |
 | `presenceWatchers:<user_id>` | 그 사용자의 친구 + 같은 dm/group_dm 멤버 |
+| `summaryWatchers:<user_id>` | `presenceWatchers` + 그 사용자가 속한 방(삭제 안 됨)의 멤버 — 그 사용자의 `UserSummary` 를 들고 있을 수 있는 사람(멤버 목록·메시지 작성자). 정지·정지 해제의 `user.updated` 만 쓴다(`api.md` 3.9) |
 | `topic:<topic>` | 그 토픽을 `watch` 중인 연결(TopicHub DO 가 관리). SNS 이벤트는 4.8 가시성 필터를 추가로 건다 |
 
 모든 청중에서 **온라인 판정(6.2)을 통과한 사용자에게만** 전달한다. 기록 이벤트라도 오프라인 사용자에게는 보내지 않는다 — 다시 켜면 REST 로 채운다(설계서 3.1 "놓친 메시지가 채워짐"). 데몬(notify 연결)만 떠 있는 사용자는 7장 허용 타입(alert·알림함·집중 모드)만 받는다.

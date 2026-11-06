@@ -80,6 +80,6 @@ func (c *Client) ChangePassword(ctx context.Context, current, next string) error
 		Current string `json:"current_password"`
 		New     string `json:"new_password"`
 	}{current, next}
-	_, err := c.call(ctx, request{Method: "POST", Path: "/v1/auth/password", Body: body, Auth: true}, nil)
+	_, err := c.call(ctx, request{Method: "POST", Path: "/v1/auth/password", Body: body, Limiter: rlLogin, Auth: true}, nil)
 	return err
 }

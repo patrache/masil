@@ -97,7 +97,7 @@ func endpointsACases(t *testing.T) []epCase {
 			call: func(c *api.Client) (any, error) { return c.ListSessions(ctx) }},
 		{name: "RevokeSession", route: "DELETE /v1/auth/sessions/{id}", wantPath: "/v1/auth/sessions/S1",
 			call: func(c *api.Client) (any, error) { return err0(c.RevokeSession(ctx, "S1")) }},
-		{name: "ChangePassword", route: "POST /v1/auth/password",
+		{name: "ChangePassword", route: "POST /v1/auth/password", limiter: "RL_LOGIN",
 			call:     func(c *api.Client) (any, error) { return err0(c.ChangePassword(ctx, "a", "b")) },
 			wantBody: `{"current_password":"a","new_password":"b"}`},
 
@@ -288,7 +288,7 @@ func endpointsACases(t *testing.T) []epCase {
 					t.Errorf("new DM: created=%v ch=%+v", r.created, r.ch)
 				}
 			}},
-		{name: "AddChannelMembers", route: "POST /v1/channels/{id}/members", wantPath: "/v1/channels/C/members", resp: env(t, "channel", "Channel"),
+		{name: "AddChannelMembers", route: "POST /v1/channels/{id}/members", wantPath: "/v1/channels/C/members", resp: env(t, "channel", "Channel"), limiter: "RL_SOCIAL",
 			call: func(c *api.Client) (any, error) {
 				return c.AddChannelMembers(ctx, "C", []api.UserRef{api.Handle("hana")})
 			},
@@ -410,7 +410,7 @@ func endpointsACases(t *testing.T) []epCase {
 				return c.SetChannelPrefs(ctx, "C", api.ChannelPrefsRequest{Notify: api.Some("mentions"), Muted: api.Some(false)})
 			},
 			wantBody: `{"notify":"mentions","muted":false}`},
-		{name: "MarkRead", route: "PUT /v1/channels/C/read", resp: env(t, "state", "UnreadState"),
+		{name: "MarkRead", route: "PUT /v1/channels/{id}/read", wantPath: "/v1/channels/C/read", resp: env(t, "state", "UnreadState"),
 			call:     func(c *api.Client) (any, error) { return c.MarkRead(ctx, "C", "M") },
 			wantBody: `{"message_id":"M"}`},
 	}

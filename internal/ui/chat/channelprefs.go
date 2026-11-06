@@ -402,6 +402,7 @@ func groupAddPicker(_ *ui.Context, ch *api.Channel) ui.Overlay {
 		Candidates: friendCandidates, Order: byPresence,
 		Exclude: func(ctx *ui.Context, id string) bool { return in[id] || blockedUser(ctx, id) },
 		OnPick:  addMembersPick(ch.ID), OnDone: channelResultDone(membersAddedText),
+		DescribeErr: describeGroupDMErr,
 	})
 }
 

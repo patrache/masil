@@ -95,3 +95,47 @@ describe("friends", () => {
     });
   });
 });
+
+// Owner decision D1 (api.md 3.9): a suspended friend's Friend.presence is offline, so GET /v1/friends must also sort it
+// with the offline friends — its order and next_cursor (`k = "<rk>:<name>"`) would otherwise show it is really on.
+describe("GET /v1/friends: a suspended friend sorts as offline (D1)", () => {
+  const cursorKey = (c: string | null): string => (JSON.parse(atob(String(c).replace(/-/g, "+").replace(/_/g, "/"))) as { k: string }).k;
+
+  it("a suspended dnd friend is in the offline group, in the order and in next_cursor; back once the suspension passes", async () => {
+    const [f, o, g, h] = await Promise.all([signup(), signup(), signup(), signup()]);
+    for (const x of [o, g, h]) await makeFriends(f, x);
+    const t = Date.now();
+    const sets: [U, string, string][] = [
+      [o, "zz", "dnd"],
+      [g, "aa", "offline"],
+      [h, "mm", "online"],
+    ];
+    for (const [u, name, status] of sets) {
+      await env.DB.prepare("UPDATE users SET display_name = ?1 WHERE id = ?2").bind(name, u.user.id).run();
+      await env.DB.prepare("UPDATE user_presence SET status = ?1 WHERE user_id = ?2").bind(status, u.user.id).run();
+    }
+    await env.DB.prepare("UPDATE users SET suspended_at = ?1, suspended_until = ?2 WHERE id = ?3").bind(t - 1000, t + 60_000, o.user.id).run();
+
+    const all = (await api(f.token).get<any>("/v1/friends")).body;
+    expect(all.items.map((x: any) => [x.user.display_name, x.presence])).toEqual([
+      ["mm", "online"],
+      ["aa", "offline"],
+      ["zz", "offline"],
+    ]);
+    const p1 = (await api(f.token).get<any>("/v1/friends?limit=2")).body;
+    expect(p1.items.map((x: any) => x.user.display_name)).toEqual(["mm", "aa"]);
+    expect(cursorKey(p1.next_cursor)).toBe("1:aa");
+    const p2 = (await api(f.token).get<any>(`/v1/friends?limit=2&cursor=${p1.next_cursor}`)).body;
+    expect(p2.items.map((x: any) => x.user.display_name)).toEqual(["zz"]);
+    expect(p2.next_cursor).toBeNull();
+
+    // suspended_until <= now: not suspended any more (3.4 rule 2), so the real status sorts it again
+    await env.DB.prepare("UPDATE users SET suspended_until = ?1 WHERE id = ?2").bind(Date.now() - 1, o.user.id).run();
+    const back = (await api(f.token).get<any>("/v1/friends")).body;
+    expect(back.items.map((x: any) => [x.user.display_name, x.presence])).toEqual([
+      ["mm", "online"],
+      ["zz", "dnd"],
+      ["aa", "offline"],
+    ]);
+  });
+});

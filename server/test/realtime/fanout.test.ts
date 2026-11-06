@@ -202,6 +202,19 @@ describe("audience", () => {
     expect(sorted(await resolveOnlineAudience(env, { presenceWatchers: a.user.id }))).toEqual(sorted([b.user.id, c.user.id]));
   });
 
+  it("summaryWatchers = presenceWatchers + co-members of live spaces (each once; a deleted space drops out)", async () => {
+    const [a, b, c, d, e] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    await friend(a, b);
+    await groupDm(a, [c]);
+    await space(d, [a, b]);
+    const gone = await space(e, [a]);
+    await env.DB.prepare("UPDATE spaces SET deleted_at = ?1 WHERE id = ?2").bind(Date.now(), gone).run();
+    for (const u of [a, b, c, d, e]) await online(u, { full: true });
+    const got = await resolveOnlineAudience(env, { summaryWatchers: a.user.id });
+    expect(sorted(got)).toEqual(sorted([b.user.id, c.user.id, d.user.id]));
+    expect(sorted(await resolveOnlineAudience(env, { presenceWatchers: a.user.id }))).toEqual(sorted([b.user.id, c.user.id]));
+  });
+
   it("Review Focus 2: 120 online space members resolve without hitting the bind limit", async () => {
     const owner = await signup();
     const members = await seedUsers(119);

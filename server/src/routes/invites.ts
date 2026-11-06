@@ -4,22 +4,23 @@ import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
 import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
-import { all, first, stmt } from "../lib/db";
+import { all, batch, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId, newId, newInviteCode } from "../lib/ids";
 import { notify } from "../lib/notify";
-import { areFriends, getSpaceRole, isBlockedEither, requireSpaceRole } from "../lib/permissions";
+import { areFriends, assertSpaceRole, getSpaceRole, isBlockedEither, requireSpaceRole, spaceRoleFrom, spaceRoleStmt } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { publishEvent } from "../lib/realtime";
 import { loadUserSummaries, serializeDirectInvites, serializeInvitePreview, serializeInvites } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vJson, zUserRef } from "../lib/validate";
 import {
-  D_INVITER_IS_MEMBER,
+  D_INVITE_ACCEPTABLE,
   insertDirectInvite,
   inviteInvalidReason,
   joinSpace,
   linkIssuerCanInvite,
+  directInviteAnnounceable,
   type InviteCheckRow,
 } from "../services/membership";
 import type { SpaceDirectInviteRow, SpaceInviteRow, SpaceRow } from "../types/rows";
@@ -89,7 +90,8 @@ inviteRoutes.get("/spaces/:space_id/invites", requireAuth, async (c) => {
  * owner·admin; max_uses 1..1000 | null (unlimited), expires_in_sec 300..2592000 | null (never), omitted = 7 days.
  * The INSERT itself re-checks the role: a demotion or removal that commits after requireSpaceRole has nothing to revoke
  * yet, so without the gate the link would land live for a plain member / non-member (pending item 9). Refused there:
- * the role check again gives 404 (no longer a member) / 403 (no longer owner·admin).
+ * 404 (no longer a member) / 403 (no longer owner·admin), from the role read in the INSERT's own batch (pending item
+ * 10-a: a re-read after it would see a removal / demotion undone or worsened meanwhile and answer the other code).
  */
 inviteRoutes.post("/spaces/:space_id/invites", requireAuth, limit("RL_SOCIAL"), vJson(CreateInviteBody), async (c) => {
   const me = getAuth(c).userId;
@@ -103,28 +105,32 @@ inviteRoutes.post("/spaces/:space_id/invites", requireAuth, limit("RL_SOCIAL"), 
   let row: SpaceInviteRow | null = null;
   for (let attempt = 0; ; attempt++) {
     try {
-      row = await first<SpaceInviteRow>(
-        db,
-        `INSERT INTO space_invites (id, space_id, code, created_by, max_uses, use_count, expires_at, revoked_at, created_at)
-         SELECT ?1, ?2, ?3, ?4, ?5, 0, ?6, NULL, ?7
-          WHERE EXISTS (SELECT 1 FROM space_members WHERE space_id = ?2 AND user_id = ?4 AND role IN ('owner', 'admin'))
-         RETURNING *`,
-        newId(t),
-        spaceId,
-        newInviteCode(),
-        me,
-        b.max_uses ?? null,
-        expiresAt,
-        t,
-      );
+      const [ins, role] = await batch(db, [
+        stmt(
+          db,
+          `INSERT INTO space_invites (id, space_id, code, created_by, max_uses, use_count, expires_at, revoked_at, created_at)
+           SELECT ?1, ?2, ?3, ?4, ?5, 0, ?6, NULL, ?7
+            WHERE EXISTS (SELECT 1 FROM space_members WHERE space_id = ?2 AND user_id = ?4 AND role IN ('owner', 'admin'))
+           RETURNING *`,
+          newId(t),
+          spaceId,
+          newInviteCode(),
+          me,
+          b.max_uses ?? null,
+          expiresAt,
+          t,
+        ),
+        spaceRoleStmt(db, spaceId, me),
+      ]);
+      row = (ins!.results as SpaceInviteRow[])[0] ?? null;
+      if (row === null) {
+        assertSpaceRole(spaceRoleFrom(role), "admin"); // 404 / 403 for what the INSERT saw
+        throw err.forbidden("forbidden", "requires admin role");
+      }
       break;
     } catch (e) {
       if (!isUniqueViolation(e) || attempt + 1 >= CODE_ATTEMPTS) throw e;
     }
-  }
-  if (row === null) {
-    await requireSpaceRole(db, spaceId, me, "admin"); // 404 / 403 for what changed
-    throw err.forbidden("forbidden", "requires admin role");
   }
   const [invite] = await serializeInvites(db, [row]);
   if (!invite) throw err.notFound("space");
@@ -166,11 +172,18 @@ inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
  * Any member invites one of their own friends (api.md 3.5, any role). 403 action_not_allowed (not friends / blocked
  * either way / invitee currently suspended), 403 banned_from_space, 409 already_member, 409 already_exists (a pending invite to this space).
  * After the insert: space.invite_received{invite} to the invitee + inbox space_invite + alert invite (Task 15 table).
- * One batch (insertDirectInvite, pending item 9): a stale pending invite to the same person whose inviter is no longer
- * a member becomes canceled (space.invite_removed canceled after commit), then the INSERT — both gated on the inviter
- * still being a member, so an inviter removed after requireSpaceRole writes nothing and gets 404, and on the relation
+ * One batch (insertDirectInvite, pending item 9): a stale pending invite to the same person that can no longer be
+ * accepted (its inviter is no longer a member, or no longer their friend / a block either way — D3) becomes canceled
+ * (space.invite_removed canceled after commit), then the INSERT — both gated on the inviter still being a member, so an inviter removed after requireSpaceRole writes nothing and gets 404, and on the relation
  * rules above (pending item 10), so an unfriend / block / suspension landing after the pre-checks writes nothing and
  * gets 403 action_not_allowed.
+ * And on the invitee still being outside the space (9-b): a join by another route landing after the pre-checks
+ * writes nothing and gets 409 already_member.
+ * One landing after the batch commits (a join, unfriend or block cancels the new row in its own batch and sends
+ * space.invite_removed) is caught by re-reading the row before publishing (directInviteAnnounceable): no invite_received, no
+ * inbox entry or alert, and the same error as if the race had landed before the INSERT.
+ * One that needs the new invite's id (the invitee declines / accepts it, the inviter or an admin cancels it) can only
+ * come after the INSERT in any serial order: 201 (pending item 10-a), but nothing announced — it is no longer pending.
  */
 inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOCIAL"), vJson(DirectInviteBody), async (c) => {
   const auth = getAuth(c);
@@ -188,7 +201,7 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
     `SELECT EXISTS (SELECT 1 FROM space_bans WHERE space_id = ?1 AND user_id = ?2) AS banned,
             EXISTS (SELECT 1 FROM space_members WHERE space_id = ?1 AND user_id = ?2) AS member,
             EXISTS (SELECT 1 FROM space_direct_invites d WHERE d.space_id = ?1 AND d.invitee_id = ?2 AND d.status = 'pending'
-                       AND ${D_INVITER_IS_MEMBER}) AS pending`,
+                       AND ${D_INVITE_ACCEPTABLE}) AS pending`,
     spaceId,
     target.id,
   );
@@ -207,6 +220,10 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
     loadUserSummaries(db, [me]),
   ]);
   if (!invite || space === null) throw err.notFound("space");
+  // 9-b: a join by another route / unfriend / block landing after the batch committed has already canceled the row
+  // (and sent space.invite_removed); do not announce the dead invite, answer as if the race had landed first (throws).
+  // 10-a: an answer / cancel by id came after the INSERT in every order -> 201, but no announcement of a settled invite.
+  if (!(await directInviteAnnounceable(db, row.id, spaceId, me, target.id))) return c.json({ invite }, 201);
   const name = users.get(me)?.display_name ?? auth.handle;
   await Promise.all([
     publishEvent(rt(c), { users: [target.id] }, "space.invite_received", { invite }),
@@ -229,14 +246,17 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
   return c.json({ invite }, 201);
 });
 
-/** Pending invites to me in live spaces from inviters who are still members (others cannot be accepted), newest first. */
+/**
+ * Pending invites to me in live spaces I am not in yet (9-b) from inviters who are still members and still my friends
+ * with no block either way (D3; others cannot be accepted), newest first.
+ */
 inviteRoutes.get("/me/direct-invites", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
   const rows = await all<SpaceDirectInviteRow>(
     db,
     `SELECT d.* FROM space_direct_invites d JOIN spaces s ON s.id = d.space_id AND s.deleted_at IS NULL
-      WHERE d.invitee_id = ?1 AND d.status = 'pending' AND ${D_INVITER_IS_MEMBER}
+      WHERE d.invitee_id = ?1 AND d.status = 'pending' AND ${D_INVITE_ACCEPTABLE}
       ORDER BY d.created_at DESC, d.id DESC`,
     me,
   );

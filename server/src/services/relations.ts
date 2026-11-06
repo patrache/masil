@@ -30,6 +30,15 @@ function friendPair(a: string, b: string): [string, string] {
  * choice is read in the same batch.
  */
 export async function makeFriends(rt: Runtime, a: string, b: string, requestId: string): Promise<void> {
+  if ((await acceptPendingRequest(rt, a, b, requestId)) === "gone") throw err.notFound("friend request");
+}
+
+/**
+ * makeFriends without the 404: "gone" when the request is not (any longer) pending between a and b — at the first read
+ * or, read in the accept batch itself, at the accept (accepted / declined / canceled meanwhile); the 403 still throws.
+ * For a caller whose answer to "gone" is not 404 (the crossing auto-accept of POST /v1/friends/requests).
+ */
+export async function acceptPendingRequest(rt: Runtime, a: string, b: string, requestId: string): Promise<"accepted" | "gone"> {
   const db = rt.env.DB;
   const req = await first<FriendRequestRow>(
     db,
@@ -40,7 +49,7 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
     a,
     b,
   );
-  if (req === null) throw err.notFound("friend request");
+  if (req === null) return "gone";
   const senderId = req.from_user_id;
   const accepterId = req.to_user_id;
   const [lo, hi] = friendPair(senderId, accepterId);
@@ -99,7 +108,7 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
     // -> 403 like the pre-check; otherwise the request was accepted / declined / canceled meanwhile -> 404
     const why = (results[3]!.results as Array<{ blocked: number; suspended: number }>)[0];
     if (why?.blocked || why?.suspended) throw err.forbidden("action_not_allowed");
-    throw err.notFound("friend request");
+    return "gone";
   }
 
   const friendship = await first<FriendshipRow>(db, "SELECT * FROM friendships WHERE user_a = ?1 AND user_b = ?2", lo, hi);
@@ -130,6 +139,7 @@ export async function makeFriends(rt: Runtime, a: string, b: string, requestId: 
       alert: null,
     }),
   ]);
+  return "accepted";
 }
 
 /**
@@ -175,20 +185,41 @@ export async function insertFriendRequest(db: D1Database, row: FriendRequestRow,
 }
 
 /**
- * Ends the friendship between a and b (no-op when there is none). After commit: `friend.removed{user_id: other}` to
- * each side, except `opts.silentTo` (block cleanup tells only the blocker — events.md 4.5).
+ * Ends the friendship between a and b, in one batch with its cleanup (D3, api.md 3.5): the friendships row DELETE and
+ * every pending direct space invite between the two, either way -> `canceled` (a direct invite needs the invitee to be
+ * the inviter's friend, so none may outlive the friendship; joinSpace re-checks it too). No-op when there is neither.
+ * After commit: `friend.removed{user_id: other}` to each side if they were friends, and per canceled invite
+ * `space.invite_removed{invite_id, reason:"canceled"}` to its invitee + inviter (events.md) — except `opts.silentTo`
+ * (block cleanup tells only the blocker — events.md 4.5).
  */
 export async function unfriend(rt: Runtime, a: string, b: string, opts: { silentTo?: string } = {}): Promise<void> {
+  const db = rt.env.DB;
   const [lo, hi] = friendPair(a, b);
-  const [res] = await batch(rt.env.DB, [stmt(rt.env.DB, "DELETE FROM friendships WHERE user_a = ?1 AND user_b = ?2", lo, hi)]);
-  if (res!.meta.changes === 0) return;
+  const [res, canceled] = await batch(db, [
+    stmt(db, "DELETE FROM friendships WHERE user_a = ?1 AND user_b = ?2 RETURNING user_a", lo, hi),
+    stmt(
+      db,
+      `UPDATE space_direct_invites SET status = 'canceled', responded_at = ?3
+        WHERE status = 'pending' AND ((inviter_id = ?1 AND invitee_id = ?2) OR (inviter_id = ?2 AND invitee_id = ?1))
+       RETURNING id`,
+      a,
+      b,
+      now(),
+    ),
+  ]);
+  const wasFriend = res!.results.length > 0;
+  const inviteIds = (canceled!.results as Array<{ id: string }>).map((r) => r.id);
+  const to = [
+    { to: a, other: b },
+    { to: b, other: a },
+  ].filter((x) => x.to !== opts.silentTo);
   await Promise.all(
-    [
-      { to: a, other: b },
-      { to: b, other: a },
-    ]
-      .filter((x) => x.to !== opts.silentTo)
-      .map((x) => publishEvent(rt, { users: [x.to] }, "friend.removed", { user_id: x.other })),
+    to.map((x) =>
+      publishEvents(rt, { users: [x.to] }, [
+        ...(wasFriend ? [{ type: "friend.removed" as const, data: { user_id: x.other } }] : []),
+        ...inviteIds.map((id) => ({ type: "space.invite_removed" as const, data: { invite_id: id, reason: "canceled" } })),
+      ]),
+    ),
   );
 }
 
@@ -317,7 +348,7 @@ function userTarget(id: string) {
  * move only when this batch really inserts an active row (data-model 7: counters count active rows only).
  * The block / suspension rule is in the INSERT and the counter guards too (pending item 10): one landing between the
  * pre-check and the batch writes nothing -> 403 action_not_allowed, while a concurrent follow of the same pair that
- * won the race is reported as its current state (idempotent).
+ * won the race is reported as its state (idempotent) — both read in the INSERT's own batch (pending item 10-a).
  * After commit: inbox `follow` (dedupe `follow:<followee>:<follower>`) or `follow_request`
  * (dedupe `follow_request:<followee>:<follower>`), alert kind `social`.
  */
@@ -355,20 +386,23 @@ export async function follow(rt: Runtime, followerId: string, followeeId: string
       followeeId,
       t,
     ),
-  ]);
-  const inserted = (results[2]!.results as Array<Pick<FollowRow, "status">>)[0];
-  if (inserted === undefined) {
-    // Nothing went in: either a block / suspension landed after the pre-check (403, whatever the pre-check said), or a
-    // concurrent follow of the same pair won the race (idempotent: report the row that is there now).
-    const current = await first<{ status: FollowRow["status"] | null; blocked: number; suspended: number }>(
+    // why the INSERT may have written nothing, read inside the same transaction (pending item 10-a: a block lifted or
+    // landing right after the batch cannot change the answer)
+    stmt(
       db,
       `SELECT (SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = ?2) AS status,
               ${blockedEitherSql("?1", "?2")} AS blocked, ${suspendedNowSql("?2", "?3")} AS suspended`,
       followerId,
       followeeId,
       t,
-    );
-    if (current === null || current.blocked || current.suspended || current.status === null) throw err.forbidden("action_not_allowed");
+    ),
+  ]);
+  const inserted = (results[2]!.results as Array<Pick<FollowRow, "status">>)[0];
+  if (inserted === undefined) {
+    // Nothing went in: either a block / suspension was in place at the INSERT (403, whatever the pre-check said), or a
+    // concurrent follow of the same pair won the race (idempotent: report the row the INSERT ran into).
+    const current = (results[3]!.results as Array<{ status: FollowRow["status"] | null; blocked: number; suspended: number }>)[0];
+    if (current === undefined || current.blocked || current.suspended || current.status === null) throw err.forbidden("action_not_allowed");
     return current.status;
   }
 

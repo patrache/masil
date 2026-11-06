@@ -10,15 +10,16 @@ import (
 // Limiter names, exactly the binding names of api.md 0.7. Every endpoint
 // method sets request.Limiter to its dedicated limiter (api.md 0.7 table and
 // the 6-chapter endpoint summary); authenticated requests additionally fall
-// under rlAPI.
+// under rlAPI. contract_limiters_test.go checks every harness row against the
+// api.md 6 table, and checkLimiter proves each method uses its row.
 const (
 	rlSignup  = "RL_SIGNUP"  // POST /v1/auth/signup
-	rlLogin   = "RL_LOGIN"   // POST /v1/auth/login
+	rlLogin   = "RL_LOGIN"   // POST /v1/auth/login, POST /v1/auth/password (same bucket)
 	rlMessage = "RL_MESSAGE" // message send, thread reply, message edit
 	rlPost    = "RL_POST"    // post/reply/quote, story, guestbook write
 	rlReact   = "RL_REACT"   // reactions, like, repost, vote, pin
 	rlUpload  = "RL_UPLOAD"  // POST /v1/uploads
-	rlSocial  = "RL_SOCIAL"  // friend request, follow, block, DM create, invites, space create, report
+	rlSocial  = "RL_SOCIAL"  // friend request, follow, block, DM create, channel member add, invites, space create, report
 	rlSearch  = "RL_SEARCH"  // /v1/search/*, /v1/users/search, /v1/hashtags/search
 	rlWS      = "RL_WS"      // GET /v1/ws (used by realtime, listed for completeness)
 	rlAPI     = "RL_API"     // every authenticated request

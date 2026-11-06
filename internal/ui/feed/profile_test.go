@@ -181,6 +181,67 @@ func TestProfilePrivateLocked(t *testing.T) {
 	}
 }
 
+// suspendedSeen is a suspended account as the server shows it to others (D1,
+// api.md 3.9) — except the stale bio/status/avatar a cache may still hold,
+// which the screen must not draw either.
+func suspendedSeen(p *api.Profile) {
+	p.Suspended = true
+	p.FollowerCount, p.FollowingCount, p.PostCount = 0, 0, 0
+	p.Presence, p.LastSeenAt = nil, nil
+	p.Relationship.CanViewPosts = false
+	p.Relationship.CanDM = false
+}
+
+func TestProfileSuspendedHeader(t *testing.T) {
+	for _, size := range [][2]int{{120, 40}, {80, 24}} {
+		srv := profileSrv(t, false, suspendedSeen)
+		h := uitest.New(t, profileOptsWith(srv, "@hana", false)...)
+		h.Resize(size[0], size[1])
+		s := h.Screen()
+		for _, want := range []string{"하나", "@hana", textSuspendedTitle} {
+			if !strings.Contains(s, want) {
+				t.Fatalf("%v: suspended profile lacks %q:\n%s", size, want, s)
+			}
+		}
+		// the header says it too (in place of the counts), besides the locked state below
+		if n := strings.Count(s, "정지된 계정"); n < 2 {
+			t.Fatalf("%v: header lacks the 정지된 계정 label (%d occurrences):\n%s", size, n, s)
+		}
+		for _, bad := range []string{"팔로워 0", "팔로워", "🎧 듣는 중", "눈 오는 날 좋아함", "[팔로우]", "[팔로잉 ✓]"} {
+			if strings.Contains(s, bad) {
+				t.Fatalf("%v: suspended profile shows %q:\n%s", size, bad, s)
+			}
+		}
+		if _, ok := lastReq(h, "GET", "/v1/users/"+userOf("hana").ID+"/posts"); ok {
+			t.Fatalf("%v: a suspended profile requested its posts", size)
+		}
+	}
+}
+
+// A suspended profile whose payload still carries an avatar_url (a stale cache,
+// or a server that forgot to mask it) neither fetches nor draws it (D1). The
+// unsuspended run is the control: the same avatar is fetched for the full
+// header, so the suspended run's missing GET is the guard, not the layout.
+func TestProfileSuspendedSkipsStaleAvatar(t *testing.T) {
+	id := sid(4242)
+	withAvatar := func(p *api.Profile) { p.AvatarURL = ptr("/v1/media/" + id) }
+	for _, tc := range []struct {
+		name      string
+		mut       func(*api.Profile)
+		wantFetch bool
+	}{
+		{"unsuspended", withAvatar, true},
+		{"suspended", func(p *api.Profile) { withAvatar(p); suspendedSeen(p) }, false},
+	} {
+		h := uitest.New(t, profileOpts(t, "@hana", false, tc.mut)...)
+		h.Resize(120, 40)
+		h.Screen()
+		if _, got := lastReq(h, "GET", "/v1/media/"+id); got != tc.wantFetch {
+			t.Fatalf("%s: GET /v1/media/<avatar> requested = %v, want %v", tc.name, got, tc.wantFetch)
+		}
+	}
+}
+
 func TestProfileFollowToggle(t *testing.T) {
 	srv := profileSrv(t, false, notFollowing)
 	srv.JSON("PUT /v1/users/{user}/follow", http.StatusOK, map[string]string{"state": "pending"})

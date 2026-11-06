@@ -264,7 +264,7 @@ async function liveMessage(db: D1Database, messageId: string): Promise<MessageRo
 /**
  * Adds my reaction (read access; a 1:1 dm also needs can_dm -> requireChannelWrite, 403 read_only). One batch:
  * a conditional INSERT (message still live, and the emoji is already there or the message has < 20 distinct emoji) +
- * the emoji's COUNT(*) + whether my row exists. Already reacted -> 204 without an event; 21st distinct emoji -> 422
+ * the emoji's COUNT(*) + whether my row exists and the message is live (the 0-row reason, same transaction). Already reacted -> 204 without an event; 21st distinct emoji -> 422
  * reactions_per_message. Else 204 + reaction.added{channel_id, message_id, thread_root_id, emoji, user_id, count}.
  */
 messageRoutes.put("/messages/:message_id/reactions/:emoji", requireAuth, limit("RL_REACT"), async (c) => {
@@ -273,7 +273,7 @@ messageRoutes.put("/messages/:message_id/reactions/:emoji", requireAuth, limit("
   const emoji = emojiParam(c.req.param("emoji"));
   const row = await liveMessage(db, c.req.param("message_id"));
   await requireChannelWrite(db, row.channel_id, me);
-  const [ins, cnt, mine] = await batch(db, [
+  const [ins, cnt, state] = await batch(db, [
     stmt(
       db,
       `INSERT INTO message_reactions (message_id, emoji, user_id, created_at)
@@ -289,12 +289,20 @@ messageRoutes.put("/messages/:message_id/reactions/:emoji", requireAuth, limit("
       REACTIONS_PER_MESSAGE,
     ),
     stmt(db, "SELECT COUNT(*) AS n FROM message_reactions WHERE message_id = ?1 AND emoji = ?2", row.id, emoji),
-    stmt(db, "SELECT EXISTS (SELECT 1 FROM message_reactions WHERE message_id = ?1 AND emoji = ?2 AND user_id = ?3) AS x", row.id, emoji, me),
+    // why the INSERT may have written nothing, read in the same transaction (pending item 10-a)
+    stmt(
+      db,
+      `SELECT EXISTS (SELECT 1 FROM message_reactions WHERE message_id = ?1 AND emoji = ?2 AND user_id = ?3) AS mine,
+              EXISTS (SELECT 1 FROM messages WHERE id = ?1 AND deleted_at IS NULL) AS live`,
+      row.id,
+      emoji,
+      me,
+    ),
   ]);
   if (ins!.meta.changes === 0) {
-    if ((mine!.results[0] as { x: number } | undefined)?.x === 1) return c.body(null, 204); // already reacted
-    const live = await first<{ x: number }>(db, "SELECT 1 AS x FROM messages WHERE id = ?1 AND deleted_at IS NULL", row.id);
-    if (live === null) throw err.notFound("message"); // deleted meanwhile
+    const why = state!.results[0] as { mine: number; live: number } | undefined;
+    if (why?.mine === 1) return c.body(null, 204); // already reacted
+    if (why?.live !== 1) throw err.notFound("message"); // deleted meanwhile
     throw err.limit("reactions_per_message", REACTIONS_PER_MESSAGE);
   }
   const count = (cnt!.results[0] as { n: number }).n;
@@ -393,7 +401,8 @@ async function pinTarget(db: D1Database, messageId: string, actorId: string): Pr
 }
 
 /**
- * Pins a top-level message: one conditional INSERT (message still live and the channel has < 50 pins).
+ * Pins a top-level message: one conditional INSERT (message still live and the channel has < 50 pins), batched with
+ * the read of why it may have written nothing (already pinned / deleted / full — the same transaction).
  * Already pinned -> 204 without an event; 51st -> 422 pins_per_channel. Else 204 + message.pinned{channel_id,
  * message_id, pinned_by} and a system message message_pinned{data:{message_id}} (postSystemMessage).
  */
@@ -401,26 +410,30 @@ messageRoutes.put("/messages/:message_id/pin", requireAuth, limit("RL_REACT"), a
   const me = getAuth(c).userId;
   const db = c.env.DB;
   const { row } = await pinTarget(db, c.req.param("message_id"), me);
-  const res = await stmt(
-    db,
-    `INSERT INTO message_pins (channel_id, message_id, pinned_by, pinned_at)
-     SELECT ?1, ?2, ?3, ?4
-      WHERE EXISTS (SELECT 1 FROM messages WHERE id = ?2 AND deleted_at IS NULL)
-        AND (SELECT COUNT(*) FROM message_pins WHERE channel_id = ?1) < ?5
-     ON CONFLICT DO NOTHING`,
-    row.channel_id,
-    row.id,
-    me,
-    now(),
-    PINS_PER_CHANNEL,
-  ).run();
-  if (res.meta.changes === 0) {
-    const state = await first<{ pinned: number; live: number }>(
+  const [res, why] = await batch(db, [
+    stmt(
+      db,
+      `INSERT INTO message_pins (channel_id, message_id, pinned_by, pinned_at)
+       SELECT ?1, ?2, ?3, ?4
+        WHERE EXISTS (SELECT 1 FROM messages WHERE id = ?2 AND deleted_at IS NULL)
+          AND (SELECT COUNT(*) FROM message_pins WHERE channel_id = ?1) < ?5
+       ON CONFLICT DO NOTHING`,
+      row.channel_id,
+      row.id,
+      me,
+      now(),
+      PINS_PER_CHANNEL,
+    ),
+    // why the INSERT may have written nothing, read in the same transaction (pending item 10-a)
+    stmt(
       db,
       `SELECT EXISTS (SELECT 1 FROM message_pins WHERE message_id = ?1) AS pinned,
               EXISTS (SELECT 1 FROM messages WHERE id = ?1 AND deleted_at IS NULL) AS live`,
       row.id,
-    );
+    ),
+  ]);
+  if (res!.meta.changes === 0) {
+    const state = why!.results[0] as { pinned: number; live: number } | undefined;
     if (state?.pinned === 1) return c.body(null, 204); // already pinned
     if (state?.live !== 1) throw err.notFound("message"); // deleted meanwhile
     throw err.limit("pins_per_channel", PINS_PER_CHANNEL);

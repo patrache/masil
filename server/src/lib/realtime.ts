@@ -13,6 +13,7 @@ export type Audience =
   | { space: string }
   | { followers: string } // active followers of userId (blocked pairs removed)
   | { presenceWatchers: string } // friends + dm/group_dm co-members of userId
+  | { summaryWatchers: string } // presenceWatchers + co-members of userId's live spaces (who may hold its UserSummary)
   | { topic: string }; // "post:<id>" -> TopicHub
 
 /** Per-recipient post visibility (events.md 4.8, api.md 3.4). A recipient R passes iff
@@ -84,14 +85,21 @@ function candidatesSql(audience: Exclude<Audience, { topic: string }>, p: (v: un
                                 WHERE (b.blocker_id = f.follower_id AND b.blocked_id = ${u})
                                    OR (b.blocker_id = ${u} AND b.blocked_id = f.follower_id))`;
   }
-  const u = p(audience.presenceWatchers);
-  return `SELECT CASE WHEN fr.user_a = ${u} THEN fr.user_b ELSE fr.user_a END AS user_id
+  const u = p("presenceWatchers" in audience ? audience.presenceWatchers : audience.summaryWatchers);
+  const watchers = `SELECT CASE WHEN fr.user_a = ${u} THEN fr.user_b ELSE fr.user_a END AS user_id
             FROM friendships fr WHERE fr.user_a = ${u} OR fr.user_b = ${u}
           UNION
           SELECT cm2.user_id FROM channel_members cm1
             JOIN channels c ON c.id = cm1.channel_id AND c.kind IN ('dm', 'group_dm') AND c.deleted_at IS NULL
             JOIN channel_members cm2 ON cm2.channel_id = cm1.channel_id AND cm2.user_id <> ${u}
            WHERE cm1.user_id = ${u}`;
+  if ("presenceWatchers" in audience) return watchers;
+  return `${watchers}
+          UNION
+          SELECT sm2.user_id FROM space_members sm1
+            JOIN spaces s ON s.id = sm1.space_id AND s.deleted_at IS NULL
+            JOIN space_members sm2 ON sm2.space_id = sm1.space_id AND sm2.user_id <> ${u}
+           WHERE sm1.user_id = ${u}`;
 }
 
 /** events.md 4.8 / server-architecture.md 4.11 visibility filter over recipient column `col`. */

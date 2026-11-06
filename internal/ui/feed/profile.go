@@ -65,6 +65,7 @@ const (
 	textBlockedTitle      = "차단한 사용자예요"
 	hintBlocked           = "차단 해제는 ctrl+k → 차단 목록"
 	textSuspendedTitle    = "정지된 계정이에요"
+	textSuspendedBadge    = "정지된 계정"
 	textCannotView        = "글을 볼 수 없어요"
 	textNoProfilePosts    = "아직 글이 없어요"
 	textNoProfileReplies  = "아직 답글이 없어요"
@@ -697,9 +698,18 @@ func (p *profile) post(ctx *ui.Context, it api.TimelineItem) *api.Post {
 
 // ---- images ----
 
+// masked reports whether the profile is a suspended account seen by someone
+// else: only the handle and display name are shown (owner decision D1,
+// api.md 3.9) — the server already blanks the rest; this also keeps a stale
+// bio/status/avatar from being drawn.
+func (p *profile) masked(ctx *ui.Context) bool {
+	return p.prof != nil && p.prof.Suspended && !p.isMe(ctx)
+}
+
 // avatarMedia is the profile's avatar as a media reference (id = upload id).
+// A suspended account has none (D1).
 func (p *profile) avatarMedia() (api.Media, bool) {
-	if p.prof == nil || p.prof.AvatarURL == nil || *p.prof.AvatarURL == "" {
+	if p.prof == nil || p.prof.Suspended || p.prof.AvatarURL == nil || *p.prof.AvatarURL == "" {
 		return api.Media{}, false
 	}
 	u := *p.prof.AvatarURL
@@ -885,7 +895,7 @@ func (p *profile) nameLine(ctx *ui.Context, w int, presenceLabel bool) string {
 // statusLine is "🎧 듣는 중" (nil when there is no unexpired status).
 func (p *profile) statusLine(ctx *ui.Context, w int) (string, bool) {
 	s := p.prof.Status
-	if s == nil || (s.ExpiresAt != nil && !s.ExpiresAt.After(ctx.Now())) {
+	if s == nil || p.masked(ctx) || (s.ExpiresAt != nil && !s.ExpiresAt.After(ctx.Now())) {
 		return "", false
 	}
 	text := textwidth.Sanitize(s.Text)
@@ -903,7 +913,7 @@ func (p *profile) statusLine(ctx *ui.Context, w int) (string, bool) {
 // bioLines is the bio wrapped to w, at most n lines (the last cut with "…").
 func (p *profile) bioLines(ctx *ui.Context, w, n int) []string {
 	t := themeOf(ctx)
-	if w <= 0 || n <= 0 {
+	if w <= 0 || n <= 0 || p.masked(ctx) {
 		return nil
 	}
 	var lines []string
@@ -929,8 +939,12 @@ func (p *profile) bioLines(ctx *ui.Context, w, n int) []string {
 	return out
 }
 
-// countsText is "팔로워 120 · 팔로잉 80 · 글 42" (numbers bold).
-func (p *profile) countsText(t *theme.Theme) string {
+// countsText is "팔로워 120 · 팔로잉 80 · 글 42" (numbers bold); a suspended
+// account seen by others shows "정지된 계정" instead (its counts are hidden, D1).
+func (p *profile) countsText(ctx *ui.Context, t *theme.Theme) string {
+	if p.masked(ctx) {
+		return t.S.Dim.Render(textSuspendedBadge)
+	}
 	part := func(label string, n int) string {
 		return t.S.Dim.Render(label+" ") + t.S.Bold.Render(humanize.Count(n))
 	}
@@ -1042,7 +1056,7 @@ func (p *profile) header(ctx *ui.Context, w int) (lines []string, chipRow int, s
 			add(bio[0])
 		}
 	}
-	line, sp := p.chipLine(ctx, p.chipSegs(ctx), p.countsText(t), cw)
+	line, sp := p.chipLine(ctx, p.chipSegs(ctx), p.countsText(ctx, t), cw)
 	chipRow = len(lines)
 	add(line)
 	for i := range sp {
@@ -1064,7 +1078,7 @@ func (p *profile) headerFull(ctx *ui.Context, w int) (lines []string, chipRow in
 		right = append(right, s)
 	}
 	right = append(right, p.bioLines(ctx, rw, bioMaxLines)...)
-	right = append(right, fit(t, p.countsText(t), rw))
+	right = append(right, fit(t, p.countsText(ctx, t), rw))
 	chipRow = len(right)
 	line, sp := p.chipLine(ctx, p.chipSegs(ctx), "", rw)
 	right = append(right, line)
@@ -1470,9 +1484,10 @@ func (p *profile) Title(*ui.Context) (string, ui.Badge) {
 func (p *profile) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
 	out := []key.Binding{}
-	if p.prof != nil && p.isMe(ctx) {
+	switch {
+	case p.prof != nil && p.isMe(ctx):
 		out = append(out, b("e", "프로필 편집"))
-	} else {
+	case !p.masked(ctx):
 		out = append(out, b("+", "팔로우"))
 	}
 	if p.tab == tabGuestbook {

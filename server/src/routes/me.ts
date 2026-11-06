@@ -183,7 +183,7 @@ meRoutes.put("/me/status", requireAuth, vJson(StatusBody), async (c) => {
   );
   if (row === null) throw err.unauthorized();
   await publishUserUpdated(c, row);
-  const status = toUserSummary(row, t).status; // just set with a future (or no) expiry -> never null
+  const status = toUserSummary(row, t, { reveal: true }).status; // just set with a future (or no) expiry -> never null
   return c.json({ status: status ?? { emoji: row.status_emoji, text: row.status_text ?? "", expires_at: null } });
 });
 

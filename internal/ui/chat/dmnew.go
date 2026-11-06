@@ -3,6 +3,7 @@ package chat
 import (
 	"cmp"
 	"context"
+	"errors"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -29,6 +30,10 @@ const (
 	dmMaxPeers   = 9  // POST /v1/dms: 1..9 users besides me (api.md 0.3)
 	groupDMLimit = 10 // group DM members, me included (api.md 3.1)
 	tagDMOpen    = "chat.dm_open:"
+
+	// groupDMRefusedText is a group DM create/add refused over a block between two
+	// would-be members: 403 dm_not_allowed with no details.user_ids (api.md 3.1, D2).
+	groupDMRefusedText = "함께 대화할 수 없는 참여자가 있어요"
 )
 
 // dmRequest is the POST /v1/dms body: one user = the 1:1 DM (never named),
@@ -77,6 +82,25 @@ func userRefs(users []api.UserSummary) []api.UserRef {
 	return refs
 }
 
+// describeGroupDMErr words a failed group DM create/add: dm_not_allowed without
+// details.user_ids is a block between two would-be members, which the server never
+// names (api.md 3.1, D2); everything else (can_dm failures included) is api.Describe.
+func describeGroupDMErr(err error, _ []api.UserSummary) string {
+	var e *api.Error
+	if errors.As(err, &e) && e.Code == "dm_not_allowed" && len(e.UserIDs()) == 0 {
+		return groupDMRefusedText
+	}
+	return api.Describe(err)
+}
+
+// describeDMErr is dm.new's DescribeErr: two picks or more are a group DM.
+func describeDMErr(err error, picked []api.UserSummary) string {
+	if len(picked) >= 2 {
+		return describeGroupDMErr(err, picked)
+	}
+	return api.Describe(err)
+}
+
 // newDMDialog is the dm.new picker: friends (online first) plus a server search,
 // blocked users hidden, at most 9 people; from 2 picks on the "대화 이름(선택)"
 // field appears. Submitting opens (or creates) the DM and navigates to it; an
@@ -85,7 +109,7 @@ func newDMDialog(_ *ui.Context, args string) ui.Overlay {
 	return newUserPicker(pickerSpec{
 		Title: dmNewTitle, Submit: dmNewSubmit, Max: dmMaxPeers, Search: true, Query: args,
 		Candidates: friendCandidates, Exclude: blockedUser, Order: byPresence,
-		NameField: true, NameFrom: 2,
+		NameField: true, NameFrom: 2, DescribeErr: describeDMErr,
 		OnPick: func(ctx *ui.Context, users []api.UserSummary, name string) (string, tea.Cmd) {
 			if len(users) == 0 {
 				return "", nil

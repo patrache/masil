@@ -8,17 +8,19 @@ import { all, decodeCursor, encodeCursor, first, parseLimit } from "../lib/db";
 import { err } from "../lib/errors";
 import { isId, newId } from "../lib/ids";
 import { notify } from "../lib/notify";
-import { areFriends, isBlockedEither } from "../lib/permissions";
+import { areFriends, isBlockedEither, suspendedNowSql } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { publishEvent } from "../lib/realtime";
 import { loadUserSummaries, serializeFriendRequests, serializeFriends } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vJson, vQuery, zUserRef } from "../lib/validate";
-import { insertFriendRequest, makeFriends, unfriend } from "../services/relations";
+import { acceptPendingRequest, insertFriendRequest, makeFriends, unfriend } from "../services/relations";
 import type { FriendRequestRow, UserRow } from "../types/rows";
 
 const PENDING_OUTGOING_MAX = 100; // api.md 5.3: 422 limit_exceeded pending_friend_requests
 const REQUEST_LIST_MAX = 200;
+/** POST /v1/friends/requests: decision rounds when a crossing request keeps vanishing before its accept batch. */
+const CROSSING_ROUNDS = 3;
 
 const RequestBody = z.object({ user: zUserRef });
 const RequestsQuery = z.object({ direction: z.enum(["incoming", "outgoing"]) });
@@ -59,6 +61,9 @@ async function friendOf(db: D1Database, me: string, other: string) {
 
 export const friendRoutes = new Hono<AppEnv>();
 
+// Order: on (rk 0) before offline (rk 1), then display_name, user_id. A friend suspended right now ranks offline, as its
+// Friend.presence reads (api.md 3.9) — the raw user_presence.status (a manual dnd holds with no socket) would otherwise
+// show through the order and next_cursor.
 friendRoutes.get("/friends", requireAuth, vQuery(FriendsQuery), async (c) => {
   const me = getAuth(c).userId;
   const q = c.req.valid("query");
@@ -72,7 +77,7 @@ friendRoutes.get("/friends", requireAuth, vQuery(FriendsQuery), async (c) => {
          FROM friendships fr WHERE fr.user_a = ?1 OR fr.user_b = ?1
      ), r AS (
        SELECT f.user_id, f.created_at, u.display_name,
-              CASE WHEN COALESCE(p.status, 'offline') = 'offline' THEN 1 ELSE 0 END AS rk
+              CASE WHEN COALESCE(p.status, 'offline') = 'offline' OR ${suspendedNowSql("f.user_id", "?6")} THEN 1 ELSE 0 END AS rk
          FROM f JOIN users u ON u.id = f.user_id
          LEFT JOIN user_presence p ON p.user_id = f.user_id
      )
@@ -87,6 +92,7 @@ friendRoutes.get("/friends", requireAuth, vQuery(FriendsQuery), async (c) => {
     key?.name ?? null,
     cur?.i ?? null,
     n + 1,
+    now(),
   );
   const page = rows.slice(0, n);
   const last = page[page.length - 1];
@@ -123,21 +129,27 @@ friendRoutes.post("/friends/requests", requireAuth, limit("RL_SOCIAL"), vJson(Re
   if (target.id === me) throw err.conflict("conflict", "self");
   const t = now();
   if (isSuspendedNow(target, t) || (await isBlockedEither(db, me, target.id))) throw err.forbidden("action_not_allowed");
-  if (await areFriends(db, me, target.id)) throw err.conflict("already_exists", "already_friends");
 
-  const pending = await all<FriendRequestRow>(
-    db,
-    `SELECT * FROM friend_requests
-      WHERE status = 'pending' AND ((from_user_id = ?1 AND to_user_id = ?2) OR (from_user_id = ?2 AND to_user_id = ?1))
-      ORDER BY created_at, id`,
-    me,
-    target.id,
-  );
-  if (pending.some((r) => r.from_user_id === me)) throw err.conflict("already_exists", "pending");
-  const theirs = pending.find((r) => r.from_user_id === target.id);
-  if (theirs) {
-    // Crossing request: accept theirs instead of opening a second one (api.md 5.3).
-    await makeFriends(rt(c), me, target.id, theirs.id);
+  // Crossing request: accept theirs instead of opening a second one (api.md 5.3). If theirs is no longer pending at the
+  // accept (canceled / declined / accepted elsewhere after the read — the accept batch reads that itself), the answer
+  // is the one the request would have got had that landed before the read: decide again from the start (pending item
+  // 10-a; not 404, which this endpoint does not answer). Each round is a whole fresh decision whose own writes read
+  // their own reasons, so the answer is always one a serial order gives. The last round opens a request even if yet
+  // another crossing one appeared (the pair can still accept either; makeFriends accepts crossing ones together).
+  for (let round = 1; ; round++) {
+    if (await areFriends(db, me, target.id)) throw err.conflict("already_exists", "already_friends");
+    const pending = await all<FriendRequestRow>(
+      db,
+      `SELECT * FROM friend_requests
+        WHERE status = 'pending' AND ((from_user_id = ?1 AND to_user_id = ?2) OR (from_user_id = ?2 AND to_user_id = ?1))
+        ORDER BY created_at, id`,
+      me,
+      target.id,
+    );
+    if (pending.some((r) => r.from_user_id === me)) throw err.conflict("already_exists", "pending");
+    const theirs = round < CROSSING_ROUNDS ? pending.find((r) => r.from_user_id === target.id) : undefined;
+    if (!theirs) break;
+    if ((await acceptPendingRequest(rt(c), me, target.id, theirs.id)) === "gone") continue;
     const [[request], friend] = await Promise.all([
       serializeFriendRequests(db, [{ ...theirs, status: "accepted", responded_at: t }]),
       friendOf(db, me, target.id),
