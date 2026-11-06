@@ -2277,6 +2277,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 - `Sanitize` 결과는 다시 `Sanitize` 해도 같다(멱등). 단위 시험이 위 예와 함께 "결과의 모든 그래핌 g 에 대해 `StringWidth(g)==StringWidthWc(g)`" 를 무작위 유니코드 문자열(시드 고정)로 검사한다.
 - 받은 데이터를 그릴 때의 `Sanitize` 는 전송 데이터(메시지 본문·리액션 키 등)에 **절대 적용하지 않는다**(화면 전용). 입력창이 사용자가 **치는** 글을 정규화하는 것은 별개 규칙이다(8.4).
+- **클립보드(OSC 52, `tea.SetClipboard`) [보안 결정, 2026-11-06]**: 남이 보낸 글을 복사할 때는 화면에 보인 것만 넣는다. 서버는 본문의 제어 문자를 지우지 않고 화면은 ESC 시퀀스를 내용째 지우므로, 원문을 그대로 넣으면 보이지 않던 괄호 붙여넣기 종료(`ESC[201~`)·CR·숨은 명령이 셸에 붙여 넣어진다(pastejacking). `msg.copy`(본문·투표 질문·주사위 결과)는 `textwidth.SanitizeInput`(줄바꿈 유지), 명령으로 붙여 넣는 한 줄 값(`masil join <code>`)은 `textwidth.Sanitize`(줄바꿈 없음)를 거친다.
 - East Asian Ambiguous 를 2칸으로 그리는 터미널 설정(iTerm2 "Ambiguous characters are double-width" 등)은 지원하지 않는다 — 상자 문자 자체가 깨지므로. 도움말에 안내.
 
 ### 8.3 자르기·줄바꿈·채우기
