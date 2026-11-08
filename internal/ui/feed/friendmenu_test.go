@@ -200,3 +200,36 @@ func TestProfileFollowHelpFollowsState(t *testing.T) {
 		t.Fatalf("help line:\n%s", s)
 	}
 }
+
+// C4 (v0.1.1): no "+" help where "+" does nothing — a user I blocked (the
+// relationship still says Following=none) and a profile still loading.
+func TestProfileFollowHelpHiddenWhenPlusDoesNothing(t *testing.T) {
+	hasPlus := func(ctx *ui.Context, p ui.Component) bool {
+		for _, b := range p.(ui.Helper).Help(ctx) {
+			if b.Help().Key == "+" {
+				return true
+			}
+		}
+		return false
+	}
+	h := uitest.New(t, profileOpts(t, "@hana", false, func(p *api.Profile) {
+		p.Relationship.Blocked, p.Relationship.IsFriend, p.Relationship.Following = true, false, "none"
+	})...)
+	h.Resize(120, 40)
+	s := h.Screen()
+	p := h.Instance(ui.Route{Kind: ui.RouteProfile, ID: "@hana"}.Key())
+	if hasPlus(h.Context(), p) || strings.Contains(s, "+ 팔로우") {
+		t.Fatalf("blocked: + help shown:\n%s", s)
+	}
+	h.Press("+")
+	for _, r := range h.API.Requests() {
+		if strings.HasSuffix(r.Path, "/follow") {
+			t.Fatalf("blocked: + sent %s %s", r.Method, r.Path)
+		}
+	}
+
+	loading := newProfile(h.Context(), ui.Route{Kind: ui.RouteProfile, ID: "@hana"})
+	if hasPlus(h.Context(), loading) {
+		t.Fatal("loading: + help shown before the profile arrives")
+	}
+}

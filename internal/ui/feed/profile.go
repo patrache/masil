@@ -1304,7 +1304,7 @@ func (p *profile) Resize(_ *ui.Context, size ui.Size) { p.size = size }
 // suspended user, or while a request is in flight.
 func (p *profile) toggleFollow(ctx *ui.Context) tea.Cmd {
 	r := p.rel()
-	if p.prof == nil || r == nil || p.isMe(ctx) || p.blocked(ctx) || p.prof.Suspended || p.following {
+	if !p.canFollow(ctx) || p.following {
 		return nil
 	}
 	id := p.prof.ID
@@ -1528,6 +1528,12 @@ func (p *profile) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 	return nil
 }
 
+// canFollow: "+" acts on this profile — it is loaded, not mine, not blocked by
+// me and not suspended (the help line shows "+" only then, C4).
+func (p *profile) canFollow(ctx *ui.Context) bool {
+	return p.prof != nil && p.rel() != nil && !p.isMe(ctx) && !p.blocked(ctx) && !p.prof.Suspended
+}
+
 // ---- optional capabilities ----
 
 // Title is "@handle" (the route's handle, or 프로필, until the profile loads).
@@ -1552,7 +1558,7 @@ func (p *profile) Help(ctx *ui.Context) []key.Binding {
 	switch {
 	case p.prof != nil && p.isMe(ctx):
 		out = append(out, b("e", "프로필 편집"))
-	case !p.masked(ctx):
+	case p.canFollow(ctx):
 		out = append(out, b("+", p.followHelp()))
 	}
 	if p.tab == tabGuestbook {
