@@ -3,11 +3,13 @@
 package e2egate_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -326,5 +328,98 @@ func TestGateM2Chat(t *testing.T) {
 	}
 	if page, err := b.API.ListDMs(ctx, api.PageOpts{}); err != nil || !slices.ContainsFunc(page.Items, func(ch api.Channel) bool { return ch.ID == g.ID }) {
 		t.Fatalf("group dm not listed for b: %v", err)
+	}
+}
+
+// valid 1x1 RGB PNG (69 bytes, CRCs checked)
+var onePixelPNG = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0xc9, 0xfe, 0x92, 0xef, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82}
+
+// M3: follow, photo post, live following timeline, reply/quote/like/repost, stories,
+// hashtag feed + trends, notification inbox, profile.
+func TestGateM3SNS(t *testing.T) {
+	srv := e2eServer(t)
+	ctx := t.Context()
+	a, b := signup(t, srv, "g3a"), signup(t, srv, "g3b")
+	as, bs := connect(t, a, realtime.ModeFull), connect(t, b, realtime.ModeFull)
+	as.next(t, "ready")
+	bs.next(t, "ready")
+
+	if st, err := b.API.Follow(ctx, api.Handle(a.Handle)); err != nil || st != "active" {
+		t.Fatalf("follow %q, %v", st, err)
+	}
+	as.next(t, "notification.created", match("notification.type", "follow"))
+	up, err := a.API.Upload(ctx, "post", "image/png", bytes.NewReader(onePixelPNG), int64(len(onePixelPNG)))
+	must(t, err)
+	tag := "관문" + strings.ToLower(ids.New()[20:])
+	p, _, err := a.API.CreatePost(ctx, api.CreatePostRequest{ClientNonce: ids.New(), Body: "관문 첫 글 #" + tag, MediaUploadIDs: []string{up.ID}})
+	must(t, err)
+	bs.next(t, "timeline.item_created", match("item.post.id", p.ID)) // pushed to followers (events.md 4.8)
+	tl, err := b.API.FollowingTimeline(ctx, api.TimelineQuery{})
+	must(t, err)
+	if len(tl.Items) == 0 || tl.Items[0].Post.ID != p.ID {
+		t.Fatalf("following timeline top %+v", tl.Items)
+	}
+	blob, err := b.API.FetchMedia(ctx, tl.Items[0].Post.Media[0].URL, "")
+	must(t, err)
+	if !bytes.Equal(blob.Data, onePixelPNG) {
+		t.Fatal("media bytes differ")
+	}
+
+	_, err = b.API.Like(ctx, p.ID)
+	must(t, err)
+	as.next(t, "notification.created", match("notification.type", "post_like"))
+	_, _, err = b.API.CreatePost(ctx, api.CreatePostRequest{ClientNonce: ids.New(), Body: "답글이에요", ReplyToID: p.ID})
+	must(t, err)
+	_, _, err = b.API.CreatePost(ctx, api.CreatePostRequest{ClientNonce: ids.New(), Body: "인용해요", QuoteOfID: p.ID})
+	must(t, err)
+	_, err = b.API.Repost(ctx, p.ID)
+	must(t, err)
+	got, err := a.API.GetPost(ctx, p.ID)
+	must(t, err)
+	if got.LikeCount != 1 || got.ReplyCount != 1 || got.QuoteCount != 1 || got.RepostCount != 1 {
+		t.Fatalf("counts %+v", got)
+	}
+	if rs, err := a.API.ListReplies(ctx, p.ID, api.PageOpts{}); err != nil || len(rs.Items) != 1 {
+		t.Fatalf("replies: %v", err)
+	}
+
+	st, err := a.API.CreateStory(ctx, api.CreateStoryRequest{Body: "관문 스토리"})
+	must(t, err)
+	bs.next(t, "story.created", match("user_id", a.UserID))
+	groups, err := b.API.StoryFeed(ctx)
+	must(t, err)
+	if len(groups) == 0 || groups[0].User.ID != a.UserID || !groups[0].HasUnseen {
+		t.Fatalf("story feed %+v", groups)
+	}
+	must(t, b.API.ViewStory(ctx, st.ID))
+	if groups, _ = b.API.StoryFeed(ctx); groups[0].HasUnseen {
+		t.Fatal("story still unseen after view")
+	}
+
+	if hp, err := b.API.HashtagPosts(ctx, tag, api.PageOpts{}); err != nil || !slices.ContainsFunc(hp.Items, func(x api.Post) bool { return x.ID == p.ID }) {
+		t.Fatalf("hashtag feed: %v", err)
+	}
+	resp, err := http.Get(srv + "/__scheduled?cron=*/5+*+*+*+*")
+	must(t, err)
+	resp.Body.Close()
+	if tr, err := b.API.Trends(ctx); err != nil || !slices.ContainsFunc(tr.Items, func(x api.Trend) bool { return x.Tag == tag }) {
+		t.Fatalf("trends: %v", err)
+	}
+
+	np, err := a.API.ListNotifications(ctx, api.NotificationQuery{})
+	must(t, err)
+	seen := map[string]bool{}
+	for _, n := range np.Items {
+		seen[string(n.Type)] = true
+	}
+	for _, want := range []string{"follow", "post_like", "post_reply", "post_quote", "post_repost"} {
+		if !seen[want] {
+			t.Errorf("inbox lacks %s: %v", want, seen)
+		}
+	}
+	prof, err := b.API.GetUser(ctx, api.Handle(a.Handle))
+	must(t, err)
+	if prof.PostCount < 1 || prof.Relationship == nil || prof.Relationship.Following != "active" {
+		t.Fatalf("profile %+v", prof)
 	}
 }
