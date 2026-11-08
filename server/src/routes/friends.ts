@@ -173,7 +173,7 @@ friendRoutes.post("/friends/requests", requireAuth, limit("RL_SOCIAL"), vJson(Re
       dedupeKey: `friend_request:${row.id}`,
       alert: {
         kind: "friend_request",
-        title: `${name} 님의 친구 요청`,
+        title: `${name}님의 친구 요청`,
         body: "",
         target: { type: "user", id: me, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
       },

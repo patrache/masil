@@ -118,7 +118,7 @@ guestbookRoutes.post("/users/:user/guestbook", requireAuth, limit("RL_POST"), vJ
       dedupeKey: `guestbook_entry:${row.id}`,
       alert: {
         kind: "social",
-        title: `${name} 님의 방명록`,
+        title: `${name}님의 방명록`,
         body: plainSnippet(row.body, 200),
         target: { type: "user", id: owner.id, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
       },

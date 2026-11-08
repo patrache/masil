@@ -327,7 +327,7 @@ export async function approveAllPendingFollows(rt: Runtime, userId: string): Pro
       preview: "",
       alert: {
         kind: "social" as const,
-        title: `${name} 님이 팔로우 요청을 수락했어요`,
+        title: `${name}님이 팔로우 요청을 수락했어요`,
         body: "",
         target: { type: "user" as const, id: userId, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
       },
@@ -415,7 +415,7 @@ export async function follow(rt: Runtime, followerId: string, followeeId: string
     subject: { type: "user", id: followerId },
     preview: "",
     dedupeKey: `${active ? "follow" : "follow_request"}:${followeeId}:${followerId}`,
-    alert: { kind: "social", title: active ? `${name} 님이 팔로우했어요` : `${name} 님의 팔로우 요청`, body: "", target: userTarget(followerId) },
+    alert: { kind: "social", title: active ? `${name}님이 팔로우했어요` : `${name}님의 팔로우 요청`, body: "", target: userTarget(followerId) },
   });
   return inserted.status;
 }

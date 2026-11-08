@@ -305,7 +305,7 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
       dedupeKey: `${isReply ? "post_reply" : "post_quote"}:${row.id}`,
       alert: {
         kind: "social",
-        title: isReply ? `${name} 님의 답글` : `${name} 님이 글을 인용했어요`,
+        title: isReply ? `${name}님의 답글` : `${name}님이 글을 인용했어요`,
         body: snippet,
         target: postTarget(row.id),
       },
@@ -321,7 +321,7 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
       preview: snippet,
       context: { post_id: row.id },
       dedupeKey: `post_mention:${row.id}:${uid}`,
-      alert: { kind: "mention", title: `${name} 님이 글에서 멘션했어요`, body: snippet, target: postTarget(row.id) },
+      alert: { kind: "mention", title: `${name}님이 글에서 멘션했어요`, body: snippet, target: postTarget(row.id) },
     });
   }
   if (inputs.length > 0) await scheduleNotifications(rt, "post notifications", () => notifyMany(rt, inputs));
@@ -433,7 +433,7 @@ function reactionNotification(post: PostRow, actor: UserRow, type: "post_like" |
     dedupeKey: `${type}:${post.id}:${actor.id}`,
     alert: {
       kind: "social",
-      title: type === "post_like" ? `${actor.display_name} 님이 글을 좋아해요` : `${actor.display_name} 님이 글을 리포스트했어요`,
+      title: type === "post_like" ? `${actor.display_name}님이 글을 좋아해요` : `${actor.display_name}님이 글을 리포스트했어요`,
       body: snippet,
       target: postTarget(post.id),
     },
