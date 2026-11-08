@@ -2,6 +2,7 @@ package feed
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -205,11 +206,15 @@ func TestImageBox(t *testing.T) {
 		d          ui.Density
 		cols, rows int
 	}{
-		{"full", m, 52, ui.DensityFull, 48, 12},
+		// C6 (v0.1.1): at the 12-row cap the width shrinks too, so the box keeps
+		// the picture's aspect (it was 48x12 for a 64x48 picture: wider than 4:3)
+		{"full", m, 52, ui.DensityFull, 32, 12},
 		{"full narrow", m, 22, ui.DensityFull, 22, 8},
 		{"bubble", m, 76, ui.DensityBubble, 30, 11},
-		{"no size is 4:3", api.Media{}, 40, ui.DensityFull, 40, 12},
-		{"tall clamps", api.Media{Width: ptr(1), Height: ptr(1000)}, 20, ui.DensityFull, 20, 12},
+		{"no size is 4:3", api.Media{}, 40, ui.DensityFull, 32, 12},
+		{"tall clamps", api.Media{Width: ptr(1), Height: ptr(1000)}, 20, ui.DensityFull, 1, 12},
+		{"huge tall clamps", api.Media{Width: ptr(1 << 30), Height: ptr(1<<31 - 1)}, 48, ui.DensityFull, 12, 12},
+		{"overflowing sizes", api.Media{Width: ptr(math.MaxInt64), Height: ptr(math.MaxInt64 / 2)}, 48, ui.DensityFull, 48, 12},
 		{"wide clamps", api.Media{Width: ptr(1000), Height: ptr(1)}, 20, ui.DensityFull, 20, 3},
 		{"line", m, 100, ui.DensityLine, 0, 0},
 		{"minimal", m, 100, ui.DensityMinimal, 0, 0},
@@ -218,6 +223,26 @@ func TestImageBox(t *testing.T) {
 	for _, c := range cases {
 		if cols, rows := imageBox(c.m, c.contentW, c.d); cols != c.cols || rows != c.rows {
 			t.Errorf("%s: imageBox = %d,%d want %d,%d", c.name, cols, rows, c.cols, c.rows)
+		}
+	}
+}
+
+// C6 (v0.1.1): the same 24x16 picture gets a box of the same shape (cells are
+// about twice as tall as wide) in Full (wide screens) and Bubble (narrower
+// ones): 48x11 vs 30x11 drew it at two different aspect ratios.
+func TestImageBoxKeepsAspectAcrossDensities(t *testing.T) {
+	m := api.Media{Width: ptr(24), Height: ptr(16)}
+	aspect := func(cols, rows int) float64 { return float64(cols) / float64(2*rows) } // pixel aspect of the box
+	want := 24.0 / 16.0
+	for _, c := range []struct {
+		d        ui.Density
+		contentW int
+	}{{ui.DensityFull, 118}, {ui.DensityFull, 52}, {ui.DensityBubble, 78}, {ui.DensityBubble, 30}, {ui.DensityFull, 20}} {
+		cols, rows := imageBox(m, c.contentW, c.d)
+		// one cell of rounding either way
+		lo, hi := aspect(cols-1, rows), aspect(cols+1, rows)
+		if want < lo || want > hi {
+			t.Errorf("%v width %d: box %dx%d has aspect %.2f, picture %.2f", c.d, c.contentW, cols, rows, aspect(cols, rows), want)
 		}
 	}
 }
