@@ -163,6 +163,9 @@ func (p *inlineParser) literal(i, n int) int {
 // token tries every inline rule at byte i and returns the bytes consumed (0 = none).
 func (p *inlineParser) token(i int) int {
 	s := p.s
+	if c := s[i]; (c == '*' || c == '_') && escaped(s, i) {
+		return p.literal(i, runLen(s, i, c)) // `¯\_(ツ)_/¯` stays itself
+	}
 	switch c := s[i]; {
 	case c == '`':
 		return p.codeSpan(i)
@@ -208,6 +211,26 @@ func (p *inlineParser) codeSpan(i int) int {
 	return p.literal(i, n)
 }
 
+// escaped reports a backslash right before byte i. The subset has no escapes
+// (the backslash itself stays visible), but a "*" or "_" run after one neither
+// opens nor closes an emphasis, so the /shrug face (api.md 5.10) is not italic.
+func escaped(s string, i int) bool { return i > 0 && s[i-1] == '\\' }
+
+// nextMarker is the index of the first unescaped marker at or after from, or -1.
+func nextMarker(s string, from int, marker string) int {
+	for j := from; j < len(s); {
+		k := strings.Index(s[j:], marker)
+		if k < 0 {
+			return -1
+		}
+		if !escaped(s, j+k) {
+			return j + k
+		}
+		j += k + len(marker)
+	}
+	return -1
+}
+
 func runLen(s string, i int, c byte) int {
 	n := 0
 	for i+n < len(s) && s[i+n] == c {
@@ -234,7 +257,7 @@ func endsWithSpace(s string) bool {
 // bold: "**text**" with no nesting.
 func (p *inlineParser) bold(i int) int {
 	s := p.s
-	if k := strings.Index(s[i+2:], "**"); k >= 0 {
+	if k := nextMarker(s, i+2, "**") - (i + 2); k >= 0 {
 		if content := s[i+2 : i+2+k]; validEmphasis(content) {
 			p.emit(Inline{Kind: Bold, Text: content})
 			return k + 4
@@ -246,7 +269,7 @@ func (p *inlineParser) bold(i int) int {
 // star: "*text*" italic.
 func (p *inlineParser) star(i int) int {
 	s := p.s
-	if k := strings.IndexByte(s[i+1:], '*'); k >= 0 {
+	if k := nextMarker(s, i+1, "*") - (i + 1); k >= 0 {
 		if content := s[i+1 : i+1+k]; validEmphasis(content) {
 			p.emit(Inline{Kind: Italic, Text: content})
 			return k + 2
@@ -272,7 +295,7 @@ func (p *inlineParser) underscore(i int) int {
 		if s[j] == '\n' {
 			break
 		}
-		if s[j] != '_' {
+		if s[j] != '_' || escaped(s, j) {
 			continue
 		}
 		before, _ := utf8.DecodeLastRuneInString(s[:j])

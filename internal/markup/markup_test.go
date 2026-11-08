@@ -126,6 +126,39 @@ func TestParseEdges(t *testing.T) {
 	}
 }
 
+// A "*" or "_" right after a backslash is not an emphasis marker, so the face
+// /shrug appends (api.md 5.10: `¯\_(ツ)_/¯`) shows as itself, not as "¯\(ツ)/¯"
+// with an italic "(ツ)". The backslash stays visible (the subset has no escapes).
+func TestParseBackslashedMarkerIsText(t *testing.T) {
+	for _, body := range []string{`¯\_(ツ)_/¯`, `몰라 ¯\_(ツ)_/¯`, `\_x_`, `\*x*`, `\**x**`} {
+		d := markup.Parse(body, markup.ParseOptions{})
+		if got := nonText(d); got != nil {
+			t.Errorf("Parse(%q) has spans %+v, want plain text", body, got)
+		}
+		if got := allText(d); got != body {
+			t.Errorf("Parse(%q) text = %q", body, got)
+		}
+		if got := markup.Plain(body, 80); got != body {
+			t.Errorf("Plain(%q) = %q", body, got)
+		}
+	}
+	// An escaped marker does not close an emphasis either.
+	cases := []struct {
+		body string
+		want []markup.Inline
+	}{
+		{`_a\_ b_`, []markup.Inline{{Kind: markup.Italic, Text: `a\_ b`}}},
+		{`*a\* b*`, []markup.Inline{{Kind: markup.Italic, Text: `a\* b`}}},
+		{`**a\** b**`, []markup.Inline{{Kind: markup.Bold, Text: `a\** b`}}},
+		{`_진짜_ ¯\_(ツ)_/¯`, []markup.Inline{{Kind: markup.Italic, Text: "진짜"}}},
+	}
+	for _, c := range cases {
+		if got := nonText(markup.Parse(c.body, markup.ParseOptions{})); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Parse(%q) = %+v, want %+v", c.body, got, c.want)
+		}
+	}
+}
+
 func checkLines(t *testing.T, lines []string, w int) {
 	t.Helper()
 	for i, l := range lines {
