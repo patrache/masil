@@ -50,6 +50,10 @@ type Helper interface {
 	Help(ctx *Context) []key.Binding
 }
 
+// ThreadHider is true while the component's selection cannot open a thread
+// (D7: a system message): the status line then drops the mode's thread hint.
+type ThreadHider interface{ HidesThread(ctx *Context) bool }
+
 // Watcher lists visible posts ("post:<id>"), sns-fun.
 type Watcher interface{ WatchTopics() []string }
 

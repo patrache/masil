@@ -131,7 +131,7 @@ followRoutes.post("/me/follow-requests/:user/accept", requireAuth, async (c) => 
     preview: "",
     alert: {
       kind: "social",
-      title: `${name} 님이 팔로우 요청을 수락했어요`,
+      title: `${name}님이 팔로우 요청을 수락했어요`,
       body: "",
       target: { type: "user", id: me, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
     },

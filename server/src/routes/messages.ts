@@ -187,6 +187,12 @@ messageRoutes.get("/messages/:message_id/thread", requireAuth, vQuery(ThreadQuer
   const root = await threadRootOf(db, idParam(c, "message_id", "message"));
   await requireChannelRead(db, root.channel_id, me);
   if (root.deleted_at !== null && root.reply_count === 0) throw err.notFound("message");
+  if (root.kind === "system") {
+    // D7: never a thread root; replies a v0.1.0 server stored under it stay hidden.
+    const [sys] = await serializeMessages(db, me, [root]);
+    if (!sys) throw err.notFound("message");
+    return c.json({ root: sys, items: [], has_more_before: false, has_more_after: false });
+  }
 
   const exists = async (op: "<" | ">" | "<=" | ">=", id: string): Promise<boolean> =>
     (await first<{ x: number }>(db, `SELECT 1 AS x FROM messages WHERE ${REPLIES} AND id ${op} ?2 LIMIT 1`, root.id, id)) !== null;
@@ -220,12 +226,17 @@ messageRoutes.get("/messages/:message_id/thread", requireAuth, vQuery(ThreadQuer
   return c.json({ root: rootMessage, items, has_more_before: hasBefore, has_more_after: hasAfter });
 });
 
-/** Reply in the root's thread (a reply id resolves to its root): write access, 201 { message } (same nonce -> 200). */
+/**
+ * Reply in the root's thread (a reply id resolves to its root): write access, 201 { message } (same nonce -> 200).
+ * A kind:"system" root -> 400 fields.message_id = "not_allowed" (D7).
+ */
 messageRoutes.post("/messages/:message_id/thread", requireAuth, limit("RL_MESSAGE"), vJson(ReplyBody), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
   const root = await threadRootOf(db, idParam(c, "message_id", "message"));
   const access = await requireChannelWrite(db, root.channel_id, me);
+  // D7: a system message is never a thread root (checked after access, so non-readers still get 404).
+  if (root.kind === "system") throw err.invalid({ message_id: "not_allowed" });
   const b = c.req.valid("json");
   const { message, created } = await createMessage(rt(c), {
     channelId: access.channel.id,
@@ -263,7 +274,8 @@ async function liveMessage(db: D1Database, messageId: string): Promise<MessageRo
 }
 
 /**
- * Adds my reaction (read access; a 1:1 dm also needs can_dm -> requireChannelWrite, 403 read_only). One batch:
+ * Adds my reaction (read access; a 1:1 dm also needs can_dm -> requireChannelWrite, 403 read_only); a kind:"system"
+ * message -> 400 fields.message_id = "not_allowed" (D7). One batch:
  * a conditional INSERT (message still live, and the emoji is already there or the message has < 20 distinct emoji) +
  * the emoji's COUNT(*) + whether my row exists and the message is live (the 0-row reason, same transaction). Already reacted -> 204 without an event; 21st distinct emoji -> 422
  * reactions_per_message. Else 204 + reaction.added{channel_id, message_id, thread_root_id, emoji, user_id, count}.
@@ -274,6 +286,8 @@ messageRoutes.put("/messages/:message_id/reactions/:emoji", requireAuth, limit("
   const emoji = emojiParam(c.req.param("emoji"));
   const row = await liveMessage(db, idParam(c, "message_id", "message"));
   await requireChannelWrite(db, row.channel_id, me);
+  // D7: system messages take no reactions (after access, so non-readers still get 404).
+  if (row.kind === "system") throw err.invalid({ message_id: "not_allowed" });
   const [ins, cnt, state] = await batch(db, [
     stmt(
       db,

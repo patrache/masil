@@ -35,6 +35,10 @@ type instanceCache struct {
 	order []string       // creation order (deterministic broadcast)
 	saved map[string]any // SaveState of released instances, restored on re-creation
 	tick  uint64
+	// rejump is the key of the route the last navigation asked to jump to (it
+	// carries an Anchor): the next relayout sends it RouteUpdatedMsg even when the
+	// cached instance already holds that Anchor (C1). relayout clears it.
+	rejump string
 }
 
 func newInstanceCache() *instanceCache {
@@ -49,12 +53,14 @@ func (c *instanceCache) lookup(key string) *instance {
 // get returns the instance for r, creating it (registered RouteFactory, else a
 // placeholder) when missing. A new instance gets its saved state back (Persistent)
 // and its Init Cmd is returned. updated reports an existing instance now shown for a
-// different Anchor/Query: the caller sends it ui.RouteUpdatedMsg (only it) once the
-// projection is complete (CR-C: after Store.SetViewing).
+// different Anchor/Query, or for the same Anchor that a navigation asked for again
+// (rejump): the caller sends it ui.RouteUpdatedMsg (only it) once the projection is
+// complete (CR-C: after Store.SetViewing).
 func (c *instanceCache) get(ctx *ui.Context, r ui.Route) (in *instance, cmd tea.Cmd, updated bool) {
 	key := r.Key()
 	if in := c.byKey[key]; in != nil {
-		if in.route.Anchor != r.Anchor || !maps.Equal(in.route.Query, r.Query) {
+		rejump := c.rejump == key && r.Anchor != ""
+		if rejump || in.route.Anchor != r.Anchor || !maps.Equal(in.route.Query, r.Query) {
 			in.route = r
 			return in, nil, true
 		}

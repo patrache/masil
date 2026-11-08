@@ -238,7 +238,7 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
       dedupeKey: `space_invite:${row.id}`,
       alert: {
         kind: "invite",
-        title: `${name} 님이 ${space.name} 방에 초대했어요`,
+        title: `${name}님이 ${space.name} 방에 초대했어요`,
         body: "",
         target: { type: "space", id: spaceId, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: spaceId },
       },

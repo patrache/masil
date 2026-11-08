@@ -326,6 +326,10 @@ func copyCmd(m api.Message) tea.Cmd {
 // actionable: a live user message (not deleted, not a system line).
 func actionable(m api.Message) bool { return !m.Deleted && m.Kind != "system" }
 
+// threadable: a message that can be (or belongs to) a thread root — any but a
+// system line (D7: the server rejects replies to and reactions on one).
+func threadable(m api.Message) bool { return m.Kind != "system" }
+
 // editable: my live text or /me message.
 func editable(ctx *ui.Context, m api.Message) bool {
 	return actionable(m) && isMe(ctx, m.Author.ID) && (m.Kind == "text" || m.Kind == "me")
@@ -448,7 +452,7 @@ func (p *msgPane) actionKey(ctx *ui.Context, msg tea.KeyPressMsg, edit func(api.
 // 작성자 · <이름> (the author menu: memberActions), 신고 and 작성자 차단.
 func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem {
 	var items []menuItem
-	if m.Kind != "system" {
+	if threadable(m) {
 		root, chID := threadRootOf(m), m.ChannelID
 		if chID == "" && ch != nil {
 			chID = ch.ID

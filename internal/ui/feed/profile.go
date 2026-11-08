@@ -85,6 +85,9 @@ const (
 	textMenuReportUser    = "사용자 신고"
 	textMenuEditProfile   = "프로필 편집"
 	textMenuFollowReqs    = "팔로우 요청"
+	textHelpFollow        = "팔로우"
+	textHelpUnfollow      = "언팔로우"
+	textHelpCancelFollow  = "요청 취소"
 	errContextFollow      = "팔로우"
 	errContextProfile     = "프로필"
 )
@@ -186,6 +189,7 @@ type profile struct {
 	loadFailed bool
 	notFound   bool
 	following  bool // a follow / unfollow request of this screen is in flight
+	friending  bool // a friend action of this screen is in flight (C2)
 
 	tab   profileTab
 	tabs  *widgets.Tabs
@@ -412,6 +416,8 @@ func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.ResultMsg[*followOutcome]:
 		cmds = append(cmds, p.onFollow(ctx, m))
+	case ui.ResultMsg[*friendOutcome]:
+		cmds = append(cmds, p.onFriend(ctx, m))
 	case ui.ResultMsg[*followRequestOutcome]:
 		p.onRequestHandled(ctx, m)
 	case ui.ResultMsg[*api.Me]:
@@ -644,6 +650,8 @@ func (p *profile) onEvent(ctx *ui.Context, m ui.EventMsg) tea.Cmd {
 		if json.Unmarshal(m.Event.Data, &d) == nil && d.Notification.Type == "guestbook_entry" && p.isMe(ctx) {
 			return p.refreshGuestbook(ctx)
 		}
+	case "friend.request_received", "friend.request_accepted", "friend.request_removed":
+		p.onFriendRequestEvent(m.Event.Type, m.Event.Data)
 	case "friend.added", "friend.removed":
 		var d struct {
 			Friend *api.Friend `json:"friend"`  // friend.added
@@ -1296,7 +1304,7 @@ func (p *profile) Resize(_ *ui.Context, size ui.Size) { p.size = size }
 // suspended user, or while a request is in flight.
 func (p *profile) toggleFollow(ctx *ui.Context) tea.Cmd {
 	r := p.rel()
-	if p.prof == nil || r == nil || p.isMe(ctx) || p.blocked(ctx) || p.prof.Suspended || p.following {
+	if !p.canFollow(ctx) || p.following {
 		return nil
 	}
 	id := p.prof.ID
@@ -1341,7 +1349,7 @@ func (p *profile) openStories(ctx *ui.Context) tea.Cmd {
 func (p *profile) openEdit() tea.Cmd { return ui.OpenRegisteredOverlay(overlayProfileEdit, "") }
 
 // openMenu is "m": 스토리 보기, 팔로워, 팔로잉, then 프로필 편집 · 팔로우 요청
-// (mine) or 차단 · 사용자 신고 (someone else's).
+// (mine) or the friend action (friendMenuItems) · 차단 · 사용자 신고 (someone else's).
 func (p *profile) openMenu(ctx *ui.Context) tea.Cmd {
 	if p.prof == nil {
 		return nil
@@ -1364,6 +1372,7 @@ func (p *profile) openMenu(ctx *ui.Context) tea.Cmd {
 			menuItem{label: textMenuFollowReqs, open: func(*ui.Context) ui.Overlay { return newFollowRequests() }},
 		)
 	} else {
+		items = append(items, p.friendMenuItems(ctx)...)
 		if !p.blocked(ctx) {
 			items = append(items, menuItem{label: textMenuBlockUser, open: func(ctx *ui.Context) ui.Overlay {
 				return widgets.Confirm(name+textBlockAsk, textBlockBody, textBlockYes, textCancel, blockUser(ctx, id))
@@ -1519,6 +1528,12 @@ func (p *profile) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 	return nil
 }
 
+// canFollow: "+" acts on this profile — it is loaded, not mine, not blocked by
+// me and not suspended (the help line shows "+" only then, C4).
+func (p *profile) canFollow(ctx *ui.Context) bool {
+	return p.prof != nil && p.rel() != nil && !p.isMe(ctx) && !p.blocked(ctx) && !p.prof.Suspended
+}
+
 // ---- optional capabilities ----
 
 // Title is "@handle" (the route's handle, or 프로필, until the profile loads).
@@ -1543,13 +1558,27 @@ func (p *profile) Help(ctx *ui.Context) []key.Binding {
 	switch {
 	case p.prof != nil && p.isMe(ctx):
 		out = append(out, b("e", "프로필 편집"))
-	case !p.masked(ctx):
-		out = append(out, b("+", "팔로우"))
+	case p.canFollow(ctx):
+		out = append(out, b("+", p.followHelp()))
 	}
 	if p.tab == tabGuestbook {
 		out = append(out, b("w", "방명록 쓰기"))
 	}
 	return append(out, b("m", "메뉴"), b("1-4", "탭"), b("s", "스토리"))
+}
+
+// followHelp is what "+" does now (C4): 언팔로우 (following), 요청 취소 (a
+// pending request), else 팔로우.
+func (p *profile) followHelp() string {
+	if r := p.rel(); r != nil {
+		switch r.Following {
+		case "active":
+			return textHelpUnfollow
+		case "pending":
+			return textHelpCancelFollow
+		}
+	}
+	return textHelpFollow
 }
 
 func (p *profile) WatchTopics() []string { return append([]string(nil), p.visible...) }

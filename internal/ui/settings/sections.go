@@ -474,7 +474,7 @@ func (s *screen) confirmUnblock(ctx *ui.Context, userID string) tea.Cmd {
 	if u.Handle != "" {
 		ref = api.Handle(u.Handle)
 	}
-	body := "@" + textwidth.Sanitize(u.Handle) + " 님이 다시 DM 을 보내고 글을 볼 수 있어요."
+	body := "@" + textwidth.Sanitize(u.Handle) + "님이 다시 DM 을 보내고 글을 볼 수 있어요."
 	run := ui.Do(ctx, tagUnblock+userID, func(c context.Context, a *api.Client) (struct{}, error) {
 		return struct{}{}, a.Unblock(c, ref)
 	})

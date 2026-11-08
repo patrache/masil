@@ -255,7 +255,7 @@ func TestToastAlertRoutes(t *testing.T) {
 		{"invite no match", api.AlertInvite, api.AlertTarget{Type: "space", ID: "SPACE-Z", SpaceID: sp("SPACE-Z")},
 			false, ui.Route{Kind: ui.RouteInvite, Arg: "direct"}},
 		{"friend_request", api.AlertFriendRequest, api.AlertTarget{Type: "user", ID: fixtures.UserMinji},
-			false, ui.Route{Kind: ui.RouteFriends}},
+			false, ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}},
 		{"follow accepted", api.AlertSocial, api.AlertTarget{Type: "user", ID: fixtures.UserJunho},
 			false, ui.Route{Kind: ui.RouteProfile, ID: fixtures.UserJunho}},
 		{"guestbook entry", api.AlertSocial, api.AlertTarget{Type: "user", ID: fixtures.UserSam},

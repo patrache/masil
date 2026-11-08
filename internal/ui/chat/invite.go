@@ -629,7 +629,7 @@ func (v *inviteView) card(ctx *ui.Context, t *theme.Theme, sp api.SpacePreview, 
 		rows = append(rows, cardRow{text: desc, style: t.S.Base.Render, drop: 3})
 	}
 	rows = append(rows,
-		cardRow{text: "멤버 " + strconv.Itoa(sp.MemberCount) + "명", style: t.S.Dim.Render, drop: 4},
+		cardRow{text: "멤버 " + strconv.Itoa(liveMemberCount(ctx, sp)) + "명", style: t.S.Dim.Render, drop: 4},
 		cardRow{text: inviteInviterPrefix + strings.TrimSpace(textwidth.Sanitize(displayName(inviter))), style: t.S.Base.Render, drop: 1},
 	)
 	if until != "" {
@@ -642,6 +642,18 @@ func (v *inviteView) card(ctx *ui.Context, t *theme.Theme, sp api.SpacePreview, 
 		rows = append(rows, cardRow{text: actions, style: t.S.Bold.Render})
 	}
 	return v.centerRows(t, rows)
+}
+
+// liveMemberCount is the member count of sp: the Store's (kept by the
+// space.member_* events) once I am in the space, else the preview's snapshot
+// (C3: the card kept the preview count after joining).
+func liveMemberCount(ctx *ui.Context, sp api.SpacePreview) int {
+	if ctx != nil && ctx.Store != nil {
+		if sd := ctx.Store.Spaces[sp.ID]; sd != nil {
+			return sd.MemberCount
+		}
+	}
+	return sp.MemberCount
 }
 
 // centerRows draws rows centered both ways in exactly size.H x size.W, each line

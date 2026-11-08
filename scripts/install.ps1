@@ -49,18 +49,38 @@ $masilOk = & {
 	}
 
 	# Save-Url copies file:// sources directly: PowerShell 7's Invoke-WebRequest
-	# has no file scheme.
+	# has no file scheme. Network downloads get five tries, 2/4/6/8 s apart:
+	# GitHub release downloads answered 504 for a while on 2026-11-08.
+	# (Invoke-WebRequest -MaximumRetryCount exists only in PowerShell 7.)
 	function Save-Url([string]$url, [string]$dest) {
+		$hint = 'HTTP 오류(404: 레포가 아직 비공개이거나 그 버전이 없음, 5xx: GitHub 쪽 일시 장애)나 네트워크 문제일 수 있습니다 — 잠시 뒤 다시 실행하세요.'
+		$uri = $null
 		try {
 			$uri = [System.Uri]$url
-			if ($uri.IsFile) {
-				Copy-Item -LiteralPath $uri.LocalPath -Destination $dest -Force
-			} else {
-				Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
-			}
 		} catch {
-			Fail "내려받기 실패: $url (레포가 아직 비공개이거나 버전이 없습니다)"
+			Fail "내려받기 실패: $url (주소가 올바르지 않습니다)"
 		}
+		if ($uri.IsFile) {
+			try {
+				Copy-Item -LiteralPath $uri.LocalPath -Destination $dest -Force
+			} catch {
+				Fail "내려받기 실패: $url ($($_.Exception.Message))"
+			}
+			return
+		}
+		$last = ''
+		for ($attempt = 1; $attempt -le 5; $attempt++) {
+			try {
+				Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+				return
+			} catch {
+				# e.g. "The remote server returned an error: (504) Gateway Timeout." (5.1)
+				# or "Response status code does not indicate success: 504 (Gateway Timeout)." (7)
+				$last = $_.Exception.Message
+				if ($attempt -lt 5) { Start-Sleep -Seconds (2 * $attempt) }
+			}
+		}
+		Fail "내려받기 실패: $url ($last)`n  $hint"
 	}
 
 	function Test-SameDir([string]$a, [string]$b) {

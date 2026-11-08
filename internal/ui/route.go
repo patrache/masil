@@ -13,7 +13,7 @@ const (
 	RouteSearch        RouteKind = "search"         // chat: Arg=query, ID=channel|space scope ("" global)
 	RouteInvite        RouteKind = "invite"         // chat: ID=invite code (link preview); Arg="direct" => direct invite, ID=invite id ("" = list of pending Store.DirectInvites)
 	RouteSpaceSettings RouteKind = "space_settings" // chat: ID=space id
-	RouteFriends       RouteKind = "friends"        // chat
+	RouteFriends       RouteKind = "friends"        // chat: Anchor=FriendsIncoming|FriendsList opens that tab ("" = the remembered one)
 	RouteFeed          RouteKind = "feed"           // sns-fun: Arg="following"|"discover"
 	RoutePost          RouteKind = "post"           // sns-fun: ID=post id
 	RouteProfile       RouteKind = "profile"        // sns-fun: ID=user id or "@handle"
@@ -25,6 +25,13 @@ const (
 	RouteSettings      RouteKind = "settings"       // core
 	RouteLogin         RouteKind = "login"          // core
 	RouteHelp          RouteKind = "help"           // core
+)
+
+// RouteFriends anchors: the tab the friends screen opens on (a home row, a
+// friend-request alert or notification).
+const (
+	FriendsList     = "friends"  // 친구
+	FriendsIncoming = "incoming" // 받은 요청
 )
 
 // Route is a logical place.
@@ -61,7 +68,10 @@ type NavigateMsg struct {
 // BackMsg goes back one step.
 type BackMsg struct{}
 
-// RouteUpdatedMsg is sent ONLY to a cached instance when navigation reuses it with a different Anchor/Query.
+// RouteUpdatedMsg is sent ONLY to a cached instance when navigation reuses it
+// with a different Anchor/Query, or with a non-empty Anchor that navigation asked
+// for again (rejump: the same Anchor re-sends it so the jump happens again). A
+// plain resize or re-projection sends none.
 type RouteUpdatedMsg struct{ Route Route }
 
 // Navigate emits NavigateMsg{Route: r}.

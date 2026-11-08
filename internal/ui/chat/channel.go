@@ -677,7 +677,7 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 		if !ok || r.Kind != rowMessage || r.Msg == nil {
 			return false, nil
 		}
-		return true, v.openThread(r)
+		return true, v.openThread(r) // nil on a system message (D7)
 	}
 	if handled, cmd := v.pane.actionKey(ctx, msg, func(m api.Message) tea.Cmd { return v.startEdit(ctx, m) }); handled {
 		return true, cmd
@@ -692,7 +692,7 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 
 // openThread opens the thread of a message row.
 func (v *channelView) openThread(r row) tea.Cmd {
-	if r.Kind != rowMessage || r.Msg == nil {
+	if r.Kind != rowMessage || r.Msg == nil || !threadable(*r.Msg) {
 		return nil
 	}
 	return openThread(v.id(), r.Msg.ID)
@@ -751,7 +751,19 @@ func (v *channelView) Help(ctx *ui.Context) []key.Binding {
 	if v.composer.focused() {
 		return ctx.Keys.Help(keymap.ComposeSend, keymap.ComposeNewline, keymap.ComposeLeave, keymap.ComposeEditLast)
 	}
+	if v.HidesThread(ctx) {
+		// a system line takes neither a thread nor a reaction (D7)
+		return ctx.Keys.Help(keymap.ComposeFocus, keymap.ChannelSearch)
+	}
 	return ctx.Keys.Help(keymap.MsgThread, keymap.MsgReact, keymap.ComposeFocus, keymap.ChannelSearch)
+}
+
+// HidesThread (ui.ThreadHider): the selected line is a system message, which
+// opens no thread (D7), so the status line drops the mode's thread hint too.
+// The composer's own hints replace the mode hints, so it never applies there.
+func (v *channelView) HidesThread(*ui.Context) bool {
+	r, ok := v.pane.selected()
+	return ok && r.Kind == rowMessage && r.Msg != nil && !threadable(*r.Msg)
 }
 
 // SaveState is called when the app releases the instance (CA 5.3.3): the

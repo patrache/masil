@@ -505,6 +505,10 @@ func TestBlocksSection(t *testing.T) {
 	if !strings.Contains(h.Screen(), "차단을 풀까요?") {
 		t.Fatalf("confirm missing:\n%s", h.Screen())
 	}
+	// D8: 님 is written attached to the name ("@hana님이", not "@hana 님이")
+	if scr := h.Screen(); !strings.Contains(scr, "@hana님이") || strings.Contains(scr, " 님") {
+		t.Fatalf("confirm body must attach 님 to the name:\n%s", scr)
+	}
 	h.Check()
 	h.Press("y")
 	if len(requests(h.API, "DELETE", "/v1/blocks/@hana")) != 1 {

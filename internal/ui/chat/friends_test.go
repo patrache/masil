@@ -745,3 +745,18 @@ func TestFriendsUserUpdatedOnSuspension(t *testing.T) {
 	h.Event("user.updated", realtime.UserUpdated{User: withStatus})
 	mustContain(t, paneText(t, h, layout.SlotMain), "회의 중")
 }
+
+// C1: a RouteFriends Anchor wins over the saved tab of an evicted instance.
+func TestFriendsAnchorWinsOverSavedTab(t *testing.T) {
+	h := openFriends(t, uitest.Size{W: 120, H: 40})
+	v := newFriends(h.Context(), ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}).(*friendsView)
+	v.LoadState(friendsSaved{Tab: tabOutgoing})
+	if v.tab != tabIncoming {
+		t.Fatalf("anchored tab %d, want 받은 요청", v.tab)
+	}
+	v = newFriends(h.Context(), ui.Route{Kind: ui.RouteFriends}).(*friendsView)
+	v.LoadState(friendsSaved{Tab: tabOutgoing})
+	if v.tab != tabOutgoing {
+		t.Fatalf("unanchored tab %d, want the saved one", v.tab)
+	}
+}
