@@ -28,6 +28,7 @@ func init() {
 const (
 	textNotifTitle    = "알림"
 	textNotifEmpty    = "새 알림이 없어요"
+	textNotifLoadFail = "알림을 불러오지 못했어요"
 	iconNotifEmpty    = "🔔"
 	textNotifSomeone  = "알 수 없음"
 	textNotifSpace    = "방"
@@ -141,8 +142,9 @@ type notifications struct {
 	loading     bool
 	loadingMore bool
 	loaded      bool
-	err         error
-	focused     bool // the last View's focus (selection is drawn only when focused)
+	err         error // the last first-page request failed (retry notice; x is off)
+	quietFail   bool  // the first-page request in flight is an automatic retry: a failure does not toast
+	focused     bool  // the last View's focus (selection is drawn only when focused)
 
 	listY, listH int // geometry of the last View (-1 / 0 = not drawn)
 }
@@ -197,7 +199,7 @@ func (n *notifications) load(ctx *ui.Context, cursor string) tea.Cmd {
 	if cursor != "" {
 		n.loadingMore, tag = true, tagNotifsMore
 	} else {
-		n.loading = true
+		n.loading, n.quietFail = true, false
 	}
 	return tea.Batch(n.spin.Start(ctx), ui.Do(ctx, tag, func(c context.Context, a *api.Client) (*api.NotificationPage, error) {
 		if a == nil {
@@ -206,6 +208,28 @@ func (n *notifications) load(ctx *ui.Context, cursor string) tea.Cmd {
 		return a.ListNotifications(c, api.NotificationQuery{PageOpts: api.PageOpts{Cursor: cursor}})
 	}))
 }
+
+// key is the inbox's route key (FocusChangedMsg).
+func (n *notifications) key() string { return ui.Route{Kind: ui.RouteNotifications}.Key() }
+
+// retry re-requests a failed first page (nil unless the last one failed and
+// none is in flight): r, being shown again, and a successful resync — as the
+// timeline and the profile do. Automatic retries (quiet) fail silently: the
+// pane keeps its retry notice.
+func (n *notifications) retry(ctx *ui.Context, quiet bool) tea.Cmd {
+	if n.err == nil || n.loading {
+		return nil
+	}
+	cmd := n.load(ctx, "")
+	if n.loading {
+		n.quietFail = quiet
+	}
+	return cmd
+}
+
+// pageLoaded reports whether a first page (or a resync's) filled the window:
+// x marks everything read only then (not unseen notifications).
+func (n *notifications) pageLoaded() bool { return n.loaded && n.err == nil }
 
 // maybeMore loads the next older page (FeedStore keeps its cursor, so a
 // rebuilt inbox still pages) once the selection nears the end.
@@ -237,6 +261,9 @@ func (n *notifications) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	if forwardResync(ctx, msg) {
 		if m := msg.(feedstore.ResyncMsg); m.Key == notifOpenKey && m.Notifs != nil {
 			n.loaded = true
+			if fs := n.fs(ctx); fs != nil && fs.NotificationsLoaded() {
+				n.err = nil // a resync page replaced the failed one
+			}
 		}
 	}
 	cmds := []tea.Cmd{applyResults(ctx, msg)}
@@ -246,6 +273,16 @@ func (n *notifications) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, n.onPage(ctx, m))
 	case ui.ResultMsg[*markReadOutcome]:
 		cmds = append(cmds, n.onMarkRead(ctx, m))
+	case ui.FocusChangedMsg:
+		if m.RouteKey == n.key() {
+			cmds = append(cmds, n.retry(ctx, true)) // shown again (reopened)
+		}
+	case ui.RouteUpdatedMsg:
+		cmds = append(cmds, n.retry(ctx, true))
+	case ui.ResyncDoneMsg:
+		if m.Err == nil { // a failed bootstrap (offline) retries itself every 10s
+			cmds = append(cmds, n.retry(ctx, true))
+		}
 	case ui.EventMsg:
 		if m.Event.Type == "notification.created" {
 			before = make(map[string]bool, len(n.items))
@@ -294,7 +331,7 @@ func (n *notifications) onPage(ctx *ui.Context, m ui.ResultMsg[*api.Notification
 		if !more {
 			n.err, n.loaded = m.Err, true
 		}
-		if m.Err == nil {
+		if m.Err == nil || (!more && n.quietFail) {
 			return nil
 		}
 		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextNotif} }
@@ -625,7 +662,7 @@ func (n *notifications) View(ctx *ui.Context, focused bool) string {
 	case len(n.items) == 0 && (n.loading || !n.loaded):
 		out = append(out, n.loadingLine(ctx, w))
 	case len(n.items) == 0 && n.err != nil:
-		out = strings.Split(widgets.Empty(t, n.size, "⚠", textwidth.Sanitize(api.Describe(n.err)), ""), "\n")
+		out = strings.Split(widgets.Empty(t, n.size, "⚠", retryHint(ctx, textNotifLoadFail), ""), "\n")
 	case len(n.items) == 0:
 		out = strings.Split(widgets.Empty(t, n.size, iconNotifEmpty, textNotifEmpty, ""), "\n")
 	default:
@@ -657,7 +694,13 @@ func (n *notifications) Resize(_ *ui.Context, size ui.Size) {
 // ---- input ----
 
 func (n *notifications) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	if n.err != nil && ctx.Keys.Matches(msg, keymap.PostReply) {
+		return true, n.retry(ctx, false)
+	}
 	if msg.String() == "x" {
+		if !n.pageLoaded() {
+			return true, nil // nothing seen to mark
+		}
 		return true, n.markAll(ctx)
 	}
 	if len(n.items) == 0 {
@@ -745,6 +788,14 @@ func (n *notifications) Title(ctx *ui.Context) (string, ui.Badge) {
 func (n *notifications) Help(ctx *ui.Context) []key.Binding {
 	open := ctx.Keys.Binding(keymap.ListOpen)
 	open.SetHelp(open.Help().Key, "열기")
+	if n.err != nil && len(n.items) == 0 {
+		r := ctx.Keys.Binding(keymap.PostReply)
+		r.SetHelp(r.Help().Key, textRetry)
+		return []key.Binding{r}
+	}
+	if !n.pageLoaded() {
+		return []key.Binding{open}
+	}
 	return []key.Binding{open, key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "모두 읽음"))}
 }
 

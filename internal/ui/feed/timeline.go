@@ -107,6 +107,7 @@ type timeline struct {
 	loadingFirst   bool
 	loadErr        bool // the last first-page request failed (retry notice instead of the empty state)
 	retryOnShow    bool // Resize while loadErr: retry on the next Update
+	quietFail      bool // the first-page request in flight is an automatic retry: a failure does not toast
 	loadingMore    bool
 	storiesLoading bool
 	storiesFails   int       // failed story-ring loads in a row
@@ -195,6 +196,7 @@ func (t *timeline) fetch(kind string) func(*api.Client, context.Context, api.Tim
 func (t *timeline) loadFirst(ctx *ui.Context) tea.Cmd {
 	t.loadingFirst = true
 	t.retryOnShow = false
+	t.quietFail = false
 	get := t.fetch(t.kind)
 	return tea.Batch(t.spin.Start(ctx), ui.Do(ctx, tagTimeline+t.kind, func(c context.Context, a *api.Client) (*api.TimelinePage, error) {
 		return get(a, c, api.TimelineQuery{})
@@ -202,12 +204,17 @@ func (t *timeline) loadFirst(ctx *ui.Context) tea.Cmd {
 }
 
 // retry re-requests a failed first page (nil unless the last one failed and
-// none is in flight): the r key, being shown again, and a resync.
-func (t *timeline) retry(ctx *ui.Context) tea.Cmd {
+// none is in flight): the r key, being shown again, a mode change or resize,
+// and a successful resync. Automatic retries (quiet) fail silently: the pane
+// keeps its retry notice, and only the first failure and the user's r toast
+// (offline, a toast per resync / resize step was noise).
+func (t *timeline) retry(ctx *ui.Context, quiet bool) tea.Cmd {
 	if !t.loadErr || t.loadingFirst {
 		return nil
 	}
-	return t.loadFirst(ctx)
+	cmd := t.loadFirst(ctx)
+	t.quietFail = quiet
+	return cmd
 }
 
 // retryHint is "피드를 불러오지 못했어요 · r 다시 시도" (the retry key is post.reply's).
@@ -425,15 +432,17 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		force = false // the stale-ring check below does the work
 	case ui.ModeChangedMsg:
 		imagesChanged = true
-		cmds = append(cmds, t.retry(ctx))
+		cmds = append(cmds, t.retry(ctx, true))
 	case ui.ThemeChangedMsg:
 		imagesChanged = true
 	case ui.FocusChangedMsg:
 		if m.RouteKey == t.key {
-			cmds = append(cmds, t.retry(ctx))
+			cmds = append(cmds, t.retry(ctx, true))
 		}
 	case ui.ResyncDoneMsg:
-		cmds = append(cmds, t.retry(ctx))
+		if m.Err == nil { // a failed bootstrap (offline) retries itself every 10s
+			cmds = append(cmds, t.retry(ctx, true))
+		}
 	case ui.EventMsg:
 		if m.Event.Type == "timeline.item_created" {
 			before = make(map[string]bool, len(t.items))
@@ -448,7 +457,7 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	}
 	if t.retryOnShow {
 		t.retryOnShow = false
-		cmds = append(cmds, t.retry(ctx))
+		cmds = append(cmds, t.retry(ctx, true))
 	}
 	if id, _, ok := t.imgs.loaded(msg); ok {
 		cmds = append(cmds, t.renderMedia(ctx, id))
@@ -491,6 +500,9 @@ func (t *timeline) onPage(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultM
 		t.stopSpinner()
 		if m.Err != nil || m.Value == nil {
 			t.loadErr = true
+			if t.quietFail {
+				return nil // the retry notice is still up
+			}
 			return errCmd(m.Err)
 		}
 		t.loadErr = false
@@ -913,7 +925,7 @@ func (t *timeline) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		t.bannerSel = false
 	}
 	if t.loadErr && len(t.items) == 0 && km.Matches(msg, keymap.PostReply) {
-		return true, t.retry(ctx)
+		return true, t.retry(ctx, false)
 	}
 	switch s {
 	case "1":
