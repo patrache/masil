@@ -78,19 +78,42 @@ jobs:
             https://?*) ;;
             *) echo "::error::repo variable MASIL_DEFAULT_SERVER must be an https:// URL (owner sets it after the approved deploy)"; exit 1 ;;
           esac
-      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+      - name: install goreleaser
+        # Built from source through proxy.golang.org (verified against
+        # sum.golang.org) instead of goreleaser-action, which downloads the
+        # binary from GitHub Releases: on 2026-11-08 those downloads answered
+        # 504 and the release failed before anything was built. Five tries,
+        # 15/30/45/60 s apart, for a flaky proxy too.
+        # setup-go exports GOTOOLCHAIN=local, but goreleaser v2.19.0's go.mod
+        # needs go 1.27.3, so this step alone uses GOTOOLCHAIN=auto (the
+        # toolchain also comes from proxy.golang.org). masil itself is still
+        # built by the go.mod toolchain from setup-go in the next step.
+        env:
+          GOTOOLCHAIN: auto
+          GOBIN: ${{ runner.temp }}/goreleaser-bin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if go install github.com/goreleaser/goreleaser/v2@v2.19.0; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "::error::go install goreleaser v2.19.0 failed 5 times (proxy.golang.org)"
+              exit 1
+            fi
+            sleep $((attempt * 15))
+          done
+          "$GOBIN/goreleaser" --version
+          echo "$GOBIN" >> "$GITHUB_PATH"
+      - name: goreleaser release
         # Every built binary is checked by scripts/check-release-binary.sh (the
         # builds[].hooks.post in .goreleaser.yaml) BEFORE archiving and
         # publishing: a binary without the https default server or with cgo
         # aborts the release, so nothing reaches releases/latest. (-trimpath
         # drops -ldflags from build info, so `go version -m | grep
         # DefaultServer=` cannot work; the script looks for the URL in the binary.)
-        with:
-          distribution: goreleaser
-          version: v2.19.0
-          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: goreleaser release --clean
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: checksums
@@ -116,10 +139,15 @@ jobs:
         with:
           name: checksums
           path: dist
+      # patrache/homebrew-tap's default (and only) branch is `formula`; a hook
+      # refuses direct pushes to main. checkout would pick the default branch
+      # anyway, but both the ref here and the push below name `formula`, so a
+      # later change of the tap's default branch cannot redirect the commit.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: ${{ steps.token.outputs.skip != '1' }}
         with:
           repository: patrache/homebrew-tap
+          ref: formula
           token: ${{ env.TAP_TOKEN }}
           path: tap
       - name: render Formula/masil.rb
@@ -148,7 +176,7 @@ jobs:
             echo "::notice::Formula/masil.rb unchanged for ${VERSION}; nothing to push"
           else
             git -C tap commit -m "masil ${VERSION}"
-            git -C tap push
+            git -C tap push origin HEAD:formula
           fi
 
   install-smoke:

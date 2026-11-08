@@ -121,7 +121,7 @@
 
 ## 6. 운영·배포 절차 (오너 윤허 필요)
 
-- GitHub: `patrache/masil` 레포 생성 — 오너 요청에 따름. **개발 중엔 비공개**, 첫 출시 때 공개(오픈소스)로 전환. 사용자는 소스가 아니라 **GitHub Releases 바이너리**(설치 스크립트, Homebrew tap)로 설치 — 소스 공개와 바이너리 배포는 양립함. 라이선스(MIT: 자유 / AGPL: 남이 서버를 고쳐 비공개로 운영 못 함)는 공개 전환 시 오너가 결정. **[내 제안 — 오너 확인 대기]**
+- GitHub: `patrache/masil` 레포 생성 — 오너 요청에 따름. **개발 중엔 비공개**, 첫 출시 때 공개(오픈소스)로 전환. 사용자는 소스가 아니라 **GitHub Releases 바이너리**(설치 스크립트, Homebrew tap)로 설치 — 소스 공개와 바이너리 배포는 양립함. **[내 제안 — 오너 확인 대기]** 라이선스는 **MIT** — 오너 결정 D6(2026-11-06): 루트 `LICENSE`(저작권자 patrache), goreleaser 아카이브와 Homebrew formula(`license "MIT"`)에도 담는다.
 - Cloudflare 실제 배포(D1·R2·Worker 생성, `wrangler deploy`)는 **되돌리기 어려운·과금 가능 작업이므로 배포 직전 오너에게 건별로 여쭙는다.** 개발·테스트는 로컬 `wrangler dev` 로 진행.
 - 기본 도메인은 `*.workers.dev`. 커스텀 도메인은 추후.
 
