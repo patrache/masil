@@ -55,6 +55,25 @@ export async function inOneRateWindow<T>(periodSec: 10 | 60, attempt: () => Prom
   }
 }
 
+/**
+ * Polls `probe` every `stepMs` until `ok(value)` holds or `timeoutMs` has passed, and returns the last value (the
+ * caller asserts on it, so a timeout fails with the real state). For state the server writes after the request or
+ * frame the test awaited — a socket close handled by the hub, a D1 row written in the background: a fixed sleep
+ * before reading it is flaky under full-suite load (v0.1.1 S3).
+ */
+export async function waitFor<T>(
+  probe: () => Promise<T> | T,
+  ok: (value: T) => boolean,
+  { timeoutMs = 5000, stepMs = 25 }: { timeoutMs?: number; stepMs?: number } = {},
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = await probe();
+    if (ok(value) || Date.now() >= deadline) return value;
+    await new Promise<void>((r) => setTimeout(r, stepMs));
+  }
+}
+
 export interface ApiResult<T> {
   status: number;
   body: T;

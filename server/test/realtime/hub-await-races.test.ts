@@ -17,7 +17,7 @@ import { CloseCode } from "../../src/do/protocol";
 import { LOG_KEEP_MS } from "../../src/do/user-hub";
 import { newId } from "../../src/lib/ids";
 import type { Alert, FocusSummary, UserSummary } from "../../src/types/api";
-import { api, connectWs, signup, type TestUser, type WsClient } from "../helpers";
+import { api, connectWs, signup, waitFor, type TestUser, type WsClient } from "../helpers";
 
 const hub = (id: string) => env.USER_HUB.getByName(id);
 const settle = (ms = 150) => new Promise<void>((r) => setTimeout(r, ms));
@@ -97,6 +97,15 @@ async function focusWithAlert(): Promise<{ r: TestUser; c: WsClient; focus: { st
   return { r, c, focus: f.body.focus, alert };
 }
 
+/**
+ * Waits (bounded) until focus.ended and the focus_summary alert have arrived — they are published after the call the
+ * test awaited returns — then a little longer, so a wrong second summary would be seen too (v0.1.1 S3).
+ */
+async function settleOneSummary(c: WsClient): Promise<void> {
+  await waitFor(() => focusEnded(c).length > 0 && summaryAlerts(c).length > 0, (ok) => ok);
+  await settle(300);
+}
+
 function expectOneSummary(c: WsClient, focus: { started_at: string }): void {
   const ended = focusEnded(c);
   expect(ended).toHaveLength(1);
@@ -116,7 +125,7 @@ describe("finishFocus stays exactly-once while its actor lookup is in flight (4-
     });
     expect(res.filter((x) => x !== null)).toHaveLength(1);
     expect(await lookups(r.user.id)).toBe(2); // both really waited on the lookup at the same time
-    await settle(300);
+    await settleOneSummary(c);
     expectOneSummary(c, focus);
   });
 
@@ -132,7 +141,7 @@ describe("finishFocus stays exactly-once while its actor lookup is in flight (4-
     expect(await alarm).toBe(true);
     expect((await del).status).toBe(409); // overdue: finished naturally, DELETE itself has no summary to return
     expect(await lookups(r.user.id)).toBe(2);
-    await settle(300);
+    await settleOneSummary(c);
     expectOneSummary(c, focus);
     expect((await api(r.token).get<any>("/v1/me/focus")).body.focus).toBeNull();
   });
@@ -146,7 +155,7 @@ describe("finishFocus stays exactly-once while its actor lookup is in flight (4-
     const [g, p] = await Promise.all([api(r.token).get<any>("/v1/me/focus"), api(r.token).put<any>("/v1/me/presence", { mode: "auto" })]);
     expect([g.status, p.status]).toEqual([200, 200]);
     expect(await lookups(r.user.id)).toBe(2);
-    await settle(300);
+    await settleOneSummary(c);
     expectOneSummary(c, focus);
   });
 
@@ -162,7 +171,7 @@ describe("finishFocus stays exactly-once while its actor lookup is in flight (4-
     expect(again.status).toBe(200);
     expect(again.body.focus.started_at).not.toBe(focus.started_at);
     expect(await slow).toBeNull();
-    await settle(300);
+    await settleOneSummary(c);
     expectOneSummary(c, focus);
     expect((await api(r.token).get<any>("/v1/me/focus")).body.focus).toEqual(again.body.focus);
   });

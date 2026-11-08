@@ -6,7 +6,7 @@ import { newId } from "../../src/lib/ids";
 import { deliverToUsers } from "../../src/lib/realtime";
 import type { Alert, AlertKind } from "../../src/types/api";
 import { serializeMe } from "../../src/lib/serialize";
-import { api, connectWs, signup } from "../helpers";
+import { api, connectWs, signup, waitFor } from "../helpers";
 
 // ---- local fixtures (this file only) ----
 
@@ -187,7 +187,12 @@ describe("presence regressions", () => {
     const c1 = await connectWs(a.token);
     expect((await api(a.token).put<any>("/v1/me/presence", { mode: "dnd" })).body.presence.status).toBe("dnd");
     c1.close();
-    await settle();
+    // the hub's close handling (online_until -> now+120s, last_seen_at) lands before the cron below runs
+    const closed = await waitFor(
+      () => env.DB.prepare("SELECT online_until, last_seen_at FROM user_presence WHERE user_id = ?1").bind(a.user.id).first<any>(),
+      (r) => r.last_seen_at !== null && r.online_until <= Date.now() + 120_000,
+    );
+    expect(closed.last_seen_at).not.toBeNull();
     // grace passed + cron task 9 (data-model.md 6) ran while no socket was connected
     await env.DB.prepare("UPDATE user_presence SET online_until = ?1 WHERE user_id = ?2").bind(Date.now() - 1000, a.user.id).run();
     await handleScheduled(createScheduledController({ cron: "17 * * * *", scheduledTime: Date.now() }), env, createExecutionContext());
