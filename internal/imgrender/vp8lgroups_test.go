@@ -194,3 +194,56 @@ func TestDecodeCostVP8LFewGroupsStaysSmall(t *testing.T) {
 		}
 	}
 }
+
+// vp8lPredictorStream is a w x h VP8L bitstream that opens with a predictor
+// transform over 4x4 tiles: reading it means decoding a (w/4) x (h/4)
+// sub-image first. It stops there (the sub-image data is missing).
+func vp8lPredictorStream(w, h int) []byte {
+	var b vlBits
+	b.put(0x2f, 8)
+	b.put(uint32(w-1), 14)
+	b.put(uint32(h-1), 14)
+	b.put(0, 1)
+	b.put(0, 3)
+	b.put(1, 1) // a transform
+	b.put(0, 2) // predictor
+	b.put(0, 3) // 4x4 tiles
+	b.put(0, 1) // sub-image: no colour cache
+	for range 5 {
+		b.simpleTree(0) // every pixel costs no bits: the sub-image decodes in full
+	}
+	return b.bytes()
+}
+
+// The walk itself must not allocate what the check is there to refuse: it
+// reads the bitstream only at the size the decoder will decode (a VP8X canvas
+// that disagrees with the VP8L header is refused by x/image/webp before any
+// allocation), and only when the rest of the estimate is within the limit.
+func TestDecodeCostWalkStaysWithinTheCheck(t *testing.T) {
+	// A 64x64 canvas carrying a VP8L header for 16384x16384 (a 16 MiB transform image).
+	mismatch := buildWebP(vp8xChunk(0, 64, 64), riffChunk{"VP8L", vp8lPredictorStream(16384, 16384)})
+	// 7000x7000 is within the upload pixel limit, but its pixels alone are over the byte limit.
+	huge := buildWebP(riffChunk{"VP8L", vp8lPredictorStream(7000, 7000)})
+	for name, c := range map[string]struct {
+		data    []byte
+		display bool
+		ok      bool
+	}{
+		"VP8X canvas smaller than the VP8L header": {mismatch, true, true},
+		"VP8L whose pixels are over the limit":     {huge, false, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var err error
+			got := allocated(func() { err = imgrender.CheckHeader(c.data, ctWebP, c.display) })
+			if c.ok && err != nil {
+				t.Fatalf("CheckHeader: %v", err)
+			}
+			if !c.ok && !errors.Is(err, imgrender.ErrTooLarge) {
+				t.Fatalf("CheckHeader: err = %v, want ErrTooLarge", err)
+			}
+			if got > 1<<20 {
+				t.Fatalf("the check allocated %d bytes", got)
+			}
+		})
+	}
+}

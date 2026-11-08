@@ -1,6 +1,9 @@
 package imgrender
 
-import "bytes"
+import (
+	"bytes"
+	"math"
+)
 
 // Fit exposes fit to the external test package.
 var Fit = fit
@@ -45,7 +48,7 @@ func DecodeCost(data []byte, ct string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return decodeCost(ct, data, cfg)
+	return decodeCost(ct, data, cfg, math.MaxInt64)
 }
 
 // DisplayImage is the shrink Cache.Load applies after decoding.

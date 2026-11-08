@@ -46,7 +46,10 @@ const decodeOverhead = 1 << 20
 // decodeCost is the most bytes decoding data (of type ct, header cfg) can
 // allocate. It fails for a header the decoder would size a buffer from but
 // that the file cannot back (a WebP VP8 chunk longer than the bytes left).
-func decodeCost(ct string, data []byte, cfg image.Config) (int64, error) {
+// limit is the byte limit the caller compares the result with: a part of the
+// estimate that has to decode some of the file to count (VP8L Huffman
+// groups) is skipped once the rest is already over it.
+func decodeCost(ct string, data []byte, cfg image.Config, limit int64) (int64, error) {
 	w, h := int64(cfg.Width), int64(cfg.Height)
 	var n int64
 	switch ct {
@@ -58,7 +61,7 @@ func decodeCost(ct string, data []byte, cfg image.Config) (int64, error) {
 		n = 2 * w * h
 	case ctWebP:
 		var err error
-		if n, err = webpCost(data, w, h); err != nil {
+		if n, err = webpCost(data, w, h, limit-decodeOverhead); err != nil {
 			return 0, err
 		}
 	default:
@@ -277,7 +280,7 @@ func parseSOF(seg []byte, progressive bool) (jpegFrame, bool) {
 // name (19 bits); x/image/vp8 allocates it before reading it.
 const maxVP8FirstPartition = 1<<19 - 1
 
-func webpCost(data []byte, w, h int64) (int64, error) {
+func webpCost(data []byte, w, h, limit int64) (int64, error) {
 	mbs := ceilDiv(w, 16) * ceilDiv(h, 16)
 	// 4:2:0 frame over whole macroblocks, per-macroblock state, partitions.
 	frame := 400*mbs + 64*ceilDiv(w, 16) + maxVP8FirstPartition
@@ -296,22 +299,32 @@ func webpCost(data []byte, w, h int64) (int64, error) {
 		}
 		cost = frame + bs.claimed
 	case "VP8L":
-		cost = vp8l + vp8lHuffmanBytes(bs.body, false, 0, 0)
+		cost = vp8l
 	default:
 		cost = max(vp8, vp8l+worstGroups)
 		bs.alph, bs.alphData = true, nil
 	}
 	if bs.alph {
-		// x/image/webp decodes a compressed (method 1) ALPH as a headerless
-		// VP8L image the size of the canvas; method 0 is the raw plane.
+		// x/image/webp decodes an ALPH chunk (even one a VP8L follows, which
+		// it then refuses) as a canvas-sized plane: raw (method 0) or a
+		// headerless VP8L image (method 1).
+		cost += vp8l + w*h
+	}
+	// The Huffman groups, counted by walking the bitstreams; only while the
+	// rest of the estimate is within the limit, since the walk decodes the
+	// transform and meta images the way the decoder would.
+	if bs.alph {
 		groups := worstGroups
 		if bs.alphData != nil {
 			groups = 0
-			if len(bs.alphData) > 0 && bs.alphData[0]&3 == 1 && w <= 1<<14 && h <= 1<<14 {
+			if len(bs.alphData) > 0 && bs.alphData[0]&3 == 1 && w <= 1<<14 && h <= 1<<14 && cost <= limit {
 				groups = vp8lHuffmanBytes(bs.alphData[1:], true, int32(w), int32(h))
 			}
 		}
-		cost += vp8l + w*h + groups
+		cost += groups
+	}
+	if bs.id == "VP8L" && cost <= limit {
+		cost += vp8lHuffmanBytes(bs.body, false, int32(w), int32(h))
 	}
 	return cost, nil
 }

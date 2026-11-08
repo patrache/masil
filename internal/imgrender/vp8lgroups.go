@@ -20,9 +20,16 @@ import (
 // the size of each tree are declared by the bitstream, not by the image
 // size, so a small image can name more than 100 MB of them.
 //
-// The ALPH plane is a VP8L stream without the 5-byte header (headerless),
-// sized w x h by the canvas. If the walk fails, the decoder fails at the same
-// point; the bytes counted up to there are what it allocated first.
+// w x h is the size the caller costed the image at. The ALPH plane is a VP8L
+// stream without the 5-byte header (headerless) of exactly that size (the
+// canvas). A VP8L chunk whose header says otherwise counts nothing:
+// x/image/webp refuses a VP8L that disagrees with its VP8X canvas before
+// decoding it, and without VP8X the size was read from that header. The
+// caller walks only when the rest of its estimate is within its limit, since
+// the walk decodes the transform and meta images as the decoder would.
+//
+// If the walk fails, the decoder fails at the same point; the bytes counted
+// up to there are what it allocated first.
 //
 // The transform and meta-Huffman images (and their single groups) are
 // decoded here as the decoder decodes them; their pixels are part of
@@ -37,8 +44,8 @@ func vp8lHuffmanBytes(b []byte, headerless bool, w, h int32) (n int64) {
 	}()
 	d := &vlDecoder{r: bytes.NewReader(b)}
 	if !headerless {
-		var err error
-		if w, h, err = d.header(); err != nil {
+		hw, hh, err := d.header()
+		if err != nil || hw != w || hh != h {
 			return 0
 		}
 	}
