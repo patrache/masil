@@ -1,0 +1,2 @@
+# Check out text with LF everywhere (Windows too): byte-compared fixtures and goldens.
+* text=auto eol=lf

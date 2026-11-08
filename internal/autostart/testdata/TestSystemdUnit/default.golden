@@ -1,0 +1,12 @@
+[Unit]
+Description=masil notification daemon
+Documentation=https://github.com/patrache/masil
+
+[Service]
+Type=simple
+ExecStart="/home/me/.local/bin/masil" daemon run
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

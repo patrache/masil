@@ -1,0 +1,10 @@
+{
+  "event": "channel_renamed",
+  "actor_id": "01JA0000000000000000000001",
+  "target_user_id": "01JA0000000000000000000002",
+  "data": {
+    "name": "개발",
+    "topic": "배포 이야기",
+    "message_id": "01JC0000000000000000000001"
+  }
+}

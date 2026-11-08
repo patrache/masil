@@ -1,0 +1,128 @@
+{
+  "id": "01JE0000000000000000000002",
+  "author": {
+    "id": "01JA0000000000000000000001",
+    "handle": "minji",
+    "display_name": "민지",
+    "avatar_url": "/v1/media/01JU0000000000000000000001",
+    "status": {
+      "emoji": "🎧",
+      "text": "듣는 중…",
+      "expires_at": "2026-11-05T03:00:00.000Z"
+    },
+    "is_private": false,
+    "suspended": false
+  },
+  "body": "@junho 진짜 왔네 #첫눈",
+  "media": [
+    {
+      "id": "01JU0000000000000000000001",
+      "url": "/v1/media/01JU0000000000000000000001",
+      "content_type": "image/png",
+      "size": 12345,
+      "width": 64,
+      "height": 48
+    }
+  ],
+  "poll": {
+    "id": "01JP0000000000000000000001",
+    "context_type": "post",
+    "context_id": "01JE0000000000000000000002",
+    "creator_id": "01JA0000000000000000000001",
+    "question": "점심 메뉴",
+    "multi": false,
+    "options": [
+      {
+        "idx": 0,
+        "text": "국밥",
+        "vote_count": 2
+      },
+      {
+        "idx": 1,
+        "text": "돈까스",
+        "vote_count": 1
+      }
+    ],
+    "voter_count": 3,
+    "closes_at": "2026-11-05T03:00:00.000Z",
+    "closed": false,
+    "my_votes": [
+      0
+    ]
+  },
+  "reply_to_id": "01JE0000000000000000000001",
+  "root_id": "01JE0000000000000000000001",
+  "reply_to_author": {
+    "id": "01JA0000000000000000000002",
+    "handle": "junho",
+    "display_name": "준호",
+    "avatar_url": null,
+    "status": null,
+    "is_private": false,
+    "suspended": false
+  },
+  "quote": {
+    "available": true,
+    "post": {
+      "id": "01JE0000000000000000000001",
+      "author": {
+        "id": "01JA0000000000000000000002",
+        "handle": "junho",
+        "display_name": "준호",
+        "avatar_url": null,
+        "status": null,
+        "is_private": false,
+        "suspended": false
+      },
+      "body": "첫눈 #첫눈",
+      "media": [
+        {
+          "id": "01JU0000000000000000000001",
+          "url": "/v1/media/01JU0000000000000000000001",
+          "content_type": "image/png",
+          "size": 12345,
+          "width": 64,
+          "height": 48
+        }
+      ],
+      "poll": null,
+      "reply_to_id": null,
+      "root_id": null,
+      "reply_to_author": null,
+      "quote": null,
+      "hashtags": [
+        "첫눈"
+      ],
+      "mentions": [],
+      "like_count": 1,
+      "repost_count": 0,
+      "reply_count": 0,
+      "quote_count": 1,
+      "viewer": {
+        "liked": true,
+        "reposted": false
+      },
+      "created_at": "2026-11-05T02:03:04.567Z",
+      "deleted": false
+    }
+  },
+  "hashtags": [
+    "첫눈"
+  ],
+  "mentions": [
+    {
+      "user_id": "01JA0000000000000000000002",
+      "handle": "junho"
+    }
+  ],
+  "like_count": 4,
+  "repost_count": 2,
+  "reply_count": 1,
+  "quote_count": 0,
+  "viewer": {
+    "liked": true,
+    "reposted": false
+  },
+  "created_at": "2026-11-05T02:03:04.567Z",
+  "deleted": false
+}

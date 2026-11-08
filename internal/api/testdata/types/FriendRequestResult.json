@@ -1,0 +1,46 @@
+{
+  "request": {
+    "id": "01JF0000000000000000000001",
+    "from": {
+      "id": "01JA0000000000000000000001",
+      "handle": "minji",
+      "display_name": "민지",
+      "avatar_url": "/v1/media/01JU0000000000000000000001",
+      "status": {
+        "emoji": "🎧",
+        "text": "듣는 중…",
+        "expires_at": "2026-11-05T03:00:00.000Z"
+      },
+      "is_private": false,
+      "suspended": false
+    },
+    "to": {
+      "id": "01JA0000000000000000000002",
+      "handle": "junho",
+      "display_name": "준호",
+      "avatar_url": null,
+      "status": null,
+      "is_private": false,
+      "suspended": false
+    },
+    "status": "accepted",
+    "created_at": "2026-11-05T02:03:04.567Z"
+  },
+  "friend": {
+    "user": {
+      "id": "01JA0000000000000000000001",
+      "handle": "minji",
+      "display_name": "민지",
+      "avatar_url": "/v1/media/01JU0000000000000000000001",
+      "status": {
+        "emoji": "🎧",
+        "text": "듣는 중…",
+        "expires_at": "2026-11-05T03:00:00.000Z"
+      },
+      "is_private": false,
+      "suspended": false
+    },
+    "since": "2026-11-05T02:03:04.567Z",
+    "presence": "away"
+  }
+}

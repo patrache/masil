@@ -1,0 +1,57 @@
+{
+  "id": "01JQ0000000000000000000001",
+  "reporter": {
+    "id": "01JA0000000000000000000001",
+    "handle": "minji",
+    "display_name": "민지",
+    "avatar_url": "/v1/media/01JU0000000000000000000001",
+    "status": {
+      "emoji": "🎧",
+      "text": "듣는 중…",
+      "expires_at": "2026-11-05T03:00:00.000Z"
+    },
+    "is_private": false,
+    "suspended": false
+  },
+  "target_type": "message",
+  "target_id": "01JC0000000000000000000003",
+  "target_user": {
+    "id": "01JA0000000000000000000002",
+    "handle": "junho",
+    "display_name": "준호",
+    "avatar_url": null,
+    "status": null,
+    "is_private": false,
+    "suspended": false
+  },
+  "reason": "spam",
+  "note": "광고",
+  "snapshot": {
+    "body": "광고합니다",
+    "author_id": "01JA0000000000000000000002",
+    "channel_id": "01JB0000000000000000000001",
+    "media_urls": [
+      "/v1/media/x"
+    ]
+  },
+  "target_exists": true,
+  "open_reports_on_target": 2,
+  "status": "resolved",
+  "resolution": "content_removed",
+  "resolution_note": "삭제함",
+  "resolved_by": {
+    "id": "01JA0000000000000000000001",
+    "handle": "minji",
+    "display_name": "민지",
+    "avatar_url": "/v1/media/01JU0000000000000000000001",
+    "status": {
+      "emoji": "🎧",
+      "text": "듣는 중…",
+      "expires_at": "2026-11-05T03:00:00.000Z"
+    },
+    "is_private": false,
+    "suspended": false
+  },
+  "resolved_at": "2026-11-05T03:00:00.000Z",
+  "created_at": "2026-11-05T02:03:04.567Z"
+}

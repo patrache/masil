@@ -1,0 +1,9 @@
+{
+  "expr": "2d6+1",
+  "rolls": [
+    3,
+    5
+  ],
+  "modifier": 1,
+  "total": 9
+}

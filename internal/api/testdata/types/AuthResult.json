@@ -1,0 +1,52 @@
+{
+  "token": "sample-token",
+  "session": {
+    "id": "01JX0000000000000000000001",
+    "client": "tui",
+    "device_name": "sam-mbp",
+    "created_at": "2026-11-05T02:03:04.567Z",
+    "last_used_at": "2026-11-05T02:03:04.567Z",
+    "expires_at": "2026-11-05T03:00:00.000Z",
+    "current": true
+  },
+  "user": {
+    "id": "01JA0000000000000000000001",
+    "handle": "minji",
+    "display_name": "민지",
+    "avatar_url": "/v1/media/01JU0000000000000000000001",
+    "status": {
+      "emoji": "🎧",
+      "text": "듣는 중…",
+      "expires_at": "2026-11-05T03:00:00.000Z"
+    },
+    "is_private": false,
+    "suspended": false,
+    "bio": "안녕하세요",
+    "created_at": "2026-11-05T02:03:04.567Z",
+    "role": "user",
+    "follower_count": 3,
+    "following_count": 4,
+    "post_count": 5,
+    "settings": {
+      "dm_policy": "friends_and_spaces",
+      "is_private": false,
+      "notify": {
+        "dm": true,
+        "mention": true,
+        "invite": true,
+        "friend_request": true,
+        "thread_reply": true,
+        "social": false
+      },
+      "focus_default_min": 25
+    },
+    "presence": {
+      "status": "dnd",
+      "mode": "auto",
+      "focus": {
+        "started_at": "2026-11-05T02:03:04.567Z",
+        "ends_at": "2026-11-05T03:00:00.000Z"
+      }
+    }
+  }
+}

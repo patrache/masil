@@ -1,0 +1,39 @@
+# Server (Cloudflare Workers) CI: type-check and vitest for server/ only.
+# Go tests live in ci.yml (owned by client core). This workflow never deploys
+# and never touches remote Cloudflare resources.
+name: server-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/server-ci.yml"
+  pull_request:
+    paths:
+      - "server/**"
+      - ".github/workflows/server-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  server-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: install
+        run: npm ci
+      - name: typecheck
+        # server/package.json "typecheck" = tsc --noEmit (src) + tsc --noEmit -p test (test files)
+        run: npm run typecheck
+      - name: test
+        run: npm test

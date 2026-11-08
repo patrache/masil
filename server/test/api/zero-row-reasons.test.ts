@@ -1,0 +1,649 @@
+// Pending item 10-a: when a conditional write changes nothing, the error code it answers with must come from the facts
+// the write itself saw — read in the same batch (one transaction) — not from a re-read after the batch, where a commit
+// landing in between (a block lifted, a membership restored, a row canceled, a message deleted) turns the code into a
+// different one. insertFriendRequest / makeFriends already do this (relation-races.test.ts pins their 403s); this file
+// pins their remaining reason (409 pending) and every sibling 0-row path that used to re-read.
+import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
+import { createApp } from "../../src/app";
+import type { Runtime } from "../../src/env";
+import { newId } from "../../src/lib/ids";
+import { insertDirectInvite, joinSpace } from "../../src/services/membership";
+import { applyBlock, follow, insertFriendRequest, makeFriends as acceptRequest } from "../../src/services/relations";
+import { api, makeFriends, makeSpace, signup, uniqueIp, uploadPng, type TestUser } from "../helpers";
+
+// ---- local fixtures (this file only) ----
+
+/**
+ * A D1 handle that runs `before(realDb)` right before, and `after(realDb)` right after, the first query whose SQL
+ * matches `pattern` — a lone statement (first/all/run/raw) or a batch holding one — once. Commits landing just before
+ * the write's transaction and just after it, whatever the call shape.
+ */
+function aroundSql(pattern: RegExp, before: (db: D1Database) => Promise<unknown>, after: (db: D1Database) => Promise<unknown>) {
+  let fired = false;
+  const sqlOf = new WeakMap<object, string>();
+  const real = new WeakMap<object, D1PreparedStatement>();
+  const around = async <T>(hit: boolean, run: () => Promise<T>): Promise<T> => {
+    if (!hit || fired) return run();
+    fired = true;
+    await before(env.DB);
+    const res = await run();
+    await after(env.DB);
+    return res;
+  };
+  const wrapStmt = (s: D1PreparedStatement, sql: string): D1PreparedStatement => {
+    const p = new Proxy(s, {
+      get(target, key) {
+        if (key === "bind") return (...args: unknown[]) => wrapStmt(target.bind(...args), sql);
+        if (key === "first" || key === "all" || key === "run" || key === "raw") {
+          return (...args: unknown[]) =>
+            around(pattern.test(sql), () => (Reflect.get(target, key) as (...a: unknown[]) => Promise<unknown>).apply(target, args));
+        }
+        const v = Reflect.get(target, key);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    sqlOf.set(p, sql);
+    real.set(p, s);
+    return p;
+  };
+  const db = new Proxy(env.DB, {
+    get(target, key) {
+      if (key === "prepare") return (sql: string) => wrapStmt(target.prepare(sql), sql);
+      if (key === "batch") {
+        return (stmts: D1PreparedStatement[]) =>
+          around(
+            stmts.some((x) => pattern.test(sqlOf.get(x) ?? "")),
+            () => target.batch(stmts.map((x) => real.get(x) ?? x)),
+          );
+      }
+      const v = Reflect.get(target, key);
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  });
+  const rt: Runtime = { env: { ...env, DB: db }, waitUntil: () => {} };
+  return { db, rt, fired: () => fired };
+}
+
+/** One request through a fresh app whose env.DB is `db`; background work is awaited. */
+async function fetchWith(db: D1Database, token: string, method: string, path: string, json?: unknown): Promise<{ status: number; body: any }> {
+  const ctx = createExecutionContext();
+  const res = await createApp().fetch(
+    new Request(`http://masil.test${path}`, {
+      method,
+      headers: {
+        "User-Agent": "masil/0.1.0 (test; test)",
+        "CF-Connecting-IP": uniqueIp(),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: json === undefined ? undefined : JSON.stringify(json),
+    }),
+    { ...env, DB: db } as typeof env,
+    ctx,
+  );
+  await waitOnExecutionContext(ctx);
+  const text = await res.text();
+  return { status: res.status, body: text === "" ? null : JSON.parse(text) };
+}
+
+const sql = (q: string, ...args: unknown[]) => env.DB.prepare(q).bind(...args).run();
+
+// ---- relations ----
+
+describe("insertFriendRequest: the 409 pending reason is the INSERT's own", () => {
+  it("a concurrent pending a -> b committed before the INSERT and canceled right after -> 409 already_exists pending (not 422)", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const other = newId(Date.now());
+    const { db, fired } = aroundSql(
+      /INSERT INTO friend_requests/,
+      () => sql("INSERT INTO friend_requests (id, from_user_id, to_user_id, status, created_at) VALUES (?1, ?2, ?3, 'pending', ?4)", other, a.user.id, b.user.id, Date.now()),
+      () => sql("UPDATE friend_requests SET status = 'canceled', responded_at = ?2 WHERE id = ?1", other, Date.now()),
+    );
+    const t = Date.now();
+    const row = { id: newId(t), from_user_id: a.user.id, to_user_id: b.user.id, status: "pending" as const, created_at: t, responded_at: null };
+    await expect(insertFriendRequest(db, row, 100)).rejects.toMatchObject({ status: 409, code: "already_exists", details: { reason: "pending" } });
+    expect(fired()).toBe(true);
+  });
+});
+
+describe("follow: a 0-row INSERT reports what the INSERT saw", () => {
+  it("a concurrent follow won the race, then a block landed right after the batch -> that follow's state (not 403)", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const { rt, fired } = aroundSql(
+      /INSERT INTO follows/,
+      (db) =>
+        db.batch([
+          db.prepare("INSERT INTO follows (follower_id, followee_id, status, created_at, accepted_at) VALUES (?1, ?2, 'active', ?3, ?3)").bind(a.user.id, b.user.id, Date.now()),
+          db.prepare("UPDATE users SET following_count = following_count + 1 WHERE id = ?1").bind(a.user.id),
+          db.prepare("UPDATE users SET follower_count = follower_count + 1 WHERE id = ?1").bind(b.user.id),
+        ]),
+      () => applyBlock({ env, waitUntil: () => {} }, b.user.id, a.user.id),
+    );
+    expect(await follow(rt, a.user.id, b.user.id)).toBe("active");
+    expect(fired()).toBe(true);
+  });
+
+  it("blocked at the INSERT, lifted right after -> still 403 action_not_allowed, nothing written", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const { rt, fired } = aroundSql(
+      /INSERT INTO follows/,
+      () => sql("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?1, ?2, ?3)", b.user.id, a.user.id, Date.now()),
+      () => sql("DELETE FROM blocks WHERE blocker_id = ?1 AND blocked_id = ?2", b.user.id, a.user.id),
+    );
+    await expect(follow(rt, a.user.id, b.user.id)).rejects.toMatchObject({ status: 403, code: "action_not_allowed" });
+    expect(fired()).toBe(true);
+    expect(await env.DB.prepare("SELECT 1 AS x FROM follows WHERE follower_id = ?1 AND followee_id = ?2").bind(a.user.id, b.user.id).first()).toBeNull();
+  });
+});
+
+// ---- direct invites ----
+
+describe("insertDirectInvite: a refused INSERT reports what the INSERT saw", () => {
+  async function setup() {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await makeFriends(a, b);
+    const { space } = await makeSpace(a);
+    return { a, b, spaceId: space.id };
+  }
+
+  it("the inviter out of the space at the INSERT, back right after -> 404 (not 403)", async () => {
+    const { a, b, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /INSERT INTO space_direct_invites/,
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, a.user.id),
+      () => sql("INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)", spaceId, a.user.id, Date.now()),
+    );
+    const t = Date.now();
+    await expect(insertDirectInvite(db, spaceId, a.user.id, b.user.id, t, newId(t))).rejects.toMatchObject({ status: 404 });
+    expect(fired()).toBe(true);
+  });
+
+  it("the invitee inside the space at the INSERT, gone right after -> 409 already_member (not 403)", async () => {
+    const { a, b, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /INSERT INTO space_direct_invites/,
+      () => sql("INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'member', ?3)", spaceId, b.user.id, Date.now()),
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, b.user.id),
+    );
+    const t = Date.now();
+    await expect(insertDirectInvite(db, spaceId, a.user.id, b.user.id, t, newId(t))).rejects.toMatchObject({ status: 409, code: "already_member" });
+    expect(fired()).toBe(true);
+  });
+
+  it("blocked at the INSERT, lifted right after -> 403 action_not_allowed", async () => {
+    const { a, b, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /INSERT INTO space_direct_invites/,
+      () => sql("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?1, ?2, ?3)", b.user.id, a.user.id, Date.now()),
+      () => sql("DELETE FROM blocks WHERE blocker_id = ?1 AND blocked_id = ?2", b.user.id, a.user.id),
+    );
+    const t = Date.now();
+    await expect(insertDirectInvite(db, spaceId, a.user.id, b.user.id, t, newId(t))).rejects.toMatchObject({ status: 403, code: "action_not_allowed" });
+    expect(fired()).toBe(true);
+  });
+});
+
+// ---- joining by link ----
+
+describe("joinSpace by link: the 410 reason is the use UPDATE's own", () => {
+  it("the link's creator demoted at the join, re-promoted right after -> 410 revoked (not exhausted)", async () => {
+    const [o, c] = await Promise.all([signup(), signup()]);
+    const { space } = await makeSpace(o);
+    const inv = await api(o.token).post<any>(`/v1/spaces/${space.id}/invites`, { max_uses: null });
+    expect(inv.status).toBe(201);
+    const { rt, fired } = aroundSql(
+      /UPDATE space_invites SET use_count/,
+      () => sql("UPDATE space_members SET role = 'member' WHERE space_id = ?1 AND user_id = ?2", space.id, o.user.id),
+      () => sql("UPDATE space_members SET role = 'owner' WHERE space_id = ?1 AND user_id = ?2", space.id, o.user.id),
+    );
+    await expect(joinSpace(rt, space.id, c.user.id, { inviteCode: inv.body.invite.code })).rejects.toMatchObject({
+      status: 410,
+      code: "invite_invalid",
+      details: { reason: "revoked" },
+    });
+    expect(fired()).toBe(true);
+    expect(await env.DB.prepare("SELECT 1 AS x FROM space_members WHERE space_id = ?1 AND user_id = ?2").bind(space.id, c.user.id).first()).toBeNull();
+  });
+});
+
+// ---- reactions / pins ----
+
+async function spaceMessage(): Promise<{ o: TestUser; msgId: string; ch: string }> {
+  const o = await signup();
+  const { generalChannelId: ch } = await makeSpace(o);
+  const r = await api(o.token).post<any>(`/v1/channels/${ch}/messages`, { client_nonce: crypto.randomUUID().slice(0, 12), body: "hi" });
+  expect(r.status).toBe(201);
+  return { o, msgId: r.body.message.id, ch };
+}
+
+describe("PUT reaction: the 422 / 404 choice is the INSERT's own", () => {
+  it("20 distinct emoji at the INSERT, the message deleted right after -> 422 reactions_per_message (not 404)", async () => {
+    const { o, msgId } = await spaceMessage();
+    const emoji = JSON.stringify(Array.from({ length: 20 }, (_, i) => String.fromCodePoint(0x1f600 + i)));
+    await sql(
+      "INSERT INTO message_reactions (message_id, emoji, user_id, created_at) SELECT ?1, j.value, ?2, ?3 FROM json_each(?4) j",
+      msgId,
+      o.user.id,
+      Date.now(),
+      emoji,
+    );
+    const { db, fired } = aroundSql(
+      /INSERT INTO message_reactions/,
+      async () => {},
+      () => sql("UPDATE messages SET deleted_at = ?2 WHERE id = ?1", msgId, Date.now()),
+    );
+    const r = await fetchWith(db, o.token, "PUT", `/v1/messages/${msgId}/reactions/${encodeURIComponent("🙏")}`);
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 422, body: { error: { code: "limit_exceeded" } } });
+  });
+});
+
+describe("PUT pin: the 204 / 422 / 404 choice is the INSERT's own", () => {
+  it("pinned by someone else at the INSERT, unpinned right after -> 204 already pinned (not 422)", async () => {
+    const { o, msgId, ch } = await spaceMessage();
+    const { db, fired } = aroundSql(
+      /INSERT INTO message_pins/,
+      () => sql("INSERT INTO message_pins (channel_id, message_id, pinned_by, pinned_at) VALUES (?1, ?2, ?3, ?4)", ch, msgId, o.user.id, Date.now()),
+      () => sql("DELETE FROM message_pins WHERE message_id = ?1", msgId),
+    );
+    const r = await fetchWith(db, o.token, "PUT", `/v1/messages/${msgId}/pin`);
+    expect(fired()).toBe(true);
+    expect(r.status).toBe(204);
+  });
+
+  it("the message deleted at the INSERT -> 404 message", async () => {
+    const { o, msgId } = await spaceMessage();
+    const { db, fired } = aroundSql(
+      /INSERT INTO message_pins/,
+      () => sql("UPDATE messages SET deleted_at = ?2 WHERE id = ?1", msgId, Date.now()),
+      async () => {},
+    );
+    const r = await fetchWith(db, o.token, "PUT", `/v1/messages/${msgId}/pin`);
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404 });
+  });
+});
+
+// ---- stories ----
+
+describe("POST /v1/stories: a refused INSERT reports what the INSERT saw", () => {
+  async function seedActiveStories(u: TestUser, n: number): Promise<unknown> {
+    const t = Date.now();
+    const ids = JSON.stringify(Array.from({ length: n }, () => newId(t)));
+    return sql(
+      "INSERT INTO stories (id, author_id, body, bg, created_at, expires_at) SELECT j.value, ?2, 'seed', 'accent', ?3, ?4 FROM json_each(?1) j",
+      ids,
+      u.user.id,
+      t,
+      t + 86_400_000,
+    );
+  }
+
+  it("30 active at the INSERT, the media attached elsewhere right after -> 422 active_stories (not 400)", async () => {
+    const a = await signup();
+    const media = await uploadPng(a, "story");
+    const { db, fired } = aroundSql(
+      /INSERT INTO stories/,
+      () => seedActiveStories(a, 30),
+      () => sql("UPDATE uploads SET status = 'attached', attached_to = 'story:x' WHERE id = ?1", media.id),
+    );
+    const r = await fetchWith(db, a.token, "POST", "/v1/stories", { body: "hi", media_upload_id: media.id });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 422, body: { error: { code: "limit_exceeded" } } });
+  });
+
+  it("the media taken at the INSERT -> 400 media_upload_id invalid", async () => {
+    const a = await signup();
+    const media = await uploadPng(a, "story");
+    const { db, fired } = aroundSql(
+      /INSERT INTO stories/,
+      () => sql("UPDATE uploads SET status = 'attached', attached_to = 'story:x' WHERE id = ?1", media.id),
+      async () => {},
+    );
+    const r = await fetchWith(db, a.token, "POST", "/v1/stories", { body: "hi", media_upload_id: media.id });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 400 });
+    expect(r.body.error.details.fields.media_upload_id).toBe("invalid");
+  });
+});
+
+// ---- invite links (item 10-a follow-up: the route re-read the role after the gated INSERT) ----
+
+describe("POST /v1/spaces/{id}/invites: a refused INSERT reports what the INSERT saw", () => {
+  async function setup() {
+    const [o, ad] = await Promise.all([signup(), signup()]);
+    const { space } = await makeSpace(o, [ad]);
+    const r = await api(o.token).patch(`/v1/spaces/${space.id}/members/@${ad.handle}`, { role: "admin" });
+    expect(r.status).toBe(200);
+    return { ad, spaceId: space.id };
+  }
+  const links = async (spaceId: string, by: TestUser) =>
+    (await env.DB.prepare("SELECT COUNT(*) AS n FROM space_invites WHERE space_id = ?1 AND created_by = ?2").bind(spaceId, by.user.id).first<{ n: number }>())!.n;
+
+  it("the admin out of the space at the INSERT, back right after -> 404 (not 403), no link", async () => {
+    const { ad, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /INSERT INTO space_invites/,
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, ad.user.id),
+      () => sql("INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'admin', ?3)", spaceId, ad.user.id, Date.now()),
+    );
+    const r = await fetchWith(db, ad.token, "POST", `/v1/spaces/${spaceId}/invites`, {});
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404, body: { error: { code: "not_found" } } });
+    expect(await links(spaceId, ad)).toBe(0);
+  });
+
+  it("the admin demoted at the INSERT, kicked right after -> 403 forbidden (not 404), no link", async () => {
+    const { ad, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /INSERT INTO space_invites/,
+      () => sql("UPDATE space_members SET role = 'member' WHERE space_id = ?1 AND user_id = ?2", spaceId, ad.user.id),
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, ad.user.id),
+    );
+    const r = await fetchWith(db, ad.token, "POST", `/v1/spaces/${spaceId}/invites`, {});
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+    expect(await links(spaceId, ad)).toBe(0);
+  });
+});
+
+// ---- private text channel members ----
+
+describe("POST /v1/channels/{id}/members (private text): a refused INSERT reports what the INSERT saw", () => {
+  async function setup() {
+    const [o, m, x] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [m, x]);
+    const r = await api(o.token).post<any>(`/v1/spaces/${space.id}/channels`, { name: "비밀", is_private: true, members: [`@${m.handle}`] });
+    expect(r.status).toBe(201);
+    return { o, x, spaceId: space.id, ch: r.body.channel.id as string };
+  }
+  const inChannel = async (ch: string, u: TestUser) =>
+    (await env.DB.prepare("SELECT 1 AS x FROM channel_members WHERE channel_id = ?1 AND user_id = ?2").bind(ch, u.user.id).first()) !== null;
+
+  it("the target out of the space at the INSERT, back right after -> 404 (not 409 already_member)", async () => {
+    const { o, x, spaceId, ch } = await setup();
+    const { db, fired } = aroundSql(
+      /INSERT INTO channel_members/,
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, x.user.id),
+      () => sql("INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'member', ?3)", spaceId, x.user.id, Date.now()),
+    );
+    const r = await fetchWith(db, o.token, "POST", `/v1/channels/${ch}/members`, { users: [`@${x.handle}`] });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404, body: { error: { code: "not_found" } } });
+    expect(await inChannel(ch, x)).toBe(false);
+  });
+
+  it("the target added by someone else at the INSERT, out of the space right after -> 409 already_member (not 404)", async () => {
+    const { o, x, spaceId, ch } = await setup();
+    const { db, fired } = aroundSql(
+      /INSERT INTO channel_members/,
+      () => sql("INSERT INTO channel_members (channel_id, user_id, added_by, joined_at) VALUES (?1, ?2, ?3, ?4)", ch, x.user.id, o.user.id, Date.now()),
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, x.user.id),
+    );
+    const r = await fetchWith(db, o.token, "POST", `/v1/channels/${ch}/members`, { users: [`@${x.handle}`] });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 409, body: { error: { code: "already_member" } } });
+  });
+});
+
+// ---- crossing friend request ----
+
+describe("POST /v1/friends/requests crossing auto-accept: their request gone before the accept batch", () => {
+  async function theirs(from: TestUser, to: TestUser): Promise<string> {
+    const r = await api(from.token).post<any>("/v1/friends/requests", { user: `@${to.handle}` });
+    expect(r.status).toBe(201);
+    return r.body.request.id;
+  }
+
+  it("b's request canceled after the route's read -> 201 a new request a -> b (as if the cancel came first), not 404", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await theirs(b, a);
+    const { db, fired } = aroundSql(
+      /UPDATE friend_requests SET status = 'accepted'/,
+      () => sql("UPDATE friend_requests SET status = 'canceled', responded_at = ?2 WHERE id = ?1", id, Date.now()),
+      async () => {},
+    );
+    const r = await fetchWith(db, a.token, "POST", "/v1/friends/requests", { user: `@${b.handle}` });
+    expect(fired()).toBe(true);
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ request: { status: "pending", from: { id: a.user.id }, to: { id: b.user.id } }, friend: null });
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM friendships WHERE user_a IN (?1, ?2) AND user_b IN (?1, ?2)").bind(a.user.id, b.user.id).first<{ n: number }>();
+    expect(n!.n).toBe(0);
+  });
+
+  it("b's request accepted elsewhere after the route's read -> 409 already_exists already_friends, not 404", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const id = await theirs(b, a);
+    const [lo, hi] = a.user.id < b.user.id ? [a.user.id, b.user.id] : [b.user.id, a.user.id];
+    const { db, fired } = aroundSql(
+      /UPDATE friend_requests SET status = 'accepted'/,
+      () =>
+        env.DB.batch([
+          env.DB.prepare("UPDATE friend_requests SET status = 'accepted', responded_at = ?2 WHERE id = ?1").bind(id, Date.now()),
+          env.DB.prepare("INSERT INTO friendships (user_a, user_b, created_at) VALUES (?1, ?2, ?3)").bind(lo, hi, Date.now()),
+        ]),
+      async () => {},
+    );
+    const r = await fetchWith(db, a.token, "POST", "/v1/friends/requests", { user: `@${b.handle}` });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 409, body: { error: { code: "already_exists", details: { reason: "already_friends" } } } });
+  });
+});
+
+// ---- ownership transfer ----
+
+describe("POST /v1/spaces/{id}/transfer: a refused UPDATE reports what the UPDATE saw", () => {
+  async function setup() {
+    const [o, t, z] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [t, z]);
+    return { o, t, z, spaceId: space.id };
+  }
+  const ownerOf = async (spaceId: string) =>
+    (await env.DB.prepare("SELECT owner_id FROM spaces WHERE id = ?1").bind(spaceId).first<{ owner_id: string }>())!.owner_id;
+
+  it("the target out of the space at the UPDATE, back right after -> 404 member (not 409 transfer_failed)", async () => {
+    const { o, t, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /UPDATE spaces SET owner_id/,
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, t.user.id),
+      () => sql("INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'member', ?3)", spaceId, t.user.id, Date.now()),
+    );
+    const r = await fetchWith(db, o.token, "POST", `/v1/spaces/${spaceId}/transfer`, { user: `@${t.handle}` });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404, body: { error: { code: "not_found" } } });
+    expect(await ownerOf(spaceId)).toBe(o.user.id);
+  });
+
+  it("ownership moved to someone else at the UPDATE, back right after -> 403 forbidden (not 409 transfer_failed)", async () => {
+    const { o, t, z, spaceId } = await setup();
+    const moveTo = (to: TestUser, from: TestUser) =>
+      env.DB.batch([
+        env.DB.prepare("UPDATE spaces SET owner_id = ?2 WHERE id = ?1").bind(spaceId, to.user.id),
+        env.DB.prepare("UPDATE space_members SET role = 'owner' WHERE space_id = ?1 AND user_id = ?2").bind(spaceId, to.user.id),
+        env.DB.prepare("UPDATE space_members SET role = 'admin' WHERE space_id = ?1 AND user_id = ?2").bind(spaceId, from.user.id),
+      ]);
+    const { db, fired } = aroundSql(/UPDATE spaces SET owner_id/, () => moveTo(z, o), () => moveTo(o, z));
+    const r = await fetchWith(db, o.token, "POST", `/v1/spaces/${spaceId}/transfer`, { user: `@${t.handle}` });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+  });
+
+  it("the space deleted at the UPDATE -> 404 (not 409 transfer_failed)", async () => {
+    const { o, t, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /UPDATE spaces SET owner_id/,
+      () => sql("UPDATE spaces SET deleted_at = ?2 WHERE id = ?1", spaceId, Date.now()),
+      async () => {},
+    );
+    const r = await fetchWith(db, o.token, "POST", `/v1/spaces/${spaceId}/transfer`, { user: `@${t.handle}` });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404, body: { error: { code: "not_found" } } });
+  });
+});
+
+// ---- space delete / member role (the transfer's siblings) ----
+
+/** Owner of `spaceId` moves `from` -> `to` straight in D1, as POST /transfer's batch leaves it. */
+const moveOwner = (spaceId: string, to: TestUser, from: TestUser) =>
+  env.DB.batch([
+    env.DB.prepare("UPDATE spaces SET owner_id = ?2 WHERE id = ?1").bind(spaceId, to.user.id),
+    env.DB.prepare("UPDATE space_members SET role = 'owner' WHERE space_id = ?1 AND user_id = ?2").bind(spaceId, to.user.id),
+    env.DB.prepare("UPDATE space_members SET role = 'admin' WHERE space_id = ?1 AND user_id = ?2").bind(spaceId, from.user.id),
+  ]);
+const spaceOf = (spaceId: string) =>
+  env.DB.prepare("SELECT owner_id, deleted_at FROM spaces WHERE id = ?1").bind(spaceId).first<{ owner_id: string; deleted_at: number | null }>();
+const roleOf = async (spaceId: string, u: TestUser) =>
+  (await env.DB.prepare("SELECT role FROM space_members WHERE space_id = ?1 AND user_id = ?2").bind(spaceId, u.user.id).first<{ role: string }>())?.role ?? null;
+
+describe("DELETE /v1/spaces/{id}: a refused UPDATE reports what the UPDATE saw", () => {
+  async function setup() {
+    const [o, t, z] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [t, z]);
+    return { o, t, z, spaceId: space.id };
+  }
+
+  it("serial order: after a transfer, the old owner's DELETE -> 403 forbidden (the pre-check)", async () => {
+    const { o, z, spaceId } = await setup();
+    await moveOwner(spaceId, z, o);
+    const r = await fetchWith(env.DB, o.token, "DELETE", `/v1/spaces/${spaceId}`);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+  });
+
+  it("ownership moved away between the pre-check and the batch -> 403 forbidden like the serial order (not 404), not deleted", async () => {
+    const { o, z, spaceId } = await setup();
+    const { db, fired } = aroundSql(/UPDATE spaces SET deleted_at/, () => moveOwner(spaceId, z, o), async () => {});
+    const r = await fetchWith(db, o.token, "DELETE", `/v1/spaces/${spaceId}`);
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+    expect(await spaceOf(spaceId)).toMatchObject({ owner_id: z.user.id, deleted_at: null });
+  });
+
+  it("ownership moved away at the batch and back right after -> still 403 (the batch's own read), not deleted", async () => {
+    const { o, z, spaceId } = await setup();
+    const { db, fired } = aroundSql(/UPDATE spaces SET deleted_at/, () => moveOwner(spaceId, z, o), () => moveOwner(spaceId, o, z));
+    const r = await fetchWith(db, o.token, "DELETE", `/v1/spaces/${spaceId}`);
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+    expect((await spaceOf(spaceId))!.deleted_at).toBeNull();
+  });
+
+  it("the space deleted between the pre-check and the batch -> 404", async () => {
+    const { o, spaceId } = await setup();
+    const { db, fired } = aroundSql(/UPDATE spaces SET deleted_at/, () => sql("UPDATE spaces SET deleted_at = ?2 WHERE id = ?1", spaceId, Date.now()), async () => {});
+    const r = await fetchWith(db, o.token, "DELETE", `/v1/spaces/${spaceId}`);
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404, body: { error: { code: "not_found" } } });
+  });
+
+  it("nothing in between -> 204, deleted", async () => {
+    const { o, spaceId } = await setup();
+    const r = await fetchWith(env.DB, o.token, "DELETE", `/v1/spaces/${spaceId}`);
+    expect(r.status).toBe(204);
+    expect((await spaceOf(spaceId))!.deleted_at).not.toBeNull();
+  });
+});
+
+describe("PATCH /v1/spaces/{id}/members/{user}: the role UPDATE is the owner's and reports what it saw", () => {
+  async function setup() {
+    const [o, t, z] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [t, z]);
+    return { o, t, z, spaceId: space.id };
+  }
+
+  it("serial order: after transferring to T, the old owner's PATCH of T -> 403 forbidden (the pre-check)", async () => {
+    const { o, t, spaceId } = await setup();
+    await moveOwner(spaceId, t, o);
+    const r = await fetchWith(env.DB, o.token, "PATCH", `/v1/spaces/${spaceId}/members/@${t.handle}`, { role: "member" });
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+  });
+
+  it("ownership moved to T between the pre-check and the batch -> 403 forbidden like the serial order (not 404 member), T stays owner", async () => {
+    const { o, t, spaceId } = await setup();
+    const { db, fired } = aroundSql(/UPDATE space_members SET role = \?3/, () => moveOwner(spaceId, t, o), async () => {});
+    const r = await fetchWith(db, o.token, "PATCH", `/v1/spaces/${spaceId}/members/@${t.handle}`, { role: "member" });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+    expect(await roleOf(spaceId, t)).toBe("owner");
+  });
+
+  it("ownership moved to Z between the pre-check and the batch -> 403 forbidden and T's role unchanged (the UPDATE is gated on the actor being owner)", async () => {
+    const { o, t, z, spaceId } = await setup();
+    const { db, fired } = aroundSql(/UPDATE space_members SET role = \?3/, () => moveOwner(spaceId, z, o), async () => {});
+    const r = await fetchWith(db, o.token, "PATCH", `/v1/spaces/${spaceId}/members/@${t.handle}`, { role: "admin" });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 403, body: { error: { code: "forbidden" } } });
+    expect(await roleOf(spaceId, t)).toBe("member");
+  });
+
+  it("the space deleted between the pre-check and the batch -> 404, role unchanged", async () => {
+    const { o, t, spaceId } = await setup();
+    const { db, fired } = aroundSql(/UPDATE space_members SET role = \?3/, () => sql("UPDATE spaces SET deleted_at = ?2 WHERE id = ?1", spaceId, Date.now()), async () => {});
+    const r = await fetchWith(db, o.token, "PATCH", `/v1/spaces/${spaceId}/members/@${t.handle}`, { role: "admin" });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404, body: { error: { code: "not_found" } } });
+    expect(await roleOf(spaceId, t)).toBe("member");
+  });
+
+  it("the target out of the space at the batch, back right after -> 404 member", async () => {
+    const { o, t, spaceId } = await setup();
+    const { db, fired } = aroundSql(
+      /UPDATE space_members SET role = \?3/,
+      () => sql("DELETE FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, t.user.id),
+      () => sql("INSERT INTO space_members (space_id, user_id, role, joined_at) VALUES (?1, ?2, 'member', ?3)", spaceId, t.user.id, Date.now()),
+    );
+    const r = await fetchWith(db, o.token, "PATCH", `/v1/spaces/${spaceId}/members/@${t.handle}`, { role: "admin" });
+    expect(fired()).toBe(true);
+    expect(r).toMatchObject({ status: 404, body: { error: { code: "not_found" } } });
+    expect(await roleOf(spaceId, t)).toBe("member");
+  });
+
+  it("nothing in between -> 200 with the new role", async () => {
+    const { o, t, spaceId } = await setup();
+    const r = await fetchWith(env.DB, o.token, "PATCH", `/v1/spaces/${spaceId}/members/@${t.handle}`, { role: "admin" });
+    expect(r).toMatchObject({ status: 200, body: { member: { role: "admin" } } });
+    expect(await roleOf(spaceId, t)).toBe("admin");
+  });
+});
+
+// ---- friend requests: the other direction (a block landing right after must not turn 404 / 409 / 422 into 403) ----
+
+describe("friend request 0-row reasons hold against a block landing right after the write", () => {
+  const blockRow = (blocker: TestUser, blocked: TestUser) =>
+    sql("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?1, ?2, ?3)", blocker.user.id, blocked.user.id, Date.now());
+  const requestRow = (from: TestUser, to: TestUser) => {
+    const t = Date.now();
+    return { id: newId(t), from_user_id: from.user.id, to_user_id: to.user.id, status: "pending" as const, created_at: t, responded_at: null };
+  };
+
+  it("makeFriends: the request canceled before the accept batch, a block right after -> 404 (not 403), no friendship", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    const r = await api(a.token).post<any>("/v1/friends/requests", { user: `@${b.handle}` });
+    const id: string = r.body.request.id;
+    const { rt, fired } = aroundSql(
+      /UPDATE friend_requests SET status = 'accepted'/,
+      () => sql("UPDATE friend_requests SET status = 'canceled', responded_at = ?2 WHERE id = ?1", id, Date.now()),
+      () => blockRow(b, a),
+    );
+    await expect(acceptRequest(rt, b.user.id, a.user.id, id)).rejects.toMatchObject({ status: 404 });
+    expect(fired()).toBe(true);
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM friendships WHERE user_a IN (?1, ?2) AND user_b IN (?1, ?2)").bind(a.user.id, b.user.id).first<{ n: number }>();
+    expect(n!.n).toBe(0);
+  });
+
+  it("insertFriendRequest: already pending at the INSERT, a block right after -> 409 already_exists pending (not 403)", async () => {
+    const [a, b] = await Promise.all([signup(), signup()]);
+    await insertFriendRequest(env.DB, requestRow(a, b), 100);
+    const { db, fired } = aroundSql(/INSERT INTO friend_requests/, async () => {}, () => blockRow(b, a));
+    await expect(insertFriendRequest(db, requestRow(a, b), 100)).rejects.toMatchObject({ status: 409, code: "already_exists", details: { reason: "pending" } });
+    expect(fired()).toBe(true);
+  });
+
+  it("insertFriendRequest: the pending cap reached at the INSERT, a block right after -> 422 pending_friend_requests (not 403)", async () => {
+    const [a, b, c] = await Promise.all([signup(), signup(), signup()]);
+    await insertFriendRequest(env.DB, requestRow(a, c), 1);
+    const { db, fired } = aroundSql(/INSERT INTO friend_requests/, async () => {}, () => blockRow(b, a));
+    await expect(insertFriendRequest(db, requestRow(a, b), 1)).rejects.toMatchObject({ status: 422, code: "limit_exceeded" });
+    expect(fired()).toBe(true);
+  });
+});

@@ -1,0 +1,49 @@
+# Template for patrache/homebrew-tap Formula/masil.rb.
+# The release workflow fills the version and the four per-platform sha256
+# placeholders from checksums.txt with sed. Do not edit the rendered file in
+# the tap by hand.
+# No `service do` block: `masil daemon install` owns autostart registration.
+class Masil < Formula
+  desc "터미널 채팅 + SNS"
+  homepage "https://github.com/patrache/masil"
+  version "__VERSION__"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/patrache/masil/releases/download/v__VERSION__/masil_darwin_arm64.tar.gz"
+      sha256 "__SHA256_DARWIN_ARM64__"
+    end
+    on_intel do
+      url "https://github.com/patrache/masil/releases/download/v__VERSION__/masil_darwin_amd64.tar.gz"
+      sha256 "__SHA256_DARWIN_AMD64__"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "https://github.com/patrache/masil/releases/download/v__VERSION__/masil_linux_arm64.tar.gz"
+      sha256 "__SHA256_LINUX_ARM64__"
+    end
+    on_intel do
+      url "https://github.com/patrache/masil/releases/download/v__VERSION__/masil_linux_amd64.tar.gz"
+      sha256 "__SHA256_LINUX_AMD64__"
+    end
+  end
+
+  def install
+    bin.install "masil"
+  end
+
+  def caveats
+    <<~EOS
+      알림 데몬 자동 시작: masil daemon install
+      brew upgrade 뒤 등록된 데몬은 새 버전으로 스스로 다시 뜹니다 — 'masil daemon status' 로 확인하고, 안 바뀌었으면 'masil daemon install' 을 다시 실행하세요.
+      제거 전에 'masil daemon uninstall' 을 먼저 실행하세요.
+    EOS
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/masil version")
+  end
+end

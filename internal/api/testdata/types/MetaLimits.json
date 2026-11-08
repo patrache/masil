@@ -1,0 +1,11 @@
+{
+  "message_max_chars": 4000,
+  "post_max_chars": 500,
+  "post_max_media": 4,
+  "upload_max_bytes": 5242880,
+  "group_dm_max_members": 10,
+  "story_ttl_sec": 86400,
+  "poll_max_options": 10,
+  "reactions_per_message": 20,
+  "watch_topics_max": 50
+}

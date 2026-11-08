@@ -1,0 +1,190 @@
+# Runs ONLY when the owner pushes a version tag (e.g. `git tag v0.1.0 && git push origin v0.1.0`).
+# There is deliberately no workflow_dispatch and no branch trigger: pushing a tag
+# is the owner-approved release action (plan 06 Global Constraints).
+#
+# Repository settings this workflow reads (set by the owner, never by an agent):
+#   secret   HOMEBREW_TAP_TOKEN    fine-grained PAT, contents: write on patrache/homebrew-tap only
+#   variable MASIL_DEFAULT_SERVER  https:// URL of the deployed server, baked into the binary
+#   variable MASIL_PUBLIC          "true" once the repo is public (enables the install smoke test)
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  go-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test ./...
+
+  server-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: install
+        run: npm ci
+      - name: typecheck
+        # server/package.json "typecheck" = tsc --noEmit (src) + tsc --noEmit -p test (test files)
+        run: npm run typecheck
+      - name: test
+        run: npm test
+
+  goreleaser:
+    needs: [go-test, server-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      MASIL_DEFAULT_SERVER: ${{ vars.MASIL_DEFAULT_SERVER }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: guard default server is https
+        # A missing variable would ship http://localhost:8787 (the .goreleaser.yaml
+        # fallback) to every user. Refuse before anything is built or published.
+        run: |
+          case "$MASIL_DEFAULT_SERVER" in
+            https://?*) ;;
+            *) echo "::error::repo variable MASIL_DEFAULT_SERVER must be an https:// URL (owner sets it after the approved deploy)"; exit 1 ;;
+          esac
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        # Every built binary is checked by scripts/check-release-binary.sh (the
+        # builds[].hooks.post in .goreleaser.yaml) BEFORE archiving and
+        # publishing: a binary without the https default server or with cgo
+        # aborts the release, so nothing reaches releases/latest. (-trimpath
+        # drops -ldflags from build info, so `go version -m | grep
+        # DefaultServer=` cannot work; the script looks for the URL in the binary.)
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: checksums
+          path: dist/checksums.txt
+          if-no-files-found: error
+
+  homebrew-tap:
+    needs: [goreleaser]
+    # Pre-releases (tags with a '-', e.g. v0.2.0-rc.1) never reach the tap.
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    env:
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - name: check tap token
+        id: token
+        run: |
+          [ -n "$TAP_TOKEN" ] || { echo "::notice::HOMEBREW_TAP_TOKEN not set; skipping tap update"; echo skip=1 >> "$GITHUB_OUTPUT"; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ steps.token.outputs.skip != '1' }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: ${{ steps.token.outputs.skip != '1' }}
+        with:
+          name: checksums
+          path: dist
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ steps.token.outputs.skip != '1' }}
+        with:
+          repository: patrache/homebrew-tap
+          token: ${{ env.TAP_TOKEN }}
+          path: tap
+      - name: render Formula/masil.rb
+        if: ${{ steps.token.outputs.skip != '1' }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sha() { awk -v f="masil_$1.tar.gz" '$2==f{print $1}' dist/checksums.txt; }
+          mkdir -p tap/Formula
+          sed -e "s/__VERSION__/${VERSION}/g" \
+              -e "s/__SHA256_DARWIN_ARM64__/$(sha darwin_arm64)/" -e "s/__SHA256_DARWIN_AMD64__/$(sha darwin_amd64)/" \
+              -e "s/__SHA256_LINUX_ARM64__/$(sha linux_arm64)/"   -e "s/__SHA256_LINUX_AMD64__/$(sha linux_amd64)/" \
+              packaging/homebrew/masil.rb.tmpl > tap/Formula/masil.rb
+          if grep -n '__[A-Z0-9_]*__' tap/Formula/masil.rb; then
+            echo "::error::placeholders left in Formula/masil.rb"; exit 1
+          fi
+          n=$(grep -c 'sha256 "[0-9a-f]\{64\}"' tap/Formula/masil.rb)
+          [ "$n" -eq 4 ] || { echo "::error::expected 4 sha256 lines in Formula/masil.rb, got $n"; exit 1; }
+      - name: commit and push tap
+        if: ${{ steps.token.outputs.skip != '1' }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          git -C tap config user.name "github-actions[bot]"
+          git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C tap add Formula/masil.rb
+          if git -C tap diff --cached --quiet; then
+            echo "::notice::Formula/masil.rb unchanged for ${VERSION}; nothing to push"
+          else
+            git -C tap commit -m "masil ${VERSION}"
+            git -C tap push
+          fi
+
+  install-smoke:
+    needs: [goreleaser, homebrew-tap]
+    # Runs even when homebrew-tap was skipped; needs a public repo so the
+    # install scripts can download release assets anonymously.
+    if: ${{ always() && needs.goreleaser.result == 'success' && vars.MASIL_PUBLIC == 'true' && !contains(github.ref_name, '-') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: install.sh smoke
+        if: ${{ runner.os != 'Windows' }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          MASIL_VERSION=$VERSION sh scripts/install.sh
+          out=$("$HOME/.local/bin/masil" version)
+          printf '%s\n' "$out"
+          case "$out" in
+            *"$VERSION"*) ;;
+            *) echo "::error::installed masil does not report version $VERSION"; exit 1 ;;
+          esac
+      - name: install.ps1 smoke
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $env:MASIL_VERSION = $version
+          pwsh -NoProfile -File scripts/install.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $out = & "$env:LOCALAPPDATA\Programs\masil\masil.exe" version
+          $out
+          if (-not ($out -match [regex]::Escape($version))) {
+            Write-Output "::error::installed masil does not report version $version"
+            exit 1
+          }
