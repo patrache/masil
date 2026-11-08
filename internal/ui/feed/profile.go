@@ -85,6 +85,9 @@ const (
 	textMenuReportUser    = "사용자 신고"
 	textMenuEditProfile   = "프로필 편집"
 	textMenuFollowReqs    = "팔로우 요청"
+	textHelpFollow        = "팔로우"
+	textHelpUnfollow      = "언팔로우"
+	textHelpCancelFollow  = "요청 취소"
 	errContextFollow      = "팔로우"
 	errContextProfile     = "프로필"
 )
@@ -1550,12 +1553,26 @@ func (p *profile) Help(ctx *ui.Context) []key.Binding {
 	case p.prof != nil && p.isMe(ctx):
 		out = append(out, b("e", "프로필 편집"))
 	case !p.masked(ctx):
-		out = append(out, b("+", "팔로우"))
+		out = append(out, b("+", p.followHelp()))
 	}
 	if p.tab == tabGuestbook {
 		out = append(out, b("w", "방명록 쓰기"))
 	}
 	return append(out, b("m", "메뉴"), b("1-4", "탭"), b("s", "스토리"))
+}
+
+// followHelp is what "+" does now (C4): 언팔로우 (following), 요청 취소 (a
+// pending request), else 팔로우.
+func (p *profile) followHelp() string {
+	if r := p.rel(); r != nil {
+		switch r.Following {
+		case "active":
+			return textHelpUnfollow
+		case "pending":
+			return textHelpCancelFollow
+		}
+	}
+	return textHelpFollow
 }
 
 func (p *profile) WatchTopics() []string { return append([]string(nil), p.visible...) }

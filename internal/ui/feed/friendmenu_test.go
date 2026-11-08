@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
 )
 
@@ -159,4 +160,43 @@ func TestProfileFriendMenu(t *testing.T) {
 		h.Resize(120, 40)
 		only(t, h)
 	})
+}
+
+// C4 (v0.1.1): the "+" help names what it does now — 팔로우 (none), 요청 취소
+// (pending), 언팔로우 (following) — and follows the answer.
+func TestProfileFollowHelpFollowsState(t *testing.T) {
+	plus := func(t *testing.T, h *uitest.Harness) string {
+		t.Helper()
+		h.Screen()
+		p, ok := h.Instance(ui.Route{Kind: ui.RouteProfile, ID: "@hana"}.Key()).(*profile)
+		if !ok {
+			t.Fatal("no profile instance")
+		}
+		for _, b := range p.Help(h.Context()) {
+			if b.Help().Key == "+" {
+				return b.Help().Desc
+			}
+		}
+		return ""
+	}
+	h := uitest.New(t, profileOpts(t, "@hana", false, nil)...) // following: active
+	h.Resize(120, 40)
+	if got := plus(t, h); got != "언팔로우" {
+		t.Fatalf("following: + help %q, want 언팔로우", got)
+	}
+
+	srv := profileSrv(t, false, notFollowing)
+	srv.JSON("PUT /v1/users/{user}/follow", http.StatusOK, map[string]string{"state": "pending"})
+	h = uitest.New(t, profileOptsWith(srv, "@hana", false)...)
+	h.Resize(120, 40)
+	if got := plus(t, h); got != "팔로우" {
+		t.Fatalf("not following: + help %q, want 팔로우", got)
+	}
+	h.Press("+")
+	if got := plus(t, h); got != "요청 취소" {
+		t.Fatalf("pending: + help %q, want 요청 취소", got)
+	}
+	if s := h.Screen(); !strings.Contains(s, "+ 요청 취소") {
+		t.Fatalf("help line:\n%s", s)
+	}
 }
