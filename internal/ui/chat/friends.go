@@ -12,7 +12,6 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/humanize"
-	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -118,8 +117,9 @@ type friendsRefreshMsg struct{}
 func friendsRefresh() tea.Msg { return friendsRefreshMsg{} }
 
 // friendsView is RouteFriends: the tabs 친구 / 받은 요청 / 보낸 요청. Friends and
-// received requests are the Store's; sent requests are fetched on entry and on
-// every friend.request_* event.
+// received requests are the Store's; sent requests are fetched on entry, on
+// every friend.request_* event, after friend.add / a cancel here, and on
+// ui.FriendRequestsChangedMsg (a request sent or canceled from a profile).
 type friendsView struct {
 	tab     int
 	tabs    *widgets.Tabs
@@ -449,7 +449,7 @@ func (v *friendsView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if tab, ok := anchorTab(m.Route.Anchor); ok {
 			v.setTab(ctx, tab)
 		}
-	case friendsRefreshMsg:
+	case friendsRefreshMsg, ui.FriendRequestsChangedMsg:
 		return v.fetchOut(ctx)
 	case ui.EventMsg:
 		if strings.HasPrefix(m.Event.Type, "friend.request_") {
@@ -635,26 +635,6 @@ func (v *friendsView) inviteSpaces(ctx *ui.Context, u api.UserSummary) []menuIte
 
 // ---- friend actions ----
 
-// dropIncoming removes the received requests matching drop.
-func dropIncoming(s *store.Store, drop func(api.FriendRequest) bool) {
-	if s != nil {
-		s.FriendReqIn = slices.DeleteFunc(slices.Clone(s.FriendReqIn), drop)
-	}
-}
-
-// addFriend records f as my friend (and drops the requests from that user).
-func addFriend(s *store.Store, f api.Friend) {
-	if s == nil || f.User.ID == "" {
-		return
-	}
-	s.ObserveUser(f.User)
-	if s.Friends == nil {
-		s.Friends = map[string]api.Friend{}
-	}
-	s.Friends[f.User.ID] = f
-	dropIncoming(s, func(r api.FriendRequest) bool { return r.From.ID == f.User.ID })
-}
-
 // acceptFriendCmd accepts a received request; on success the requester is my
 // friend at once (friend.added follows).
 func acceptFriendCmd(ctx *ui.Context, req api.FriendRequest) tea.Cmd {
@@ -670,8 +650,8 @@ func acceptFriendCmd(ctx *ui.Context, req api.FriendRequest) tea.Cmd {
 		} else if f != nil && f.Presence != "" {
 			friend.Presence = f.Presence
 		}
-		addFriend(ctx.Store, friend)
-		dropIncoming(ctx.Store, func(r api.FriendRequest) bool { return r.ID == req.ID })
+		ctx.Store.AddFriend(friend)
+		ctx.Store.DropFriendRequests(func(r api.FriendRequest) bool { return r.ID == req.ID })
 		return ui.Toast(textwidth.Sanitize(displayName(req.From))+acceptedSuffix, ui.ToastSuccess)
 	})
 }
@@ -684,7 +664,7 @@ func declineFriendCmd(ctx *ui.Context, req api.FriendRequest) tea.Cmd {
 		if err != nil {
 			return errorCmd(err, declineFailed)
 		}
-		dropIncoming(ctx.Store, func(r api.FriendRequest) bool { return r.ID == req.ID })
+		ctx.Store.DropFriendRequests(func(r api.FriendRequest) bool { return r.ID == req.ID })
 		return ui.Toast(declinedText, ui.ToastInfo)
 	})
 }
@@ -709,9 +689,7 @@ func removeFriendCmd(ctx *ui.Context, u api.UserSummary) tea.Cmd {
 		if err != nil {
 			return errorCmd(err, unfriendFailed)
 		}
-		if ctx.Store != nil {
-			delete(ctx.Store.Friends, u.ID)
-		}
+		ctx.Store.RemoveFriend(u.ID)
 		return ui.Toast(textwidth.Sanitize(displayName(u))+unfriendedSuffix, ui.ToastSuccess)
 	})
 }
@@ -748,7 +726,7 @@ func newFriendAdd(_ *ui.Context, args string) ui.Overlay {
 			}
 			r := m.Value
 			if r.AutoAccepted && r.Friend != nil {
-				addFriend(ctx.Store, *r.Friend)
+				ctx.Store.AddFriend(*r.Friend)
 				return ui.Toast(textwidth.Sanitize(displayName(r.Friend.User))+nowFriendsSuffix, ui.ToastSuccess), nil
 			}
 			return ui.Toast(textwidth.Sanitize(displayName(r.Request.To))+requestSentSuffix, ui.ToastSuccess), nil

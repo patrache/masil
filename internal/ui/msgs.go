@@ -79,6 +79,12 @@ type ResyncStartedMsg struct{}
 // ResyncDoneMsg reports a resync end.
 type ResyncDoneMsg struct{ Err error }
 
+// FriendRequestsChangedMsg reports that my sent friend requests changed by an
+// action outside the friends screen (the profile menu's 친구 요청 / 친구 요청
+// 취소): friend.request_received goes to the receiver only, so the friends
+// screen fetches its 보낸 요청 again on it.
+type FriendRequestsChangedMsg struct{}
+
 // Toast emits a ToastMsg.
 func Toast(text string, kind ToastKind) tea.Cmd {
 	return func() tea.Msg { return ToastMsg{Text: text, Kind: kind} }

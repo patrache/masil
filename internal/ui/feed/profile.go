@@ -417,7 +417,7 @@ func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.ResultMsg[*followOutcome]:
 		cmds = append(cmds, p.onFollow(ctx, m))
 	case ui.ResultMsg[*friendOutcome]:
-		cmds = append(cmds, p.onFriend(m))
+		cmds = append(cmds, p.onFriend(ctx, m))
 	case ui.ResultMsg[*followRequestOutcome]:
 		p.onRequestHandled(ctx, m)
 	case ui.ResultMsg[*api.Me]:

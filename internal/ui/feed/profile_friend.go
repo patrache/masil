@@ -53,12 +53,14 @@ type friendOutcome struct {
 	claim
 	userID string
 	action friendAction
+	reqID  string                   // the pending request (cancel / accept / decline)
 	sent   *api.FriendRequestResult // friendSend
+	friend *api.Friend              // friendAccept
 }
 
 // friendCmd runs action on the profile's user (reqID: the pending request).
 func friendCmd(ctx *ui.Context, action friendAction, userID, reqID string) tea.Cmd {
-	o := &friendOutcome{userID: userID, action: action}
+	o := &friendOutcome{userID: userID, action: action, reqID: reqID}
 	return ui.Do(ctx, tagFriend+string(action)+":"+userID, func(c context.Context, a *api.Client) (*friendOutcome, error) {
 		if a == nil {
 			return o, errNoClient
@@ -70,7 +72,7 @@ func friendCmd(ctx *ui.Context, action friendAction, userID, reqID string) tea.C
 		case friendCancel:
 			err = a.CancelFriendRequest(c, reqID)
 		case friendAccept:
-			_, err = a.AcceptFriendRequest(c, reqID)
+			o.friend, err = a.AcceptFriendRequest(c, reqID)
 		case friendDecline:
 			err = a.DeclineFriendRequest(c, reqID)
 		case friendRemove:
@@ -116,9 +118,10 @@ func (p *profile) friendMenuItems(ctx *ui.Context) []menuItem {
 	return []menuItem{{label: textMenuFriendAdd, run: run(friendSend, "")}}
 }
 
-// onFriend applies a friend action's answer to this profile's relationship
-// (the events that follow only confirm it).
-func (p *profile) onFriend(m ui.ResultMsg[*friendOutcome]) tea.Cmd {
+// onFriend applies a friend action's answer to this profile's relationship and
+// (once) to the Store as the friends screen does (the events that follow only
+// confirm it).
+func (p *profile) onFriend(ctx *ui.Context, m ui.ResultMsg[*friendOutcome]) tea.Cmd {
 	o := m.Value
 	if o == nil || p.prof == nil || o.userID != p.prof.ID {
 		return nil
@@ -131,9 +134,13 @@ func (p *profile) onFriend(m ui.ResultMsg[*friendOutcome]) tea.Cmd {
 		}
 		return nil
 	}
+	var landed tea.Cmd
+	if first {
+		landed = landFriend(ctx, p.prof.UserSummary, o)
+	}
 	r := p.rel()
 	if r == nil {
-		return nil
+		return landed
 	}
 	name := textwidth.Sanitize(displayName(p.prof.UserSummary))
 	var toast string
@@ -162,7 +169,56 @@ func (p *profile) onFriend(m ui.ResultMsg[*friendOutcome]) tea.Cmd {
 	if !first {
 		return nil
 	}
-	return ui.Toast(toast, ui.ToastSuccess)
+	return tea.Batch(landed, ui.Toast(toast, ui.ToastSuccess))
+}
+
+// landFriend applies a friend action's answer for u to the Store, as the
+// friends screen's own actions do: an accept / auto-accepted request makes the
+// friend (the home 친구 요청 N row drops it at once), a decline drops the
+// received request, an unfriend ends the friendship. A sent or canceled request
+// changes only my sent list, which the friends screen fetches itself: it gets
+// ui.FriendRequestsChangedMsg (friend.request_received goes to the receiver
+// only; a cancel's friend.request_removed may be lost while offline).
+func landFriend(ctx *ui.Context, u api.UserSummary, o *friendOutcome) tea.Cmd {
+	if ctx == nil || ctx.Store == nil {
+		return nil
+	}
+	s := ctx.Store
+	changed := func() tea.Msg { return ui.FriendRequestsChangedMsg{} }
+	switch o.action {
+	case friendSend:
+		if o.sent != nil && o.sent.AutoAccepted {
+			s.AddFriend(friendOf(ctx, u, o.sent.Friend))
+			return nil
+		}
+		return changed
+	case friendCancel:
+		return changed
+	case friendAccept:
+		s.AddFriend(friendOf(ctx, u, o.friend))
+		s.DropFriendRequests(func(r api.FriendRequest) bool { return r.ID == o.reqID })
+	case friendDecline:
+		s.DropFriendRequests(func(r api.FriendRequest) bool { return r.ID == o.reqID || r.From.ID == u.ID })
+	case friendRemove:
+		s.RemoveFriend(u.ID)
+	}
+	return nil
+}
+
+// friendOf is the friend record of u from the server's answer f (nil, or
+// another user's: u since now, offline unless f says otherwise).
+func friendOf(ctx *ui.Context, u api.UserSummary, f *api.Friend) api.Friend {
+	if f != nil && f.User.ID == u.ID {
+		return *f
+	}
+	out := api.Friend{User: u, Presence: api.PresenceOffline}
+	if ctx.Now != nil {
+		out.Since = ctx.Now()
+	}
+	if f != nil && f.Presence != "" {
+		out.Presence = f.Presence
+	}
+	return out
 }
 
 // onFriendRequestEvent follows friend.request_received / _accepted / _removed

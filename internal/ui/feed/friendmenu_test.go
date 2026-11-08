@@ -233,3 +233,72 @@ func TestProfileFollowHelpHiddenWhenPlusDoesNothing(t *testing.T) {
 		t.Fatal("loading: + help shown before the profile arrives")
 	}
 }
+
+// C2 (v0.1.1): a profile friend action updates the Store as the friends screen
+// does (Friends / FriendReqIn at once, before friend.added / friend.removed).
+func TestProfileFriendActionsUpdateStore(t *testing.T) {
+	const reqID = "01JFREQ0000000000000000077"
+	hana, sam := userOf("hana"), userOf("sam")
+	in := api.FriendRequest{ID: reqID, From: hana, To: sam, Status: "pending", CreatedAt: fixtureNow}
+	// hana asked me and is not my friend yet
+	asked := func(h *uitest.Harness) {
+		st := h.Context().Store
+		delete(st.Friends, hana.ID)
+		st.FriendReqIn = []api.FriendRequest{in}
+	}
+	t.Run("auto-accepted send makes the friend", func(t *testing.T) {
+		srv := profileSrv(t, false, relWith(false, ""))
+		srv.JSON("POST /v1/friends/requests", http.StatusOK, map[string]any{
+			"request": api.FriendRequest{ID: reqID, From: hana, To: sam, Status: "accepted", CreatedAt: fixtureNow},
+			"friend":  api.Friend{User: hana, Since: fixtureNow, Presence: api.PresenceOnline}})
+		h := uitest.New(t, profileOptsWith(srv, "@hana", false)...)
+		h.Resize(120, 40)
+		asked(h)
+		menuPick(t, h, "친구 요청")
+		st := h.Context().Store
+		if f, ok := st.Friends[hana.ID]; !ok || f.Presence != api.PresenceOnline || len(st.FriendReqIn) != 0 {
+			t.Fatalf("store: friend=%+v ok=%v requests=%d", f, ok, len(st.FriendReqIn))
+		}
+	})
+
+	t.Run("accept makes the friend", func(t *testing.T) {
+		srv := profileSrv(t, false, relWith(false, "incoming"))
+		srv.JSON("POST /v1/friends/requests/{id}/accept", http.StatusOK, map[string]any{"friend": api.Friend{User: hana, Since: fixtureNow, Presence: api.PresenceAway}})
+		h := uitest.New(t, profileOptsWith(srv, "@hana", false)...)
+		h.Resize(120, 40)
+		asked(h)
+		menuPick(t, h, "친구 요청 수락")
+		st := h.Context().Store
+		if f, ok := st.Friends[hana.ID]; !ok || f.Presence != api.PresenceAway || len(st.FriendReqIn) != 0 {
+			t.Fatalf("store: friend=%+v ok=%v requests=%d", f, ok, len(st.FriendReqIn))
+		}
+	})
+
+	t.Run("decline drops the received request", func(t *testing.T) {
+		srv := profileSrv(t, false, relWith(false, "incoming"))
+		srv.JSON("POST /v1/friends/requests/{id}/decline", http.StatusNoContent, nil)
+		h := uitest.New(t, profileOptsWith(srv, "@hana", false)...)
+		h.Resize(120, 40)
+		asked(h)
+		menuPick(t, h, "친구 요청 거절")
+		st := h.Context().Store
+		if _, ok := st.Friends[hana.ID]; ok || len(st.FriendReqIn) != 0 {
+			t.Fatalf("store: friend=%v requests=%d", ok, len(st.FriendReqIn))
+		}
+	})
+
+	t.Run("unfriend drops the friend", func(t *testing.T) {
+		srv := profileSrv(t, false, relWith(true, ""))
+		srv.JSON("DELETE /v1/friends/{user}", http.StatusNoContent, nil)
+		h := uitest.New(t, profileOptsWith(srv, "@hana", false)...)
+		h.Resize(120, 40)
+		if _, ok := h.Context().Store.Friends[hana.ID]; !ok {
+			t.Fatal("seed: hana is not my friend")
+		}
+		menuPick(t, h, "친구 끊기")
+		h.Press("y")
+		if _, ok := h.Context().Store.Friends[hana.ID]; ok {
+			t.Fatal("hana still my friend in the Store after 친구 끊기")
+		}
+	})
+}
