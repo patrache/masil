@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { env, SELF, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { newId } from "../../src/lib/ids";
 import type { Alert } from "../../src/types/api";
-import { BASE, connectWs, signup, uniqueIp } from "../helpers";
+import { BASE, connectWs, signup, uniqueIp, waitFor } from "../helpers";
 
 // ---- local fixtures (this file only) ----
 
@@ -104,8 +104,13 @@ describe("resume", () => {
   });
 
   it("close of last full socket shortens online_until to ~now+120s", async () => {
-    const u = await signup(); const c = await connectWs(u.token); c.close(1000); await settle();
-    const p = await env.DB.prepare("SELECT online_until, last_seen_at FROM user_presence WHERE user_id=?").bind(u.user.id).first<any>();
-    expect(p.online_until).toBeLessThanOrEqual(Date.now() + 120_000); expect(p.last_seen_at).not.toBeNull();
+    const u = await signup(); const c = await connectWs(u.token);
+    const row = () => env.DB.prepare("SELECT online_until, last_seen_at FROM user_presence WHERE user_id=?").bind(u.user.id).first<any>();
+    expect((await row()).online_until).toBeGreaterThan(Date.now() + 120_000); // connected: now+10min
+    c.close(1000);
+    // the hub's webSocketClose writes D1 after the client-side close returns: wait for it (bounded), not a fixed sleep
+    const p = await waitFor(row, (r) => r.online_until <= Date.now() + 120_000 && r.last_seen_at !== null);
+    expect(p.online_until).toBeLessThanOrEqual(Date.now() + 120_000); expect(p.online_until).toBeGreaterThan(Date.now());
+    expect(p.last_seen_at).not.toBeNull();
   });
 });

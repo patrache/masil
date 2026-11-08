@@ -104,3 +104,60 @@ describe("pins", () => {
     expect((await api(a.token).put<any>(`/v1/messages/${extra.id}/pin`)).body.error.details).toEqual({ what: "pins_per_channel", limit: 50 });
   });
 });
+
+describe("system messages are not thread roots and take no reactions (D7)", () => {
+  it("reply to / react on a kind:system message -> 400 fields.message_id = not_allowed, nothing written", async () => {
+    const { a, b, ch } = await dmPair();
+    const d = await post(a, ch, "pin me");
+    expect((await api(a.token).put(`/v1/messages/${d.id}/pin`)).status).toBe(204); // posts system message message_pinned
+    const sys = (await api(b.token).get<any>(`/v1/channels/${ch}/messages`)).body.items.find((m: any) => m.kind === "system");
+    expect(sys.system).toMatchObject({ event: "message_pinned" });
+
+    const reply = await api(b.token).post<any>(`/v1/messages/${sys.id}/thread`, { client_nonce: "sys-reply", body: "hi" });
+    expect(reply.status).toBe(400);
+    expect(reply.body.error).toMatchObject({ code: "invalid_request", details: { fields: { message_id: "not_allowed" } } });
+
+    const r = await api(b.token).put<any>(react(sys.id, "👍"));
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatchObject({ code: "invalid_request", details: { fields: { message_id: "not_allowed" } } });
+
+    const after = (await api(b.token).get<any>(`/v1/messages/${sys.id}`)).body.message;
+    expect(after.reactions).toEqual([]);
+    expect(after.thread).toBeNull();
+    const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM messages WHERE thread_root_id = ?1").bind(sys.id).first<{ n: number }>();
+    expect(rows!.n).toBe(0);
+  });
+
+  it("replies / reactions left on a system message by v0.1.0 (written straight to D1) are hidden: thread null, reactions []", async () => {
+    const { a, b, ch } = await dmPair();
+    const d = await post(a, ch, "pin me");
+    await api(a.token).put(`/v1/messages/${d.id}/pin`);
+    const sys = (await api(b.token).get<any>(`/v1/channels/${ch}/messages`)).body.items.find((m: any) => m.kind === "system");
+    const t = Date.now();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO messages (id, channel_id, author_id, kind, body, thread_root_id, created_at) VALUES (?1, ?2, ?3, 'text', 'old reply', ?4, ?5)",
+      ).bind(newId(t), ch, b.user.id, sys.id, t),
+      env.DB.prepare("UPDATE messages SET reply_count = 1, last_reply_at = ?2 WHERE id = ?1").bind(sys.id, t),
+      env.DB.prepare("INSERT INTO thread_participants (root_id, user_id, last_reply_at) VALUES (?1, ?2, ?3)").bind(sys.id, b.user.id, t),
+      env.DB.prepare("INSERT INTO message_reactions (message_id, emoji, user_id, created_at) VALUES (?1, '👍', ?2, ?3)").bind(sys.id, b.user.id, t),
+    ]);
+
+    const one = (await api(b.token).get<any>(`/v1/messages/${sys.id}`)).body.message;
+    expect(one.thread).toBeNull();
+    expect(one.reactions).toEqual([]);
+    const listed = (await api(b.token).get<any>(`/v1/channels/${ch}/messages`)).body.items.find((m: any) => m.id === sys.id);
+    expect(listed.thread).toBeNull();
+    expect(listed.reactions).toEqual([]);
+  });
+
+  it("a non-member still gets 404 (no existence leak before the kind check)", async () => {
+    const { a, ch } = await dmPair();
+    const d = await post(a, ch, "pin me");
+    await api(a.token).put(`/v1/messages/${d.id}/pin`);
+    const sys = (await api(a.token).get<any>(`/v1/channels/${ch}/messages`)).body.items.find((m: any) => m.kind === "system");
+    const outsider = await signup();
+    expect((await api(outsider.token).post(`/v1/messages/${sys.id}/thread`, { client_nonce: "x", body: "hi" })).status).toBe(404);
+    expect((await api(outsider.token).put(react(sys.id, "👍"))).status).toBe(404);
+  });
+});

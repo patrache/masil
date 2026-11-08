@@ -680,13 +680,14 @@ function parseMeta<T>(meta: string | null): T | null {
  * (per emoji, ordered by first reaction time then the first row's rowid; `me` for the viewer), pins, polls, explicit
  * mentions (is_here = 0, insertion order), thread participants (roots with reply_count >= 1; most recent first, <= 5).
  * roll / system come from `meta`. A deleted row is a tombstone: body "", deleted true, no poll/roll/system.
+ * A kind "system" row always has thread null and reactions [], even over reply / reaction rows written before v0.1.1.
  * With viewerId === null (event payloads) reactions[].me is false and poll.my_votes is [].
  * A row whose author no longer exists is dropped.
  */
 export async function serializeMessages(db: D1Database, viewerId: string | null, rows: MessageRow[]): Promise<Message[]> {
   if (rows.length === 0) return [];
   const ids = jsonList(rows.map((r) => r.id));
-  const roots = rows.filter((r) => r.thread_root_id === null && r.reply_count > 0).map((r) => r.id);
+  const roots = rows.filter((r) => r.kind !== "system" && r.thread_root_id === null && r.reply_count > 0).map((r) => r.id);
   const pollIds = rows.flatMap((r) => (r.poll_id !== null && r.deleted_at === null ? [r.poll_id] : []));
 
   const [users, reactionRows, pinRows, mentionRows, participantRows, polls] = await Promise.all([
@@ -753,6 +754,8 @@ export async function serializeMessages(db: D1Database, viewerId: string | null,
     const author = users.get(r.author_id);
     if (!author) return [];
     const deleted = r.deleted_at !== null;
+    // kind "system" is never a thread root and takes no reactions (api.md 2, v0.1.1 D7): rows v0.1.0 accepted stay hidden.
+    const system = r.kind === "system";
     return [
       {
         id: r.id,
@@ -764,10 +767,10 @@ export async function serializeMessages(db: D1Database, viewerId: string | null,
         mention_here: !deleted && r.mention_here === 1,
         thread_root_id: r.thread_root_id,
         thread:
-          r.thread_root_id === null && r.reply_count > 0
+          !system && r.thread_root_id === null && r.reply_count > 0
             ? { reply_count: r.reply_count, last_reply_at: isoOrNull(r.last_reply_at), participant_ids: participants.get(r.id) ?? [] }
             : null,
-        reactions: deleted ? [] : (reactions.get(r.id) ?? []),
+        reactions: deleted || system ? [] : (reactions.get(r.id) ?? []),
         pinned: !deleted && pinned.has(r.id),
         poll: deleted || r.poll_id === null ? null : (polls.get(r.poll_id) ?? null),
         roll: !deleted && r.kind === "roll" ? parseMeta<RollResult>(r.meta) : null,

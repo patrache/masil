@@ -341,7 +341,8 @@ describe("notify", () => {
     };
     await notify(rtFor(env), inp);
     await notify(rtFor(env), inp);
-    await settle();
+    await cb.next("notification.created"); // the first one arrives …
+    await settle(); // … and no second one follows (negative assertion: a sleep is the only way)
     expect(cb.frames.filter((f) => f.type === "notification.created")).toHaveLength(1);
     expect(cb.frames.some((f) => f.type === "alert")).toBe(false);
     await notify(rtFor(env), { ...inp, actorId: b.user.id, dedupeKey: undefined });
