@@ -401,6 +401,7 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 // debounce restarts. While logged out the login route fills the body (loginLayout).
 func (m *Model) relayout() tea.Cmd {
 	if !m.sized {
+		m.cache.rejump = ""
 		return nil
 	}
 	prev := m.lay.Mode
@@ -455,6 +456,7 @@ func (m *Model) relayout() tea.Cmd {
 		}
 	}
 	m.cache.evict(pinned)
+	m.cache.rejump = ""
 	m.focus = resolveFocus(m.intent, l, routes)
 	m.updateViewing()
 	for _, in := range updated {

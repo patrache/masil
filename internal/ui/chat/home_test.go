@@ -142,6 +142,18 @@ func TestHomeInvitesAndRequests(t *testing.T) {
 	if !strings.Contains(h.Screen(), "dev_kim") {
 		t.Fatalf("받은 요청 tab must list the request:\n%s", h.Screen())
 	}
+	// the same Anchor twice in a row: 친구 요청 → h (친구) → back → 친구 요청
+	// again lands on 받은 요청, though the cached route already says "incoming"
+	h.Press("h")
+	if v := friendsOf(t, h); v.tab != tabFriends {
+		t.Fatalf("h moved to tab %d", v.tab)
+	}
+	h.Send(ui.BackMsg{})
+	homeSelect(t, h, "친구 요청 1")
+	h.Press("enter")
+	if v := friendsOf(t, h); v.tab != tabIncoming {
+		t.Fatalf("친구 요청 opened twice with the same Anchor stays on tab %d", v.tab)
+	}
 
 	h = open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(seed))
 	homeSelect(t, h, "친구 목록")

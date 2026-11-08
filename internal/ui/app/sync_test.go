@@ -816,3 +816,32 @@ func TestLoggedOutInitialLoginRoute(t *testing.T) {
 		t.Fatalf("main route = %+v, want the plain login screen", r)
 	}
 }
+
+// C1 (v0.1.1): navigating again to a route with the same Anchor still reaches the
+// cached instance as a RouteUpdatedMsg (the jump is asked for again: the friends
+// screen goes back to 받은 요청, a message link re-selects its message), while a
+// relayout with no navigation (a resize) sends none.
+func TestSameAnchorNavigateResendsRouteUpdated(t *testing.T) {
+	h := uitest.New(t, uitest.WithRoute(channelRoute(fixtures.ChDev)))
+	h.Resize(120, 40)
+	anchored := channelRoute(fixtures.ChDev)
+	anchored.Anchor = "M1"
+	h.Send(ui.NavigateMsg{Route: anchored})
+	dev := h.Instance(channelKey(fixtures.ChDev)).(*stub.Chat)
+	var got []string
+	dev.OnUpdate = func(_ *ui.Context, msg tea.Msg) {
+		if m, ok := msg.(ui.RouteUpdatedMsg); ok {
+			got = append(got, m.Route.Anchor)
+		}
+	}
+	h.Send(ui.NavigateMsg{Route: anchored})
+	if !slices.Equal(got, []string{"M1"}) {
+		t.Fatalf("same-Anchor navigate: RouteUpdatedMsg anchors = %v, want [M1]", got)
+	}
+	got = nil
+	h.Resize(121, 40)
+	h.Resize(120, 40)
+	if len(got) != 0 {
+		t.Fatalf("a resize re-sent RouteUpdatedMsg %v", got)
+	}
+}
