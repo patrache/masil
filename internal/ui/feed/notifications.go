@@ -30,7 +30,7 @@ const (
 	textNotifEmpty    = "새 알림이 없어요"
 	iconNotifEmpty    = "🔔"
 	textNotifSomeone  = "알 수 없음"
-	textNotifSpace    = "스페이스"
+	textNotifSpace    = "방"
 	errContextNotif   = "알림"
 	notifOpenKey      = "notifications" // FeedStore.SetOpen key
 	notifNarrowWidth  = 40              // inner width below which rows use the short copy
@@ -456,6 +456,8 @@ func pendingInvite(ctx *ui.Context, id string) bool {
 // ---- rendering ----
 
 // notifText fills a copy template with the actor and space names (sanitized).
+// The server names the space only for space_invite (api.md 5.18); otherwise
+// x.Context.SpaceName is nil and the caller passes x through withSpaceName.
 func notifText(tmpl string, x api.Notification) string {
 	name := textNotifSomeone
 	if x.Actor != nil {
@@ -506,7 +508,7 @@ func (n *notifications) row(ctx *ui.Context, x api.Notification, sel bool, width
 	if narrow {
 		tmpl = cp.narrow
 	}
-	text := notifText(tmpl, x)
+	text := notifText(tmpl, withSpaceName(ctx, x))
 	ts := humanize.Relative(nowIn(ctx), x.CreatedAt)
 
 	gutter := t.S.Base.Render(strings.Repeat(" ", notifGutterW))
@@ -744,4 +746,24 @@ func (n *notifications) Help(ctx *ui.Context) []key.Binding {
 	open := ctx.Keys.Binding(keymap.ListOpen)
 	open.SetHelp(open.Help().Key, "열기")
 	return []key.Binding{open, key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "모두 읽음"))}
+}
+
+// withSpaceName fills a missing context.space_name with the name of the space
+// the client knows: by context.space_id, else by the space of
+// context.channel_id. Unknown spaces stay nil (the copy then says 방).
+func withSpaceName(ctx *ui.Context, x api.Notification) api.Notification {
+	if x.Context.SpaceName != nil || ctx == nil || ctx.Store == nil {
+		return x
+	}
+	id := deref(x.Context.SpaceID)
+	if id == "" && x.Context.ChannelID != nil {
+		if ch := ctx.Store.Channels[*x.Context.ChannelID]; ch != nil {
+			id = deref(ch.SpaceID)
+		}
+	}
+	if sp := ctx.Store.Spaces[id]; id != "" && sp != nil {
+		name := sp.Name
+		x.Context.SpaceName = &name
+	}
+	return x
 }

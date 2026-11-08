@@ -400,3 +400,30 @@ func TestNotificationsEventBeforeOpenStillLoads(t *testing.T) {
 		}
 	}
 }
+
+// The server fills context.space_name only for space_invite (api.md 5.18): a
+// message_mention carries space_id alone. `masil` against wrangler dev showed
+// "하나님이 스페이스에서 나를 멘션했어요"; the row names the space the client
+// knows, by space_id or through the channel, and says 방 otherwise.
+func TestMentionNamesSpaceFromStore(t *testing.T) {
+	mention := func(id int, space, channel *string) api.Notification {
+		return api.Notification{ID: sid(id), Type: "message_mention", Actor: &api.UserSummary{ID: fixtures.UserHana, Handle: "hana", DisplayName: "하나"},
+			Subject: api.NotificationSubject{Type: "message", ID: sid(id + 100)}, Preview: "배포 언제?",
+			Context: api.NotificationContext{SpaceID: space, ChannelID: channel, MessageID: ptr(sid(id + 100))}, CreatedAt: at(id)}
+	}
+	srv := snsAPI(t, false)
+	srv.JSON("GET /v1/notifications", http.StatusOK, api.NotificationPage{Items: []api.Notification{
+		mention(1, ptr(fixtures.SpaceNova), nil),
+		mention(2, nil, ptr(fixtures.ChDev)),
+		mention(3, ptr("01JZ00000000000000UNKNOWN0"), nil),
+	}, UnreadCount: 3})
+	h := uitest.New(t, notifOptsWith(srv, false, nil)...)
+	h.Resize(120, 40) // standard: the inbox is Main with the long copy
+	s := h.Screen()
+	if n := strings.Count(s, "노바 개발방에서 나를 멘션했어요"); n != 2 {
+		t.Fatalf("space named %d times, want 2 (by space_id and by channel):\n%s", n, s)
+	}
+	if !strings.Contains(s, "님이 방에서 나를 멘션했어요") || strings.Contains(s, "스페이스") {
+		t.Fatalf("unknown space must read 방:\n%s", s)
+	}
+}
