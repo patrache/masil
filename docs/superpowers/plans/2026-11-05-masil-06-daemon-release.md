@@ -6,7 +6,7 @@
 
 **Architecture:** 데몬은 core 의 `realtime`(ModeNotify)·`notify`·`instance`·`auth`·`config` 위에 얇게 얹는다. 데몬 고유 로직은 세 덩어리 — (1) `daemon-state.json` 재개 지점, (2) TUI 존재 판정(`tui.lock` 우선, 실패 시 서버 신호 + 3초 유예), (3) alert 처리 큐(무제한·순서 유지, `notify.Notifier.Handle` 위임) — 와 자격 증명 대기 루프(설정 실시간 반영, 데몬이 본 서버 주소를 `daemon-status.json` 에 기록, 실행 파일이 바뀌면 종료 코드 1 로 나가 감독자가 새 버전으로 재시작)다. 자동 시작은 OS별 등록 파일을 **순수 생성 함수**(골든 시험)와 **명령 실행부**(가짜 runner 로 기록 시험)로 나눈다. 릴리스는 태그 푸시에서만 도는 워크플로가 시험 → goreleaser → tap 갱신 → 설치 스모크 순으로 진행한다.
 
-**Tech Stack:** Go 1.26.1 (`charm.land/*/v2` 는 이 범위에서 쓰지 않음), `github.com/coder/websocket` v1.8.15(시험의 `CloseError` 만), `golang.org/x/sys` v0.49.0(`windows/registry`, `windows`), `github.com/charmbracelet/x/exp/golden` v0.1.0, goreleaser v2.19.0, `goreleaser/goreleaser-action@v7.3.0`, `actions/checkout@v7.0.1`, `actions/setup-go@v7.0.0`, `actions/setup-node@v7.1.0`, actionlint v1.7.12, Node 24(wrangler 4.157.0 는 `node >=22.0.0`). **워크플로우의 `uses:` 에는 위 태그를 그대로 쓰지 않는다** — 보류 항목 2(공급망)에 따라 각 태그를 `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` 로 조회한 40자 커밋 SHA 로 고정하고 `# vX.Y.Z` 주석을 붙인다(예: `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`). `cmd/masil/workflow_pins_test.go` 가 이를 강제한다.
+**Tech Stack:** Go 1.26.1 (`charm.land/*/v2` 는 이 범위에서 쓰지 않음), `github.com/coder/websocket` v1.8.15(시험의 `CloseError` 만), `golang.org/x/sys` v0.49.0(`windows/registry`, `windows`), `github.com/charmbracelet/x/exp/golden` v0.1.0, goreleaser v2.19.0(v0.1.1 R1 부터 `go install` 로 설치 — `goreleaser-action` 은 쓰지 않음), `actions/checkout@v7.0.1`, `actions/setup-go@v7.0.0`, `actions/setup-node@v7.1.0`, actionlint v1.7.12, Node 24(wrangler 4.157.0 는 `node >=22.0.0`). **워크플로우의 `uses:` 에는 위 태그를 그대로 쓰지 않는다** — 보류 항목 2(공급망)에 따라 각 태그를 `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` 로 조회한 40자 커밋 SHA 로 고정하고 `# vX.Y.Z` 주석을 붙인다(예: `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`). `cmd/masil/workflow_pins_test.go` 가 이를 강제한다.
 
 **Spec:** `docs/superpowers/specs/2026-11-05-masil-design.md` (2장 전역 운영자, 3.3 데스크톱 알림·데몬·"CPU·메모리 사용 최소", 5.1 배포, 5.3 로컬 E2E, 6장 운영 윤허, 7장 마일스톤 순서). 계약: `docs/contract/client-architecture.md` 2.1·3장·4.4·4.6·9.2·10.3, `docs/contract/events.md` 3.2~3.5·4.7·4.9·7장, `docs/contract/server-architecture.md` 7·8장, `docs/superpowers/plans/00-brief.md`.
 
@@ -1392,7 +1392,7 @@ git commit -m "build: homebrew tap formula template"
 **Files:**
 - Create: `.github/workflows/server-ci.yml`, `.github/workflows/release.yml`
 
-> **SHA 고정 (보류 항목 2):** 아래에 태그로 적힌 액션(`actions/checkout@v7.0.1`, `actions/setup-node@v7.1.0`, `actions/setup-go@v7.0.0`, `goreleaser/goreleaser-action@v7.3.0`, `actions/upload-artifact@v7.0.2`, `actions/download-artifact@v8.0.2`)은 버전을 가리킬 뿐이다. 실제 `uses:` 는 `owner/repo@<40자 커밋 SHA> # vX.Y.Z` 로 쓴다(SHA 는 `gh api` 로 조회, 기억으로 쓰지 않음). 태그로 쓰면 `TestWorkflowActionsPinnedToSHA` 가 실패한다.
+> **SHA 고정 (보류 항목 2):** 아래에 태그로 적힌 액션(`actions/checkout@v7.0.1`, `actions/setup-node@v7.1.0`, `actions/setup-go@v7.0.0`, `actions/upload-artifact@v7.0.2`, `actions/download-artifact@v8.0.2`)은 버전을 가리킬 뿐이다. 실제 `uses:` 는 `owner/repo@<40자 커밋 SHA> # vX.Y.Z` 로 쓴다(SHA 는 `gh api` 로 조회, 기억으로 쓰지 않음). 태그로 쓰면 `TestWorkflowActionsPinnedToSHA` 가 실패한다.
 
 **Interfaces:**
 - Consumes: Task 9~11 산출물, `server/` 의 `npm ci`·`npx tsc --noEmit`·`npm test`(server-architecture 8장; `package-lock.json` 은 server 계획이 커밋), core `ci.yml`(Go 시험은 거기서 — 이 계획은 고치지 않음)
@@ -1422,8 +1422,8 @@ concurrency:
      *) echo "::error::repo variable MASIL_DEFAULT_SERVER must be an https:// URL (owner sets it after the approved deploy)"; exit 1 ;;
    esac
    ```
-   → `goreleaser/goreleaser-action@v7.3.0`(`distribution: goreleaser`, `version: v2.19.0`, `args: release --clean`, env `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}`) → `actions/upload-artifact@v7.0.2` 로 `dist/checksums.txt` 업로드(이름 `checksums`; tap 잡은 `actions/download-artifact@v8.0.2`).
-4. `homebrew-tap`(needs 3, `if: ${{ !contains(github.ref_name, '-') }}` — 사전 릴리스 제외, env `TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}`): 첫 단계 `[ -n "$TAP_TOKEN" ] || { echo "::notice::HOMEBREW_TAP_TOKEN not set; skipping tap update"; echo skip=1 >> "$GITHUB_OUTPUT"; }` → (skip 아니면) masil checkout, checksums 내려받기, `actions/checkout@v7.0.1`(`repository: patrache/homebrew-tap`, `token: ${{ env.TAP_TOKEN }}`, `path: tap`), Task 11 Step 3 의 `sed` 식으로 `tap/Formula/masil.rb` 생성(`VERSION=${GITHUB_REF_NAME#v}`, `mkdir -p tap/Formula`), 그다음 커밋 단계(러너에는 git 사용자 정보가 없고, 같은 태그 재실행이면 바뀐 게 없으므로 둘 다 처리):
+   → **goreleaser 설치 단계**(v0.1.1 R1: 2026-11-08 GitHub 릴리스 내려받기 504 로 `goreleaser-action` 이 바이너리를 못 받아 릴리스가 실패했으므로 액션을 쓰지 않는다): env `GOTOOLCHAIN: auto`(setup-go 가 `GOTOOLCHAIN=local` 을 내보내는데 goreleaser v2.19.0 의 go.mod 는 `go 1.27.3`), `GOBIN: ${{ runner.temp }}/goreleaser-bin`, `go install github.com/goreleaser/goreleaser/v2@v2.19.0` 을 최대 5번(15/30/45/60초 간격) 시도 → `"$GOBIN/goreleaser" --version` → `echo "$GOBIN" >> "$GITHUB_PATH"` → **릴리스 단계** `goreleaser release --clean`(env `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}`, GOTOOLCHAIN 은 덮어쓰지 않아 masil 은 setup-go 툴체인으로 빌드) — `cmd/masil/release_workflow_test.go` 의 `TestReleaseInstallsGoreleaserFromGoProxy` 가 강제 → `actions/upload-artifact@v7.0.2` 로 `dist/checksums.txt` 업로드(이름 `checksums`; tap 잡은 `actions/download-artifact@v8.0.2`).
+4. `homebrew-tap`(needs 3, `if: ${{ !contains(github.ref_name, '-') }}` — 사전 릴리스 제외, env `TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}`): 첫 단계 `[ -n "$TAP_TOKEN" ] || { echo "::notice::HOMEBREW_TAP_TOKEN not set; skipping tap update"; echo skip=1 >> "$GITHUB_OUTPUT"; }` → (skip 아니면) masil checkout, checksums 내려받기, `actions/checkout@v7.0.1`(`repository: patrache/homebrew-tap`, `ref: formula`, `token: ${{ env.TAP_TOKEN }}`, `path: tap` — v0.1.1 R3: tap 의 기본·유일 브랜치는 `formula` 이고 main 직접 push 는 hook 이 막는다; `TestReleaseTapTargetsFormulaBranch` 가 강제), Task 11 Step 3 의 `sed` 식으로 `tap/Formula/masil.rb` 생성(`VERSION=${GITHUB_REF_NAME#v}`, `mkdir -p tap/Formula`), 그다음 커밋 단계(러너에는 git 사용자 정보가 없고, 같은 태그 재실행이면 바뀐 게 없으므로 둘 다 처리):
    ```bash
    git -C tap config user.name "github-actions[bot]"
    git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -1432,7 +1432,7 @@ concurrency:
      echo "::notice::Formula/masil.rb unchanged for ${VERSION}; nothing to push"
    else
      git -C tap commit -m "masil ${VERSION}"
-     git -C tap push
+     git -C tap push origin HEAD:formula
    fi
    ```
 5. `install-smoke`(`needs: [goreleaser, homebrew-tap]` — 4 가 건너뛰어도 돌도록 `if: ${{ always() && needs.goreleaser.result == 'success' && vars.MASIL_PUBLIC == 'true' && !contains(github.ref_name, '-') }}`, matrix ubuntu/macos/windows-latest): unix 는 `MASIL_VERSION=${GITHUB_REF_NAME#v} sh scripts/install.sh` 후 `~/.local/bin/masil version`, windows 는 `pwsh -File scripts/install.ps1` 후 `& "$env:LOCALAPPDATA\Programs\masil\masil.exe" version`. 둘 다 출력에 `${GITHUB_REF_NAME#v}` 포함 확인.
