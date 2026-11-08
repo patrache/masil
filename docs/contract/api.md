@@ -453,8 +453,8 @@ interface Message {
   mentions: MentionRef[];
   mention_here: boolean;
   thread_root_id: ID | null;         // set => this is a thread reply
-  thread: ThreadSummary | null;      // roots with >= 1 reply
-  reactions: ReactionSummary[];      // ordered by first reaction time
+  thread: ThreadSummary | null;      // roots with >= 1 reply; always null for kind "system" (never a thread root, 5.11)
+  reactions: ReactionSummary[];      // ordered by first reaction time; always [] for kind "system" (5.12)
   pinned: boolean;
   poll: Poll | null;
   roll: RollResult | null;
@@ -1140,12 +1140,13 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - `201 { "message": Message }` (중복 nonce `200`)
 - 부수효과: 루트 `reply_count+1`, `last_reply_at`, `thread_participants` upsert(첫 답글이면 루트 작성자도 추가).
 - 이벤트: `message.created`(채널 청중, `thread_root_id` 설정됨) + `thread.updated`(채널 청중). 알림 `thread_reply` + alert `thread_reply` → 루트 작성자와 이전 참여자(작성자 본인 제외). 멘션 처리 동일.
+- 오류: 루트가 시스템 메시지(`kind:"system"`)면 `400 invalid_request`, `details.fields.message_id="not_allowed"` — 시스템 메시지는 스레드 루트가 될 수 없다(쓰기 권한 확인 뒤라, 볼 수 없는 사람에게는 여전히 `404`). 아무것도 쓰지 않는다 [2026-11-08, v0.1.1 D7].
 
 ### 5.12 리액션·고정
 
 #### `PUT /v1/messages/{message_id}/reactions/{emoji}`
 - `{emoji}` 는 URL 인코딩된 이모지 한 글자(그래핌 1개, UTF-8 32바이트 이하). 읽기 권한(+1:1 DM 은 `can_dm`), `RL_REACT`.
-- `204` · 이벤트: `reaction.added` · 오류: `422 limit_exceeded`(`reactions_per_message`, 서로 다른 이모지 20)
+- `204` · 이벤트: `reaction.added` · 오류: `422 limit_exceeded`(`reactions_per_message`, 서로 다른 이모지 20), 시스템 메시지(`kind:"system"`)면 `400 invalid_request`(`details.fields.message_id="not_allowed"`, 권한 확인 뒤 — 볼 수 없으면 `404`; 아무것도 쓰지 않음) [2026-11-08, v0.1.1 D7]
 
 #### `DELETE /v1/messages/{message_id}/reactions/{emoji}`
 - `204` · 이벤트: `reaction.removed`
