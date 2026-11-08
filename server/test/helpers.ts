@@ -59,12 +59,14 @@ export async function inOneRateWindow<T>(periodSec: 10 | 60, attempt: () => Prom
  * Polls `probe` every `stepMs` until `ok(value)` holds or `timeoutMs` has passed, and returns the last value (the
  * caller asserts on it, so a timeout fails with the real state). For state the server writes after the request or
  * frame the test awaited — a socket close handled by the hub, a D1 row written in the background: a fixed sleep
- * before reading it is flaky under full-suite load (v0.1.1 S3).
+ * before reading it is flaky under full-suite load (v0.1.1 S3). The default 3000 ms (as WsClient.next) stays under
+ * vitest's default testTimeout of 5000 ms (vitest.config.ts sets none), so the runner never kills the test before the
+ * caller's assertion runs.
  */
 export async function waitFor<T>(
   probe: () => Promise<T> | T,
   ok: (value: T) => boolean,
-  { timeoutMs = 5000, stepMs = 25 }: { timeoutMs?: number; stepMs?: number } = {},
+  { timeoutMs = 3000, stepMs = 25 }: { timeoutMs?: number; stepMs?: number } = {},
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
