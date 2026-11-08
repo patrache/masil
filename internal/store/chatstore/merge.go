@@ -44,6 +44,7 @@ func (c *ChatStore) ApplyPageFor(channelID string, t PageTicket, q api.MessageQu
 		delete(c.stale, channelID)
 	}
 	c.loaded[channelID] = true
+	c.observeAuthors(w.Items...)
 	for _, m := range w.Items {
 		c.mergePending(m)
 		c.refreshCopies(m)
@@ -72,6 +73,8 @@ func (c *ChatStore) ApplyThreadPageFor(rootID string, t PageTicket, q api.Thread
 	th := c.thread(rootID)
 	had := th.root != nil
 	root := w.Root
+	c.observeAuthors(root)
+	c.observeAuthors(w.Items...)
 	th.root = &root
 	if root.ChannelID != "" {
 		th.channelID = root.ChannelID
@@ -111,6 +114,7 @@ func (c *ChatStore) ApplyThreadPageFor(rootID string, t PageTicket, q api.Thread
 // dropped. A copy of a message known deleted lands as its placeholder, or not
 // at all when it was removed (deleted.go).
 func (c *ChatStore) UpsertMessage(m api.Message) {
+	c.observeAuthors(m)
 	m, keep, _ := c.deletedCopy(m)
 	if !keep {
 		c.mergePending(m)
@@ -278,4 +282,17 @@ func (c *ChatStore) SetPoll(p api.Poll, authoritative bool) {
 		}
 		m.Poll = &np
 	})
+}
+
+// observeAuthors teaches the user cache the authors embedded in REST messages
+// (api.md: Message.author is the author's current UserSummary), as the realtime
+// path does for message events: screens that name a user by id only (system
+// lines, reaction users) then know people seen only in history.
+func (c *ChatStore) observeAuthors(ms ...api.Message) {
+	if c.s == nil {
+		return
+	}
+	for _, m := range ms {
+		c.s.ObserveUser(m.Author)
+	}
 }

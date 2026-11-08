@@ -2,6 +2,7 @@ package chat
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -485,4 +486,23 @@ func TestRenderPendingOneLineKeepsBody(t *testing.T) {
 	}
 	full := strings.Join(strip(renderRow(ctx, r, msgStyle{Density: ui.DensityFull, Width: 80})), "\n")
 	mustContain(t, full, "전송 실패 — enter 다시 보내기 · d 버리기")
+}
+
+// A system line names someone the client knows only from the channel history
+// (no DM, no friend, no event yet): `masil` against wrangler dev showed
+// "알 수 없는 사용자님이 들어왔어요" for a member who joined by invite link.
+func TestSystemLineNamesUserFromHistory(t *testing.T) {
+	ch := chanID(t, seeded(), "개발")
+	newcomer := api.UserSummary{ID: "01JA0000000000000000NEW001", Handle: "newbie", DisplayName: "새친구"}
+	joined := api.Message{ID: msgID(900), ChannelID: ch, Author: newcomer, Kind: "system", CreatedAt: uitest.Start.Add(-time.Minute),
+		System: &api.SystemEvent{Event: "member_joined", ActorID: newcomer.ID, TargetUserID: &newcomer.ID}}
+	hello := mkMsg(ch, 901, newcomer, "안녕하세요", uitest.Start)
+	srv := newAPI(t)
+	srv.JSON("GET /v1/channels/"+ch+"/messages", http.StatusOK, api.MessageWindow{Items: []api.Message{joined, hello}})
+	h := openWith(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteChannel, ID: ch}, srv, uitest.WithSeed(bootstrappedSeed))
+	s := h.Screen()
+	mustContain(t, s, "새친구님이 들어왔어요")
+	if strings.Contains(s, unknownUser) {
+		t.Fatalf("system line shows %q:\n%s", unknownUser, s)
+	}
 }

@@ -412,6 +412,7 @@ func (c *ChatStore) SetPins(channelID string, pins []api.Message) {
 // was in flight, so the channel's pin, unpin and delete events logged since t
 // are re-applied over it, like a history page (pages.go).
 func (c *ChatStore) SetPinsFor(channelID string, t PageTicket, pins []api.Message) {
+	c.observeAuthors(pins...)
 	c.pins[channelID] = slices.Clone(pins)
 	c.pinsLoaded[channelID] = true
 	c.replayPinsSince(channelID, t.since)

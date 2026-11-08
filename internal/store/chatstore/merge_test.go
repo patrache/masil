@@ -289,3 +289,39 @@ func TestUpsertDoesNotRegressEditOrTombstone(t *testing.T) {
 		t.Fatalf("send result revived a tombstone: %+v", got)
 	}
 }
+
+// REST pages embed each author's current UserSummary (api.md Message.author):
+// the user cache learns them like the realtime path does, so a system line
+// "X님이 들어왔어요" (actor id only) names a user known only from history.
+func TestPagesObserveAuthors(t *testing.T) {
+	s := store.New()
+	c := Get(s)
+	named := func(id, author, name string) api.Message {
+		m := msg(id, author)
+		m.Author.DisplayName = name
+		return m
+	}
+	c.ApplyPage("C1", api.MessageQuery{Limit: 50}, page(false, false, named("m10", "U7", "비이")))
+	c.ApplyThreadPage("m20", api.ThreadQuery{Limit: 50}, &api.ThreadWindow{Root: named("m20", "U8", "루트"), Items: []api.Message{func() api.Message {
+		r := reply("m21", "U9", "m20")
+		r.Author.DisplayName = "답글러"
+		return r
+	}()}})
+	c.UpsertMessage(named("m30", "U6", "보낸이"))
+	c.SetPins("C1", []api.Message{named("m5", "U5", "고정러")})
+	for id, want := range map[string]string{"U7": "비이", "U8": "루트", "U9": "답글러", "U6": "보낸이", "U5": "고정러"} {
+		if u := s.User(id); u == nil || u.DisplayName != want {
+			t.Errorf("user %s = %+v, want display name %q", id, u, want)
+		}
+	}
+
+	// a stale anchored page is discarded and teaches nothing
+	tk := c.Ticket("C1")
+	c.ApplyPage("C1", api.MessageQuery{Limit: 50}, page(true, false, named("m40", "U1", "새")))
+	if c.ApplyPageFor("C1", tk, api.MessageQuery{Before: "m40", Limit: 50}, page(false, false, named("m35", "U4", "옛"))) {
+		t.Fatal("stale page applied")
+	}
+	if s.User("U4") != nil {
+		t.Fatal("a discarded page must not touch the user cache")
+	}
+}
