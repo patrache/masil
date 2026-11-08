@@ -186,6 +186,7 @@ type profile struct {
 	loadFailed bool
 	notFound   bool
 	following  bool // a follow / unfollow request of this screen is in flight
+	friending  bool // a friend action of this screen is in flight (C2)
 
 	tab   profileTab
 	tabs  *widgets.Tabs
@@ -412,6 +413,8 @@ func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.ResultMsg[*followOutcome]:
 		cmds = append(cmds, p.onFollow(ctx, m))
+	case ui.ResultMsg[*friendOutcome]:
+		cmds = append(cmds, p.onFriend(m))
 	case ui.ResultMsg[*followRequestOutcome]:
 		p.onRequestHandled(ctx, m)
 	case ui.ResultMsg[*api.Me]:
@@ -644,6 +647,8 @@ func (p *profile) onEvent(ctx *ui.Context, m ui.EventMsg) tea.Cmd {
 		if json.Unmarshal(m.Event.Data, &d) == nil && d.Notification.Type == "guestbook_entry" && p.isMe(ctx) {
 			return p.refreshGuestbook(ctx)
 		}
+	case "friend.request_received", "friend.request_accepted", "friend.request_removed":
+		p.onFriendRequestEvent(m.Event.Type, m.Event.Data)
 	case "friend.added", "friend.removed":
 		var d struct {
 			Friend *api.Friend `json:"friend"`  // friend.added
@@ -1341,7 +1346,7 @@ func (p *profile) openStories(ctx *ui.Context) tea.Cmd {
 func (p *profile) openEdit() tea.Cmd { return ui.OpenRegisteredOverlay(overlayProfileEdit, "") }
 
 // openMenu is "m": 스토리 보기, 팔로워, 팔로잉, then 프로필 편집 · 팔로우 요청
-// (mine) or 차단 · 사용자 신고 (someone else's).
+// (mine) or the friend action (friendMenuItems) · 차단 · 사용자 신고 (someone else's).
 func (p *profile) openMenu(ctx *ui.Context) tea.Cmd {
 	if p.prof == nil {
 		return nil
@@ -1364,6 +1369,7 @@ func (p *profile) openMenu(ctx *ui.Context) tea.Cmd {
 			menuItem{label: textMenuFollowReqs, open: func(*ui.Context) ui.Overlay { return newFollowRequests() }},
 		)
 	} else {
+		items = append(items, p.friendMenuItems(ctx)...)
 		if !p.blocked(ctx) {
 			items = append(items, menuItem{label: textMenuBlockUser, open: func(ctx *ui.Context) ui.Overlay {
 				return widgets.Confirm(name+textBlockAsk, textBlockBody, textBlockYes, textCancel, blockUser(ctx, id))
