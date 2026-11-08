@@ -260,11 +260,7 @@ func channelTitle(ctx *ui.Context, ch *api.Channel, withTopic bool) string {
 		}
 		return title
 	case api.ChannelDM:
-		st := s.Self.Status
-		if p := dmPeer(s, ch); p != nil {
-			st = s.Presence[p.ID].Status
-		}
-		return textwidth.Sanitize(s.ChannelLabel(ch.ID)) + " " + presenceRune(st)
+		return textwidth.Sanitize(s.ChannelLabel(ch.ID)) + " " + presenceRune(dmPresence(ctx, ch))
 	default:
 		return textwidth.Sanitize(s.ChannelLabel(ch.ID))
 	}

@@ -317,6 +317,20 @@ func TestChannelHelpers(t *testing.T) {
 	if got := channelTitle(ctx, s.Channels[dmWith(t, s, "junho")], true); got != "준호 ○" {
 		t.Fatalf("dm offline %q", got)
 	}
+	// G2 gate: before any presence frame names the peer, the header falls back to
+	// the friend entry exactly like the sidebar dot (it showed "○" beside "●").
+	minjiDM := s.Channels[dmWith(t, s, "minji")]
+	minji := dmPeer(s, minjiDM)
+	delete(s.Presence, minji.ID)
+	f, ok := s.Friends[minji.ID]
+	if !ok {
+		t.Fatal("fixture: minji is a friend")
+	}
+	f.Presence = api.PresenceOnline
+	s.Friends[minji.ID] = f
+	if got := channelTitle(ctx, minjiDM, true); got != "민지 ●" || dmPresence(ctx, minjiDM) != api.PresenceOnline {
+		t.Fatalf("dm header from friend presence %q, sidebar %q", got, dmPresence(ctx, minjiDM))
+	}
 
 	nova := spaceByName(t, s, "노바 개발방")
 	if spaceOf(ctx, dev) != s.Spaces[nova] || spaceOf(ctx, s.Channels[dmWith(t, s, "minji")]) != nil {
