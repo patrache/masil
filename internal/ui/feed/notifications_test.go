@@ -147,7 +147,7 @@ func TestNotificationTargets(t *testing.T) {
 		"follow":          {r: toMinji},
 		"follow_request":  {overlay: "feed.follow_requests"},
 		"follow_accepted": {r: toMinji},
-		"friend_request":  {r: ui.Route{Kind: ui.RouteFriends}},
+		"friend_request":  {r: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}},
 		"friend_accepted": {r: toMinji},
 		"space_invite":    {r: ui.Route{Kind: ui.RouteInvite, Arg: "direct", ID: sid(94)}},
 		"post_like":       {r: toPost},

@@ -131,11 +131,11 @@ func homeItems(ctx *ui.Context) []homeItem {
 	}
 	if nReq > 0 {
 		items = append(items, homeItem{ID: homeRequestsID, Label: "친구 요청 " + strconv.Itoa(nReq),
-			Route: ui.Route{Kind: ui.RouteFriends}})
+			Route: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}})
 	}
 	items = append(items,
 		homeItem{ID: homeFeedID, Label: "피드 보기", Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}},
-		homeItem{ID: homeFriendsID, Label: "친구 목록", Route: ui.Route{Kind: ui.RouteFriends}},
+		homeItem{ID: homeFriendsID, Label: "친구 목록", Route: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsList}},
 	)
 	if len(dms) > 0 {
 		items = append(items, homeItem{ID: "label:dms", Label: homeDMLabel, kind: homeLabel})

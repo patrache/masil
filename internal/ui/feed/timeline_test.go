@@ -234,14 +234,15 @@ func TestTimelineKittyRawWithoutFollowUp(t *testing.T) {
 	m := postBy("hana").Media[0]
 	n := len(h.TeaMsgs())
 	h.Send(ui.ResultMsg[image.Image]{Tag: "feed.media:" + m.ID, Value: fixtures.TestImage()})
-	if raws := rawSince(h, n); !rawWithCols(raws, 48) {
-		t.Fatalf("no 48-col kitty transmit (tea.Raw) right after the image result: %d raws", len(raws))
+	if raws := rawSince(h, n); !rawWithCols(raws, 32) {
+		t.Fatalf("no 32-col kitty transmit (tea.Raw) right after the image result: %d raws", len(raws))
 	}
 	if !strings.ContainsRune(h.Screen(), kitty.Placeholder) {
 		t.Fatalf("screen has no kitty placeholder:\n%s", h.Screen())
 	}
 	// A mode change re-renders loaded images for the new box with no further msg:
-	// widget draws a 30-col box (new transmit); command's feed column is 48 cols
+	// widget draws a 30-col box (new transmit); command's feed column is 32 cols (the 4:3 picture
+	// at the 12-row cap, C6)
 	// again — already transmitted at 120x40, so it shows placeholders at once.
 	n = len(h.TeaMsgs())
 	h.Resize(80, 24)
@@ -253,7 +254,7 @@ func TestTimelineKittyRawWithoutFollowUp(t *testing.T) {
 		t.Fatalf("200x60: no kitty placeholder:\n%s", h.Screen())
 	}
 
-	// From widget straight to command: the 48-col box is new and is sent by the
+	// From widget straight to command: the 32-col box is new and is sent by the
 	// mode change itself.
 	h2 := uitest.New(t, feedOpts(t, "following", false)...)
 	h2.Resize(80, 24)
@@ -261,8 +262,8 @@ func TestTimelineKittyRawWithoutFollowUp(t *testing.T) {
 	h2.Send(ui.ResultMsg[image.Image]{Tag: "feed.media:" + m.ID, Value: fixtures.TestImage()})
 	n = len(h2.TeaMsgs())
 	h2.Resize(200, 60)
-	if raws := rawSince(h2, n); !rawWithCols(raws, 48) {
-		t.Fatalf("80x24 -> 200x60: no 48-col kitty transmit after the mode change: %d raws", len(raws))
+	if raws := rawSince(h2, n); !rawWithCols(raws, 32) {
+		t.Fatalf("80x24 -> 200x60: no 32-col kitty transmit after the mode change: %d raws", len(raws))
 	}
 }
 

@@ -245,6 +245,9 @@ func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
 	if intent.Slot != "" {
 		m.intent = intent
 	}
+	if msg.Route.Anchor != "" { // asked to jump again even if the instance holds this Anchor (C1)
+		m.cache.rejump = msg.Route.Key()
+	}
 	return m.relayout()
 }
 

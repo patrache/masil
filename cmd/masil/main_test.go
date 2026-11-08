@@ -243,6 +243,26 @@ func TestJoin(t *testing.T) {
 	}
 }
 
+// C5 (v0.1.1): `masil join <code>` without saved credentials still hands the
+// invite route to the TUI (the app opens it after the login screen).
+func TestJoinLoggedOut(t *testing.T) {
+	e := newEnv(t, "https://masil.test")
+	calls := fakeTUI(t)
+	if code := e.run("join", "AbC12345"); code != 0 {
+		t.Fatalf("join => %d, stderr %q", code, e.err)
+	}
+	if len(*calls) != 1 {
+		t.Fatalf("runTUI calls = %d", len(*calls))
+	}
+	o := (*calls)[0]
+	if o.Credentials != nil {
+		t.Fatalf("no credentials saved, got %+v", o.Credentials)
+	}
+	if o.InitialRoute == nil || o.InitialRoute.Kind != ui.RouteInvite || o.InitialRoute.ID != "AbC12345" {
+		t.Fatalf("InitialRoute = %+v, want the invite", o.InitialRoute)
+	}
+}
+
 func authResult(token string) api.AuthResult {
 	var r api.AuthResult
 	r.Token = token

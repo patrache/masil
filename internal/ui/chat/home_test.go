@@ -120,6 +120,40 @@ func TestHomeInvitesAndRequests(t *testing.T) {
 	if got := top(h); got.Key() != (ui.Route{Kind: ui.RouteFriends}).Key() {
 		t.Fatalf("requests row opened %+v", got)
 	}
+	// C1 (v0.1.1): the requests row opens the friends screen on 받은 요청
+	if v := friendsOf(t, h); v.tab != tabIncoming {
+		t.Fatalf("requests row opened the friends screen on tab %d, want 받은 요청", v.tab)
+	}
+	// the cached friends screen switched back to 친구 by hand, then 친구 목록 /
+	// 친구 요청 from home again land on their own tab
+	h.Press("h")
+	h.Send(ui.BackMsg{})
+	homeSelect(t, h, "친구 목록")
+	h.Press("enter")
+	if v := friendsOf(t, h); v.tab != tabFriends {
+		t.Fatalf("친구 목록 opened tab %d", v.tab)
+	}
+	h.Send(ui.BackMsg{})
+	homeSelect(t, h, "친구 요청 1")
+	h.Press("enter")
+	if v := friendsOf(t, h); v.tab != tabIncoming {
+		t.Fatalf("친구 요청 on a cached friends screen opened tab %d", v.tab)
+	}
+	if !strings.Contains(h.Screen(), "dev_kim") {
+		t.Fatalf("받은 요청 tab must list the request:\n%s", h.Screen())
+	}
+	// the same Anchor twice in a row: 친구 요청 → h (친구) → back → 친구 요청
+	// again lands on 받은 요청, though the cached route already says "incoming"
+	h.Press("h")
+	if v := friendsOf(t, h); v.tab != tabFriends {
+		t.Fatalf("h moved to tab %d", v.tab)
+	}
+	h.Send(ui.BackMsg{})
+	homeSelect(t, h, "친구 요청 1")
+	h.Press("enter")
+	if v := friendsOf(t, h); v.tab != tabIncoming {
+		t.Fatalf("친구 요청 opened twice with the same Anchor stays on tab %d", v.tab)
+	}
 
 	h = open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(seed))
 	homeSelect(t, h, "친구 목록")

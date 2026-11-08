@@ -200,7 +200,7 @@ func (m *Model) alertTargetRoute(a api.Alert) ui.Route {
 	case api.AlertFocusSummary:
 		return NotifRoute
 	case api.AlertFriendRequest:
-		return ui.Route{Kind: ui.RouteFriends}
+		return ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}
 	}
 	t := a.Target
 	switch t.Type {

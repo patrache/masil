@@ -91,8 +91,11 @@ func hiddenByBlock(ctx *ui.Context, it api.TimelineItem) bool {
 }
 
 // imageBox is the cell size of a card's first image: Full is up to 48 columns,
-// Bubble up to 30; rows keep the aspect ratio (a cell is twice as tall as wide)
-// clamped to 3..12, 4:3 when the size is unknown. Line and Minimal show no image.
+// Bubble up to 30; rows keep the aspect ratio (a cell is twice as tall as wide,
+// rounded to the nearest row) clamped to 3..12, 4:3 when the size is unknown.
+// At the 12-row cap the width shrinks with it (C6: the box keeps the picture's
+// shape on every screen, not 48x12 here and 30x11 there); only a very wide
+// picture at the 3-row floor gets a taller box. Line and Minimal show no image.
 func imageBox(m api.Media, contentW int, d ui.Density) (cols, rows int) {
 	switch d {
 	case ui.DensityFull:
@@ -109,8 +112,16 @@ func imageBox(m api.Media, contentW int, d ui.Density) (cols, rows int) {
 	if m.Width != nil && m.Height != nil && *m.Width > 0 && *m.Height > 0 {
 		w, h = *m.Width, *m.Height
 	}
-	r := int(int64(cols) * int64(h) / (int64(w) * 2))
-	return cols, min(max(r, imageMinRows), imageMaxRows)
+	w64, h64 := int64(w), int64(h)
+	for w64 > 1<<24 || h64 > 1<<24 { // hostile sizes: keep the products far from overflow
+		w64, h64 = max(1, w64>>1), max(1, h64>>1)
+	}
+	r := (int64(cols)*h64 + w64) / (2 * w64) // round(cols*h / 2w)
+	if r > imageMaxRows {
+		r = imageMaxRows
+		cols = int(max(1, min(int64(cols), (r*2*w64+h64/2)/h64))) // round(rows*2w / h)
+	}
+	return cols, int(max(r, imageMinRows))
 }
 
 // renderCard draws one post card. p is the post to draw (the FeedStore copy, so
