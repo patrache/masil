@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,7 +79,7 @@ func TestLedgerDedup(t *testing.T) {
 	}
 	if st, err := os.Stat(p.AlertsShown); err != nil {
 		t.Fatal(err)
-	} else if st.Mode().Perm() != 0o600 {
+	} else if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 { // Windows has no POSIX modes
 		t.Errorf("perm = %v", st.Mode().Perm())
 	}
 	if f := readLedgerFile(t, p); len(f.IDs) != 1 || f.IDs[0] != "a" {

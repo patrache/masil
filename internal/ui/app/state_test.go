@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -153,7 +154,7 @@ func TestSavedStateShape(t *testing.T) {
 		wb, _ := json.Marshal(want)
 		t.Fatalf("state.json =\n%s\nwant\n%s", gb, wb)
 	}
-	if fi, err := os.Stat(p.State); err != nil || fi.Mode().Perm() != 0o600 {
+	if fi, err := os.Stat(p.State); err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600) { // Windows has no POSIX modes
 		t.Fatalf("state.json perm = %v (%v), want 0600", fi.Mode().Perm(), err)
 	}
 

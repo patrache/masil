@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -116,7 +117,7 @@ func TestCacheUsesETagAcrossInstances(t *testing.T) {
 	data := filepath.Join(p.Cache, "media", "up_1")
 	if fi, err := os.Stat(data); err != nil || fi.Size() == 0 {
 		t.Fatalf("disk cache %s: %v", data, err)
-	} else if fi.Mode().Perm() != 0o600 {
+	} else if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 { // Windows has no POSIX modes
 		t.Fatalf("disk cache mode = %v, want 0600", fi.Mode().Perm())
 	}
 	if b, err := os.ReadFile(data + ".etag"); err != nil || string(b) != `"e1"` {

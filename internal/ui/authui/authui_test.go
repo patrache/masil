@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -85,12 +86,10 @@ func bodyContains(h *uitest.Harness, s string) bool {
 	return strings.Contains(strings.Join(bodyRows(h), "\n"), s)
 }
 
+// hostname is the device name the form sends: the host name cut like deviceName does
+// (CI runners have names longer than deviceNameMax).
 func hostname() string {
-	n, err := os.Hostname()
-	if err != nil {
-		return ""
-	}
-	return n
+	return authui.DeviceName(os.Hostname)
 }
 
 func TestLoginGolden(t *testing.T) {
@@ -141,7 +140,7 @@ func TestLoginSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("credentials.json not saved: %v", err)
 	}
-	if st.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 { // Windows has no POSIX modes
 		t.Errorf("credentials.json mode = %v, want 0600", st.Mode().Perm())
 	}
 	cr, err := auth.Load(p)

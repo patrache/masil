@@ -687,6 +687,7 @@ func TestAttachErrors(t *testing.T) {
 func TestAttachExpandsHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	if err := os.WriteFile(filepath.Join(home, "pic.png"), testImagePNG(), 0o600); err != nil {
 		t.Fatal(err)
 	}
