@@ -9,9 +9,11 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -663,5 +665,35 @@ func TestSpaceDialogsGolden(t *testing.T) {
 				h.Golden(strings.TrimPrefix(id, "chat."))
 			})
 		})
+	}
+}
+
+// C3 (v0.1.1): the card's "멤버 N명" is the preview's only until I join; then it
+// is the joined space's count, kept live by the space.member_* events.
+func TestInviteCardMemberCountAfterJoin(t *testing.T) {
+	srv := newAPI(t)
+	joined := joinedSpace()
+	joined.MemberCount = 6 // me included
+	srv.JSON("POST /v1/invites/"+joinInviteCode+"/accept", http.StatusOK, map[string]any{"space": joined})
+	h := openInvite(t, uitest.Size{W: 120, H: 40}, joinInviteCode, srv)
+	r := ui.Route{Kind: ui.RouteInvite, ID: joinInviteCode}
+	v := inviteOf(t, h, r)
+	card := func() string { return ansi.Strip(v.View(h.Context(), false)) }
+	mustContain(t, card(), "멤버 5명")
+	h.Press("enter")
+	if h.Context().Store.Spaces[joinSpaceID] == nil {
+		t.Fatal("the joined space is adopted")
+	}
+	if c := card(); !strings.Contains(c, "멤버 6명") {
+		t.Fatalf("after joining the card keeps the preview count:\n%s", c)
+	}
+	newcomer := api.UserSummary{ID: "01JA0000000000000000NEW001", Handle: "newbie", DisplayName: "새친구"}
+	h.Event("space.member_joined", realtime.SpaceMemberEvent{SpaceID: joinSpaceID, Member: api.SpaceMember{User: newcomer, Role: api.RoleMember, JoinedAt: uitest.Start}})
+	if c := card(); !strings.Contains(c, "멤버 7명") {
+		t.Fatalf("space.member_joined does not reach the card:\n%s", c)
+	}
+	h.Event("space.member_left", realtime.SpaceMemberLeft{SpaceID: joinSpaceID, UserID: newcomer.ID})
+	if c := card(); !strings.Contains(c, "멤버 6명") {
+		t.Fatalf("space.member_left does not reach the card:\n%s", c)
 	}
 }
