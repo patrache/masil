@@ -1,7 +1,9 @@
 package chat
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,4 +79,37 @@ func TestSystemMessageNoThreadNoReaction(t *testing.T) {
 	if len(hs) == 0 || hs[0].Help().Desc != "스레드" {
 		t.Fatalf("help on a user message %+v", hs)
 	}
+}
+
+// D7 (v0.1.1): the status line itself (the mode's default hints, not only the
+// component Help) shows no thread key while a system message is selected, in
+// 지휘소 (t 스레드), 표준 (t 스레드) and 컴팩트 (enter 스레드); a user message
+// keeps it.
+func TestSystemMessageStatusLineHasNoThreadKey(t *testing.T) {
+	for _, sz := range []uitest.Size{{W: 200, H: 60}, {W: 120, H: 40}, {W: 120, H: 30}} {
+		t.Run(fmt.Sprintf("%dx%d", sz.W, sz.H), func(t *testing.T) {
+			h, sys := systemChannel(t)
+			h.Resize(sz.W, sz.H)
+			v := channelOf(t, h)
+			if v.composer.focused() {
+				v.composer.blur()
+			}
+			if !v.pane.selectID(sys.ID) {
+				t.Fatal("a system message is selectable")
+			}
+			if row := lastRow(h); strings.Contains(row, "스레드") || strings.Contains(row, "리액션") {
+				t.Fatalf("status line on a system message: %q", row)
+			}
+			selectText(t, h, "안녕하세요")
+			if row := lastRow(h); !strings.Contains(row, "스레드") {
+				t.Fatalf("status line on a user message has no thread key: %q", row)
+			}
+		})
+	}
+}
+
+// lastRow is the screen's last row (the status line).
+func lastRow(h *uitest.Harness) string {
+	lines := strings.Split(h.Screen(), "\n")
+	return lines[len(lines)-1]
 }

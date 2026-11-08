@@ -31,12 +31,15 @@ func (h hintItem) String() string {
 
 // modeHints are the default hints per mode (CA 5.4 table, mockup layouts.html wording).
 var modeHints = map[layout.Mode][]hintItem{
-	layout.ModeCommand:  {{"ctrl+k", "이동"}, {"tab", "패널 전환"}, {"t", "스레드"}, {"?", "도움말"}},
-	layout.ModeStandard: {{"f", "피드"}, {"t", "스레드"}, {"ctrl+k", ""}},
-	layout.ModeCompact:  {{"[ ]", "탭 이동"}, {"enter", "스레드"}},
+	layout.ModeCommand:  {{"ctrl+k", "이동"}, {"tab", "패널 전환"}, {"t", hintThread}, {"?", "도움말"}},
+	layout.ModeStandard: {{"f", "피드"}, {"t", hintThread}, {"ctrl+k", ""}},
+	layout.ModeCompact:  {{"[ ]", "탭 이동"}, {"enter", hintThread}},
 	layout.ModeWidget:   {{"tab", "탭"}},
 	layout.ModeTiny:     nil, // pill and connection dot only
 }
+
+// hintThread is the mode hint a ui.ThreadHider drops (D7).
+const hintThread = "스레드"
 
 // inputHints replace the mode hints while the focused component captures input.
 var inputHints = []hintItem{{"enter", "보내기"}, {"shift+enter", "줄바꿈"}, {"esc", "나가기"}}
@@ -192,9 +195,16 @@ func (m *Model) hints() []string {
 	if c, ok := comp.(ui.InputCapturer); ok && c.CapturesInput() {
 		base = inputHints
 	}
+	noThread := false
+	if th, ok := comp.(ui.ThreadHider); ok {
+		noThread = th.HidesThread(m.ctx)
+	}
 	shown := map[string]bool{}
 	var out []string
 	for _, h := range base {
+		if noThread && h.Desc == hintThread {
+			continue
+		}
 		for _, k := range strings.Fields(h.Key) {
 			shown[k] = true
 		}
