@@ -63,6 +63,13 @@ export function idFloor(ms: number): string {
   return encodeTime(ms) + "0".repeat(RAND_LEN);
 }
 
+const INVITE_RE = new RegExp(`^[${INVITE_ALPHABET}]{${INVITE_LEN}}$`);
+
+/** Whether s has the form newInviteCode issues (pending item 5: other values are 404 before any lookup). */
+export function isInviteCode(s: string): boolean {
+  return INVITE_RE.test(s);
+}
+
 /** 8 chars from an unambiguous 56-char alphabet, unbiased via rejection sampling. */
 export function newInviteCode(): string {
   let out = "";

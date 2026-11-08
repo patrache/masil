@@ -89,7 +89,7 @@
 | 403 | `read_only` | 읽기 전용 대화(DM 조건 소멸) |
 | 403 | `private_account` | 비공개 계정의 글/팔로워 목록 열람 불가 |
 | 403 | `banned_from_space` | 방에서 차단(ban)된 사용자 |
-| 404 | `not_found` | 없음 **또는 볼 권한 없음**(존재 여부를 숨김) |
+| 404 | `not_found` | 없음 **또는 볼 권한 없음**(존재 여부를 숨김). 경로의 `{space_id}`·`{channel_id}`·`{message_id}`·`{invite_id}` 등 ID 가 ULID 형식이 아니거나 `{code}` 가 초대 코드 형식(8자, 초대 알파벳)이 아니면 조회 없이 404 (인증 검사 뒤) [2026-11-08, pending-fixes 5 심층 방어] |
 | 409 | `handle_taken` | 가입 시 handle 중복 |
 | 409 | `already_exists` | 이미 존재(대기 중인 친구 요청, 열린 신고 등) |
 | 409 | `already_member` | 이미 방/채널 멤버 |

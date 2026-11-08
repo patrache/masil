@@ -6,6 +6,7 @@ import { rt, type AppEnv } from "../env";
 import { getAuth, requireAuth } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from "../lib/db";
 import { err, type FieldError } from "../lib/errors";
+import { idParam } from "../lib/params";
 import { canModerateChannel, requireChannelRead, requireChannelWrite, type ChannelAccess } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
 import { limit } from "../lib/ratelimit";
@@ -57,7 +58,7 @@ export const messageRoutes = new Hono<AppEnv>();
 
 messageRoutes.post("/channels/:channel_id/messages", requireAuth, limit("RL_MESSAGE"), vJson(SendBody), async (c) => {
   const me = getAuth(c).userId;
-  const access = await requireChannelWrite(c.env.DB, c.req.param("channel_id"), me);
+  const access = await requireChannelWrite(c.env.DB, idParam(c, "channel_id", "channel"), me);
   const b = c.req.valid("json");
   const kind = b.kind ?? "text";
   if (b.body === undefined && kind !== "poll") throw err.invalid({ body: "required" });
@@ -88,7 +89,7 @@ messageRoutes.get("/channels/:channel_id/messages", requireAuth, vQuery(ListQuer
     throw err.invalid(fields);
   }
   const n = parseLimit(q.limit, LIST_DEFAULT, LIST_MAX);
-  const access = await requireChannelRead(db, c.req.param("channel_id"), me);
+  const access = await requireChannelRead(db, idParam(c, "channel_id", "channel"), me);
   const ch = access.channel.id;
 
   const older = (anchor: string | null, inclusive: boolean, count: number) =>
@@ -135,7 +136,7 @@ messageRoutes.get("/channels/:channel_id/messages", requireAuth, vQuery(ListQuer
 messageRoutes.get("/messages/:message_id", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const row = await first<MessageRow>(db, "SELECT * FROM messages WHERE id = ?1", c.req.param("message_id"));
+  const row = await first<MessageRow>(db, "SELECT * FROM messages WHERE id = ?1", idParam(c, "message_id", "message"));
   if (row === null) throw err.notFound("message");
   await requireChannelRead(db, row.channel_id, me);
   if (row.deleted_at !== null && !(row.thread_root_id === null && row.reply_count > 0)) throw err.notFound("message");
@@ -146,13 +147,13 @@ messageRoutes.get("/messages/:message_id", requireAuth, async (c) => {
 
 /** Author only, kind text/me (api.md 5.10, 3.7): 200 { message } + message.updated. */
 messageRoutes.patch("/messages/:message_id", requireAuth, limit("RL_MESSAGE"), vJson(EditBody), async (c) => {
-  const message = await editMessage(rt(c), c.req.param("message_id"), getAuth(c).userId, c.req.valid("json").body);
+  const message = await editMessage(rt(c), idParam(c, "message_id", "message"), getAuth(c).userId, c.req.valid("json").body);
   return c.json({ message });
 });
 
 /** Author or space owner/admin (api.md 3.7): soft delete, 204 + message.deleted. */
 messageRoutes.delete("/messages/:message_id", requireAuth, async (c) => {
-  await deleteMessage(rt(c), c.req.param("message_id"), getAuth(c).userId);
+  await deleteMessage(rt(c), idParam(c, "message_id", "message"), getAuth(c).userId);
   return c.body(null, 204);
 });
 
@@ -183,7 +184,7 @@ messageRoutes.get("/messages/:message_id/thread", requireAuth, vQuery(ThreadQuer
   const q = c.req.valid("query");
   if (q.before !== undefined && q.after !== undefined) throw err.invalid({ before: "not_allowed", after: "not_allowed" });
   const n = parseLimit(q.limit, LIST_DEFAULT, LIST_MAX);
-  const root = await threadRootOf(db, c.req.param("message_id"));
+  const root = await threadRootOf(db, idParam(c, "message_id", "message"));
   await requireChannelRead(db, root.channel_id, me);
   if (root.deleted_at !== null && root.reply_count === 0) throw err.notFound("message");
 
@@ -223,7 +224,7 @@ messageRoutes.get("/messages/:message_id/thread", requireAuth, vQuery(ThreadQuer
 messageRoutes.post("/messages/:message_id/thread", requireAuth, limit("RL_MESSAGE"), vJson(ReplyBody), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const root = await threadRootOf(db, c.req.param("message_id"));
+  const root = await threadRootOf(db, idParam(c, "message_id", "message"));
   const access = await requireChannelWrite(db, root.channel_id, me);
   const b = c.req.valid("json");
   const { message, created } = await createMessage(rt(c), {
@@ -271,7 +272,7 @@ messageRoutes.put("/messages/:message_id/reactions/:emoji", requireAuth, limit("
   const me = getAuth(c).userId;
   const db = c.env.DB;
   const emoji = emojiParam(c.req.param("emoji"));
-  const row = await liveMessage(db, c.req.param("message_id"));
+  const row = await liveMessage(db, idParam(c, "message_id", "message"));
   await requireChannelWrite(db, row.channel_id, me);
   const [ins, cnt, state] = await batch(db, [
     stmt(
@@ -322,7 +323,7 @@ messageRoutes.delete("/messages/:message_id/reactions/:emoji", requireAuth, limi
   const me = getAuth(c).userId;
   const db = c.env.DB;
   const emoji = emojiParam(c.req.param("emoji"));
-  const row = await liveMessage(db, c.req.param("message_id"));
+  const row = await liveMessage(db, idParam(c, "message_id", "message"));
   await requireChannelRead(db, row.channel_id, me);
   const [del, cnt] = await batch(db, [
     stmt(db, "DELETE FROM message_reactions WHERE message_id = ?1 AND emoji = ?2 AND user_id = ?3", row.id, emoji, me),
@@ -345,7 +346,7 @@ messageRoutes.get("/messages/:message_id/reactions/:emoji", requireAuth, vQuery(
   const me = getAuth(c).userId;
   const db = c.env.DB;
   const emoji = emojiParam(c.req.param("emoji"));
-  const row = await liveMessage(db, c.req.param("message_id"));
+  const row = await liveMessage(db, idParam(c, "message_id", "message"));
   await requireChannelRead(db, row.channel_id, me);
   const q = c.req.valid("query");
   const n = parseLimit(q.limit);
@@ -409,7 +410,7 @@ async function pinTarget(db: D1Database, messageId: string, actorId: string): Pr
 messageRoutes.put("/messages/:message_id/pin", requireAuth, limit("RL_REACT"), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const { row } = await pinTarget(db, c.req.param("message_id"), me);
+  const { row } = await pinTarget(db, idParam(c, "message_id", "message"), me);
   const [res, why] = await batch(db, [
     stmt(
       db,
@@ -452,7 +453,7 @@ messageRoutes.put("/messages/:message_id/pin", requireAuth, limit("RL_REACT"), a
 messageRoutes.delete("/messages/:message_id/pin", requireAuth, limit("RL_REACT"), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const { row } = await pinTarget(db, c.req.param("message_id"), me);
+  const { row } = await pinTarget(db, idParam(c, "message_id", "message"), me);
   const res = await stmt(db, "DELETE FROM message_pins WHERE message_id = ?1", row.id).run();
   if (res.meta.changes === 0) return c.body(null, 204);
   await publishEvent(rt(c), { channel: row.channel_id }, "message.unpinned", {
