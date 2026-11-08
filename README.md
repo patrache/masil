@@ -253,4 +253,4 @@ cd server && npm test
 
 ## 라이선스
 
-저장소를 공개로 전환할 때 정합니다.
+MIT — [LICENSE](LICENSE) 를 보세요.

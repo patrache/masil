@@ -60,9 +60,10 @@ archives:
       - goos: windows
         formats:
           - zip
-    # The license file is chosen by the owner when the repo goes public.
+    # Owner decision D6: MIT, so every archive carries the root LICENSE.
     files:
       - README.md
+      - LICENSE
 
 checksum:
   name_template: checksums.txt
