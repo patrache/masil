@@ -3,6 +3,7 @@ package feed
 import (
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/patrache/masil/internal/api"
@@ -215,5 +216,59 @@ func TestGuestbookWrittenResultPrepends(t *testing.T) {
 	h.Send(ui.ResultMsg[*api.GuestbookEntry]{Tag: "fun.guestbook_write:" + userOf("minji").ID, Value: &other})
 	if s := h.Screen(); strings.Contains(s, "다른 방명록") {
 		t.Fatalf("another owner's entry shown:\n%s", s)
+	}
+}
+
+// My guestbook tab picks up a new entry live: the owner's only signal is
+// notification.created{type guestbook_entry} (api.md 5.20), which refreshes the
+// first page and keeps the older ones (M4 gate: bob wrote in alice's guestbook
+// and alice's open tab stayed empty). Someone else's guestbook ignores it — that
+// notification is always about mine.
+func TestGuestbookLiveOnMyNotification(t *testing.T) {
+	for _, c := range []struct {
+		name, handle string
+		reload       bool
+	}{{"mine", "sam", true}, {"theirs", "hana", false}} {
+		t.Run(c.name, func(t *testing.T) {
+			srv := profileSrv(t, false, nil)
+			owner := userOf(c.handle).ID
+			entries := guestbookEntries(owner)
+			fresh := api.GuestbookEntry{ID: sid(260), OwnerID: owner, Author: ptr(userOf("minji")), Body: "실시간 방명록 🌸", CreatedAt: at(0)}
+			var n atomic.Int32
+			gets := func() int { return int(n.Load()) }
+			srv.Handle("GET /v1/users/{user}/guestbook", func(w http.ResponseWriter, r *http.Request) {
+				page := entries
+				if n.Add(1) > 1 {
+					page = append([]api.GuestbookEntry{fresh}, entries...)
+				}
+				writeJSON(w, pageOf(page))
+			})
+			h := uitest.New(t, guestbookOptsWith(srv, "@"+c.handle, false)...)
+			h.Resize(120, 40)
+			if gets() != 1 || strings.Contains(h.Screen(), "실시간 방명록") {
+				t.Fatalf("first load: %d GETs", gets())
+			}
+			h.Event("notification.created", map[string]any{
+				"notification": api.Notification{
+					ID: sid(261), Type: "guestbook_entry", Actor: ptr(userOf("minji")),
+					Subject: api.NotificationSubject{Type: "guestbook_entry", ID: fresh.ID}, Preview: fresh.Body, CreatedAt: at(0),
+				},
+				"unread_count": 1,
+			})
+			s := h.Screen()
+			if !c.reload {
+				if gets() != 1 || strings.Contains(s, "실시간 방명록") {
+					t.Fatalf("someone else's guestbook reloaded on my notification (%d GETs):\n%s", gets(), s)
+				}
+				return
+			}
+			if gets() != 2 {
+				t.Fatalf("my guestbook: %d GETs after the notification, want 2", gets())
+			}
+			iNew, iOld := strings.Index(s, "실시간 방명록"), strings.Index(s, "놀러 왔어요")
+			if iNew < 0 || iOld < 0 || iNew > iOld {
+				t.Fatalf("new entry not on top of the kept ones:\n%s", s)
+			}
+		})
 	}
 }

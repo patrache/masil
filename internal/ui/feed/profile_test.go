@@ -617,3 +617,40 @@ func TestProfileTabHidesBlocked(t *testing.T) {
 		t.Fatalf("blocked hana's post still listed:\n%s", s)
 	}
 }
+
+// The relationship chips follow friend.added / friend.removed for this user
+// (M4 gate: after a friend request was accepted, reopening bob's profile still
+// showed no 친구 chip). Another user's friend events leave them alone.
+func TestProfileFriendChipLive(t *testing.T) {
+	h := uitest.New(t, profileOpts(t, "@hana", false, func(p *api.Profile) {
+		if p.Relationship != nil {
+			p.Relationship.IsFriend = false
+		}
+	})...)
+	h.Resize(120, 40)
+	chips := func() string {
+		t.Helper()
+		for _, l := range strings.Split(h.Screen(), "\n") {
+			if strings.Contains(l, "[팔로잉 ✓]") {
+				return l
+			}
+		}
+		t.Fatalf("no chip line:\n%s", h.Screen())
+		return ""
+	}
+	if strings.Contains(chips(), "친구") {
+		t.Fatalf("not a friend yet: %q", chips())
+	}
+	h.Event("friend.added", map[string]any{"friend": api.Friend{User: userOf("minji"), Since: fixtureNow}})
+	if strings.Contains(chips(), "친구") {
+		t.Fatalf("minji's friendship changed hana's chips: %q", chips())
+	}
+	h.Event("friend.added", map[string]any{"friend": api.Friend{User: userOf("hana"), Since: fixtureNow}})
+	if !strings.Contains(chips(), "친구") {
+		t.Fatalf("friend.added: no 친구 chip: %q", chips())
+	}
+	h.Event("friend.removed", map[string]any{"user_id": userOf("hana").ID})
+	if strings.Contains(chips(), "친구") {
+		t.Fatalf("friend.removed: 친구 chip stayed: %q", chips())
+	}
+}

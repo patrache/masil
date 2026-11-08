@@ -609,13 +609,42 @@ func (p *profile) onSaved(ctx *ui.Context, m ui.ResultMsg[*api.Me]) {
 	p.prof.AvatarURL = m.Value.AvatarURL
 }
 
-// onEvent handles user.updated (header) and block.updated for this user (a
-// block hides the tabs; an unblock reloads the profile and its lists).
+// onEvent handles user.updated (header), friend.added / friend.removed (the 친구
+// chip), block.updated for this user (a block hides the tabs; an unblock reloads
+// the profile and its lists) and, on my own profile, a guestbook_entry
+// notification (refreshes the loaded guestbook).
 func (p *profile) onEvent(ctx *ui.Context, m ui.EventMsg) tea.Cmd {
 	if p.prof == nil {
 		return nil
 	}
 	switch m.Event.Type {
+	case "notification.created":
+		var d struct {
+			Notification struct {
+				Type api.NotificationType `json:"type"`
+			} `json:"notification"`
+		}
+		if json.Unmarshal(m.Event.Data, &d) == nil && d.Notification.Type == "guestbook_entry" && p.isMe(ctx) {
+			return p.refreshGuestbook(ctx)
+		}
+	case "friend.added", "friend.removed":
+		var d struct {
+			Friend *api.Friend `json:"friend"`  // friend.added
+			UserID string      `json:"user_id"` // friend.removed
+		}
+		if json.Unmarshal(m.Event.Data, &d) != nil {
+			return nil
+		}
+		added := m.Event.Type == "friend.added"
+		if added && d.Friend != nil {
+			d.UserID = d.Friend.User.ID
+		}
+		if r := p.rel(); r != nil && d.UserID == p.prof.ID {
+			r.IsFriend, r.FriendRequest = added, nil // an accepted request is gone either way
+			if added {
+				r.CanDM = true
+			}
+		}
 	case "user.updated":
 		var d struct {
 			User api.UserSummary `json:"user"`

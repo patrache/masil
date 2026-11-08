@@ -28,6 +28,7 @@ const (
 const (
 	tagGuestbook       = "feed.guestbook:"        // + route id: first page
 	tagGuestbookMore   = "feed.guestbook_more:"   // + route id: next page
+	tagGuestbookFresh  = "feed.guestbook_fresh:"  // + route id: first page again, merged on top
 	tagGuestbookDelete = "feed.guestbook_delete:" // + entry id
 )
 
@@ -63,6 +64,7 @@ type guestbookTab struct {
 	loaded      bool
 	loading     bool
 	loadingMore bool
+	refreshing  bool
 	err         error
 	deleting    map[string]bool
 
@@ -77,7 +79,7 @@ func newGuestbookTab() *guestbookTab {
 
 // reset forgets the loaded entries (an unblock reloads the profile).
 func (g *guestbookTab) reset() {
-	g.raw, g.cursor, g.loaded, g.err = nil, nil, false, nil
+	g.raw, g.cursor, g.loaded, g.err, g.refreshing = nil, nil, false, nil, false
 }
 
 // onGuestbook reports whether the 방명록 tab is showing.
@@ -106,6 +108,25 @@ func (p *profile) loadGuestbook(ctx *ui.Context, cursor string) tea.Cmd {
 	}))
 }
 
+// refreshGuestbook re-reads the first page of my loaded guestbook and puts its
+// new entries on top of the kept ones (older pages stay loaded). It answers
+// notification.created{guestbook_entry}: the owner's only live signal of a new
+// entry (api.md 5.20).
+func (p *profile) refreshGuestbook(ctx *ui.Context) tea.Cmd {
+	g := p.gb
+	if p.prof == nil || !g.loaded || g.loading || g.refreshing {
+		return nil
+	}
+	g.refreshing = true
+	owner := api.UserID(p.prof.ID)
+	return ui.Do(ctx, tagGuestbookFresh+p.id, func(c context.Context, a *api.Client) (*api.Page[api.GuestbookEntry], error) {
+		if a == nil {
+			return nil, errNoClient
+		}
+		return a.ListGuestbook(c, owner, api.PageOpts{})
+	})
+}
+
 // ensureGuestbook loads the guestbook the first time its tab can be shown.
 func (p *profile) ensureGuestbook(ctx *ui.Context) tea.Cmd {
 	if !p.onGuestbook(ctx) || p.gb.loaded || p.gb.loading {
@@ -122,6 +143,27 @@ func (p *profile) guestbookUpdate(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case guestbookDeletingMsg:
 		g.deleting[m.entryID] = true
 	case ui.ResultMsg[*api.Page[api.GuestbookEntry]]:
+		if m.Tag == tagGuestbookFresh+p.id {
+			if !g.refreshing {
+				return nil
+			}
+			g.refreshing = false
+			if m.Err != nil || m.Value == nil || !g.loaded {
+				return nil // a missed refresh is silent: the next one or a reopen catches up
+			}
+			out := append([]api.GuestbookEntry(nil), m.Value.Items...)
+			seen := make(map[string]bool, len(out))
+			for _, e := range out {
+				seen[e.ID] = true
+			}
+			for _, e := range g.raw {
+				if !seen[e.ID] {
+					out = append(out, e)
+				}
+			}
+			g.raw = out
+			return nil
+		}
 		more := false
 		switch m.Tag {
 		case tagGuestbook + p.id:
