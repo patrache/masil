@@ -32,17 +32,24 @@ import (
 //   - WebP: the first VP8 or VP8L chunk decides the decoder; a VP8X header
 //     does not say which follows. A lossless image may need its packed
 //     colour-indexed pixels and the unpacked image at once, plus the
-//     transform and Huffman meta images; an ALPH plane is itself a lossless
-//     image plus a 1-byte copy; a lossy frame buffers its partitions.
+//     transform and Huffman meta images, plus its Huffman groups, whose
+//     number (up to 2600) and tree sizes the bitstream declares whatever the
+//     image size: they are counted by walking the bitstream up to its pixels
+//     (vp8lHuffmanBytes). An ALPH plane is itself a lossless image plus a
+//     1-byte copy; a lossy frame buffers its partitions.
 //
-// decodeOverhead covers the fixed buffers (zlib window, bufio readers,
-// Huffman and quantisation tables) on top of that.
+// decodeOverhead covers the fixed buffers (zlib window, bufio readers, JPEG
+// and PNG Huffman and quantisation tables, the single Huffman group of each
+// VP8L transform or meta image) on top of that.
 const decodeOverhead = 1 << 20
 
 // decodeCost is the most bytes decoding data (of type ct, header cfg) can
 // allocate. It fails for a header the decoder would size a buffer from but
 // that the file cannot back (a WebP VP8 chunk longer than the bytes left).
-func decodeCost(ct string, data []byte, cfg image.Config) (int64, error) {
+// limit is the byte limit the caller compares the result with: a part of the
+// estimate that has to decode some of the file to count (VP8L Huffman
+// groups) is skipped once the rest is already over it.
+func decodeCost(ct string, data []byte, cfg image.Config, limit int64) (int64, error) {
 	w, h := int64(cfg.Width), int64(cfg.Height)
 	var n int64
 	switch ct {
@@ -54,7 +61,7 @@ func decodeCost(ct string, data []byte, cfg image.Config) (int64, error) {
 		n = 2 * w * h
 	case ctWebP:
 		var err error
-		if n, err = webpCost(data, w, h); err != nil {
+		if n, err = webpCost(data, w, h, limit-decodeOverhead); err != nil {
 			return 0, err
 		}
 	default:
@@ -273,31 +280,51 @@ func parseSOF(seg []byte, progressive bool) (jpegFrame, bool) {
 // name (19 bits); x/image/vp8 allocates it before reading it.
 const maxVP8FirstPartition = 1<<19 - 1
 
-func webpCost(data []byte, w, h int64) (int64, error) {
+func webpCost(data []byte, w, h, limit int64) (int64, error) {
 	mbs := ceilDiv(w, 16) * ceilDiv(h, 16)
 	// 4:2:0 frame over whole macroblocks, per-macroblock state, partitions.
 	frame := 400*mbs + 64*ceilDiv(w, 16) + maxVP8FirstPartition
 	vp8 := frame + int64(len(data))
 	vp8l := vp8lCost(w, h)
-	alpha := vp8l + w*h
-	id, alph, claimed, present := webpBitstream(data)
-	cost := max(vp8, vp8l)
-	switch id {
+	worstGroups := vp8lWorstHuffmanBytes(w, h)
+	bs := webpBitstream(data)
+	var cost int64
+	switch bs.id {
 	case "VP8 ":
 		// x/image/vp8 allocates the partition buffer at the length the
 		// chunk header claims and only then reads it, so a claim beyond the
 		// file is refused (decoding it would fail anyway).
-		if claimed > present {
-			return 0, fmt.Errorf("imgrender: decode %s: VP8 chunk claims %d bytes, %d present", ctWebP, claimed, present)
+		if bs.claimed > int64(len(bs.body)) {
+			return 0, fmt.Errorf("imgrender: decode %s: VP8 chunk claims %d bytes, %d present", ctWebP, bs.claimed, len(bs.body))
 		}
-		cost = frame + claimed
+		cost = frame + bs.claimed
 	case "VP8L":
 		cost = vp8l
 	default:
-		alph = true
+		cost = max(vp8, vp8l+worstGroups)
+		bs.alph, bs.alphData = true, nil
 	}
-	if alph {
-		cost += alpha
+	if bs.alph {
+		// x/image/webp decodes an ALPH chunk (even one a VP8L follows, which
+		// it then refuses) as a canvas-sized plane: raw (method 0) or a
+		// headerless VP8L image (method 1).
+		cost += vp8l + w*h
+	}
+	// The Huffman groups, counted by walking the bitstreams; only while the
+	// rest of the estimate is within the limit, since the walk decodes the
+	// transform and meta images the way the decoder would.
+	if bs.alph {
+		groups := worstGroups
+		if bs.alphData != nil {
+			groups = 0
+			if len(bs.alphData) > 0 && bs.alphData[0]&3 == 1 && w <= 1<<14 && h <= 1<<14 && cost <= limit {
+				groups = vp8lHuffmanBytes(bs.alphData[1:], true, int32(w), int32(h))
+			}
+		}
+		cost += groups
+	}
+	if bs.id == "VP8L" && cost <= limit {
+		cost += vp8lHuffmanBytes(bs.body, false, int32(w), int32(h))
 	}
 	return cost, nil
 }
@@ -311,28 +338,41 @@ func vp8lCost(w, h int64) int64 {
 	return 4*w*h + 4*ceilDiv(w, 2)*h + 3*tiles + 4*256
 }
 
-// webpBitstream walks the RIFF chunks the way golang.org/x/image/riff does
-// and returns the first VP8 or VP8L chunk (the one x/image/webp decodes),
-// whether an ALPH chunk came before it, the length its header claims and the
-// bytes of it the file really holds. id is "" when the walk ends before one.
-func webpBitstream(b []byte) (id string, alph bool, claimed, present int64) {
+// webpChunks is what webpBitstream found: the first VP8 or VP8L chunk (the
+// one x/image/webp decodes; id is "" when the walk ends before one), the
+// length its header claims and the bytes of it the file holds, and whether
+// an ALPH chunk came before it, with the first one's bytes.
+type webpChunks struct {
+	id       string
+	claimed  int64
+	body     []byte
+	alph     bool
+	alphData []byte
+}
+
+// webpBitstream walks the RIFF chunks the way golang.org/x/image/riff does.
+func webpBitstream(b []byte) webpChunks {
+	var r webpChunks
 	if len(b) < 12 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WEBP" {
-		return "", alph, 0, 0
+		return r
 	}
 	end := min(int64(len(b)), 8+int64(binary.LittleEndian.Uint32(b[4:])))
 	for i := int64(12); i+8 <= end; {
 		cid := string(b[i : i+4])
 		n := int64(binary.LittleEndian.Uint32(b[i+4:]))
+		body := b[i+8 : i+8+min(n, int64(len(b))-(i+8))]
 		if cid == "VP8 " || cid == "VP8L" {
-			return cid, alph, n, int64(len(b)) - (i + 8)
+			r.id, r.claimed, r.body = cid, n, body
+			return r
 		}
-		if cid == "ALPH" {
-			alph = true
+		if cid == "ALPH" && !r.alph {
+			r.alph, r.alphData = true, body
 		}
 		i += 8 + n + n&1
 		if i > end {
 			break
 		}
 	}
-	return "", alph, 0, 0
+	r.id, r.claimed, r.body = "", 0, nil
+	return r
 }

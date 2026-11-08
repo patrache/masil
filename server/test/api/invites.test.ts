@@ -482,6 +482,30 @@ describe("invites whose inviter lost the right to invite", { timeout: SLOW_TEST_
     expect((await linkState(la.code)).get).toBe(410);
   });
 
+  // Pending item 9-a: both revokes are scoped to the space the removal / demotion happened in. Losing the role in one
+  // space must not kill links the same person made, as an admin, in another space.
+  for (const how of ["kicked", "banned", "left", "demoted"] as const) {
+    it(`an admin ${how} in one space keeps the invite links they made in another`, async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { space } = await makeSpace(o, [a]);
+      const { space: other } = await makeSpace(o, [a]);
+      for (const s of [space, other]) expect((await api(o.token).patch(`/v1/spaces/${s.id}/members/@${a.handle}`, { role: "admin" })).status).toBe(200);
+      const here = (await api(a.token).post<any>(`/v1/spaces/${space.id}/invites`, { max_uses: null })).body.invite;
+      const there = (await api(a.token).post<any>(`/v1/spaces/${other.id}/invites`, { max_uses: null })).body.invite;
+      if (how === "demoted") {
+        expect((await api(o.token).patch(`/v1/spaces/${space.id}/members/@${a.handle}`, { role: "member" })).status).toBe(200);
+      } else {
+        const path = how === "left" ? `/v1/spaces/${space.id}/members/@me` : `/v1/spaces/${space.id}/members/@${a.handle}${how === "banned" ? "?ban=true" : ""}`;
+        expect((await api(how === "left" ? a.token : o.token).del(path)).status).toBe(204);
+      }
+      expect((await linkState(here.code)).get).toBe(410);
+      const revokedAt = async (code: string) =>
+        (await env.DB.prepare("SELECT revoked_at FROM space_invites WHERE code=?").bind(code).first<any>()).revoked_at;
+      expect(await revokedAt(there.code)).toBeNull();
+      expect(await linkState(there.code)).toMatchObject({ get: 200, accept: 200 });
+    });
+  }
+
   it("ownership transfer: the previous owner (now admin) keeps their links", async () => {
     const [o, n] = await Promise.all([signup(), signup()]);
     const { space } = await makeSpace(o, [n]);

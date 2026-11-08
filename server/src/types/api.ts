@@ -60,7 +60,7 @@ export interface Settings {
 }
 
 export interface Focus {
-  started_at: Timestamp;
+  started_at: Timestamp; // when this focus began; extending it (POST /me/focus while focusing) keeps it
   ends_at: Timestamp;
 }
 

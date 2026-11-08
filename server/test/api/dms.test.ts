@@ -300,6 +300,42 @@ describe("dms", () => {
     expect(ch?.member_count).toBe(4);
   });
 
+  /** A Runtime whose D1 handle commits a block blocker -> blocked right before the first batch (it lands after the pre-check). */
+  function blocksBeforeBatch(blockerId: string, blockedId: string) {
+    let fired = false;
+    const db = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "batch") {
+          return async (stmts: D1PreparedStatement[]) => {
+            if (!fired) {
+              fired = true;
+              await target.prepare("INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES (?1, ?2, ?3)").bind(blockerId, blockedId, Date.now()).run();
+            }
+            return target.batch(stmts);
+          };
+        }
+        const v = Reflect.get(target, key);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    return { rt: { env: { ...env, DB: db }, waitUntil: () => {} }, fired: () => fired };
+  }
+
+  // Pending item 8-b: the batch's room is the current members plus the users this request adds, so a block between two
+  // newcomers that commits after the pre-check (which saw none) still refuses the add — no pair that blocks each other
+  // ends up in the room together. Only the room's "UNION the new ids" part can see it.
+  it("group dm add: a block between two of the users being added that commits after the pre-check -> the insert refuses, nothing written", async () => {
+    const [o, x, y, p, q] = await Promise.all([signup(), signup(), signup(), signup(), signup()]);
+    for (const f of [x, y, p, q]) await makeFriends(o, f);
+    const g = (await api(o.token).post<any>("/v1/dms", { users: [`@${x.handle}`, `@${y.handle}`] })).body.channel;
+    const { rt, fired } = blocksBeforeBatch(p.user.id, q.user.id);
+    await expectHiddenBlockRejection(addChannelMembers(rt, g.id, o.user.id, [p.user.id, q.user.id]), [p.user.id, q.user.id]);
+    expect(fired()).toBe(true);
+    expect((await memberIds(g.id)).sort()).toEqual([o.user.id, x.user.id, y.user.id].sort());
+    const ch = await env.DB.prepare("SELECT member_count FROM channels WHERE id = ?1").bind(g.id).first<{ member_count: number }>();
+    expect(ch?.member_count).toBe(3);
+  });
+
   /** A Runtime whose D1 handle counts batch() calls (the member-add insert is the only batch before the refusal). */
   function countsBatches() {
     let batches = 0;

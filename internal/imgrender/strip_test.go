@@ -114,7 +114,9 @@ func assertNoLeaks(t *testing.T, out []byte) {
 }
 
 // assertServerAcceptsWebP mirrors api.md 5.14: only VP8 /VP8L/VP8X/ALPH/
-// ANIM/ANMF chunks, exact RIFF and chunk sizes.
+// ANIM/ANMF chunks, exact RIFF and chunk sizes, and inside each ANMF frame
+// (after its 16-byte header) only ALPH/VP8 /VP8L sub-chunks that add up to
+// the frame exactly.
 func assertServerAcceptsWebP(t *testing.T, out []byte) []riffChunk {
 	t.Helper()
 	cs := parseRIFF(t, out)
@@ -123,7 +125,23 @@ func assertServerAcceptsWebP(t *testing.T, out []byte) []riffChunk {
 	}
 	for _, c := range cs {
 		switch c.id {
-		case "VP8 ", "VP8L", "VP8X", "ALPH", "ANIM", "ANMF":
+		case "VP8 ", "VP8L", "VP8X", "ALPH", "ANIM":
+		case "ANMF":
+			if len(c.data) < 16 {
+				t.Fatalf("ANMF of %d bytes", len(c.data))
+			}
+			// Walk the frame's sub-chunks as a RIFF body of their own.
+			frame := binary.LittleEndian.AppendUint32([]byte("RIFF"), uint32(4+len(c.data)-16))
+			frame = append(append(frame, "WEBP"...), c.data[16:]...)
+			sub := parseRIFF(t, frame)
+			if len(sub) == 0 {
+				t.Error("empty ANMF frame would be refused by the server")
+			}
+			for _, f := range sub {
+				if f.id != "ALPH" && f.id != "VP8 " && f.id != "VP8L" {
+					t.Errorf("frame sub-chunk %q would be refused by the server", f.id)
+				}
+			}
 		default:
 			t.Errorf("chunk %q would be refused by the server", c.id)
 		}
@@ -428,8 +446,9 @@ func insertAt(b []byte, at int, parts ...[]byte) []byte {
 
 // gifBlocks walks a GIF the way the server does (api.md 5.14) and returns
 // the extension labels / application ids it saw; it fails on any structure
-// the server would refuse, and also on plain text (0x01), which the server
-// allows but the client drops.
+// the server would refuse: comments, plain text (0x01), unknown extensions,
+// a graphic control extension that is not one 4-byte sub-block, and a loop
+// extension that is not one 3-byte loop sub-block.
 func gifBlocks(t *testing.T, b []byte) (labels []string) {
 	t.Helper()
 	i := gifHeaderLen(b)
@@ -466,8 +485,14 @@ func gifBlocks(t *testing.T, b []byte) (labels []string) {
 				if app != "NETSCAPE2.0" && app != "ANIMEXTS1.0" {
 					t.Errorf("application extension %q would be refused", app)
 				}
+				if j := i + 14; b[j] != 3 || b[j+1] != 1 || b[j+4] != 0 {
+					t.Errorf("%s extension is not one loop sub-block", app)
+				}
 				labels = append(labels, app)
 			case 0xF9:
+				if b[i+2] != 4 || b[i+7] != 0 {
+					t.Error("graphic control extension is not one 4-byte sub-block")
+				}
 				labels = append(labels, "gce")
 			default:
 				t.Errorf("extension %#x would be refused", b[i+1])
