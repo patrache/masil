@@ -427,9 +427,10 @@ func insertAt(b []byte, at int, parts ...[]byte) []byte {
 }
 
 // gifBlocks walks a GIF the way the server does (api.md 5.14) and returns
-// the extension labels / application ids it saw; it fails on any structure
-// the server would refuse, and also on plain text (0x01), which the server
-// allows but the client drops.
+// the extension labels / application ids it saw; it fails on any extension
+// the server would refuse (plain text 0x01 included). The sub-block rules
+// (one 4-byte GCE block, one loop block) are checked against the server's
+// own code by TestStrippedUploadsServerFixture.
 func gifBlocks(t *testing.T, b []byte) (labels []string) {
 	t.Helper()
 	i := gifHeaderLen(b)

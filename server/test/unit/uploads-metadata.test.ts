@@ -1,6 +1,7 @@
 // Pending item 12 (server side): WebP/GIF uploads carrying EXIF/XMP/ICC metadata are refused, malformed containers too.
 import { describe, expect, test } from "vitest";
 import { imageMetadataCheck } from "../../src/lib/uploads";
+import { clientStrippedUploads } from "../fixtures/client-stripped-uploads";
 
 const enc = (s: string) => [...new TextEncoder().encode(s)];
 const le32 = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff];
@@ -12,12 +13,32 @@ const riff = (...chunks: number[][]) => {
 const VP8X = chunk("VP8X", [0, 0, 0, 0, 9, 0, 0, 9, 0, 0]);
 const VP8L = chunk("VP8L", [0x2f, 0, 0, 0, 0]);
 const VP8 = chunk("VP8 ", [1, 2, 3]);
+const FRAME_HEADER = [0, 0, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 100, 0, 0, 0]; // x, y, w-1, h-1, duration, flags
+const frame = (...chunks: number[][]) => chunk("ANMF", [...FRAME_HEADER, ...chunks.flat()]);
 
 describe("webp", () => {
   test("plain VP8 / VP8L / VP8X+ALPH+ANIM+ANMF -> ok", () => {
     expect(imageMetadataCheck(riff(VP8), "webp")).toBe("ok");
     expect(imageMetadataCheck(riff(VP8L), "webp")).toBe("ok");
-    expect(imageMetadataCheck(riff(VP8X, chunk("ANIM", [0, 0, 0, 0, 0, 0]), chunk("ANMF", [1, 2, 3, 4])), "webp")).toBe("ok");
+    expect(imageMetadataCheck(riff(VP8X, chunk("ANIM", [0, 0, 0, 0, 0, 0]), frame(VP8L)), "webp")).toBe("ok");
+    expect(imageMetadataCheck(riff(VP8X, chunk("ANIM", [0, 0, 0, 0, 0, 0]), frame(chunk("ALPH", [1, 2]), VP8), frame(VP8L)), "webp")).toBe("ok");
+  });
+  // An ANMF payload is a 16-byte frame header and its own chunks: the same rule applies inside it.
+  for (const id of ["EXIF", "XMP ", "ICCP", "ABCD", "ANMF", "VP8X"]) {
+    test(`${id} chunk inside an ANMF frame -> metadata`, () => {
+      const exif = chunk(id, enc("Exif..GPS 37.5665 iPhone"));
+      expect(imageMetadataCheck(riff(VP8X, chunk("ANIM", [0, 0, 0, 0, 0, 0]), frame(VP8L, exif)), "webp")).toBe("metadata");
+      expect(imageMetadataCheck(riff(VP8X, chunk("ANIM", [0, 0, 0, 0, 0, 0]), frame(exif, VP8L)), "webp")).toBe("metadata");
+    });
+  }
+  test("ANMF shorter than its frame header / sub-chunk past its end / no image -> malformed", () => {
+    const anim = chunk("ANIM", [0, 0, 0, 0, 0, 0]);
+    expect(imageMetadataCheck(riff(VP8X, anim, chunk("ANMF", [1, 2, 3, 4])), "webp")).toBe("malformed");
+    const over = [...FRAME_HEADER, ...VP8L];
+    over[16 + 4] = 0x7f; // sub-chunk size beyond the ANMF payload
+    expect(imageMetadataCheck(riff(VP8X, anim, chunk("ANMF", over)), "webp")).toBe("malformed");
+    expect(imageMetadataCheck(riff(VP8X, anim, chunk("ANMF", [...FRAME_HEADER, 1, 2, 3])), "webp")).toBe("malformed");
+    expect(imageMetadataCheck(riff(VP8X, anim, chunk("ANMF", FRAME_HEADER)), "webp")).toBe("malformed");
   });
   for (const id of ["EXIF", "XMP ", "ICCP"]) {
     test(`${id} chunk -> metadata`, () => {
@@ -57,6 +78,29 @@ describe("gif", () => {
   test("comment extension -> metadata", () => {
     expect(imageMetadataCheck(gif([0x21, 0xfe, 3, ...enc("GPS"), 0], image), "gif")).toBe("metadata");
   });
+  // The client keeps a GCE as its one 4-byte sub-block and NETSCAPE2.0/ANIMEXTS1.0 as their one loop sub-block
+  // (id 1, 3 bytes), and drops plain text (0x01): anything more is data the server cannot vouch for.
+  test("GCE with a sub-block after its 4 bytes -> metadata", () => {
+    expect(imageMetadataCheck(gif([0x21, 0xf9, 4, 0, 0, 0, 0, 6, ...enc("SECRET"), 0], image), "gif")).toBe("metadata");
+  });
+  test("GCE whose first sub-block is not 4 bytes -> malformed", () => {
+    expect(imageMetadataCheck(gif([0x21, 0xf9, 3, 0, 0, 0, 0], image), "gif")).toBe("malformed");
+    expect(imageMetadataCheck(gif([0x21, 0xf9, 0], image), "gif")).toBe("malformed");
+  });
+  test("NETSCAPE2.0 / ANIMEXTS1.0 with anything but one loop sub-block -> metadata", () => {
+    for (const app of ["NETSCAPE2.0", "ANIMEXTS1.0"]) {
+      const head = [0x21, 0xff, 11, ...enc(app)];
+      expect(imageMetadataCheck(gif([...head, 3, 1, 0, 0, 0], image), "gif")).toBe("ok");
+      expect(imageMetadataCheck(gif([...head, 3, 1, 0, 0, 6, ...enc("SECRET"), 0], image), "gif")).toBe("metadata");
+      expect(imageMetadataCheck(gif([...head, 6, ...enc("SECRET"), 0], image), "gif")).toBe("metadata");
+      expect(imageMetadataCheck(gif([...head, 3, 2, 0, 0, 0], image), "gif")).toBe("metadata");
+      expect(imageMetadataCheck(gif([...head, 0], image), "gif")).toBe("metadata");
+    }
+  });
+  test("plain text extension -> metadata", () => {
+    const text = [0x21, 0x01, 12, 0, 0, 0, 0, 4, 0, 3, 0, 1, 1, 1, 0, 18, ...enc("GPS 37.5665 iPhone"), 0];
+    expect(imageMetadataCheck(gif(gce, text, image), "gif")).toBe("metadata");
+  });
   test("XMP application extension -> metadata", () => {
     expect(imageMetadataCheck(gif([0x21, 0xff, 11, ...enc("XMP DataXMP"), 2, 1, 2, 0], image), "gif")).toBe("metadata");
   });
@@ -70,4 +114,20 @@ describe("gif", () => {
 test("png / jpeg are not inspected here", () => {
   expect(imageMetadataCheck(new Uint8Array([1]), "png")).toBe("ok");
   expect(imageMetadataCheck(new Uint8Array([1]), "jpg")).toBe("ok");
+});
+
+// Client and server agree (pending item 12): the fixture is what the Go client's PrepareUpload makes of hostile files
+// (internal/imgrender/servercheck_test.go keeps it current). The server refuses each input as metadata and accepts
+// what the client sends.
+describe("client-stripped uploads", () => {
+  const bytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  test("fixture is present", () => {
+    expect(clientStrippedUploads.length).toBeGreaterThanOrEqual(10);
+  });
+  for (const u of clientStrippedUploads) {
+    test(`${u.name}: hostile input -> metadata, client output -> ok`, () => {
+      expect(imageMetadataCheck(bytes(u.in), u.ext)).toBe("metadata");
+      expect(imageMetadataCheck(bytes(u.out), u.ext)).toBe("ok");
+    });
+  }
 });

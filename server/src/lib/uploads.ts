@@ -149,38 +149,69 @@ export type MetadataCheck = "ok" | "metadata" | "malformed";
 
 /** WebP chunks that carry pixels or animation only; EXIF, "XMP ", ICCP and anything unknown are refused. */
 const WEBP_ALLOWED = new Set(["VP8 ", "VP8L", "VP8X", "ALPH", "ANIM", "ANMF"]);
-/** GIF application extensions that only control looping. */
+/** Chunks an ANMF frame may hold after its 16-byte frame header: its image only. */
+const WEBP_FRAME_ALLOWED = new Set(["VP8 ", "VP8L", "ALPH"]);
+const ANMF_HEADER = 16;
+/** GIF application extensions that only control looping (one loop sub-block: id 1, 2-byte count). */
 const GIF_APP_ALLOWED = new Set(["NETSCAPE2.0", "ANIMEXTS1.0"]);
 
 const fourcc = (b: Uint8Array, i: number): string => String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]);
 const le32 = (b: Uint8Array, i: number): number => (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0;
 
-function webpCheck(b: Uint8Array): MetadataCheck {
-  if (b.length < 12 || le32(b, 4) + 8 !== b.length) return "malformed";
-  let i = 12;
+/**
+ * Walks the RIFF chunks in b[start, end) exactly (each chunk and its padding inside, nothing left over) and calls
+ * visit for each. Returns "malformed" on a broken walk or when there is no chunk, else the worst visit verdict.
+ */
+function webpChunks(
+  b: Uint8Array,
+  start: number,
+  end: number,
+  visit: (id: string, dataStart: number, size: number) => MetadataCheck,
+): MetadataCheck {
+  let i = start;
   let chunks = 0;
   let verdict: MetadataCheck = "ok";
-  while (i < b.length) {
-    if (i + 8 > b.length) return "malformed";
+  while (i < end) {
+    if (i + 8 > end) return "malformed";
     const id = fourcc(b, i);
     const size = le32(b, i + 4);
-    const end = i + 8 + size + (size & 1);
-    if (end > b.length) return "malformed";
-    if (!WEBP_ALLOWED.has(id)) verdict = "metadata";
+    const next = i + 8 + size + (size & 1);
+    if (next > end) return "malformed";
+    const v = visit(id, i + 8, size);
+    if (v === "malformed") return v;
+    if (v === "metadata") verdict = v;
     chunks++;
-    i = end;
+    i = next;
   }
   return chunks === 0 ? "malformed" : verdict;
 }
 
-/** Skips GIF data sub-blocks starting at i; returns the index after the 0 terminator, or -1 when truncated. */
-function gifSkipSubBlocks(b: Uint8Array, i: number): number {
+function webpCheck(b: Uint8Array): MetadataCheck {
+  if (b.length < 12 || le32(b, 4) + 8 !== b.length) return "malformed";
+  return webpChunks(b, 12, b.length, (id, at, size) => {
+    if (!WEBP_ALLOWED.has(id)) return "metadata";
+    if (id !== "ANMF") return "ok";
+    // A frame's own chunks (pending item 12): EXIF/XMP/ICCP smuggled inside a frame are metadata too.
+    if (size < ANMF_HEADER) return "malformed";
+    return webpChunks(b, at + ANMF_HEADER, at + size, (sub) => (WEBP_FRAME_ALLOWED.has(sub) ? "ok" : "metadata"));
+  });
+}
+
+/**
+ * Reads GIF data sub-blocks starting at i: the sizes of the sub-blocks and the index after the 0 terminator,
+ * or null when truncated.
+ */
+function gifSubBlocks(b: Uint8Array, i: number): { sizes: number[]; at: number; next: number } | null {
+  const sizes: number[] = [];
+  const at = i;
   while (i < b.length) {
     const n = b[i];
-    if (n === 0) return i + 1;
+    if (n === 0) return { sizes, at, next: i + 1 };
+    if (i + 1 + n > b.length) return null;
+    sizes.push(n);
     i += 1 + n;
   }
-  return -1;
+  return null;
 }
 
 function gifCheck(b: Uint8Array): MetadataCheck {
@@ -198,22 +229,30 @@ function gifCheck(b: Uint8Array): MetadataCheck {
       if (packed & 0x80) i += 3 * (1 << ((packed & 7) + 1)); // local colour table
       i += 1; // LZW minimum code size
       if (i > b.length) return "malformed";
-      i = gifSkipSubBlocks(b, i);
-      if (i < 0) return "malformed";
+      const data = gifSubBlocks(b, i);
+      if (data === null) return "malformed";
+      i = data.next;
       continue;
     }
     if (t === 0x21) {
       if (i + 2 > b.length) return "malformed";
       const label = b[i + 1];
+      const blocks = gifSubBlocks(b, i + 2);
+      if (blocks === null) return "malformed";
+      const { sizes, at } = blocks;
       if (label === 0xff) {
-        if (i + 3 + 11 > b.length || b[i + 2] !== 11) return "malformed";
-        const app = String.fromCharCode(...b.subarray(i + 3, i + 14));
-        if (!GIF_APP_ALLOWED.has(app)) verdict = "metadata";
-      } else if (label !== 0xf9 && label !== 0x01) {
-        verdict = "metadata"; // 0xFE comment, or an extension we cannot vouch for
+        if (sizes[0] !== 11) return "malformed";
+        const app = String.fromCharCode(...b.subarray(at + 1, at + 12));
+        // Only the loop sub-block (id 1, 3 bytes): any other sub-block can carry data.
+        const loopOnly = sizes.length === 2 && sizes[1] === 3 && b[at + 12 + 1] === 1;
+        if (!GIF_APP_ALLOWED.has(app) || !loopOnly) verdict = "metadata";
+      } else if (label === 0xf9) {
+        if (sizes[0] !== 4) return "malformed"; // graphic control: one 4-byte sub-block
+        if (sizes.length > 1) verdict = "metadata";
+      } else {
+        verdict = "metadata"; // 0xFE comment, 0x01 plain text, or an extension we cannot vouch for
       }
-      i = gifSkipSubBlocks(b, i + 2);
-      if (i < 0) return "malformed";
+      i = blocks.next;
       continue;
     }
     return "malformed";
