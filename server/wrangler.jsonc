@@ -10,7 +10,7 @@
       "binding": "DB",
       "database_name": "masil",
       // placeholder for local dev; replaced with the real id only after the owner approves creating the remote DB
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "6c426ef0-2fee-460b-8cca-7a13ca503d62",
       "migrations_dir": "migrations"
     }
   ],
