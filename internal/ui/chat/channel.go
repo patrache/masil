@@ -677,7 +677,7 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 		if !ok || r.Kind != rowMessage || r.Msg == nil {
 			return false, nil
 		}
-		return true, v.openThread(r)
+		return true, v.openThread(r) // nil on a system message (D7)
 	}
 	if handled, cmd := v.pane.actionKey(ctx, msg, func(m api.Message) tea.Cmd { return v.startEdit(ctx, m) }); handled {
 		return true, cmd
@@ -692,7 +692,7 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 
 // openThread opens the thread of a message row.
 func (v *channelView) openThread(r row) tea.Cmd {
-	if r.Kind != rowMessage || r.Msg == nil {
+	if r.Kind != rowMessage || r.Msg == nil || !threadable(*r.Msg) {
 		return nil
 	}
 	return openThread(v.id(), r.Msg.ID)
@@ -750,6 +750,10 @@ func (v *channelView) Title(ctx *ui.Context) (string, ui.Badge) {
 func (v *channelView) Help(ctx *ui.Context) []key.Binding {
 	if v.composer.focused() {
 		return ctx.Keys.Help(keymap.ComposeSend, keymap.ComposeNewline, keymap.ComposeLeave, keymap.ComposeEditLast)
+	}
+	if r, ok := v.pane.selected(); ok && r.Kind == rowMessage && r.Msg != nil && !threadable(*r.Msg) {
+		// a system line takes neither a thread nor a reaction (D7)
+		return ctx.Keys.Help(keymap.ComposeFocus, keymap.ChannelSearch)
 	}
 	return ctx.Keys.Help(keymap.MsgThread, keymap.MsgReact, keymap.ComposeFocus, keymap.ChannelSearch)
 }
