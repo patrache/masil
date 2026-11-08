@@ -32,7 +32,7 @@
 ## Review Focus
 
 1. **로컬에서 `MASIL_SERVER=…` 로 로그인했는데 자동 시작된 데몬에는 그 환경변수가 없음** → `credentials.server ≠ config.ServerURL()` 이라 조용히 알림이 안 온다. 기대: 데몬이 "서버 불일치" 경고(WARN)를 로그에 한 번 남기고 소켓을 열지 않으며, 자기가 실제로 본 주소를 `daemon-status.json` 에 기록한다. **같은 `MASIL_SERVER` 가 걸린 셸에서** `masil daemon status` 를 쳐도 셸 환경이 아니라 데몬 쪽 주소(실행 중이면 `daemon-status.json`, 아니면 `config.toml` 의 `server` > 내장 기본값 — `MASIL_SERVER` 무시)로 비교해 불일치를 보여 주고 고치는 방법을 안내한다. `masil daemon install` 도 셸의 `MASIL_SERVER` 가 데몬 쪽 주소와 다르면 경고한다. → Task 4 `TestRunServerMismatchStaysOffline`, Task 5 `TestInspect/shell_env_not_seen_by_daemon`, Task 8 `TestDaemonStatus/mismatch`·`TestDaemonStatus/shell_env`·`TestDaemonInstall`.
-2. **릴리스 바이너리가 `http://localhost:8787` 기본 서버로 나감**(저장소 변수 누락) → 설치한 모든 사람이 접속 실패. 기대: release 워크플로가 goreleaser 전에 `https://` 가 아니면 실패하고, 빌드 정보에 `DefaultServer=https://…` 가 박혀 있다. → Task 9 Step 4(`go version -m` 확인), Task 12 가드 단계 시험.
+2. **릴리스 바이너리가 `http://localhost:8787` 기본 서버로 나감**(저장소 변수 누락) → 설치한 모든 사람이 접속 실패. 기대: release 워크플로가 goreleaser 전에 `https://` 가 아니면 실패하고, 바이너리에 `https://…` 기본 서버가 박혀 있다(`-trimpath` 빌드는 빌드 정보에 `-ldflags` 를 남기지 않으므로 `go version -m | grep DefaultServer=` 로는 확인할 수 없다 — `scripts/check-release-binary.sh` 가 바이너리 안의 주소와 `CGO_ENABLED=0` 을 확인하고, goreleaser 빌드 훅이 모든 바이너리에 돌린다). → Task 9 Step 4(`scripts/check-release-binary.sh` 확인), Task 12 가드 단계 시험.
 3. **Homebrew `Cellar/masil/<버전>/bin/masil` 이나 `go run` 임시 경로가 자동 시작에 등록됨** → `brew upgrade` 뒤 옛 경로가 사라져 데몬이 영영 안 뜬다. 기대: `<prefix>/bin/masil` 심볼릭 링크로 바꿔 등록, `go-build` 임시 경로는 거부, 등록된 실행 파일이 없으면 `status` 가 경고. 업그레이드 뒤 옛 데몬이 `daemon.lock` 을 쥔 채 남지 않고 새 바이너리로 갈아탄다(4010 을 받은 데몬도). → Task 6 `TestStableExecutable`, Task 7 `TestQueryDetectsMissingExe`·`TestInstallLinux`, Task 4 `TestRunRestartsWhenExecutableReplaced`, Task 8 `TestDaemonRunRestartExitsNonZero`.
 4. **노트북 잠자기·네트워크 끊김 뒤 재개**에서 오래된 alert 가 쏟아지거나 같은 알림이 두 번 뜸(TUI 와 데몬, 데몬 재시작 전후). 기대: 재전송 alert 는 10분 이하만 1번, 10분 초과는 무시, 같은 `alert.id` 는 기기 안에서 한 번. 재개 때 수백 개가 한꺼번에 와도 `OnEvent` 가 막히지 않고 하나도 버리지 않으며 `mark` 는 seq 순서대로. → Task 3 `TestHandlerReplayAgeAndLedger`·`TestHandlerBurstNoLossInOrder`, Task 4 `TestRunResumePoint`.
 5. **공백·`&`·`%`·`"` 가 든 실행 파일 경로**(`/Users/me/My Apps/masil`, `C:\Users\Kim Min\…\masil.exe`) → plist XML 깨짐, systemd `ExecStart` 가 공백에서 잘림, Run 값 따옴표 누락. 기대: 각 형식 규칙대로 이스케이프·인용. → Task 6 골든 `spaces_and_specials`.
@@ -1265,7 +1265,7 @@ archives:
     name_template: "masil_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     format_overrides: [{ goos: windows, formats: [zip] }]
-    files: [README.md]
+    files: [README.md, LICENSE]
 checksum: { name_template: checksums.txt, algorithm: sha256 }
 snapshot: { version_template: "{{ incpatch .Version }}-snapshot" }
 changelog: { use: git, sort: asc, filters: { exclude: ["^docs:", "^test:", "^chore:"] } }
@@ -1274,7 +1274,7 @@ release:
   prerelease: auto
   draft: false
 ```
-(라이선스 파일은 공개 전환 때 오너가 정하므로 `files` 에 넣지 않는다.)
+(라이선스는 MIT — 오너 결정 D6(2026-11-06). 루트 `LICENSE` 를 `files` 에 넣어 모든 아카이브에 담는다. `cmd/masil/license_test.go` 가 강제.)
 
 - [ ] **Step 1: Write the failing check**
 
@@ -1290,8 +1290,8 @@ Expected: `1 configuration file(s) validated`, 경고(deprecated) 없음
 
 - [ ] **Step 4: Snapshot build with an https default and verify artifacts (Review Focus 2)**
 
-Run: `MASIL_DEFAULT_SERVER=https://masil.example.workers.dev go run github.com/goreleaser/goreleaser/v2@v2.19.0 release --snapshot --clean && ls dist/*.tar.gz dist/*.zip dist/checksums.txt && go version -m dist/masil_linux_amd64*/masil | grep -E 'CGO_ENABLED=0|DefaultServer=https://masil.example.workers.dev' && unzip -l dist/masil_windows_amd64.zip | grep -E 'masil.exe|README.md' && X=$(mktemp -d) && tar -xzf dist/masil_darwin_arm64.tar.gz -C "$X" && "$X/masil" version`
-Expected: 아카이브 6개 + `checksums.txt`, `go version -m` 이 `CGO_ENABLED=0` 과 `-X github.com/patrache/masil/internal/config.DefaultServer=https://masil.example.workers.dev` 를 보여 줌, zip 안에 `masil.exe`·`README.md`, 마지막 `masil version` 출력에 `0.0.1-snapshot`(darwin/arm64 기기 기준).
+Run: `MASIL_DEFAULT_SERVER=https://masil.example.workers.dev go run github.com/goreleaser/goreleaser/v2@v2.19.0 release --snapshot --clean && ls dist/*.tar.gz dist/*.zip dist/checksums.txt && sh scripts/check-release-binary.sh dist/masil_linux_amd64*/masil https://masil.example.workers.dev && unzip -l dist/masil_windows_amd64.zip | grep -E 'masil.exe|README.md|LICENSE' && X=$(mktemp -d) && tar -xzf dist/masil_darwin_arm64.tar.gz -C "$X" && "$X/masil" version`
+Expected: 아카이브 6개 + `checksums.txt`, `check-release-binary.sh` 가 `ok: … embeds default server https://masil.example.workers.dev, CGO_ENABLED=0` 을 출력하고 종료 0(같은 검사가 goreleaser `builds[].hooks.post` 로 이미 모든 바이너리에 돈다; `-trimpath` 라 `go version -m` 에는 `-X` 값이 안 나오므로 `grep DefaultServer=` 는 쓰지 않는다 — go.dev/issue/52372), zip 안에 `masil.exe`·`README.md`·`LICENSE`, 마지막 `masil version` 출력에 `0.0.1-snapshot`(darwin/arm64 기기 기준).
 
 - [ ] **Step 5: Commit**
 
@@ -1353,7 +1353,7 @@ git commit -m "build: checksum-verified install scripts for unix and windows"
 - Consumes: Task 9 산출물 이름·`checksums.txt`
 - Produces: 자리표시자 — Task 12 의 tap 잡이 `sed` 로 채운다: `__VERSION__`, `__SHA256_DARWIN_ARM64__`, `__SHA256_DARWIN_AMD64__`, `__SHA256_LINUX_ARM64__`, `__SHA256_LINUX_AMD64__`. 결과 파일 경로(tap 레포 안) `Formula/masil.rb`, 설치 명령 `brew install patrache/tap/masil`.
 
-goreleaser 의 `brews` 는 v2.16 부터 폐기(v2.19.0 deprecations 문서 확인)라 쓰지 않고, 계약이 정한 손수 템플릿을 쓴다. 내용 요지: `class Masil < Formula`, `desc "터미널 채팅 + SNS"`, `homepage "https://github.com/patrache/masil"`, `version "__VERSION__"`, `on_macos`/`on_linux` × `on_arm`/`on_intel` 블록마다 `url "https://github.com/patrache/masil/releases/download/v__VERSION__/masil_<os>_<arch>.tar.gz"` + `sha256 "…"`, `def install; bin.install "masil"; end`, `def caveats` = `알림 데몬 자동 시작: masil daemon install` + `brew upgrade 뒤 등록된 데몬은 새 버전으로 스스로 다시 뜹니다 — 'masil daemon status' 로 확인하고, 안 바뀌었으면 'masil daemon install' 을 다시 실행하세요.` + `제거 전에 'masil daemon uninstall' 을 먼저 실행하세요.`, `test do assert_match version.to_s, shell_output("#{bin}/masil version") end`. `license` 줄은 공개 전환 때 오너가 정할 때까지 넣지 않는다. `service do` 는 쓰지 않는다(`masil daemon install` 과 이중 등록 방지).
+goreleaser 의 `brews` 는 v2.16 부터 폐기(v2.19.0 deprecations 문서 확인)라 쓰지 않고, 계약이 정한 손수 템플릿을 쓴다. 내용 요지: `class Masil < Formula`, `desc "터미널 채팅 + SNS"`, `homepage "https://github.com/patrache/masil"`, `version "__VERSION__"`, `on_macos`/`on_linux` × `on_arm`/`on_intel` 블록마다 `url "https://github.com/patrache/masil/releases/download/v__VERSION__/masil_<os>_<arch>.tar.gz"` + `sha256 "…"`, `def install; bin.install "masil"; end`, `def caveats` = `알림 데몬 자동 시작: masil daemon install` + `brew upgrade 뒤 등록된 데몬은 새 버전으로 스스로 다시 뜹니다 — 'masil daemon status' 로 확인하고, 안 바뀌었으면 'masil daemon install' 을 다시 실행하세요.` + `제거 전에 'masil daemon uninstall' 을 먼저 실행하세요.`, `test do assert_match version.to_s, shell_output("#{bin}/masil version") end`. `license "MIT"` 줄을 넣는다(오너 결정 D6). `service do` 는 쓰지 않는다(`masil daemon install` 과 이중 등록 방지).
 
 - [ ] **Step 1: Write the failing check**
 
@@ -1485,7 +1485,7 @@ git commit -m "ci: server vitest workflow and tag-only release workflow"
 9. **운영자(전역 admin)** — 설계서 2장 "첫 출시부터"(공개 가입·공개 이미지라 불법 콘텐츠 대응 수단이 필요): 사용법 한 줄 `masil admin reports|report <id>|resolve <id> <resolution>|remove <type> <id>|suspend @h [--for 7d]|unsuspend @h|users|actions` 과 하위 명령별 예시 — `masil admin reports [--status open|resolved|dismissed] [--type <대상 종류>]`, `masil admin report <id>`, `masil admin resolve <id> content_removed|user_suspended|no_action [--note <메모>]`, `masil admin remove message|post|story|guestbook_entry|upload|space <id> --reason <사유> [--report <신고 id>]`, `masil admin suspend @handle [--for 7d|12h|30m] --reason <사유> [--report <신고 id>]`(`--for` 없으면 무기한), `masil admin unsuspend @handle`, `masil admin users [--q <검색어>] [--suspended true|false]`, `masil admin actions [--target-type <종류>] [--target <id>]`(05 Task 20 표와 글자 그대로; `remove`·`suspend` 는 `--reason` 필수). **숨김(Hidden) 명령이라 `masil help` 목록에 나오지 않는다**고 명시. 운영자가 아니면 `운영자 권한이 없습니다.` 가 나온다. **운영자 지정**: 승격 API 는 없고(data-model 2장) 오너가 D1 에 직접 `UPDATE users SET role = 'admin' WHERE handle = '<handle>';` 를 한 번 실행한다. 로컬 개발에서는 `cd server && npx wrangler d1 execute DB --local --command "UPDATE users SET role = 'admin' WHERE handle = '<handle>'"`. 운영(원격) D1 에서의 실행은 **오너 승인 후 오너가** 한다고만 적고 `--remote` 명령 줄은 적지 않는다(Global Constraints — 되돌리기 어려운 원격 작업).
 10. **문제 해결**: macOS 알림이 안 뜨면 시스템 설정 → 알림 → "스크립트 편집기" 허용(beeep 가 `osascript` 사용), Linux 는 알림 데몬(D-Bus) 필요, iTerm2 "Ambiguous characters are double-width" 끄기(계약 8.2), `status` 의 서버 불일치 경고.
 11. **로컬 개발**: `cd server && npm install && npx wrangler d1 migrations apply DB --local && npx wrangler dev --test-scheduled`, `MASIL_SERVER=http://localhost:8787 go run ./cmd/masil`, `go test ./...`, `cd server && npm test`. 배포(`wrangler deploy`)는 오너 승인 사항이라 문서에 명령을 적지 않는다.
-12. **라이선스**: 공개 전환 때 결정.
+12. **라이선스**: MIT(오너 결정 D6) — 루트 `LICENSE` 를 가리킨다.
 
 - [ ] **Step 1: Write the failing check**
 
@@ -1509,6 +1509,8 @@ git commit -m "docs: README with install, usage, daemon and operator guide"
 ```
 
 ---
+
+> **관문 빌드의 버전 (v0.1.1 R4):** 서버는 `MIN_CLIENT_VERSION`(0.1.0) 미만 클라이언트를 거부하는데, `-ldflags` 없이 빌드하면 `internal/version.Version` 이 `0.0.0-dev` 다. 그래서 아래 관문(Task 14~18)의 `go test -tags e2e`·`go build` 는 모두 `-ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev"` 를 붙인다(`Semver()` 가 `-dev` 를 떼어 `0.1.0` 으로 비교). `cmd/masil/release_docs_test.go` 가 강제.
 
 ### Task 14: 관문 G1 — M1 기반 (계정·인증·세션·실시간 소켓·TUI 뼈대)
 
@@ -1593,13 +1595,13 @@ func TestGateM1AuthRealtime(t *testing.T) {
 
 - [ ] **Step 3: Run the G1 gate test**
 
-Run: `go vet ./internal/daemon/e2egate/ && MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e ./internal/daemon/e2egate/ -run TestGateM1 -v -count=1`
+Run: `go vet ./internal/daemon/e2egate/ && MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./internal/daemon/e2egate/ -run TestGateM1 -v -count=1`
 Expected: vet 출력 없음, `TestGateM1AuthRealtime` PASS. 실패하면 "마일스톤 관문" 규칙 4(어느 확인이 깨졌는지 + 소유 계획·Task 를 보고, 시험은 고치지 않음). `MASIL_E2E_SERVER` 없이 돌리면 SKIP.
 
 - [ ] **Step 4: Manual TUI skeleton check against wrangler dev (tmux, 로컬 전용)**
 
 ```bash
-S=$(mktemp -d); go build -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
+S=$(mktemp -d); go build -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
 tmux new-session -d -s g1 -x 120 -y 40 "MASIL_CONFIG_DIR=$S/a MASIL_SERVER=$MASIL_SERVER $S/masil signup"
 # (사람) tmux attach -t g1 → 가입 화면에서 handle g1_<rand>·비밀번호 입력 → 메인 화면, 상태줄 ● 온라인 확인 후 detach
 for sz in 200x60 120x40 120x30 80x24 50x20; do tmux resize-window -t g1 -x "${sz%x*}" -y "${sz#*x}"; sleep 1; tmux capture-pane -p -t g1 > "$S/g1-$sz.txt"; done
@@ -1700,13 +1702,13 @@ func TestGateM2Chat(t *testing.T) {
 
 - [ ] **Step 2: Run the G2 gate test**
 
-Run: `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e ./internal/daemon/e2egate/ -run 'TestGateM[12]' -v -count=1` (G1 시험도 회귀로 함께 — 가입 4명이라 `RL_SIGNUP`(IP 당 60초 5회) 안; 직전 관문 실행과 60초 간격)
+Run: `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./internal/daemon/e2egate/ -run 'TestGateM[12]' -v -count=1` (G1 시험도 회귀로 함께 — 가입 4명이라 `RL_SIGNUP`(IP 당 60초 5회) 안; 직전 관문 실행과 60초 간격)
 Expected: 두 시험 PASS. 실패 시 규칙 4.
 
 - [ ] **Step 3: Manual two-TUI chat check (tmux, 로컬 전용)**
 
 ```bash
-S=$(mktemp -d); go build -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
+S=$(mktemp -d); go build -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
 tmux new-session -d -s alice -x 120 -y 40 "MASIL_CONFIG_DIR=$S/alice MASIL_SERVER=$MASIL_SERVER $S/masil signup"
 tmux new-session -d -s bob   -x 80  -y 24 "MASIL_CONFIG_DIR=$S/bob   MASIL_SERVER=$MASIL_SERVER $S/masil signup"
 ```
@@ -1795,7 +1797,7 @@ func TestGateM3SNS(t *testing.T) {
 
 - [ ] **Step 2: Run the G3 gate test**
 
-Run: `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e ./internal/daemon/e2egate/ -run TestGateM3 -v -count=1` (G1~G3 를 한 번에 돌리면 가입 6명이라 `RL_SIGNUP` 에 걸린다 — 앞 관문 회귀는 60초 뒤 `-run 'TestGateM[12]'` 로 따로, 최종 회귀는 Task 18)
+Run: `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./internal/daemon/e2egate/ -run TestGateM3 -v -count=1` (G1~G3 를 한 번에 돌리면 가입 6명이라 `RL_SIGNUP` 에 걸린다 — 앞 관문 회귀는 60초 뒤 `-run 'TestGateM[12]'` 로 따로, 최종 회귀는 Task 18)
 Expected: PASS. 실패 시 규칙 4.
 
 - [ ] **Step 3: Manual feed check (tmux, 로컬 전용)**
@@ -1905,13 +1907,13 @@ func TestFootprintFlood(t *testing.T) {
 
 - [ ] **Step 3: Run the e2e test against wrangler dev**
 
-Run: `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e ./internal/daemon/ -run TestLocalDaemonE2E -v -count=1`
+Run: `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./internal/daemon/ -run TestLocalDaemonE2E -v -count=1`
 Expected: PASS (`friend_request` → `dm`(본문 `안녕 밥`) → TUI 있음 무알림 → `mention` → 집중 중 무알림 → `focus_summary` 정확히 1번). 태그 없는 `go test ./internal/daemon/` 에는 이 시험이 컴파일되지 않는다. `focus_summary` 에서만 시간 초과면 선행 확인(02 Task 13)이 빠진 것 — 시험을 고치지 말고 보고.
 
 - [ ] **Step 4: Operator CLI against wrangler dev (로컬 D1 만)**
 
 ```bash
-S=$(mktemp -d); go build -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
+S=$(mktemp -d); go build -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
 r() { LC_ALL=C tr -dc a-z0-9 </dev/urandom | head -c 8; }
 OPS=ops_$(r); OPW="ops-pass-$(r)"; BAD=bad_$(r); BPW="bad-pass-$(r)"
 for u in "$OPS:$OPW" "$BAD:$BPW"; do curl -fsS -o /dev/null -X POST "$MASIL_SERVER/v1/auth/signup" -H 'content-type: application/json' -d "{\"handle\":\"${u%%:*}\",\"password\":\"${u#*:}\"}"; done
@@ -1933,7 +1935,7 @@ Expected: 승격 전 `운영자 권한이 없습니다.`·`exit=1`; `help` 출�
 상한 **[결정]**: 10분 유휴 누적 CPU ≤ 2.0초, RSS ≤ 40 MiB; 비알림 이벤트 300개 뒤 RSS 증가 ≤ 8 MiB, 그 뒤 5분 유휴 동안 RSS 증가 ≤ 1 MiB(누수 없음); 데몬 로그 줄 수가 홍수 동안 늘지 않음(비알림 이벤트는 로그·상태를 남기지 않음 — events.md 7장 "상태를 쌓지 않는다"), `daemon-state.json` ≤ 512 바이트, 설정 디렉터리 파일 목록은 `daemon-state.json` 외에 늘지 않음.
 
 ```bash
-S=$(mktemp -d); go build -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
+S=$(mktemp -d); go build -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
 rss() { ps -o rss= -p "$1" | tr -d ' '; }                                        # KiB (macOS·Linux)
 cpu() { if [ "$(uname)" = Darwin ]; then ps -o time= -p "$1" | awk -F: '{print $1*60+$2}'; else ps -o times= -p "$1" | tr -d ' '; fi; }  # seconds
 H=fp_$(LC_ALL=C tr -dc a-z0-9 </dev/urandom | head -c 8); PW="fp-pass-$(LC_ALL=C tr -dc a-z0-9 </dev/urandom | head -c 12)"
@@ -1943,7 +1945,7 @@ MASIL_CONFIG_DIR="$S/fp" "$S/masil" daemon run --foreground > "$S/fp-out.txt" 2>
 until grep -q 'realtime ready' "$S/fp/logs/daemon.log" 2>/dev/null; do sleep 1; done; sleep 30
 snap() { echo "$1 rss_kib=$(rss $PID) cpu_s=$(cpu $PID) log_lines=$(wc -l < "$S/fp/logs/daemon.log") state_bytes=$(wc -c < "$S/fp/daemon-state.json" 2>/dev/null || echo 0)" | tee -a "$S/footprint.txt"; ls -A "$S/fp" > "$S/files-$1.txt"; }
 snap A; sleep 600; snap B                                                            # 10 min idle
-MASIL_FP_DIR="$S/fp" MASIL_E2E_SERVER=$MASIL_SERVER go test -tags e2e ./internal/daemon/ -run TestFootprintFlood -count=1
+MASIL_FP_DIR="$S/fp" MASIL_E2E_SERVER=$MASIL_SERVER go test -tags e2e -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./internal/daemon/ -run TestFootprintFlood -count=1
 sleep 60; snap C; sleep 300; snap D
 diff "$S/files-A.txt" "$S/files-D.txt"; grep -c 'msg="alert shown"' "$S/fp/logs/daemon.log"
 kill -TERM $PID; wait $PID; cat "$S/footprint.txt"
@@ -1953,7 +1955,7 @@ Expected: `cpu_s(B) − cpu_s(A) ≤ 2.0`, `rss_kib(B) ≤ 40960`, `rss_kib(C) �
 - [ ] **Step 6: Manual two-client + real daemon check (tmux, 로컬 전용)**
 
 ```bash
-S=$(mktemp -d); go build -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
+S=$(mktemp -d); go build -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" -o "$S/masil" ./cmd/masil; export MASIL_SERVER=http://localhost:8787
 MASIL_CONFIG_DIR="$S/alice" "$S/masil" signup   # handle e2e_alice_<rand>
 MASIL_CONFIG_DIR="$S/bob"   "$S/masil" signup   # handle e2e_bob_<rand>
 tmux new-session -d -s alice -x 120 -y 40 "MASIL_CONFIG_DIR=$S/alice MASIL_SERVER=$MASIL_SERVER $S/masil"
@@ -1986,12 +1988,12 @@ Expected: 모두 PASS(03 Task 36 의 전체 제품 골든·무결성 스윕 포�
 
 - [ ] **Step 2: All gates once more, in order, on the final tree**
 
-Run: wrangler dev 를 새로 띄우고(`--local` 마이그레이션부터) `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e ./internal/daemon/e2egate/ -run TestGateM1 -count=1`, 60초 뒤 `-run TestGateM2`, 60초 뒤 `-run TestGateM3`, 60초 뒤 `go test -tags e2e ./internal/daemon/ -run TestLocalDaemonE2E -count=1`, 그다음 `cd server && npm run smoke`
+Run: wrangler dev 를 새로 띄우고(`--local` 마이그레이션부터) `MASIL_E2E_SERVER=http://localhost:8787 go test -tags e2e -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./internal/daemon/e2egate/ -run TestGateM1 -count=1`, 60초 뒤 `-run TestGateM2`, 60초 뒤 `-run TestGateM3`, 60초 뒤 `go test -tags e2e -ldflags "-X github.com/patrache/masil/internal/version.Version=0.1.0-dev" ./internal/daemon/ -run TestLocalDaemonE2E -count=1`, 그다음 `cd server && npm run smoke`
 Expected: 전부 PASS / `SMOKE OK` — 뒤 마일스톤 작업이 앞 마일스톤을 깨지 않았다.
 
 - [ ] **Step 3: Release artifacts from the final tree**
 
-Run: Task 9 Step 4(스냅숏 빌드·`go version -m`)와 Task 10 Step 3(설치 스크립트 정상·변조·지원 안 함 경로)을 다시 실행
+Run: Task 9 Step 4(스냅숏 빌드·`scripts/check-release-binary.sh`)와 Task 10 Step 3(설치 스크립트 정상·변조·지원 안 함 경로)을 다시 실행
 Expected: 각 Task 의 Expected 그대로. 이어서 `dist/` 는 지운다(`.gitignore` 대상).
 
 - [ ] **Step 4: Report** — 세 Step 의 결과를 오케스트레이터에 보고한다. 남은 일은 오너 윤허 사항뿐이다(Task 11 Step 4 의 tap·비밀·변수 등록, `wrangler deploy`·원격 D1/R2, 운영자 지정의 원격 실행, 태그 푸시, 레포 공개 전환) — 실행자는 하지 않는다.
