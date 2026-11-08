@@ -132,7 +132,7 @@ func checkConfig(c codec, data []byte, ct string, lim limits) error {
 	if px > lim.pixels {
 		return fmt.Errorf("%w: %dx%d pixels", ErrTooLarge, cfg.Width, cfg.Height)
 	}
-	n, err := decodeCost(ct, data, cfg)
+	n, err := decodeCost(ct, data, cfg, lim.bytes)
 	if err != nil {
 		return err
 	}

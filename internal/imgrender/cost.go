@@ -45,7 +45,10 @@ const decodeOverhead = 1 << 20
 // decodeCost is the most bytes decoding data (of type ct, header cfg) can
 // allocate. It fails for a header the decoder would size a buffer from but
 // that the file cannot back (a WebP VP8 chunk longer than the bytes left).
-func decodeCost(ct string, data []byte, cfg image.Config) (int64, error) {
+// Working the estimate out allocates too (a lossless WebP's sub-images and
+// Huffman groups are read from its bitstream); limit bounds that, and the
+// estimate fails with ErrTooLarge as soon as it is sure to exceed limit.
+func decodeCost(ct string, data []byte, cfg image.Config, limit int64) (int64, error) {
 	w, h := int64(cfg.Width), int64(cfg.Height)
 	var n int64
 	switch ct {
@@ -57,7 +60,7 @@ func decodeCost(ct string, data []byte, cfg image.Config) (int64, error) {
 		n = 2 * w * h
 	case ctWebP:
 		var err error
-		if n, err = webpCost(data, w, h); err != nil {
+		if n, err = webpCost(data, w, h, limit-decodeOverhead); err != nil {
 			return 0, err
 		}
 	default:
@@ -276,12 +279,17 @@ func parseSOF(seg []byte, progressive bool) (jpegFrame, bool) {
 // name (19 bits); x/image/vp8 allocates it before reading it.
 const maxVP8FirstPartition = 1<<19 - 1
 
-func webpCost(data []byte, w, h int64) (int64, error) {
+// webpCost is decodeCost for WebP; budget is the byte limit less
+// decodeOverhead. A lossless bitstream's scan may use what budget has left
+// once the pixel buffers counted before it are taken out, so that it fails
+// (ErrTooLarge) exactly when the finished estimate would be over budget.
+func webpCost(data []byte, w, h, budget int64) (int64, error) {
 	mbs := ceilDiv(w, 16) * ceilDiv(h, 16)
 	// 4:2:0 frame over whole macroblocks, per-macroblock state, partitions.
 	frame := 400*mbs + 64*ceilDiv(w, 16) + maxVP8FirstPartition
 	vp8 := frame + int64(len(data))
 	vp8l := vp8lCost(w, h)
+	vp8lSub := vp8l - vp8lPixelBytes(w, h) // the part the scan allocates
 	alpha := vp8l + w*h
 	bs := webpBitstream(data)
 	cost := max(vp8, vp8l)
@@ -295,7 +303,7 @@ func webpCost(data []byte, w, h int64) (int64, error) {
 		}
 		cost = frame + bs.claimed
 	case "VP8L":
-		groups, err := vp8lHuffmanBytes(bs.data)
+		groups, err := vp8lHuffmanBytes(bs.data, w, h, budget-(vp8l-vp8lSub))
 		if err != nil {
 			return 0, fmt.Errorf("imgrender: decode %s: %w", ctWebP, err)
 		}
@@ -306,7 +314,7 @@ func webpCost(data []byte, w, h int64) (int64, error) {
 	if bs.alph {
 		cost += alpha
 		if bs.alphData != nil {
-			groups, err := alphHuffmanBytes(bs.alphData, w, h)
+			groups, err := alphHuffmanBytes(bs.alphData, w, h, budget-(cost-vp8lSub))
 			if err != nil {
 				return 0, fmt.Errorf("imgrender: decode %s: ALPH: %w", ctWebP, err)
 			}
@@ -319,7 +327,7 @@ func webpCost(data []byte, w, h int64) (int64, error) {
 // alphHuffmanBytes is vp8lHuffmanBytes for an ALPH chunk payload: with
 // compression 1 x/image/webp decodes it as a VP8L image of the canvas size
 // behind a header it makes up. Other compressions hold no Huffman groups.
-func alphHuffmanBytes(payload []byte, w, h int64) (int64, error) {
+func alphHuffmanBytes(payload []byte, w, h, budget int64) (int64, error) {
 	if len(payload) == 0 || payload[0]&3 != 1 {
 		return 0, nil
 	}
@@ -328,7 +336,7 @@ func alphHuffmanBytes(payload []byte, w, h int64) (int64, error) {
 	}
 	wm1, hm1 := uint32(w-1), uint32(h-1)
 	head := []byte{0x2f, uint8(wm1), uint8(wm1>>8) | uint8(hm1<<6), uint8(hm1 >> 2), uint8(hm1 >> 10)}
-	return vp8lHuffmanBytes(append(head, payload[1:]...))
+	return vp8lHuffmanBytes(append(head, payload[1:]...), w, h, budget)
 }
 
 // vp8lCost: the decoded pixels; with colour indexing of 16 or fewer colours,
@@ -338,8 +346,12 @@ func alphHuffmanBytes(payload []byte, w, h int64) (int64, error) {
 // read from the bitstream (vp8lHuffmanBytes).
 func vp8lCost(w, h int64) int64 {
 	tiles := 4 * ceilDiv(w, 4) * ceilDiv(h, 4)
-	return 4*w*h + 4*ceilDiv(w, 2)*h + 3*tiles + 4*256
+	return vp8lPixelBytes(w, h) + 3*tiles + 4*256
 }
+
+// vp8lPixelBytes is the part of vp8lCost the top-level pixels take: the
+// decoded image and the packed colour-indexed copy.
+func vp8lPixelBytes(w, h int64) int64 { return 4*w*h + 4*ceilDiv(w, 2)*h }
 
 // webpChunks is what webpBitstream finds.
 type webpChunks struct {

@@ -10,6 +10,7 @@ package imgrender
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math/bits"
 	"unsafe"
@@ -32,8 +33,17 @@ var (
 // Sub-images (transform data, the meta Huffman image) are decoded for real:
 // they have at most one pixel per 4x4 tile and vp8lCost counts them. A
 // bitstream the decoder would refuse before its pixels is an error.
-func vp8lHuffmanBytes(stream []byte) (int64, error) {
-	d := &vp8lReader{r: bytes.NewReader(stream)}
+//
+// The scan itself must stay within the byte limit (pending item 0-d). The
+// header must name the wantW x wantH image the limits were checked against:
+// x/image/webp refuses a VP8L header that differs from the VP8X canvas, and
+// sizing the sub-images from such a header (up to 16384x16384) would
+// allocate hundreds of MiB for a 1x1 canvas. And every sub-image, colour
+// cache, group array and tree is charged against budget, the bytes the
+// limit has left for them, before it is allocated: running out fails with
+// ErrTooLarge, as the finished estimate would.
+func vp8lHuffmanBytes(stream []byte, wantW, wantH, budget int64) (int64, error) {
+	d := &vp8lReader{r: bytes.NewReader(stream), budget: budget}
 	if magic, err := d.read(8); err != nil || magic != 0x2f {
 		return 0, errors.New("vp8l: invalid header")
 	}
@@ -52,6 +62,9 @@ func vp8lHuffmanBytes(stream []byte) (int64, error) {
 		return 0, errors.New("vp8l: invalid version")
 	}
 	w, h := int32(wm1)+1, int32(hm1)+1
+	if int64(w) != wantW || int64(h) != wantH {
+		return 0, fmt.Errorf("vp8l: header %dx%d does not match the %dx%d canvas", w, h, wantW, wantH)
+	}
 
 	var seen [4]bool
 	for {
@@ -86,6 +99,9 @@ func vp8lHuffmanBytes(stream []byte) (int64, error) {
 			return 0, errors.New("vp8l: invalid color cache parameters")
 		}
 		n += allocBytes(4 << ccBits)
+		if err := d.charge(allocBytes(4 << ccBits)); err != nil {
+			return 0, err
+		}
 	}
 	g, err := d.topLevelGroupBytes(w, h, ccBits)
 	if err != nil {
@@ -107,11 +123,22 @@ func allocBytes(n int64) int64 {
 	return (n + 8<<10 - 1) &^ (8<<10 - 1)
 }
 
-// vp8lReader is vp8l's decoder: a little-endian bit reader.
+// vp8lReader is vp8l's decoder: a little-endian bit reader. budget is what
+// the scan may still allocate (vp8lHuffmanBytes).
 type vp8lReader struct {
-	r     io.ByteReader
-	bits  uint32
-	nBits uint32
+	r      io.ByteReader
+	bits   uint32
+	nBits  uint32
+	budget int64
+}
+
+// charge takes n bytes from the budget before they are allocated.
+func (d *vp8lReader) charge(n int64) error {
+	if n > d.budget {
+		return fmt.Errorf("%w: lossless bitstream needs more than the %d bytes left under the limit", ErrTooLarge, max(d.budget, 0))
+	}
+	d.budget -= n
+	return nil
 }
 
 func (d *vp8lReader) read(n uint32) (uint32, error) {
@@ -566,6 +593,9 @@ func (d *vp8lReader) topLevelGroupBytes(w, h int32, ccBits uint32) (int64, error
 			return 0, errors.New("vp8l: too many Huffman trees")
 		}
 		if maxIndex >= 1000 || int32(maxIndex) >= numTiles {
+			if err := d.charge(allocBytes(2 * int64(maxIndex+1))); err != nil {
+				return 0, err
+			}
 			mapping = make([]int16, maxIndex+1)
 			n += allocBytes(2 * int64(maxIndex+1))
 			for i := range mapping {
@@ -584,6 +614,9 @@ func (d *vp8lReader) topLevelGroupBytes(w, h int32, ccBits uint32) (int64, error
 		}
 	}
 	n += allocBytes(int64(numGroups) * vp8lGroupSize)
+	if err := d.charge(allocBytes(int64(numGroups) * vp8lGroupSize)); err != nil {
+		return 0, err
+	}
 	for i := range maxIndex + 1 {
 		keep := mapping == nil || mapping[i] != -1
 		for j, size := range vp8lAlphabet {
@@ -592,6 +625,9 @@ func (d *vp8lReader) topLevelGroupBytes(w, h int32, ccBits uint32) (int64, error
 			}
 			b, err := d.treeBytes(size, keep)
 			if err != nil {
+				return 0, err
+			}
+			if err := d.charge(b); err != nil {
 				return 0, err
 			}
 			n += b
@@ -626,6 +662,10 @@ func (d *vp8lReader) decodeSubPix(w, h, minCap int32) ([]byte, error) {
 		if err := d.decodeTree(&hg[j], size); err != nil {
 			return nil, err
 		}
+	}
+	// Its pixels are charged whole before they exist: 4 bytes a tile.
+	if err := d.charge(max(int64(minCap), 4*int64(w)*int64(h))); err != nil {
+		return nil, err
 	}
 	if minCap < 4*w*h {
 		minCap = 4 * w * h
