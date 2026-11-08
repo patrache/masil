@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -227,5 +228,103 @@ func TestGateM1AuthRealtime(t *testing.T) {
 	}
 	if _, err := api.New(srv).Login(ctx, api.LoginRequest{Handle: a.Handle, Password: "wrong-pass-0000"}); !api.IsCode(err, "invalid_credentials") {
 		t.Fatalf("wrong password: %v", err)
+	}
+}
+
+// M2: friends, DM/group DM, spaces/channels/invites, threads, reactions, mentions, edit/delete,
+// pins, unread, typing, presence, search — all delivered live (no refresh).
+func TestGateM2Chat(t *testing.T) {
+	srv := e2eServer(t)
+	ctx := t.Context()
+	a, b, c := signup(t, srv, "g2a"), signup(t, srv, "g2b"), signup(t, srv, "g2c")
+	text := func(body string) api.SendMessageRequest {
+		return api.SendMessageRequest{ClientNonce: ids.New(), Kind: "text", Body: body}
+	}
+	bs := connect(t, b, realtime.ModeFull)
+	bs.next(t, "ready")
+
+	fr, err := a.API.SendFriendRequest(ctx, api.Handle(b.Handle))
+	must(t, err)
+	bs.next(t, "friend.request_received")
+	_, err = b.API.AcceptFriendRequest(ctx, fr.Request.ID)
+	must(t, err)
+	as := connect(t, a, realtime.ModeFull)
+	as.next(t, "ready")
+	bs.next(t, "presence.updated", match("user_id", a.UserID), match("status", "online"))
+
+	dm, _, err := a.API.OpenDM(ctx, api.OpenDMRequest{Users: []api.UserRef{api.Handle(b.Handle)}})
+	must(t, err)
+	m1, _, err := a.API.SendMessage(ctx, dm.ID, text("안녕 밥 👍"))
+	must(t, err)
+	bs.next(t, "message.created", match("message.id", m1.ID))
+	bs.next(t, "alert", match("alert.kind", "dm"))
+	// anti-goal: no DM bombs from strangers (no friendship, no shared space)
+	if _, _, err := c.API.OpenDM(ctx, api.OpenDMRequest{Users: []api.UserRef{api.Handle(b.Handle)}}); !api.IsCode(err, "dm_not_allowed") {
+		t.Fatalf("stranger DM: %v", err)
+	}
+
+	sp, err := a.API.CreateSpace(ctx, api.CreateSpaceRequest{Name: "관문방"})
+	must(t, err)
+	inv, err := a.API.CreateInvite(ctx, sp.ID, api.CreateInviteRequest{MaxUses: api.Some(2)})
+	must(t, err)
+	_, err = b.API.AcceptInvite(ctx, inv.Code)
+	must(t, err)
+	_, err = c.API.AcceptInvite(ctx, inv.Code)
+	must(t, err)
+	gen := sp.DefaultChannelID
+	root, _, err := c.API.SendMessage(ctx, gen, text("@"+b.Handle+" 회의 몇 시?"))
+	must(t, err)
+	bs.next(t, "message.created", match("message.id", root.ID))
+	bs.next(t, "alert", match("alert.kind", "mention"))
+	reply, _, err := b.API.ReplyThread(ctx, root.ID, api.ThreadReplyRequest{ClientNonce: ids.New(), Kind: "text", Body: "3시요"})
+	must(t, err)
+	as.next(t, "thread.updated", match("root_id", root.ID))
+	if tw, err := c.API.GetThread(ctx, root.ID, api.ThreadQuery{}); err != nil || len(tw.Items) != 1 {
+		t.Fatalf("thread %+v, %v", tw, err)
+	}
+	must(t, a.API.AddReaction(ctx, root.ID, "👍"))
+	bs.next(t, "reaction.added", match("message_id", root.ID), match("emoji", "👍"))
+	_, err = c.API.EditMessage(ctx, root.ID, "@"+b.Handle+" 회의 4시로 바꿀까요?")
+	must(t, err)
+	bs.next(t, "message.updated", match("message.id", root.ID))
+	must(t, a.API.Pin(ctx, root.ID))
+	bs.next(t, "message.pinned", match("message_id", root.ID))
+	if pins, err := c.API.ListPins(ctx, gen); err != nil || len(pins) != 1 {
+		t.Fatalf("pins %d, %v", len(pins), err)
+	}
+	must(t, b.API.DeleteMessage(ctx, reply.ID))
+	as.next(t, "message.deleted", match("message_id", reply.ID))
+	as.client.Typing(gen, nil)
+	bs.next(t, "typing", match("channel_id", gen), match("user_id", a.UserID))
+
+	unread := func() int {
+		us, err := a.API.ListUnreads(ctx)
+		must(t, err)
+		for _, u := range us {
+			if u.ChannelID == gen {
+				return u.UnreadCount
+			}
+		}
+		return 0
+	}
+	if unread() < 1 {
+		t.Fatal("c's message must be unread for a")
+	}
+	_, err = a.API.MarkRead(ctx, gen, root.ID)
+	must(t, err)
+	if n := unread(); n != 0 {
+		t.Fatalf("unread after MarkRead = %d", n)
+	}
+	if hits, err := b.API.SearchMessages(ctx, api.MessageSearchQuery{Q: "회의", SpaceID: sp.ID}); err != nil || len(hits.Items) == 0 {
+		t.Fatalf("search: %v", err)
+	}
+
+	g, _, err := a.API.OpenDM(ctx, api.OpenDMRequest{Users: []api.UserRef{api.Handle(b.Handle), api.Handle(c.Handle)}}) // friend + shared-space member
+	must(t, err)
+	if g.Kind != "group_dm" {
+		t.Fatalf("group dm kind %q", g.Kind)
+	}
+	if page, err := b.API.ListDMs(ctx, api.PageOpts{}); err != nil || !slices.ContainsFunc(page.Items, func(ch api.Channel) bool { return ch.ID == g.ID }) {
+		t.Fatalf("group dm not listed for b: %v", err)
 	}
 }
