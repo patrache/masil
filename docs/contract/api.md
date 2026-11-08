@@ -89,7 +89,7 @@
 | 403 | `read_only` | 읽기 전용 대화(DM 조건 소멸) |
 | 403 | `private_account` | 비공개 계정의 글/팔로워 목록 열람 불가 |
 | 403 | `banned_from_space` | 방에서 차단(ban)된 사용자 |
-| 404 | `not_found` | 없음 **또는 볼 권한 없음**(존재 여부를 숨김) |
+| 404 | `not_found` | 없음 **또는 볼 권한 없음**(존재 여부를 숨김). 경로의 `{space_id}`·`{channel_id}`·`{message_id}`·`{invite_id}` 등 ID 가 ULID 형식이 아니거나 `{code}` 가 초대 코드 형식(8자, 초대 알파벳)이 아니면 조회 없이 404 (인증 검사 뒤) [2026-11-08, pending-fixes 5 심층 방어] |
 | 409 | `handle_taken` | 가입 시 handle 중복 |
 | 409 | `already_exists` | 이미 존재(대기 중인 친구 요청, 열린 신고 등) |
 | 409 | `already_member` | 이미 방/채널 멤버 |
@@ -1184,7 +1184,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 서버는 앞부분 바이트(매직 넘버)로 실제 형식을 판별하고 `Content-Type` 과 다르면 `415`. 크기 1..5,242,880 바이트(초과 `413`). 가로·세로는 헤더에서 읽는다(실패 시 `null`).
 - 크기는 `Content-Length` 값이 아니라 **실제로 받은 바이트**로 판정한다. `Content-Length` 가 5,242,880 을 넘으면 본문을 읽기 전에 `413`, 값이 작게 위조돼도 받는 중 상한을 넘는 순간 읽기를 멈추고 `413`. (JSON 본문 64KB 상한도 같은 방식 — chunked·위조 `Content-Length` 무관. GET/HEAD 요청에 붙은 본문·`Content-Length`는 읽지 않고 무시한다 — `Content-Length: 0` 이 붙은 GET 도 평소와 같이 응답.)
 - 메타데이터 제거(EXIF 등)는 **클라이언트 책임**: 클라이언트는 JPEG·PNG 를 다시 인코딩하고, WebP·GIF 는 픽셀·애니메이션 블록만 남기고 다시 써서 보낸다(아래 허용 목록. WebP 는 VP8X 의 ICC·EXIF·XMP 플래그도 끔, GIF 는 일반 텍스트 확장(0x01)과 그 그래픽 제어 확장도 지움). 구조를 정확히 읽을 수 없는 WebP·GIF 는 그대로 보내지 않고 업로드를 거부한다. 서버는 바이트를 그대로 저장한다.
-- 단, 서버는 WebP·GIF 를 검사한다: WebP 는 `VP8 `·`VP8L`·`VP8X`·`ALPH`·`ANIM`·`ANMF` 이외의 청크(`EXIF`·`XMP `·`ICCP`·알 수 없는 청크)나, `ANMF` 프레임(16바이트 프레임 머리 뒤의 하위 청크) 안의 `ALPH`·`VP8 `·`VP8L` 이외의 하위 청크, GIF 는 주석 확장(0xFE)·일반 텍스트 확장(0x01)·`NETSCAPE2.0`/`ANIMEXTS1.0` 이외의 애플리케이션 확장·알 수 없는 확장, 4바이트 하위 블록 하나가 아닌 그래픽 제어 확장(0xF9), 루프 하위 블록(id 1, 3바이트) 하나가 아닌 `NETSCAPE2.0`/`ANIMEXTS1.0` 확장이 있으면 `400 invalid_request`, `details.fields.body="not_allowed"`. 청크 크기·RIFF 크기·블록 구조가 깨졌거나(`ANMF` 가 16바이트보다 짧거나 하위 청크가 프레임 크기와 맞지 않는 경우 포함) GIF 끝(0x3B)이 없으면 `400`, `body="invalid"`. 클라이언트는 이런 블록을 지운 뒤 보낸다(클라이언트가 만드는 결과는 언제나 이 검사를 통과한다).
+- 단, 서버는 WebP·GIF 를 검사한다: WebP 는 `VP8 `·`VP8L`·`VP8X`·`ALPH`·`ANIM`·`ANMF` 이외의 청크(`EXIF`·`XMP `·`ICCP`·알 수 없는 청크)가 있거나, `ANMF` 의 16바이트 프레임 머리 뒤 하위 청크가 `ALPH`·`VP8 `·`VP8L` 이외이면, GIF 는 주석 확장(0xFE)·일반 텍스트 확장(0x01)·알 수 없는 확장이 있거나, 그래픽 제어 확장(0xF9)에 4바이트 하위 블록 뒤 하위 블록이 더 있거나, 애플리케이션 확장이 `NETSCAPE2.0`/`ANIMEXTS1.0` 이 아니거나 그 하위 블록이 루프 블록 하나(id 1, 3바이트)가 아니면 `400 invalid_request`, `details.fields.body="not_allowed"`. 청크 크기·RIFF 크기·`ANMF` 하위 청크 구조(16바이트 미만, 크기 초과, 하위 청크 없음)·블록 구조(그래픽 제어 확장의 첫 하위 블록이 4바이트가 아님 포함)가 깨졌거나 GIF 끝(0x3B)이 없으면 `400`, `body="invalid"`. 클라이언트는 이런 블록을 지운 뒤 보내며, 클라이언트가 만든 결과가 이 검사를 통과하는지는 `server/test/fixtures/client-stripped-uploads.ts`(Go 쪽 `TestStrippedUploadsServerFixture` 가 생성·대조)로 양쪽 시험이 함께 고정한다 [2026-11-08, pending-fixes 12 — 일반 텍스트 확장은 클라이언트가 늘 지우므로 서버도 거부로 맞춤].
 - 업로드는 `pending` 으로 시작하고, 글/스토리/아바타에 붙으면 `attached`. 24시간 안에 안 붙으면 cron 이 지운다. 사용자당 `pending` 20개 한도(`422 limit_exceeded`, `pending_uploads`).
 - `201 { "upload": Upload }`
 

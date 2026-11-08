@@ -448,7 +448,8 @@ func insertAt(b []byte, at int, parts ...[]byte) []byte {
 // the extension labels / application ids it saw; it fails on any structure
 // the server would refuse: comments, plain text (0x01), unknown extensions,
 // a graphic control extension that is not one 4-byte sub-block, and a loop
-// extension that is not one 3-byte loop sub-block.
+// extension that is not one 3-byte loop sub-block. The same rules are also
+// checked against the server's own code by TestStrippedUploadsServerFixture.
 func gifBlocks(t *testing.T, b []byte) (labels []string) {
 	t.Helper()
 	i := gifHeaderLen(b)

@@ -7,6 +7,7 @@ import { rt, type AppEnv } from "../env";
 import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, first, jsonList, parseLimit, stmt } from "../lib/db";
 import { err } from "../lib/errors";
+import { idParam } from "../lib/params";
 import { newId } from "../lib/ids";
 import { assertSpaceRole, requireSpaceRole, spaceRoleFrom, spaceRoleStmt } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
@@ -155,15 +156,15 @@ spaceRoutes.post("/spaces", requireAuth, limit("RL_SOCIAL"), vJson(CreateBody), 
 spaceRoutes.get("/spaces/:space_id", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  await requireSpaceRole(db, c.req.param("space_id"), me, "member");
-  return c.json({ space: await serializeSpaceDetail(db, me, await loadSpace(db, c.req.param("space_id"))) });
+  await requireSpaceRole(db, idParam(c, "space_id", "space"), me, "member");
+  return c.json({ space: await serializeSpaceDetail(db, me, await loadSpace(db, idParam(c, "space_id", "space"))) });
 });
 
 /** owner·admin; space.updated{space} (event defaults) to the members. */
 spaceRoutes.patch("/spaces/:space_id", requireAuth, vJson(PatchBody), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "admin");
   const b = c.req.valid("json");
   const sets: string[] = [];
@@ -194,7 +195,7 @@ spaceRoutes.patch("/spaces/:space_id", requireAuth, vJson(PatchBody), async (c) 
 spaceRoutes.delete("/spaces/:space_id", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "owner");
   const memberIds = (await all<{ user_id: string }>(db, "SELECT user_id FROM space_members WHERE space_id = ?1", spaceId)).map((r) => r.user_id);
   const t = now();
@@ -221,7 +222,7 @@ spaceRoutes.post("/spaces/:space_id/transfer", requireAuth, vJson(TransferBody),
   const auth = getAuth(c);
   const me = auth.userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "owner");
   const target = await resolveUserRef(db, c.req.valid("json").user, auth);
   if (target.id === me) throw err.conflict("conflict", "self");
@@ -273,7 +274,7 @@ spaceRoutes.post("/spaces/:space_id/transfer", requireAuth, vJson(TransferBody),
 spaceRoutes.get("/spaces/:space_id/members", requireAuth, vQuery(MembersQuery), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "member");
   const qy = c.req.valid("query");
   const n = parseLimit(qy.limit);
@@ -337,7 +338,7 @@ spaceRoutes.get("/spaces/:space_id/members", requireAuth, vQuery(MembersQuery), 
 spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody), async (c) => {
   const auth = getAuth(c);
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, auth.userId, "owner");
   const target = await resolveUserRef(db, c.req.param("user"), auth);
   if (target.id === auth.userId) throw err.conflict("conflict", "self");
@@ -381,7 +382,7 @@ spaceRoutes.delete("/spaces/:space_id/members/:user", requireAuth, vQuery(KickQu
   const auth = getAuth(c);
   const me = auth.userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   const myRole = await requireSpaceRole(db, spaceId, me, "member");
   const qy = c.req.valid("query");
   const ban = qy.ban === "true" || qy.ban === "1";
@@ -407,7 +408,7 @@ spaceRoutes.delete("/spaces/:space_id/members/:user", requireAuth, vQuery(KickQu
 spaceRoutes.get("/spaces/:space_id/bans", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "admin");
   const rows = await all<SpaceBanRow>(db, "SELECT * FROM space_bans WHERE space_id = ?1 ORDER BY created_at DESC, user_id DESC", spaceId);
   return c.json({ items: await serializeSpaceBans(db, rows) });
@@ -417,7 +418,7 @@ spaceRoutes.get("/spaces/:space_id/bans", requireAuth, async (c) => {
 spaceRoutes.delete("/spaces/:space_id/bans/:user", requireAuth, async (c) => {
   const auth = getAuth(c);
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, auth.userId, "admin");
   const target = await resolveUserRef(db, c.req.param("user"), auth);
   const res = await stmt(db, "DELETE FROM space_bans WHERE space_id = ?1 AND user_id = ?2", spaceId, target.id).run();
@@ -428,7 +429,7 @@ spaceRoutes.delete("/spaces/:space_id/bans/:user", requireAuth, async (c) => {
 /** members only; text channels I can see, position order. */
 spaceRoutes.get("/spaces/:space_id/channels", requireAuth, async (c) => {
   const me = getAuth(c).userId;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(c.env.DB, spaceId, me, "member");
   return c.json({ items: await serializeSpaceChannels(c.env.DB, me, spaceId) });
 });
@@ -446,7 +447,7 @@ spaceRoutes.post("/spaces/:space_id/channels", requireAuth, vJson(CreateChannelB
   const auth = getAuth(c);
   const me = auth.userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "admin");
   const b = c.req.valid("json");
   const isPrivate = b.is_private === true;

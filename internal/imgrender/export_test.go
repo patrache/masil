@@ -42,7 +42,8 @@ func DecodePeak(c *Cache) int32 { return c.decodePeak.Load() }
 // MaxDecodes is how many decodes a Cache runs at once.
 const MaxDecodes = maxDecodes
 
-// DecodeCost is the pre-decode estimate of the bytes decoding data allocates.
+// DecodeCost is the pre-decode estimate of the bytes decoding data
+// allocates, worked out in full (no byte limit).
 func DecodeCost(data []byte, ct string) (int64, error) {
 	cfg, err := codecs[ct].config(bytes.NewReader(data))
 	if err != nil {

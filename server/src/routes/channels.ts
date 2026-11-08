@@ -9,6 +9,7 @@ import { rt, type AppEnv } from "../env";
 import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from "../lib/db";
 import { err, type FieldError } from "../lib/errors";
+import { idParam } from "../lib/params";
 import { requireChannelRead } from "../lib/permissions";
 import { limit } from "../lib/ratelimit";
 import { publishEvent } from "../lib/realtime";
@@ -58,7 +59,7 @@ export const channelRoutes = new Hono<AppEnv>();
 
 channelRoutes.get("/channels/:channel_id", requireAuth, async (c) => {
   const me = getAuth(c).userId;
-  const access = await requireChannelRead(c.env.DB, c.req.param("channel_id"), me);
+  const access = await requireChannelRead(c.env.DB, idParam(c, "channel_id", "channel"), me);
   const [channel] = await serializeChannels(c.env.DB, me, [access.channel]);
   return c.json({ channel });
 });
@@ -67,18 +68,18 @@ channelRoutes.post("/channels/:channel_id/members", requireAuth, limit("RL_SOCIA
   const auth = getAuth(c);
   const db = c.env.DB;
   // 404 for a channel I cannot read comes before resolving the users (no existence leak through the body).
-  await requireChannelRead(db, c.req.param("channel_id"), auth.userId);
+  await requireChannelRead(db, idParam(c, "channel_id", "channel"), auth.userId);
   const users = await Promise.all(c.req.valid("json").users.map((ref) => resolveUserRef(db, ref, auth)));
-  const channel = await addChannelMembers(rt(c), c.req.param("channel_id"), auth.userId, users.map((u) => u.id));
+  const channel = await addChannelMembers(rt(c), idParam(c, "channel_id", "channel"), auth.userId, users.map((u) => u.id));
   return c.json({ channel });
 });
 
 channelRoutes.delete("/channels/:channel_id/members/:user", requireAuth, async (c) => {
   const auth = getAuth(c);
   const db = c.env.DB;
-  await requireChannelRead(db, c.req.param("channel_id"), auth.userId);
+  await requireChannelRead(db, idParam(c, "channel_id", "channel"), auth.userId);
   const target = await resolveUserRef(db, c.req.param("user"), auth);
-  await removeChannelMember(rt(c), c.req.param("channel_id"), auth.userId, target.id);
+  await removeChannelMember(rt(c), idParam(c, "channel_id", "channel"), auth.userId, target.id);
   return c.body(null, 204);
 });
 
@@ -93,7 +94,7 @@ channelRoutes.delete("/channels/:channel_id/members/:user", requireAuth, async (
 channelRoutes.patch("/channels/:channel_id", requireAuth, vJson(PatchBody), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const access = await requireChannelRead(db, c.req.param("channel_id"), me);
+  const access = await requireChannelRead(db, idParam(c, "channel_id", "channel"), me);
   const ch = access.channel;
   if (ch.kind === "dm") throw err.conflict("conflict", "not_supported");
   if (ch.kind === "text" && access.spaceRole !== "owner" && access.spaceRole !== "admin") throw err.forbidden("forbidden", "requires admin role");
@@ -178,7 +179,7 @@ channelRoutes.patch("/channels/:channel_id", requireAuth, vJson(PatchBody), asyn
 channelRoutes.delete("/channels/:channel_id", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const access = await requireChannelRead(db, c.req.param("channel_id"), me);
+  const access = await requireChannelRead(db, idParam(c, "channel_id", "channel"), me);
   const ch = access.channel;
   if (ch.kind !== "text") throw err.conflict("conflict", "not_supported");
   if (access.spaceRole !== "owner" && access.spaceRole !== "admin") throw err.forbidden("forbidden", "requires admin role");
@@ -220,7 +221,7 @@ channelRoutes.delete("/channels/:channel_id", requireAuth, async (c) => {
 channelRoutes.get("/channels/:channel_id/members", requireAuth, vQuery(MembersQuery), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const ch = (await requireChannelRead(db, c.req.param("channel_id"), me)).channel;
+  const ch = (await requireChannelRead(db, idParam(c, "channel_id", "channel"), me)).channel;
   const qy = c.req.valid("query");
   const n = parseLimit(qy.limit);
   const cursor = decodeCursor(qy.cursor);
@@ -274,7 +275,7 @@ channelRoutes.get("/channels/:channel_id/members", requireAuth, vQuery(MembersQu
 channelRoutes.put("/channels/:channel_id/prefs", requireAuth, vJson(PrefsBody), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const ch = (await requireChannelRead(db, c.req.param("channel_id"), me)).channel;
+  const ch = (await requireChannelRead(db, idParam(c, "channel_id", "channel"), me)).channel;
   const b = c.req.valid("json");
   if (b.notify !== undefined || b.muted !== undefined) {
     const defaultNotify = ch.kind === "text" ? "mentions" : "all";
@@ -303,7 +304,7 @@ channelRoutes.put("/channels/:channel_id/prefs", requireAuth, vJson(PrefsBody), 
 channelRoutes.get("/channels/:channel_id/pins", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const ch = (await requireChannelRead(db, c.req.param("channel_id"), me)).channel;
+  const ch = (await requireChannelRead(db, idParam(c, "channel_id", "channel"), me)).channel;
   const rows = await all<MessageRow>(
     db,
     `SELECT m.* FROM message_pins p JOIN messages m ON m.id = p.message_id AND m.deleted_at IS NULL
@@ -323,7 +324,7 @@ channelRoutes.get("/channels/:channel_id/pins", requireAuth, async (c) => {
 channelRoutes.put("/channels/:channel_id/read", requireAuth, vJson(ReadBody), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const ch = (await requireChannelRead(db, c.req.param("channel_id"), me)).channel;
+  const ch = (await requireChannelRead(db, idParam(c, "channel_id", "channel"), me)).channel;
   const messageId = c.req.valid("json").message_id;
   const target = await first(db, "SELECT 1 AS x FROM messages WHERE id = ?1 AND channel_id = ?2 AND thread_root_id IS NULL", messageId, ch.id);
   if (target === null) throw err.invalid({ message_id: "invalid" });

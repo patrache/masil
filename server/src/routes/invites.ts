@@ -6,6 +6,7 @@ import { rt, type AppEnv } from "../env";
 import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
+import { idParam, inviteCodeParam } from "../lib/params";
 import { isId, newId, newInviteCode } from "../lib/ids";
 import { notify } from "../lib/notify";
 import { areFriends, assertSpaceRole, getSpaceRole, isBlockedEither, requireSpaceRole, spaceRoleFrom, spaceRoleStmt } from "../lib/permissions";
@@ -74,7 +75,7 @@ export const inviteRoutes = new Hono<AppEnv>();
 inviteRoutes.get("/spaces/:space_id/invites", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "admin");
   const rows = await all<SpaceInviteRow>(
     db,
@@ -96,7 +97,7 @@ inviteRoutes.get("/spaces/:space_id/invites", requireAuth, async (c) => {
 inviteRoutes.post("/spaces/:space_id/invites", requireAuth, limit("RL_SOCIAL"), vJson(CreateInviteBody), async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "admin");
   const b = c.req.valid("json");
   const t = now();
@@ -141,7 +142,7 @@ inviteRoutes.post("/spaces/:space_id/invites", requireAuth, limit("RL_SOCIAL"), 
 inviteRoutes.delete("/invites/:code", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const inv = await loadInvite(db, c.req.param("code"));
+  const inv = await loadInvite(db, inviteCodeParam(c));
   await requireSpaceRole(db, inv.space_id, me, "admin");
   await stmt(db, "UPDATE space_invites SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL", inv.id, now()).run();
   return c.body(null, 204);
@@ -152,7 +153,7 @@ inviteRoutes.delete("/invites/:code", requireAuth, async (c) => {
 inviteRoutes.get("/invites/:code", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const db = c.env.DB;
-  const inv = await loadInvite(db, c.req.param("code"));
+  const inv = await loadInvite(db, inviteCodeParam(c));
   const reason = inviteInvalidReason(inv);
   if (reason !== null) throw err.inviteInvalid(reason);
   return c.json({ invite: await serializeInvitePreview(db, me, inv) });
@@ -161,7 +162,7 @@ inviteRoutes.get("/invites/:code", requireAuth, async (c) => {
 /** Join through a link: 410 -> 403 banned_from_space -> 409 already_member -> 422 (joinSpace). */
 inviteRoutes.post("/invites/:code/accept", requireAuth, async (c) => {
   const me = getAuth(c).userId;
-  const inv = await loadInvite(c.env.DB, c.req.param("code"));
+  const inv = await loadInvite(c.env.DB, inviteCodeParam(c));
   const space = await joinSpace(rt(c), inv.space_id, me, { inviteCode: inv.code });
   return c.json({ space });
 });
@@ -189,7 +190,7 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
   const auth = getAuth(c);
   const me = auth.userId;
   const db = c.env.DB;
-  const spaceId = c.req.param("space_id");
+  const spaceId = idParam(c, "space_id", "space");
   await requireSpaceRole(db, spaceId, me, "member");
   const target = await resolveUserRef(db, c.req.valid("json").user, auth);
   if (target.id === me) throw err.conflict("already_member");

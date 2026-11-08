@@ -2227,7 +2227,7 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 - **하프블록**(기본·모든 터미널): 한 칸 = 위/아래 픽셀 2개. 축소는 `x/image/draw.CatmullRom`.
 - 큰 이미지 축소(`Cache.Load` 의 긴 변 2048 맞춤, `PrepareUpload` 의 5MB 초과 재인코딩)는 `CatmullRom` 이 아니라 행 단위 면적 평균(`shrinkInto`)이다 — 커널 축소기는 출력 폭×원본 높이×32B 임시 버퍼를 잡아(6000×4000 → 약 262MB) 디코드 전 바이트 판정(~96MB)을 무력화하기 때문이다. 축소에 드는 메모리는 출력 버퍼 + 행 버퍼뿐이다 [보안 결정, 2026-11-06, pending-fixes 13].
-- 무손실 WebP(VP8L 본체와 압축 방식 1 의 ALPH 평면)의 디코드 전 바이트 판정은 비트스트림을 픽셀 직전까지 디코더(`x/image/vp8l`)와 같은 순서로 읽어, 그 이미지가 선언한 Huffman 그룹 수(최대 2600)와 각 트리 크기만큼의 메모리를 더한다 — 그룹 수는 이미지 크기와 무관해서 208×200 이미지도 100MB 넘게 잡을 수 있기 때문이다. 비트스트림을 찾지 못하면 타일(4×4)당 1개·최대 2600개·최대 크기 트리를 가정한다 [보안 결정, 2026-11-08, pending-fixes 13].
+- 디코드 전 바이트 판정의 무손실 WebP(VP8L 본체·압축 방식 1 의 ALPH 평면): `x/image/vp8l` 은 메타 Huffman 이미지가 가리키는 그룹마다(최대 2600개) 트리 5개를 만들고, 트리마다 부호 있는 심볼 수 n 에 대해 노드 2n-1 개와 알파벳 크기의 임시 배열을 잡는다(256x164 이미지로 200MB 넘게 가능). 그래서 판정은 픽셀 수가 아니라 **비트스트림을 디코더와 같은 방식으로 픽셀 직전까지 읽어**(변환·메타 이미지는 실제 디코드, 최상위 그룹은 트리 크기만 셈, `vp8lHuffmanBytes`) 그 바이트를 더한다. 그 지점까지 읽을 수 없는 비트스트림은 디코드도 실패하므로 판정에서 거부한다 [보안 결정, 2026-11-08, pending-fixes 13].
 - **kitty**(`GraphicsKitty`): 유니코드 자리표시자 방식 — `Setup` 에 `kitty.EncodeGraphics(..., &kitty.Options{Action: 'T'(transmit+place), ID: id, VirtualPlacement: true, Columns: cols, Rows: rows, Quiet: 2})`, 각 칸은 `kitty.Placeholder` + `kitty.Diacritic(row)` + `kitty.Diacritic(col)`, 글자색 = 이미지 ID(24비트). 자리표시자 한 칸 폭은 그래핌·wcwidth 모두 1 **[검증]** 이라 셀 렌더러와 충돌하지 않는다. tmux 안에서는 쓰지 않는다.
 - **iTerm2**(`GraphicsITerm2`): 셀 렌더러가 덮어쓰는 문제 때문에 **목록·카드에서는 하프블록**, 전체 화면 이미지 보기(`o`)에서만 빈 칸으로 자리를 비우고 `tea.Raw(커서 저장 + 위치 이동 + iterm2 파일 이스케이프 + 커서 복원)` 를 크기·내용이 바뀔 때마다 다시 보낸다. 실패하거나 깨지면 하프블록으로 되돌린다(설계서 "가능하면").
 - 골든 테스트에서는 항상 `GraphicsHalfBlock`.

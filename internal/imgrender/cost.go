@@ -32,23 +32,22 @@ import (
 //   - WebP: the first VP8 or VP8L chunk decides the decoder; a VP8X header
 //     does not say which follows. A lossless image may need its packed
 //     colour-indexed pixels and the unpacked image at once, plus the
-//     transform and Huffman meta images, plus its Huffman groups, whose
-//     number (up to 2600) and tree sizes the bitstream declares whatever the
-//     image size: they are counted by walking the bitstream up to its pixels
-//     (vp8lHuffmanBytes). An ALPH plane is itself a lossless image plus a
-//     1-byte copy; a lossy frame buffers its partitions.
+//     transform and Huffman meta images, plus its Huffman groups (up to
+//     2600 groups of five trees, whose sizes only the bitstream tells:
+//     vp8lHuffmanBytes reads them); an ALPH plane is itself a lossless
+//     image plus a 1-byte copy; a lossy frame buffers its partitions.
 //
-// decodeOverhead covers the fixed buffers (zlib window, bufio readers, JPEG
-// and PNG Huffman and quantisation tables, the single Huffman group of each
-// VP8L transform or meta image) on top of that.
+// decodeOverhead covers the fixed buffers (zlib window, bufio readers, the
+// fixed-size Huffman and quantisation tables of PNG, JPEG, GIF and VP8, a
+// lossless sub-image's single Huffman group) on top of that.
 const decodeOverhead = 1 << 20
 
 // decodeCost is the most bytes decoding data (of type ct, header cfg) can
 // allocate. It fails for a header the decoder would size a buffer from but
 // that the file cannot back (a WebP VP8 chunk longer than the bytes left).
-// limit is the byte limit the caller compares the result with: a part of the
-// estimate that has to decode some of the file to count (VP8L Huffman
-// groups) is skipped once the rest is already over it.
+// Working the estimate out allocates too (a lossless WebP's sub-images and
+// Huffman groups are read from its bitstream); limit bounds that, and the
+// estimate fails with ErrTooLarge as soon as it is sure to exceed limit.
 func decodeCost(ct string, data []byte, cfg image.Config, limit int64) (int64, error) {
 	w, h := int64(cfg.Width), int64(cfg.Height)
 	var n int64
@@ -280,99 +279,114 @@ func parseSOF(seg []byte, progressive bool) (jpegFrame, bool) {
 // name (19 bits); x/image/vp8 allocates it before reading it.
 const maxVP8FirstPartition = 1<<19 - 1
 
-func webpCost(data []byte, w, h, limit int64) (int64, error) {
+// webpCost is decodeCost for WebP; budget is the byte limit less
+// decodeOverhead. A lossless bitstream's scan may use what budget has left
+// once the pixel buffers counted before it are taken out, so that it fails
+// (ErrTooLarge) exactly when the finished estimate would be over budget.
+func webpCost(data []byte, w, h, budget int64) (int64, error) {
 	mbs := ceilDiv(w, 16) * ceilDiv(h, 16)
 	// 4:2:0 frame over whole macroblocks, per-macroblock state, partitions.
 	frame := 400*mbs + 64*ceilDiv(w, 16) + maxVP8FirstPartition
 	vp8 := frame + int64(len(data))
 	vp8l := vp8lCost(w, h)
-	worstGroups := vp8lWorstHuffmanBytes(w, h)
+	vp8lSub := vp8l - vp8lPixelBytes(w, h) // the part the scan allocates
+	alpha := vp8l + w*h
 	bs := webpBitstream(data)
-	var cost int64
+	cost := max(vp8, vp8l)
 	switch bs.id {
 	case "VP8 ":
 		// x/image/vp8 allocates the partition buffer at the length the
 		// chunk header claims and only then reads it, so a claim beyond the
 		// file is refused (decoding it would fail anyway).
-		if bs.claimed > int64(len(bs.body)) {
-			return 0, fmt.Errorf("imgrender: decode %s: VP8 chunk claims %d bytes, %d present", ctWebP, bs.claimed, len(bs.body))
+		if bs.claimed > int64(len(bs.data)) {
+			return 0, fmt.Errorf("imgrender: decode %s: VP8 chunk claims %d bytes, %d present", ctWebP, bs.claimed, len(bs.data))
 		}
 		cost = frame + bs.claimed
 	case "VP8L":
-		cost = vp8l
-	default:
-		cost = max(vp8, vp8l+worstGroups)
-		bs.alph, bs.alphData = true, nil
-	}
-	if bs.alph {
-		// x/image/webp decodes an ALPH chunk (even one a VP8L follows, which
-		// it then refuses) as a canvas-sized plane: raw (method 0) or a
-		// headerless VP8L image (method 1).
-		cost += vp8l + w*h
-	}
-	// The Huffman groups, counted by walking the bitstreams; only while the
-	// rest of the estimate is within the limit, since the walk decodes the
-	// transform and meta images the way the decoder would.
-	if bs.alph {
-		groups := worstGroups
-		if bs.alphData != nil {
-			groups = 0
-			if len(bs.alphData) > 0 && bs.alphData[0]&3 == 1 && w <= 1<<14 && h <= 1<<14 && cost <= limit {
-				groups = vp8lHuffmanBytes(bs.alphData[1:], true, int32(w), int32(h))
-			}
+		groups, err := vp8lHuffmanBytes(bs.data, w, h, budget-(vp8l-vp8lSub))
+		if err != nil {
+			return 0, fmt.Errorf("imgrender: decode %s: %w", ctWebP, err)
 		}
-		cost += groups
+		cost = vp8l + groups
+	default:
+		bs.alph = true
 	}
-	if bs.id == "VP8L" && cost <= limit {
-		cost += vp8lHuffmanBytes(bs.body, false, int32(w), int32(h))
+	if bs.alph {
+		cost += alpha
+		if bs.alphData != nil {
+			groups, err := alphHuffmanBytes(bs.alphData, w, h, budget-(cost-vp8lSub))
+			if err != nil {
+				return 0, fmt.Errorf("imgrender: decode %s: ALPH: %w", ctWebP, err)
+			}
+			cost += groups
+		}
 	}
 	return cost, nil
+}
+
+// alphHuffmanBytes is vp8lHuffmanBytes for an ALPH chunk payload: with
+// compression 1 x/image/webp decodes it as a VP8L image of the canvas size
+// behind a header it makes up. Other compressions hold no Huffman groups.
+func alphHuffmanBytes(payload []byte, w, h, budget int64) (int64, error) {
+	if len(payload) == 0 || payload[0]&3 != 1 {
+		return 0, nil
+	}
+	if w-1 > 0x3fff || h-1 > 0x3fff {
+		return 0, fmt.Errorf("alpha plane %dx%d too large", w, h)
+	}
+	wm1, hm1 := uint32(w-1), uint32(h-1)
+	head := []byte{0x2f, uint8(wm1), uint8(wm1>>8) | uint8(hm1<<6), uint8(hm1 >> 2), uint8(hm1 >> 10)}
+	return vp8lHuffmanBytes(append(head, payload[1:]...), w, h, budget)
 }
 
 // vp8lCost: the decoded pixels; with colour indexing of 16 or fewer colours,
 // the packed pixels (half the width at most) alongside the unpacked copy;
 // the predictor, cross-colour and Huffman meta images (one pixel per 4x4
-// tile at the finest); the colour table.
+// tile at the finest); the colour table. The top-level Huffman groups are
+// read from the bitstream (vp8lHuffmanBytes).
 func vp8lCost(w, h int64) int64 {
 	tiles := 4 * ceilDiv(w, 4) * ceilDiv(h, 4)
-	return 4*w*h + 4*ceilDiv(w, 2)*h + 3*tiles + 4*256
+	return vp8lPixelBytes(w, h) + 3*tiles + 4*256
 }
 
-// webpChunks is what webpBitstream found: the first VP8 or VP8L chunk (the
-// one x/image/webp decodes; id is "" when the walk ends before one), the
-// length its header claims and the bytes of it the file holds, and whether
-// an ALPH chunk came before it, with the first one's bytes.
+// vp8lPixelBytes is the part of vp8lCost the top-level pixels take: the
+// decoded image and the packed colour-indexed copy.
+func vp8lPixelBytes(w, h int64) int64 { return 4*w*h + 4*ceilDiv(w, 2)*h }
+
+// webpChunks is what webpBitstream finds.
 type webpChunks struct {
-	id       string
-	claimed  int64
-	body     []byte
-	alph     bool
-	alphData []byte
+	id       string // "VP8 ", "VP8L", or "" when the walk ends before one
+	data     []byte // that chunk's bytes present in the file
+	claimed  int64  // the length its header claims
+	alph     bool   // an ALPH chunk came before it
+	alphData []byte // the first ALPH chunk's payload present in the file
 }
 
-// webpBitstream walks the RIFF chunks the way golang.org/x/image/riff does.
+// webpBitstream walks the RIFF chunks the way golang.org/x/image/riff does
+// and returns the first VP8 or VP8L chunk (the one x/image/webp decodes) and
+// any ALPH chunk before it.
 func webpBitstream(b []byte) webpChunks {
-	var r webpChunks
+	var c webpChunks
 	if len(b) < 12 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WEBP" {
-		return r
+		return c
 	}
 	end := min(int64(len(b)), 8+int64(binary.LittleEndian.Uint32(b[4:])))
+	present := func(i, n int64) []byte { return b[i+8 : min(int64(len(b)), i+8+n)] }
 	for i := int64(12); i+8 <= end; {
 		cid := string(b[i : i+4])
 		n := int64(binary.LittleEndian.Uint32(b[i+4:]))
-		body := b[i+8 : i+8+min(n, int64(len(b))-(i+8))]
 		if cid == "VP8 " || cid == "VP8L" {
-			r.id, r.claimed, r.body = cid, n, body
-			return r
+			c.id, c.data, c.claimed = cid, present(i, n), n
+			return c
 		}
-		if cid == "ALPH" && !r.alph {
-			r.alph, r.alphData = true, body
+		if cid == "ALPH" && !c.alph {
+			c.alph, c.alphData = true, present(i, n)
 		}
 		i += 8 + n + n&1
 		if i > end {
 			break
 		}
 	}
-	r.id, r.claimed, r.body = "", 0, nil
-	return r
+	c.id, c.data, c.claimed = "", nil, 0
+	return c
 }
