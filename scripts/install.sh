@@ -43,14 +43,42 @@ detect_arch() {
 	esac
 }
 
+# curl_retry_flags prints the retry options this curl understands. --retry
+# covers timeouts and HTTP 408/429/500/502/503/504; --retry-all-errors
+# (curl 7.71+) also retries connection resets and the short-lived 404 right
+# after a release is published. Older curl rejects the unknown option (exit 2),
+# so probe it first.
+curl_retry_flags() {
+	if curl --retry-all-errors --version >/dev/null 2>&1; then
+		echo "--retry 5 --retry-all-errors"
+	else
+		echo "--retry 5"
+	fi
+}
+
 # fetch URL DEST — curl (handles file://) or wget; wget has no file:// so copy those directly.
+# Network downloads retry: GitHub release downloads answered 504 for a while on
+# 2026-11-08. A local file:// copy is not retried. wget retries in a loop here
+# because busybox wget has no --tries.
 fetch() {
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL -o "$2" "$1" 2>/dev/null
+		case "$1" in
+			file://*) curl -fsSL -o "$2" "$1" 2>/dev/null ;;
+			# curl's own error line (e.g. "returned error: 504") stays on stderr.
+			# shellcheck disable=SC2046 # split the flag list into words
+			*) curl -fsSL $(curl_retry_flags) -o "$2" "$1" ;;
+		esac
 	elif command -v wget >/dev/null 2>&1; then
 		case "$1" in
 			file://*) cp "${1#file://}" "$2" 2>/dev/null ;;
-			*) wget -qO "$2" "$1" ;;
+			*)
+				n=1
+				until wget -qO "$2" "$1"; do
+					[ "$n" -lt 5 ] || return 1
+					sleep "$n"
+					n=$((n + 1))
+				done
+				;;
 		esac
 	else
 		die "curl 또는 wget 이 필요합니다"
@@ -59,7 +87,8 @@ fetch() {
 
 download() {
 	if ! fetch "$1" "$2"; then
-		printf '내려받기 실패: %s (레포가 아직 비공개이거나 버전이 없습니다)\n' "$1" >&2
+		printf '내려받기 실패: %s\n' "$1" >&2
+		printf '  HTTP 오류(404: 레포가 아직 비공개이거나 그 버전이 없음, 5xx: GitHub 쪽 일시 장애)나 네트워크 문제일 수 있습니다 — 잠시 뒤 다시 실행하세요.\n' >&2
 		exit 1
 	fi
 }
