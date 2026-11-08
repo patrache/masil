@@ -83,8 +83,8 @@ const (
 // buildRows turns a window of messages plus the list's pending sends into rows:
 // a loading row first (o.Loading), date dividers before each day group (full
 // density only), the unread divider before the first message newer than
-// o.LastRead (only when a message at or before it is in the window, never in a
-// thread), then the pending sends in SentAt order.
+// o.LastRead that someone else wrote (only when a message at or before it is in
+// the window, never in a thread), then the pending sends in SentAt order.
 func buildRows(ctx *ui.Context, msgs []api.Message, pending []chatstore.PendingMessage, o rowOpts) []row {
 	loc := locOf(ctx)
 	full := ctx != nil && ctx.Density() == ui.DensityFull
@@ -101,6 +101,8 @@ func buildRows(ctx *ui.Context, msgs []api.Message, pending []chatstore.PendingM
 			switch {
 			case m.ID <= o.LastRead:
 				seenRead = true
+			case seenRead && ctx != nil && ctx.Store != nil && ctx.Store.IsMe(m.Author.ID):
+				// my own message is never new: the divider waits for someone else's
 			case seenRead:
 				rows = append(rows, row{Kind: rowUnread, ID: "unread"})
 				unreadDone = true

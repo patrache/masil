@@ -350,6 +350,26 @@ func TestBuildRowsDividersAndPending(t *testing.T) {
 	if got := strings.Join(ids, " "); got != "day:20261104 "+msgID(1)+" unread day:20261105 "+msgID(3) {
 		t.Fatalf("divider after a deleted read pointer: %s", got)
 	}
+	// my own messages are never "new" (G2 gate: a DM opened fully read showed
+	// "── 새 메시지 ──" above the message I had just sent): the divider goes before
+	// the first newer message someone else wrote, or nowhere.
+	me := userBy(t, ctx.Store, "sam")
+	if !ctx.Store.IsMe(me.ID) {
+		t.Fatal("fixture: sam is me")
+	}
+	mine := []api.Message{msgs[0], msgs[1], mkMsg("C", 3, me, "c", d2), mkMsg("C", 4, minji, "d", d2.Add(time.Minute))}
+	ids = ids[:0]
+	for _, r := range buildRows(ctx, mine, nil, rowOpts{LastRead: msgID(2)}) {
+		ids = append(ids, r.ID)
+	}
+	if got := strings.Join(ids, " "); got != "day:20261104 "+msgID(1)+" "+msgID(2)+" day:20261105 "+msgID(3)+" unread "+msgID(4) {
+		t.Fatalf("divider skips my message: %s", got)
+	}
+	for _, r := range buildRows(ctx, mine[:3], nil, rowOpts{LastRead: msgID(2)}) {
+		if r.Kind == rowUnread {
+			t.Fatal("only my own messages after the read pointer: no divider")
+		}
+	}
 	// threads have no unread divider.
 	for _, r := range buildRows(ctx, msgs, nil, rowOpts{LastRead: msgID(2), InThread: true}) {
 		if r.Kind == rowUnread {
