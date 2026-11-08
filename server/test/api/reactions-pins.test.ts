@@ -149,6 +149,11 @@ describe("system messages are not thread roots and take no reactions (D7)", () =
     const listed = (await api(b.token).get<any>(`/v1/channels/${ch}/messages`)).body.items.find((m: any) => m.id === sys.id);
     expect(listed.thread).toBeNull();
     expect(listed.reactions).toEqual([]);
+    const thread = (await api(b.token).get<any>(`/v1/messages/${sys.id}/thread`)).body;
+    expect(thread.root.id).toBe(sys.id);
+    expect(thread.items).toEqual([]);
+    expect(thread.has_more_before).toBe(false);
+    expect(thread.has_more_after).toBe(false);
   });
 
   it("a non-member still gets 404 (no existence leak before the kind check)", async () => {

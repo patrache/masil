@@ -1134,6 +1134,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `GET /v1/messages/{message_id}/thread?before=|after=&limit=`
 - `{message_id}` 는 루트(답글 ID 를 주면 그 루트로 해석). `limit` 기본 50, 최대 100, ID 오름차순.
 - `200 { "root": Message, "items": Message[], "has_more_before": boolean, "has_more_after": boolean }`
+- 루트가 `kind:"system"` 이면(D7) `items: []`, `has_more_before`/`has_more_after` 모두 `false` — v0.1.1 이전에 저장된 답글도 돌려주지 않는다.
 
 #### `POST /v1/messages/{message_id}/thread`
 - 쓰기 권한, `RL_MESSAGE`. 요청: `{ "client_nonce": string, "kind"?: "text"|"me"|"roll", "body": string }` (투표 불가)

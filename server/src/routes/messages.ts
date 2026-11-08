@@ -187,6 +187,12 @@ messageRoutes.get("/messages/:message_id/thread", requireAuth, vQuery(ThreadQuer
   const root = await threadRootOf(db, idParam(c, "message_id", "message"));
   await requireChannelRead(db, root.channel_id, me);
   if (root.deleted_at !== null && root.reply_count === 0) throw err.notFound("message");
+  if (root.kind === "system") {
+    // D7: never a thread root; replies a v0.1.0 server stored under it stay hidden.
+    const [sys] = await serializeMessages(db, me, [root]);
+    if (!sys) throw err.notFound("message");
+    return c.json({ root: sys, items: [], has_more_before: false, has_more_after: false });
+  }
 
   const exists = async (op: "<" | ">" | "<=" | ">=", id: string): Promise<boolean> =>
     (await first<{ x: number }>(db, `SELECT 1 AS x FROM messages WHERE ${REPLIES} AND id ${op} ?2 LIMIT 1`, root.id, id)) !== null;
