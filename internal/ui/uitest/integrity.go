@@ -163,20 +163,22 @@ func (r *reporter) finish() {
 func checkRunes(r *reporter, y int, plain string) {
 	for i := 0; i < len(plain); {
 		c, size := utf8.DecodeRuneInString(plain[i:])
-		col := ansi.StringWidth(plain[:i])
+		// col is counted only for a reported rune: counting it for every rune
+		// made each check quadratic in the line length.
+		col := func() int { return ansi.StringWidth(plain[:i]) }
 		switch {
 		case c == utf8.RuneError && size == 1:
-			r.errorf("line %d col %d: invalid UTF-8 byte %#x (unpaired surrogate or broken sequence)", y, col, plain[i])
+			r.errorf("line %d col %d: invalid UTF-8 byte %#x (unpaired surrogate or broken sequence)", y, col(), plain[i])
 		case c == utf8.RuneError:
-			r.errorf("line %d col %d: U+FFFD replacement character", y, col)
+			r.errorf("line %d col %d: U+FFFD replacement character", y, col())
 		case c < 0x20 || c == 0x7f || (c >= 0x80 && c <= 0x9f):
-			r.errorf("line %d col %d: control character %U", y, col, c)
+			r.errorf("line %d col %d: control character %U", y, col(), c)
 		case unicode.Is(unicode.Cf, c):
-			r.errorf("line %d col %d: format character %U (bidi control, zero-width or invisible rune; textwidth.Sanitize drops it, pending-fixes 1)", y, col, c)
+			r.errorf("line %d col %d: format character %U (bidi control, zero-width or invisible rune; textwidth.Sanitize drops it, pending-fixes 1)", y, col(), c)
 		case unicode.In(c, unicode.Zl, unicode.Zp):
-			r.errorf("line %d col %d: line/paragraph separator %U", y, col, c)
+			r.errorf("line %d col %d: line/paragraph separator %U", y, col(), c)
 		case Hidden(c):
-			r.errorf("line %d col %d: invisible default-ignorable rune or noncharacter %U (variation selector, combining grapheme joiner, Hangul filler, U+FFFE...; textwidth.Sanitize drops it, pending-fixes 1)", y, col, c)
+			r.errorf("line %d col %d: invisible default-ignorable rune or noncharacter %U (variation selector, combining grapheme joiner, Hangul filler, U+FFFE...; textwidth.Sanitize drops it, pending-fixes 1)", y, col(), c)
 		}
 		i += size
 	}
