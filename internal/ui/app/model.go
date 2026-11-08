@@ -227,6 +227,11 @@ func New(o Options) *Model {
 		}
 		m.login = &r
 	} else if o.InitialRoute != nil {
+		if !isRootKind(o.InitialRoute.Kind) {
+			// A non-root start route (`masil join` => RouteInvite) opens on the home tab,
+			// as after a fresh login, never on top of the restored active channel.
+			m.nav, _ = m.nav.navigate(ui.NavigateMsg{Route: homeRoute}, m.ctx.Mode)
+		}
 		m.nav, m.intent = m.nav.navigate(ui.NavigateMsg{Route: *o.InitialRoute}, m.ctx.Mode)
 		if m.intent.Slot == "" {
 			m.intent = FocusIntent{Slot: layout.SlotMain}

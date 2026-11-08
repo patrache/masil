@@ -221,6 +221,28 @@ func TestRestoreOnStart(t *testing.T) {
 	if got := navKeys(m2.Nav()); !reflect.DeepEqual(got, append(wantTabs, inv.Key())) || m2.Nav().Active != 3 {
 		t.Fatalf("with initial route: tabs %v active %d", got, m2.Nav().Active)
 	}
+
+	// `masil join <code>` (a non-root route) opens on the home tab, never on top of the
+	// restored active channel: otherwise that channel later shows the stale invite card
+	// (G2 gate: switching to the restored DM showed "방 초대").
+	join := ui.Route{Kind: ui.RouteInvite, ID: "AbC12345"}
+	m3 := app.New(app.Options{
+		Paths: p, Config: config.Defaults(), Credentials: credsFor(fixtures.UserSam, "sam"), InitialRoute: &join,
+		DisableRealtime: true, Timers: uitest.NewFakeClock(uitest.Start),
+		Notifier: notify.New(&notify.Recorder{}, notify.OpenLedger(p), slog.New(slog.DiscardHandler)),
+	})
+	n3 := m3.Nav()
+	if got := navKeys(n3); !reflect.DeepEqual(got, wantTabs) || n3.Active != 0 || n3.Front != app.FrontTab {
+		t.Fatalf("join: tabs %v active %d front %v, want %v active 0 (home) front tab", got, n3.Active, n3.Front, wantTabs)
+	}
+	if st := n3.Tabs[0].Stack; len(st) != 2 || st[1].Key() != join.Key() {
+		t.Fatalf("join: home stack %v, want home then the invite", st)
+	}
+	for i, tb := range n3.Tabs[1:] {
+		if len(tb.Stack) != 1 {
+			t.Fatalf("join: tab %d stack %v, want the restored root only", i+1, tb.Stack)
+		}
+	}
 }
 
 func TestRestoreIgnoresForeignOrCorruptState(t *testing.T) {
