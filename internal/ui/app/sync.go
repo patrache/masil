@@ -121,7 +121,7 @@ func (m *Model) startBootstrap() tea.Cmd {
 
 // onReady decides the resync on a ready event: the first ready of the process, a
 // resync_required, or the first ready after a REST bootstrap that ran because the
-// socket was late (CA 5.4).
+// socket was late (CA 5.4). Any other resumed ready runs the light Store.Backfill.
 func (m *Model) onReady(ev realtime.Event) tea.Cmd {
 	v, err := ev.Decode()
 	r, ok := v.(realtime.Ready)
@@ -136,6 +136,11 @@ func (m *Model) onReady(ev realtime.Event) tea.Cmd {
 	m.resyncOnReady = false
 	if first || r.ResyncRequired || again {
 		return m.startBootstrap()
+	}
+	if r.Resumed {
+		// the logged events were replayed; refetch what the transient SNS ones
+		// (events.md 4.8) would have brought while the socket was down
+		return m.ctx.Store.Backfill(m.ctx.API)
 	}
 	return nil
 }

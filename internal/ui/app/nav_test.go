@@ -274,6 +274,18 @@ func TestNavigateTable(t *testing.T) {
 			t.Fatalf("tabs = %+v active %d", n.Tabs, n.Active)
 		}
 	})
+	t.Run("home tab is never evicted", func(t *testing.T) {
+		n := newNavState()
+		for i := 1; i <= 12; i++ {
+			n = nav(n, ch(fmt.Sprintf("C%d", i)))
+		}
+		if len(n.Tabs) != 9 || n.Tabs[0].Stack[0].Kind != ui.RouteHome {
+			t.Fatalf("tabs = %+v", n.Tabs)
+		}
+		if n.Tabs[n.Active].Stack[0].ID != "C12" || n.Tabs[1].Stack[0].ID != "C5" {
+			t.Fatalf("tabs = %+v active %d", n.Tabs, n.Active)
+		}
+	})
 	t.Run("login resets", func(t *testing.T) {
 		n := nav(nav(nav(newNavState(), ch("C1")), post("P")), thr("R", "C1"))
 		n2, fi := n.navigate(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteLogin, Arg: "login"}}, layout.ModeCommand)

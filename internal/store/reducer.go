@@ -23,6 +23,26 @@ type Resyncer interface {
 	Resync(s *Store, c *api.Client) tea.Cmd
 }
 
+// Backfiller is optionally implemented by a Reducer.
+type Backfiller interface {
+	// Backfill is called after a resumed `ready` (no resync): the server replayed
+	// the logged events, but transient (휘발) ones sent while the socket was down
+	// are lost (events.md 4.8). It returns commands that refetch only what those
+	// would have brought to the open windows; nil when nothing is open.
+	Backfill(s *Store, c *api.Client) tea.Cmd
+}
+
+// Backfill batches every Backfiller's commands (see Backfiller).
+func (s *Store) Backfill(c *api.Client) tea.Cmd {
+	var cmds []tea.Cmd
+	for _, r := range s.reducerOrder {
+		if b, ok := r.(Backfiller); ok {
+			cmds = append(cmds, b.Backfill(s, c))
+		}
+	}
+	return tea.Batch(cmds...)
+}
+
 // reducerFactories is filled by RegisterReducer during init().
 var reducerFactories []func(s *Store) Reducer
 

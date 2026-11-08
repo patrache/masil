@@ -125,7 +125,7 @@ func (n *NavState) touch() {
 }
 
 // activateRoot activates the tab whose root key is root.Key(), adding it (and evicting the
-// least-recently-seen inactive tab past maxTabs) when missing. The stack is kept as is; a
+// least-recently-seen inactive tab other than 홈 past maxTabs) when missing. The stack is kept as is; a
 // root carrying a jump target (Anchor/Query) replaces the stored root so the app can send
 // RouteUpdatedMsg to the cached instance.
 func (n *NavState) activateRoot(root ui.Route) {
@@ -148,7 +148,8 @@ func (n *NavState) activateRoot(root ui.Route) {
 	}
 	victim := -1
 	for i, t := range n.Tabs {
-		if i != n.Active && (victim < 0 || t.seen < n.Tabs[victim].seen) {
+		// the 홈 tab is never evicted: compact has no rail or sidebar to bring it back
+		if i != n.Active && t.Stack[0].Kind != ui.RouteHome && (victim < 0 || t.seen < n.Tabs[victim].seen) {
 			victim = i
 		}
 	}

@@ -51,8 +51,10 @@ func RegisterSource(s Source) {
 	sources = append(sources, s)
 }
 
-// The core default sources (CA 5.6): channels, DMs, spaces, friends, commands.
+// The core default sources (CA 5.6): channels, DMs, spaces, friends, commands,
+// plus 홈 (widget, tiny and compact have no rail or sidebar that leads back to it).
 func init() {
+	RegisterSource(homeSource{})
 	RegisterSource(channelSource{})
 	RegisterSource(dmSource{})
 	RegisterSource(spaceSource{})
@@ -164,7 +166,8 @@ func collect(ctx *ui.Context, query string, people []api.UserSummary, peopleQ st
 	return out
 }
 
-// emptyItems: unread channels (spaces in order, then DMs), then the recent routes.
+// emptyItems: unread channels (spaces in order, then DMs), then the recent routes,
+// then 홈 (unless it is a recent route).
 func emptyItems(ctx *ui.Context) []Item {
 	var out []Item
 	seen := map[string]bool{}
@@ -188,6 +191,9 @@ func emptyItems(ctx *ui.Context) []Item {
 		}
 		seen[itemKey(it)] = true
 		out = append(out, refresh(ctx, it))
+	}
+	if home := homeItem(); !seen[itemKey(home)] {
+		out = append(out, home)
 	}
 	return out
 }
@@ -229,6 +235,29 @@ func remember(it Item) {
 }
 
 // ---- built-in sources ----
+
+// Home item copy.
+const (
+	homeTitle    = "홈"
+	homeSubtitle = "DM·친구·피드"
+)
+
+// homeItem is the 홈 route (spec 4: 레일/탭의 홈 = DM·친구·피드).
+func homeItem() Item {
+	return Item{Kind: ItemRoute, Title: homeTitle, Subtitle: homeSubtitle, Route: &ui.Route{Kind: ui.RouteHome}}
+}
+
+type homeSource struct{}
+
+func (homeSource) Items(_ *ui.Context, q string) []Item {
+	it := homeItem()
+	s, ok := matchTitle(q, it.Title, "home")
+	if !ok {
+		return nil
+	}
+	it.Score = s
+	return []Item{it}
+}
 
 func channelBadge(ch *api.Channel) ui.Badge {
 	return ui.Badge{Count: ch.My.UnreadCount, Mention: ch.My.MentionCount > 0}

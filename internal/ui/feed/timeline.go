@@ -44,6 +44,8 @@ const (
 	textEmptyDiscover = "아직 글이 없어요"
 	hintEmptyDiscover = "c 로 첫 글을 써 보세요"
 	textFeedTitle     = "피드"
+	textFeedLoadFail  = "피드를 불러오지 못했어요"
+	textRetry         = "다시 시도"
 	errContextFeed    = "피드"
 )
 
@@ -91,6 +93,7 @@ type viewKey struct {
 type timeline struct {
 	id   int
 	kind string // feedstore.KindFollowing | KindDiscover
+	key  string // route key (FocusChangedMsg)
 
 	list  *widgets.List[api.TimelineItem]
 	items []api.TimelineItem // newest first, blocked authors filtered
@@ -102,6 +105,8 @@ type timeline struct {
 
 	fadeUntil      time.Time
 	loadingFirst   bool
+	loadErr        bool // the last first-page request failed (retry notice instead of the empty state)
+	retryOnShow    bool // Resize while loadErr: retry on the next Update
 	loadingMore    bool
 	storiesLoading bool
 	storiesFails   int       // failed story-ring loads in a row
@@ -141,6 +146,7 @@ func newTimeline(_ *ui.Context, r ui.Route) ui.Component {
 	t := &timeline{
 		id:   int(timelineIDs.Add(1)),
 		kind: kind,
+		key:  r.Key(),
 		spin: widgets.NewSpinner(),
 		tabY: -1, ringY: -1, bannerY: -1,
 	}
@@ -188,10 +194,31 @@ func (t *timeline) fetch(kind string) func(*api.Client, context.Context, api.Tim
 
 func (t *timeline) loadFirst(ctx *ui.Context) tea.Cmd {
 	t.loadingFirst = true
+	t.retryOnShow = false
 	get := t.fetch(t.kind)
 	return tea.Batch(t.spin.Start(ctx), ui.Do(ctx, tagTimeline+t.kind, func(c context.Context, a *api.Client) (*api.TimelinePage, error) {
 		return get(a, c, api.TimelineQuery{})
 	}))
+}
+
+// retry re-requests a failed first page (nil unless the last one failed and
+// none is in flight): the r key, being shown again, and a resync.
+func (t *timeline) retry(ctx *ui.Context) tea.Cmd {
+	if !t.loadErr || t.loadingFirst {
+		return nil
+	}
+	return t.loadFirst(ctx)
+}
+
+// retryHint is "피드를 불러오지 못했어요 · r 다시 시도" (the retry key is post.reply's).
+func retryHint(ctx *ui.Context, text string) string {
+	k := "r"
+	if ctx != nil && ctx.Keys != nil {
+		if hk := ctx.Keys.Binding(keymap.PostReply).Help().Key; hk != "" {
+			k = hk
+		}
+	}
+	return text + " · " + k + " " + textRetry
 }
 
 // cursor is the FeedStore's next_cursor of the oldest loaded page (it outlives
@@ -396,8 +423,17 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case storiesRetryMsg:
 		force = false // the stale-ring check below does the work
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+	case ui.ModeChangedMsg:
 		imagesChanged = true
+		cmds = append(cmds, t.retry(ctx))
+	case ui.ThemeChangedMsg:
+		imagesChanged = true
+	case ui.FocusChangedMsg:
+		if m.RouteKey == t.key {
+			cmds = append(cmds, t.retry(ctx))
+		}
+	case ui.ResyncDoneMsg:
+		cmds = append(cmds, t.retry(ctx))
 	case ui.EventMsg:
 		if m.Event.Type == "timeline.item_created" {
 			before = make(map[string]bool, len(t.items))
@@ -409,6 +445,10 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if rt := reflect.TypeOf(msg); rt != nil && rt.PkgPath() == widgetsPkg {
 			force = false // spinner / fade ticks
 		}
+	}
+	if t.retryOnShow {
+		t.retryOnShow = false
+		cmds = append(cmds, t.retry(ctx))
 	}
 	if id, _, ok := t.imgs.loaded(msg); ok {
 		cmds = append(cmds, t.renderMedia(ctx, id))
@@ -450,8 +490,10 @@ func (t *timeline) onPage(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultM
 		t.loadingFirst = false
 		t.stopSpinner()
 		if m.Err != nil || m.Value == nil {
+			t.loadErr = true
 			return errCmd(m.Err)
 		}
+		t.loadErr = false
 		fs.SetTimelinePage(t.kind, m.Value)
 		if t.kind == feedstore.KindDiscover {
 			fs.SetDiscoverNew(0)
@@ -765,6 +807,8 @@ func (t *timeline) View(ctx *ui.Context, _ bool) string {
 		switch {
 		case len(t.items) == 0 && t.loadingFirst:
 			out = append(out, t.loadingLine(ctx, w))
+		case len(t.items) == 0 && t.loadErr:
+			out = append(out, fit(th, th.S.Base.Render("  ")+th.S.Error.Render(retryHint(ctx, textFeedLoadFail)), w))
 		case len(t.items) == 0:
 			title, hint := textEmptyFollow, hintEmptyFollow
 			if t.kind == feedstore.KindDiscover {
@@ -818,6 +862,7 @@ func (t *timeline) visibleTopics(ctx *ui.Context) []string {
 func (t *timeline) Resize(ctx *ui.Context, size ui.Size) {
 	t.size = size
 	t.lastViewAt = ctx.Now() // the app resizes only placed (shown) instances
+	t.retryOnShow = t.loadErr
 }
 
 // ---- input ----
@@ -866,6 +911,9 @@ func (t *timeline) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 	bannerVis := t.bannerVisible(ctx)
 	if !bannerVis {
 		t.bannerSel = false
+	}
+	if t.loadErr && len(t.items) == 0 && km.Matches(msg, keymap.PostReply) {
+		return true, t.retry(ctx)
 	}
 	switch s {
 	case "1":
@@ -1000,6 +1048,9 @@ func (t *timeline) Help(ctx *ui.Context) []key.Binding {
 		b := ctx.Keys.Binding(a)
 		b.SetHelp(b.Help().Key, desc)
 		return b
+	}
+	if t.loadErr && len(t.items) == 0 {
+		return []key.Binding{relabel(keymap.PostReply, textRetry), relabel(keymap.PostCompose, "새 글")}
 	}
 	return []key.Binding{
 		relabel(keymap.PostLike, "좋아요"),

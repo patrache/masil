@@ -47,6 +47,9 @@ const (
 	homeDMLabel     = "─ DM"
 	homeOnlineLabel = "─ 접속 중인 친구"
 	homeEmptyTitle  = "아직 대화가 없어요"
+	textNotLoaded   = "불러오는 중…"
+	textOffline     = "서버에 연결할 수 없어요"
+	textReconnect   = "다시 연결 중"
 	homeEmptyHint   = "ctrl+k 로 친구를 찾거나 + 로 방을 만들어 보세요"
 )
 
@@ -344,10 +347,31 @@ func (v *homeView) View(ctx *ui.Context, focused bool) string {
 	}
 	v.sync(ctx, focused)
 	if len(v.items) == 0 {
+		if title, hint, ok := notLoaded(ctx); ok {
+			icon := ""
+			if hint != "" {
+				icon = "⚠"
+			}
+			return widgets.Empty(themeOf(ctx), v.size, icon, title, hint)
+		}
 		return widgets.Empty(themeOf(ctx), v.size, "💬", homeEmptyTitle, homeEmptyHint)
 	}
 	lines := strings.Split(v.list.View(ctx, v.size), "\n")
 	return strings.Join(textwidth.Fit(lines, w, h), "\n")
+}
+
+// notLoaded is what the home and the sidebar say instead of their empty states
+// before the first successful bootstrap: "불러오는 중…", or (the last attempt
+// failed) "서버에 연결할 수 없어요" with the hint "다시 연결 중". ok is false once
+// bootstrapped (or without a Store): an empty list is then really empty.
+func notLoaded(ctx *ui.Context) (title, hint string, ok bool) {
+	if ctx == nil || ctx.Store == nil || ctx.Store.Sync.Bootstrapped {
+		return "", "", false
+	}
+	if ctx.Store.Sync.Err != nil {
+		return textOffline, textReconnect, true
+	}
+	return textNotLoaded, "", true
 }
 
 // Title is "홈", badged with the pending invites + friend requests.

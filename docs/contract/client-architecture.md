@@ -1147,7 +1147,14 @@ type Resyncer interface {
 	// Returns commands that refetch open windows (events.md 5.3 steps 2-4).
 	Resync(s *Store, c *api.Client) tea.Cmd
 }
-func RegisterReducer(factory func(s *Store) Reducer) // init()-time; reducer may also implement Resyncer
+type Backfiller interface {
+	// Called after a resumed `ready` (no resync): logged events were replayed, but transient ones
+	// (events.md 4.8) sent while the socket was down are lost. Returns commands that refetch only
+	// what those would have brought to the open windows.
+	Backfill(s *Store, c *api.Client) tea.Cmd
+}
+func (s *Store) Backfill(c *api.Client) tea.Cmd   // batches every Backfiller (the app calls it on a resumed ready)
+func RegisterReducer(factory func(s *Store) Reducer) // init()-time; reducer may also implement Resyncer / Backfiller
 func (s *Store) Reducer(name string) Reducer         // e.g. chatstore.Get(s) uses this
 
 // Bootstrap / resync (events.md 5.3 step 1), as tea commands.
@@ -2181,7 +2188,7 @@ func (f *FeedStore) Stories() []api.StoryGroup
 func (f *FeedStore) Trends() *api.Trends
 func (f *FeedStore) NewDiscoverCount() int                   // 30s polling banner "새 글 N개"
 ```
-- `init()` 에서 리듀서 `"feed"` 등록(`Resyncer`: events.md 5.3 4단계 — 팔로잉 `since=<겹침 기준>`, `gap` 이면 처음부터, 열린 글 상세 다시 받기).
+- `init()` 에서 리듀서 `"feed"` 등록(`Resyncer`: events.md 5.3 4단계 — 팔로잉 `since=<겹침 기준>`, `gap` 이면 처음부터, 열린 글 상세 다시 받기. `Backfiller`: `resumed:true` 재접속 뒤 휘발 이벤트가 채웠을 것만 — 팔로잉 `since=<겹침 기준>`, 열린 글 상세·답글 창, 스토리 링).
 
 `internal/ui/feed` 의 `init()` 등록: `RegisterRoute(RouteFeed|RoutePost|RouteProfile|RouteHashtag|RouteTrends|RouteNotifications|RouteStories|RouteCompose, …)`, 팔레트 명령(5.6 표의 `ui/feed` 행만). **`RegisterPane` 은 부르지 않는다** — 지휘소의 `SlotNotifications` 는 `RouteNotifications` 인스턴스를, `SlotFeed` 는 피드 표면의 경로 인스턴스를 앱이 띄운다(5.3.6). 따라서 알림함 컴포넌트는 지휘소 오른쪽 아래 창(좁음)과 컴팩트·위젯의 Main(넓음) 양쪽 크기를 `Resize` 로 받아 그려야 한다.
 - 차단·신고(5.8 소유 규칙): 프로필에 "차단"·"사용자 신고"(`"user"`), 글 메뉴에 "글 신고"(`"post"`), 스토리 보기에 "신고"(`"story"`), 방명록 글에 "신고"(`"guestbook_entry"`) — 모두 `widgets.ReportDialog`.

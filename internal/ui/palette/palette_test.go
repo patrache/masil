@@ -106,10 +106,15 @@ func TestRanking(t *testing.T) {
 		t.Fatalf("Available true: %q", got)
 	}
 
-	// Empty query: unread channels first, then recently chosen routes (newest first, max 8).
+	// Empty query: unread channels first, then recently chosen routes (newest first, max 8),
+	// then 홈 (widget/tiny/compact have no other way back to it).
 	items = palette.ItemsForTest(ctx, "")
-	if len(items) != 1 || items[0].Title != "#일반" || items[0].Badge.Count != 3 {
-		t.Fatalf("empty query: %+v, want only #일반 with badge 3", items)
+	if len(items) != 2 || items[0].Title != "#일반" || items[0].Badge.Count != 3 ||
+		items[1].Route == nil || items[1].Route.Kind != ui.RouteHome {
+		t.Fatalf("empty query: %+v, want #일반 with badge 3 then 홈", items)
+	}
+	if got := palette.ItemsForTest(ctx, "홈"); len(got) == 0 || got[0].Route == nil || got[0].Route.Kind != ui.RouteHome {
+		t.Fatalf("query 홈: %+v, want the home route first", got)
 	}
 	for i := 1; i <= 9; i++ {
 		palette.RememberForTest(palette.Item{Kind: palette.ItemRoute, Title: fmt.Sprintf("최근 %d", i),
@@ -118,7 +123,7 @@ func TestRanking(t *testing.T) {
 	palette.RememberForTest(palette.Item{Kind: palette.ItemRoute, Title: "최근 3",
 		Route: &ui.Route{Kind: ui.RouteHashtag, ID: "3"}}) // chosen again: moves to the front, no duplicate
 	got := titles(palette.ItemsForTest(ctx, ""))
-	want := []string{"#일반", "최근 3", "최근 9", "최근 8", "최근 7", "최근 6", "최근 5", "최근 4", "최근 2"}
+	want := []string{"#일반", "최근 3", "최근 9", "최근 8", "최근 7", "최근 6", "최근 5", "최근 4", "최근 2", "홈"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("empty query = %q, want %q", got, want)
 	}

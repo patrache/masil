@@ -200,7 +200,7 @@ func TestHomeClickOpens(t *testing.T) {
 
 func TestHomeEmptyGolden(t *testing.T) {
 	forEachSize(t, uitest.Required, func(t *testing.T, sz uitest.Size) *uitest.Harness {
-		return open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(func(*store.Store) {}))
+		return open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(func(s *store.Store) { s.Sync.Bootstrapped = true }))
 	}, func(t *testing.T, h *uitest.Harness) {
 		mustContain(t, h.Screen(), "아직 대화가 없어요")
 		h.Golden("home_empty")

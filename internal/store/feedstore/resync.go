@@ -78,6 +78,34 @@ func (f *FeedStore) Resync(_ *store.Store, c *api.Client) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// Backfill implements store.Backfiller: after a resumed ready it refetches what
+// the transient SNS events (events.md 4.8, never replayed) would have brought
+// while the socket was down — the following timeline since the overlap anchor
+// (gap => first page), each open post with its reply windows, and the story
+// ring. Discover keeps its own new-posts check; notifications are logged
+// events. Results land through ApplyResync like Resync's.
+func (f *FeedStore) Backfill(_ *store.Store, c *api.Client) tea.Cmd {
+	if c == nil {
+		return nil
+	}
+	var cmds []tea.Cmd
+	if f.open[keyFollowing] && f.TimelineLoaded(KindFollowing) {
+		cmds = append(cmds, resyncFollowing(c, f.nextSeq(), f.Timeline(KindFollowing).OverlapAnchor(resyncOverlap)))
+	}
+	for _, key := range f.openPosts {
+		if f.open[key] {
+			cmds = append(cmds, resyncPost(c, f.nextSeq(), key))
+		}
+	}
+	for _, parent := range f.openSubtrees() {
+		cmds = append(cmds, resyncReplies(c, f.nextSeq(), parent))
+	}
+	if f.open[keyStories] && f.Stories() != nil {
+		cmds = append(cmds, resyncStories(c, f.nextSeq()))
+	}
+	return tea.Batch(cmds...)
+}
+
 func (f *FeedStore) nextSeq() uint64 {
 	f.seq++
 	return f.seq

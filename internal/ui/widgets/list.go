@@ -34,14 +34,16 @@ type List[T any] struct {
 	anchorIdx int  // fallback when the anchor item disappears
 	follow    bool // stick to the bottom on new items
 	reveal    bool // bring the selection into view on the next layout
+	keepSel   bool // the size changed with the selection on screen: keep some of it in view
 	pendingG  bool // first "g" of "g g" seen
 
 	cache      map[listCacheKey][]string
 	cacheTheme *theme.Theme
 	cacheMode  layout.Mode
 
-	size ui.Size // last View size
-	rows []int   // last View: item index per visible row (-1 = blank)
+	size     ui.Size // last View size
+	rows     []int   // last View: item index per visible row (-1 = blank)
+	shownSel string  // last View: the selected item's ID when it was on screen, else ""
 }
 
 type listCacheKey struct {
@@ -203,10 +205,20 @@ func (l *List[T]) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 }
 
 // View renders exactly size.H lines of exactly size.W cells.
+//
+// When the size changed and the selection was on screen in the last View, it is
+// kept on screen (revealed when the new placement would hide it): a list pinned
+// to the bottom would otherwise show only the last lines and leave the selection
+// (which the keys act on) off screen.
 func (l *List[T]) View(ctx *ui.Context, size ui.Size) string {
+	if l.size.W > 0 && l.size.H > 0 && size != l.size && l.shownSel != "" && l.shownSel == l.selectedID() {
+		l.keepSel = true
+	}
 	l.size = size
 	l.rows = l.rows[:0]
+	l.shownSel = ""
 	if size.W <= 0 || size.H <= 0 {
+		l.keepSel = false
 		return ""
 	}
 	t := themeOf(ctx)
@@ -226,6 +238,12 @@ func (l *List[T]) View(ctx *ui.Context, size ui.Size) string {
 	for len(out) < size.H {
 		out = append(out, pad(t, size.W))
 		l.rows = append(l.rows, -1)
+	}
+	for _, i := range l.rows {
+		if i >= 0 && i == l.sel {
+			l.shownSel = l.selectedID()
+			break
+		}
 	}
 	return strings.Join(out, "\n")
 }
@@ -336,6 +354,14 @@ func (l *List[T]) place(ctx *ui.Context, w, h int) (idx, off int) {
 		idx = i
 		off = min(max(l.anchor.LineOffset, 0), l.height(ctx, i, w)-1)
 	}
+	if l.keepSel && !l.reveal && l.sel >= 0 {
+		bi, bo := idx, off
+		if l.remaining(ctx, w, bi, bo, h) < h {
+			bi, bo = l.bottomTop(ctx, w, h)
+		}
+		l.reveal = !l.shows(ctx, w, h, bi, bo, l.sel)
+	}
+	l.keepSel = false
 	if l.reveal && l.sel >= 0 {
 		idx, off = l.revealSel(ctx, w, h, idx, off)
 	}
@@ -346,6 +372,18 @@ func (l *List[T]) place(ctx *ui.Context, w, h int) (idx, off int) {
 	l.anchor = ScrollAnchor{ItemID: l.idOf(l.items[idx]), LineOffset: off, AtBottom: l.remaining(ctx, w, idx, off, h) <= h}
 	l.anchorIdx = idx
 	return idx, off
+}
+
+// shows reports whether any line of item s is drawn in a w x h view whose top is (idx, off).
+func (l *List[T]) shows(ctx *ui.Context, w, h, idx, off, s int) bool {
+	if s < idx {
+		return false
+	}
+	dist := -off
+	for i := idx; i < s && dist < h; i++ {
+		dist += l.height(ctx, i, w)
+	}
+	return dist < h
 }
 
 // bottomTop is the top position that shows the last h lines.

@@ -37,7 +37,8 @@ const (
 	sideNoticePrefix = "notice:"
 )
 
-// sideNoSpace is the notice drawn instead of the channel section without a space.
+// sideNoSpace is the notice drawn instead of the channel section without a space
+// (before the first bootstrap: notLoaded's text instead).
 const sideNoSpace = "방이 없어요 · + 로 만들기"
 
 // sideItem is one sidebar row (rebuilt from the Store on every View; every row is
@@ -112,9 +113,16 @@ func sideItems(ctx *ui.Context, cw int) []sideItem {
 			items = append(items, sideItem{ID: sideChanPrefix + ch.ID, Kind: sideChannel, Ch: ch})
 		}
 	} else {
-		lines := []string{sideNoSpace}
+		notice := sideNoSpace
+		if title, hint, ok := notLoaded(ctx); ok {
+			notice = title
+			if hint != "" {
+				notice += " · " + hint
+			}
+		}
+		lines := []string{notice}
 		if cw > 0 {
-			lines = wrapWords(sideNoSpace, cw)
+			lines = wrapWords(notice, cw)
 		}
 		for i, l := range lines {
 			items = append(items, sideItem{ID: sideNoticePrefix + string(rune('a'+i)), Kind: sideNotice, Text: l})

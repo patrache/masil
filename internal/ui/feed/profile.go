@@ -275,6 +275,18 @@ func (p *profile) loadProfile(ctx *ui.Context) tea.Cmd {
 	}))
 }
 
+// key is this screen's route key (FocusChangedMsg).
+func (p *profile) key() string { return ui.Route{Kind: ui.RouteProfile, ID: p.id}.Key() }
+
+// retry reloads a profile whose GET failed (r, reopening): nil unless loadFailed
+// and no request is in flight.
+func (p *profile) retry(ctx *ui.Context) tea.Cmd {
+	if !p.loadFailed || p.prof != nil {
+		return nil
+	}
+	return p.loadProfile(ctx)
+}
+
 func (p *profile) listTag(l *profileList, more bool) string {
 	if more {
 		return tagProfilePostsMore + p.id + " " + l.filter
@@ -420,8 +432,13 @@ func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.EventMsg:
 		cmds = append(cmds, p.onEvent(ctx, m))
 	case ui.RouteUpdatedMsg:
+		cmds = append(cmds, p.retry(ctx))
 		if t, ok := tabFromQuery(m.Route.Query); ok {
 			cmds = append(cmds, p.setTab(ctx, t))
+		}
+	case ui.FocusChangedMsg:
+		if m.RouteKey == p.key() {
+			cmds = append(cmds, p.retry(ctx)) // shown again (reopened)
 		}
 	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
 		imagesChanged = true
@@ -1183,8 +1200,10 @@ func (p *profile) View(ctx *ui.Context, _ bool) string {
 	switch {
 	case p.prof == nil && p.notFound:
 		return widgets.Empty(t, p.size, "⚠", textUserNotFound, hintGoBack)
+	case p.prof == nil && p.loadFailed && p.loading:
+		return blankRows(t, []string{p.loadingLine(ctx, w)}, w, h)
 	case p.prof == nil && p.loadFailed:
-		return widgets.Empty(t, p.size, "⚠", textProfileLoadFailed, hintGoBack)
+		return widgets.Empty(t, p.size, "⚠", textProfileLoadFailed, retryHint(ctx, hintGoBack))
 	case p.prof == nil:
 		return blankRows(t, []string{p.loadingLine(ctx, w)}, w, h)
 	}
@@ -1386,6 +1405,9 @@ func (p *profile) maybeMore(ctx *ui.Context, l *profileList) tea.Cmd {
 
 func (p *profile) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if p.prof == nil {
+		if p.loadFailed && ctx.Keys.Matches(msg, keymap.PostReply) {
+			return true, p.retry(ctx)
+		}
 		return false, nil
 	}
 	km := ctx.Keys
@@ -1512,6 +1534,11 @@ func (p *profile) Title(*ui.Context) (string, ui.Badge) {
 
 func (p *profile) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
+	if p.prof == nil && p.loadFailed {
+		r := ctx.Keys.Binding(keymap.PostReply)
+		r.SetHelp(r.Help().Key, textRetry)
+		return []key.Binding{r}
+	}
 	out := []key.Binding{}
 	switch {
 	case p.prof != nil && p.isMe(ctx):

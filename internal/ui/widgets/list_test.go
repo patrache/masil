@@ -444,3 +444,60 @@ func TestListAt(t *testing.T) {
 		}
 	}
 }
+
+// A list at the bottom with a selection a few items above the last one keeps that
+// selection on screen when the view shrinks (a narrower or shorter pane): bottom
+// pinning must not push a selection that was visible out of view (r, t and the
+// edit/delete keys act on it).
+func TestListShrinkKeepsVisibleSelectionOnScreen(t *testing.T) {
+	ctx := newCtx(nil, false)
+	for _, sz := range [][2]int{{30, 12}, {20, 8}, {12, 6}} {
+		t.Run(fmt.Sprintf("%dx%d", sz[0], sz[1]), func(t *testing.T) {
+			l := newTestList()
+			l.Follow(true)
+			l.SetItems(items(40, func(i int) int { return i % 2 }, "가나다 라마바"))
+			l.Select("m39")
+			viewLines(ctx, l, 40, 30)
+			l.Select("m33")
+			lines := viewLines(ctx, l, 40, 30)
+			if !l.AtBottom() || !hasID(lines, "m33") {
+				t.Fatalf("precondition: AtBottom=%v, m33 on screen=%v", l.AtBottom(), hasID(lines, "m33"))
+			}
+			lines = viewLines(ctx, l, sz[0], sz[1])
+			if !hasID(lines, "m33") {
+				t.Fatalf("selection m33 left the view after shrinking:\n%s", ansi.Strip(strings.Join(lines, "\n")))
+			}
+			if got := selectedID(t, l, func(it item) string { return it.id }); got != "m33" {
+				t.Fatalf("selection = %q, want m33", got)
+			}
+		})
+	}
+}
+
+// A selection that was off screen (scrolled away) is not pulled back by a resize.
+func TestListResizeLeavesHiddenSelectionAlone(t *testing.T) {
+	ctx := newCtx(nil, false)
+	l := newTestList()
+	l.Follow(true)
+	l.SetItems(items(40, nil, ""))
+	l.Select("m0")
+	viewLines(ctx, l, 20, 5)
+	l.Restore(widgets.ScrollAnchor{AtBottom: true})
+	lines := viewLines(ctx, l, 20, 5)
+	if hasID(lines, "m0") {
+		t.Fatal("precondition: m0 on screen")
+	}
+	lines = viewLines(ctx, l, 15, 4)
+	if hasID(lines, "m0") || !l.AtBottom() {
+		t.Fatalf("hidden selection pulled into view (AtBottom=%v):\n%s", l.AtBottom(), ansi.Strip(strings.Join(lines, "\n")))
+	}
+}
+
+func hasID(lines []string, id string) bool {
+	for _, l := range lines {
+		if firstID(l) == id {
+			return true
+		}
+	}
+	return false
+}
