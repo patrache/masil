@@ -166,16 +166,17 @@ func TestSequenceForbidden(t *testing.T) {
 func TestBlockingCmdFails(t *testing.T) {
 	h, _, rec := withProbe(t, func(_ *ui.Context, msg tea.Msg) tea.Cmd {
 		if msg == probeMsg("block") {
-			return func() tea.Msg { time.Sleep(1500 * time.Millisecond); return nil }
+			return func() tea.Msg { time.Sleep(blockLimit + 500*time.Millisecond); return nil }
 		}
 		return nil
 	})
 	start := time.Now()
 	h.Send(probeMsg("block"))
-	if rec.fatals != 1 || len(rec.errs) != 1 || !strings.Contains(rec.errs[0], "Cmd blocked > 1s") {
-		t.Fatalf("fatals=%d reports=%v, want one Fatal containing %q", rec.fatals, rec.errs, "Cmd blocked > 1s")
+	want := "Cmd blocked > " + blockLimit.String()
+	if rec.fatals != 1 || len(rec.errs) != 1 || !strings.Contains(rec.errs[0], want) {
+		t.Fatalf("fatals=%d reports=%v, want one Fatal containing %q", rec.fatals, rec.errs, want)
 	}
-	if el := time.Since(start); el > 1400*time.Millisecond {
+	if el := time.Since(start); el > blockLimit+400*time.Millisecond {
 		t.Fatalf("the watchdog fired after %v, want ~1s", el)
 	}
 }

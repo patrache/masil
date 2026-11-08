@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"reflect"
 	"regexp"
 	"testing"
@@ -38,7 +39,15 @@ const defaultW, defaultH = 120, 40
 const maxDepth = 32
 
 // blockLimit is how long one Cmd may run before the harness reports it (CA 10.2).
-const blockLimit = time.Second
+// CI runners (CI is set, as on GitHub Actions) run the whole parallel `go test ./...`
+// several times slower, so a Cmd doing real work can pass 1s there; the limit is 10s on
+// CI and stays 1s locally, where the gate runs.
+var blockLimit = func() time.Duration {
+	if os.Getenv("CI") != "" {
+		return 10 * time.Second
+	}
+	return time.Second
+}()
 
 // teaPkg is the package path of bubbletea-internal messages (recorded, not re-dispatched).
 const teaPkg = "charm.land/bubbletea/v2"
@@ -311,7 +320,7 @@ func (h *Harness) call(cmd tea.Cmd) (tea.Msg, bool) {
 		}
 		return r.msg, true
 	case <-timer.C:
-		h.T.Fatalf("Cmd blocked > 1s: raw tea.Tick/Every or sleep in UI code?")
+		h.T.Fatalf("Cmd blocked > %v: raw tea.Tick/Every or sleep in UI code?", blockLimit)
 		return nil, false
 	}
 }
