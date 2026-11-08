@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -753,5 +754,26 @@ func TestComposeStoryBGFixedWhileSending(t *testing.T) {
 	h.Press("esc", "b")
 	if c.bg != bg {
 		t.Fatalf("bg %q -> %q while sending", bg, c.bg)
+	}
+}
+
+// The reply / quote composer shows its target's card (counts included), so it
+// watches the target's topic: post.stats for the reply or quote just sent
+// (published to topic:post:<target> only, events.md 4.8) reaches the cached
+// post instead of being missed while the feed is off screen. A new post or a
+// story shows no post and watches nothing.
+func TestComposeWatchesTarget(t *testing.T) {
+	id := postBy("hana").ID
+	for _, mode := range []string{"reply", "quote"} {
+		h := uitest.New(t, composeOpts(t, composeRoute(id, mode))...)
+		_ = h.Screen()
+		if got := composeAt(t, h, "compose/"+id+"/post").WatchTopics(); !slices.Equal(got, []string{"post:" + id}) {
+			t.Errorf("%s WatchTopics = %v", mode, got)
+		}
+	}
+	h := uitest.New(t, composeOpts(t, ui.Route{Kind: ui.RouteCompose, Arg: "post"})...)
+	_ = h.Screen()
+	if got := composeAt(t, h, keyComposePost).WatchTopics(); len(got) != 0 {
+		t.Errorf("new post WatchTopics = %v", got)
 	}
 }

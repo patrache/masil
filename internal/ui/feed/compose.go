@@ -158,6 +158,7 @@ var (
 	_ ui.Persistent    = (*compose)(nil)
 	_ ui.Titled        = (*compose)(nil)
 	_ ui.Helper        = (*compose)(nil)
+	_ ui.Watcher       = (*compose)(nil)
 )
 
 // modeOf is the composer mode of r.
@@ -222,6 +223,16 @@ func (c *compose) target() string {
 func (c *compose) targetPost(ctx *ui.Context) *api.Post {
 	if id := c.target(); id != "" {
 		return fsPost(c.fs(ctx), id)
+	}
+	return nil
+}
+
+// WatchTopics watches the reply / quote target the composer shows: the
+// post.stats of what this composer sends goes only to topic:post:<target>
+// (events.md 4.8), so without it the cached counts would stay stale.
+func (c *compose) WatchTopics() []string {
+	if id := c.target(); id != "" {
+		return []string{"post:" + id}
 	}
 	return nil
 }
