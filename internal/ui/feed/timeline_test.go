@@ -372,6 +372,42 @@ func TestTimelineLiveInsert(t *testing.T) {
 	}
 }
 
+// The new-item fade paints the 2-cell gutter only: a card's closing "┄" rule is
+// full width, so it must keep every cell during the fade and after it (the M4
+// gate saw a live card's rule start 2 cells in — and stay so once the fade ended).
+func TestTimelineLiveInsertFadeKeepsRule(t *testing.T) {
+	h := uitest.New(t, feedOpts(t, "following", false)...)
+	h.Context().Config.UI.Animations = true
+	h.Screen()
+	p := mkPost(90, "minji", "실시간으로 온 글", 0)
+	p.ID = discoverNewID(9)
+	h.Event("timeline.item_created", map[string]any{"item": itemOf(p)})
+	rules := func(when string) {
+		t.Helper()
+		scr := h.Screen()
+		n, want := 0, -1
+		for _, l := range strings.Split(scr, "\n") {
+			c := strings.Count(l, "┄")
+			if c == 0 {
+				continue
+			}
+			n++
+			if want < 0 {
+				want = c
+			}
+			if c != want {
+				t.Fatalf("%s: a card rule is %d cells, another %d:\n%s", when, c, want, scr)
+			}
+		}
+		if n < 2 {
+			t.Fatalf("%s: want at least 2 card rules:\n%s", when, scr)
+		}
+	}
+	rules("while fading")
+	h.Advance(2 * time.Second)
+	rules("after the fade")
+}
+
 func TestTimelineTabsKeys(t *testing.T) {
 	h := uitest.New(t, feedOpts(t, "discover", false)...)
 	h.Press("2")

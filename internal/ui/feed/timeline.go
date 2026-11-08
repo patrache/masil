@@ -659,6 +659,10 @@ func (t *timeline) renderItem(ctx *ui.Context, it api.TimelineItem, selected boo
 	st := t.fade.Style(themeOf(ctx), it.ID)
 	out := make([]string, len(v.Lines))
 	for i, l := range v.Lines {
+		if isRule(l) { // the closing rule has no gutter: keep it full width
+			out[i] = l
+			continue
+		}
 		out[i] = st.Render(strings.Repeat(" ", gutterW)) + ansi.Cut(l, gutterW, width)
 	}
 	return out
