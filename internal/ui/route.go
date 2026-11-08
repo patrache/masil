@@ -13,7 +13,7 @@ const (
 	RouteSearch        RouteKind = "search"         // chat: Arg=query, ID=channel|space scope ("" global)
 	RouteInvite        RouteKind = "invite"         // chat: ID=invite code (link preview); Arg="direct" => direct invite, ID=invite id ("" = list of pending Store.DirectInvites)
 	RouteSpaceSettings RouteKind = "space_settings" // chat: ID=space id
-	RouteFriends       RouteKind = "friends"        // chat
+	RouteFriends       RouteKind = "friends"        // chat: Anchor=FriendsIncoming|FriendsList opens that tab ("" = the remembered one)
 	RouteFeed          RouteKind = "feed"           // sns-fun: Arg="following"|"discover"
 	RoutePost          RouteKind = "post"           // sns-fun: ID=post id
 	RouteProfile       RouteKind = "profile"        // sns-fun: ID=user id or "@handle"
@@ -25,6 +25,13 @@ const (
 	RouteSettings      RouteKind = "settings"       // core
 	RouteLogin         RouteKind = "login"          // core
 	RouteHelp          RouteKind = "help"           // core
+)
+
+// RouteFriends anchors: the tab the friends screen opens on (a home row, a
+// friend-request alert or notification).
+const (
+	FriendsList     = "friends"  // 친구
+	FriendsIncoming = "incoming" // 받은 요청
 )
 
 // Route is a logical place.

@@ -134,6 +134,8 @@ type friendsView struct {
 	outFailed bool
 
 	awaiting map[string]int // direct invites in flight by result tag
+
+	anchorTab int // the tab the route's Anchor asks for (-1 = none); wins over LoadState
 }
 
 var (
@@ -146,11 +148,26 @@ var (
 )
 
 // newFriends is the RouteFriends factory.
-func newFriends(ctx *ui.Context, _ ui.Route) ui.Component {
-	v := &friendsView{tabs: widgets.NewTabs(), awaiting: map[string]int{}}
+func newFriends(ctx *ui.Context, r ui.Route) ui.Component {
+	v := &friendsView{tabs: widgets.NewTabs(), awaiting: map[string]int{}, anchorTab: -1}
 	v.list = widgets.NewList(func(it friendItem) string { return it.ID }, v.render)
+	if tab, ok := anchorTab(r.Anchor); ok {
+		v.tab, v.anchorTab = tab, tab
+	}
 	v.sync(ctx)
 	return v
+}
+
+// anchorTab is the tab a RouteFriends Anchor opens (C1: a friend request leads
+// to 받은 요청); ok=false keeps the current / remembered tab.
+func anchorTab(anchor string) (int, bool) {
+	switch anchor {
+	case ui.FriendsList:
+		return tabFriends, true
+	case ui.FriendsIncoming:
+		return tabIncoming, true
+	}
+	return 0, false
 }
 
 // ---- rows ----
@@ -384,6 +401,9 @@ func (v *friendsView) LoadState(s any) {
 	}
 	v.tab = max(0, min(friendTabs-1, st.Tab))
 	v.sel = st.Selected
+	if v.anchorTab >= 0 {
+		v.tab = v.anchorTab
+	}
 }
 
 // ---- updates ----
@@ -424,6 +444,10 @@ func (v *friendsView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.ResultMsg[*api.FriendRequestResult]:
 		if strings.HasPrefix(m.Tag, tagFriendAddPrefix) && m.Err == nil {
 			return v.fetchOut(ctx)
+		}
+	case ui.RouteUpdatedMsg:
+		if tab, ok := anchorTab(m.Route.Anchor); ok {
+			v.setTab(ctx, tab)
 		}
 	case friendsRefreshMsg:
 		return v.fetchOut(ctx)

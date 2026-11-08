@@ -1674,7 +1674,7 @@ const (
 	RouteSearch        RouteKind = "search"        // chat: Arg=query, ID=channel|space scope ("" global)
 	RouteInvite        RouteKind = "invite"        // chat: ID=invite code (link preview); Arg="direct" => direct invite, ID=invite id ("" = list of pending Store.DirectInvites)
 	RouteSpaceSettings RouteKind = "space_settings"// chat: ID=space id
-	RouteFriends       RouteKind = "friends"       // chat
+	RouteFriends       RouteKind = "friends"       // chat: Anchor=FriendsIncoming("incoming")|FriendsList("friends") 이면 그 탭으로 연다("" = 기억한 탭) — v0.1.1 C1
 	RouteFeed          RouteKind = "feed"          // sns-fun: Arg="following"|"discover"
 	RoutePost          RouteKind = "post"          // sns-fun: ID=post id
 	RouteProfile       RouteKind = "profile"       // sns-fun: ID=user id or "@handle"
@@ -2192,7 +2192,7 @@ func (f *FeedStore) NewDiscoverCount() int                   // 30s polling bann
 
 `internal/ui/feed` 의 `init()` 등록: `RegisterRoute(RouteFeed|RoutePost|RouteProfile|RouteHashtag|RouteTrends|RouteNotifications|RouteStories|RouteCompose, …)`, 팔레트 명령(5.6 표의 `ui/feed` 행만). **`RegisterPane` 은 부르지 않는다** — 지휘소의 `SlotNotifications` 는 `RouteNotifications` 인스턴스를, `SlotFeed` 는 피드 표면의 경로 인스턴스를 앱이 띄운다(5.3.6). 따라서 알림함 컴포넌트는 지휘소 오른쪽 아래 창(좁음)과 컴팩트·위젯의 Main(넓음) 양쪽 크기를 `Resize` 로 받아 그려야 한다.
 - 차단·신고(5.8 소유 규칙): 프로필에 "차단"·"사용자 신고"(`"user"`), 글 메뉴에 "글 신고"(`"post"`), 스토리 보기에 "신고"(`"story"`), 방명록 글에 "신고"(`"guestbook_entry"`) — 모두 `widgets.ReportDialog`.
-- 알림함 항목 `enter` 는 대상 경로로 이동한다(채팅 대상이면 `RouteChannel`/`RouteThread`, 방 초대면 `RouteInvite{Arg:"direct", ID:<subject.id>}`, 친구 요청이면 `RouteFriends`).
+- 알림함 항목 `enter` 는 대상 경로로 이동한다(채팅 대상이면 `RouteChannel`/`RouteThread`, 방 초대면 `RouteInvite{Arg:"direct", ID:<subject.id>}`, 친구 요청이면 `RouteFriends{Anchor:"incoming"}` — 받은 요청 탭).
 - 피드 카드: 작성자·상대 시간·본문(`markup`, 해시태그 강조)·이미지(`imgrender`)·투표(`widgets.PollView`)·`♥ 12  ↻ 3  💬 4`. 상단 스토리 링(안 본 것 acc 링). 지휘소 피드 열 상단 탭 `피드 / 팔로잉 / #트렌드`.
 - 보이는 글은 `Watcher.WatchTopics()` 로 `post:<id>` 를 낸다.
 

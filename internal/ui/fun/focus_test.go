@@ -377,7 +377,7 @@ func TestAlertRoute(t *testing.T) {
 		{"notification", api.Alert{Kind: api.AlertSocial, Target: api.AlertTarget{Type: "notification", ID: "N1"}},
 			ui.Route{Kind: ui.RouteNotifications}, true},
 		{"friend request", api.Alert{Kind: api.AlertFriendRequest, Target: api.AlertTarget{Type: "user", ID: fixtures.UserMinji}},
-			ui.Route{Kind: ui.RouteFriends}, true},
+			ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}, true},
 		{"focus summary", api.Alert{Kind: api.AlertFocusSummary, Target: api.AlertTarget{Type: "notification", ID: "A"}},
 			ui.Route{Kind: ui.RouteNotifications}, true},
 		{"message without channel", api.Alert{Kind: api.AlertMention, Target: api.AlertTarget{Type: "message", ID: msg}},

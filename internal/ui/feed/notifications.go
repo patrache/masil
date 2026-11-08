@@ -103,7 +103,7 @@ func notifTarget(n api.Notification) (r ui.Route, overlay string, ok bool) {
 	case "follow_request":
 		return ui.Route{}, overlayFollowRequests, true
 	case "friend_request":
-		return ui.Route{Kind: ui.RouteFriends}, "", true
+		return ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}, "", true
 	case "space_invite":
 		return ui.Route{Kind: ui.RouteInvite, Arg: "direct", ID: n.Subject.ID}, "", true
 	case "guestbook_entry":

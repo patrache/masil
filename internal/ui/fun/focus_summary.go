@@ -52,7 +52,7 @@ func alertRoute(st *store.Store, a api.Alert) (ui.Route, bool) {
 	case api.AlertFocusSummary:
 		return inbox, true
 	case api.AlertFriendRequest:
-		return ui.Route{Kind: ui.RouteFriends}, true
+		return ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}, true
 	}
 	t := a.Target
 	switch t.Type {
