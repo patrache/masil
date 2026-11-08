@@ -128,6 +128,29 @@ describe("system messages are not thread roots and take no reactions (D7)", () =
     expect(rows!.n).toBe(0);
   });
 
+  it("replies / reactions left on a system message by v0.1.0 (written straight to D1) are hidden: thread null, reactions []", async () => {
+    const { a, b, ch } = await dmPair();
+    const d = await post(a, ch, "pin me");
+    await api(a.token).put(`/v1/messages/${d.id}/pin`);
+    const sys = (await api(b.token).get<any>(`/v1/channels/${ch}/messages`)).body.items.find((m: any) => m.kind === "system");
+    const t = Date.now();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO messages (id, channel_id, author_id, kind, body, thread_root_id, created_at) VALUES (?1, ?2, ?3, 'text', 'old reply', ?4, ?5)",
+      ).bind(newId(t), ch, b.user.id, sys.id, t),
+      env.DB.prepare("UPDATE messages SET reply_count = 1, last_reply_at = ?2 WHERE id = ?1").bind(sys.id, t),
+      env.DB.prepare("INSERT INTO thread_participants (root_id, user_id, last_reply_at) VALUES (?1, ?2, ?3)").bind(sys.id, b.user.id, t),
+      env.DB.prepare("INSERT INTO message_reactions (message_id, emoji, user_id, created_at) VALUES (?1, '👍', ?2, ?3)").bind(sys.id, b.user.id, t),
+    ]);
+
+    const one = (await api(b.token).get<any>(`/v1/messages/${sys.id}`)).body.message;
+    expect(one.thread).toBeNull();
+    expect(one.reactions).toEqual([]);
+    const listed = (await api(b.token).get<any>(`/v1/channels/${ch}/messages`)).body.items.find((m: any) => m.id === sys.id);
+    expect(listed.thread).toBeNull();
+    expect(listed.reactions).toEqual([]);
+  });
+
   it("a non-member still gets 404 (no existence leak before the kind check)", async () => {
     const { a, ch } = await dmPair();
     const d = await post(a, ch, "pin me");

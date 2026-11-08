@@ -454,7 +454,7 @@ interface Message {
   mention_here: boolean;
   thread_root_id: ID | null;         // set => this is a thread reply
   thread: ThreadSummary | null;      // roots with >= 1 reply; always null for kind "system" (never a thread root, 5.11)
-  reactions: ReactionSummary[];      // ordered by first reaction time; always [] for kind "system" (5.12)
+  reactions: ReactionSummary[];      // ordered by first reaction time; always [] for kind "system" (5.12; replies/reactions stored before v0.1.1 are hidden, not returned)
   pinned: boolean;
   poll: Poll | null;
   roll: RollResult | null;
