@@ -161,11 +161,32 @@ func vp8xChunk(flags byte, w, h int) riffChunk {
 	return riffChunk{"VP8X", d}
 }
 
-// vp8lChunk is a VP8L chunk whose header claims w x h (the bitstream itself
-// is zeros: enough for DecodeConfig).
-func vp8lChunk(w, h int) riffChunk {
-	d := append([]byte{0x2f}, binary.LittleEndian.AppendUint32(nil, uint32(w-1)|uint32(h-1)<<14)...)
-	return riffChunk{"VP8L", append(d, make([]byte, 16)...)}
+// vp8lStart is the start of a w x h VP8L bitstream up to its pixels: no
+// transform, no colour cache, one group of one-symbol trees (the Huffman
+// groups the check reads from the bitstream, pending item 13). headerless
+// leaves out the 5-byte header, as in an ALPH chunk.
+func vp8lStart(w, h int, headerless bool) []byte {
+	var bw bitWriter
+	if !headerless {
+		bw.put(0x2f, 8)
+		bw.put(uint32(w-1), 14)
+		bw.put(uint32(h-1), 14)
+		bw.put(0, 4) // alpha hint, version
+	}
+	bw.put(0, 3) // no transform, no colour cache, no meta Huffman image
+	for range 5 {
+		bw.simpleTree()
+	}
+	return append(bw.bytes(), make([]byte, 16)...)
+}
+
+// vp8lChunk is a VP8L chunk claiming w x h (its pixels are not there: enough
+// for DecodeConfig and the header check).
+func vp8lChunk(w, h int) riffChunk { return riffChunk{"VP8L", vp8lStart(w, h, false)} }
+
+// alphChunk is an ALPH chunk of a VP8L-compressed w x h plane (pixels left out).
+func alphChunk(w, h int) riffChunk {
+	return riffChunk{"ALPH", append([]byte{1}, vp8lStart(w, h, true)...)}
 }
 
 // vp8Chunk is a VP8 key frame header claiming w x h.
@@ -233,8 +254,8 @@ func TestDecodeCostCountsDecoderBuffers(t *testing.T) {
 		{"webp VP8L 4000x3000", ctWebP, webpOf(vp8lChunk(4000, 3000)), true, true},
 		{"webp VP8L 6000x4000", ctWebP, webpOf(vp8lChunk(6000, 4000)), false, true},
 		// The ALPH plane is a VP8L image of its own.
-		{"webp VP8X alpha + ALPH + VP8 6000x4000", ctWebP, webpOf(vp8xChunk(vp8xAlpha, 6000, 4000), riffChunk{"ALPH", []byte{1, 0}}, vp8Chunk(6000, 4000)), false, true},
-		{"webp VP8X alpha + ALPH + VP8 3000x2000", ctWebP, webpOf(vp8xChunk(vp8xAlpha, 3000, 2000), riffChunk{"ALPH", []byte{1, 0}}, vp8Chunk(3000, 2000)), true, true},
+		{"webp VP8X alpha + ALPH + VP8 6000x4000", ctWebP, webpOf(vp8xChunk(vp8xAlpha, 6000, 4000), alphChunk(6000, 4000), vp8Chunk(6000, 4000)), false, true},
+		{"webp VP8X alpha + ALPH + VP8 3000x2000", ctWebP, webpOf(vp8xChunk(vp8xAlpha, 3000, 2000), alphChunk(3000, 2000), vp8Chunk(3000, 2000)), true, true},
 		// A VP8X with no bitstream we can find counts the worst case.
 		{"webp VP8X without a bitstream", ctWebP, webpOf(vp8xChunk(0, 6000, 4000)), false, false},
 	}

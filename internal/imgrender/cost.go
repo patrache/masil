@@ -32,11 +32,14 @@ import (
 //   - WebP: the first VP8 or VP8L chunk decides the decoder; a VP8X header
 //     does not say which follows. A lossless image may need its packed
 //     colour-indexed pixels and the unpacked image at once, plus the
-//     transform and Huffman meta images; an ALPH plane is itself a lossless
+//     transform and Huffman meta images, plus its Huffman groups (up to
+//     2600 groups of five trees, whose sizes only the bitstream tells:
+//     vp8lHuffmanBytes reads them); an ALPH plane is itself a lossless
 //     image plus a 1-byte copy; a lossy frame buffers its partitions.
 //
-// decodeOverhead covers the fixed buffers (zlib window, bufio readers,
-// Huffman and quantisation tables) on top of that.
+// decodeOverhead covers the fixed buffers (zlib window, bufio readers, the
+// fixed-size Huffman and quantisation tables of PNG, JPEG, GIF and VP8, a
+// lossless sub-image's single Huffman group) on top of that.
 const decodeOverhead = 1 << 20
 
 // decodeCost is the most bytes decoding data (of type ct, header cfg) can
@@ -280,59 +283,98 @@ func webpCost(data []byte, w, h int64) (int64, error) {
 	vp8 := frame + int64(len(data))
 	vp8l := vp8lCost(w, h)
 	alpha := vp8l + w*h
-	id, alph, claimed, present := webpBitstream(data)
+	bs := webpBitstream(data)
 	cost := max(vp8, vp8l)
-	switch id {
+	switch bs.id {
 	case "VP8 ":
 		// x/image/vp8 allocates the partition buffer at the length the
 		// chunk header claims and only then reads it, so a claim beyond the
 		// file is refused (decoding it would fail anyway).
-		if claimed > present {
-			return 0, fmt.Errorf("imgrender: decode %s: VP8 chunk claims %d bytes, %d present", ctWebP, claimed, present)
+		if bs.claimed > int64(len(bs.data)) {
+			return 0, fmt.Errorf("imgrender: decode %s: VP8 chunk claims %d bytes, %d present", ctWebP, bs.claimed, len(bs.data))
 		}
-		cost = frame + claimed
+		cost = frame + bs.claimed
 	case "VP8L":
-		cost = vp8l
+		groups, err := vp8lHuffmanBytes(bs.data)
+		if err != nil {
+			return 0, fmt.Errorf("imgrender: decode %s: %w", ctWebP, err)
+		}
+		cost = vp8l + groups
 	default:
-		alph = true
+		bs.alph = true
 	}
-	if alph {
+	if bs.alph {
 		cost += alpha
+		if bs.alphData != nil {
+			groups, err := alphHuffmanBytes(bs.alphData, w, h)
+			if err != nil {
+				return 0, fmt.Errorf("imgrender: decode %s: ALPH: %w", ctWebP, err)
+			}
+			cost += groups
+		}
 	}
 	return cost, nil
+}
+
+// alphHuffmanBytes is vp8lHuffmanBytes for an ALPH chunk payload: with
+// compression 1 x/image/webp decodes it as a VP8L image of the canvas size
+// behind a header it makes up. Other compressions hold no Huffman groups.
+func alphHuffmanBytes(payload []byte, w, h int64) (int64, error) {
+	if len(payload) == 0 || payload[0]&3 != 1 {
+		return 0, nil
+	}
+	if w-1 > 0x3fff || h-1 > 0x3fff {
+		return 0, fmt.Errorf("alpha plane %dx%d too large", w, h)
+	}
+	wm1, hm1 := uint32(w-1), uint32(h-1)
+	head := []byte{0x2f, uint8(wm1), uint8(wm1>>8) | uint8(hm1<<6), uint8(hm1 >> 2), uint8(hm1 >> 10)}
+	return vp8lHuffmanBytes(append(head, payload[1:]...))
 }
 
 // vp8lCost: the decoded pixels; with colour indexing of 16 or fewer colours,
 // the packed pixels (half the width at most) alongside the unpacked copy;
 // the predictor, cross-colour and Huffman meta images (one pixel per 4x4
-// tile at the finest); the colour table.
+// tile at the finest); the colour table. The top-level Huffman groups are
+// read from the bitstream (vp8lHuffmanBytes).
 func vp8lCost(w, h int64) int64 {
 	tiles := 4 * ceilDiv(w, 4) * ceilDiv(h, 4)
 	return 4*w*h + 4*ceilDiv(w, 2)*h + 3*tiles + 4*256
 }
 
+// webpChunks is what webpBitstream finds.
+type webpChunks struct {
+	id       string // "VP8 ", "VP8L", or "" when the walk ends before one
+	data     []byte // that chunk's bytes present in the file
+	claimed  int64  // the length its header claims
+	alph     bool   // an ALPH chunk came before it
+	alphData []byte // the first ALPH chunk's payload present in the file
+}
+
 // webpBitstream walks the RIFF chunks the way golang.org/x/image/riff does
-// and returns the first VP8 or VP8L chunk (the one x/image/webp decodes),
-// whether an ALPH chunk came before it, the length its header claims and the
-// bytes of it the file really holds. id is "" when the walk ends before one.
-func webpBitstream(b []byte) (id string, alph bool, claimed, present int64) {
+// and returns the first VP8 or VP8L chunk (the one x/image/webp decodes) and
+// any ALPH chunk before it.
+func webpBitstream(b []byte) webpChunks {
+	var c webpChunks
 	if len(b) < 12 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WEBP" {
-		return "", alph, 0, 0
+		return c
 	}
 	end := min(int64(len(b)), 8+int64(binary.LittleEndian.Uint32(b[4:])))
+	present := func(i, n int64) []byte { return b[i+8 : min(int64(len(b)), i+8+n)] }
 	for i := int64(12); i+8 <= end; {
 		cid := string(b[i : i+4])
 		n := int64(binary.LittleEndian.Uint32(b[i+4:]))
 		if cid == "VP8 " || cid == "VP8L" {
-			return cid, alph, n, int64(len(b)) - (i + 8)
+			c.id, c.data, c.claimed = cid, present(i, n), n
+			return c
 		}
-		if cid == "ALPH" {
-			alph = true
+		if cid == "ALPH" && !c.alph {
+			c.alph, c.alphData = true, present(i, n)
 		}
 		i += 8 + n + n&1
 		if i > end {
 			break
 		}
 	}
-	return "", alph, 0, 0
+	c.id, c.data, c.claimed = "", nil, 0
+	return c
 }
