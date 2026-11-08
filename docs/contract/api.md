@@ -261,7 +261,8 @@ interface Settings {
 
 interface Focus {
   started_at: Timestamp;             // when this focus began; extending it (POST /me/focus while focusing) keeps it.
-                                     // Exact on every path, the D1 mirror included (data-model.md user_presence.focus_started_at)
+                                     // Exact on every path, the D1 mirror included (data-model.md user_presence.focus_started_at);
+                                     // only a row written before migration 0003 (start NULL) reports its last write, clamped to ends_at
   ends_at: Timestamp;
 }
 

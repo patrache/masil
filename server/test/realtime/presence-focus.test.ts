@@ -157,6 +157,30 @@ describe("presence regressions", () => {
     c.close();
   });
 
+  it("a row written before 0003 (focus_ends_at live, focus_started_at NULL) reports its last write as the start, never after the end", async () => {
+    const a = await signup();
+    const t = Date.now();
+    const row = (updatedAt: number, endsAt: number) =>
+      env.DB.prepare(
+        `INSERT INTO user_presence (user_id, status, mode, focus_ends_at, focus_started_at, updated_at)
+         VALUES (?1, 'dnd', 'auto', ?3, NULL, ?2)
+         ON CONFLICT (user_id) DO UPDATE SET status = 'dnd', mode = 'auto', focus_ends_at = ?3, focus_started_at = NULL, updated_at = ?2`,
+      )
+        .bind(a.user.id, updatedAt, endsAt)
+        .run();
+    await row(t - 60_000, t + 600_000);
+    expect((await serializeMe(env.DB, a.user.id)).presence.focus).toEqual({
+      started_at: new Date(t - 60_000).toISOString(),
+      ends_at: new Date(t + 600_000).toISOString(),
+    });
+    // an updated_at past the end (a later write of the row) is clamped to the end
+    await row(t + 900_000, t + 600_000);
+    expect((await serializeMe(env.DB, a.user.id)).presence.focus).toEqual({
+      started_at: new Date(t + 600_000).toISOString(),
+      ends_at: new Date(t + 600_000).toISOString(),
+    });
+  });
+
   it("manual dnd: cleanup marks D1 offline while disconnected; the reconnect restores D1 dnd and re-announces it", async () => {
     const [a, b] = await Promise.all([signup(), signup()]);
     await makeFriendsSql(a, b);
