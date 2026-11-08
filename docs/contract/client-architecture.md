@@ -1608,6 +1608,7 @@ type Watcher interface{ WatchTopics() []string }       // visible posts ("post:<
 type ChannelViewer interface{ ViewingChannels() []string } // for Store.SetViewing / notify ViewingTarget
 type Persistent interface{ SaveState() any; LoadState(any) } // optional, state.json
 type Completer interface{ Completing() bool }          // true while an input-owned completion popup is open (CR-A, 5.3.4 2.3)
+type ThreadHider interface{ HidesThread(ctx *Context) bool } // true while the selection cannot open a thread (v0.1.1 D7: a system message): the status line drops the mode's thread hint
 
 type Point struct{ X, Y int }
 type Badge struct{ Count int; Mention bool; Dot bool } // Mention => BadgeMention style; Dot => "●"
@@ -1706,7 +1707,7 @@ const (
 
 type NavigateMsg struct{ Route Route; Target Target; Replace bool } // Replace: replace the destination stack's top instead of pushing
 type BackMsg struct{}
-type RouteUpdatedMsg struct{ Route Route } // sent ONLY to a cached instance when navigation reuses it with a different Anchor/Query
+type RouteUpdatedMsg struct{ Route Route } // sent ONLY to a cached instance when navigation reuses it with a different Anchor/Query, or with a non-empty Anchor asked for again (rejump)
 func Navigate(r Route) tea.Cmd
 func NavigateTo(r Route, t Target) tea.Cmd
 func Back() tea.Cmd
@@ -1775,7 +1776,7 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
 | `login` | `NavState` 를 비우고 로그인 화면만(셸 밖) | — |
 
 - `TargetMain`/`TargetSide` 는 **push 하는 종류**(위 표의 sns 내용·그 밖 행)의 대상만 바꾼다: `TargetMain` = 활성 탭 스택, `TargetSide` = 피드 표면 스택(예: 지휘소 피드 열 안에서 검색 결과를 이어 보기). 루트·들어 올리는 종류(`home`·`channel`·`thread`·`feed`·`notifications`·`login`)는 `Target` 을 무시한다. `Replace=true` 는 대상 스택 맨 위를 바꾼다(루트는 바꾸지 않음).
-- 같은 키의 캐시된 인스턴스를 다시 쓰는데 `Anchor`/`Query` 가 다르면 그 인스턴스에만 `ui.RouteUpdatedMsg{Route}` 를 보낸다(검색 결과 → 메시지로 점프 등).
+- 같은 키의 캐시된 인스턴스를 다시 쓰는데 `Anchor`/`Query` 가 다르면 그 인스턴스에만 `ui.RouteUpdatedMsg{Route}` 를 보낸다(검색 결과 → 메시지로 점프 등). `Anchor` 가 비어 있지 않은 `NavigateMsg` 는 인스턴스가 이미 같은 `Anchor` 를 들고 있어도 다음 재배치에서 한 번 더 보낸다(rejump, v0.1.1 C1: 친구 요청 → `h`(친구 탭) → 뒤로 → 친구 요청이 다시 받은 요청 탭을 연다, 같은 메시지 링크를 두 번 열어도 다시 점프). 크기 변경·재투영만으로는 보내지 않는다.
 - **뒤로(`BackMsg`, `esc`)** 는 포커스된 슬롯이 보이는 표면을 한 단계 되돌린다: 포커스가 `SlotThread` → 그 탭 `Thread=nil`. `SlotFeed` → `Feed` 가 2개 이상이면 pop. `SlotNotifications` → 아무것도 안 함. `SlotMain` → Main 이 보이는 것에 따라: 스레드(`attached`) → `Thread=nil` / `F` → 2개 이상이면 pop, 아니면 `Front=FrontTab` / `NotifRoute` → `Front=FrontTab` / `top` → 스택이 2개 이상이면 pop(루트는 pop 하지 않음).
 - `f`(`feed.toggle`): 지휘소 → 포커스를 `SlotFeed` 로. 그 외 → `Front` 를 `FrontTab`↔`FrontFeed` 토글. `ctrl+n`(`notifications.open`): 지휘소 → 포커스를 `SlotNotifications` 로, 그 외 → `Front` 를 `FrontNotifications`↔`FrontTab` 토글.
 - 앱은 경로별 컴포넌트 인스턴스를 `Route.Key()` 로 캐시한다(최근 32개, 그 이상은 가장 오래 안 본 것부터 `Persistent` 상태만 남기고 해제 — 단 `NavState.Keys()` 에 있는 키는 해제하지 않는다). 같은 채널로 돌아오면 같은 인스턴스(초안·스크롤 유지). 한 인스턴스는 한 프레임에 한 슬롯에만 있으므로 `Resize` 크기는 늘 하나다.
@@ -1927,7 +1928,7 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 
 상태줄(`SlotStatus`, 1줄): `[모드 pill] 힌트 ··· 오른쪽: 집중 남은 시간(🎯 18:20) · 429 쿨다운 · 📌(고정) · 연결 상태(● 온라인 / ◐ 자리비움 / ⊘ 방해금지 / ◌ 연결 중… / ✕ 오프라인)`. 폭이 모자라면 오른쪽 항목을 연결 상태만 남기고 힌트를 자른다.
 
-힌트 **[결정]** — 모드별 기본 힌트(시안 `layouts.html` 문구 그대로)를 먼저 쓰고, 포커스 컴포넌트가 `Helper` 면 그 바인딩 중 기본 힌트와 키가 겹치지 않는 것을 ` · ` 로 이어 붙인다(전체 항목 최대 5개, 폭 넘치면 뒤부터 자름). 포커스 컴포넌트가 `CapturesInput()==true` 인 동안은 기본 힌트 대신 `enter 보내기 · shift+enter 줄바꿈 · esc 나가기`. 오버레이가 열려 있으면 그 오버레이의 `Helper`(없으면 `esc 닫기`).
+힌트 **[결정]** — 모드별 기본 힌트(시안 `layouts.html` 문구 그대로)를 먼저 쓰고(단 포커스 컴포넌트가 `ui.ThreadHider` 이고 `HidesThread(ctx)==true` 인 동안은 그중 스레드 항목 — 지휘소·표준 `t 스레드`, 컴팩트 `enter 스레드` — 을 뺀다: v0.1.1 D7, 선택한 줄이 스레드를 열 수 없는 시스템 메시지), 포커스 컴포넌트가 `Helper` 면 그 바인딩 중 기본 힌트와 키가 겹치지 않는 것을 ` · ` 로 이어 붙인다(전체 항목 최대 5개, 폭 넘치면 뒤부터 자름). 포커스 컴포넌트가 `CapturesInput()==true` 인 동안은 기본 힌트 대신 `enter 보내기 · shift+enter 줄바꿈 · esc 나가기`. 오버레이가 열려 있으면 그 오버레이의 `Helper`(없으면 `esc 닫기`).
 
 | 모드 | 기본 힌트 |
 |---|---|

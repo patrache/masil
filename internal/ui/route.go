@@ -68,7 +68,10 @@ type NavigateMsg struct {
 // BackMsg goes back one step.
 type BackMsg struct{}
 
-// RouteUpdatedMsg is sent ONLY to a cached instance when navigation reuses it with a different Anchor/Query.
+// RouteUpdatedMsg is sent ONLY to a cached instance when navigation reuses it
+// with a different Anchor/Query, or with a non-empty Anchor that navigation asked
+// for again (rejump: the same Anchor re-sends it so the jump happens again). A
+// plain resize or re-projection sends none.
 type RouteUpdatedMsg struct{ Route Route }
 
 // Navigate emits NavigateMsg{Route: r}.
