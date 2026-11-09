@@ -365,3 +365,39 @@ func TestMatchesEscapeVariants(t *testing.T) {
 		}
 	}
 }
+
+// A7.5: termhost.escape rebound onto a masil global key is refused with a
+// warning (the global keeps working; the prefix keeps its default).
+func TestLoadEscapeGlobalConflict(t *testing.T) {
+	k, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}})
+	if len(errs) != 1 {
+		t.Fatalf("errs = %v, want one conflict warning", errs)
+	}
+	if got := k.Binding(keymap.TermhostEscape).Keys(); !reflect.DeepEqual(got, []string{"ctrl+\\", "ctrl+4"}) {
+		t.Errorf("escape keys = %q, want the default", got)
+	}
+	if !k.Matches(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl}, keymap.PaletteOpen) {
+		t.Error("ctrl+k is no longer the palette")
+	}
+	// A global moved onto ctrl+\ conflicts the same way: the global keeps its default.
+	k, errs = keymap.Load(map[string][]string{"palette.open": {"ctrl+\\"}})
+	if len(errs) != 1 || !reflect.DeepEqual(k.Binding(keymap.PaletteOpen).Keys(), []string{"ctrl+k"}) {
+		t.Errorf("palette onto ctrl+\\: errs %v keys %q", errs, k.Binding(keymap.PaletteOpen).Keys())
+	}
+	// A swap is no conflict; a global holding both keys sends both back.
+	if _, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}, "palette.open": {"ctrl+\\"}}); len(errs) != 0 {
+		t.Errorf("swap errs = %v", errs)
+	}
+	k, errs = keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}, "palette.open": {"ctrl+\\", "ctrl+k"}})
+	if len(errs) != 2 || !reflect.DeepEqual(k.Binding(keymap.PaletteOpen).Keys(), []string{"ctrl+k"}) ||
+		!reflect.DeepEqual(k.Binding(keymap.TermhostEscape).Keys(), []string{"ctrl+\\", "ctrl+4"}) {
+		t.Errorf("both back: errs %v palette %q escape %q", errs, k.Binding(keymap.PaletteOpen).Keys(), k.Binding(keymap.TermhostEscape).Keys())
+	}
+	// Moving both apart is fine.
+	if _, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}, "palette.open": {"ctrl+p"}}); len(errs) != 0 {
+		t.Errorf("no conflict, errs = %v", errs)
+	}
+	if _, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+]"}}); len(errs) != 0 {
+		t.Errorf("ctrl+] errs = %v", errs)
+	}
+}
