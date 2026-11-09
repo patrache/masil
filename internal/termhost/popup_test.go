@@ -94,7 +94,7 @@ func TestPopupTitleSanitizedOrOmitted(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitExit(t, ch)
-	if got := strings.Join(readArgs(t, args), " "); got != "display-popup -E -d /w -w 90% -h 90% -T ab -- nvim" {
+	if got := strings.Join(readArgs(t, args), " "); got != "display-popup -E -d /w -w 90% -h 90% -T ab -- env nvim" {
 		t.Fatalf("args = %s", got)
 	}
 
@@ -104,8 +104,41 @@ func TestPopupTitleSanitizedOrOmitted(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitExit(t, ch)
-	if got := strings.Join(readArgs(t, args), " "); got != "display-popup -E -w 90% -h 90% -- nvim" {
+	if got := strings.Join(readArgs(t, args), " "); got != "display-popup -E -w 90% -h 90% -- env nvim" {
 		t.Fatalf("args without dir/title = %s", got)
+	}
+}
+
+// TestPopupEscapesFormats: tmux expands -d and -T as formats ("#(cmd)" runs a
+// shell command), so every '#' is doubled.
+func TestPopupEscapesFormats(t *testing.T) {
+	args := fakeTmux(t, "3.4", 0)
+	ch, err := Popup(Request{Program: "lazygit", Args: []string{"-p", "/c/C#/app"}, Dir: "/c/C#/app#(touch x)", Title: "#(touch y) #S"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitExit(t, ch)
+	got := readArgs(t, args)
+	want := []string{"display-popup", "-E", "-d", "/c/C##/app##(touch x)", "-w", "90%", "-h", "90%",
+		"-T", "##(touch y) ##S", "--", "lazygit", "-p", "/c/C#/app"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("args = %q\nwant   %q", got, want)
+	}
+}
+
+// TestPopupSingleProgramStaysArgv: tmux runs a lone argument through sh -c,
+// so a program without arguments or env still goes as argv (via env(1)).
+func TestPopupSingleProgramStaysArgv(t *testing.T) {
+	args := fakeTmux(t, "3.4", 0)
+	ch, err := Popup(Request{Program: "/Users/me/Library/Application Support/x/prog"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitExit(t, ch)
+	got := readArgs(t, args)
+	want := []string{"display-popup", "-E", "-w", "90%", "-h", "90%", "--", "env", "/Users/me/Library/Application Support/x/prog"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("args = %q\nwant   %q", got, want)
 	}
 }
 

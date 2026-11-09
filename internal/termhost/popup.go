@@ -42,26 +42,33 @@ func TmuxVersion() string {
 }
 
 // popupArgs builds the tmux command line for req. -T (popup title) exists
-// from tmux 3.3; on 3.2 it is left out. req.Env is passed through env(1) so it
-// reaches the program whatever the tmux version (the popup runs in the tmux
-// server's environment, not masil's).
+// from tmux 3.3; on 3.2 it is left out. tmux expands -d and -T as formats
+// ("#(cmd)" would run a shell command, "#S" is replaced), so every '#' in
+// them is doubled. The program always goes as two or more arguments: tmux
+// hands a lone argument to sh -c, which would re-parse a path with spaces or
+// shell characters. env(1) carries req.Env (the popup runs in the tmux
+// server's environment, not masil's) and is the second argument when there
+// are no Args.
 func popupArgs(req Request, version string) []string {
 	args := []string{"display-popup", "-E"}
 	if req.Dir != "" {
-		args = append(args, "-d", req.Dir)
+		args = append(args, "-d", tmuxEscape(req.Dir))
 	}
 	args = append(args, "-w", "90%", "-h", "90%")
 	if title := textwidth.Sanitize(req.Title); title != "" && tmuxAtLeast(version, 3, 3) {
-		args = append(args, "-T", title)
+		args = append(args, "-T", tmuxEscape(title))
 	}
 	args = append(args, "--")
-	if len(req.Env) > 0 {
+	if len(req.Env) > 0 || len(req.Args) == 0 {
 		args = append(args, "env")
 		args = append(args, req.Env...)
 	}
 	args = append(args, req.Program)
 	return append(args, req.Args...)
 }
+
+// tmuxEscape makes s literal in a tmux format.
+func tmuxEscape(s string) string { return strings.ReplaceAll(s, "#", "##") }
 
 // Popup opens req in a tmux popup covering 90% of the window and returns at
 // once; masil keeps drawing and receiving meanwhile. The channel receives one
