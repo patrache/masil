@@ -13,10 +13,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -510,5 +512,32 @@ func TestMultipartStoppedRedirectNoLeak(t *testing.T) {
 	if n := runtime.NumGoroutine(); n > before+2 {
 		buf := make([]byte, 1<<16)
 		t.Fatalf("goroutines %d -> %d after 20 stopped redirects\n%s", before, n, buf[:runtime.Stack(buf, true)])
+	}
+}
+
+// TestPhaseTraceConcurrent: Happy Eyeballs runs ConnectStart/ConnectDone in
+// parallel racers, and a losing racer may finish after the send read the
+// timing (run with -race).
+func TestPhaseTraceConcurrent(t *testing.T) {
+	trace, timing := newPhaseTrace(time.Now())
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for range 100 {
+				trace.ConnectStart("tcp", "x")
+				trace.ConnectDone("tcp", "x", nil)
+				trace.DNSStart(httptrace.DNSStartInfo{})
+				trace.DNSDone(httptrace.DNSDoneInfo{})
+			}
+		})
+	}
+	wg.Go(func() {
+		for range 100 {
+			_ = timing()
+		}
+	})
+	wg.Wait()
+	if tm := timing(); tm.Connect < 0 || tm.DNS < 0 {
+		t.Fatalf("timing = %+v", tm)
 	}
 }

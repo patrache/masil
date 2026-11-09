@@ -145,17 +145,7 @@ func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Re
 		req.Header.Del("Host")
 	}
 
-	var tm Timing
-	var dnsAt, connAt, tlsAt time.Time
-	trace := &httptrace.ClientTrace{
-		DNSStart:             func(httptrace.DNSStartInfo) { dnsAt = time.Now() },
-		DNSDone:              func(httptrace.DNSDoneInfo) { tm.DNS += time.Since(dnsAt) },
-		ConnectStart:         func(string, string) { connAt = time.Now() },
-		ConnectDone:          func(string, string, error) { tm.Connect += time.Since(connAt) },
-		TLSHandshakeStart:    func() { tlsAt = time.Now() },
-		TLSHandshakeDone:     func(tls.ConnectionState, error) { tm.TLS += time.Since(tlsAt) },
-		GotFirstResponseByte: func() { tm.FirstByte = time.Since(start) },
-	}
+	trace, timing := newPhaseTrace(start)
 	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
 
 	client := s.client(p, set, g)
@@ -177,6 +167,7 @@ func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Re
 	if err := s.readBody(ctx, hr, r); err != nil {
 		return nil, err
 	}
+	tm := timing()
 	tm.Total = time.Since(start)
 	if tm.FirstByte == 0 || tm.FirstByte > tm.Total {
 		tm.FirstByte = tm.Total
@@ -184,6 +175,41 @@ func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Re
 	r.Timing = tm
 	r.Binary = isBinary(r.ContentType, r.Body)
 	return r, nil
+}
+
+// newPhaseTrace is the httptrace hooks of one send and a func reading the
+// phase times so far. Hooks may run concurrently (Happy Eyeballs racers, a
+// losing racer even after the send ended): one connect phase runs from the
+// first attempt's start to the first successful connect.
+func newPhaseTrace(start time.Time) (*httptrace.ClientTrace, func() Timing) {
+	var mu sync.Mutex
+	var tm Timing
+	var dnsAt, connAt, tlsAt time.Time
+	connecting := false
+	locked := func(f func()) { mu.Lock(); defer mu.Unlock(); f() }
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) { locked(func() { dnsAt = time.Now() }) },
+		DNSDone:  func(httptrace.DNSDoneInfo) { locked(func() { tm.DNS += time.Since(dnsAt) }) },
+		ConnectStart: func(string, string) {
+			locked(func() {
+				if !connecting {
+					connAt, connecting = time.Now(), true
+				}
+			})
+		},
+		ConnectDone: func(_, _ string, err error) {
+			locked(func() {
+				if err == nil && connecting {
+					tm.Connect += time.Since(connAt)
+					connecting = false
+				}
+			})
+		},
+		TLSHandshakeStart:    func() { locked(func() { tlsAt = time.Now() }) },
+		TLSHandshakeDone:     func(tls.ConnectionState, error) { locked(func() { tm.TLS += time.Since(tlsAt) }) },
+		GotFirstResponseByte: func() { locked(func() { tm.FirstByte = time.Since(start) }) },
+	}
+	return trace, func() Timing { mu.Lock(); defer mu.Unlock(); return tm }
 }
 
 // client builds a client for one send: its own transport (no shared pool, no
