@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -512,8 +513,29 @@ func TestPeerUnsetsSecretFlagKeepsMyValueLocal(t *testing.T) {
 		{Op: collab.OpSet, ID: "envvar:v2", Field: "secret", Value: json.RawMessage(`false`)},
 		{Op: collab.OpSet, ID: "envvar:v2", Field: "value", Value: json.RawMessage(`"x"`)},
 	})
-	waitFor(t, h, "hana's change", func() bool { return tl.foreign["r-pay"].Seq > 0 || len(hub.Ops(sharedDocID)) >= 1 })
+	// The tool has applied hana's change: the document says not secret,
+	// value "x".
+	waitFor(t, h, "hana's change applied", func() bool {
+		sd := tl.docs[sharedDocID]
+		return sd != nil && sd.view != nil && string(sd.view.Field("envvar:v2", "secret")) == "false" && string(sd.view.Field("envvar:v2", "value")) == `"x"`
+	})
 	h.Flush()
+	// My mark wins: the rebuilt environment still has token secret, with
+	// my allowed hosts and no shared value.
+	tokenVar := func() *apitool.Var {
+		if tl.env == nil {
+			return nil
+		}
+		for i := range tl.env.Vars {
+			if tl.env.Vars[i].Name == "token" {
+				return &tl.env.Vars[i]
+			}
+		}
+		return nil
+	}
+	if v := tokenVar(); v == nil || !v.Secret || v.Value != "" || !slices.Equal(v.AllowedHosts, []string{"127.0.0.1"}) {
+		t.Fatalf("token after hana's change = %+v", v)
+	}
 	editHeaderValue(h, tl, 1, "c") // an edit of mine after it
 	waitFor(t, h, "my edit on the hub", func() bool { return strings.Contains(opsText(hub), `"c"`) })
 	if strings.Contains(opsText(hub), "canary") {
@@ -523,9 +545,17 @@ func TestPeerUnsetsSecretFlagKeepsMyValueLocal(t *testing.T) {
 	if err != nil || v.Text != "canary-Q9x7Z2" || !v.Secret {
 		t.Fatalf("Lookup = %+v, %v", v, err)
 	}
-	// The host binding stays: the secret goes only to the allowed host.
+	// The host binding stays: with only base_url changed in the tool's own
+	// scope, the secret goes only to the allowed host.
 	sc := tl.scope(h.Context())
-	sc.Env = &apitool.Env{ID: "e-stg", Vars: []apitool.Var{{Name: "base_url", Value: "https://evil.example"}, {Name: "token", Secret: true}}}
+	e := *sc.Env
+	e.Vars = slices.Clone(e.Vars)
+	for i := range e.Vars {
+		if e.Vars[i].Name == "base_url" {
+			e.Vars[i].Value = "https://evil.example"
+		}
+	}
+	sc.Env = &e
 	p, err := apitool.Prepare(tl.req, sharedDocID, sc, apitool.Dyn{})
 	if err != nil {
 		t.Fatal(err)
