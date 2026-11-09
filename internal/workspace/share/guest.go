@@ -56,11 +56,13 @@ type Guest struct {
 	level    wire.Level
 	verified bool
 	kbUntil  *time.Time
+
+	docs map[string]*RemoteDoc
 }
 
 // NewGuest prepares a guest; Start connects.
 func NewGuest(cfg GuestConfig) *Guest {
-	return &Guest{link: newLink(cfg.ShareID, cfg.Dial, cfg.Clock, cfg.ManualTick), cfg: cfg}
+	return &Guest{link: newLink(cfg.ShareID, cfg.Dial, cfg.Clock, cfg.ManualTick), cfg: cfg, docs: map[string]*RemoteDoc{}}
 }
 
 // Start connects; the key exchange starts when the server says hello.
@@ -444,11 +446,45 @@ func (g *Guest) dispatchMore(kind wire.Kind, p []byte) {
 		if unmarshal(p, &m) {
 			g.emit(EventPropResult{PropResult: m})
 		}
+	case wire.KindDocState:
+		var m wire.DocState
+		if unmarshal(p, &m) {
+			g.onDocState(m)
+		}
+	case wire.KindDocAck:
+		var m wire.DocAck
+		if unmarshal(p, &m) {
+			g.onDocAck(m)
+		}
+	case wire.KindDocBcast:
+		var m wire.DocBcast
+		if unmarshal(p, &m) {
+			g.onDocBcast(m)
+		}
+	case wire.KindDocReject:
+		var m wire.DocReject
+		if unmarshal(p, &m) {
+			g.onDocReject(m)
+		}
+	case wire.KindDocPresence:
+		var m wire.DocPresence
+		if unmarshal(p, &m) && m.Seat != g.seat {
+			g.emit(EventPresence{DocPresence: m})
+		}
+	case wire.KindTreeList:
+		var m wire.TreeList
+		if unmarshal(p, &m) {
+			g.emit(EventTree{TreeList: m})
+		}
+	case wire.KindFsResult:
+		var m wire.FsResult
+		if unmarshal(p, &m) {
+			g.emit(EventFsResult{FsResult: m})
+		}
 	}
 }
 
 // Hooks later parts of the engine fill in.
 
-func (g *Guest) afterResume()         {}
-func (g *Guest) tickMore(time.Time)   {}
-func (g *Guest) onNotice(wire.Notice) {}
+func (g *Guest) tickMore(now time.Time) { g.tickDocs(now) }
+func (g *Guest) onNotice(m wire.Notice) { g.emit(EventNotice{Notice: m}) }

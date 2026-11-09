@@ -3,6 +3,7 @@ package share
 import (
 	"time"
 
+	"github.com/patrache/masil/internal/workspace/ot"
 	"github.com/patrache/masil/internal/workspace/wire"
 )
 
@@ -123,6 +124,63 @@ type EventProposal struct{ Proposal }
 // EventPropResult (Guest): what the owner did with my proposal (Action is
 // queued, insert, insert_send, edit, reject, too_long, full, rate_limited).
 type EventPropResult struct{ wire.PropResult }
+
+// EventDoc (Host): a document event of the shared folder (disk merge,
+// deletion, save, recreation).
+type EventDoc struct{ DocEvent }
+
+// EventDocApplied (Host): a participant's edit was sequenced; apply Op to
+// the owner's editor of Doc.
+type EventDocApplied struct {
+	Doc    string
+	Seq    int64
+	Author int
+	Op     ot.Op
+}
+
+// EventPresence: someone's cursor or selection moved.
+type EventPresence struct{ wire.DocPresence }
+
+// EventDocState (Guest): a document I asked for (Error set when refused).
+type EventDocState struct{ wire.DocState }
+
+// EventDocRemote (Guest): someone else's edit, transformed: apply Op to my
+// view of Doc.
+type EventDocRemote struct {
+	Doc string
+	Op  ot.Op
+}
+
+// EventDocReset (Guest): my copy of Doc was replaced (reconnect or a
+// refused edit); redraw it from Text.
+type EventDocReset struct {
+	Doc  string
+	Text string
+}
+
+// EventDocRejected (Guest): the owner refused my edit (Code); a fresh copy
+// follows as EventDocReset.
+type EventDocRejected struct{ wire.DocReject }
+
+// EventTree (Guest): one folder of the shared tree.
+type EventTree struct{ wire.TreeList }
+
+// EventNotice (Guest): a notice from the owner (saved, disk_merged, …).
+type EventNotice struct{ wire.Notice }
+
+// EventFsResult (Guest): the answer to my file request.
+type EventFsResult struct{ wire.FsResult }
+
+func (EventDoc) shareEvent()         {}
+func (EventDocApplied) shareEvent()  {}
+func (EventPresence) shareEvent()    {}
+func (EventDocState) shareEvent()    {}
+func (EventDocRemote) shareEvent()   {}
+func (EventDocReset) shareEvent()    {}
+func (EventDocRejected) shareEvent() {}
+func (EventTree) shareEvent()        {}
+func (EventNotice) shareEvent()      {}
+func (EventFsResult) shareEvent()    {}
 
 func (EventTermOut) shareEvent()      {}
 func (EventTermKeyframe) shareEvent() {}

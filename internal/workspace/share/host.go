@@ -27,6 +27,11 @@ type HostConfig struct {
 	ManualTick bool
 	// Root is the shared folder (tree listing, file requests).
 	Root *fsroot.Root
+	// Docs is the folder's document manager, shared with the solo
+	// workspace (nil = a new one on Root without a recovery journal). While
+	// the host runs it drives Docs.Tick; the owner's editor submits with
+	// author 0 directly.
+	Docs *DocManager
 	// RemoveParticipant and EndShare are the REST calls Kick and Kill/End
 	// make (api.Client.RemoveWorkspaceParticipant / EndWorkspaceShare bound
 	// to this share); nil skips them.
@@ -105,6 +110,9 @@ type Host struct {
 	outBytes int
 	outFull  bool // this second's budget ran out
 
+	docs  *DocManager
+	opens map[uint8]map[string]bool // documents each seat has open
+
 	props     []*proposal
 	propSeq   int
 	propTimes map[uint8][]time.Time
@@ -148,12 +156,21 @@ func (h *Host) overRate(seat uint8, kind wire.Kind, now time.Time) bool {
 
 // NewHost prepares a host; Start connects.
 func NewHost(cfg HostConfig) *Host {
-	return &Host{
+	h := &Host{
 		link: newLink(cfg.ShareID, cfg.Dial, cfg.Clock, cfg.ManualTick),
 		cfg:  cfg, users: map[uint8]string{}, online: map[uint8]bool{},
 		joins: map[uint8]*joinState{}, members: map[uint8]*member{},
 		propTimes: map[uint8][]time.Time{}, rate: map[uint8]*peerRate{},
+		opens: map[uint8]map[string]bool{},
 	}
+	h.docs = cfg.Docs
+	if h.docs == nil && cfg.Root != nil {
+		h.docs = NewDocManager(cfg.Root, nil, cfg.Clock)
+	}
+	if h.docs != nil {
+		h.docs.setHook(h.onDocSequenced)
+	}
+	return h
 }
 
 // Start makes the session and signing keys, connects and records the share
@@ -724,11 +741,47 @@ func (h *Host) dispatchMore(seat uint8, kind wire.Kind, p []byte) {
 		if unmarshal(p, &m) {
 			h.onPropSubmit(seat, m)
 		}
+	case wire.KindDocOpen:
+		var m wire.DocOpen
+		if unmarshal(p, &m) {
+			h.onDocOpen(seat, m)
+		}
+	case wire.KindDocClose:
+		var m wire.DocClose
+		if unmarshal(p, &m) {
+			h.onDocClose(seat, m)
+		}
+	case wire.KindDocOp:
+		var m wire.DocOp
+		if unmarshal(p, &m) {
+			h.onDocOp(seat, m)
+		}
+	case wire.KindDocSave:
+		var m wire.DocSave
+		if unmarshal(p, &m) {
+			h.onDocSave(seat, m)
+		}
+	case wire.KindDocPresence:
+		var m wire.DocPresence
+		if unmarshal(p, &m) {
+			h.onDocPresence(seat, m)
+		}
+	case wire.KindTreeReq:
+		var m wire.TreeReq
+		if unmarshal(p, &m) {
+			h.onTreeReq(seat, m)
+		}
+	case wire.KindFsReq:
+		var m wire.FsReq
+		if unmarshal(p, &m) {
+			h.onFsReq(seat, m)
+		}
 	}
 }
 
 func (h *Host) tickMore(now time.Time) {
 	h.tickLadder(now)
+	h.tickDocs(now)
 	h.tickTerms(now)
 }
 
@@ -746,6 +799,9 @@ func (h *Host) peerResumed(*member) { h.keyframeAll() }
 // memberRemoved: a kicked participant's waiting proposals go.
 func (h *Host) memberRemoved(mb *member) {
 	h.dropProposals(mb.seat)
+	if h.docs != nil {
+		h.closeSeatDocs(mb.seat)
+	}
 	delete(h.propTimes, mb.seat)
 	delete(h.rate, mb.seat)
 }

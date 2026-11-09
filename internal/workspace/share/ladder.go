@@ -271,6 +271,10 @@ func (h *Host) onSelfLevel(seat uint8, name string) {
 	}
 	h.changeLevel(mb, lvl, "self")
 	if lvl == wire.LevelNone {
+		h.dropProposals(seat)
+		if h.docs != nil {
+			h.closeSeatDocs(seat)
+		}
 		h.emit(EventPeerLeft{Seat: seat, UserID: mb.user})
 	}
 }

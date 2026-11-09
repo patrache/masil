@@ -35,6 +35,7 @@ const (
 	ActEdit                                       // paste the owner's edited text
 	ActReject                                     // drop it
 	ActConfirmMultiline                           // yes, paste these lines without paste mode
+	ActApprove                                    // carry out a rename/delete request
 )
 
 var actionNames = map[ProposalAction]string{
@@ -50,12 +51,15 @@ const (
 	PropRejected = "reject"
 )
 
-// Proposal is one waiting participant proposal.
+// Proposal is one waiting participant proposal: typed text (Kind "") or a
+// file request (KindRename / KindDelete with From, To).
 type Proposal struct {
-	ID   string // the owner's id (not the participant's)
-	Seat uint8
-	Text string
-	At   time.Time
+	ID       string // the owner's id (not the participant's)
+	Seat     uint8
+	Kind     string
+	Text     string
+	From, To string
+	At       time.Time
 }
 
 type proposal struct {
@@ -150,6 +154,13 @@ func (h *Host) handleProposalLocked(id string, action ProposalAction, edited str
 		return false, ErrNoProposal
 	}
 	h.lastOwner = h.now()
+	if p.Kind != "" {
+		if action == ActConfirmMultiline {
+			return false, ErrNothingToAsk
+		}
+		h.handleFsProposal(i, p, action)
+		return false, nil
+	}
 	confirmed := false
 	text := p.Text
 	switch action {
@@ -164,6 +175,8 @@ func (h *Host) handleProposalLocked(id string, action ProposalAction, edited str
 	case ActEdit:
 		text = edited
 	case ActInsert, ActInsertSend:
+	case ActApprove:
+		action = ActInsert
 	default:
 		return false, ErrNoProposal
 	}
