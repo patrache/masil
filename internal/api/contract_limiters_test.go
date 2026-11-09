@@ -127,6 +127,48 @@ func loadContractLimiters(t *testing.T) map[string][]string {
 	return doc
 }
 
+// pendingLimiterRows are api.md 6 rows whose server route landed before the
+// client method that exercises them. Each entry names the Task that adds the
+// client method and its endpoint case; once a case covers the row the test
+// fails until the entry is removed, so the waiver cannot outlive its Task.
+var pendingLimiterRows = map[string]string{
+	// Room-document REST (server P0 Task 26/28); internal/api/ep_docs.go and
+	// its cases are P0 Task 30.
+	"POST /v1/spaces/*/docs":             "P0 Task 30",
+	"PATCH /v1/docs/*":                   "P0 Task 30",
+	"DELETE /v1/docs/*":                  "P0 Task 30",
+	"POST /v1/docs/*/versions":           "P0 Task 30",
+	"POST /v1/docs/*/versions/*/restore": "P0 Task 30",
+}
+
+// uncoveredLimiterRows reports every row that names a request limiter but no
+// case exercises (so checkLimiter, which proves request.Limiter, runs against
+// it), except rows in pending; a pending row that is covered, or that api.md
+// no longer has, is reported too.
+func uncoveredLimiterRows(doc map[string][]string, covered map[string]bool, pending map[string]string) []string {
+	var wrong []string
+	for key, ls := range doc {
+		for _, l := range ls {
+			if !realtimeLimits[l] && !covered[key] {
+				if _, ok := pending[key]; !ok {
+					wrong = append(wrong, key+": api.md 6 lists "+l+" but no endpoint case exercises it")
+				}
+				break
+			}
+		}
+	}
+	for key, task := range pending {
+		switch {
+		case doc[key] == nil:
+			wrong = append(wrong, key+": pendingLimiterRows names a row api.md 6 does not have")
+		case covered[key]:
+			wrong = append(wrong, key+": covered by a case now; remove it from pendingLimiterRows ("+task+")")
+		}
+	}
+	sort.Strings(wrong)
+	return wrong
+}
+
 func TestEndpointLimitersMatchContractTable(t *testing.T) {
 	doc := loadContractLimiters(t)
 	cases := append(endpointsACases(t), endpointsBCases(t)...)
@@ -160,19 +202,33 @@ func TestEndpointLimitersMatchContractTable(t *testing.T) {
 			wrong = append(wrong, c.name+": harness says "+got+", api.md 6 says "+want[0])
 		}
 	}
-	// Every row that names a request limiter must be exercised by some case, so
-	// checkLimiter (which proves request.Limiter) runs against it.
-	for key, ls := range doc {
-		for _, l := range ls {
-			if !realtimeLimits[l] && !covered[key] {
-				wrong = append(wrong, key+": api.md 6 lists "+l+" but no endpoint case exercises it")
-				break
-			}
-		}
-	}
+	wrong = append(wrong, uncoveredLimiterRows(doc, covered, pendingLimiterRows)...)
 	sort.Strings(wrong)
 	for _, w := range wrong {
 		t.Error(w)
+	}
+}
+
+func TestUncoveredLimiterRows(t *testing.T) {
+	doc := map[string][]string{
+		"POST /v1/a":   {"RL_X"},
+		"POST /v1/b":   {"RL_X"},
+		"GET /v1/ws":   {"RL_WS"},
+		"POST /v1/c":   {"RL_X"},
+		"DELETE /v1/d": {},
+	}
+	covered := map[string]bool{"POST /v1/a": true, "POST /v1/c": true}
+	pending := map[string]string{"POST /v1/b": "Task 30", "POST /v1/c": "Task 30", "POST /v1/gone": "Task 30"}
+	got := uncoveredLimiterRows(doc, covered, pending)
+	want := []string{
+		"POST /v1/c: covered by a case now; remove it from pendingLimiterRows (Task 30)",
+		"POST /v1/gone: pendingLimiterRows names a row api.md 6 does not have",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if got := uncoveredLimiterRows(doc, map[string]bool{}, nil); len(got) != 3 {
+		t.Fatalf("without pending: %v, want 3 uncovered rows", got)
 	}
 }
 
