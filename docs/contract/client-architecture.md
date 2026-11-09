@@ -1954,6 +1954,7 @@ func Default() *Keymap
 func Load(overrides map[string][]string) (*Keymap, []error) // unknown action/invalid key => error, default kept
 func (k *Keymap) Binding(a Action) key.Binding
 func (k *Keymap) Matches(msg tea.KeyPressMsg, a Action) bool
+func (k *Keymap) Bound(msg tea.KeyPressMsg) bool // msg triggers some action
 func (k *Keymap) Help(as ...Action) []key.Binding
 ```
 
@@ -1999,6 +2000,7 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 
 - 같은 키가 여러 범위에 있으면 좁은 범위가 이긴다: 입력 > 메시지/글 선택 > 목록 > 소프트 전역. 예: 입력창 포커스의 `enter` = `compose.send`, 메시지 선택 중 `enter` = `msg.thread`, 채널 목록의 `enter` = `list.open`.
 - 투표 메시지의 투표는 `msg.actions`(`m`) 메뉴 또는 투표 칸 클릭으로 한다(`enter` 는 늘 스레드).
+- 대화(채널·스레드)의 입력창이 포커스 밖일 때, ctrl/alt 수식 없이 비ASCII 글자(한글 음절·호환 자모·자모 등 IME 입력)가 담긴 키가 오고 어떤 Action 에도 묶여 있지 않으면(`Keymap.Bound` 거짓) `compose.focus` 없이 곧바로 입력창을 포커스하고 그 글자를 그대로 넣는다 — 한글 자판으로 바로 쓰기 시작할 수 있게. 읽기 전용·사라진 대화는 예외(아무 일 없음), ASCII 키는 계속 단축키다.
 
 마우스: 클릭 = 포커스 + 항목 선택, 선택된 항목 다시 클릭 = 열기, 휠 = 포인터 아래 창 3줄 스크롤, 탭·레일·목록 클릭 = 이동, 리액션 칩 클릭 = 토글, 오버레이 바깥 클릭 = 닫기.
 

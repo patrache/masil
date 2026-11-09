@@ -3,6 +3,8 @@ package chat
 import (
 	"context"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -93,6 +95,33 @@ func (cc *chatComposer) focus() tea.Cmd { return cc.c.Focus() }
 func (cc *chatComposer) blur() {
 	cc.closeCompletion()
 	cc.c.Blur()
+}
+
+// startsComposing reports whether msg, pressed while a conversation's composer
+// is unfocused, starts typing into it: its text holds a non-ASCII letter (Hangul
+// from an IME: syllables, compatibility or conjoining jamo), no ctrl/alt/meta/
+// super/hyper modifier is held, and no action of km is bound to it. ASCII keys
+// stay shortcuts (j/k/t/i...).
+func startsComposing(km *keymap.Keymap, msg tea.KeyPressMsg) bool {
+	if msg.Text == "" || msg.Mod&(tea.ModCtrl|tea.ModAlt|tea.ModMeta|tea.ModSuper|tea.ModHyper) != 0 {
+		return false
+	}
+	letter := false
+	for _, r := range msg.Text {
+		if r >= utf8.RuneSelf && (unicode.IsLetter(r) || unicode.Is(unicode.Hangul, r)) {
+			letter = true
+			break
+		}
+	}
+	return letter && !km.Bound(msg)
+}
+
+// startTyping focuses the composer and types msg into it (startsComposing):
+// the focus commands, then the key exactly as if the composer had the focus.
+func (cc *chatComposer) startTyping(ctx *ui.Context, msg tea.KeyPressMsg) tea.Cmd {
+	focus := cc.focus()
+	_, cmd := cc.handleKey(ctx, msg)
+	return tea.Batch(focus, cmd)
 }
 
 // draft is the text to keep for later: the put-aside draft while editing.
