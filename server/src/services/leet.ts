@@ -161,7 +161,8 @@ export interface EnsureRootsOptions {
  * day (leet_daily_roots):
  *   INSERT OR IGNORE a claim (message_id NULL); the request whose insert changed a row creates the card
  *   (createCardMessage, author = reporter, body = leetLink(stored slug), data = the stored facts) and fills
- *   message_id; on failure it deletes its NULL claim and rethrows.
+ *   message_id; on failure it deletes its NULL claim and rethrows. Fill-in and release both compare on the maker's
+ *   own claimed_at, so a maker whose claim was taken over drops its message instead of making a second root.
  *   A claim left NULL for more than 30 s, or a root whose message was deleted, is taken over with a compare-and-set
  *   on (message_id, claimed_at). Another request's fresh claim is waited for (<= 2 s); still unfinished -> left out.
  * Returns the roots that have a live message, in dailySpacesOf order.
@@ -170,7 +171,11 @@ export async function ensureDailyRoots(rt: Runtime, reporterId: string, date: st
   const db = rt.env.DB;
   const spaces = await dailySpacesOf(db, reporterId, opts.spaceIds);
   let counted = false;
-  const create = async (channelId: string): Promise<string> => {
+  // Makes the root card for my claim (the row's claimed_at = `mine`). Both the fill-in and the release compare on
+  // `mine`, so a request whose claim was taken over meanwhile neither fills nor releases the new maker's claim: its
+  // message is not the root and is deleted again (null). A failure releases only my own claim and rethrows.
+  const create = async (channelId: string, mine: number): Promise<string | null> => {
+    let made: string | null = null;
     try {
       if (!counted && opts.beforeCreate) {
         counted = true;
@@ -183,12 +188,23 @@ export async function ensureDailyRoots(rt: Runtime, reporterId: string, date: st
         card: { type: "leet.daily", v: 1, data: dailyCardData(facts) },
         body: leetLink(facts.slug),
       });
-      await stmt(db, "UPDATE leet_daily_roots SET message_id = ?3 WHERE channel_id = ?1 AND date = ?2 AND message_id IS NULL", channelId, date, m.id).run();
-      return m.id;
+      made = m.id;
+      const fill = await stmt(
+        db,
+        "UPDATE leet_daily_roots SET message_id = ?3 WHERE channel_id = ?1 AND date = ?2 AND message_id IS NULL AND claimed_at = ?4",
+        channelId,
+        date,
+        m.id,
+        mine,
+      ).run();
+      if ((fill.meta.changes ?? 0) === 1) return m.id;
     } catch (e) {
-      await stmt(db, "DELETE FROM leet_daily_roots WHERE channel_id = ?1 AND date = ?2 AND message_id IS NULL", channelId, date).run();
+      await stmt(db, "DELETE FROM leet_daily_roots WHERE channel_id = ?1 AND date = ?2 AND message_id IS NULL AND claimed_at = ?3", channelId, date, mine).run();
+      if (made !== null) await deleteMessage(rt, made, reporterId, { asAdmin: true }).catch(() => {});
       throw e;
     }
+    await deleteMessage(rt, made, reporterId, { asAdmin: true });
+    return null;
   };
 
   const out: LeetDailyRoot[] = [];
@@ -202,8 +218,12 @@ export async function ensureDailyRoots(rt: Runtime, reporterId: string, date: st
       t,
     ).run();
     if ((claim.meta.changes ?? 0) === 1) {
-      out.push({ ...s, message_id: await create(s.channel_id) });
-      continue;
+      const id = await create(s.channel_id, t);
+      if (id !== null) {
+        out.push({ ...s, message_id: id });
+        continue;
+      }
+      // taken over while I was creating: wait for the new maker below
     }
     const deadline = Date.now() + ROOT_WAIT_MS;
     for (;;) {
@@ -215,19 +235,24 @@ export async function ensureDailyRoots(rt: Runtime, reporterId: string, date: st
       }
       const stale = row.message_id !== null || row.claimed_at < now() - ROOT_CLAIM_STALE_MS;
       if (stale) {
+        // strictly newer than the claim it replaces, so the old maker's compare on claimed_at can never match mine
+        const at = Math.max(now(), row.claimed_at + 1);
         const steal = await stmt(
           db,
           `UPDATE leet_daily_roots SET message_id = NULL, claimed_at = ?3
             WHERE channel_id = ?1 AND date = ?2 AND message_id IS ?4 AND claimed_at = ?5`,
           s.channel_id,
           date,
-          now(),
+          at,
           row.message_id,
           row.claimed_at,
         ).run();
         if ((steal.meta.changes ?? 0) === 1) {
-          out.push({ ...s, message_id: await create(s.channel_id) });
-          break;
+          const id = await create(s.channel_id, at);
+          if (id !== null) {
+            out.push({ ...s, message_id: id });
+            break;
+          }
         }
         continue; // someone else took it over: look again
       }

@@ -1,7 +1,10 @@
 // v0.1.3 A10.3 (P1 Task 3): PUT /v1/leet/daily/{date} — facts reported by clients (first report wins, a different
 // report only counts a mismatch) and one #daily root per channel per day, made by the reporter, even when two
 // members report at once (leet_daily_roots claim).
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import type { Runtime } from "../../src/env";
+import { ensureDailyRoots, reportDailyFacts } from "../../src/services/leet";
 import { utcDate } from "../../src/lib/leet";
 import { api, makeSpace, signup, type TestUser } from "../helpers";
 
@@ -148,5 +151,52 @@ describe("PUT /v1/leet/daily/{date}", () => {
     expect(again.body.roots).toHaveLength(1);
     expect(again.body.roots[0].message_id).not.toBe(r.body.roots[0].message_id);
     expect(await leetCards(o.token, channelId, "leet.daily")).toHaveLength(1);
+  });
+
+  // review: a claim taken over while its first maker was still creating must not let the first maker fill or release
+  // it (compare on the maker's own claimed_at)
+  describe("root claim taken over mid-create", () => {
+    const date = "2020-01-01";
+    const rtFor = (): Runtime => ({ env, waitUntil: () => {} });
+    const steal = (channelId: string) =>
+      env.DB.prepare("UPDATE leet_daily_roots SET claimed_at = claimed_at + 1 WHERE channel_id = ?1 AND date = ?2").bind(channelId, date).run();
+    const rootRow = (channelId: string) =>
+      env.DB.prepare("SELECT message_id, claimed_at FROM leet_daily_roots WHERE channel_id = ?1 AND date = ?2").bind(channelId, date).first<any>();
+
+    it("the old maker does not fill the stolen claim and removes the message it made", async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { channelId } = await dailySpace(o, [a]);
+      const stored = await reportDailyFacts(env.DB, a.user.id, date, facts as any);
+      let stolenAt = 0;
+      const roots = await ensureDailyRoots(rtFor(), a.user.id, date, stored, {
+        beforeCreate: async () => {
+          await steal(channelId);
+          stolenAt = (await rootRow(channelId)).claimed_at;
+        },
+      });
+      expect(roots).toEqual([]);
+      expect(await rootRow(channelId)).toEqual({ message_id: null, claimed_at: stolenAt });
+      const live = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM messages WHERE channel_id = ?1 AND deleted_at IS NULL AND json_extract(card_json, '$.type') = 'leet.daily' AND json_extract(card_json, '$.data.date') = ?2",
+      ).bind(channelId, date).first<any>();
+      expect(live.n).toBe(0);
+    });
+
+    it("the old maker's failure does not release the new maker's claim", async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { channelId } = await dailySpace(o, [a]);
+      const stored = await reportDailyFacts(env.DB, a.user.id, date, facts as any);
+      let stolenAt = 0;
+      await expect(
+        ensureDailyRoots(rtFor(), a.user.id, date, stored, {
+          beforeCreate: async () => {
+            await steal(channelId);
+            stolenAt = (await rootRow(channelId)).claimed_at;
+            throw new Error("boom");
+          },
+        }),
+      ).rejects.toThrow("boom");
+      expect(await rootRow(channelId)).toEqual({ message_id: null, claimed_at: stolenAt });
+    });
   });
 });
