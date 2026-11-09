@@ -147,6 +147,7 @@ type Scene struct {
 	mu     sync.Mutex
 	routes [3]map[string][]Point // per zoom, filled lazily
 	blocks [3]*obstacles
+	rt     router
 }
 
 // cleanLabel makes user text one safe line for drawing.
