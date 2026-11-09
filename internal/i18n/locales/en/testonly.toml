@@ -11,3 +11,7 @@ short = "{n}"
 
 [move_to]
 other = "Moved to {place}"
+
+[seats]
+one = "{n} seat"
+other = "{n} seats"

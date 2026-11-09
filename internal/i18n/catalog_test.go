@@ -39,6 +39,16 @@ func TestRenderPluralAndFallback(t *testing.T) {
 	if got := zh.Testonly.MembersShort(5); got != "5 位成员" {
 		t.Errorf("zh without short uses its other: %q", got)
 	}
+	// en has one/other but no short: the short call still picks the en plural.
+	if got := en.Testonly.SeatsShort(1); got != "1 seat" {
+		t.Errorf("en SeatsShort(1) without short = %q, want the en singular", got)
+	}
+	if got := en.Testonly.SeatsShort(2); got != "2 seats" {
+		t.Errorf("en SeatsShort(2) without short = %q", got)
+	}
+	if got := i18n.KoT().Testonly.SeatsShort(2); got != "2석" {
+		t.Errorf("ko SeatsShort = %q", got)
+	}
 	if got := i18n.KoT().Testonly.Greet("하나"); got != "하나님, 안녕하세요" {
 		t.Errorf("ko Greet = %q", got)
 	}

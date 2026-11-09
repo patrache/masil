@@ -25,3 +25,10 @@ short = "{n}명"
 desc = "시험용: 조사 표시 으로/로"
 params = { place = "string" }
 other = "{place|으로/로} 옮겼어요"
+
+[seats]
+desc = "시험용: en 에 짧은 형이 없을 때 짧은 형 호출의 복수형"
+params = { n = "int" }
+count = "n"
+other = "좌석 {n}개"
+short = "{n}석"

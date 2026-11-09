@@ -137,8 +137,24 @@ func TestCheckAcceptsValid(t *testing.T) {
 	if got != "" {
 		t.Fatalf("valid catalog rejected: %s", got)
 	}
-	if strings.Join(warns, "\n") != "tools.into: zh-Hans missing" {
+	if strings.Join(warns, "\n") != "tools.into: zh-Hans missing\ntools.members: zh-Hans missing short" {
 		t.Fatalf("warnings = %q", warns)
+	}
+}
+
+// A translation without the short form ko has falls back to its own long form
+// (with en plural choice) in a short-sized slot: a warning, like a missing key.
+func TestCheckWarnsMissingShort(t *testing.T) {
+	dir := writeLocales(t, map[string]string{
+		"ko/tools.toml": "[seats]\ndesc=\"d\"\nparams={ n = \"int\" }\ncount=\"n\"\nother=\"좌석 {n}개\"\nshort=\"{n}석\"\n",
+		"en/tools.toml": "[seats]\none=\"{n} seat\"\nother=\"{n} seats\"\n",
+	})
+	got, warns := problems(t, dir)
+	if got != "" {
+		t.Fatalf("missing short must not be an error: %s", got)
+	}
+	if !strings.Contains(strings.Join(warns, "\n"), "tools.seats: en missing short") {
+		t.Fatalf("warnings = %q, want tools.seats: en missing short", warns)
 	}
 }
 

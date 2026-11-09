@@ -48,8 +48,12 @@ func check(c *Catalog) (errs []error, warns []string) {
 			}
 			checkKey(k, fail)
 			for _, lang := range langs[1:] {
-				if k.Text[lang] == nil {
+				switch r := k.Text[lang]; {
+				case r == nil:
 					warns = append(warns, fmt.Sprintf("%s: %s missing", k.id(), lang))
+				case k.Short != "" && r.Short == "":
+					// Short calls then get this language's long form.
+					warns = append(warns, fmt.Sprintf("%s: %s missing short", k.id(), lang))
 				}
 			}
 		}

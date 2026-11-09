@@ -53,6 +53,15 @@ var areaTestonly = area{
 				ZhHans: {Other: "已移到 {place}"},
 			},
 		},
+		"seats": {
+			desc:   "시험용: en 에 짧은 형이 없을 때 짧은 형 호출의 복수형",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "좌석 {n}개", Short: "{n}석"},
+				En: {One: "{n} seat", Other: "{n} seats"},
+			},
+		},
 	},
 }
 
@@ -84,4 +93,14 @@ func (a_ TestonlyT) MembersShort(n int) string {
 // MoveTo: 시험용: 조사 표시 으로/로
 func (a_ TestonlyT) MoveTo(place string) string {
 	return a_.t.render(&areaTestonly, "move_to", false, 0, "place", place)
+}
+
+// Seats: 시험용: en 에 짧은 형이 없을 때 짧은 형 호출의 복수형
+func (a_ TestonlyT) Seats(n int) string {
+	return a_.t.render(&areaTestonly, "seats", false, n, "n", strconv.Itoa(n))
+}
+
+// SeatsShort: 시험용: en 에 짧은 형이 없을 때 짧은 형 호출의 복수형 (short form)
+func (a_ TestonlyT) SeatsShort(n int) string {
+	return a_.t.render(&areaTestonly, "seats", true, n, "n", strconv.Itoa(n))
 }

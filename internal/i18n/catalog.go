@@ -94,7 +94,8 @@ func (t *T) renderEntry(e *entry, short bool, n int, args []string) string {
 	switch {
 	case short && f.Short != "":
 		s = f.Short
-	case !short && e.count != "" && l == En && n == 1 && f.One != "":
+	// No short form in l (or a long call): the long form, en plural by n.
+	case e.count != "" && l == En && n == 1 && f.One != "":
 		s = f.One
 	}
 	if t.locale == Pseudo {
