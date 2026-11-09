@@ -20,6 +20,7 @@ type Command struct {
 	KeyHint   string // "ctrl+w 1"
 	Available func(ctx *ui.Context) bool
 	Run       func(ctx *ui.Context, args string) tea.Cmd
+	Badge     func(ctx *ui.Context) ui.Badge // drawn on the item (nil = none), e.g. the 알림함's unread count
 }
 
 var (
@@ -84,6 +85,12 @@ func SnapshotForTest() (restore func()) {
 		recent = slices.Clone(savedRecent)
 		recentMu.Unlock()
 	}
+}
+
+// ItemsForTest returns the ranked items for query (built-in and registered sources,
+// no people-search results), before grouping. Tests only (any package's).
+func ItemsForTest(ctx *ui.Context, query string) []Item {
+	return collect(ctx, query, nil, "")
 }
 
 func cloneCommands(cs []Command) []Command {

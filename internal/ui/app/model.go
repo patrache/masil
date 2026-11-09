@@ -13,6 +13,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/clipboard"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
@@ -40,6 +41,7 @@ type Options struct {
 	Notifier        *notify.Notifier // nil => notify.New(NewOSBackend("masil"), OpenLedger(paths), log)
 	API             *api.Client      // nil => api.New(config.ServerURL(), WithToken(...))
 	Timers          ui.Timers        // nil => ui.RealTimers(); uitest passes its FakeClock
+	Clipboard       clipboard.Writer // nil => clipboard.System(); uitest passes a clipboard.Recorder
 }
 
 // Model implements tea.Model.
@@ -53,6 +55,7 @@ type Model struct {
 	pinFell  bool         // the pin did not fit this frame (Resolve fell back to auto)
 
 	nav       NavState    // logical navigation (CA 5.3.3); projected onto the layout every frame
+	hist      history     // places Main showed (CA 5.3.3 "기록"), recorded after every Update
 	intent    FocusIntent // remembered focus intent (CA 5.3.5)
 	focus     FocusIntent // focus resolved for the current layout
 	sentFocus FocusIntent // focus of the last FocusChangedMsg broadcast
@@ -70,6 +73,9 @@ type Model struct {
 	cache *instanceCache
 	panes map[layout.SlotID]*instance // pane-factory slots, built once
 	tabs  *widgets.Tabs               // SlotTabs bar (Hit for clicks)
+
+	grab      dragGrab       // the pane following the held left button (mouse.go)
+	dragOwner ui.DragHandler // the component a press last grabbed (its selection is cleared by a press elsewhere)
 
 	initCmds []tea.Cmd // emitted by Init (New cannot return Cmds)
 	frame    FrameInfo // geometry of the last View
@@ -208,6 +214,10 @@ func New(o Options) *Model {
 		Timers: timers,
 		Loc:    loc,
 	}
+	m.ctx.Clipboard = o.Clipboard
+	if m.ctx.Clipboard == nil {
+		m.ctx.Clipboard = clipboard.System()
+	}
 
 	m.bp = layout.FromConfig(cfg.Layout)
 	// ⑦ state.json (CA 3.5): restored only for the logged-in user; the start pin is
@@ -230,9 +240,9 @@ func New(o Options) *Model {
 		if !isRootKind(o.InitialRoute.Kind) {
 			// A non-root start route (`masil join` => RouteInvite) opens on the home tab,
 			// as after a fresh login, never on top of the restored active channel.
-			m.nav, _ = m.nav.navigate(ui.NavigateMsg{Route: homeRoute}, m.ctx.Mode)
+			m.nav, _ = m.nav.navigate(ui.NavigateMsg{Route: homeRoute}, m.ctx.Mode, m.isDM)
 		}
-		m.nav, m.intent = m.nav.navigate(ui.NavigateMsg{Route: *o.InitialRoute}, m.ctx.Mode)
+		m.nav, m.intent = m.nav.navigate(ui.NavigateMsg{Route: *o.InitialRoute}, m.ctx.Mode, m.isDM)
 		if m.intent.Slot == "" {
 			m.intent = FocusIntent{Slot: layout.SlotMain}
 		}
@@ -263,6 +273,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	_, cmd := m.dispatch(msg)
 	m.syncOverlays()
+	m.noteHistory()
 	// The focus slot is resolved at the end of every Update (CA 5.3.5); a change is
 	// broadcast as ui.FocusChangedMsg after this Update's relayout/projection.
 	return m, tea.Batch(pre, watch, cmd, m.syncFocus(), m.armStatusTick(), m.armIdle())
@@ -420,7 +431,7 @@ func (m *Model) relayout() tea.Cmd {
 		}
 	}
 	m.lay, m.routes, m.pinFell = l, routes, fell
-	m.ctx.Mode, m.ctx.Layout = l.Mode, l
+	m.ctx.Mode, m.ctx.Layout, m.ctx.Routes = l.Mode, l, routes
 
 	var cmds []tea.Cmd
 	var updated []*instance

@@ -40,7 +40,7 @@ var (
 )
 
 func nav(n NavState, r ui.Route) NavState {
-	n2, _ := n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCompact)
+	n2, _ := n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCompact, nil)
 	return n2
 }
 
@@ -71,7 +71,7 @@ func TestNewNavState(t *testing.T) {
 
 func TestNavigateTable(t *testing.T) {
 	t.Run("channel new tab", func(t *testing.T) {
-		n, fi := newNavState().navigate(ui.NavigateMsg{Route: ch("C3")}, layout.ModeCompact)
+		n, fi := newNavState().navigate(ui.NavigateMsg{Route: ch("C3")}, layout.ModeCompact, nil)
 		if len(n.Tabs) != 2 || n.Active != 1 || !reflect.DeepEqual(activeStack(n), []string{"channel/C3/"}) || n.Front != FrontTab {
 			t.Fatalf("got %+v", n)
 		}
@@ -85,7 +85,7 @@ func TestNavigateTable(t *testing.T) {
 		if n.Active != 0 {
 			t.Fatalf("home not active: %d", n.Active)
 		}
-		n, fi := n.navigate(ui.NavigateMsg{Route: ch("C3")}, layout.ModeCommand)
+		n, fi := n.navigate(ui.NavigateMsg{Route: ch("C3")}, layout.ModeCommand, nil)
 		if len(n.Tabs) != 2 || n.Active != 1 || !reflect.DeepEqual(activeStack(n), []string{"channel/C3/", "search//q"}) {
 			t.Fatalf("got %+v", n.Tabs)
 		}
@@ -114,7 +114,7 @@ func TestNavigateTable(t *testing.T) {
 		n = nav(nav(n, settingsR), feedR("discover"))
 		n = nav(n, homeR)
 		r := thr("R", "C3")
-		n2, fi := n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCommand)
+		n2, fi := n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCommand, nil)
 		if n2.Active != 1 || !reflect.DeepEqual(activeStack(n2), []string{"channel/C3/"}) || n2.Front != FrontTab {
 			t.Fatalf("got %+v", n2.Tabs)
 		}
@@ -124,7 +124,7 @@ func TestNavigateTable(t *testing.T) {
 		if fi != (FocusIntent{Slot: layout.SlotThread, RouteKey: "thread/R/C3"}) {
 			t.Fatalf("focus = %+v", fi)
 		}
-		_, fi = n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCompact)
+		_, fi = n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCompact, nil)
 		if fi != (FocusIntent{Slot: layout.SlotMain, RouteKey: "thread/R/C3"}) {
 			t.Fatalf("compact focus = %+v", fi)
 		}
@@ -141,27 +141,27 @@ func TestNavigateTable(t *testing.T) {
 	})
 	t.Run("feed resets surface", func(t *testing.T) {
 		n := nav(newNavState(), post("P1"))
-		n, fi := n.navigate(ui.NavigateMsg{Route: feedR("discover")}, layout.ModeCommand)
+		n, fi := n.navigate(ui.NavigateMsg{Route: feedR("discover")}, layout.ModeCommand, nil)
 		if !reflect.DeepEqual(keysOf(n.Feed), []string{"feed//discover"}) || n.Front != FrontFeed {
 			t.Fatalf("got %+v", n)
 		}
 		if fi != (FocusIntent{Slot: layout.SlotFeed, RouteKey: "feed//discover"}) {
 			t.Fatalf("focus = %+v", fi)
 		}
-		_, fi = n.navigate(ui.NavigateMsg{Route: feedR("discover")}, layout.ModeStandard)
+		_, fi = n.navigate(ui.NavigateMsg{Route: feedR("discover")}, layout.ModeStandard, nil)
 		if fi.Slot != layout.SlotMain {
 			t.Fatalf("standard focus = %+v", fi)
 		}
 	})
 	t.Run("post pushes on feed", func(t *testing.T) {
-		n, fi := newNavState().navigate(ui.NavigateMsg{Route: post("P")}, layout.ModeCompact)
+		n, fi := newNavState().navigate(ui.NavigateMsg{Route: post("P")}, layout.ModeCompact, nil)
 		if !reflect.DeepEqual(keysOf(n.Feed), []string{"feed//following", "post/P/"}) || n.Front != FrontFeed {
 			t.Fatalf("got %+v", n)
 		}
 		if fi != (FocusIntent{Slot: layout.SlotMain, RouteKey: "post/P/"}) {
 			t.Fatalf("focus = %+v", fi)
 		}
-		_, fi = newNavState().navigate(ui.NavigateMsg{Route: post("P")}, layout.ModeCommand)
+		_, fi = newNavState().navigate(ui.NavigateMsg{Route: post("P")}, layout.ModeCommand, nil)
 		if fi != (FocusIntent{Slot: layout.SlotFeed, RouteKey: "post/P/"}) {
 			t.Fatalf("command focus = %+v", fi)
 		}
@@ -173,11 +173,11 @@ func TestNavigateTable(t *testing.T) {
 		}
 	})
 	t.Run("notifications", func(t *testing.T) {
-		n, fi := newNavState().navigate(ui.NavigateMsg{Route: NotifRoute}, layout.ModeWidget)
+		n, fi := newNavState().navigate(ui.NavigateMsg{Route: NotifRoute}, layout.ModeWidget, nil)
 		if n.Front != FrontNotifications || fi != (FocusIntent{Slot: layout.SlotMain, RouteKey: "notifications//"}) {
 			t.Fatalf("got %+v %+v", n, fi)
 		}
-		_, fi = newNavState().navigate(ui.NavigateMsg{Route: NotifRoute}, layout.ModeCommand)
+		_, fi = newNavState().navigate(ui.NavigateMsg{Route: NotifRoute}, layout.ModeCommand, nil)
 		if fi != (FocusIntent{Slot: layout.SlotNotifications, RouteKey: "notifications//"}) {
 			t.Fatalf("command focus = %+v", fi)
 		}
@@ -185,7 +185,7 @@ func TestNavigateTable(t *testing.T) {
 	t.Run("other kinds push on active tab", func(t *testing.T) {
 		for _, k := range []ui.RouteKind{ui.RouteSearch, ui.RouteInvite, ui.RouteSpaceSettings, ui.RouteFriends, ui.RouteSettings, ui.RouteHelp} {
 			n := nav(newNavState(), feedR("discover"))
-			n, fi := n.navigate(ui.NavigateMsg{Route: ui.Route{Kind: k}}, layout.ModeCommand)
+			n, fi := n.navigate(ui.NavigateMsg{Route: ui.Route{Kind: k}}, layout.ModeCommand, nil)
 			want := ui.Route{Kind: k}.Key()
 			if !reflect.DeepEqual(activeStack(n), []string{"home//", want}) || n.Front != FrontTab || len(n.Feed) != 1 {
 				t.Fatalf("%s: %+v", k, n)
@@ -196,14 +196,14 @@ func TestNavigateTable(t *testing.T) {
 		}
 	})
 	t.Run("targets", func(t *testing.T) {
-		n, fi := newNavState().navigate(ui.NavigateMsg{Route: post("P"), Target: ui.TargetMain}, layout.ModeCommand)
+		n, fi := newNavState().navigate(ui.NavigateMsg{Route: post("P"), Target: ui.TargetMain}, layout.ModeCommand, nil)
 		if !reflect.DeepEqual(activeStack(n), []string{"home//", "post/P/"}) || len(n.Feed) != 1 || n.Front != FrontTab {
 			t.Fatalf("TargetMain post: %+v", n)
 		}
 		if fi.Slot != layout.SlotMain {
 			t.Fatalf("focus = %+v", fi)
 		}
-		n, fi = newNavState().navigate(ui.NavigateMsg{Route: search("q"), Target: ui.TargetSide}, layout.ModeCommand)
+		n, fi = newNavState().navigate(ui.NavigateMsg{Route: search("q"), Target: ui.TargetSide}, layout.ModeCommand, nil)
 		if !reflect.DeepEqual(keysOf(n.Feed), []string{"feed//following", "search//q"}) || len(n.Tabs[0].Stack) != 1 || n.Front != FrontFeed {
 			t.Fatalf("TargetSide search: %+v", n)
 		}
@@ -212,32 +212,32 @@ func TestNavigateTable(t *testing.T) {
 		}
 		// root / lifted kinds ignore Target
 		n = nav(newNavState(), ch("C1"))
-		n, _ = n.navigate(ui.NavigateMsg{Route: ch("C2"), Target: ui.TargetSide}, layout.ModeCommand)
+		n, _ = n.navigate(ui.NavigateMsg{Route: ch("C2"), Target: ui.TargetSide}, layout.ModeCommand, nil)
 		if len(n.Tabs) != 3 || len(n.Feed) != 1 {
 			t.Fatalf("channel TargetSide: %+v", n)
 		}
-		n, _ = n.navigate(ui.NavigateMsg{Route: feedR("discover"), Target: ui.TargetMain}, layout.ModeCommand)
+		n, _ = n.navigate(ui.NavigateMsg{Route: feedR("discover"), Target: ui.TargetMain}, layout.ModeCommand, nil)
 		if keysOf(n.Feed)[0] != "feed//discover" || len(n.Tabs[n.Active].Stack) != 1 {
 			t.Fatalf("feed TargetMain: %+v", n)
 		}
 	})
 	t.Run("replace", func(t *testing.T) {
 		n := nav(nav(newNavState(), post("P1")), post("P2"))
-		n, _ = n.navigate(ui.NavigateMsg{Route: post("P3"), Replace: true}, layout.ModeCompact)
+		n, _ = n.navigate(ui.NavigateMsg{Route: post("P3"), Replace: true}, layout.ModeCompact, nil)
 		if !reflect.DeepEqual(keysOf(n.Feed), []string{"feed//following", "post/P1/", "post/P3/"}) {
 			t.Fatalf("feed = %v", keysOf(n.Feed))
 		}
 		// replace never replaces the root: root-only stack => push
-		n, _ = newNavState().navigate(ui.NavigateMsg{Route: settingsR, Replace: true}, layout.ModeCompact)
+		n, _ = newNavState().navigate(ui.NavigateMsg{Route: settingsR, Replace: true}, layout.ModeCompact, nil)
 		if !reflect.DeepEqual(activeStack(n), []string{"home//", "settings//"}) {
 			t.Fatalf("stack = %v", activeStack(n))
 		}
-		n, _ = n.navigate(ui.NavigateMsg{Route: search("q"), Replace: true}, layout.ModeCompact)
+		n, _ = n.navigate(ui.NavigateMsg{Route: search("q"), Replace: true}, layout.ModeCompact, nil)
 		if !reflect.DeepEqual(activeStack(n), []string{"home//", "search//q"}) {
 			t.Fatalf("stack = %v", activeStack(n))
 		}
 		// replace on a root kind is ignored (activates/adds the tab)
-		n, _ = n.navigate(ui.NavigateMsg{Route: ch("C1"), Replace: true}, layout.ModeCompact)
+		n, _ = n.navigate(ui.NavigateMsg{Route: ch("C1"), Replace: true}, layout.ModeCompact, nil)
 		if len(n.Tabs) != 2 || !reflect.DeepEqual(keysOf(n.Tabs[0].Stack), []string{"home//", "search//q"}) {
 			t.Fatalf("tabs = %+v", n.Tabs)
 		}
@@ -288,7 +288,7 @@ func TestNavigateTable(t *testing.T) {
 	})
 	t.Run("login resets", func(t *testing.T) {
 		n := nav(nav(nav(newNavState(), ch("C1")), post("P")), thr("R", "C1"))
-		n2, fi := n.navigate(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteLogin, Arg: "login"}}, layout.ModeCommand)
+		n2, fi := n.navigate(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteLogin, Arg: "login"}}, layout.ModeCommand, nil)
 		if !reflect.DeepEqual(n2, newNavState()) || fi != (FocusIntent{}) {
 			t.Fatalf("got %+v %+v", n2, fi)
 		}
@@ -296,7 +296,7 @@ func TestNavigateTable(t *testing.T) {
 	t.Run("pushing key held elsewhere removes it there", func(t *testing.T) {
 		n := nav(nav(newNavState(), post("P")), profile("U"))
 		n = nav(n, ch("C1"))
-		n, _ = n.navigate(ui.NavigateMsg{Route: post("P"), Target: ui.TargetMain}, layout.ModeCommand)
+		n, _ = n.navigate(ui.NavigateMsg{Route: post("P"), Target: ui.TargetMain}, layout.ModeCommand, nil)
 		if !reflect.DeepEqual(keysOf(n.Feed), []string{"feed//following", "profile/U/"}) {
 			t.Fatalf("feed = %v", keysOf(n.Feed))
 		}
@@ -305,7 +305,7 @@ func TestNavigateTable(t *testing.T) {
 		}
 		// also from other tabs' stacks
 		n = nav(n, homeR)
-		n, _ = n.navigate(ui.NavigateMsg{Route: post("P"), Target: ui.TargetMain}, layout.ModeCommand)
+		n, _ = n.navigate(ui.NavigateMsg{Route: post("P"), Target: ui.TargetMain}, layout.ModeCommand, nil)
 		if !reflect.DeepEqual(keysOf(n.Tabs[1].Stack), []string{"channel/C1/"}) || !reflect.DeepEqual(activeStack(n), []string{"home//", "post/P/"}) {
 			t.Fatalf("tabs = %+v", n.Tabs)
 		}
@@ -314,7 +314,7 @@ func TestNavigateTable(t *testing.T) {
 		n := nav(nav(nav(newNavState(), post("P1")), profile("U")), post("P2"))
 		r := profile("U")
 		r.Anchor = "X"
-		n, fi := n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCompact)
+		n, fi := n.navigate(ui.NavigateMsg{Route: r}, layout.ModeCompact, nil)
 		if !reflect.DeepEqual(keysOf(n.Feed), []string{"feed//following", "post/P1/", "profile/U/"}) || n.Feed[2].Anchor != "X" {
 			t.Fatalf("feed = %+v", n.Feed)
 		}
@@ -617,6 +617,9 @@ func TestCycleTab(t *testing.T) {
 		case FrontNotifications:
 			return "알림"
 		}
+		if n.InDM {
+			return "DM"
+		}
 		return fmt.Sprintf("tab%d", n.Active)
 	}
 	t.Run("compact", func(t *testing.T) {
@@ -626,7 +629,7 @@ func TestCycleTab(t *testing.T) {
 			c = c.cycleTab(1, layout.ModeCompact)
 			got = append(got, pos(c))
 		}
-		want := []string{"tab1", "tab2", "피드", "알림", "tab0", "tab1"}
+		want := []string{"tab1", "tab2", "DM", "피드", "알림", "tab0"}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("forward %v", got)
 		}
@@ -636,7 +639,7 @@ func TestCycleTab(t *testing.T) {
 			c = c.cycleTab(-1, layout.ModeCompact)
 			got = append(got, pos(c))
 		}
-		if want := []string{"알림", "피드", "tab2"}; !reflect.DeepEqual(got, want) {
+		if want := []string{"알림", "피드", "DM"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("backward %v", got)
 		}
 		// selecting a tab marks it seen (LRU)
@@ -649,11 +652,11 @@ func TestCycleTab(t *testing.T) {
 		t.Run(mode.ID(), func(t *testing.T) {
 			c := nav(n, ch("C2")) // active tab 2
 			var got []string
-			for range 4 {
+			for range 5 {
 				c = c.cycleTab(1, mode)
 				got = append(got, pos(c))
 			}
-			if want := []string{"피드", "알림", "tab2", "피드"}; !reflect.DeepEqual(got, want) {
+			if want := []string{"DM", "피드", "알림", "tab2", "DM"}; !reflect.DeepEqual(got, want) {
 				t.Fatalf("got %v", got)
 			}
 			if c := n.cycleTab(-1, mode); pos(c) != "알림" {
@@ -661,15 +664,24 @@ func TestCycleTab(t *testing.T) {
 			}
 		})
 	}
-	t.Run("command cycles tabs only", func(t *testing.T) {
+	t.Run("command cycles tabs then DM", func(t *testing.T) {
 		c := n
 		c.Front = FrontFeed
+		before := c.loc()
+		// Main now shows that tab: Front follows, so the switch is a history place
+		// and a later mode change shows it (CA 5.3.3 "기록")
 		c = c.cycleTab(1, layout.ModeCommand)
-		if c.Active != 1 || c.Front != FrontFeed {
+		if c.Active != 1 || c.Front != FrontTab {
 			t.Fatalf("got active %d front %d", c.Active, c.Front)
 		}
-		if c = c.cycleTab(-2, layout.ModeCommand); c.Active != 2 {
-			t.Fatalf("got active %d", c.Active)
+		if c.loc().key() == before.key() {
+			t.Fatal("a command-mode tab switch must change the place")
+		}
+		if c = c.cycleTab(-2, layout.ModeCommand); !c.InDM || c.Front != FrontTab {
+			t.Fatalf("got active %d in DM %v", c.Active, c.InDM)
+		}
+		if c = c.cycleTab(1, layout.ModeCommand); c.InDM || c.Active != 0 {
+			t.Fatalf("after DM: active %d in DM %v", c.Active, c.InDM)
 		}
 	})
 	t.Run("standard like compact", func(t *testing.T) {
@@ -691,7 +703,7 @@ func TestKeys(t *testing.T) {
 	n := nav(nav(nav(newNavState(), ch("C1")), thr("R", "C1")), post("P"))
 	n = nav(n, search("q"))
 	got := n.Keys()
-	want := []string{"home//", "channel/C1/", "search//q", "thread/R/C1", "feed//following", "post/P/", "notifications//"}
+	want := []string{"home//", "channel/C1/", "search//q", "thread/R/C1", "dms//", "feed//following", "post/P/", "notifications//"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v want %v", got, want)
 	}
@@ -733,7 +745,7 @@ func TestInvariantRandomWalk(t *testing.T) {
 			}
 			m := ui.NavigateMsg{Route: r, Target: ui.Target(rng.IntN(3)), Replace: rng.IntN(4) == 0}
 			desc = fmt.Sprintf("navigate %+v", m)
-			n, _ = n.navigate(m, mode)
+			n, _ = n.navigate(m, mode, nil)
 		case op < 8:
 			s := slots[rng.IntN(len(slots))]
 			desc = fmt.Sprintf("back %s", s)

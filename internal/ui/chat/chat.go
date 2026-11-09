@@ -52,8 +52,8 @@ func dmPeer(s *store.Store, ch *api.Channel) *api.UserSummary {
 
 // visibleDMs is Store.DMOrder without the 1:1 DMs whose other member I blocked
 // (api.md 3.2: hidden on the blocker's side, also before a resync drops it from
-// GET /v1/dms). Group DMs stay (only the messages fold). The sidebar, home and the
-// rail's home unread sum use only this.
+// GET /v1/dms). Group DMs stay (only the messages fold). The sidebar, home, the DM
+// list and the rail's DM unread marker use only this (Store.HiddenDM).
 func visibleDMs(ctx *ui.Context) []*api.Channel {
 	if ctx == nil || ctx.Store == nil {
 		return nil
@@ -62,13 +62,8 @@ func visibleDMs(ctx *ui.Context) []*api.Channel {
 	var out []*api.Channel
 	for _, id := range s.DMOrder {
 		ch := s.Channels[id]
-		if ch == nil {
+		if ch == nil || s.HiddenDM(ch) {
 			continue
-		}
-		if ch.Kind == api.ChannelDM {
-			if p := dmPeer(s, ch); p != nil && s.IsBlocked(p.ID) {
-				continue
-			}
 		}
 		out = append(out, ch)
 	}

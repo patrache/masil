@@ -378,8 +378,8 @@ async function channelReadersAmong(db: D1Database, channel: ChannelRow, userIds:
     `SELECT j.value AS user_id FROM json_each(?1) j WHERE ${cond}`,
     jsonList(ids),
     channel.id,
-    channel.space_id,
-    channel.is_private,
+    // D1 rejects more bindings than the highest ?N in the SQL: the dm / group_dm condition stops at ?2
+    ...(channel.kind === "text" ? [channel.space_id, channel.is_private] : []),
   );
   return new Set(rows.map((r) => r.user_id));
 }
@@ -454,7 +454,8 @@ function mentionInput(message: Message, parts: MessageAlertParts, userId: string
 
 /**
  * Per-recipient alerts for a new message (one each, dm > mention > thread_reply > channel_message) and inbox rows:
- * message_mention to every message_mentions row (explicit + @here, already filtered by api.md 2.1; none in a 1:1 dm),
+ * message_mention to every message_mentions row (explicit + @here, already filtered by api.md 2.1; a 1:1 dm records
+ * explicit mentions there but gets no message_mention rows),
  * thread_reply to the root author + thread participants who still read the channel and were not mentioned.
  * channel_message: text channel, top-level only, members whose prefs say notify 'all'. The author never gets anything;
  * blocks, settings switches and channel prefs are applied by notifyMany / sendAlerts.
@@ -482,7 +483,9 @@ export async function fanoutMessageNotifications(rt: Runtime, message: Message, 
 
   const dmTo = new Set(parts.convMembers); // dm / group_dm: everyone else gets the dm alert
   const mentioned = mentionRows.map((r) => r.user_id).filter((u) => u !== authorId);
-  const mentionedSet = new Set(mentioned);
+  // a 1:1 dm gets no message_mention inbox rows (api.md 2.1) though message_mentions still records explicit
+  // mentions, so a mention there must not take the thread_reply row away
+  const mentionedSet = new Set(channel.kind === "dm" ? [] : mentioned);
   const readers = await channelReadersAmong(db, channel, [...threadRows, ...prefsRows].map((r) => r.user_id));
   const threadTo = [...new Set(threadRows.map((r) => r.user_id))].filter((u) => u !== authorId && !mentionedSet.has(u) && readers.has(u));
   const threadSet = new Set(threadTo);

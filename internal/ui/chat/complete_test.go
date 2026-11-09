@@ -344,3 +344,17 @@ func TestMentionMembersFollowMembership(t *testing.T) {
 		t.Fatal("the refetched list is cached again")
 	}
 }
+
+func TestEmojiCompletionSmoking(t *testing.T) {
+	for _, q := range []string{"smok", "흡연"} {
+		found := false
+		for _, c := range emojiCandidates(q) {
+			if strings.Contains(c.Insert, "🚬") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf(":%s does not offer 🚬", q)
+		}
+	}
+}

@@ -36,9 +36,11 @@ type Store struct {
 	reducerOrder []Reducer
 
 	viewing    map[string]bool
-	counted    *idSet // message.created IDs already applied to unread/mention counters
-	mentioned  *idSet // message IDs whose mention was already counted (direct or @here notification)
-	removedInv *idSet // direct invite IDs already dropped by space.invite_removed (a late invite_received is ignored)
+	counted    *idSet                 // message.created IDs already applied to unread/mention counters
+	mentioned  *idSet                 // message IDs whose mention was already counted (direct or @here notification)
+	removedInv *idSet                 // direct invite IDs already dropped by space.invite_removed (a late invite_received is ignored)
+	lastMsg    map[string]api.Message // channel id -> newest top-level message seen this session (LastMessage)
+	deleted    *idSet                 // message IDs message.deleted removed this session (MessageDeleted)
 	now        func() time.Time
 
 	flight       *flight           // open while a bootstrap is in flight (flight.go)
@@ -102,6 +104,8 @@ func (s *Store) clear() {
 	s.counted = newIDSet(dedupeIDs)
 	s.mentioned = newIDSet(dedupeIDs)
 	s.removedInv = newIDSet(dedupeIDs)
+	s.lastMsg = map[string]api.Message{}
+	s.deleted = newIDSet(dedupeIDs)
 	s.flight, s.replaying, s.applying, s.snapshotLast = nil, false, false, nil
 }
 
@@ -244,6 +248,7 @@ func (s *Store) syncSpaceChannel(ch *api.Channel) {
 func (s *Store) dropChannel(id string) {
 	ch := s.Channels[id]
 	delete(s.Channels, id)
+	delete(s.lastMsg, id)
 	s.DMOrder = removeString(s.DMOrder, id)
 	if ch != nil && ch.SpaceID != nil {
 		if sd := s.Spaces[*ch.SpaceID]; sd != nil {
@@ -346,9 +351,61 @@ func (s *Store) SpaceChannels(spaceID string) []*api.Channel {
 	return out
 }
 
-// TotalUnread sums unread and mention counts. Muted channels add no unread, but their mentions count.
+// TotalUnread sums unread and mention counts over every channel (text and DM). Muted
+// channels add no unread, but their mentions count. The UI badges use ChannelUnread
+// (채팅) and DMUnread (DM) instead (CA 4.5).
 func (s *Store) TotalUnread() (unread, mentions int) {
 	for _, ch := range s.Channels {
+		if !ch.My.Muted {
+			unread += ch.My.UnreadCount
+		}
+		mentions += ch.My.MentionCount
+	}
+	return unread, mentions
+}
+
+// IsDM reports whether id is a known 1:1 or group DM channel.
+func (s *Store) IsDM(id string) bool {
+	ch := s.Channels[id]
+	return ch != nil && (ch.Kind == api.ChannelDM || ch.Kind == api.ChannelGroupDM)
+}
+
+// HiddenDM reports a 1:1 DM whose other member I blocked: it is hidden on my side
+// (api.md 3.2), also before a resync drops it. Group DMs are never hidden.
+func (s *Store) HiddenDM(ch *api.Channel) bool {
+	if ch == nil || ch.Kind != api.ChannelDM {
+		return false
+	}
+	for _, m := range ch.Members {
+		if !s.IsMe(m.ID) {
+			return s.IsBlocked(m.ID)
+		}
+	}
+	return false
+}
+
+// DMUnread is TotalUnread over the DMs and group DMs that are not hidden
+// (HiddenDM): the DM tab / rail entry badge.
+func (s *Store) DMUnread() (unread, mentions int) {
+	for _, ch := range s.Channels {
+		if (ch.Kind != api.ChannelDM && ch.Kind != api.ChannelGroupDM) || s.HiddenDM(ch) {
+			continue
+		}
+		if !ch.My.Muted {
+			unread += ch.My.UnreadCount
+		}
+		mentions += ch.My.MentionCount
+	}
+	return unread, mentions
+}
+
+// ChannelUnread is TotalUnread over the text channels only (the 채팅 tab badge;
+// DMs count on the DM tab).
+func (s *Store) ChannelUnread() (unread, mentions int) {
+	for _, ch := range s.Channels {
+		if ch.Kind == api.ChannelDM || ch.Kind == api.ChannelGroupDM {
+			continue
+		}
 		if !ch.My.Muted {
 			unread += ch.My.UnreadCount
 		}

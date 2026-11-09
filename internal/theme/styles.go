@@ -24,6 +24,7 @@ type Styles struct {
 	Online, Away, DND, Offline       lipgloss.Style // ● acc3 / ◐ acc / ⊘ acc2 / ○ dim
 	Error, Warning, Success          lipgloss.Style // acc2 / acc / acc3
 	NewHighlight                     lipgloss.Style // selbg bg, faded by widgets.Fade
+	TextSelect                       lipgloss.Style // bg fg + fg bg (reverse): mouse drag selection
 	Overlay, OverlayBorder           lipgloss.Style
 }
 
@@ -79,6 +80,7 @@ func newStyles(p Palette, border lipgloss.Border) Styles {
 		Warning:       base.Foreground(p.Acc),
 		Success:       base.Foreground(p.Acc3),
 		NewHighlight:  base.Background(p.SelBG),
+		TextSelect:    base.Foreground(p.BG).Background(p.FG),
 		Overlay:       base,
 		OverlayBorder: boxed(base, p.Acc),
 	}

@@ -74,6 +74,7 @@ func init() {
 		ID: "notifications", Title: "알림함", Group: groupGo, KeyHint: "ctrl+n",
 		Keywords: []string{"notifications", "inbox", "알림"},
 		Run:      nav(ui.Route{Kind: ui.RouteNotifications}),
+		Badge:    inboxBadge,
 	})
 	palette.Register(palette.Command{
 		ID: "profile.me", Title: "내 프로필", Group: groupGo,

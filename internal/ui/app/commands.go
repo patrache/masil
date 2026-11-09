@@ -116,7 +116,11 @@ func init() {
 	palette.Register(palette.Command{
 		ID: "quit", Title: "종료", Group: "명령", KeyHint: "ctrl+c ctrl+c",
 		Keywords: []string{"quit", "exit"},
-		Run:      func(*ui.Context, string) tea.Cmd { return tea.Quit },
+		// Confirmed like logout: the empty palette lists it among the commands, so a
+		// stray enter must not skip the ctrl+c-twice guard.
+		Run: func(*ui.Context, string) tea.Cmd {
+			return ui.OpenOverlay(widgets.Confirm("종료할까요?", "masil을 닫아요.", "종료", "취소", tea.Quit))
+		},
 	})
 	palette.Register(palette.Command{
 		ID: "reconnect", Title: "다시 연결", Group: "명령",

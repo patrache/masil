@@ -295,3 +295,26 @@ func TestPaletteHostileNames(t *testing.T) {
 		})
 	}
 }
+
+// The empty query lists an unread DM; choosing it opens the DM on the DM surface
+// (CA 5.3.3), not as a tab.
+func TestPaletteEmptyQueryDMOpensDMSurface(t *testing.T) {
+	t.Cleanup(palette.SnapshotForTest())
+	h := uitest.New(t)
+	h.Resize(120, 40)
+	s := h.Context().Store
+	for _, ch := range s.Channels {
+		ch.My.UnreadCount, ch.My.MentionCount = 0, 0
+	}
+	s.Channels[fixtures.DMMinji].My.UnreadCount = 2
+	tabs := len(h.Nav().Tabs)
+	h.Press("ctrl+k")
+	h.Press("enter") // the first item: the only unread conversation
+	nav := h.Nav()
+	if !nav.InDM || len(nav.DM.Stack) < 2 || nav.DM.Stack[1].ID != fixtures.DMMinji {
+		t.Fatalf("empty palette → unread DM: in DM %v, DM stack %+v", nav.InDM, nav.DM.Stack)
+	}
+	if len(nav.Tabs) != tabs {
+		t.Fatalf("the DM opened a tab: %+v", nav.Tabs)
+	}
+}

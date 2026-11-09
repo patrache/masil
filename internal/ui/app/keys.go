@@ -139,8 +139,10 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 	if handled {
 		return cmd
 	}
-	// 5. input capture: printable keys never reach the soft globals
-	if capturing(comp) {
+	// 5. input capture: printable keys never reach the soft globals; a history key the
+	// component left alone (ctrl+o in a chat composer) still walks the history.
+	walk := keys.Matches(msg, keymap.NavHistoryBack) || keys.Matches(msg, keymap.NavHistoryForward)
+	if capturing(comp) && !walk {
 		return cmd
 	}
 	// 6. soft globals
@@ -155,6 +157,12 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Batch(cmd, m.switchTab(+1))
 	case keys.Matches(msg, keymap.NavBack):
 		return tea.Batch(cmd, m.goBack())
+	case keys.Matches(msg, keymap.NavHistoryBack):
+		return tea.Batch(cmd, m.walkHistory(-1))
+	case keys.Matches(msg, keymap.NavHistoryForward):
+		return tea.Batch(cmd, m.walkHistory(+1))
+	case keys.Matches(msg, keymap.ThreadChannel):
+		return tea.Batch(cmd, m.openParent())
 	case keys.Matches(msg, keymap.ListOpen):
 		return tea.Batch(cmd, m.openAlertToast())
 	}
@@ -240,7 +248,7 @@ func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
 	case m.login != nil: // a forced login screen is left by navigating
 		m.login = nil
 	}
-	n, intent := m.nav.navigate(msg, m.lay.Mode)
+	n, intent := m.nav.navigate(msg, m.lay.Mode, m.isDM)
 	m.nav = n
 	if intent.Slot != "" {
 		m.intent = intent
@@ -249,6 +257,22 @@ func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
 		m.cache.rejump = msg.Route.Key()
 	}
 	return m.relayout()
+}
+
+// isDM reports a DM or group DM channel the Store knows (NavState places it on the
+// DM surface).
+func (m *Model) isDM(channelID string) bool { return m.ctx.Store.IsDM(channelID) }
+
+// dmKept reports whether the DM surface may keep channel id open: the Store knows it
+// (or has not bootstrapped yet: a DM restored from state.json) and it is not hidden
+// (Store.HiddenDM).
+func (m *Model) dmKept(id string) bool {
+	st := m.ctx.Store
+	ch := st.Channels[id]
+	if ch == nil {
+		return !st.Sync.Bootstrapped
+	}
+	return !st.HiddenDM(ch)
 }
 
 // applyToggle installs the result of toggleFeed/toggleNotifications.

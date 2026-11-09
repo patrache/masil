@@ -457,7 +457,7 @@ func (c *Credentials) Redacted() string                   // "msl_…(redacted)"
   "last_space_id": "01JB0...", "feed_tab": "following", "pinned_mode": "auto" }
 ```
 - `user_id` 가 현재 로그인 사용자와 다르면 무시한다. 형식 소유 core(`ui/app`), 타입 `app.SavedState`.
-- `open_tabs` = `NavState.Tabs` 의 **루트 경로만**(스택 위쪽·열린 스레드는 저장하지 않음), `active_tab` = `NavState.Active`, `front` = `"tab"|"feed"|"notifications"`, `feed_tab` = 피드 표면 루트의 `Arg`(5.3.3).
+- `open_tabs` = `NavState.Tabs` 의 **루트 경로만**(스택 위쪽·열린 스레드·DM 표면에 열린 DM 은 저장하지 않음 — DM 은 탭 루트가 아니다), `active_tab` = `NavState.Active`, `front` = `"tab"|"dm"|"feed"|"notifications"`(`"dm"` = `FrontTab` + `InDM`, DM 표면은 DM 목록으로 되살린다), `feed_tab` = 피드 표면 루트의 `Arg`(5.3.3). 예전 파일의 DM 탭 루트는 첫 부트스트랩 뒤 DM 표면으로 옮긴다(`liftDMs`).
 
 ### 3.6 `daemon-state.json`
 
@@ -1132,7 +1132,16 @@ func (s *Store) IsBlocked(userID string) bool
 func (s *Store) IsMe(userID string) bool
 func (s *Store) ChannelLabel(id string) string       // "#개발", "민지", "점심팟", "민지, 준호, 하나"
 func (s *Store) SpaceChannels(spaceID string) []*api.Channel // visible, by position
-func (s *Store) TotalUnread() (unread, mentions int)
+func (s *Store) TotalUnread() (unread, mentions int)  // every channel (text + DM); 음소거는 안 읽음 제외·멘션은 셈. UI 배지는 아래 둘을 쓴다(현재 테스트 외 호출처 없음)
+func (s *Store) ChannelUnread() (unread, mentions int) // TotalUnread over text channels only: 위젯·초소형 `채팅` 배지(DM 은 세지 않음, 5.4)
+func (s *Store) DMUnread() (unread, mentions int)      // TotalUnread over 1:1·group DMs, HiddenDM 제외: `DM` 탭·레일 DM 칸 배지(5.4)
+func (s *Store) IsDM(id string) bool                   // a known 1:1 or group DM channel (NavState puts it on the DM surface, 5.3.3)
+func (s *Store) HiddenDM(ch *api.Channel) bool         // a 1:1 DM whose other member I blocked (api.md 3.2; also before a resync drops it); group DMs never
+func (s *Store) UnreadConversations() []UnreadConv   // 알림함 "안 읽은 대화" (ui/feed): unread DMs / group DMs, text channels with mentions or notify "all"; newest first
+func (s *Store) InboxBadge() int                     // 알림 badge: NotifUnread + the UnreadConv.Badged conversations
+func (s *Store) LastMessage(channelID string) (api.Message, bool) // newest top-level message seen this session (the section's preview)
+func (s *Store) MessageDeleted(id string) bool       // message.deleted seen this session (a stored alert about it is not previewed)
+func Quiet(ch *api.Channel) bool                      // muted or notify "none" (the section leaves it and its threads out)
 func (s *Store) FocusEnded(sum api.FocusSummary)     // Focus=nil, LastFocusSummary=&sum (focus.ended event and EndFocus result both call this; never opens UI)
 func (s *Store) Reset()                              // logout: clear everything, notify reducers
 
@@ -1600,6 +1609,11 @@ type KeyHandler interface {
 type MouseHandler interface {
 	HandleMouse(ctx *Context, msg tea.MouseMsg, local Point) tea.Cmd // local = coords inside the pane's inner rect
 }
+type DragHandler interface { // left-button drags (text selection), 5.3.4 3
+	MouseHandler
+	HandleDrag(ctx *Context, msg tea.MouseMsg, local Point) tea.Cmd // motion + release after its press; local unclipped
+	ClearDrag()                                                    // a press elsewhere / the gesture was cut short
+}
 type InputCapturer interface{ CapturesInput() bool }   // true while a text field is active: printable keys never trigger soft globals
 type Cursorer interface{ Cursor() *tea.Cursor }        // real cursor relative to inner rect (IME!)
 type Titled interface{ Title(ctx *Context) (title string, badge Badge) } // pane border title / tab label
@@ -1621,6 +1635,7 @@ type Context struct {
 	Theme    *theme.Theme
 	Mode     layout.Mode
 	Layout   layout.Layout
+	Routes   map[layout.SlotID]Route // what each route slot shows this frame (app.Project; set with Layout, read-only) — e.g. the rail highlights DM while Main shows RouteDMs
 	Keys     *keymap.Keymap
 	Store    *store.Store
 	API      *api.Client
@@ -1669,8 +1684,9 @@ const (DensityFull Density = iota /*command, standard*/; DensityLine /*compact: 
 ```go
 type RouteKind string
 const (
-	RouteHome          RouteKind = "home"          // chat: DM·친구·피드 진입 목록 (레일 "홈")
-	RouteChannel       RouteKind = "channel"       // chat: ID=channel id (text|dm|group_dm), Anchor=message id
+	RouteHome          RouteKind = "home"          // chat: 받은 초대·친구 요청·피드·친구·방 만들기/참여 진입 + 가입한 방별 채널 + DM·접속 친구 목록 (레일 "홈")
+	RouteChannel       RouteKind = "channel"       // chat: ID=channel id (text|dm|group_dm), Anchor=message id; Query{"jump":"unread"} = select the first unread after Anchor
+	RouteDMs           RouteKind = "dms"           // chat: DM 목록 (DM 표면 루트: 1:1·그룹 DM, 최근 활동 순)
 	RouteThread        RouteKind = "thread"        // chat: ID=root message id, Arg=channel id
 	RouteSearch        RouteKind = "search"        // chat: Arg=query, ID=channel|space scope ("" global)
 	RouteInvite        RouteKind = "invite"        // chat: ID=invite code (link preview); Arg="direct" => direct invite, ID=invite id ("" = list of pending Store.DirectInvites)
@@ -1722,19 +1738,21 @@ package app
 
 type Front int
 const (
-	FrontTab           Front = iota // single-pane modes show the active tab (its stack top, or its thread)
+	FrontTab           Front = iota // single-pane modes show the chat surface: the active tab, or the DM surface when InDM (its stack top, or its thread)
 	FrontFeed                       // ... show the feed surface (standard: FeedSwapped)
 	FrontNotifications              // ... show the notifications route
 )
 
 type TabState struct {
-	Stack  []ui.Route // Stack[0] = tab root (RouteHome | RouteChannel); never RouteThread/RouteFeed/RouteNotifications
-	Thread *ui.Route  // this tab's open thread (Kind=RouteThread, Arg=root channel id), nil = closed
+	Stack  []ui.Route // Stack[0] = tab root (RouteHome | RouteChannel, never a DM); never RouteThread/RouteFeed/RouteNotifications. DM surface: Stack[0] = RouteDMs, Stack[1] (when open) = the DM / group DM channel
+	Thread *ui.Route  // this tab's open thread (Kind=RouteThread, Arg=root channel id: the tab root, or the DM surface's open DM), nil = closed
 }
 
 type NavState struct {
 	Tabs   []TabState // open places, max 9 (compact tab bar; command/standard: sidebar-selection history; widget/tiny: the "채팅" tab)
 	Active int        // index into Tabs
+	DM     TabState   // DM surface (the "DM" tab, rail/sidebar DM entry): its own stack and thread; never empty
+	InDM   bool       // the chat surface is DM (else Tabs[Active]): FrontTab shows it, command/standard Main shows it
 	Feed   []ui.Route // feed surface stack; Feed[0].Kind == RouteFeed (default {feed, Arg:"following"}); never empty
 	Front  Front      // which surface single-pane modes (and standard's FeedSwapped) show in Main
 }
@@ -1746,7 +1764,7 @@ func (n NavState) Keys() []string // every route key held anywhere (instance-cac
 func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
 ```
 
-알림 경로는 상수 `NotifRoute = ui.Route{Kind: ui.RouteNotifications}`(키 `notifications//`) 하나뿐이다. `T = Tabs[Active]`, `top = T.Stack[len-1]`, `thr = T.Thread`, `F = Feed[len-1]`, `attached = thr != nil && top.Kind == RouteChannel && top.ID == thr.Arg`(스레드는 그 채널이 스택 맨 위일 때만 Main 에 올라온다).
+알림 경로는 상수 `NotifRoute = ui.Route{Kind: ui.RouteNotifications}`(키 `notifications//`) 하나뿐이다. `T` = **채팅 표면** = `InDM` 이면 `DM`, 아니면 `Tabs[Active]`, `top = T.Stack[len-1]`, `thr = T.Thread`, `F = Feed[len-1]`, `attached = thr != nil && top.Kind == RouteChannel && top.ID == thr.Arg`(스레드는 그 채널이 스택 맨 위일 때만 Main 에 올라온다).
 
 `LayoutState(mode)`: `ThreadOpen = thr != nil && (mode == ModeCommand || Front == FrontTab)`, `FeedSwapped = mode == ModeStandard && Front == FrontFeed`. 앱은 `layout.Compute(mode, cols, rows, nav.LayoutState(mode))` 로 얻은 `Layout` 을 `Project` 에 넘긴다.
 
@@ -1759,9 +1777,18 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
 | 컴팩트·위젯·초소형 | `FrontFeed` → `F` · `FrontNotifications` → `NotifRoute` · `FrontTab` → `attached` 면 `thr`, 아니면 `top` | — | — | — |
 | TooSmall | 없음 | — | — | — |
 
-- **불변식**: 한 프레임에서 한 경로 키는 **최대 한 슬롯**에만 나타난다. 이를 위해 `NavState` 전체에서도 한 키는 한 곳에만 있다 — 어떤 스택에 키 K 를 넣으면 다른 모든 스택(루트 제외)에서 K 를 뺀다. 루트 종류(`home`·`channel`)는 탭 루트로만, `thread` 는 `TabState.Thread` 로만, `feed` 는 `Feed[0]` 으로만, `notifications` 는 `NotifRoute` 로만 존재하므로 서로 겹치지 않는다.
+- **불변식**: 한 프레임에서 한 경로 키는 **최대 한 슬롯**에만 나타난다. 이를 위해 `NavState` 전체에서도 한 키는 한 곳에만 있다 — 어떤 스택에 키 K 를 넣으면 다른 모든 스택(루트 제외)에서 K 를 뺀다. 루트 종류(`home`·텍스트 `channel`)는 탭 루트로만, DM `channel` 은 `DM.Stack[1]` 로만, `dms` 는 `DM.Stack[0]` 으로만, `thread` 는 `TabState.Thread`(탭 또는 DM 표면)로만, `feed` 는 `Feed[0]` 으로만, `notifications` 는 `NotifRoute` 로만 존재하므로 서로 겹치지 않는다.
 - 지휘소·표준에서는 스레드·피드·알림이 Main 스택에서 **들어 올려져** 각자 창에 뜨고, Main 은 남은 `top` 을 보인다. 컴팩트·위젯·초소형에서는 `Front` 와 `attached` 규칙으로 Main 하나에 **다시 내려 놓인다**(우선순위: `Front` → 스레드 → 스택 맨 위).
-- 위젯·초소형의 고정 3탭은 **별도 스택이 아니다**: `채팅` = `FrontTab`(활성 탭 스택 + 그 스레드, 맥락 줄 `▾` 로 `Active` 전환), `피드` = `FrontFeed`(피드 표면 스택), `알림` = `FrontNotifications`. 컴팩트 탭 줄 = `Tabs` 각 루트 + 고정 `피드`·`알림` 두 칸(5.4).
+- 위젯·초소형의 고정 4탭: `채팅` = `FrontTab` + `!InDM`(활성 탭 스택 + 그 스레드, 맥락 줄 `▾` 로 `Active` 전환), `DM` = `FrontTab` + `InDM`(**DM 표면** — 자기 스택·스레드를 가진 별도 표면), `피드` = `FrontFeed`(피드 표면 스택), `알림` = `FrontNotifications`. 컴팩트 탭 줄 = `Tabs` 각 루트 + 고정 `DM`·`피드`·`알림` 세 칸(5.4). `피드`·`알림` 으로 가도 `InDM` 은 그대로라 `f`·`ctrl+n` 으로 돌아오면 떠난 채팅 표면(채팅 또는 DM)이 다시 보이고, 지휘소·표준 Main 도 그 표면을 보인다.
+
+##### DM 표면 [결정] (2026-11-09)
+
+- **DM 은 언제나 DM 표면에 산다.** 1:1·그룹 DM 채널(`Store.IsDM`)은 탭 루트가 되지 않는다 — 홈·팔레트·알림함·토스트·링크·사이드바·친구·`c` 등 **어디서 열든** DM 표면에 열린다(`InDM=true`, `Front=FrontTab`). 그래서 한 DM 키는 한 곳(`DM.Stack[1]`)에만 있고(one-key-one-place), 컴팩트 탭 줄에 DM 이 따로 탭으로 생기지 않으며 9탭 한도·LRU 를 쓰지 않는다. 가장 단순하고 일관된 규칙이라 이것을 택했다(DM 탭 루트와 DM 표면이 같은 DM 을 나눠 가지면 어느 쪽이 "그 DM" 인지 정할 규칙이 늘어난다).
+- DM 표면 스택: `[RouteDMs]`(목록) 또는 `[RouteDMs, DM 채널, …push]`. 그 DM 을 다시 열면 스택 유지(`Anchor`/`Query` 가 있으면 그 자리를 바꿔 `RouteUpdatedMsg`), 다른 DM 이면 `[RouteDMs, 새 DM]` 으로 바꾸고 스레드를 닫는다. DM 의 스레드는 `DM.Thread`(그 DM 이 맨 위일 때 `attached`). `Replace` 는 열린 DM 을 바꾸지 않는다(그 위만).
+- `NavigateMsg` 추가 행: `dms` → `InDM=true`, `DM` 스택을 목록까지 접고 스레드 닫음 / DM `channel` → 위 규칙 / DM `thread` → 그 DM 을 열고 스택을 DM 까지 접은 뒤 `DM.Thread=&r`(지휘소·표준 포커스 `SlotThread`) / `home`·텍스트 `channel`·텍스트 `thread` → 지금처럼 탭, `InDM=false`. push 하는 종류(`search` 등, `TargetMain`)는 채팅 표면 스택(DM 표면이면 그 스택)에 쌓는다.
+- 뒤로: Main 이 DM 표면이면 그 스택을 pop — DM 에서 `esc` 는 목록, 목록으로 돌아가면 DM 스레드도 닫힌다. 스레드에서 `esc`·`c` 는 그 DM 으로.
+- `[`/`]`·탭 클릭: 위젯·초소형 `채팅 → DM → 피드 → 알림`, 컴팩트·표준 `Tabs… → DM → 피드 → 알림`, 지휘소 `Tabs… → DM`. 채팅 ↔ DM 전환은 서로의 자리(활성 탭과 그 스택, 열린 DM·스레드)를 건드리지 않는다. 모드 전환도 `NavState` 를 바꾸지 않으므로 DM 표면이 그대로 남는다.
+- 상태 복원·부트스트랩: state.json 에서 되살린 탭 루트가 부트스트랩 뒤 DM 으로 밝혀지면(예전 버전 파일) 그 탭을 닫고, 그 탭이 보이던 중이면 스택·스레드째 DM 표면으로 옮긴다(`liftDMs`). 사라진 DM(삭제·나감)이나 숨은 DM(차단한 사람과의 1:1, `Store.HiddenDM`)은 DM 표면을 목록으로 접는다(`foldDM` — 실시간 이벤트를 `Store.Apply` 한 직후(`onEvent`, 바뀌었으면 relayout, 보이던 중이면 포커스 의도 = 목록)와 부트스트랩 뒤 `pruneChannels`). 부트스트랩 전에는 Store 가 모르는 DM 도 접지 않는다(state.json 복원).
 
 `NavigateMsg` 처리(`TargetAuto`, 결과는 `NavState` 변경 + 필요 시 포커스 의도):
 
@@ -1778,7 +1805,17 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
 - `TargetMain`/`TargetSide` 는 **push 하는 종류**(위 표의 sns 내용·그 밖 행)의 대상만 바꾼다: `TargetMain` = 활성 탭 스택, `TargetSide` = 피드 표면 스택(예: 지휘소 피드 열 안에서 검색 결과를 이어 보기). 루트·들어 올리는 종류(`home`·`channel`·`thread`·`feed`·`notifications`·`login`)는 `Target` 을 무시한다. `Replace=true` 는 대상 스택 맨 위를 바꾼다(루트는 바꾸지 않음).
 - 같은 키의 캐시된 인스턴스를 다시 쓰는데 `Anchor`/`Query` 가 다르면 그 인스턴스에만 `ui.RouteUpdatedMsg{Route}` 를 보낸다(검색 결과 → 메시지로 점프 등). `Anchor` 가 비어 있지 않은 `NavigateMsg` 는 인스턴스가 이미 같은 `Anchor` 를 들고 있어도 다음 재배치에서 한 번 더 보낸다(rejump, v0.1.1 C1: 친구 요청 → `h`(친구 탭) → 뒤로 → 친구 요청이 다시 받은 요청 탭을 연다, 채널 화면에서 같은 메시지 링크를 두 번 열어도 다시 점프. 스레드 화면은 이미 그 Anchor 로 점프를 마쳤으면 다시 받은 같은 Anchor 를 무시한다). 크기 변경·재투영만으로는 보내지 않는다.
 - **뒤로(`BackMsg`, `esc`)** 는 포커스된 슬롯이 보이는 표면을 한 단계 되돌린다: 포커스가 `SlotThread` → 그 탭 `Thread=nil`. `SlotFeed` → `Feed` 가 2개 이상이면 pop. `SlotNotifications` → 아무것도 안 함. `SlotMain` → Main 이 보이는 것에 따라: 스레드(`attached`) → `Thread=nil` / `F` → 2개 이상이면 pop, 아니면 `Front=FrontTab` / `NotifRoute` → `Front=FrontTab` / `top` → 스택이 2개 이상이면 pop(루트는 pop 하지 않음).
-- `f`(`feed.toggle`): 지휘소 → 포커스를 `SlotFeed` 로. 그 외 → `Front` 를 `FrontTab`↔`FrontFeed` 토글. `ctrl+n`(`notifications.open`): 지휘소 → 포커스를 `SlotNotifications` 로, 그 외 → `Front` 를 `FrontNotifications`↔`FrontTab` 토글.
+  - 뒤로는 **구조적**이다: 스레드에서 `esc` 는 어디서 그 스레드를 열었든(알림함·검색·팔레트·토스트·다른 탭) **그 스레드의 대화(채널·DM)** 로 간다. 연 곳으로 돌아가는 것은 아래 "기록"의 `nav.history_back` 이 맡는다.
+  - 스레드 답글 입력창에서 `esc` 는 비어 있든(답글을 보낸 직후 포함) 초안이 있든 **입력창만** 나간다(초안 유지, 스레드는 열린 채 메시지 목록으로 — `j`/`k`·리액션). 두 번째 `esc` 가 뒤로다. 대화로 바로 가는 키는 `c`, 연 곳으로는 `ctrl+o`.
+- **스레드 → 대화(`thread.channel`, 기본 `c`)**: 포커스된 스레드의 채널을 루트 메시지 `Anchor` 로 연다(`NavigateMsg{channel, Anchor=root}` 와 같고 그 탭 스택을 루트까지 접는다). 스레드가 Main 에 보이는 모드(스레드 창이 없는 레이아웃: 컴팩트·위젯·초소형, 좁은 표준)에서는 `Thread=nil` 로 닫고, 스레드 창이 있으면 열어 둔 채 Main 으로 포커스만 옮긴다. 스레드가 Main 에 있을 때는 제목(초소형은 "답글 N개" 구분선)이 `#개발 › 스레드 · …` 처럼 대화를 앞에 붙이고(12칸까지), 힌트는 `c #개발로` 로 보인다.
+- **기록(`nav.history_back` / `nav.history_forward`)**: 앱은 `NavState` 옆에(안이 아니다 — 모드 전환이 `NavState` 를 바꾸지 않는 불변식 유지) Main 이 보인 **장소**를 시간순으로 최대 50개 기록한다(넘치면 가장 오래된 것부터 버림, state.json 에는 저장하지 않음, 로그인·로그아웃 때 비움).
+  - 장소 = `{Front, 탭 루트, DM, 경로}` (모드 무관): `FrontTab` → 채팅 표면 루트(활성 탭 루트, DM 표면이면 `RouteDMs`) + DM 표면에 열린 DM(`DM.Stack[1]`, 목록이면 없음 — 그 위에 쌓인 `search` 등이 어느 DM 위였는지 기억한다) + (`attached` 스레드, 아니면 스택 맨 위), `FrontFeed` → 피드 스택 맨 위, `FrontNotifications` → `NotifRoute`. 비교는 키로 하고 `Anchor`/`Query` 는 무시(저장할 때 `Anchor` 를 지운다).
+  - 기록 시점: 매 `Update` 끝. 지금 장소가 현재 항목과 다르면 현재 항목 뒤(앞으로 갈 항목)를 버리고 덧붙인다. 그래서 `NavigateMsg`·`esc`·`[ ]`/`tab` 탭 전환(채팅 ↔ DM 포함)·`f`·`ctrl+n`·탭 클릭·`c` 가 모두 항목이 되고 `ctrl+o` 가 채팅 ↔ DM 을 넘나들며, **오버레이(팔레트·메뉴·대화상자·도움말)·포커스 이동·모드 전환·크기 변경·Anchor 만 바뀐 재점프는 항목이 아니다**.
+  - 뒤로/앞으로: 현재 항목에서 그 방향으로 가장 가까운, **아직 있고 지금과 다른** 장소로 간다(현재 위치를 옮길 뿐 항목은 지우지 않는다). 없는 장소 = 부트스트랩 뒤 `Store.Channels` 에 없는 채널(삭제·스페이스 나감)의 루트·DM 표면의 DM(장소의 DM 포함)·스레드, 내가 차단한 사람과의 DM, `Store.Spaces` 에 없는 스페이스의 설정. 끝이면 토스트 "더 뒤로 갈 곳이 없어요" / "더 앞으로 갈 곳이 없어요"(`ToastInfo`, 초소형은 상태줄).
+  - 되살리기: `FrontNotifications` → `Front=FrontNotifications`. `FrontFeed` → 피드 루트면 `Feed=[r]`(이미 `Feed[0]` 이면 거기까지 pop), 그 밖이면 피드 스택에 push(이미 있으면 거기까지 pop). `FrontTab` → 루트가 `RouteDMs` 면 DM 표면(`InDM=true`)에서 경로가 목록이면 목록까지 접고, DM 이면 그 DM 을 열고(스레드 닫음), 스레드면 그 DM + `DM.Thread=&r`, 그 밖이면 장소의 DM 을 열고(지금 열린 DM 이면 스택 유지, 장소에 DM 이 없으면 목록까지 접고) 그 위에 push — 다른 DM 위에 옛 DM 의 검색 결과가 쌓이지 않는다. 그 밖의 루트는 탭 루트 활성(닫히거나 밀려난 탭이면 다시 추가, 인스턴스 캐시가 초안·스크롤을 되살림) 후 경로가 스레드면 스택을 루트까지 접고 `Thread=&r`, 루트면 스택을 루트까지 접고 `Thread=nil`, 그 밖(`search` 등)이면 그 탭 스택에 push(one-key-one-place 로 이미 있으면 거기까지 pop — 같은 탭 채널 검색 → 스레드 → 뒤로 = 검색 결과). 포커스 의도는 그 경로(지휘소·표준의 스레드는 `SlotThread`, 지휘소의 피드·알림은 그 창).
+  - 지휘소는 `Front` 가 보이지 않으므로 피드·알림 항목으로 돌아가면 그 창으로 포커스가 간다. 지휘소의 `[`/`]` 탭 전환은 `Active` 와 함께 `Front=FrontTab` 으로 둔다(Main 이 그 탭을 보이므로) — 피드 열에서 글을 연 뒤의 탭 전환도 항목이 된다.
+  - 한 번 쓰고 스스로 닫히는 화면 — sns 글쓰기(`compose`, 올리거나 버리면 `BackMsg`)·스토리 뷰어(`stories`, 끝나면 `BackMsg`) — 은 장소가 아니다(기록하지 않음). 그런 화면에서 뒤로는 그 화면을 연 곳(현재 항목)으로 간다. 나간 스페이스(부트스트랩 뒤 `Store.Spaces` 에 없음)의 설정 화면도 없는 장소다.
+- `f`(`feed.toggle`): 지휘소 → 포커스를 `SlotFeed` 로. 그 외 → `Front` 를 `FrontTab`↔`FrontFeed` 토글(`InDM` 유지 — 돌아오면 떠난 채팅 표면). `ctrl+n`(`notifications.open`): 지휘소 → 포커스를 `SlotNotifications` 로, 그 외 → `Front` 를 `FrontNotifications`↔`FrontTab` 토글.
 - 앱은 경로별 컴포넌트 인스턴스를 `Route.Key()` 로 캐시한다(최근 32개, 그 이상은 가장 오래 안 본 것부터 `Persistent` 상태만 남기고 해제 — 단 `NavState.Keys()` 에 있는 키는 해제하지 않는다). 같은 채널로 돌아오면 같은 인스턴스(초안·스크롤 유지). 한 인스턴스는 한 프레임에 한 슬롯에만 있으므로 `Resize` 크기는 늘 하나다.
 
 #### 5.3.4 메시지 흐름과 라우팅
@@ -1792,9 +1829,10 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
    3. **하드 전역**: `ctrl+c`, `ctrl+k`, `ctrl+f`, `ctrl+n`, `tab`/`shift+tab`(포커스가 입력 캡처 중이고 그 입력이 자동완성 팝업을 띄운 경우에는 컴포넌트로; 포커스 링이 창 1개인 모드에서는 창 순환 대신 탭 순환 — 5.3.5). `ctrl+w` 는 포커스가 입력 캡처 중이 **아닐 때만** 창 접두로 쓰이고, 입력 중이면 입력창의 "단어 지우기"로 간다(`esc` 로 입력을 빠져나온 뒤 `ctrl+w`).
       - **자동완성 중 `tab`(CR-A)**: 하드 전역 `tab`/`shift+tab` 판정(창 1개 모드의 `tab.next`/`tab.prev` 포함) **전에**, 포커스 컴포넌트가 `CapturesInput() && Completing()`(`ui.InputCapturer`·`ui.Completer`) 이면 그 키를 `HandleKey` 로 넘긴다. `handled=true` 면 끝(포커스·`NavState` 불변), `false` 면 원래 하드 전역으로 처리. 둘 중 하나라도 아니면(입력 캡처 아님·`Completer` 미구현·팝업 없음) 그대로 하드 전역.
    4. 포커스 컴포넌트의 `HandleKey`. `handled=true` 면 끝.
-   5. 포커스 컴포넌트가 `CapturesInput()==true` 면 여기서 끝(글자 키가 전역 단축키로 새지 않음).
-   6. **소프트 전역**: `?`, `f`, `[`, `]`, `esc`(뒤로), `g` 계열.
+   5. 포커스 컴포넌트가 `CapturesInput()==true` 면 여기서 끝(글자 키가 전역 단축키로 새지 않음). 단 `nav.history_back`/`nav.history_forward` 키는 컴포넌트가 처리하지 않았으면(`handled=false`) 계속 6단계로 간다 — 채팅 입력창은 편집 키가 아닌 기록 키(기본 `ctrl+o`)를 넘기고, `alt+←`/`alt+b`/`alt+→`/`alt+f` 는 단어 이동으로 쓴다. 다른 입력(검색 칸, sns 글쓰기 — `ctrl+o` 는 사진 첨부)은 지금처럼 모두 처리한다.
+   6. **소프트 전역**: `?`, `f`, `[`, `]`, `esc`(뒤로), `ctrl+o`·`alt+←`·`alt+b`(이전 위치), `alt+→`·`alt+f`(다음 위치), `c`(포커스된 경로가 스레드일 때만: 대화로), `g` 계열.
 3. 마우스 → `layout.At(x,y)` 의 창: 클릭이면 그 창으로 포커스 이동 후 `HandleMouse(local)`, 휠은 포커스와 무관하게 포인터 아래 창으로. 오버레이가 열려 있으면 오버레이가 먼저(바깥 클릭 = 닫기).
+   - **드래그 [결정, 2026-11-09]**: 왼쪽 누르기를 `DragHandler` 인 창이 받으면 앱이 그 창을 붙잡는다(`app/mouse.go` `dragGrab`). 놓을 때까지의 `MouseMotionMsg` 와 `MouseReleaseMsg` 는 포인터가 어디 있든 그 창의 `HandleDrag` 로만 가고, 좌표는 그 창 내부 기준이되 **자르지 않는다**(위·아래로 벗어난 값으로 컴포넌트가 스크롤·고정을 정한다). 놓기의 버튼은 보지 않는다(X10 은 `MouseNone`). 붙잡지 않은 움직임·놓기는 버린다 — `DragHandler` 가 아닌 창은 지금처럼 누르기와 휠만 받는다. 새 왼쪽 누르기는 놓기를 잃은 이전 동작을 끝내고, 그 누르기가 마지막 선택을 가진 창 밖으로 가면(다른 창·탭·토스트·오버레이) 그 창의 `ClearDrag` 를 부른다. 붙잡은 뒤 오버레이가 열렸거나 창이 배치에서 빠졌거나 다른 컴포넌트를 보이거나 TooSmall 이 되면 다음 움직임·놓기에서 동작을 끝내고 `ClearDrag`.
 4. `tea.PasteMsg` → 오버레이가 열려 있으면 **맨 위 오버레이**(`Update`), 아니면 포커스 컴포넌트(`Update`). 오버레이가 열려 있는 동안 아래 창으로는 절대 가지 않는다.
 5. `realtime.EventMsg`(앱 브리지가 감싼 것) → `Store.Apply(ev)` → **모든 살아 있는 컴포넌트에 방송** → 알림 처리(`alert` 이면 notify, 9장) → `rt.MarkProcessed(seq)`.
 6. 그 밖 모든 메시지(API 결과, 틱, 내부 메시지) → 모든 살아 있는 컴포넌트에 방송. 컴포넌트는 자기와 관계없는 것은 무시한다. 단 `ui.RunCommandMsg` 는 방송하지 않는다(아래).
@@ -1928,7 +1966,7 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 
 상태줄(`SlotStatus`, 1줄): `[모드 pill] 힌트 ··· 오른쪽: 집중 남은 시간(🎯 18:20) · 429 쿨다운 · 📌(고정) · 연결 상태(● 온라인 / ◐ 자리비움 / ⊘ 방해금지 / ◌ 연결 중… / ✕ 오프라인)`. 폭이 모자라면 오른쪽 항목을 연결 상태만 남기고 힌트를 자른다.
 
-힌트 **[결정]** — 모드별 기본 힌트(시안 `layouts.html` 문구 그대로)를 먼저 쓰고(단 포커스 컴포넌트가 `ui.ThreadHider` 이고 `HidesThread(ctx)==true` 인 동안은 그중 스레드 항목 — 지휘소·표준 `t 스레드`, 컴팩트 `enter 스레드` — 을 뺀다: v0.1.1 D7, 선택한 줄이 스레드를 열 수 없는 시스템 메시지), 포커스 컴포넌트가 `Helper` 면 그 바인딩 중 기본 힌트와 키가 겹치지 않는 것을 ` · ` 로 이어 붙인다(전체 항목 최대 5개, 폭 넘치면 뒤부터 자름). 포커스 컴포넌트가 `CapturesInput()==true` 인 동안은 기본 힌트 대신 `enter 보내기 · shift+enter 줄바꿈 · esc 나가기`. 오버레이가 열려 있으면 그 오버레이의 `Helper`(없으면 `esc 닫기`).
+힌트 **[결정]** — 모드별 기본 힌트(시안 `layouts.html` 문구 그대로)를 먼저 쓰고(단 포커스 컴포넌트가 `ui.ThreadHider` 이고 `HidesThread(ctx)==true` 인 동안은 그중 스레드 항목 — 지휘소·표준 `t 스레드`, 컴팩트 `enter 스레드` — 을 뺀다: v0.1.1 D7, 선택한 줄이 스레드를 열 수 없는 시스템 메시지), 포커스 컴포넌트가 `Helper` 면 그 바인딩 중 기본 힌트와 키가 겹치지 않는 것을 ` · ` 로 이어 붙인다(전체 항목 최대 5개, 폭 넘치면 뒤부터 자름). 포커스 컴포넌트가 `CapturesInput()==true` 인 동안은 기본 힌트 대신 `enter 보내기 · shift+enter 줄바꿈 · esc 나가기`. 오버레이가 열려 있으면 그 오버레이의 `Helper`(없으면 `esc 닫기`). 위젯·초소형은 그 뒤에 **이전 위치 힌트**(`ctrl+o 이전 위치`, 5.5)를 붙인다: 기록에 돌아갈 곳이 있고 오버레이가 없고 입력 캡처 중이 아닐 때만, 최대 5개에 세지 않고, 잘리지 않는다 — 자리가 모자라면 기본 힌트 뒤의 컴포넌트 힌트를 뒤부터 밀어내고, 기본 힌트와도 안 들어가면 가장 먼저 빠진다(오른쪽 항목 줄이기·힌트 자르기보다 먼저).
 
 | 모드 | 기본 힌트 |
 |---|---|
@@ -1936,12 +1974,14 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 | 표준 | `f 피드 · t 스레드 · ctrl+k` |
 | 컴팩트 | `[ ] 탭 이동 · enter 스레드` |
 | 위젯 | `tab 탭` |
-| 초소형 | (없음 — `[초소형] ●` 만) |
+| 초소형 | (없음 — `[초소형] ●` 만, 돌아갈 곳이 있으면 `[초소형] ctrl+o 이전 위치 ●`) |
 
 탭(`SlotTabs`):
-- 컴팩트: `NavState.Tabs` 의 각 루트(`#개발`, `#일반 3`, `민지 ●`) 다음에 고정 `피드`·`알림 2` 두 칸(시안 순서). 현재 탭(`Front==FrontTab` 이면 `Tabs[Active]`, 아니면 `피드`/`알림`)은 `TabActive`, 고정 두 칸은 비활성일 때 `dim`. `[`/`]`·`tab`/`shift+tab` 이 이 순서로 순환, 클릭 이동, 넘치면 현재 탭이 보이도록 가로 스크롤 + 양 끝 `‹ ›`.
-- 위젯: 고정 3탭 `채팅 / 피드 / 알림(배지)` = `FrontTab / FrontFeed / FrontNotifications`(5.3.3). 맥락 줄 `SlotContext` = 활성 탭 경로 제목 + 방 이름 + `▾`(클릭·`enter` 로 채널 전환 팔레트 → `Active` 변경). `[`/`]`·`tab`/`shift+tab` 이 3탭 순환.
-- 초소형: `챗·피·알` 한 글자 축약 + 배지, 현재 탭만 pill. 동작은 위젯과 같다.
+- 컴팩트: `NavState.Tabs` 의 각 루트(`#개발`, `#일반 3`, `홈`) 다음에 고정 `DM 6`·`피드`·`알림 2` 세 칸. 현재 탭(`Front==FrontTab` 이면 `InDM` ? `DM` : `Tabs[Active]`, 아니면 `피드`/`알림`)은 `TabActive`, 고정 칸은 비활성일 때 `dim`. `[`/`]`·`tab`/`shift+tab` 이 이 순서로 순환, 클릭 이동, 넘치면 현재 탭이 보이도록 가로 스크롤 + 양 끝 `‹ ›`. DM 은 탭 루트가 되지 않는다(5.3.3 DM 표면).
+- 위젯: 고정 4탭 `채팅 / DM / 피드 / 알림(배지)` = `FrontTab / FrontTab+InDM / FrontFeed / FrontNotifications`(5.3.3). 배지: `채팅` = `Store.ChannelUnread`(텍스트 채널만), `DM` = `Store.DMUnread`(1:1·그룹 DM 안 읽음 합, 음소거 제외, 차단한 사람과의 1:1 DM 제외, 멘션이 하나라도 있으면 멘션 스타일), `알림` = `Store.InboxBadge()`(`NotifUnread` + 알림 행이 세지 않은 안 읽은 대화, 아래 알림함 "알림 배지"). 맥락 줄 `SlotContext` = 채팅 표면 제목(활성 탭 경로 제목 + 방 이름, DM 표면이면 열린 DM 이름, 목록이면 `DM`) + `▾`(클릭·`enter` 로 채널 전환 팔레트). `[`/`]`·`tab`/`shift+tab` 이 4탭 순환.
+- 초소형: `챗 / DM / 피 / 알` 축약 + 배지, 현재 탭만 pill. 동작은 위젯과 같다.
+- 지휘소 레일: `홈` 바로 아래 `DM`(DM 안 읽음 표시 `•`/멘션 `●`, 클릭·`enter` = `RouteDMs` 를 Main 에, Main 이 DM 목록이거나 DM 을 보이면 현재 항목). `홈` 에는 이제 DM 표시가 없다(DM 에서 센다). 표준(레일 없음): 사이드바 맨 위 방 이름 `▾` 바로 아래 `DM  6` 줄(같은 동작·배지), 방 전환 메뉴에도 `홈` 다음 `DM`. 홈 화면과 사이드바의 `─ DM` 목록은 그대로 둔다.
+- DM 목록(`RouteDMs`, chat): `visibleDMs`(= `Store.DMOrder` 최근 활동 순, 차단한 사람과의 1:1 DM 숨김) 한 줄씩 — 1:1 은 접속 점 + 이름, 그룹 DM 은 `◇ 라벨`, 그 뒤 마지막 메시지 미리보기(캐시에 있을 때만, 내 글 `나: `, 그룹 DM 은 `이름: `, 자리가 모자라면 먼저 빠짐), 오른쪽에 상대 시간(`3분`)과 안 읽음 배지(`sideBadge`). `enter`/두 번 클릭 = 그 DM 을 DM 표면에서 열기. 제목 `DM` + DM 안 읽음 배지.
 
 ### 5.5 키맵 — `internal/ui/keymap`
 
@@ -1954,6 +1994,7 @@ func Default() *Keymap
 func Load(overrides map[string][]string) (*Keymap, []error) // unknown action/invalid key => error, default kept
 func (k *Keymap) Binding(a Action) key.Binding
 func (k *Keymap) Matches(msg tea.KeyPressMsg, a Action) bool
+func (k *Keymap) Bound(msg tea.KeyPressMsg) bool // msg triggers some action
 func (k *Keymap) Help(as ...Action) []key.Binding
 ```
 
@@ -1969,8 +2010,10 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 | `focus.next` / `focus.prev` | `tab` / `shift+tab` — 포커스 링이 창 1개인 모드(컴팩트·위젯·초소형)에서는 `tab.next` / `tab.prev` 로 동작 | 하드 |
 | `help.toggle` | `?`, `f1` | 소프트 |
 | `feed.toggle` | `f` | 소프트 |
-| `tab.prev` / `tab.next` | `[` / `]` | 소프트 |
+| `tab.prev` / `tab.next` | `[` / `]` — 위젯·초소형 `채팅 → DM → 피드 → 알림`, 컴팩트·표준 `열린 탭… → DM → 피드 → 알림`, 지휘소 `열린 탭… → DM`(5.3.3). 도움말의 `]` 줄 = `다음 탭 (채팅·DM·피드·알림)`(따로 순환 줄은 두지 않는다 — 모드별 순서는 여기와 README) | 소프트 |
 | `nav.back` | `esc` | 소프트 |
+| `nav.history_back` | `ctrl+o`, `alt+←`, `alt+b` — 이전 위치(5.3.3 기록). `ctrl+o` 는 어느 터미널이나 같은 바이트이고 입력창 편집 키가 아니어서 채팅 입력 중에도 된다. `alt+←` 는 iTerm2·kitty·Ghostty·WezTerm 의 option/alt+←(CSI 1;3D), `alt+b` 는 macOS Terminal.app 의 option+←(ESC b). 도움말 표기 `ctrl+o/alt+←`, 위젯·초소형 상태줄은 첫 키만(`ctrl+o 이전 위치`) | 소프트(입력 캡처 중에도 컴포넌트가 넘기면) |
+| `nav.history_forward` | `alt+→`, `alt+f` — 다음 위치. 입력 중에는 단어 이동이라 동작하지 않는다 | 소프트(위와 같음) |
 | `list.up` / `list.down` | `k`,`↑` / `j`,`↓` | 목록 |
 | `list.top` / `list.bottom` | `g g`,`home` / `G`,`end` | 목록 |
 | `list.pageup` / `list.pagedown` | `ctrl+u`,`pgup` / `ctrl+d`,`pgdown` | 목록 |
@@ -1986,9 +2029,10 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 | `msg.edit` | `e` | 메시지 선택(내 것) |
 | `msg.delete` | `d` (확인 대화상자) | 메시지 선택 |
 | `msg.pin` | `p` | 메시지 선택 |
-| `msg.copy` | `y` (`tea.SetClipboard`) | 메시지 선택 |
+| `msg.copy` | `y` (`ui.Copy`: OSC 52 + 시스템 클립보드) | 메시지 선택 |
 | `msg.actions` | `m` (동작 메뉴) | 메시지 선택 |
 | `channel.search` | `/` | 대화 |
+| `thread.channel` | `c` — 스레드에서 그 대화(채널·DM)로, 루트 메시지 선택(5.3.3). 힌트는 `c #개발로` | 스레드 |
 | `post.like` | `l` | 글 선택 |
 | `post.repost` | `b` | 글 선택 |
 | `post.quote` | `q` | 글 선택 |
@@ -1999,8 +2043,18 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 
 - 같은 키가 여러 범위에 있으면 좁은 범위가 이긴다: 입력 > 메시지/글 선택 > 목록 > 소프트 전역. 예: 입력창 포커스의 `enter` = `compose.send`, 메시지 선택 중 `enter` = `msg.thread`, 채널 목록의 `enter` = `list.open`.
 - 투표 메시지의 투표는 `msg.actions`(`m`) 메뉴 또는 투표 칸 클릭으로 한다(`enter` 는 늘 스레드).
+- 대화(채널·스레드)의 입력창이 포커스 밖일 때, ctrl/alt 수식 없이 비ASCII 글자(한글 음절·호환 자모·자모 등 IME 입력)가 담긴 키가 오고 어떤 Action 에도 묶여 있지 않으면(`Keymap.Bound` 거짓) `compose.focus` 없이 곧바로 입력창을 포커스하고 그 글자를 그대로 넣는다 — 한글 자판으로 바로 쓰기 시작할 수 있게. 읽기 전용·사라진 대화는 예외(아무 일 없음), ASCII 키는 계속 단축키다.
 
-마우스: 클릭 = 포커스 + 항목 선택, 선택된 항목 다시 클릭 = 열기, 휠 = 포인터 아래 창 3줄 스크롤, 탭·레일·목록 클릭 = 이동, 리액션 칩 클릭 = 토글, 오버레이 바깥 클릭 = 닫기.
+- 위젯·초소형 상태줄은 돌아갈 곳이 있고(기록) 오버레이가 없고 입력 캡처 중이 아닐 때 `nav.history_back` 의 첫 키를 `ctrl+o 이전 위치` 로 보인다. 이 힌트는 잘리지 않는다: 모드 기본 힌트(위젯 `tab 탭`) 뒤에 놓이고 자리가 모자라면 뒤쪽 컴포넌트 힌트를 밀어내며, 기본 힌트와 함께도 안 들어갈 만큼 좁으면 가장 먼저 빠진다(5.4 상태줄).
+
+마우스: 클릭 = 포커스 + 항목 선택, 선택된 항목 다시 클릭 = 열기, 휠 = 포인터 아래 창 3줄 스크롤, 탭·레일·목록 클릭 = 이동, 리액션 칩 클릭 = 토글, 오버레이 바깥 클릭 = 닫기, 채팅 드래그 = 줄 복사(아래).
+
+**채팅 드래그 선택 [결정, 2026-11-09]** (`chat/msgpane.go`, 채널·스레드 메시지 목록; 모든 레이아웃 모드): 마우스를 켜 두면(`ui.mouse`) 터미널 자체의 드래그 선택이 막히므로 masil 이 줄 단위 선택을 한다.
+- 메시지 줄에서 누르고(`MouseClickMsg` Left) 버튼을 누른 채 움직이면(`MouseMotionMsg`) 누른 줄부터 포인터 아래 줄까지가 `S.TextSelect`(테마 반전: 배경 FG, 글자 BG — `Cursorline` 과 구별)로 칠해진다. 선택은 (행 id, 행 안 줄 번호)로 잡아 스크롤·새 메시지에도 그대로이고, 그 행이 사라지면 풀린다. 날짜·안 읽음 구분선·불러오는 중·알림 줄과 스레드 루트의 "더 보기" 줄은 칠하지도 복사하지도 않는다.
+- 목록 위·아래로 벗어나 끌면 움직임마다 1줄 스크롤하고 가장자리 줄로 고정한다(입력창 위로 끌어도 입력창은 상관없다). 내용 아래 빈 줄은 마지막 줄로 친다.
+- 놓으면(`MouseReleaseMsg`) 포인터가 움직였을 때(다른 줄, 다른 행, 또는 2칸 이상 옆) 선택한 줄을 **화면에 그려진 그대로** 평문으로 만들어 `ui.Copy(…, "복사했어요")` 한다: 줄마다 `ansi.Strip` + 끝 공백 제거, 행마다 자기 들여쓰기(full 들여쓰기 2칸, bubble 패딩, 내 말풍선의 오른쪽 정렬)를 뗀다 — 행의 첫 줄(머리줄·한 줄짜리 행)은 왼쪽 공백을 다 떼고 나머지 줄은 공통 들여쓰기만큼. 화면 줄 하나가 복사 줄 하나다(메시지 경계도 줄바꿈). 차단한 사람의 메시지는 접힌 줄(`차단한 사용자의 메시지`)만 복사된다 — 화면에 없는 글은 넣지 않는다(8.2 클립보드 결정). 강조는 놓은 뒤에도 남고 `esc`(그 창이 먹어 뒤로 가지 않는다)·그 창의 새 누르기·다른 곳 누르기로 풀린다.
+- 움직임 없는 누르기+놓기는 클릭이다: 누르기에서 지금처럼 선택(·리액션 칩/투표 칸)하고, **선택된 행 다시 클릭 = 열기는 놓을 때** 한다(드래그하려다 스레드가 열리지 않게). `uitest` 의 `h.Click` 은 누르기와 놓기를 보내고, `h.Drag(x0,y0,x1,y1)` 은 그 사이 칸마다 움직임을 보낸다.
+- 글자 단위 선택은 터미널 자체 선택으로 안내한다(도움말 `메시지` 무리, README 문제 해결): iTerm2 ⌥, Terminal.app fn(또는 ⌘R 마우스 보고 끄기), Linux·Windows Terminal Shift, 또는 `ui.mouse` 끄기.
 
 ### 5.6 명령 팔레트 — `internal/ui/palette` (core)
 
@@ -2015,6 +2069,7 @@ type Command struct {
 	KeyHint   string            // "ctrl+w 1"
 	Available func(ctx *ui.Context) bool
 	Run       func(ctx *ui.Context, args string) tea.Cmd
+	Badge     func(ctx *ui.Context) ui.Badge // item badge (nil = none): 알림함 → Store.InboxBadge
 }
 func Register(c Command)                  // init()-time; duplicate id => panic
 func Lookup(id string) (Command, bool)    // registered command by id (copy, Keywords copied too) — CR-B; app's RunCommandMsg dispatch (5.3.4 7)
@@ -2036,7 +2091,8 @@ func RegisterSource(s Source)
 func Open(ctx *ui.Context, initial string) ui.Overlay // ctrl+k
 func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Korean initial-consonant search key)
 ```
-- 검색: `sahilm/fuzzy` 로 `Title`, `Chosung(Title)`, `Keywords` 를 각각 맞춰 최고 점수. 입력이 비면 최근 이동 8개 + 안 읽은 채널.
+- 검색: `sahilm/fuzzy` 로 후보를 각각 맞춰 최고 점수. 채널·DM·방·사람 항목은 제목·`Chosung`·이름·핸들을 퍼지로 맞춘다. **명령(과 `홈`)은 [결정, 2026-11-09]** `Title`·`Chosung(Title)`·한글이 든 `Keywords`(예: `새 채널`)만 퍼지로 맞추고, 영문 `Keywords` 와 명령 `ID` 는 소문자로 바꾼 입력(2글자 이상)이 키워드·ID 전체나 그 낱말(키워드는 공백, ID 는 `.` `_` `-` 로 나눔), 또는 ID 의 낱말 경계부터의 꼬리(`layout.pin.command` 의 `pin.command`·`command`)의 **앞부분**일 때만 맞는다(점수는 그 낱말에 대한 퍼지 점수) — 영문 낱말에 부분열 퍼지를 걸면 `a` 하나로 거의 모든 명령이 걸렸다. 예: `cre` → 채널 만들기·방 만들기·초대 링크 만들기, `ch` → 채널 명령, `ㅊㄴ` → 채널 만들기, `pin.command` → 레이아웃 고정: 지휘소, `a` → 친구 추가 아님.
+- 입력이 비면: 안 읽은 채널(방 순서, 그다음 DM) → 최근 이동 8개 → `홈` → `Available(ctx)` 가 참인 **모든 명령**(그룹 `이동` → `명령` → `설정` 순, 그룹 안은 제목 순 — 빈 입력이 아닐 때 동점의 정렬과 같다). 명령 이름을 몰라도 팔레트만 열어 찾을 수 있게 한다. 목록이 창보다 길면 선택 행을 따라 스크롤한다. 보여 줄 것이 하나도 없을 때만 `검색어를 입력해 이동하거나 명령을 실행하세요` 를 띄운다.
 - core 기본 소스: 채널·DM·방(Store), 친구, 명령. 2글자 이상이면 `SearchUsers` 를 300ms 디바운스로 불러 사람 항목 추가.
 - 팔레트 입력은 `textinput`(실제 커서, `ctrl+k` 를 `DeleteAfterCursor` 에서 뺌, 5.3.7). 팔레트가 열린 상태의 `ctrl+k` = 닫기.
 - **명령 실행(CR-B)**: 팔레트 안 `enter`(명령 항목)는 `Run` 을 직접 부르지 않고 `ui.RunCommand(c.ID, "")` 만 낸다. 팔레트·슬래시 명령·시험의 `RunCommandMsg` 가 모두 앱의 같은 디스패치(5.3.4 7단계: `Lookup` → 팔레트 먼저 닫기 → `Available` 재확인·`지금은 쓸 수 없는 명령이에요` 토스트 → `Run(ctx, Args)` 에 `Args` 그대로)를 탄다. `RunCommandMsg` 는 방송되지 않으므로 컴포넌트가 받아 따로 실행하지 않는다.
@@ -2044,7 +2100,7 @@ func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Ko
 
 | 등록 패키지 | 명령 id |
 |---|---|
-| core `ui/app` | `theme.cycle`, `theme.set.<name>`, `layout.pin.<mode>`, `layout.auto`, `help`, `settings`, `blocks`(설정의 차단 목록 섹션으로), `logout`, `quit`, `reconnect` |
+| core `ui/app` | `theme.cycle`, `theme.set.<name>`, `layout.pin.<mode>`, `layout.auto`, `help`, `settings`, `blocks`(설정의 차단 목록 섹션으로), `logout`, `quit`(둘 다 확인 대화상자를 먼저 연다 — 빈 입력의 명령 목록에서 `enter` 한 번으로 끝나지 않게), `reconnect` |
 | chat `ui/chat` | `space.create`, `space.join`, `space.leave`, `space.settings`, `channel.create`, `channel.prefs`, `dm.new`, `friends`, `friend.add`, `invite.create`, `invite.direct`, `invites.inbox`(받은 방 초대 목록), `search.messages`, `pins.show` |
 | sns-fun `ui/feed` | `post.new`, `story.new`, `feed.following`, `feed.discover`, `trends`, `notifications`, `profile.me`, `profile.edit`, `follow_requests` |
 | sns-fun `ui/fun` | `status.set`, `status.clear`, `presence.set`, `focus.start`, `focus.stop` |
@@ -2162,11 +2218,12 @@ type PendingMessage struct{ Nonce, Body, Kind string; ThreadRootID *string; Fail
 - 이벤트 처리 규칙은 events.md 4.2 그대로(ID 순 삽입, 범위 밖 무시, 범위 안 모르는 메시지는 `GetMessage`, 리액션 `me` 로컬 유지, 같은 작성자 메시지 오면 입력 중 제거, `client_nonce` 로 낙관적 전송과 병합).
 
 `internal/ui/chat` 의 `init()` 등록:
-- `RegisterPane(SlotRail, …)` — 방 레일: `홈`, 방 이니셜(아이콘 이모지 있으면 그것), `+`. 폭 6(내부 4).
-- `RegisterPane(SlotSidebar, …)` — 선택된 방의 채널(`# 이름` + 배지) + `─ DM` 목록(접속 점). 표준 모드에서는 맨 위에 방 이름 `▾` 드롭다운(레일 대체).
+- `RegisterPane(SlotRail, …)` — 방 레일: `홈`, `DM`(DM 목록, 5.4), 방 이니셜(아이콘 이모지 있으면 그것), `+`. 폭 6(내부 4).
+- `RegisterPane(SlotSidebar, …)` — 선택된 방의 채널(`# 이름` + 배지) + `─ DM` 목록(접속 점). 표준 모드에서는 맨 위에 방 이름 `▾` 드롭다운(레일 대체)과 그 아래 `DM` 줄(레일의 DM). 그 방의 소유자·관리자(`canManageSpace`)에게는 채널 목록 끝에 선택할 수 있는 `＋ 새 채널` 줄이 붙고, `enter`·두 번째 클릭은 그 방의 채널 만들기 대화상자(`chat.channel_create`, args = 방 id — 팔레트의 `channel.create` 와 같은 것)를 연다.
 - `RegisterPane(SlotMembers, …)` — 지휘소 오른쪽 위(스레드 닫혔을 때): 채널 멤버 + 접속 상태(60초마다 `GetPresence`).
-- `RegisterRoute(RouteHome|RouteChannel|RouteThread|RouteSearch|RouteInvite|RouteSpaceSettings|RouteFriends, …)`.
+- `RegisterRoute(RouteHome|RouteDMs|RouteChannel|RouteThread|RouteSearch|RouteInvite|RouteSpaceSettings|RouteFriends, …)`.
 - `RouteInvite` 두 갈래: `ID=<code>` 는 초대 링크 미리보기·수락(`GetInvite`/`AcceptInvite`), `Arg="direct"` 는 **직접 초대**(`ID=<invite id>` 면 그 초대의 수락·거절 화면 `AcceptDirectInvite`/`DeclineDirectInvite`, `ID=""` 면 `Store.DirectInvites` 전체 목록). `RouteHome` 에도 받은 방 초대가 있으면 "받은 방 초대 N" 줄을 보이고 `enter` 로 목록으로 간다. 알림함(sns-fun)의 `space_invite` 알림(`subject.type="space_direct_invite"`, `subject.id`=초대 id)과 `alert{kind:"invite"}` 토스트(앱이 `target.space_id` 로 `Store.DirectInvites` 에서 초대 id 를 찾고, 없으면 `ID=""`)는 이 경로로 이동한다.
+- `RouteHome` 의 줄 순서: (있을 때만) `받은 방 초대 N`·`친구 요청 N` → `피드 보기` → `친구 목록` → `＋ 방 만들기`·`초대 코드로 방 참여`(`enter`·두 번째 클릭이 `chat.space_create`/`chat.space_join` 대화상자를 연다 — 팔레트의 `space.create`/`space.join` 과 같은 것) → 가입한 방 구역(아래) → `─ DM` + DM 목록 → `─ 접속 중인 친구` + 접속·자리 비움 친구. **가입한 방 구역**: 진입 줄(`─` 구분 줄이 아닌 맨 위 줄들) 다음, `─ DM` 앞에 **가입한 방마다 한 구역** — `─ 방 이름`(선택 불가: 사이드바의 방 머리글도 따로 여는 것이 없으므로 `─ DM` 처럼 구분 줄) 아래 그 방의 텍스트 채널을 사이드바와 같은 순서·모양으로(`Store.SpaceChannels` = 내가 읽을 수 있는 채널, `position` 순; 비공개 `🔒이름`, `sideBadge` 안 읽음 수·멘션 배지, 뮤트는 dim). 방 순서는 레일과 같은 `SpaceOrder`. 채널 줄 `enter`(또는 고른 줄 다시 클릭)는 그 채널을 탭 루트로 열고(기록에 남아 `ctrl+o` 로 홈에 돌아온다) 사이드바처럼 그 방을 선택한 방으로 둔다. 채널이 12개를 넘는 방은 배지가 있는 채널만 보이고 끝에 `…N개 더`(선택 가능 — `enter`·클릭 한 번으로 그 자리에서 펼침, 펼친 상태는 `SaveState` 에 남는다). 접힌 방에서도 커서가 있는 채널 줄(돌아올 때 `LoadState` 가 고를 줄 포함)은 배지가 없어도 남는다 — 안 읽은 채널을 열고(그래서 읽음) `ctrl+o` 로 돌아와도 커서가 그 채널에 있다. 커서가 떠나면 다시 접힌다. 읽을 채널이 없는 방, 방이 없는 사용자에게는 구역이 없다. 구역 뒤의 `─ DM`·`─ 접속 중인 친구` 는 그대로다. 줄은 매 View 마다 Store 에서 다시 만드므로 `channel.created/updated/deleted`·`space.joined/removed/deleted`·`read_state.updated`·`channel.prefs_updated` 가 곧바로 반영된다(DM 줄과 같은 길). 사이드바가 없는 위젯·초소형에서도 같은 목록이 보이고, 넘치면 목록이 스크롤된다. 진입 줄은 대화할 거리가 하나도 없는 새 사용자에게도 보이므로, 부트스트랩이 끝난 홈에는 늘 줄이 있다. 첫 부트스트랩 전에 대화할 거리가 없으면 `불러오는 중…`(동기화 오류면 `서버에 연결할 수 없어요`)을 띄우고, `아직 대화가 없어요` 빈 화면은 Store 가 없을 때만 나온다.
 - `RegisterOverlay("chat.reaction_users", …)` — 리액션 누른 사람 목록(`ListReactionUsers`, 페이지네이션), args = `"<messageID> <emoji>"`. `msg.actions` 메뉴의 "리액션 누른 사람"과 리액션 칩 우클릭으로 연다.
 - 차단·신고(5.8 소유 규칙): `msg.actions` 메뉴에 "신고"(`widgets.ReportDialog("message", id, …)`), "작성자 차단"; 멤버 목록·작성자 메뉴에 "사용자 신고"(`"user"`)·"차단"; 방 설정·초대 미리보기에 "방 신고"(`"space"`).
 - 대화 화면 밀도: `DensityFull`(이름·시간 줄 + 본문 + 리액션/답글 줄, 날짜 구분선), `DensityLine`(`11:02 민지 오늘 배포… 💬3` 한 줄), `DensityBubble`(이름·시간 위, 말풍선, **내 메시지 오른쪽 정렬**), `DensityMinimal`(한 줄, 이름 축약).
@@ -2196,6 +2253,15 @@ func (f *FeedStore) NewDiscoverCount() int                   // 30s polling bann
 - 차단·신고(5.8 소유 규칙): 프로필에 "차단"·"사용자 신고"(`"user"`), 글 메뉴에 "글 신고"(`"post"`), 스토리 보기에 "신고"(`"story"`), 방명록 글에 "신고"(`"guestbook_entry"`) — 모두 `widgets.ReportDialog`.
 - 남의 프로필 메뉴(`m`)의 친구 항목(v0.1.1 C2, `Relationship` 에 따라 하나): 친구 아님 → "친구 요청"(`POST /v1/friends/requests`), 보낸 요청 대기 → "친구 요청 취소"(`DELETE /v1/friends/requests/{id}`), 받은 요청 → "친구 요청 수락"·"친구 요청 거절"(`…/accept`·`…/decline`), 친구 → "친구 끊기"(확인 뒤 `DELETE /v1/friends/{user}`). 차단한 사용자·내 프로필에는 없고, 정지된 사용자에게는 새 요청·수락을 내지 않는다. 답과 `friend.request_*`·`friend.added/removed` 이벤트로 바로 바뀐다. 성공한 답은 친구 화면의 같은 동작처럼 Store 에도 바로 반영한다 — 수락·자동 수락 → `Store.AddFriend`(받은 요청도 빠져 홈의 "친구 요청 N" 줄이 `friend.added` 를 기다리지 않고 줄어든다), 거절 → `Store.DropFriendRequests`, 친구 끊기 → `Store.RemoveFriend`. 보낸 요청은 서버가 보낸 사람에게 이벤트를 주지 않으므로(`friend.request_received` 는 받는 사람에게만) `ui.FriendRequestsChangedMsg` 를 방송하고(요청 취소도 같다 — 그 `friend.request_removed` 는 양쪽에 오지만 실시간 연결이 끊겨 있어도 맞게), 캐시된 친구 화면은 그것을 받아 "보낸 요청" 목록을 다시 받는다(`friend.add` 피커의 결과와 같은 효과).
 - 알림함 항목 `enter` 는 대상 경로로 이동한다(채팅 대상이면 `RouteChannel`/`RouteThread`, 방 초대면 `RouteInvite{Arg:"direct", ID:<subject.id>}`, 친구 요청이면 `RouteFriends{Anchor:"incoming"}` — 받은 요청 탭).
+- **알림함 "안 읽은 대화" 구역 [결정 2026-11-09]**: 일반 DM·그룹 DM 메시지와 채널 메시지는 서버가 알림함 행을 만들지 않는다(api.md 5.18 — 데스크톱 `alert` 만). 그래서 알림함은 알림 목록 **위에** 클라이언트가 Store 의 읽음 상태로 만든 구역을 둔다(서버 행·배포 없음). 비면 구역째 그리지 않는다.
+  - 대상(`Store.UnreadConversations`): `My.UnreadCount > 0` 인 DM·그룹 DM, `MentionCount > 0` 인 텍스트 채널, `notify="all"` 이고 안 읽은 메시지가 있는 텍스트 채널. 음소거(`muted`)·`notify="none"`·차단한 상대와의 1:1 DM 은 뺀다. `notify` 가 비면 서버 기본값(DM 류 `all`, 텍스트 `mentions`). 최근 메시지 순.
+  - 스레드: 스레드별 읽음 상태는 계약에 없다(`ChannelMyState` 는 최상위 메시지만 센다). 그래서 스레드는 **안 읽은 `thread_reply` 행(과 스레드 안 `message_mention` 행)** 을 `thread_root_id` 로 묶어 스레드당 한 줄로 보인다(받아 둔 알림 창 안의 것만). 묶인 알림은 아래 `알림` 목록에 다시 그리지 않는다(읽으면 기록으로 돌아온다). 음소거·`notify="none"` 채널의 스레드는 구역에 넣지 않는다(서버는 그 행을 그래도 만들므로 `알림` 목록에 남는다, `store.Quiet`).
+  - 한 줄 = 아이콘(`✉` DM·그룹, `#` 채널, `↩` 스레드) + 제목(`민지님` / `점심팟`(이름 없으면 `민지님, 준호님`) / `일반 · 노바 개발방` / `스레드 · #개발`) + 미리보기(`"민지님: 저녁 뭐 먹지?"`, 1:1 DM 은 이름 없이, 본문을 모르면 `새 메시지 N개`) + 개수 배지(멘션이면 멘션 색) + 상대 시간. 넓으면 `안 읽은 대화`·`알림` 머리줄, 초소형은 머리줄 없음, 좁으면(폭 40 미만·한 줄 밀도) 미리보기 없음. 사용자 문자열은 모두 `textwidth` 로 소독·자름.
+  - 미리보기 출처: `Store.LastMessage`(이번 세션에 본 `message.created`, 수정·삭제 반영) 또는 불러온 채팅 창의 마지막 최상위 메시지 중 새 것(읽음 포인터 뒤일 때만), 없으면 그 채널의 가장 최근 `alert` 본문 — 읽음 포인터 이후이고 이번 세션에 `message.deleted` 되지 않은 메시지의 것만(`Store.MessageDeleted`). 차단한 사람의 글은 미리보기하지 않는다.
+  - `enter`(클릭 포함): 채널·DM 은 `RouteChannel{ID, Anchor: My.LastReadMessageID, Query: {"jump":"unread"}}` — 대화 화면은 그 앵커 주변 페이지를 받고 **앵커 다음의 남이 쓴 첫 메시지**를 선택한다(없으면 앵커). 캐시된 화면이 이 경로로 다시 열리면 새 구분선 포인터도 지금의 읽음 포인터로 바꾼다. 한 번도 읽지 않은 대화(포인터 없음)는 앵커 없이 최신으로 연다. 스레드는 `RouteThread{ID: root, Arg: channel, Anchor: 가장 오래된 안 읽은 답글}` 로 열고 묶인 알림을 읽음 처리한다. `x`(모두 읽음)는 알림만 읽는다.
+  - 선택 **[수정 2026-11-09]**: 줄이 바뀔 때(처음 열 때 Store 로 만든 대화 줄이 먼저 그려지고, 받아 온 알림 페이지의 스레드 줄이 그 위에 끼어드는 경우 포함) 목록이 맨 위에 있고 선택이 맨 윗줄이었으면 선택도 새 맨 윗줄로 옮긴다 — `ctrl+n` 다음 `enter` 가 가장 새 줄을 연다. 사용자가 옮긴 선택이나 휠로 맨 위를 벗어난 화면은 그대로 둔다.
+  - 대화를 읽으면(`read_state.updated`, 내 로컬 읽음 결과) 그 줄이 바로 빠진다 — 로컬 읽음은 알림함 `Update` 뒤에 Store 에 닿을 수 있어 `View` 도 구역을 다시 계산한다.
+  - **알림 배지** = `Store.InboxBadge()` = `NotifUnread` + 구역 중 알림 행이 이미 세지 않은 대화 수(1:1 DM, 그룹 DM·`notify="all"` 채널은 안 읽은 수가 멘션 수보다 많을 때; 멘션만으로 오른 대화는 그 채널의 안 읽은 `message_mention` 행이 받아 둔 알림 창에 있을 때(알림함을 아직 받지 않았으면 있다고 본다, `store.MentionCoverer`)만 빼고 — `NotifUnread` 가 0 이면(예: `x`) 언제나 센다; 스레드 줄은 그 알림 행이 이미 센다). 탭 줄 `알림`, 알림함 창 제목, 팔레트 `알림함` 명령 배지가 모두 이 값이다(`palette.Command.Badge`).
 - 피드 카드: 작성자·상대 시간·본문(`markup`, 해시태그 강조)·이미지(`imgrender`)·투표(`widgets.PollView`)·`♥ 12  ↻ 3  💬 4`. 상단 스토리 링(안 본 것 acc 링). 지휘소 피드 열 상단 탭 `피드 / 팔로잉 / #트렌드`.
 - 보이는 글은 `Watcher.WatchTopics()` 로 `post:<id>` 를 낸다.
 
@@ -2297,7 +2363,9 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 - `Sanitize` 결과는 다시 `Sanitize` 해도 같다(멱등). 단위 시험이 위 예와 함께 "결과의 모든 그래핌 g 에 대해 `StringWidth(g)==StringWidthWc(g)`" 를 무작위 유니코드 문자열(시드 고정)로 검사한다.
 - 받은 데이터를 그릴 때의 `Sanitize` 는 전송 데이터(메시지 본문·리액션 키 등)에 **절대 적용하지 않는다**(화면 전용). 입력창이 사용자가 **치는** 글을 정규화하는 것은 별개 규칙이다(8.4).
-- **클립보드(OSC 52, `tea.SetClipboard`) [보안 결정, 2026-11-06]**: 남이 보낸 글을 복사할 때는 화면에 보인 것만 넣는다. 서버는 본문의 제어 문자를 지우지 않고 화면은 ESC 시퀀스를 내용째 지우므로, 원문을 그대로 넣으면 보이지 않던 괄호 붙여넣기 종료(`ESC[201~`)·CR·숨은 명령이 셸에 붙여 넣어진다(pastejacking). `msg.copy`(본문·투표 질문·주사위 결과)는 `textwidth.SanitizeInput`(줄바꿈 유지), 명령으로 붙여 넣는 한 줄 값(`masil join <code>`)은 `textwidth.Sanitize`(줄바꿈 없음)를 거친다.
+- **클립보드(OSC 52, `tea.SetClipboard`) [보안 결정, 2026-11-06]**: 남이 보낸 글을 복사할 때는 화면에 보인 것만 넣는다. 서버는 본문의 제어 문자를 지우지 않고 화면은 ESC 시퀀스를 내용째 지우므로, 원문을 그대로 넣으면 보이지 않던 괄호 붙여넣기 종료(`ESC[201~`)·CR·숨은 명령이 셸에 붙여 넣어진다(pastejacking). `msg.copy`(본문·투표 질문·주사위 결과)는 `textwidth.SanitizeInput`(줄바꿈 유지), 명령으로 붙여 넣는 한 줄 값(`masil join <code>`)은 `textwidth.Sanitize`(줄바꿈 없음)를 거친다. 채팅 드래그 복사는 화면에 그려진 줄의 평문이다(5.5).
+- **클립보드 도우미 `ui.Copy(ctx, text, okText)` [결정, 2026-11-09]**: UI 의 모든 복사(`msg.copy`, 초대 `y`·메뉴, 만든 초대 창 `y`, 채팅 드래그)는 이 하나만 쓴다. `textwidth.SanitizeInput` 후 `clipboard.MaxBytes`(256 KiB, 룬 경계)로 자르고 두 길로 보낸다: ① `tea.SetClipboard`(OSC 52 — SSH 너머의 터미널까지 가지만 Terminal.app 은 지원하지 않고 iTerm2 는 기본으로 꺼져 있고 tmux 는 `set-clipboard` 가 있어야 한다), ② `ctx.Clipboard`(`internal/clipboard.Writer`, Cmd 안에서 = Update 고루틴 밖). 토스트는 한 길이라도 될 것으로 볼 때만 `okText`(성공): ②가 됐거나 SSH 라서(`clipboard.ErrRemote`) ①이 유일한 길일 때. 프로그램이 없으면(`ErrUnavailable`, OSC 52 만 보냄) `ui.CopySentHint`("터미널로 복사를 보냈어요 — 안 붙으면 Shift 누른 채 드래그 (또는 wl-clipboard·xclip 설치)", Info — 성공도 실패도 주장하지 않는다), 그 밖의 실패·시간 초과는 `ui.CopyHint`("클립보드에 못 넣었어요 — ⌥·fn·Shift 누른 채 드래그", Info). `ctx.Clipboard` 가 nil(단위 시험)이면 ①만 하고 성공. 앱은 `app.Options.Clipboard`(nil = `clipboard.System()`), `uitest` 는 `clipboard.Recorder`(`h.Clip`, `h.Clipboards()`, `h.Clip.Fail(err)`)를 넣는다.
+- **`internal/clipboard`** (UI 밖, `notify` 와 같은 꼴): 순수 함수 `commandFor(host, text)` 가 모든 OS 에서 컴파일되어 OS 별 명령을 표로 시험받고, `os/exec` 는 `run.go` 의 `execRun`(·`lookPath`)만 쓴다(`TestOnlyExecRunExecs`). 본문은 **stdin 으로만**(argv·셸 없음), stdout·stderr 는 연결하지 않는다(xclip·xsel·wl-copy 가 fork 해 남긴 자식이 파이프를 쥐어 `Wait` 가 멈추지 않게), 한 번에 2초(`writeTimeout`). SSH(`SSH_CONNECTION`·`SSH_CLIENT`·`SSH_TTY` 중 하나)면 `ErrRemote`(원격 기계의 클립보드는 엉뚱한 곳). darwin: `/usr/bin/pbcopy`(절대 경로), 자식 환경의 `LANG`·`LC_ALL`·`LC_CTYPE` 를 빼고 `LANG=en_US.UTF-8`·`LC_ALL=en_US.UTF-8`(로캘이 C 면 한글이 깨진다). Linux·BSD: `WAYLAND_DISPLAY` 면 `wl-copy`, `DISPLAY` 면 `xclip -selection clipboard -in` 다음 `xsel --clipboard --input`(`$PATH` 에서 찾되 상대 경로 결과는 거부), WSL(`WSL_DISTRO_NAME` 또는 `/proc/sys/fs/binfmt_misc/WSLInterop`)이면 `/mnt/c/Windows/System32/clip.exe`, 없으면 `ErrUnavailable`. Windows: `GetSystemDirectory()\clip.exe`(`%SystemRoot%` 를 믿지 않음). clip.exe 에는 CRLF·UTF-16LE·BOM(FF FE)으로 넣는다(BOM 이 없으면 콘솔 코드 페이지로 읽는다 — 실기 확인 필요).
 - East Asian Ambiguous 를 2칸으로 그리는 터미널 설정(iTerm2 "Ambiguous characters are double-width" 등)은 지원하지 않는다 — 상자 문자 자체가 깨지므로. 도움말에 안내.
 
 ### 8.3 자르기·줄바꿈·채우기
@@ -2491,7 +2559,7 @@ core:
 - `layout`: `Auto`/`Resolve` 표(5.2.1 표의 모든 행). **`Compute` 전수 속성 시험**: `cols 0..320 × rows 0..100` 의 모든 크기 × `State` 4조합 × {그 크기의 `Auto` 모드 + `PinMinSize` 가 그 크기 이하인 모든 고정 모드} 에 대해 — 패닉 없음, 창끼리 겹침 없음, 합집합 = 화면 전체(빈 화면이면 빈 목록), 테두리 있는 창의 `Inner()` ≥ 1×1, 테두리 없는 창 ≥ 1×1, 지휘소·표준 공식이 주는 `chat`/`feed`/`main` 폭 > 0. 골든 없이 수 초 안에 끝난다.
 - `ui/app` 투영(`Project`/`NavState`) 단위 시험(stub 등록): 5.3.3 표의 모든 칸; 불변식 "한 키는 한 슬롯" 을 무작위 내비게이션 1,000단계(시드 고정) × 모든 모드에서 검사; `LayoutState` 값; 뒤로·`f`·`ctrl+n` 동작.
   - **컴팩트(스레드 열림) → 지휘소 → 컴팩트**: 120×30 에서 `#개발` → 메시지 선택 → `enter`(스레드가 Main) → 스레드 입력창에 `"2시?"` 입력 → 200×60: `SlotMain`=`#개발` 채널 인스턴스, `SlotThread`=같은 스레드 인스턴스(`Serial` 동일, 초안 `"2시?"`), 포커스 `SlotThread` → 120×30: Main 이 다시 그 스레드(같은 `Serial`), 포커스 Main → `esc` 로 채널, 채널 선택·스크롤 유지.
-  - **위젯(피드 탭) → 지휘소**: 80×24 에서 `피드` 탭(`FrontFeed`) → 목록 3칸 아래 선택 → 200×60: `SlotFeed` = 같은 피드 인스턴스(선택 유지), `SlotMain` = 활성 탭 경로, 포커스 `SlotFeed` → 80×24: `피드` 탭 선택 그대로.
+  - **위젯(피드 탭) → 지휘소**: 80×24 에서 `피드` 탭(`FrontFeed`) → 목록 3칸 아래 선택 → 200×60: `SlotFeed` = 같은 피드 인스턴스(선택 유지), `SlotMain` = 채팅 표면 경로(`InDM` 이면 DM 표면 — `]` `]` 로 `DM` 탭을 지나 왔으면 DM 목록, `[` `[` 로 왔으면 활성 탭 경로; `InDM` = 마지막으로 거친 채팅 표면 탭, 피드 루트의 `esc`·`f` 도 그리로), 포커스 `SlotFeed` → 80×24: `피드` 탭 선택 그대로.
   - **표준 FeedSwapped → 지휘소**, **알림(컴팩트 Main) → 지휘소(`SlotNotifications`)**: 같은 인스턴스·선택 유지, 같은 키가 두 슬롯에 동시에 나타나지 않음.
 - `ui/app`: 셸 골든(로그인 화면, 빈 홈, fixtures 채운 홈) × `AllSizes`; 테마 4종 × 120×40 `Styled()` 골든 1개씩; 팔레트 열림 × `AllSizes`(초소형·TooSmall 크기 포함 — 강등 전체 화면·미표시 확인); 도움말 × `AllSizes`; `widgets.Confirm`·`widgets.EmojiPicker`·`widgets.ReportDialog` × {Required, 44×16, 20×6, 19×10}; 토스트 표시 상태 × Required(+`h.Advance(4s)` 후 사라짐). 모두 `AssertIntegrity` 의 오버레이 규칙(10.2) 통과.
 - 오버레이 커서·붙여넣기: 입력창 포커스 상태에서 팔레트 열기 → `h.Type("ㄱㅂ")` → `h.Cursor()` 가 팔레트 입력 칸 위치(오버레이 내부 원점 기준), `h.Paste("개발")` 이 팔레트 질의에 들어가고 아래 입력창 초안은 그대로, `ctrl+k` 로 닫힘, 닫힌 뒤 커서가 입력창으로 복귀. 커서 없는 오버레이(도움말)에서는 `h.Cursor()==nil`.

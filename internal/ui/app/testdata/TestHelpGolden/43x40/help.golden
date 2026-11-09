@@ -11,8 +11,10 @@
    ?/f1            도움말                  
    f               피드                    
    [               이전 탭                 
-   ]               다음 탭                 
+   ]               다음 탭 (채팅·DM·피드·… 
    esc             뒤로                    
+   ctrl+o/alt+←    이전 위치               
+   alt+→           다음 위치               
    ctrl+c          종료 (두 번)            
                                            
  창                                        
@@ -35,6 +37,4 @@
  입력                                      
    i/a             입력                    
    enter           보내기                  
-   shift+enter/alt+enter/ctrl+j  줄바꿈    
-   tab             자동완성                
  초소형                                  ● 

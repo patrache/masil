@@ -1140,7 +1140,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 쓰기 권한, `RL_MESSAGE`. 요청: `{ "client_nonce": string, "kind"?: "text"|"me"|"roll", "body": string }` (투표 불가)
 - `201 { "message": Message }` (중복 nonce `200`)
 - 부수효과: 루트 `reply_count+1`, `last_reply_at`, `thread_participants` upsert(첫 답글이면 루트 작성자도 추가).
-- 이벤트: `message.created`(채널 청중, `thread_root_id` 설정됨) + `thread.updated`(채널 청중). 알림 `thread_reply` + alert `thread_reply` → 루트 작성자와 이전 참여자(작성자 본인 제외). 멘션 처리 동일.
+- 이벤트: `message.created`(채널 청중, `thread_root_id` 설정됨) + `thread.updated`(채널 청중). 알림 `thread_reply` + alert `thread_reply` → 루트 작성자와 이전 참여자(작성자 본인 제외). dm·group_dm 에서는 알림 행은 `thread_reply` 이되 alert 는 `dm` 하나(사람당 alert 1개: `dm` > `mention` > `thread_reply` > `channel_message`). 멘션 처리 동일.
 - 오류: 루트가 시스템 메시지(`kind:"system"`)면 `400 invalid_request`, `details.fields.message_id="not_allowed"` — 시스템 메시지는 스레드 루트가 될 수 없다(쓰기 권한 확인 뒤라, 볼 수 없는 사람에게는 여전히 `404`). 아무것도 쓰지 않는다 [2026-11-08, v0.1.1 D7].
 
 ### 5.12 리액션·고정
@@ -1314,8 +1314,10 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | `post_quote` | 내 글 인용 | post(인용 글) | post_id |
 | `post_mention` | 글에서 나를 멘션 | post | post_id |
 | `message_mention` | 채널·그룹 DM 메시지(스레드 답글 포함)에서 나를 멘션(`@here` 확장 포함, 1:1 DM 제외). 2.1 해석 규칙을 통과한 경우만 — 내가 그 채널을 읽을 수 있고 작성자와 차단 관계가 아님. `preview` 는 읽을 수 있는 사람에게만 만들어진다 | message | channel_id, message_id, thread_root_id, space_id |
-| `thread_reply` | 내가 루트 작성자/참여자인 스레드에 새 답글 | message(답글) | channel_id, message_id, thread_root_id, space_id |
+| `thread_reply` | 내가 루트 작성자/참여자인 스레드에 새 답글(텍스트 채널·그룹 DM·1:1 DM 모두). 같은 답글이 나를 멘션해 `message_mention` 이 생기면 그것 하나만 — 1:1 DM 은 `message_mention` 알림 행이 없으므로(`message_mentions` 에는 명시적 멘션이 기록되어도) 멘션돼도 `thread_reply` [수정 2026-11-09: DM·그룹 DM 스레드 답글 행이 만들어지지 않던 버그] | message(답글) | channel_id, message_id, thread_root_id, space_id |
 | `guestbook_entry` | 내 방명록에 새 글 | guestbook_entry | — |
+
+일반 DM·그룹 DM 메시지와 채널 메시지(`notify="all"`)는 알림 행을 만들지 않는다(데스크톱 `alert` `dm`·`channel_message` 만). 클라이언트 알림함은 이것들을 `ChannelMyState` 읽음 상태로 따로 보인다(client-architecture.md, 알림함 "안 읽은 대화").
 
 중복 방지: `post_like`/`post_repost`/`follow` 는 `dedupe_key` 로 같은 (행위자, 대상) 당 1개.
 

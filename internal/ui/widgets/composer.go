@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -208,6 +209,23 @@ func (c *Composer) handleKey(m tea.KeyPressMsg) tea.Cmd {
 		return cmd
 	}
 	return nil
+}
+
+// Edits reports whether the composer acts on m: a text key, ctrl+c, enter, tab, esc or
+// a bound edit key (word moves alt+left/alt+b…). Other keys (ctrl+o) do nothing here,
+// so an embedding component may let them through to the app.
+func (c *Composer) Edits(m tea.KeyPressMsg) bool {
+	switch s := m.String(); {
+	case isTextKey(m), s == "ctrl+c", s == "enter", s == "tab", s == "esc":
+		return true
+	}
+	km := reflect.ValueOf(c.ta.KeyMap)
+	for i := range km.NumField() {
+		if b, ok := km.Field(i).Interface().(key.Binding); ok && key.Matches(m, b) {
+			return true
+		}
+	}
+	return false
 }
 
 // isTextKey reports a key that types text (no ctrl/alt/meta/super/hyper modifier).

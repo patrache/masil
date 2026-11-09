@@ -55,6 +55,7 @@ var emojiSet = []emojiEntry{
 	{"📌", []string{"고정", "핀", "pin", "pushpin"}},
 	{"⭐", []string{"별", "즐겨찾기", "star"}},
 	{"💬", []string{"말풍선", "댓글", "speech", "comment"}},
+	{"🚬", []string{"흡연", "담배", "smoking", "cigarette"}},
 }
 
 // emojiRecentMax is how many recently picked emoji are remembered (package memory).

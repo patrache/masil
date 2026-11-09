@@ -753,9 +753,14 @@ func hostileOpen(t *testing.T, sz uitest.Size) *uitest.Harness {
 	return open(t, sz, ui.Route{Kind: ui.RouteChannel, ID: hostileChannel(t, s)}, uitest.WithSeed(seed))
 }
 
-// top is the top route of the active tab's stack.
+// top is the top route of the chat surface's stack: the active tab's, or the DM
+// surface's (DMs open there).
 func top(h *uitest.Harness) ui.Route {
 	nav := h.Nav()
+	if nav.InDM {
+		st := nav.DM.Stack
+		return st[len(st)-1]
+	}
 	if nav.Active < 0 || nav.Active >= len(nav.Tabs) || len(nav.Tabs[nav.Active].Stack) == 0 {
 		return ui.Route{}
 	}
@@ -1005,13 +1010,20 @@ func devID(t testing.TB, h *uitest.Harness) string {
 	return chanID(t, h.Context().Store, "개발")
 }
 
-// channelOf is the conversation instance of the active tab: the top-most
-// RouteChannel of its stack.
+// channelOf is the conversation instance of the chat surface: the top-most
+// RouteChannel of the DM surface's stack when InDM and a DM is open there (CA
+// 5.3.3), else of the active tab's stack.
 func channelOf(t testing.TB, h *uitest.Harness) *channelView {
 	t.Helper()
 	nav := h.Nav()
+	var stacks [][]ui.Route
+	if nav.InDM {
+		stacks = append(stacks, nav.DM.Stack)
+	}
 	if nav.Active >= 0 && nav.Active < len(nav.Tabs) {
-		st := nav.Tabs[nav.Active].Stack
+		stacks = append(stacks, nav.Tabs[nav.Active].Stack)
+	}
+	for _, st := range stacks {
 		for i := len(st) - 1; i >= 0; i-- {
 			if st[i].Kind != ui.RouteChannel {
 				continue
@@ -1021,7 +1033,7 @@ func channelOf(t testing.TB, h *uitest.Harness) *channelView {
 			}
 		}
 	}
-	t.Fatalf("no channel view in the active tab: %+v", nav)
+	t.Fatalf("no channel view on the chat surface or the active tab: %+v", nav)
 	return nil
 }
 

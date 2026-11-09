@@ -30,6 +30,8 @@ const (
 	TabPrev           Action = "tab.prev"
 	TabNext           Action = "tab.next"
 	NavBack           Action = "nav.back"
+	NavHistoryBack    Action = "nav.history_back"
+	NavHistoryForward Action = "nav.history_forward"
 	ListUp            Action = "list.up"
 	ListDown          Action = "list.down"
 	ListTop           Action = "list.top"
@@ -51,6 +53,7 @@ const (
 	MsgCopy           Action = "msg.copy"
 	MsgActions        Action = "msg.actions"
 	ChannelSearch     Action = "channel.search"
+	ThreadChannel     Action = "thread.channel"
 	PostLike          Action = "post.like"
 	PostRepost        Action = "post.repost"
 	PostQuote         Action = "post.quote"
@@ -86,6 +89,11 @@ var defaults = map[Action]spec{
 	TabPrev:           {[]string{"["}, "", "이전 탭"},
 	TabNext:           {[]string{"]"}, "", "다음 탭"},
 	NavBack:           {[]string{"esc"}, "", "뒤로"},
+	// ctrl+o is the same byte in every terminal and no composer edit key, so it also
+	// works while a chat message is being typed; alt+left is CSI 1;3D (iTerm2, kitty,
+	// Ghostty, WezTerm), alt+b what macOS Terminal.app sends for option+left (ESC b).
+	NavHistoryBack:    {[]string{"ctrl+o", "alt+left", "alt+b"}, "ctrl+o/alt+←", "이전 위치"},
+	NavHistoryForward: {[]string{"alt+right", "alt+f"}, "alt+→", "다음 위치"},
 	ListUp:            {[]string{"k", "up"}, "", "위"},
 	ListDown:          {[]string{"j", "down"}, "", "아래"},
 	ListTop:           {[]string{"home"}, "gg/home", "맨 위"}, // "g g" is a sequence handled by widgets.List
@@ -107,6 +115,7 @@ var defaults = map[Action]spec{
 	MsgCopy:           {[]string{"y"}, "", "복사"},
 	MsgActions:        {[]string{"m"}, "", "메뉴"},
 	ChannelSearch:     {[]string{"/"}, "", "채널 검색"},
+	ThreadChannel:     {[]string{"c"}, "", "스레드에서 채널로"},
 	PostLike:          {[]string{"l"}, "", "좋아요"},
 	PostRepost:        {[]string{"b"}, "", "리포스트"},
 	PostQuote:         {[]string{"q"}, "", "인용"},
@@ -239,6 +248,19 @@ func (k *Keymap) Binding(a Action) key.Binding {
 func (k *Keymap) Matches(msg tea.KeyPressMsg, a Action) bool {
 	b, ok := k.lookup(a)
 	return ok && key.Matches(msg, b)
+}
+
+// Bound reports whether msg triggers any action (a nil Keymap behaves like Default).
+func (k *Keymap) Bound(msg tea.KeyPressMsg) bool {
+	if k == nil || k.b == nil {
+		k = Default()
+	}
+	for _, b := range k.b {
+		if key.Matches(msg, b) {
+			return true
+		}
+	}
+	return false
 }
 
 // Help returns the bindings for as, for help/status hints (unknown actions skipped).

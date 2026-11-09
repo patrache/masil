@@ -160,15 +160,31 @@ func TestNavCommands(t *testing.T) {
 		t.Fatalf("blocks: top %+v", top)
 	}
 
+	// quit asks first like logout: the empty palette lists it next to 로그아웃, and one
+	// enter too many must not skip the ctrl+c-twice guard.
 	runCmd(h2, "quit")
-	var quit bool
-	for _, m := range h2.TeaMsgs() {
-		if _, ok := m.(tea.QuitMsg); ok {
-			quit = true
-		}
+	if got := overlayTypes(h2.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) {
+		t.Fatalf("quit: overlays %v, want the Confirm", got)
 	}
-	if !quit {
-		t.Fatalf("quit: no tea.QuitMsg in %v", h2.TeaMsgs())
+	if s := h2.Screen(); !strings.Contains(s, "종료할까요?") {
+		t.Fatalf("quit confirm text missing:\n%s", s)
+	}
+	if quitSeen(h2) {
+		t.Fatalf("quit: tea.QuitMsg before confirming in %v", h2.TeaMsgs())
+	}
+	h2.Press("esc")
+	if n := len(h2.Model.Frame().Overlays); n != 0 || quitSeen(h2) {
+		t.Fatalf("quit: esc must close the Confirm without quitting: %v %v", overlayTypes(h2.Model), h2.TeaMsgs())
+	}
+	h2.Press("ctrl+k")
+	h2.Type("종료")
+	h2.Press("enter")
+	if got := overlayTypes(h2.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) || quitSeen(h2) {
+		t.Fatalf("palette enter on 종료: overlays %v, want only the Confirm and no quit", got)
+	}
+	h2.Press("y")
+	if !quitSeen(h2) {
+		t.Fatalf("quit: no tea.QuitMsg after y in %v", h2.TeaMsgs())
 	}
 
 	runCmd(h2, "logout")

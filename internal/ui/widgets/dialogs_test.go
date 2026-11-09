@@ -275,3 +275,16 @@ func TestReportDialogSubmit(t *testing.T) {
 		}
 	})
 }
+
+func TestEmojiPickerSmoking(t *testing.T) {
+	for _, q := range []string{"흡연", "담배", "smoking"} {
+		var picked []string
+		h := uitest.New(t)
+		openDialog(h, widgets.EmojiPicker(func(e string) tea.Cmd { picked = append(picked, e); return nil }))
+		h.Type(q)
+		h.Press("enter")
+		if !slices.Equal(picked, []string{"🚬"}) {
+			t.Fatalf("%s: picked = %q, want 🚬", q, picked)
+		}
+	}
+}

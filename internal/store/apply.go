@@ -34,9 +34,15 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 	// ---- messages (channel summary only) ----
 	case realtime.MessageEvent:
 		s.ObserveUser(d.Message.Author)
-		if ev.Type == "message.created" {
+		switch ev.Type {
+		case "message.created":
 			s.messageCreated(d.Message)
+		case "message.updated":
+			s.updateLastMessage(d.Message)
 		}
+	case realtime.MessageDeleted:
+		s.deleted.Add(d.MessageID)
+		s.forgetLastMessage(d.ChannelID, d.MessageID)
 
 	// ---- read state ----
 	case realtime.ReadStateUpdated:
@@ -243,6 +249,7 @@ func (s *Store) messageCreated(m api.Message) {
 		return
 	}
 	topLevel := m.ThreadRootID == nil
+	s.noteMessage(m)
 	if topLevel {
 		if ch.LastMessageID == nil || m.ID >= *ch.LastMessageID {
 			id, at := m.ID, m.CreatedAt

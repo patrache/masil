@@ -3,6 +3,8 @@ package chat
 import (
 	"context"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -95,6 +97,33 @@ func (cc *chatComposer) blur() {
 	cc.c.Blur()
 }
 
+// startsComposing reports whether msg, pressed while a conversation's composer
+// is unfocused, starts typing into it: its text holds a non-ASCII letter (Hangul
+// from an IME: syllables, compatibility or conjoining jamo), no ctrl/alt/meta/
+// super/hyper modifier is held, and no action of km is bound to it. ASCII keys
+// stay shortcuts (j/k/t/i...).
+func startsComposing(km *keymap.Keymap, msg tea.KeyPressMsg) bool {
+	if msg.Text == "" || msg.Mod&(tea.ModCtrl|tea.ModAlt|tea.ModMeta|tea.ModSuper|tea.ModHyper) != 0 {
+		return false
+	}
+	letter := false
+	for _, r := range msg.Text {
+		if r >= utf8.RuneSelf && (unicode.IsLetter(r) || unicode.Is(unicode.Hangul, r)) {
+			letter = true
+			break
+		}
+	}
+	return letter && !km.Bound(msg)
+}
+
+// startTyping focuses the composer and types msg into it (startsComposing):
+// the focus commands, then the key exactly as if the composer had the focus.
+func (cc *chatComposer) startTyping(ctx *ui.Context, msg tea.KeyPressMsg) tea.Cmd {
+	focus := cc.focus()
+	_, cmd := cc.handleKey(ctx, msg)
+	return tea.Batch(focus, cmd)
+}
+
 // draft is the text to keep for later: the put-aside draft while editing.
 func (cc *chatComposer) draft() string {
 	if cc.editing != nil {
@@ -115,7 +144,8 @@ func (cc *chatComposer) setDraft(s string) {
 }
 
 // handleKey handles a key while the composer has the focus. Everything is
-// consumed except ctrl+c on an empty input (it reaches the app's quit arming).
+// consumed except ctrl+c on an empty input (it reaches the app's quit arming) and a
+// history key that is no edit key (ctrl+o: the app walks the history).
 // An open completion popup takes its keys first; any text change refreshes it.
 func (cc *chatComposer) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if cc.completing() && cc.popupKey(ctx, msg) {
@@ -150,6 +180,8 @@ func (cc *chatComposer) key(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 			cc.startEdit(m)
 		}
 		return true, nil
+	case (km.Matches(msg, keymap.NavHistoryBack) || km.Matches(msg, keymap.NavHistoryForward)) && !cc.c.Edits(msg):
+		return false, nil // ctrl+o walks the history while typing (the app's soft global)
 	}
 	return true, cc.input(ctx, msg)
 }

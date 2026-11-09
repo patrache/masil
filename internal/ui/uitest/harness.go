@@ -20,6 +20,7 @@ import (
 
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/clipboard"
 	mconfig "github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
@@ -58,6 +59,8 @@ type Harness struct {
 	Model  *app.Model
 	API    *apitest.Server
 	Notify *notify.Recorder
+	// Clip records system-clipboard writes (ui.Copy); Clip.Fail makes them fail.
+	Clip *clipboard.Recorder
 
 	clock   *FakeClock
 	teaMsgs []tea.Msg
@@ -107,6 +110,9 @@ func New(tb testing.TB, opts ...Option) *Harness {
 	if c.pin != nil {
 		cfg.Layout.Pin = c.pin.ID()
 	}
+	if c.keys != nil {
+		cfg.Keys = c.keys
+	}
 	loc, err := time.LoadLocation("Asia/Seoul")
 	if err != nil {
 		tb.Fatalf("uitest: load Asia/Seoul: %v", err)
@@ -114,7 +120,7 @@ func New(tb testing.TB, opts ...Option) *Harness {
 	}
 	clock := NewFakeClock(Start)
 	rec := &notify.Recorder{}
-	h := &Harness{T: tb, API: srv, Notify: rec, clock: clock}
+	h := &Harness{T: tb, API: srv, Notify: rec, Clip: &clipboard.Recorder{}, clock: clock}
 	h.Model = app.New(app.Options{
 		Paths:           paths,
 		Config:          cfg,
@@ -125,6 +131,7 @@ func New(tb testing.TB, opts ...Option) *Harness {
 		DisableRealtime: true,
 		Notifier:        notify.New(rec, notify.OpenLedger(paths), slog.New(slog.DiscardHandler)),
 		Timers:          clock,
+		Clipboard:       h.Clip,
 	})
 	seed := c.seed
 	if seed == nil {
@@ -191,10 +198,45 @@ func (h *Harness) Paste(s string) {
 	h.Send(tea.PasteMsg{Content: s})
 }
 
-// Click sends a left click.
+// Click sends a left click: the press and its release at (x, y), as a
+// terminal reports it.
 func (h *Harness) Click(x, y int) {
 	h.T.Helper()
 	h.Send(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	h.Send(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+}
+
+// Drag presses the left button at (x0, y0), moves it with the button held
+// to (x1, y1) one cell at a time (rows first, then columns; a terminal in
+// cell-motion mode reports every cell change) and releases it there.
+func (h *Harness) Drag(x0, y0, x1, y1 int) {
+	h.T.Helper()
+	h.Send(tea.MouseClickMsg{X: x0, Y: y0, Button: tea.MouseLeft})
+	x, y := x0, y0
+	for y != y1 {
+		y += sign(y1 - y)
+		h.Send(tea.MouseMotionMsg{X: x, Y: y, Button: tea.MouseLeft})
+	}
+	for x != x1 {
+		x += sign(x1 - x)
+		h.Send(tea.MouseMotionMsg{X: x, Y: y, Button: tea.MouseLeft})
+	}
+	h.Send(tea.MouseReleaseMsg{X: x1, Y: y1, Button: tea.MouseLeft})
+}
+
+func sign(n int) int {
+	switch {
+	case n > 0:
+		return 1
+	case n < 0:
+		return -1
+	}
+	return 0
+}
+
+// Clipboards are the texts written to the system clipboard so far (ui.Copy).
+func (h *Harness) Clipboards() []string {
+	return h.Clip.Texts()
 }
 
 // Wheel sends |delta| wheel events at (x, y): negative = up, positive = down.
