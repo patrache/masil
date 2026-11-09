@@ -104,7 +104,7 @@ var serial atomic.Uint64
 
 var installMu sync.Mutex
 
-// Install registers RouteChannel, RouteThread -> *Chat; RouteFeed, RouteNotifications, RouteHome -> *List.
+// Install registers RouteChannel, RouteThread -> *Chat; RouteFeed, RouteNotifications, RouteHome, RouteDMs -> *List.
 // Call from TestMain. Instead of sync.Once it registers only kinds that are missing,
 // so it is safe to call again (no duplicate panic) and works after ui.ResetRegistryForTest.
 func Install() {
@@ -123,6 +123,7 @@ func Install() {
 	add(ui.RouteFeed, list)
 	add(ui.RouteNotifications, list)
 	add(ui.RouteHome, list)
+	add(ui.RouteDMs, list)
 }
 
 // ---- Chat ----
@@ -574,6 +575,12 @@ func (l *List) Title(ctx *ui.Context) (title string, badge ui.Badge) {
 			badge.Count = ctx.Store.InboxBadge()
 		}
 		return "알림", badge
+	case ui.RouteDMs:
+		if ctx != nil && ctx.Store != nil {
+			u, m := ctx.Store.DMUnread()
+			badge = ui.Badge{Count: u, Mention: m > 0}
+		}
+		return "DM", badge
 	}
 	return "홈", ui.Badge{}
 }

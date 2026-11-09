@@ -231,9 +231,9 @@ func New(o Options) *Model {
 		if !isRootKind(o.InitialRoute.Kind) {
 			// A non-root start route (`masil join` => RouteInvite) opens on the home tab,
 			// as after a fresh login, never on top of the restored active channel.
-			m.nav, _ = m.nav.navigate(ui.NavigateMsg{Route: homeRoute}, m.ctx.Mode)
+			m.nav, _ = m.nav.navigate(ui.NavigateMsg{Route: homeRoute}, m.ctx.Mode, m.isDM)
 		}
-		m.nav, m.intent = m.nav.navigate(ui.NavigateMsg{Route: *o.InitialRoute}, m.ctx.Mode)
+		m.nav, m.intent = m.nav.navigate(ui.NavigateMsg{Route: *o.InitialRoute}, m.ctx.Mode, m.isDM)
 		if m.intent.Slot == "" {
 			m.intent = FocusIntent{Slot: layout.SlotMain}
 		}
@@ -422,7 +422,7 @@ func (m *Model) relayout() tea.Cmd {
 		}
 	}
 	m.lay, m.routes, m.pinFell = l, routes, fell
-	m.ctx.Mode, m.ctx.Layout = l.Mode, l
+	m.ctx.Mode, m.ctx.Layout, m.ctx.Routes = l.Mode, l, routes
 
 	var cmds []tea.Cmd
 	var updated []*instance

@@ -83,11 +83,11 @@ func TestFocusRingAndTab(t *testing.T) {
 	if reflect.DeepEqual(h.Nav(), nav0) {
 		t.Fatal("compact tab must act as tab.next (Nav unchanged)")
 	}
-	if h.Nav().Front != app.FrontFeed || focusSlot(h) != layout.SlotMain {
-		t.Fatalf("compact tab: front %v focus %s, want FrontFeed / main", h.Nav().Front, focusSlot(h))
+	if !h.Nav().InDM || h.Nav().Front != app.FrontTab || focusSlot(h) != layout.SlotMain {
+		t.Fatalf("compact tab: front %v in DM %v focus %s, want the DM tab / main", h.Nav().Front, h.Nav().InDM, focusSlot(h))
 	}
 	h.Press("shift+tab")
-	if !reflect.DeepEqual(h.Nav().Front, nav0.Front) || h.Nav().Active != nav0.Active || focusSlot(h) != layout.SlotMain {
+	if !reflect.DeepEqual(h.Nav().Front, nav0.Front) || h.Nav().InDM || h.Nav().Active != nav0.Active || focusSlot(h) != layout.SlotMain {
 		t.Fatalf("compact shift+tab must go back: %+v", h.Nav())
 	}
 }
@@ -233,7 +233,7 @@ func TestTabGoesToCompletingComponent(t *testing.T) { // CR-A (CA 5.3.4 2.3)
 					t.Fatal("120x40: tab must move focus off main (focus.next)")
 				}
 			} else {
-				if n := h.Nav(); n.Front == nav0.Front && n.Active == nav0.Active {
+				if n := h.Nav(); n.Front == nav0.Front && n.Active == nav0.Active && n.InDM == nav0.InDM {
 					t.Fatal("80x24: tab must act as tab.next (active tab / Front unchanged)")
 				}
 			}

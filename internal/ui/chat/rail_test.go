@@ -85,8 +85,8 @@ func TestRailUnreadMarker(t *testing.T) {
 	if r := railRow(t, h, "🚀"); !strings.Contains(r, "•") || strings.Contains(r, "●") {
 		t.Fatalf("unread space row %q", r)
 	}
-	if r := railRow(t, h, "홈"); strings.ContainsAny(r, "•●") {
-		t.Fatalf("home with read DMs %q", r)
+	if r := railRow(t, h, "DM"); strings.ContainsAny(r, "•●") {
+		t.Fatalf("DM with read DMs %q", r)
 	}
 
 	general.My.MentionCount = 1
@@ -104,14 +104,17 @@ func TestRailUnreadMarker(t *testing.T) {
 
 	s.Channels[dmWith(t, s, "minji")].My.UnreadCount = 0
 	s.Channels[dmWith(t, s, "junho")].My.UnreadCount = 2
-	if r := railRow(t, h, "홈"); !strings.Contains(r, "•") {
-		t.Fatalf("home with an unread DM %q", r)
+	if r := railRow(t, h, "DM"); !strings.Contains(r, "•") {
+		t.Fatalf("DM with an unread DM %q", r)
+	}
+	if r := railRow(t, h, "홈"); strings.ContainsAny(r, "•●") {
+		t.Fatalf("DM unread counts on the DM entry, not 홈: %q", r)
 	}
 	h.Event("block.updated", map[string]any{"user_id": userBy(t, s, "junho").ID, "blocked": true})
 	if !s.IsBlocked(userBy(t, s, "junho").ID) {
 		t.Fatal("block.updated not applied")
 	}
-	if r := railRow(t, h, "홈"); strings.ContainsAny(r, "•●") {
+	if r := railRow(t, h, "DM"); strings.ContainsAny(r, "•●") {
 		t.Fatalf("a blocked peer's DM still counts: %q", r)
 	}
 }
@@ -125,13 +128,18 @@ func TestRailKeys(t *testing.T) {
 	if top(h).Key() != before.Key() || len(h.Model.Frame().Overlays) != 0 {
 		t.Fatalf("blank-row click ran something: %+v", top(h))
 	}
-	h.Press("home", "j", "enter")
+	h.Press("home", "j", "enter") // DM: the DM list
+	if top(h).Kind != ui.RouteDMs || !h.Nav().InDM {
+		t.Fatalf("home j enter: %+v", top(h))
+	}
+	h.Click(in.X, in.Y+in.H-1)
+	h.Press("j", "enter")
 	sid := spaceByName(t, h.Context().Store, "노바 개발방")
 	if top(h).ID != h.Context().Store.Spaces[sid].DefaultChannelID || chatOf(h.Context()).SelectedSpace() != sid {
 		t.Fatalf("j enter: %+v", top(h))
 	}
 	h.Click(in.X, in.Y+in.H-1) // opening a channel moves the focus to it (core); refocus the rail
-	h.Press("k", "enter")
+	h.Press("k", "k", "enter")
 	if top(h).Kind != ui.RouteHome || chatOf(h.Context()).SelectedSpace() != "" {
 		t.Fatalf("k enter: %+v", top(h))
 	}
@@ -159,7 +167,7 @@ func TestRailCurrent(t *testing.T) {
 		t.Fatalf("selected space: %q", got)
 	}
 	s.SetViewing(dmWith(t, s, "minji"))
-	if got := railCurrent(ctx); got != railHome {
+	if got := railCurrent(ctx); got != railDM {
 		t.Fatalf("viewing a DM: %q", got)
 	}
 	c.SetSelectedSpace("")

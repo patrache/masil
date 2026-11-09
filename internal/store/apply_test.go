@@ -601,6 +601,35 @@ func TestTotalUnreadSkipsMuted(t *testing.T) {
 	}
 }
 
+// The DM tab badge counts the DMs and group DMs I can see; the 채팅 tab the rest.
+func TestDMUnreadSplit(t *testing.T) {
+	s := meStore(t)
+	s.Channels["C1DEV"].My = api.ChannelMyState{UnreadCount: 5, MentionCount: 1}
+	s.Channels["D1MJ"].My = api.ChannelMyState{UnreadCount: 2}
+	s.Channels["D2JH"].My = api.ChannelMyState{UnreadCount: 3, MentionCount: 1}
+	if u, m := s.DMUnread(); u != 5 || m != 1 {
+		t.Errorf("DMUnread = %d,%d want 5,1", u, m)
+	}
+	if u, m := s.ChannelUnread(); u != 5 || m != 1 {
+		t.Errorf("ChannelUnread = %d,%d want 5,1", u, m)
+	}
+	if !s.IsDM("D1MJ") || s.IsDM("C1DEV") || s.IsDM("NOPE") {
+		t.Error("IsDM")
+	}
+	jh := s.Channels["D2JH"]
+	s.Blocks[jh.Members[1].ID] = time.Now()
+	if !s.HiddenDM(jh) || s.HiddenDM(s.Channels["D1MJ"]) {
+		t.Error("HiddenDM: a blocked peer's 1:1 DM is hidden")
+	}
+	if u, m := s.DMUnread(); u != 2 || m != 0 {
+		t.Errorf("DMUnread with 준호 blocked = %d,%d want 2,0", u, m)
+	}
+	s.Channels["D1MJ"].My.Muted = true
+	if u, _ := s.DMUnread(); u != 0 {
+		t.Errorf("a muted DM adds no unread: %d", u)
+	}
+}
+
 func TestSpaceChannelsByPosition(t *testing.T) {
 	s := meStore(t)
 	s.ObserveChannel(textChannel("C9LAST", "S1", "끝", 5))

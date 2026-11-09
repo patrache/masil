@@ -29,6 +29,9 @@ const (
 	homeLabel                  // "─ DM", "─ 접속 중인 친구" (not selectable)
 	homeDM                     // a visible DM / group DM
 	homeFriend                 // an online or away friend
+	homeSpace                  // "─ 노바 개발방": a joined space's section label (not selectable)
+	homeChan                   // a text channel of a joined space
+	homeMore                   // "…N개 더": a collapsed space's hidden channels (enter expands)
 )
 
 // Home row ids.
@@ -41,6 +44,9 @@ const (
 	homeSpaceJoinID  = "space.join"
 	homeDMPrefix     = "dm:"
 	homeFriendPrefix = "friend:"
+	homeSpacePrefix  = "space:"
+	homeChanPrefix   = "ch:"
+	homeMorePrefix   = "more:"
 )
 
 // Home texts.
@@ -68,16 +74,18 @@ type homeItem struct {
 	Overlay           string
 
 	kind     homeKind
-	ch       *api.Channel       // homeDM
+	ch       *api.Channel       // homeDM, homeChan
 	presence api.PresenceStatus // homeFriend
+	space    string             // homeSpace, homeChan, homeMore: the space id
 }
 
-func (it homeItem) selectable() bool { return it.kind != homeLabel }
+func (it homeItem) selectable() bool { return it.kind != homeLabel && it.kind != homeSpace }
 
 // homeSaved is the Persistent state of the home route.
 type homeSaved struct {
 	Anchor   widgets.ScrollAnchor
 	Selected string
+	Expanded []string // the collapsed spaces opened with "…N개 더"
 }
 
 // homeView is RouteHome: the entry points (received invites, friend requests,
@@ -88,6 +96,7 @@ type homeView struct {
 	size    ui.Size
 	focused bool // of the View being drawn (render reads it)
 	restore *homeSaved
+	expand  map[string]bool // joined spaces (homeItemsWith): ids whose "…N개 더" was opened
 }
 
 var (
@@ -103,7 +112,7 @@ var (
 func newHome(ctx *ui.Context, _ ui.Route) ui.Component {
 	v := &homeView{}
 	v.list = widgets.NewList(func(it homeItem) string { return it.ID }, v.render)
-	v.setItems(homeItems(ctx))
+	v.setItems(homeItemsWith(ctx, nil, ""))
 	return v
 }
 
@@ -164,6 +173,76 @@ func homeItems(ctx *ui.Context) []homeItem {
 	}
 	return items
 }
+
+// ---- joined spaces (feat/home-channels) ----
+
+// homeItemsWith is what the home shows: homeItems with the joined spaces'
+// sections (homeSpaceItems) after the entry rows, before "─ DM". homeItems alone
+// has no space section (its one-argument form stays for its callers); expanded
+// and keep are the view's (see homeSpaceItems).
+func homeItemsWith(ctx *ui.Context, expanded map[string]bool, keep string) []homeItem {
+	items := homeItems(ctx)
+	if len(items) == 0 {
+		return items
+	}
+	at := slices.IndexFunc(items, func(it homeItem) bool { return it.kind != homeEntry })
+	if at < 0 {
+		at = len(items)
+	}
+	return slices.Insert(items, at, homeSpaceItems(ctx, expanded, keep)...)
+}
+
+// homeSpaceMax is the most channels a space shows on the home before it collapses
+// to its unread channels and "…N개 더".
+const homeSpaceMax = 12
+
+// homeSpaceItems are the joined spaces' sections, in the rail's order (SpaceOrder):
+// "─ 이름" (not selectable — the sidebar's header opens nothing either) then the
+// space's text channels in the sidebar's order (Store.SpaceChannels: the ones I can
+// read, by position), drawn like the sidebar (channelRow: 🔒 private, sideBadge,
+// muted dim). A space with more than homeSpaceMax channels shows only those with a
+// badge, then "…N개 더" (enter expands it in place) unless expanded; the row whose
+// id is keep (the cursor's, or the one a pending LoadState selects) shows anyway,
+// so a channel just opened (and so read) keeps the cursor on its row. A space
+// without a readable channel has no section.
+func homeSpaceItems(ctx *ui.Context, expanded map[string]bool, keep string) []homeItem {
+	s := ctx.Store
+	var items []homeItem
+	for _, sid := range s.SpaceOrder {
+		sd := s.Spaces[sid]
+		if sd == nil {
+			continue
+		}
+		chs := s.SpaceChannels(sid)
+		if len(chs) == 0 {
+			continue
+		}
+		name := strings.TrimSpace(textwidth.Sanitize(sd.Name))
+		if name == "" {
+			name = "방"
+		}
+		items = append(items, homeItem{ID: homeSpacePrefix + sid, Label: "─ " + name, kind: homeSpace, space: sid})
+		collapse := len(chs) > homeSpaceMax && !expanded[sid]
+		hidden := 0
+		for _, ch := range chs {
+			b := sideBadge(ch)
+			if collapse && b.Count == 0 && homeChanPrefix+ch.ID != keep {
+				hidden++
+				continue
+			}
+			items = append(items, homeItem{
+				ID: homeChanPrefix + ch.ID, Label: channelTitle(ctx, ch, false), Badge: b,
+				Route: ui.Route{Kind: ui.RouteChannel, ID: ch.ID}, kind: homeChan, ch: ch, space: sid,
+			})
+		}
+		if hidden > 0 {
+			items = append(items, homeItem{ID: homeMorePrefix + sid, Label: "…" + strconv.Itoa(hidden) + "개 더", kind: homeMore, space: sid})
+		}
+	}
+	return items
+}
+
+// ---- end joined spaces ----
 
 // onlineFriends are the friend rows of online / away friends (not blocked), by
 // presence then name: the label is the display name, the detail the custom status
@@ -252,9 +331,9 @@ func (v *homeView) render(ctx *ui.Context, it homeItem, selected bool, width int
 	}
 	var body string
 	switch it.kind {
-	case homeLabel:
+	case homeLabel, homeSpace, homeMore:
 		body = cell(t.S.Dim.Render, it.Label, cw)
-	case homeDM:
+	case homeDM, homeChan:
 		body = channelRow(ctx, t, it.ch, cw)
 	case homeFriend:
 		body = friendRow(t, it, cw)
@@ -341,7 +420,18 @@ func (v *homeView) snap(prev int) {
 // applies a pending LoadState.
 func (v *homeView) sync(ctx *ui.Context, focused bool) {
 	v.focused = focused
-	v.setItems(homeItems(ctx))
+	if r := v.restore; r != nil && len(r.Expanded) > 0 {
+		for _, id := range r.Expanded {
+			v.expandSpace(id)
+		}
+	}
+	keep := ""
+	if r := v.restore; r != nil {
+		keep = r.Selected
+	} else if it, ok := v.list.Selected(); ok {
+		keep = it.ID
+	}
+	v.setItems(homeItemsWith(ctx, v.expand, keep))
 	if r := v.restore; r != nil && len(v.items) > 0 {
 		v.restore = nil
 		v.list.Restore(r.Anchor)
@@ -403,6 +493,10 @@ func (v *homeView) SaveState() any {
 	if it, ok := v.list.Selected(); ok {
 		st.Selected = it.ID
 	}
+	for id := range v.expand {
+		st.Expanded = append(st.Expanded, id)
+	}
+	slices.Sort(st.Expanded)
 	return st
 }
 
@@ -428,7 +522,7 @@ func (v *homeView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		if !ok || !it.selectable() {
 			return false, nil
 		}
-		return true, v.open(ctx, it)
+		return true, v.activate(ctx, it)
 	}
 	prev := v.selectedIndex()
 	handled, cmd := v.list.HandleKey(ctx, msg)
@@ -472,8 +566,8 @@ func (v *homeView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 		return nil
 	}
 	it := v.items[i]
-	if cur, ok := v.list.Selected(); ok && cur.ID == it.ID {
-		return v.open(ctx, it)
+	if cur, ok := v.list.Selected(); (ok && cur.ID == it.ID) || it.kind == homeMore { // "…N개 더" expands at once
+		return v.activate(ctx, it)
 	}
 	v.list.Select(it.ID)
 	return nil
@@ -490,3 +584,49 @@ func (v *homeView) open(_ *ui.Context, it homeItem) tea.Cmd {
 	}
 	return nil
 }
+
+// ---- joined spaces (feat/home-channels) ----
+
+// activate is enter / the opening click on a row: "…N개 더" expands its space in
+// place (openMore), a space channel also becomes the selected space (as from the
+// sidebar) and opens; every other row opens (open).
+func (v *homeView) activate(ctx *ui.Context, it homeItem) tea.Cmd {
+	switch it.kind {
+	case homeMore:
+		v.openMore(ctx, it.space)
+		return nil
+	case homeChan:
+		if c := chatOf(ctx); c != nil {
+			c.SetSelectedSpace(it.space)
+		}
+	}
+	return v.open(ctx, it)
+}
+
+// expandSpace marks space id as expanded.
+func (v *homeView) expandSpace(id string) {
+	if v.expand == nil {
+		v.expand = map[string]bool{}
+	}
+	v.expand[id] = true
+}
+
+// openMore expands space id: every channel shows, and the cursor moves to the first
+// one "…N개 더" hid.
+func (v *homeView) openMore(ctx *ui.Context, id string) {
+	shown := map[string]bool{}
+	for _, it := range v.items {
+		shown[it.ID] = true
+	}
+	v.expandSpace(id)
+	v.setItems(homeItemsWith(ctx, v.expand, ""))
+	for _, it := range v.items {
+		if it.kind == homeChan && it.space == id && !shown[it.ID] {
+			v.list.Select(it.ID)
+			return
+		}
+	}
+	v.snap(-1)
+}
+
+// ---- end joined spaces ----

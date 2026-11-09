@@ -9,6 +9,7 @@ type RouteKind string
 const (
 	RouteHome          RouteKind = "home"           // chat: DM·친구·피드 진입 목록 (레일 "홈")
 	RouteChannel       RouteKind = "channel"        // chat: ID=channel id (text|dm|group_dm), Anchor=message id
+	RouteDMs           RouteKind = "dms"            // chat: the DM list (DM surface root: 1:1 and group DMs by recent activity)
 	RouteThread        RouteKind = "thread"         // chat: ID=root message id, Arg=channel id
 	RouteSearch        RouteKind = "search"         // chat: Arg=query, ID=channel|space scope ("" global)
 	RouteInvite        RouteKind = "invite"         // chat: ID=invite code (link preview); Arg="direct" => direct invite, ID=invite id ("" = list of pending Store.DirectInvites)

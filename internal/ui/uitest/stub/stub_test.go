@@ -341,7 +341,7 @@ func TestStubChatViews(t *testing.T) {
 func TestStubList(t *testing.T) {
 	reg := install(t)
 	ctx := newCtx(t, layout.ModeStandard)
-	for kind, title := range map[ui.RouteKind]string{ui.RouteFeed: "피드", ui.RouteNotifications: "알림", ui.RouteHome: "홈"} {
+	for kind, title := range map[ui.RouteKind]string{ui.RouteFeed: "피드", ui.RouteNotifications: "알림", ui.RouteHome: "홈", ui.RouteDMs: "DM"} {
 		f := reg.Routes[kind]
 		if f == nil {
 			t.Fatalf("no factory for %s", kind)
@@ -427,7 +427,7 @@ func TestInstallAfterReset(t *testing.T) {
 	ui.ResetRegistryForTest()
 	stub.Install()
 	reg := ui.Registered()
-	for _, k := range []ui.RouteKind{ui.RouteChannel, ui.RouteThread, ui.RouteFeed, ui.RouteNotifications, ui.RouteHome} {
+	for _, k := range []ui.RouteKind{ui.RouteChannel, ui.RouteThread, ui.RouteFeed, ui.RouteNotifications, ui.RouteHome, ui.RouteDMs} {
 		if reg.Routes[k] == nil {
 			t.Errorf("%s not registered after reset + Install", k)
 		}

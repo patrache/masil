@@ -180,7 +180,8 @@ func (m *Model) onBootstrapDone(msg bootstrapDoneMsg) tea.Cmd {
 	}
 	// Channels created during the flight were re-applied by ApplyBootstrap, so
 	// only tabs of channels that are really gone are dropped.
-	m.nav = m.nav.pruneChannels(func(id string) bool { return m.ctx.Store.Channels[id] != nil })
+	// DM tabs restored from state.json (the Store did not know them yet) move to the DM surface.
+	m.nav = m.nav.pruneChannels(func(id string) bool { return m.ctx.Store.Channels[id] != nil }).liftDMs(m.isDM)
 	cmds = append(cmds, m.relayout(), m.broadcast(ui.ResyncDoneMsg{}))
 	if m.ctx.Store.Sync.Stale { // the flight journal overflowed: the snapshot may be behind
 		m.bootAgain = true
@@ -200,10 +201,28 @@ func (m *Model) onBootstrapRetry(msg bootstrapRetryMsg) tea.Cmd {
 	return m.startBootstrap()
 }
 
+// foldDM folds the DM surface back to its list when its open DM is not kept (gone
+// from the Store, or hidden: a 1:1 DM with someone I blocked), and closes a DM
+// thread of a channel not kept. It reports whether anything changed.
+func (n *NavState) foldDM(keep func(id string) bool) bool {
+	d := &n.DM
+	if len(d.Stack) >= 2 && d.Stack[1].Kind == ui.RouteChannel && !keep(d.Stack[1].ID) {
+		d.Stack, d.Thread = d.Stack[:1], nil
+		return true
+	}
+	if d.Thread != nil && !keep(d.Thread.Arg) {
+		d.Thread = nil
+		return true
+	}
+	return false
+}
+
 // pruneChannels drops the tabs whose channel root is unknown (deleted or left while
 // away) and threads of unknown channels; the active tab stays where it was or clamps.
+// An unknown DM on the DM surface folds it to the DM list (foldDM).
 func (n NavState) pruneChannels(known func(id string) bool) NavState {
 	c := n.clone()
+	c.foldDM(known)
 	var tabs []TabState
 	active := 0
 	for i, t := range c.Tabs {
@@ -295,7 +314,7 @@ func (m *Model) loggedIn(msg authui.LoggedInMsg) tea.Cmd {
 	m.intent = FocusIntent{Slot: layout.SlotMain}
 	if m.opts.InitialRoute != nil {
 		var intent FocusIntent
-		m.nav, intent = m.nav.navigate(ui.NavigateMsg{Route: *m.opts.InitialRoute}, m.lay.Mode)
+		m.nav, intent = m.nav.navigate(ui.NavigateMsg{Route: *m.opts.InitialRoute}, m.lay.Mode, m.isDM)
 		if intent.Slot != "" {
 			m.intent = intent
 		}

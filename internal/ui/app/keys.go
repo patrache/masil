@@ -248,7 +248,7 @@ func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
 	case m.login != nil: // a forced login screen is left by navigating
 		m.login = nil
 	}
-	n, intent := m.nav.navigate(msg, m.lay.Mode)
+	n, intent := m.nav.navigate(msg, m.lay.Mode, m.isDM)
 	m.nav = n
 	if intent.Slot != "" {
 		m.intent = intent
@@ -257,6 +257,22 @@ func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
 		m.cache.rejump = msg.Route.Key()
 	}
 	return m.relayout()
+}
+
+// isDM reports a DM or group DM channel the Store knows (NavState places it on the
+// DM surface).
+func (m *Model) isDM(channelID string) bool { return m.ctx.Store.IsDM(channelID) }
+
+// dmKept reports whether the DM surface may keep channel id open: the Store knows it
+// (or has not bootstrapped yet: a DM restored from state.json) and it is not hidden
+// (Store.HiddenDM).
+func (m *Model) dmKept(id string) bool {
+	st := m.ctx.Store
+	ch := st.Channels[id]
+	if ch == nil {
+		return !st.Sync.Bootstrapped
+	}
+	return !st.HiddenDM(ch)
 }
 
 // applyToggle installs the result of toggleFeed/toggleNotifications.

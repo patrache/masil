@@ -3,7 +3,6 @@ package app
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -25,17 +24,19 @@ const (
 // histLoc is one recorded place: the surface Main showed and the route on it.
 type histLoc struct {
 	Front Front
-	Root  ui.Route // FrontTab: the tab root (Anchor/Query cleared); zero otherwise
+	Root  ui.Route // FrontTab: the tab root (Anchor/Query cleared), RouteDMs on the DM surface; zero otherwise
+	DM    ui.Route // the DM surface's open DM (Anchor/Query cleared) the route sits on; zero on the list and off the DM surface
 	Route ui.Route // the route shown (Anchor cleared): the attached thread, the stack top, the feed top, NotifRoute
 }
 
 // key identifies a place (Anchor/Query never count).
 func (l histLoc) key() string {
-	return string(rune('0'+l.Front)) + "|" + l.Root.Key() + "|" + l.Route.Key()
+	return string(rune('0'+l.Front)) + "|" + l.Root.Key() + "|" + l.DM.Key() + "|" + l.Route.Key()
 }
 
-// loc is the place n shows, mode-independently: FrontTab => the active tab's
-// attached thread, else its stack top; FrontFeed => the feed top; FrontNotifications.
+// loc is the place n shows, mode-independently: FrontTab => the chat surface's (the
+// active tab's, or the DM surface's, with the DM open there) attached thread, else its
+// stack top; FrontFeed => the feed top; FrontNotifications.
 func (n NavState) loc() histLoc {
 	plain := func(r ui.Route) ui.Route { r.Anchor = ""; return r }
 	c := n.clone()
@@ -45,14 +46,19 @@ func (n NavState) loc() histLoc {
 	case FrontNotifications:
 		return histLoc{Front: FrontNotifications, Route: NotifRoute}
 	}
-	t := c.Tabs[c.Active]
+	t := *c.surface()
 	root := t.Stack[0]
 	root.Anchor, root.Query = "", nil
 	r := t.Stack[len(t.Stack)-1]
 	if attached(t) {
 		r = *t.Thread
 	}
-	return histLoc{Front: FrontTab, Root: root, Route: plain(r)}
+	var dm ui.Route
+	if c.InDM && len(t.Stack) >= 2 && t.Stack[1].Kind == ui.RouteChannel {
+		dm = t.Stack[1]
+		dm.Anchor, dm.Query = "", nil
+	}
+	return histLoc{Front: FrontTab, Root: root, DM: dm, Route: plain(r)}
 }
 
 // oneShot reports whether l shows a screen that closes itself once done (the sns
@@ -122,16 +128,15 @@ func placeExists(st *store.Store, l histLoc) bool {
 		if ch == nil {
 			return !st.Sync.Bootstrapped
 		}
-		if ch.Kind == api.ChannelDM {
-			for _, m := range ch.Members {
-				if !st.IsMe(m.ID) && st.IsBlocked(m.ID) {
-					return false
-				}
-			}
-		}
-		return true
+		return !st.HiddenDM(ch)
 	}
 	if l.Root.Kind == ui.RouteChannel && !known(l.Root.ID) {
+		return false
+	}
+	if l.Route.Kind == ui.RouteChannel && !known(l.Route.ID) { // a DM on the DM surface
+		return false
+	}
+	if l.DM.Kind == ui.RouteChannel && !known(l.DM.ID) { // the DM under a route pushed on the DM surface
 		return false
 	}
 	if l.Route.Kind == ui.RouteSpaceSettings {
@@ -142,10 +147,12 @@ func placeExists(st *store.Store, l histLoc) bool {
 
 // restore shows l again (a history walk): FrontNotifications; FrontFeed with its route
 // on the feed stack (a feed root resets the stack to it); FrontTab activates the tab of
-// l.Root (re-added when it was closed or evicted) and shows l.Route there — a thread
-// as its attached thread (stack folded to the root), the root itself with no thread,
-// any other route pushed on that tab (one key, one place). The focus intent is the
-// slot that shows it.
+// l.Root (re-added when it was closed or evicted), or the DM surface for a RouteDMs
+// root, and shows l.Route there — a thread as its attached thread (stack folded to
+// the root, on the DM surface to its DM), the root (or the DM) itself with no thread,
+// the DM list with no DM, any other route pushed there (one key, one place; on the DM
+// surface over the DM it was pushed on, l.DM, or over the list). The focus
+// intent is the slot that shows it.
 func (n NavState) restore(l histLoc, mode layout.Mode) (NavState, FocusIntent) {
 	c := n.clone()
 	r := l.Route
@@ -166,19 +173,39 @@ func (n NavState) restore(l histLoc, mode layout.Mode) (NavState, FocusIntent) {
 		c.Front = FrontFeed
 		return c, FocusIntent{Slot: mainSlotFor(mode, layout.SlotFeed), RouteKey: r.Key()}
 	}
+	if l.Root.Kind == ui.RouteDMs {
+		c.InDM, c.Front = true, FrontTab
+		d := &c.DM
+		switch r.Kind {
+		case ui.RouteDMs:
+			d.Stack, d.Thread = d.Stack[:1], nil
+		case ui.RouteChannel:
+			c.openDM(r)
+			d.Stack, d.Thread = d.Stack[:2], nil
+		case ui.RouteThread:
+			c.openDM(ui.Route{Kind: ui.RouteChannel, ID: r.Arg})
+			th := r
+			d.Stack, d.Thread = d.Stack[:2], &th
+			return c, FocusIntent{Slot: threadSlot(mode), RouteKey: r.Key()}
+		default:
+			if l.DM.Kind == ui.RouteChannel {
+				c.openDM(l.DM) // that DM's stack stays when it is open now
+			} else {
+				d.Stack, d.Thread = d.Stack[:1], nil
+			}
+			c.push(r, false, false)
+		}
+		return c, FocusIntent{Slot: layout.SlotMain, RouteKey: r.Key()}
+	}
 	c.activateRoot(l.Root)
-	c.Front = FrontTab
+	c.Front, c.InDM = FrontTab, false
 	t := &c.Tabs[c.Active]
 	switch {
 	case r.Kind == ui.RouteThread:
 		t.Stack = t.Stack[:1]
 		th := r
 		t.Thread = &th
-		slot := layout.SlotMain
-		if mode == layout.ModeCommand || mode == layout.ModeStandard {
-			slot = layout.SlotThread
-		}
-		return c, FocusIntent{Slot: slot, RouteKey: r.Key()}
+		return c, FocusIntent{Slot: threadSlot(mode), RouteKey: r.Key()}
 	case r.Key() == l.Root.Key():
 		t.Stack = t.Stack[:1]
 		t.Thread = nil
@@ -219,12 +246,12 @@ func (m *Model) walkHistory(delta int) tea.Cmd {
 	}
 	m.hist.cur = i
 	n, intent := m.nav.restore(m.hist.locs[i], m.lay.Mode)
-	m.nav, m.intent = n, intent
+	m.nav, m.intent = n.liftDMs(m.isDM), intent // a DM recorded as a tab root (before the Store knew it) shows on the DM surface
 	return m.relayout()
 }
 
-// openParent is thread.channel on a focused thread: its channel opens on the root
-// message (stack folded to the channel). Where the thread is shown in Main (no thread
+// openParent is thread.channel on a focused thread: its channel (or DM, on the DM
+// surface) opens on the root message (stack folded to the channel). Where the thread is shown in Main (no thread
 // pane) it is closed; a thread pane stays open.
 func (m *Model) openParent() tea.Cmd {
 	r, ok := m.routes[m.focus.Slot]
@@ -232,9 +259,9 @@ func (m *Model) openParent() tea.Cmd {
 		return nil
 	}
 	target := ui.Route{Kind: ui.RouteChannel, ID: r.Arg, Anchor: r.ID}
-	n, intent := m.nav.navigate(ui.NavigateMsg{Route: target}, m.lay.Mode)
-	t := &n.Tabs[n.Active]
-	t.Stack = t.Stack[:1]
+	n, intent := m.nav.navigate(ui.NavigateMsg{Route: target}, m.lay.Mode, m.isDM)
+	t := n.surface() // the channel's tab, or the DM surface for a DM
+	t.Stack = t.Stack[:stackBase(t.Stack)]
 	if _, pane := m.lay.Pane(layout.SlotThread); !pane {
 		t.Thread = nil
 	}

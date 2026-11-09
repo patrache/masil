@@ -95,6 +95,8 @@ func (m *Model) routeTitle(r ui.Route) string {
 	switch r.Kind {
 	case ui.RouteHome:
 		return "홈"
+	case ui.RouteDMs:
+		return "DM"
 	case ui.RouteChannel:
 		if l := m.ctx.Store.ChannelLabel(r.ID); l != "" {
 			return l

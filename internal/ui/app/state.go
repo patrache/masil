@@ -20,7 +20,7 @@ type SavedState struct {
 	UserID      string     `json:"user_id"`
 	OpenTabs    []SavedTab `json:"open_tabs"`
 	ActiveTab   int        `json:"active_tab"`
-	Front       string     `json:"front"` // "tab" | "feed" | "notifications"
+	Front       string     `json:"front"` // "tab" | "dm" (the DM surface) | "feed" | "notifications"
 	LastSpaceID string     `json:"last_space_id"`
 	FeedTab     string     `json:"feed_tab"`    // Feed[0].Arg
 	PinnedMode  string     `json:"pinned_mode"` // layout Mode.ID() or "auto"
@@ -43,11 +43,15 @@ const maxStateBytes = 1 << 20
 
 var frontNames = map[Front]string{FrontTab: "tab", FrontFeed: "feed", FrontNotifications: "notifications"}
 
+// frontDM is SavedState.Front for FrontTab on the DM surface (InDM).
+const frontDM = "dm"
+
 // feedTabs are the feed surface roots state.json may name (CA 5.3.1 RouteFeed Arg).
 var feedTabs = map[string]bool{"following": true, "discover": true}
 
 // savedState is what state.json remembers of m (CA 3.5): the tab roots only (stack
-// tops and threads are not saved), the active tab, Front, the feed root's Arg, the
+// tops, threads and the DM surface's open DM are not saved), the active tab, Front
+// ("dm" when the DM surface is the chat surface in front), the feed root's Arg, the
 // runtime pin, and the space of the most recently seen channel tab (else the one
 // restored at start).
 func (m *Model) savedState() SavedState {
@@ -66,6 +70,9 @@ func (m *Model) savedState() SavedState {
 	}
 	if s.Front == "" {
 		s.Front = frontNames[FrontTab]
+	}
+	if n.Front == FrontTab && n.InDM {
+		s.Front = frontDM
 	}
 	if m.pin != nil {
 		s.PinnedMode = m.pin.ID()
@@ -124,6 +131,9 @@ func (m *Model) restore(s SavedState) {
 		if s.Front == name {
 			n.Front = f
 		}
+	}
+	if s.Front == frontDM {
+		n.Front, n.InDM = FrontTab, true
 	}
 	if feedTabs[s.FeedTab] {
 		n.Feed = []ui.Route{{Kind: ui.RouteFeed, Arg: s.FeedTab}}

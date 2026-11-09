@@ -225,9 +225,9 @@ func TestWidgetFeedToCommandReal(t *testing.T) { // CA 10.3 bullet 2, real scree
 	if h.Context().Mode != layout.ModeWidget {
 		t.Fatalf("80x24 = %v", h.Context().Mode)
 	}
-	h.Press("]") // 피드 tab
+	h.Press("[", "[") // 알림, then the 피드 tab (not through DM: Main keeps the 채팅 tab)
 	if h.Nav().Front != app.FrontFeed {
-		t.Fatalf("] at widget: front = %v", h.Nav().Front)
+		t.Fatalf("[ [ at widget: front = %v", h.Nav().Front)
 	}
 	key := feedRoute.Key()
 	mustSlot(t, h, layout.SlotMain, key)
