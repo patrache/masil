@@ -137,6 +137,16 @@ describe("CollabHub: hello catch-up", () => {
     expect(JSON.stringify(b.hello).length).toBeGreaterThan(1_000_000);
   });
 
+  it("only the first hello of a connection is answered: repeats get nothing (no full snapshot per 30-byte frame)", async () => {
+    const { owner, space } = await room();
+    const doc = await makeDoc(owner, space.id, "arch", N1);
+    const a = await connectDoc(owner.token, doc.id);
+    for (let i = 0; i < 20; i++) a.send({ t: "hello", since: null });
+    a.send({ t: "hello", since: 0 });
+    await ackOf(a, sendOp(a, [{ op: "set", id: "n1", field: "cpu", value: 1 }])); // frames are handled in order
+    expect(a.frames.filter((f) => f.t === "hello")).toHaveLength(1);
+  });
+
   it("a long-gone client whose ops bundle would exceed maxDocBytes gets the snapshot instead", async () => {
     const { owner, space } = await room();
     const doc = await makeDoc(owner, space.id, "arch", N1);

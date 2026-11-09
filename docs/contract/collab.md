@@ -119,6 +119,7 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 - `init(docType, snapshot)`(POST `snapshot`): 모양·이름 규칙(1.2)·`id` 중복 → 거절 `invalid`, 문서 종류의 `validateOp` 를 `{op:"reset", snapshot}` 하나로 불러 거절하면 `invalid`, 5장 한도를 넘으면 `too_long`. REST 는 `400 fields.snapshot` 에 그 값을 싣는다. 객체가 하나라도 있으면 그 상태가 순번 1(`head_seq` 1), 비어 있으면 0. `snapshot.seq` 는 무시한다.
 - 압축(alarm): 스냅숏 뒤 op 가 1,000개를 넘으면 지금 상태를 스냅숏으로 쓰고 그 순번까지의 op 를 지운다. D1 `head_seq`·`updated_at` 반영은 op 뒤 30초 묶음.
 - `closeAll(reason)` 뒤에는 그 문서 소켓 업그레이드를 DO 도 `404` 로 거절한다(Worker 의 D1 확인과 겹치는 경합을 막는다).
+- `hello` 는 연결마다 **처음 한 번만** 답한다. 이미 답한 소켓의 `hello` 는 조용히 버린다(30바이트 프레임 하나로 문서 전체 스냅숏을 거듭 받아 내는 것을 막는다). 따라잡기가 다시 필요하면 다시 연결한다.
 
 ---
 

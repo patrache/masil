@@ -265,8 +265,12 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
 
   // ---------------------------------------------------------------- frames
 
-  /** collab.md 3.2 hello: snapshot for null / a compacted range / an unknown seq, else the ops after `since`. */
+  /**
+   * collab.md 3.2 hello: snapshot for null / a compacted range / an unknown seq, else the ops after `since`. Answered
+   * once per connection (3.4): a repeat is dropped, or a 30-byte frame could ask for a full snapshot each time.
+   */
   protected onHello(ws: WebSocket, c: DocConn, since: number | null): void {
+    if (c.ready) return;
     const st = this.state();
     const head = st.seq;
     let frame: string | null = null;
@@ -283,10 +287,8 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
       if (bytes <= max) frame = helloOpsFrame(head, entries);
     }
     this.send(ws, frame ?? helloSnapshotFrame(head, st.snapshotText()));
-    if (!c.ready) {
-      c.ready = true;
-      ws.serializeAttachment(c);
-    }
+    c.ready = true;
+    ws.serializeAttachment(c);
   }
 
   /** collab.md 3.3, one op frame. Everything up to the sends is synchronous: frames are sequenced in arrival order. */
