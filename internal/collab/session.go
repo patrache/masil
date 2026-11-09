@@ -8,9 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -30,6 +33,10 @@ type Options struct {
 	// Dial opens the document socket; nil = the real one
 	// (realtime.DialConn with ReadLimit). Tools pass ctx.CollabDial.
 	Dial func(ctx context.Context, url string, h http.Header) (realtime.Conn, error)
+	// UserID is me (ctx's user). The server sends my edits from my other
+	// terminals here too; with UserID set they are not "overwritten by
+	// someone". "" = unknown (every remote author counts as someone else).
+	UserID string
 }
 
 // Presence is one person's cursor, selection and drag (collab.md 3). In
@@ -82,12 +89,20 @@ type EventOverwritten struct {
 type EventPresence struct{ Peers []Presence }
 
 // EventKicked: the server closed the document for me (left, kicked, banned,
-// space_deleted, doc_deleted). Pending are my unsent edits, kept; the session
-// does not reconnect.
+// space_deleted, doc_deleted), or a reconnect's upgrade was refused 404
+// (ReasonNotFound). Pending are my unsent edits, kept; the session does not
+// reconnect. After a 401/403 upgrade or close 4001/4003 there is no
+// EventKicked: the last EventState carries the error and Pending() still
+// answers.
 type EventKicked struct {
 	Reason  string
 	Pending []Op
 }
+
+// ReasonNotFound is EventKicked.Reason when a reconnect's upgrade was refused
+// 404 (collab.md 2: the document is gone or I am no longer a member), so no
+// kicked frame could arrive.
+const ReasonNotFound = "not_found"
 
 func (EventState) isEvent()       {}
 func (EventChanged) isEvent()     {}
@@ -111,14 +126,15 @@ const (
 	presenceInterval = 100 * time.Millisecond // presence <= 10 frames a second
 	opFramesPerSec   = 20                     // op frames <= 20 a second (collab.md 4)
 	writeTimeout     = 10 * time.Second
-	rejectRetry      = time.Second // a rate_limited reject is sent again after this
 )
 
-// test seams (SetBackoffForTest; the package tests shorten rateLimitedDelay)
+// test seams (SetBackoffForTest; the package tests shorten rateLimitedDelay
+// and rejectRetry)
 var (
 	seamMu           sync.Mutex
 	backoffRand      func() float64
 	rateLimitedDelay = 10 * time.Second // close 4008: "10초 뒤 재접속"
+	rejectRetry      = time.Second      // a rate_limited reject is sent again after this
 )
 
 // SetBackoffForTest makes later Sessions draw their reconnect jitter from rnd
@@ -158,7 +174,6 @@ type Session struct {
 	cancel context.CancelFunc
 	wake   chan struct{}
 	done   chan struct{}
-	once   sync.Once
 
 	mu        sync.Mutex
 	confirmed *Doc
@@ -170,14 +185,17 @@ type Session struct {
 	presSent  time.Time
 	opSent    []time.Time
 	live      bool
-	synced    bool // a hello answered at least once (since = confirmed seq from then on)
+	synced    bool  // a hello answered at least once (since = confirmed seq from then on)
+	ackHigh   int64 // the highest seq an ack of mine carried
 	prefix    string
 	counter   int
 
-	evMu     sync.Mutex
-	events   []Event
-	evWake   chan struct{}
-	evClosed bool
+	evMu      sync.Mutex
+	events    []Event
+	evClosed  bool
+	evRunning bool          // a dispatch goroutine is delivering (started by emit, ends when the queue is empty)
+	evIdle    chan struct{} // closed when that goroutine returns
+	evGoid    atomic.Uint64 // the goroutine inside OnEvent (0 = none)
 }
 
 // Open starts the session: it dials at once and keeps the socket up until
@@ -195,7 +213,6 @@ func Open(ctx context.Context, o Options) *Session {
 		view:      NewDoc(Snapshot{}),
 		writers:   map[fkey]string{},
 		peers:     map[string]Presence{},
-		evWake:    make(chan struct{}, 1),
 		prefix:    randomPrefix(),
 	}
 	if s.dial == nil {
@@ -203,9 +220,14 @@ func Open(ctx context.Context, o Options) *Session {
 			return realtime.DialConn(ctx, url, h, ReadLimit)
 		}
 	}
-	go s.dispatch()
 	go s.run()
 	return s
+}
+
+// newID is a fresh client_op_id. s.mu held.
+func (s *Session) newID() string {
+	s.counter++
+	return s.prefix + "-" + strconv.Itoa(s.counter)
 }
 
 func randomPrefix() string {
@@ -223,8 +245,7 @@ func randomPrefix() string {
 func (s *Session) Submit(ops []Op) (clientOpID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.counter++
-	id := s.prefix + "-" + strconv.Itoa(s.counter)
+	id := s.newID()
 	ops = cloneOps(ops)
 	code := ""
 	if err := CheckOps(ops); err != nil {
@@ -293,17 +314,19 @@ func (s *Session) pendingOps() []Op {
 }
 
 // Close stops the session and its socket; no events are delivered after it
-// returns. Pending edits are kept (Pending still answers).
+// returns (an OnEvent call already running is waited for, unless Close is
+// called from inside OnEvent). Pending edits are kept (Pending still answers).
 func (s *Session) Close() {
-	s.once.Do(func() {
-		s.cancel()
-		<-s.done
-		s.evMu.Lock()
-		s.evClosed = true
-		s.events = nil
-		s.evMu.Unlock()
-		s.notifyEv()
-	})
+	s.cancel()
+	<-s.done
+	s.evMu.Lock()
+	s.evClosed = true
+	s.events = nil
+	idle, running := s.evIdle, s.evRunning
+	s.evMu.Unlock()
+	if running && s.evGoid.Load() != goid() {
+		<-idle
+	}
 }
 
 // ---- events ----
@@ -312,43 +335,55 @@ func (s *Session) Close() {
 // the order of the state changes (emit only takes evMu; the dispatcher never
 // holds s.mu).
 func (s *Session) emit(e Event) {
+	if s.o.OnEvent == nil {
+		return
+	}
 	s.evMu.Lock()
+	defer s.evMu.Unlock()
 	if s.evClosed {
-		s.evMu.Unlock()
 		return
 	}
 	s.events = append(s.events, e)
-	s.evMu.Unlock()
-	s.notifyEv()
-}
-
-func (s *Session) notifyEv() {
-	select {
-	case s.evWake <- struct{}{}:
-	default:
+	if !s.evRunning {
+		s.evRunning = true
+		s.evIdle = make(chan struct{})
+		go s.dispatch(s.evIdle)
 	}
 }
 
-func (s *Session) dispatch() {
-	for range s.evWake {
-		for {
-			s.evMu.Lock()
-			if s.evClosed {
-				s.evMu.Unlock()
-				return
-			}
-			if len(s.events) == 0 {
-				s.evMu.Unlock()
-				break
-			}
-			e := s.events[0]
-			s.events = s.events[1:]
+// dispatch delivers the queue in order and returns once it is empty (so a
+// session that ended without Close leaves no goroutine behind).
+func (s *Session) dispatch(idle chan struct{}) {
+	defer close(idle)
+	id := goid()
+	for {
+		s.evMu.Lock()
+		if s.evClosed || len(s.events) == 0 {
+			s.evRunning = false
 			s.evMu.Unlock()
-			if s.o.OnEvent != nil {
-				s.o.OnEvent(e)
-			}
+			return
 		}
+		e := s.events[0]
+		s.events[0] = nil
+		s.events = s.events[1:]
+		s.evMu.Unlock()
+		s.evGoid.Store(id)
+		s.o.OnEvent(e)
+		s.evGoid.Store(0)
 	}
+}
+
+// goid is the current goroutine's ID (from its stack header "goroutine N ["),
+// so Close can tell it is being called from inside OnEvent.
+func goid() uint64 {
+	var b [64]byte
+	n := runtime.Stack(b[:], false)
+	f := bytes.Fields(bytes.TrimPrefix(b[:n], []byte("goroutine ")))
+	if len(f) == 0 {
+		return 0
+	}
+	id, _ := strconv.ParseUint(string(f[0]), 10, 64)
+	return id
 }
 
 func (s *Session) poke() {
@@ -387,6 +422,13 @@ func (s *Session) run() {
 				return
 			}
 			if terminalDialErr(err) {
+				s.mu.Lock()
+				var ae *api.Error
+				if s.synced && errors.As(err, &ae) && ae.Status == http.StatusNotFound {
+					// deleted or removed while I was away: no kicked frame can come
+					s.emit(EventKicked{Reason: ReasonNotFound, Pending: s.pendingOps()})
+				}
+				s.mu.Unlock()
 				s.emit(EventState{Err: err})
 				return
 			}
@@ -468,7 +510,10 @@ func (s *Session) serve(conn realtime.Conn) (wentLive bool, err error) {
 		for _, p := range s.pending {
 			p.sent = false
 		}
-		clear(s.peers)
+		if len(s.peers) > 0 { // presence is not replayed: nobody shows while offline
+			clear(s.peers)
+			s.emit(EventPresence{})
+		}
 		s.mu.Unlock()
 	}()
 
@@ -544,9 +589,10 @@ func (s *Session) kicked(reason string) {
 	s.mu.Unlock()
 }
 
-// flush sends what is due: unsent op frames (<= 20 a second) and the latest
-// presence (<= 10 a second). It returns when to look again (zero = nothing
-// waits).
+// flush sends what is due: unsent op frames (<= 20 a second), in submission
+// order (one held by a rate_limited reject holds the ones after it), and the
+// latest presence (<= 10 a second). It returns when to look again (zero =
+// nothing waits).
 func (s *Session) flush(conn realtime.Conn) (time.Time, error) {
 	now := time.Now()
 	var frames [][]byte
@@ -558,13 +604,14 @@ func (s *Session) flush(conn realtime.Conn) (time.Time, error) {
 	}
 	s.mu.Lock()
 	if s.live {
-		for _, p := range s.pending {
+		for i := 0; i < len(s.pending); i++ {
+			p := s.pending[i]
 			if p.sent {
 				continue
 			}
 			if now.Before(p.retryAt) {
 				later(p.retryAt)
-				continue
+				break
 			}
 			if n := len(s.opSent); n >= opFramesPerSec {
 				if at := s.opSent[n-opFramesPerSec].Add(time.Second); now.Before(at) {
@@ -573,7 +620,9 @@ func (s *Session) flush(conn realtime.Conn) (time.Time, error) {
 				}
 			}
 			b, err := encodeOp(p.id, s.confirmed.Seq(), p.ops)
-			if err != nil {
+			if err != nil { // Submit encoded it already; never left waiting
+				s.drop(p, "invalid", "")
+				i--
 				continue
 			}
 			p.sent = true
@@ -696,12 +745,16 @@ func (s *Session) applyRemote(seq int64, author string, ops []Op) []Event {
 			continue
 		}
 		k := fkey{c.ID, c.Field}
-		if w, ok := s.writers[k]; ok && w == me && !s.pendingTouches(k, nil) {
-			if old := before[k]; old != nil && !bytes.Equal(old, s.confirmed.Field(c.ID, c.Field)) {
+		wr := author
+		if s.o.UserID != "" && author == s.o.UserID { // me, from another terminal
+			wr = me
+		}
+		if w, ok := s.writers[k]; ok && w == me && wr != me && !s.pendingTouches(k, nil) {
+			if old := before[k]; old != nil && !sameJSON(old, s.confirmed.Field(c.ID, c.Field)) {
 				evs = append(evs, EventOverwritten{ID: c.ID, Field: c.Field, Mine: old, By: author})
 			}
 		}
-		s.writers[k] = author
+		s.writers[k] = wr
 	}
 	return evs
 }
@@ -746,12 +799,29 @@ func (s *Session) pendingTouches(k fkey, skip *pendingOp) bool {
 	return false
 }
 
+// sameJSON: a and b are the same JSON value (collab.md: values are equal by
+// meaning). The server re-serialises what it stores (JSON.stringify), so its
+// bytes may differ from mine ("\u003e" against ">", 1.0 against 1, key order).
+func sameJSON(a, b json.RawMessage) bool {
+	if bytes.Equal(a, b) {
+		return true
+	}
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y) // numbers as float64, like JS
+}
+
+func (s *Session) index(id string) int {
+	return slices.IndexFunc(s.pending, func(p *pendingOp) bool { return p.id == id })
+}
+
 func (s *Session) take(id string) *pendingOp {
-	for i, p := range s.pending {
-		if p.id == id {
-			s.pending = slices.Delete(s.pending, i, i+1)
-			return p
-		}
+	if i := s.index(id); i >= 0 {
+		p := s.pending[i]
+		s.pending = slices.Delete(s.pending, i, i+1)
+		return p
 	}
 	return nil
 }
@@ -759,10 +829,24 @@ func (s *Session) take(id string) *pendingOp {
 func (s *Session) onAck(f frameIn) {
 	var evs []Event
 	s.mu.Lock()
-	p := s.take(f.ClientOpID)
-	if p == nil { // a duplicate ack (resend after a reconnect): handled once
+	i := s.index(f.ClientOpID)
+	if i < 0 { // a duplicate ack (resend after a reconnect): handled once
 		s.mu.Unlock()
 		return
+	}
+	p := s.pending[i]
+	// My frames are sequenced in submission order, except when an earlier one
+	// was held by a rate_limited reject while this one, already on the wire,
+	// went through: it is still ahead of an earlier frame of mine (i > 0), or
+	// its seq is below one an earlier frame already got. Then its ops go again
+	// under a new client_op_id (the old one is spent) right after the earlier
+	// ones, so they land last as I typed them.
+	jumped := i > 0 || f.Seq < s.ackHigh
+	s.ackHigh = max(s.ackHigh, f.Seq)
+	if jumped {
+		s.pending[i] = &pendingOp{id: s.newID(), ops: p.ops}
+	} else {
+		s.pending = slices.Delete(s.pending, i, i+1)
 	}
 	if f.Seq > s.confirmed.Seq() {
 		for _, c := range s.confirmed.Apply(f.Seq, p.ops) {
@@ -770,7 +854,7 @@ func (s *Session) onAck(f frameIn) {
 				s.writers[fkey{c.ID, c.Field}] = me
 			}
 		}
-	} else {
+	} else if !jumped {
 		// already in the confirmed state (the catch-up after a reconnect carried
 		// it, without its client_op_id): was it overwritten since?
 		keys, vals := written(p.ops)
@@ -783,7 +867,7 @@ func (s *Session) onAck(f frameIn) {
 			if cur == nil {
 				continue
 			}
-			if bytes.Equal(cur, vals[k]) {
+			if sameJSON(cur, vals[k]) {
 				s.writers[k] = me
 				continue
 			}
@@ -821,11 +905,16 @@ func (s *Session) onReject(f frameIn) {
 		s.poke()
 		return
 	}
+	s.drop(p, f.Code, f.Detail)
+	s.mu.Unlock()
+}
+
+// drop removes refused p from pending and the view. s.mu held.
+func (s *Session) drop(p *pendingOp, code, detail string) {
 	s.take(p.id)
 	s.rebuild()
-	s.emit(EventRejected{ClientOpID: p.id, Code: f.Code, Detail: f.Detail, Ops: cloneOps(p.ops)})
+	s.emit(EventRejected{ClientOpID: p.id, Code: code, Detail: detail, Ops: cloneOps(p.ops)})
 	s.emit(EventChanged{Changes: touched(p.ops, s.view)})
-	s.mu.Unlock()
 }
 
 // touched lists what ops touched (objects and fields) for an EventChanged.

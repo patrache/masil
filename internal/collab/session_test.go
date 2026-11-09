@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +23,7 @@ import (
 func TestMain(m *testing.M) {
 	backoffRand = func() float64 { return 0 } // reconnect at once
 	rateLimitedDelay = 50 * time.Millisecond
+	rejectRetry = 150 * time.Millisecond
 	os.Exit(m.Run())
 }
 
@@ -701,4 +703,295 @@ func TestSessionCloseStopsEvents(t *testing.T) {
 	if len(r.s.Pending()) != 1 {
 		t.Errorf("Close dropped pending")
 	}
+}
+
+// ---- review fixes ----
+
+func openWith(t *testing.T, edit func(*Options)) *rig {
+	t.Helper()
+	r := &rig{d: &fdial{conns: make(chan *fconn, 16)}, ev: &recorder{ch: make(chan Event, 4096)}, api: api.New("https://masil.test", api.WithToken("msl_tok"))}
+	o := Options{API: r.api, DocID: "D1", OnEvent: r.ev.add, Dial: r.d.Dial}
+	edit(&o)
+	r.s = Open(context.Background(), o)
+	t.Cleanup(r.s.Close)
+	return r
+}
+
+func noOverwrite(t *testing.T, r *rig) {
+	t.Helper()
+	for _, e := range r.ev.all() {
+		if _, ok := e.(EventOverwritten); ok {
+			t.Errorf("unexpected %+v", e)
+		}
+	}
+}
+
+// TestRejectRateLimitedKeepsOrder: an edit made while an older one waits out
+// its rate_limited reject is not sent ahead of it.
+func TestRejectRateLimitedKeepsOrder(t *testing.T) {
+	r := open(t)
+	c := r.connect(t, "null", snap4)
+	a := r.s.Submit([]Op{setOp("n1", "cpu", "1")})
+	c.expect(t, "op")
+	c.send(t, fmt.Sprintf(`{"t":"reject","client_op_id":%q,"code":"rate_limited"}`, a))
+	time.Sleep(30 * time.Millisecond)
+	b := r.s.Submit([]Op{setOp("n1", "cpu", "2")})
+	first, _, _ := opFrame(t, c.expect(t, "op"))
+	if first != a {
+		t.Fatalf("first frame after the reject = %s, want the held %s (then %s)", first, a, b)
+	}
+	c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":5}`, a))
+	second, _, _ := opFrame(t, c.expect(t, "op"))
+	if second != b {
+		t.Fatalf("second frame = %s, want %s", second, b)
+	}
+	c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":6}`, b))
+	waitFor(t, func() bool { return len(r.s.Pending()) == 0 })
+	if got := field(r.s, "n1", "cpu"); got != "2" {
+		t.Errorf("cpu = %s, want my last edit 2", got)
+	}
+}
+
+// TestRejectRateLimitedJumpedFrameIsReapplied: A (put n2) is rate_limited
+// but B (set n2.x), already on the wire, is sequenced first (a set on a
+// missing object: no effect). B goes again after A, so x is kept.
+func TestRejectRateLimitedJumpedFrameIsReapplied(t *testing.T) {
+	r := open(t)
+	c := r.connect(t, "null", snap4)
+	a := r.s.Submit([]Op{{Op: OpPut, ID: "n2", Type: "node", Fields: map[string]json.RawMessage{}}})
+	b := r.s.Submit([]Op{setOp("n2", "x", "1")})
+	c.expect(t, "op")
+	c.expect(t, "op")
+	c.send(t, fmt.Sprintf(`{"t":"reject","client_op_id":%q,"code":"rate_limited"}`, a))
+	c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":5}`, b))
+	id1, _, _ := opFrame(t, c.expect(t, "op"))
+	if id1 != a {
+		t.Fatalf("resent %s, want %s", id1, a)
+	}
+	c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":6}`, a))
+	id2, _, ops := opFrame(t, c.expect(t, "op"))
+	if id2 == a || id2 == b || len(ops) != 1 || ops[0].ID != "n2" || ops[0].Field != "x" {
+		t.Fatalf("B again = %s %+v (want a new client_op_id with B's ops)", id2, ops)
+	}
+	c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":7}`, id2))
+	waitFor(t, func() bool { return len(r.s.Pending()) == 0 })
+	if v := r.s.View(); string(v.Field("n2", "x")) != "1" || v.Seq() != 7 {
+		t.Errorf("view n2.x = %s seq %d, want 1 at 7", v.Field("n2", "x"), v.Seq())
+	}
+	noOverwrite(t, r)
+}
+
+// TestRejectRateLimitedJumpedAcrossReconnect: as above, but B's ack is lost
+// with the socket; the catch-up carries B (seq 5), A is resent (seq 6) and B's
+// duplicate ack (seq 5, before A) sends B again.
+func TestRejectRateLimitedJumpedAcrossReconnect(t *testing.T) {
+	r := open(t)
+	c := r.connect(t, "null", snap4)
+	a := r.s.Submit([]Op{setOp("n1", "cpu", "1")})
+	b := r.s.Submit([]Op{setOp("n1", "cpu", "2")})
+	c.expect(t, "op")
+	c.expect(t, "op")
+	c.send(t, fmt.Sprintf(`{"t":"reject","client_op_id":%q,"code":"rate_limited"}`, a))
+	time.Sleep(30 * time.Millisecond)
+	c.shut(1006)
+	c2 := r.connect(t, "4", `{"t":"hello","seq":5,"ops":[{"seq":5,"author":"U1","ops":[{"op":"set","id":"n1","field":"cpu","value":2}]}]}`)
+	id1, _, _ := opFrame(t, c2.expect(t, "op"))
+	id2, _, _ := opFrame(t, c2.expect(t, "op"))
+	if id1 != a || id2 != b {
+		t.Fatalf("resent %s %s, want %s %s", id1, id2, a, b)
+	}
+	c2.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":6}`, a))
+	c2.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":5}`, b))
+	id3, _, ops := opFrame(t, c2.expect(t, "op"))
+	if id3 == a || id3 == b || len(ops) != 1 || string(ops[0].Value) != "2" {
+		t.Fatalf("B again = %s %+v", id3, ops)
+	}
+	c2.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":7}`, id3))
+	waitFor(t, func() bool { return len(r.s.Pending()) == 0 })
+	if got := field(r.s, "n1", "cpu"); got != "2" {
+		t.Errorf("cpu = %s, want 2", got)
+	}
+	noOverwrite(t, r)
+}
+
+// TestSessionReconnect404ReportsPending: the doc was deleted (or I was
+// removed) while offline; the reconnect upgrade is 404, so no kicked frame
+// comes. The unsent edits are still reported with EventKicked, once.
+func TestSessionReconnect404ReportsPending(t *testing.T) {
+	r := open(t)
+	c := r.connect(t, "null", snap4)
+	r.s.Submit([]Op{setOp("n1", "cpu", "8")})
+	r.s.Submit([]Op{setOp("n1", "mem", "16")})
+	c.expect(t, "op")
+	c.expect(t, "op")
+	r.d.mu.Lock()
+	r.d.errs = []error{&api.Error{Status: 404, Code: "not_found"}}
+	r.d.mu.Unlock()
+	c.shut(1006)
+	k := r.ev.wait(t, "kicked", func(e Event) bool { _, ok := e.(EventKicked); return ok }).(EventKicked)
+	if len(k.Pending) != 2 || k.Reason != ReasonNotFound {
+		t.Errorf("kicked = %+v", k)
+	}
+	st := r.ev.wait(t, "stopped", func(e Event) bool { s, ok := e.(EventState); return ok && api.IsCode(s.Err, "not_found") }).(EventState)
+	if st.Connected {
+		t.Errorf("state = %+v", st)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if n := r.d.count(); n != 2 {
+		t.Errorf("dials = %d, want 2", n)
+	}
+	if len(r.s.Pending()) != 2 {
+		t.Errorf("pending = %+v", r.s.Pending())
+	}
+}
+
+// TestSessionFirst404IsNotKicked: a document that never opened is not "kicked".
+func TestSessionFirst404IsNotKicked(t *testing.T) {
+	r := &rig{d: &fdial{conns: make(chan *fconn, 4), errs: []error{&api.Error{Status: 404, Code: "not_found"}}}, ev: &recorder{ch: make(chan Event, 64)}}
+	r.s = Open(context.Background(), Options{API: api.New("https://masil.test"), DocID: "D1", OnEvent: r.ev.add, Dial: r.d.Dial})
+	defer r.s.Close()
+	r.ev.wait(t, "stopped", isState(false))
+	time.Sleep(50 * time.Millisecond)
+	for _, e := range r.ev.all() {
+		if _, ok := e.(EventKicked); ok {
+			t.Errorf("unexpected %+v", e)
+		}
+	}
+}
+
+func TestSessionPeersClearedOnDrop(t *testing.T) {
+	r := open(t)
+	c := r.connect(t, "null", snap4)
+	c.send(t, `{"t":"presence","user":"U2","cursor":{"x":1},"selection":["n1"],"dragging":null}`)
+	r.ev.wait(t, "presence", func(e Event) bool { p, ok := e.(EventPresence); return ok && len(p.Peers) == 1 })
+	c.shut(1006)
+	r.ev.wait(t, "peers cleared", func(e Event) bool { p, ok := e.(EventPresence); return ok && len(p.Peers) == 0 })
+	if p := r.s.Peers(); len(p) != 0 {
+		t.Errorf("peers = %+v", p)
+	}
+}
+
+// TestSessionOverwriteComparesMeaning: the server re-serialises values
+// (JSON.stringify), so my bytes and its bytes may differ for the same value.
+func TestSessionOverwriteComparesMeaning(t *testing.T) {
+	t.Run("duplicate ack after catch-up", func(t *testing.T) {
+		r := open(t)
+		c := r.connect(t, "null", snap4)
+		mine, _ := json.Marshal("A -> B") // "A -> B"
+		id := r.s.Submit([]Op{setOp("n1", "body", string(mine))})
+		c.expect(t, "op")
+		c.shut(1006)
+		c2 := r.connect(t, "4", `{"t":"hello","seq":5,"ops":[{"seq":5,"author":"U1","ops":[{"op":"set","id":"n1","field":"body","value":"A -> B"}]}]}`)
+		c2.expect(t, "op")
+		c2.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":5}`, id))
+		waitFor(t, func() bool { return len(r.s.Pending()) == 0 })
+		time.Sleep(30 * time.Millisecond)
+		noOverwrite(t, r)
+	})
+	t.Run("remote op with the same value", func(t *testing.T) {
+		r := open(t)
+		c := r.connect(t, "null", snap4)
+		id := r.s.Submit([]Op{setOp("n1", "body", `{"a":1.0,"b":"x<y"}`)})
+		c.expect(t, "op")
+		c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":5}`, id))
+		c.send(t, `{"t":"op","seq":6,"author":"U2","ops":[{"op":"set","id":"n1","field":"body","value":{"b":"x<y","a":1}}]}`)
+		r.ev.wait(t, "U2 op", func(e Event) bool { c, ok := e.(EventChanged); return ok && c.Author == "U2" })
+		time.Sleep(30 * time.Millisecond)
+		noOverwrite(t, r)
+	})
+}
+
+// TestSessionMyOtherTerminalIsNotOverwrite: the server sends my own edit from
+// another terminal to this one too; it is not "someone overwrote you".
+func TestSessionMyOtherTerminalIsNotOverwrite(t *testing.T) {
+	r := openWith(t, func(o *Options) { o.UserID = "U1" })
+	c := r.connect(t, "null", snap4)
+	id := r.s.Submit([]Op{setOp("n1", "body", `"A"`)})
+	c.expect(t, "op")
+	c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":5}`, id))
+	c.send(t, `{"t":"op","seq":6,"author":"U1","ops":[{"op":"set","id":"n1","field":"body","value":"B"}]}`)
+	r.ev.wait(t, "U1 op", func(e Event) bool { c, ok := e.(EventChanged); return ok && c.Author == "U1" })
+	time.Sleep(30 * time.Millisecond)
+	noOverwrite(t, r)
+	// someone else still counts
+	c.send(t, `{"t":"op","seq":7,"author":"U2","ops":[{"op":"set","id":"n1","field":"cpu","value":3}]}`)
+	id2 := r.s.Submit([]Op{setOp("n1", "label", `"x"`)})
+	c.expect(t, "op")
+	c.send(t, fmt.Sprintf(`{"t":"ack","client_op_id":%q,"seq":8}`, id2))
+	c.send(t, `{"t":"op","seq":9,"author":"U2","ops":[{"op":"set","id":"n1","field":"label","value":"y"}]}`)
+	r.ev.wait(t, "overwritten", func(e Event) bool { o, ok := e.(EventOverwritten); return ok && o.By == "U2" })
+}
+
+// TestSessionCloseWaitsForOnEvent: Close returns only after an OnEvent call
+// already running has returned; Close from inside OnEvent does not hang.
+func TestSessionCloseWaitsForOnEvent(t *testing.T) {
+	in, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	var mu sync.Mutex
+	returned := false
+	d := &fdial{conns: make(chan *fconn, 4)}
+	s := Open(context.Background(), Options{API: api.New("https://masil.test"), DocID: "D1", Dial: d.Dial, OnEvent: func(e Event) {
+		once.Do(func() {
+			close(in)
+			<-release
+			time.Sleep(20 * time.Millisecond)
+			mu.Lock()
+			returned = true
+			mu.Unlock()
+		})
+	}})
+	s.Submit([]Op{setOp("n1", "cpu", "1")})
+	<-in
+	closed := make(chan struct{})
+	go func() { s.Close(); close(closed) }()
+	select {
+	case <-closed:
+		t.Fatal("Close returned while OnEvent was running")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-closed:
+	case <-time.After(wait):
+		t.Fatal("Close never returned")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !returned {
+		t.Error("Close returned before OnEvent did")
+	}
+
+	var s2 *Session
+	inside := make(chan struct{})
+	ready := make(chan struct{})
+	s2 = Open(context.Background(), Options{API: api.New("https://masil.test"), DocID: "D1", Dial: d.Dial, OnEvent: func(e Event) {
+		<-ready
+		s2.Close()
+		select {
+		case <-inside:
+		default:
+			close(inside)
+		}
+	}})
+	s2.Submit([]Op{setOp("n1", "cpu", "1")})
+	close(ready)
+	select {
+	case <-inside:
+	case <-time.After(wait):
+		t.Fatal("Close inside OnEvent hung")
+	}
+}
+
+// TestSessionCtxCancelEndsDispatch: a session whose ctx ends without Close
+// leaves no goroutine behind.
+func TestSessionCtxCancelEndsDispatch(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	r := &rig{d: &fdial{conns: make(chan *fconn, 4)}, ev: &recorder{ch: make(chan Event, 64)}}
+	r.s = Open(ctx, Options{API: api.New("https://masil.test"), DocID: "D1", OnEvent: r.ev.add, Dial: r.d.Dial})
+	r.connect(t, "null", snap4)
+	cancel()
+	waitFor(t, func() bool {
+		buf := make([]byte, 1<<20)
+		return !strings.Contains(string(buf[:runtime.Stack(buf, true)]), "collab.(*Session).dispatch")
+	})
 }
