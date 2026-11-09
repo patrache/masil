@@ -1,0 +1,21 @@
+{
+ "id": "flash_sale", "goal_p99_ms": 600, "goal_err_permille": 10, "budget_usd_month": 5000,
+ "start": {
+  "schema_version": 1, "title": "flash_sale", "seed": 2811004, "duration_s": 150,
+  "boxes": [],
+  "nodes": [
+   {"id": "shoppers", "kind": "client", "label": "shoppers", "pos": [0, 0], "parent": "", "traffic": {"rps": 2000, "read_permille": 700, "curve": "ramp"}},
+   {"id": "lb", "kind": "lb", "label": "lb", "pos": [20, 0], "parent": ""},
+   {"id": "api", "kind": "api", "label": "shop-api", "pos": [40, 0], "parent": "", "instances": 4},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [60, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "shoppers", "to": "lb", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "lb", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 90, "kind": "instances_off", "target": "api", "count": 2, "dur_s": 30}
+  ]
+ }
+}

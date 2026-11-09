@@ -71,6 +71,60 @@ other = "Card · {title}"
 [card_version_unsaved]
 other = "Your edits are still saving — send again once they're saved"
 
+[challenge_az_blackout_title]
+other = "AZ blackout"
+
+[challenge_budget_squeeze_title]
+other = "Half the budget"
+
+[challenge_cache_restart_title]
+other = "Cache restart"
+
+[challenge_class_signup_title]
+other = "Class sign-up rush"
+
+[challenge_client_missing]
+other = "Deleting the challenge's client leaves nothing to score — bring it back"
+
+[challenge_commute_maps_title]
+other = "Rush-hour directions"
+
+[challenge_concert_presale_title]
+other = "Concert presale"
+
+[challenge_db_failover_title]
+other = "Primary DB down"
+
+[challenge_flash_sale_title]
+other = "Flash sale"
+
+[challenge_intro]
+other = "Today's challenge · {title} — keep p99 ≤ {p99}ms and errors ≤ {err}% on ~${usd}/mo (est.) · space to start"
+
+[challenge_new_year_greetings_title]
+other = "New Year greetings"
+
+[challenge_night_settlement_title]
+other = "Overnight settlement"
+
+[challenge_photo_upload_title]
+other = "Photo uploads"
+
+[challenge_region_outage_title]
+other = "Region outage"
+
+[challenge_retry_storm_title]
+other = "Retry storm"
+
+[challenge_scored]
+other = "Challenge score {score} · goals kept {kept}/{total}s · share it on a sim card"
+
+[challenge_search_revamp_title]
+other = "Search revamp"
+
+[challenge_slow_payments_title]
+other = "Slow payments"
+
 [check_az_outside_vpc]
 other = "{targets}: AZ outside a VPC"
 
@@ -811,6 +865,9 @@ other = "Someone deleted it, so its settings closed"
 
 [palette_boxes]
 other = "Boxes"
+
+[palette_challenge]
+other = "Today's architecture challenge"
 
 [palette_export]
 other = "Export design"

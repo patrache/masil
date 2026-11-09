@@ -27,7 +27,8 @@ type sendDialog struct {
 	cur    int
 	top    int // first conversation row shown
 	sim    bool
-	step   int // 0 = the conversation, 1 = the preview
+	chal   *cardChallenge // a scored daily challenge run (the sim card carries it)
+	step   int            // 0 = the conversation, 1 = the preview
 	card   api.Card
 	body   string
 	hint   string
@@ -86,6 +87,11 @@ func (m *canvasModel) newSendDialog(ctx *ui.Context) *sendDialog {
 		} else {
 			d.seq, d.unsaved = sh.s.View().Seq(), len(sh.s.Pending()) > 0
 		}
+	}
+	if run, ch := m.challengeCard(); run != nil {
+		// the card is the run that was scored: the scenario's seed, faults
+		// and traffic, so its numbers replay from its copy
+		d.design, d.result, d.sim, d.chal = run, archsim.Analyze(run, archsim.Options{}), true, ch
 	}
 	if d.result == nil {
 		d.result = archsim.Analyze(m.design, archsim.Options{})
@@ -219,7 +225,7 @@ func (d *sendDialog) HandleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.Cm
 func (d *sendDialog) build(ctx *ui.Context) error {
 	var err error
 	if d.sim {
-		d.card, d.body, err = simCard(ctx.T, d.design, d.result, d.ref, nil)
+		d.card, d.body, err = simCard(ctx.T, d.design, d.result, d.ref, d.chal)
 	} else {
 		d.card, d.body, err = designCard(ctx.T, d.design, d.result, d.ref)
 	}

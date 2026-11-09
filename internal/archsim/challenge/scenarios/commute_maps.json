@@ -1,0 +1,21 @@
+{
+ "id": "commute_maps", "goal_p99_ms": 300, "goal_err_permille": 5, "budget_usd_month": 5500,
+ "start": {
+  "schema_version": 1, "title": "commute_maps", "seed": 2811003, "duration_s": 180,
+  "boxes": [],
+  "nodes": [
+   {"id": "riders", "kind": "client", "label": "riders", "pos": [0, 0], "parent": "", "traffic": {"rps": 1500, "read_permille": 950, "curve": "wave"}},
+   {"id": "lb", "kind": "lb", "label": "lb", "pos": [20, 0], "parent": ""},
+   {"id": "api", "kind": "api", "label": "route-api", "pos": [40, 0], "parent": "", "instances": 4},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [60, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "riders", "to": "lb", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "lb", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 60, "kind": "latency", "target": "db", "add_ms": 150, "dur_s": 40}
+  ]
+ }
+}

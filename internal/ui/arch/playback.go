@@ -35,6 +35,7 @@ type playback struct {
 type timedDoneMsg struct {
 	instance string
 	gen      int
+	run      *archdoc.Design // the design that ran
 	tl       *archsim.Timeline
 	err      error
 }
@@ -59,6 +60,7 @@ func (m *canvasModel) designChanged() {
 		m.pb.cancel()
 	}
 	m.pb = playback{speed: m.pb.speed}
+	m.challengeEdited()
 }
 
 // toggleRun is space (and arch.run): start the run, then pause and play.
@@ -86,12 +88,16 @@ func (m *canvasModel) startRun(ctx *ui.Context) tea.Cmd {
 	if d == nil {
 		return nil
 	}
+	d, ok := m.challengeRun(d)
+	if !ok {
+		return ui.Toast(ctx.T.Archcanvas.ChallengeClientMissing(), ui.ToastInfo)
+	}
 	c, cancel := context.WithCancel(context.Background())
 	m.pb = playback{speed: m.pb.speed, computing: true, cancel: cancel}
 	inst, gen := m.route.ID, m.runGen
 	return func() tea.Msg {
 		tl, err := archsim.RunTimed(c, d, archsim.TimedOptions{})
-		return timedDoneMsg{instance: inst, gen: gen, tl: tl, err: err}
+		return timedDoneMsg{instance: inst, gen: gen, run: d, tl: tl, err: err}
 	}
 }
 
@@ -116,7 +122,7 @@ func (m *canvasModel) runDone(ctx *ui.Context, msg timedDoneMsg) tea.Cmd {
 		return ui.Toast(ctx.T.Archcanvas.RunFailed(), ui.ToastError)
 	}
 	m.pb.tl, m.pb.pos, m.pb.running, m.pb.acc = msg.tl, 0, true, 0
-	return m.tick(ctx)
+	return tea.Batch(m.tick(ctx), m.challengeScored(ctx, msg.run, msg.tl))
 }
 
 // playStep advances the playback by one tick at its speed.

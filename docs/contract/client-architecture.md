@@ -300,6 +300,7 @@ internal/
   archdoc/                             P3   (설계 문서 모델·JSON·검증·객체 키·되돌리기·자동 정리·점검·개인 저장소)
   archsim/                             P3   (즉시 분석·시간 실행 시뮬레이터 — 순수 계산, ui 없음)
   archsim/pricing/                     P3   (내장 가격표 `AsOf`)
+  archsim/challenge/                   P3   (선택: 일일 도전 시나리오 15개·점수 — 순수 계산, ui 없음)
   archdraw/                            P3   (격자 그리기: 3단계 확대·직교 선 경로·적중 시험 — ui 없음)
   archexport/                          P3   (텍스트 스냅샷·카드 미니 그림·내보내기)
   ui/arch/                             P3   (도구 `arch`: 캔버스 인스턴스·모드별 배치·읽기 보기·docSink·편집)
@@ -342,7 +343,7 @@ ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate,
 - `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
 - 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
 - `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
-- **P3**: `archdoc ─▶ config(원자적 쓰기), ids, textwidth` · `archsim ─▶ archdoc, archsim/pricing` · `archsim/pricing ─▶ archdoc` · `archdraw ─▶ archdoc, textwidth` · `archexport ─▶ archdoc, archsim, archsim/pricing, archdraw, textwidth` — 이 넷은 `internal/ui/...`·`api`·`collab` 을 전이로도 import 하지 않는다(화면 없이 시험·내보내기에 쓰는 순수 계산). `ui/arch ─▶ ui, ui/layout, ui/palette, features, i18n, ids, theme, textwidth, humanize, termhost(Mode 타입), archdoc, archsim, archsim/pricing, archdraw, archexport` 이고, `cmd/masil/register_arch.go` 의 blank import 로만 연결된다.
+- **P3**: `archdoc ─▶ config(원자적 쓰기), ids, textwidth` · `archsim ─▶ archdoc, archsim/pricing` · `archsim/pricing ─▶ archdoc` · `archsim/challenge ─▶ archdoc, archsim` · `archdraw ─▶ archdoc, textwidth` · `archexport ─▶ archdoc, archsim, archsim/pricing, archdraw, textwidth` — 이 넷은 `internal/ui/...`·`api`·`collab` 을 전이로도 import 하지 않는다(화면 없이 시험·내보내기에 쓰는 순수 계산). `ui/arch ─▶ ui, ui/layout, ui/palette, features, i18n, ids, theme, textwidth, humanize, termhost(Mode 타입), archdoc, archsim, archsim/pricing, archsim/challenge, archdraw, archexport` 이고, `cmd/masil/register_arch.go` 의 blank import 로만 연결된다.
 
 ### 2.3 실행 순서 (병렬 작성, 단계적 실행)
 
@@ -2533,7 +2534,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
 | P1 LeetCode·lazygit | `leet.*`, `git.*` |
 | P2 작업공간 | `ws.*` |
-| P3 `ui/arch` | `arch.new`, `arch.open`(둘 다 `Available` = `features.On("arch")`), `arch.share`, `arch.export`, `arch.send_card`, `arch.run`, `arch.save_copy`(이 다섯은 플래그 + 앞에 연 arch 인스턴스가 있을 때만; 그 인스턴스에 실행을 보낸다. `arch.save_copy` = 방 문서를 개인 설계 사본으로 저장, 개인 설계에서는 안내만), `arch.versions`(플래그 + 앞의 arch 인스턴스가 방 문서(`doc` 쿼리)일 때만) — 모두 `Group: GroupCommand`, `Label func(*i18n.T)` |
+| P3 `ui/arch` | `arch.new`, `arch.open`(둘 다 `Available` = `features.On("arch")`), `arch.share`, `arch.export`, `arch.send_card`, `arch.run`, `arch.save_copy`(이 다섯은 플래그 + 앞에 연 arch 인스턴스가 있을 때만; 그 인스턴스에 실행을 보낸다. `arch.save_copy` = 방 문서를 개인 설계 사본으로 저장, 개인 설계에서는 안내만), `arch.versions`(플래그 + 앞의 arch 인스턴스가 방 문서(`doc` 쿼리)일 때만), `arch.challenge`(선택 — 플래그만; 오늘(UTC)의 일일 도전 시나리오를 `arch:challenge:<date>` 인스턴스로 연다) — 모두 `Group: GroupCommand`, `Label func(*i18n.T)` |
 | P4 API 시험 | `api.*` |
 
 - 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).

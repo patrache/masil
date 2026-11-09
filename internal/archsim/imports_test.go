@@ -26,7 +26,7 @@ func deps(t *testing.T, pkg string) []string {
 func TestPureImports(t *testing.T) {
 	banned := []string{"net", "net/http", "os/exec"}
 	bannedPrefix := []string{module + "internal/ui", module + "internal/api", module + "internal/collab"}
-	for _, pkg := range []string{"internal/archdoc", "internal/archsim", "internal/archsim/pricing", "internal/archdraw", "internal/archexport"} {
+	for _, pkg := range []string{"internal/archdoc", "internal/archsim", "internal/archsim/pricing", "internal/archsim/challenge", "internal/archdraw", "internal/archexport"} {
 		for _, d := range deps(t, pkg) {
 			for _, b := range banned {
 				if d == b {

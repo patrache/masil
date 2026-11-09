@@ -109,6 +109,96 @@ other = "카드 · {title}"
 desc = "방 문서 카드: 아직 저장되지 않은 내 편집이 있어 버전을 가리킬 수 없음"
 other = "편집이 아직 저장 중이에요 — 저장된 뒤 다시 보내 주세요"
 
+[challenge_az_blackout_title]
+desc = "일일 도전 시나리오 이름: az_blackout"
+max = 24
+other = "AZ 정전"
+
+[challenge_budget_squeeze_title]
+desc = "일일 도전 시나리오 이름: budget_squeeze"
+max = 24
+other = "반값 예산"
+
+[challenge_cache_restart_title]
+desc = "일일 도전 시나리오 이름: cache_restart"
+max = 24
+other = "캐시 재시작"
+
+[challenge_class_signup_title]
+desc = "일일 도전 시나리오 이름: class_signup"
+max = 24
+other = "수강신청 대란"
+
+[challenge_client_missing]
+desc = "일일 도전: 시나리오의 클라이언트를 지워 시간 실행·점수를 할 수 없을 때"
+other = "도전의 클라이언트를 지우면 점수를 매길 수 없어요 — 되살려 주세요"
+
+[challenge_commute_maps_title]
+desc = "일일 도전 시나리오 이름: commute_maps"
+max = 24
+other = "출근길 길찾기"
+
+[challenge_concert_presale_title]
+desc = "일일 도전 시나리오 이름: concert_presale"
+max = 24
+other = "콘서트 예매 오픈"
+
+[challenge_db_failover_title]
+desc = "일일 도전 시나리오 이름: db_failover"
+max = 24
+other = "주 DB 고장"
+
+[challenge_flash_sale_title]
+desc = "일일 도전 시나리오 이름: flash_sale"
+max = 24
+other = "반짝 특가"
+
+[challenge_intro]
+desc = "일일 도전을 열었을 때 토스트. title = 시나리오 이름, p99 = 목표 ms, err = 목표 에러율 % 소수 한 자리, usd = 천 단위 쉼표 달러(월 예산)"
+params = { title = "string", p99 = "int", err = "string", usd = "string" }
+no_truncate = true
+other = "오늘의 도전 · {title} — 목표 p99 {p99}ms·에러 {err}% 이하, 예산 ~${usd}/월(추정) · space 로 시작"
+
+[challenge_new_year_greetings_title]
+desc = "일일 도전 시나리오 이름: new_year_greetings"
+max = 24
+other = "새해 인사 폭주"
+
+[challenge_night_settlement_title]
+desc = "일일 도전 시나리오 이름: night_settlement"
+max = 24
+other = "밤샘 정산"
+
+[challenge_photo_upload_title]
+desc = "일일 도전 시나리오 이름: photo_upload"
+max = 24
+other = "사진 올리기"
+
+[challenge_region_outage_title]
+desc = "일일 도전 시나리오 이름: region_outage"
+max = 24
+other = "리전 장애"
+
+[challenge_retry_storm_title]
+desc = "일일 도전 시나리오 이름: retry_storm"
+max = 24
+other = "재시도 폭풍"
+
+[challenge_scored]
+desc = "일일 도전 시간 실행이 끝났을 때 점수 토스트. kept·total = 초"
+params = { score = "int", kept = "int", total = "int" }
+other = "도전 점수 {score}점 · 목표를 지킨 시간 {kept}/{total}초 · 시뮬 카드로 공유할 수 있어요"
+
+[challenge_search_revamp_title]
+desc = "일일 도전 시나리오 이름: search_revamp"
+max = 24
+other = "검색 개편"
+
+[challenge_slow_payments_title]
+desc = "일일 도전 시나리오 이름: slow_payments"
+max = 24
+other = "느린 결제"
+
 [check_az_outside_vpc]
 desc = "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것"
 params = { targets = "string" }
@@ -1157,6 +1247,10 @@ other = "다른 사람이 지워서 설정을 닫았어요"
 [palette_boxes]
 desc = "부품 팔레트의 상자 묶음 머리"
 other = "상자"
+
+[palette_challenge]
+desc = "명령 팔레트 항목: arch.challenge(일일 도전 열기)"
+other = "오늘의 아키텍처 도전"
 
 [palette_export]
 desc = "명령 팔레트 항목: arch.export"

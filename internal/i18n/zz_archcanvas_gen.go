@@ -187,6 +187,150 @@ var areaArchcanvas = area{
 				En: {Other: "Your edits are still saving — send again once they're saved"},
 			},
 		},
+		"challenge_az_blackout_title": {
+			desc: "일일 도전 시나리오 이름: az_blackout",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "AZ 정전"},
+				En: {Other: "AZ blackout"},
+			},
+		},
+		"challenge_budget_squeeze_title": {
+			desc: "일일 도전 시나리오 이름: budget_squeeze",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "반값 예산"},
+				En: {Other: "Half the budget"},
+			},
+		},
+		"challenge_cache_restart_title": {
+			desc: "일일 도전 시나리오 이름: cache_restart",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "캐시 재시작"},
+				En: {Other: "Cache restart"},
+			},
+		},
+		"challenge_class_signup_title": {
+			desc: "일일 도전 시나리오 이름: class_signup",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "수강신청 대란"},
+				En: {Other: "Class sign-up rush"},
+			},
+		},
+		"challenge_client_missing": {
+			desc: "일일 도전: 시나리오의 클라이언트를 지워 시간 실행·점수를 할 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "도전의 클라이언트를 지우면 점수를 매길 수 없어요 — 되살려 주세요"},
+				En: {Other: "Deleting the challenge's client leaves nothing to score — bring it back"},
+			},
+		},
+		"challenge_commute_maps_title": {
+			desc: "일일 도전 시나리오 이름: commute_maps",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "출근길 길찾기"},
+				En: {Other: "Rush-hour directions"},
+			},
+		},
+		"challenge_concert_presale_title": {
+			desc: "일일 도전 시나리오 이름: concert_presale",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "콘서트 예매 오픈"},
+				En: {Other: "Concert presale"},
+			},
+		},
+		"challenge_db_failover_title": {
+			desc: "일일 도전 시나리오 이름: db_failover",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "주 DB 고장"},
+				En: {Other: "Primary DB down"},
+			},
+		},
+		"challenge_flash_sale_title": {
+			desc: "일일 도전 시나리오 이름: flash_sale",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "반짝 특가"},
+				En: {Other: "Flash sale"},
+			},
+		},
+		"challenge_intro": {
+			desc:       "일일 도전을 열었을 때 토스트. title = 시나리오 이름, p99 = 목표 ms, err = 목표 에러율 % 소수 한 자리, usd = 천 단위 쉼표 달러(월 예산)",
+			params:     []Param{{Name: "title", Type: "string"}, {Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "usd", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 도전 · {title} — 목표 p99 {p99}ms·에러 {err}% 이하, 예산 ~${usd}/월(추정) · space 로 시작"},
+				En: {Other: "Today's challenge · {title} — keep p99 ≤ {p99}ms and errors ≤ {err}% on ~${usd}/mo (est.) · space to start"},
+			},
+		},
+		"challenge_new_year_greetings_title": {
+			desc: "일일 도전 시나리오 이름: new_year_greetings",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "새해 인사 폭주"},
+				En: {Other: "New Year greetings"},
+			},
+		},
+		"challenge_night_settlement_title": {
+			desc: "일일 도전 시나리오 이름: night_settlement",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "밤샘 정산"},
+				En: {Other: "Overnight settlement"},
+			},
+		},
+		"challenge_photo_upload_title": {
+			desc: "일일 도전 시나리오 이름: photo_upload",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "사진 올리기"},
+				En: {Other: "Photo uploads"},
+			},
+		},
+		"challenge_region_outage_title": {
+			desc: "일일 도전 시나리오 이름: region_outage",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "리전 장애"},
+				En: {Other: "Region outage"},
+			},
+		},
+		"challenge_retry_storm_title": {
+			desc: "일일 도전 시나리오 이름: retry_storm",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "재시도 폭풍"},
+				En: {Other: "Retry storm"},
+			},
+		},
+		"challenge_scored": {
+			desc:   "일일 도전 시간 실행이 끝났을 때 점수 토스트. kept·total = 초",
+			params: []Param{{Name: "score", Type: "int"}, {Name: "kept", Type: "int"}, {Name: "total", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "도전 점수 {score}점 · 목표를 지킨 시간 {kept}/{total}초 · 시뮬 카드로 공유할 수 있어요"},
+				En: {Other: "Challenge score {score} · goals kept {kept}/{total}s · share it on a sim card"},
+			},
+		},
+		"challenge_search_revamp_title": {
+			desc: "일일 도전 시나리오 이름: search_revamp",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "검색 개편"},
+				En: {Other: "Search revamp"},
+			},
+		},
+		"challenge_slow_payments_title": {
+			desc: "일일 도전 시나리오 이름: slow_payments",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "느린 결제"},
+				En: {Other: "Slow payments"},
+			},
+		},
 		"check_az_outside_vpc": {
 			desc:   "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것",
 			params: []Param{{Name: "targets", Type: "string"}},
@@ -1977,6 +2121,13 @@ var areaArchcanvas = area{
 				En: {Other: "Boxes"},
 			},
 		},
+		"palette_challenge": {
+			desc: "명령 팔레트 항목: arch.challenge(일일 도전 열기)",
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 아키텍처 도전"},
+				En: {Other: "Today's architecture challenge"},
+			},
+		},
 		"palette_export": {
 			desc: "명령 팔레트 항목: arch.export",
 			text: map[Locale]Forms{
@@ -3049,6 +3200,96 @@ func (a_ ArchcanvasT) CardVersionName(title string) string {
 // CardVersionUnsaved: 방 문서 카드: 아직 저장되지 않은 내 편집이 있어 버전을 가리킬 수 없음
 func (a_ ArchcanvasT) CardVersionUnsaved() string {
 	return a_.t.render(&areaArchcanvas, "card_version_unsaved", false, 0)
+}
+
+// ChallengeAzBlackoutTitle: 일일 도전 시나리오 이름: az_blackout
+func (a_ ArchcanvasT) ChallengeAzBlackoutTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_az_blackout_title", false, 0)
+}
+
+// ChallengeBudgetSqueezeTitle: 일일 도전 시나리오 이름: budget_squeeze
+func (a_ ArchcanvasT) ChallengeBudgetSqueezeTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_budget_squeeze_title", false, 0)
+}
+
+// ChallengeCacheRestartTitle: 일일 도전 시나리오 이름: cache_restart
+func (a_ ArchcanvasT) ChallengeCacheRestartTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_cache_restart_title", false, 0)
+}
+
+// ChallengeClassSignupTitle: 일일 도전 시나리오 이름: class_signup
+func (a_ ArchcanvasT) ChallengeClassSignupTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_class_signup_title", false, 0)
+}
+
+// ChallengeClientMissing: 일일 도전: 시나리오의 클라이언트를 지워 시간 실행·점수를 할 수 없을 때
+func (a_ ArchcanvasT) ChallengeClientMissing() string {
+	return a_.t.render(&areaArchcanvas, "challenge_client_missing", false, 0)
+}
+
+// ChallengeCommuteMapsTitle: 일일 도전 시나리오 이름: commute_maps
+func (a_ ArchcanvasT) ChallengeCommuteMapsTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_commute_maps_title", false, 0)
+}
+
+// ChallengeConcertPresaleTitle: 일일 도전 시나리오 이름: concert_presale
+func (a_ ArchcanvasT) ChallengeConcertPresaleTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_concert_presale_title", false, 0)
+}
+
+// ChallengeDbFailoverTitle: 일일 도전 시나리오 이름: db_failover
+func (a_ ArchcanvasT) ChallengeDbFailoverTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_db_failover_title", false, 0)
+}
+
+// ChallengeFlashSaleTitle: 일일 도전 시나리오 이름: flash_sale
+func (a_ ArchcanvasT) ChallengeFlashSaleTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_flash_sale_title", false, 0)
+}
+
+// ChallengeIntro: 일일 도전을 열었을 때 토스트. title = 시나리오 이름, p99 = 목표 ms, err = 목표 에러율 % 소수 한 자리, usd = 천 단위 쉼표 달러(월 예산)
+func (a_ ArchcanvasT) ChallengeIntro(title string, p99 int, err string, usd string) string {
+	return a_.t.render(&areaArchcanvas, "challenge_intro", false, 0, "title", title, "p99", strconv.Itoa(p99), "err", err, "usd", usd)
+}
+
+// ChallengeNewYearGreetingsTitle: 일일 도전 시나리오 이름: new_year_greetings
+func (a_ ArchcanvasT) ChallengeNewYearGreetingsTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_new_year_greetings_title", false, 0)
+}
+
+// ChallengeNightSettlementTitle: 일일 도전 시나리오 이름: night_settlement
+func (a_ ArchcanvasT) ChallengeNightSettlementTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_night_settlement_title", false, 0)
+}
+
+// ChallengePhotoUploadTitle: 일일 도전 시나리오 이름: photo_upload
+func (a_ ArchcanvasT) ChallengePhotoUploadTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_photo_upload_title", false, 0)
+}
+
+// ChallengeRegionOutageTitle: 일일 도전 시나리오 이름: region_outage
+func (a_ ArchcanvasT) ChallengeRegionOutageTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_region_outage_title", false, 0)
+}
+
+// ChallengeRetryStormTitle: 일일 도전 시나리오 이름: retry_storm
+func (a_ ArchcanvasT) ChallengeRetryStormTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_retry_storm_title", false, 0)
+}
+
+// ChallengeScored: 일일 도전 시간 실행이 끝났을 때 점수 토스트. kept·total = 초
+func (a_ ArchcanvasT) ChallengeScored(score int, kept int, total int) string {
+	return a_.t.render(&areaArchcanvas, "challenge_scored", false, 0, "score", strconv.Itoa(score), "kept", strconv.Itoa(kept), "total", strconv.Itoa(total))
+}
+
+// ChallengeSearchRevampTitle: 일일 도전 시나리오 이름: search_revamp
+func (a_ ArchcanvasT) ChallengeSearchRevampTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_search_revamp_title", false, 0)
+}
+
+// ChallengeSlowPaymentsTitle: 일일 도전 시나리오 이름: slow_payments
+func (a_ ArchcanvasT) ChallengeSlowPaymentsTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_slow_payments_title", false, 0)
 }
 
 // CheckAzOutsideVpc: 설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 ", " 로 이은 것
@@ -4284,6 +4525,11 @@ func (a_ ArchcanvasT) NodeDeleted() string {
 // PaletteBoxes: 부품 팔레트의 상자 묶음 머리
 func (a_ ArchcanvasT) PaletteBoxes() string {
 	return a_.t.render(&areaArchcanvas, "palette_boxes", false, 0)
+}
+
+// PaletteChallenge: 명령 팔레트 항목: arch.challenge(일일 도전 열기)
+func (a_ ArchcanvasT) PaletteChallenge() string {
+	return a_.t.render(&areaArchcanvas, "palette_challenge", false, 0)
 }
 
 // PaletteExport: 명령 팔레트 항목: arch.export

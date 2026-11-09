@@ -1,0 +1,22 @@
+{
+ "id": "concert_presale", "goal_p99_ms": 800, "goal_err_permille": 20, "budget_usd_month": 8000,
+ "start": {
+  "schema_version": 1, "title": "concert_presale", "seed": 2811002, "duration_s": 150,
+  "boxes": [],
+  "nodes": [
+   {"id": "fans", "kind": "client", "label": "fans", "pos": [0, 0], "parent": "", "traffic": {"rps": 200, "read_permille": 300, "curve": "spike", "spike_mult": 20, "spike_at_s": 20, "spike_dur_s": 60}},
+   {"id": "api", "kind": "api", "label": "ticket-api", "pos": [20, 0], "parent": "", "instances": 3},
+   {"id": "queue", "kind": "queue", "label": "orders", "pos": [40, 0], "parent": ""},
+   {"id": "worker", "kind": "worker", "label": "seat-worker", "pos": [60, 0], "parent": "", "instances": 2},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [80, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "fans", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "api", "to": "queue", "read_permille": 0, "write_permille": 1000, "protocol": "async"},
+   {"id": "e3", "from": "queue", "to": "worker", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e4", "from": "worker", "to": "db", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e5", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 0}
+  ],
+  "faults": []
+ }
+}

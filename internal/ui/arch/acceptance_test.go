@@ -172,7 +172,7 @@ func TestNoSecretsInExports(t *testing.T) {
 // ratchet allows them none) — every user string is in archcanvas.toml.
 func TestRatchetZero(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	pkgs := []string{"internal/ui/arch", "internal/archdoc", "internal/archsim", "internal/archsim/pricing", "internal/archdraw", "internal/archexport"}
+	pkgs := []string{"internal/ui/arch", "internal/archdoc", "internal/archsim", "internal/archsim/pricing", "internal/archsim/challenge", "internal/archdraw", "internal/archexport"}
 	legacy, err := os.ReadFile(filepath.Join(root, "internal", "i18n", "legacy_literals.txt"))
 	if err != nil {
 		t.Fatal(err)

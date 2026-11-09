@@ -214,3 +214,11 @@ CollabHub 는 op 프레임마다 op 하나씩 이 검사를 거친 뒤 적용한
 - `enter`: 도구 꺼짐 → 스레드. `doc_id` 가 있고 그 방이 내 Store 에 있음 → `arch:doc:<id>`. 아니면 사본이 있음 → `arch:msg:<message_id>`(읽기 전용 사본, `copySink`; 재시작 뒤엔 `GET /v1/messages/{id}` 로 다시 읽음). 둘 다 아님 → 스레드.
 - `R`(shift+r, `arch.sim` — `r` 은 채팅의 리액션이라 카드가 가져가지 않는다; 키맵이 묶은 키도 가져가지 않는다): 사본을 카드의 시드로 다시 분석해 `p50`·`p99`·에러·비용·`max_rps` 가 모두 같으면 `✓`, 아니면 `✕` 와 지금 숫자. 사본이 없는 방 문서 카드는 그 방 멤버에게만 `version_no` 버전을 `GET /v1/docs/{id}/versions/{no}` 로 받아 같은 비교를 한다. 다시 돌릴 것이 없으면 키를 가져가지 않고(채팅에 넘김) 안내 줄에도 보이지 않는다.
 - 보내기(`arch.send_card`): text·dm·group_dm 대화(최근 순) → 올라갈 카드 그대로 미리보기 → `POST /v1/channels/{id}/messages {kind:"card"}`. 사본까지 16KB 를 넘으면 보내지 않고 `card_too_big`("방에 올려 공유하세요").
+
+### 3.4 일일 도전 (선택, P3 Task 28 — 설계서 C2.12)
+
+- 시나리오 15개는 앱에 내장(`internal/archsim/challenge/scenarios/<id>.json` = `{ id, goal_p99_ms, goal_err_permille, budget_usd_month, start: <설계 JSON v1> }`, 시드·시간 실행 길이·예약 장애는 `start` 안). 이름은 카탈로그 `archcanvas.challenge_<id>_title`. 날짜(UTC 자정 기준 `YYYY-MM-DD`)의 1970-01-01 부터 일 수 mod 15 로 ID 순 목록에서 고른다 — 모두가 같은 날 같은 문제.
+- 팔레트 `arch.challenge`(플래그 뒤, 허브 행 없음, LeetCode 화면과 묶지 않음 — JX12) → 인스턴스 `arch:challenge:<date>`(쿼리 `challenge=<id>`·`date=<date>`), 시작 설계를 저장 안 된 새 설계로 연다.
+- 시간 실행은 내 설계에 시나리오의 시드·실행 길이·장애·**클라이언트 트래픽(노드 id 로)** 을 덮어 돌린다. 시나리오 클라이언트를 지우면 돌리지 않는다(`challenge_client_missing`).
+- 점수(정수, 하한 0) = 지킨 초 × 1000 × min(1, 예산 ÷ 월 비용) − 실패 요청 수. 지킨 초 = 프레임 p99 ≤ 목표이고 프레임 에러율 ≤ 목표인 프레임의 길이 합. 실패 요청 = Σ 프레임 초당 요청 × 에러율 × 프레임 길이. 월 비용 = 시간 실행 요약의 평균 비용.
+- 점수가 난 뒤 `arch.send_card` 는 `arch.sim` 카드로 열리고 `challenge {date, scenario, score}` 를 싣는다. 카드의 숫자·시드·사본은 **점수를 낸 실행 설계**(시나리오 시드 등을 덮은 것)라 `R` 로 그대로 다시 돌릴 수 있다. 편집하면 점수는 지워진다. 순위표·서버 저장은 없다(JC11).

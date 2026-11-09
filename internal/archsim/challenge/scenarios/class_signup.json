@@ -1,0 +1,21 @@
+{
+ "id": "class_signup", "goal_p99_ms": 500, "goal_err_permille": 10, "budget_usd_month": 5000,
+ "start": {
+  "schema_version": 1, "title": "class_signup", "seed": 2811001, "duration_s": 120,
+  "boxes": [],
+  "nodes": [
+   {"id": "students", "kind": "client", "label": "students", "pos": [0, 0], "parent": "", "traffic": {"rps": 300, "read_permille": 600, "curve": "spike", "spike_mult": 10, "spike_at_s": 30, "spike_dur_s": 30}},
+   {"id": "lb", "kind": "lb", "label": "lb", "pos": [20, 0], "parent": ""},
+   {"id": "api", "kind": "api", "label": "signup-api", "pos": [40, 0], "parent": "", "instances": 2},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [60, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "students", "to": "lb", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "lb", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 45, "kind": "instances_off", "target": "api", "count": 1, "dur_s": 20}
+  ]
+ }
+}

@@ -478,7 +478,7 @@ func cardLinesOf(ctx *ui.Context, m *api.Message, width int) []cardLine {
 			add(a.CardBottleneck(cleanText(b.TargetLabel), limitName(ctx.T, b.Limit), pct1(b.UtilPermille)), sWarn, false)
 		}
 		if ch := s.Challenge; ch != nil {
-			add(a.CardChallenge(ch.Date, ch.Scenario, ch.Score), sAcc, false)
+			add(a.CardChallenge(ch.Date, challengeTitle(ctx.T, ch.Scenario), ch.Score), sAcc, false)
 		}
 		add(cost(s.CostUSDMonth, s.PriceAsOf), sBase, true)
 	}

@@ -79,6 +79,8 @@ type canvasModel struct {
 	verDlg     *versionsDialog // the open versions dialog (versions.go)
 
 	cmt commentsState // a room document's comments (comments.go)
+
+	chal *challengeState // the daily challenge's scenario and score (challenge.go; nil = not one)
 }
 
 var (
@@ -167,6 +169,8 @@ func (m *canvasModel) initSink(ctx *ui.Context) tea.Cmd {
 		}
 		m.setSink(ctx, &copySink{objs: archdoc.New("").ToObjects()})
 		return fetchCopy(ctx, m.route.ID, q[queryMsg])
+	case q[queryChallenge] != "":
+		return m.initChallenge(ctx)
 	default:
 		m.setSink(ctx, &localSink{instance: m.route.ID, objs: archdoc.New("").ToObjects(), timers: ctx.Timers})
 	}

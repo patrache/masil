@@ -113,7 +113,7 @@ type commandMsg struct {
 }
 
 // commandIDs are the arch.* palette commands (CA 5.6).
-var commandIDs = []string{"arch.new", "arch.open", "arch.share", "arch.export", "arch.versions", "arch.send_card", "arch.run", "arch.save_copy"}
+var commandIDs = []string{"arch.new", "arch.open", "arch.share", "arch.export", "arch.versions", "arch.send_card", "arch.run", "arch.save_copy", "arch.challenge"}
 
 func registerCommands() {
 	flag := func(*ui.Context) bool { return features.On(ui.ToolArch) }
@@ -146,6 +146,9 @@ func registerCommands() {
 		{ID: "arch.send_card", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteSendCard() }, Keywords: []string{"arch", "card", "send"}, Available: front, Run: toFront("arch.send_card")},
 		{ID: "arch.save_copy", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteSaveCopy() }, Keywords: []string{"arch", "copy", "save"}, Available: front, Run: toFront("arch.save_copy")},
 		{ID: "arch.run", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteRun() }, Keywords: []string{"arch", "run", "simulate"}, Available: front, Run: toFront("arch.run")},
+		// the optional daily challenge (Task 28): its own command, no hub row (JX12)
+		{ID: "arch.challenge", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteChallenge() }, Keywords: []string{"arch", "challenge", "daily"}, Available: flag,
+			Run: func(ctx *ui.Context, _ string) tea.Cmd { return openChallenge(ctx) }},
 	}
 	for _, c := range cmds {
 		c.Group = palette.GroupCommand
