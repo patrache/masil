@@ -168,11 +168,12 @@ MinLevel 열: 참가자가 그 종류를 오너에게 보낼 수 있는 최소 �
 - 확인 생략(`확인 없이 허용`)은 보기·제안 단계에만 허용되고 `verified=false` 로 표시한다. 편집·키보드는 확인 필수.
 - 짧은 끊김 뒤 재접속: 같은 공유·같은 실행 안이면 참가자가 남아 있는 P2O 키로 `hs_resume{}` 를 봉인해 보낸다(카운터는 이어서). 오너가 풀리면 숫자 비교 없이 이어진다. masil 을 다시 켜면 처음부터.
 
-**시험 벡터** (`internal/workspace/wscrypto/testdata/vector.txt` 와 같음): 오너 X25519 비밀 스칼라 = 바이트 `01 02 … 20`(1..32), 참가자 = `21 22 … 40`(33..64), `ShareID="S1"`, `OwnerID="U_O"`, `ParticipantID="U_P"` 일 때
+**시험 벡터** (`internal/workspace/wscrypto/testdata/vector.txt` 의 두 줄 = SAS·O2P, Python `cryptography` 로 따로 계산해 맞춰 봄): 오너 X25519 비밀 스칼라 = 바이트 `01 02 … 20`(1..32), 참가자 = `21 22 … 40`(33..64), `ShareID="S1"`, `OwnerID="U_O"`, `ParticipantID="U_P"` 일 때
 
 ```
-SAS = (P2 Task 2 에서 채움)
-O2P = (P2 Task 2 에서 채움)
+SAS = 801 609
+O2P = 0f19574e010dac772aabb7ba48fab7ff83a2481f3a4be61a70b074c85ae3f7a0
+P2O = accd2bbf46cd31e372b0157adbd157efc0bd33146868b07cb31e90976a379bf9
 ```
 
 ## 6. 봉인·논스·서명
