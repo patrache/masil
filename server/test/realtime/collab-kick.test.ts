@@ -70,6 +70,18 @@ describe("kicked: space and doc deleted", () => {
     expect(await wsStatus(member.token, doc2.id)).toBe(404);
   });
 
+  it("an operator's forced space removal -> space_deleted on every doc socket of the space; ws 404 afterwards", async () => {
+    const { owner, member, space, doc } = await room();
+    const adm = await signup();
+    await makeAdmin(adm);
+    const o = await connectDoc(owner.token, doc.id);
+    const m = await connectDoc(member.token, doc.id);
+    const r = await api(adm.token).post("/v1/admin/content/remove", { reason: "illegal", target_type: "space", target_id: space.id });
+    expect(r.status).toBe(200);
+    for (const c of [o, m]) await expectKicked(c, "space_deleted");
+    expect(await wsStatus(member.token, doc.id)).toBe(404);
+  });
+
   it("doc delete -> doc_deleted on that doc only", async () => {
     const { owner, member, space, doc } = await room();
     const keep = await makeDoc(owner, space.id, "arch");

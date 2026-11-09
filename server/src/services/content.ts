@@ -15,6 +15,7 @@ import type { AdminAction } from "../types/api";
 import type { AdminActionRow, GuestbookRow, ReportRow, SpaceRow, StoryRow, UploadRow } from "../types/rows";
 import { deleteMessage } from "./messages";
 import { deletePost } from "./posts";
+import { kickFromSpaceDocs } from "./docs";
 import { errFields } from "../lib/log";
 
 export type RemovableType = "message" | "post" | "story" | "guestbook_entry" | "upload" | "space";
@@ -146,7 +147,8 @@ async function removeUpload(rt: Runtime, id: string): Promise<Step> {
 
 /**
  * Space and its channels soft-deleted in the closing batch. The {space} audience drops deleted spaces, so the member
- * ids are read first and space.deleted goes to {users} after the commit (same as DELETE /spaces/{id}).
+ * ids are read first and space.deleted goes to {users} after the commit (same as DELETE /spaces/{id}); then every
+ * doc socket of the space is closed (collab.md 4.1 closeAll space_deleted).
  */
 async function removeSpace(rt: Runtime, id: string): Promise<Step> {
   const db = rt.env.DB;
@@ -163,6 +165,7 @@ async function removeSpace(rt: Runtime, id: string): Promise<Step> {
     after: async ([res]) => {
       if ((res!.meta.changes ?? 0) === 0) return; // a concurrent delete won; it published
       await publishEvent(rt, { users: memberIds }, "space.deleted", { space_id: s.id });
+      rt.waitUntil(kickFromSpaceDocs(rt, s.id, null, "space_deleted"));
     },
   };
 }
