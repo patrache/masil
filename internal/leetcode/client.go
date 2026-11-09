@@ -263,6 +263,8 @@ func (c *Client) question(ctx context.Context, op, query, slug string) (*Questio
 }
 
 // UserStatus asks who the cookies sign in as (signed out without cookies).
+// Cookies LeetCode answers isSignedIn:false to come back as that status and
+// ErrAuthExpired.
 func (c *Client) UserStatus(ctx context.Context) (*UserStatus, error) {
 	var d struct {
 		UserStatus *struct {
@@ -283,6 +285,10 @@ func (c *Client) UserStatus(ctx context.Context) (*UserStatus, error) {
 	}
 	if d.UserStatus.IsPremium != nil {
 		st.Premium = *d.UserStatus.IsPremium
+	}
+	if !st.SignedIn && c.signedIn() {
+		// cookies were sent and LeetCode does not know them: they expired
+		return st, fmt.Errorf("%w: signed out with cookies", ErrAuthExpired)
 	}
 	return st, nil
 }

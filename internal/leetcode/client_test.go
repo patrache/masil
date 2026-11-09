@@ -207,13 +207,19 @@ func TestUserStatus(t *testing.T) {
 	if err != nil || !st.SignedIn || st.Username != "hana_lc" || !st.Premium {
 		t.Fatalf("status = %+v, %v", st, err)
 	}
+	// cookies sent but LeetCode says signed out: they expired (plan Task 9)
 	srv.SetUserStatus(false, "", false)
 	st, err = newClient(srv, nil, nil).WithCreds(testCreds()).UserStatus(t.Context())
-	if err != nil || st.SignedIn {
-		t.Fatalf("signed out = %+v, %v", st, err)
+	if !errors.Is(err, leetcode.ErrAuthExpired) || st == nil || st.SignedIn {
+		t.Fatalf("expired cookies = %+v, %v", st, err)
 	}
 	if got := srv.Requests()[1].Header.Get("Cookie"); got == "" {
 		t.Fatal("WithCreds did not add the cookies")
+	}
+	// no cookies: signed out is a plain answer, not an error
+	st, err = newClient(srv, nil, nil).UserStatus(t.Context())
+	if err != nil || st.SignedIn {
+		t.Fatalf("signed out = %+v, %v", st, err)
 	}
 }
 

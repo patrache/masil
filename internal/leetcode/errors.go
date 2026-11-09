@@ -14,8 +14,10 @@ import (
 var (
 	// ErrRateLimited: 429, too many requests.
 	ErrRateLimited = errors.New("leetcode: rate limited")
-	// ErrAuthExpired: 401/403 JSON or an empty answer — the cookies are
-	// missing or expired; or a judge call made while signed out.
+	// ErrAuthExpired: 401/403 JSON, an empty answer or a redirect to the
+	// sign-in page — the cookies are missing or expired; or UserStatus says
+	// isSignedIn:false although cookies were sent. (A judge call with no
+	// cookies at all is ErrNotSignedIn and sends nothing.)
 	ErrAuthExpired = errors.New("leetcode: sign-in expired")
 	// ErrBlocked: an HTML page (Cloudflare check) instead of JSON, whatever
 	// the status code. The UI offers the browser instead.
