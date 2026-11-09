@@ -3,6 +3,8 @@ package arch
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,6 +104,26 @@ func shown(screen, text string) bool {
 	}
 	r := []rune(text)
 	return len(r) > 8 && strings.Contains(screen, string(r[:8]))
+}
+
+// styledRun reports whether text is drawn in foreground colour fg on the
+// styled line: the last SGR before it sets that colour.
+func styledRun(line, text string, fg color.Color) bool {
+	r, g, b, _ := fg.RGBA()
+	want := fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)
+	for from := 0; ; {
+		i := strings.Index(line[from:], text)
+		if i < 0 {
+			return false
+		}
+		i += from
+		if j := strings.LastIndex(line[:i], "\x1b["); j >= 0 {
+			if k := strings.IndexByte(line[j:i], 'm'); k >= 0 && strings.Contains(line[j:j+k], want) {
+				return true
+			}
+		}
+		from = i + len(text)
+	}
 }
 
 func noSpace(s string) string { return strings.Join(strings.Fields(s), "") }
@@ -422,6 +444,10 @@ func TestRemoteDragGhostVisible(t *testing.T) {
 	lines := strings.Split(h.Screen(), "\n")
 	if sy-1 < 0 || !strings.Contains(lines[sy-1], "하나") {
 		t.Errorf("no name tag above hana's ghost at %d,%d:\n%s", sx, sy, h.Screen())
+	}
+	// in hana's colour (the first peer: sRemote+0)
+	if sy-1 >= 0 && !styledRun(strings.Split(h.Styled(), "\n")[sy-1], "하나", h.Context().Theme.P.Acc2) {
+		t.Errorf("hana's name tag is not in her colour: %q", strings.Split(h.Styled(), "\n")[sy-1])
 	}
 	if !strings.Contains(h.Screen(), "sam·하나") {
 		t.Errorf("the header does not list both people:\n%s", h.Screen())
