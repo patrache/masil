@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/sahilm/fuzzy"
 
@@ -100,6 +102,52 @@ func matchTitle(query, title string, keywords ...string) (int, bool) {
 	return match(query, append([]string{title, Chosung(title)}, keywords...)...)
 }
 
+// minWordPrefix is the shortest query that matches English keywords and command
+// ids: a single Latin letter starts a word of most commands.
+const minWordPrefix = 2
+
+// idWords splits a command id into its words ("theme.set.retro_amber" => theme,
+// set, retro, amber).
+func idWords(id string) []string {
+	return strings.FieldsFunc(id, func(r rune) bool { return r == '.' || r == '_' || r == '-' })
+}
+
+func hasHangul(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool { return unicode.Is(unicode.Hangul, r) })
+}
+
+// matchCommand matches a command (or a fixed route such as 홈): Title, Chosung(Title)
+// and Hangul keywords fuzzily (sahilm/fuzzy); English keywords and the id only when
+// the lowercased query (2+ runes) prefixes the whole keyword/id or one of its words
+// (keywords split on spaces, ids on '.', '_', '-'), scored by fuzzy over those words.
+// Subsequence matching over English words made "a" list nearly every command.
+func matchCommand(query, title, id string, keywords ...string) (int, bool) {
+	cands := []string{title, Chosung(title)}
+	lq := strings.ToLower(query)
+	prefix := utf8.RuneCountInString(lq) >= minWordPrefix
+	words := func(whole string, parts []string) {
+		if !prefix {
+			return
+		}
+		for _, w := range append([]string{whole}, parts...) {
+			if strings.HasPrefix(strings.ToLower(w), lq) {
+				cands = append(cands, w)
+			}
+		}
+	}
+	if id != "" {
+		words(id, idWords(id))
+	}
+	for _, k := range keywords {
+		if hasHangul(k) {
+			cands = append(cands, k)
+			continue
+		}
+		words(k, strings.Fields(k))
+	}
+	return match(query, cands...)
+}
+
 // itemKey identifies an item for de-duplication and selection keeping.
 func itemKey(it Item) string {
 	switch {
@@ -123,7 +171,7 @@ func groupOf(it Item) string {
 }
 
 // collect returns the ranked items for query: an empty query lists the unread
-// channels then the recently chosen routes; otherwise every source's items plus the
+// channels, the recently chosen routes, 홈, then every available command; otherwise every source's items plus the
 // people-search results (people found for peopleQ), de-duplicated (best score
 // kept) and sorted by score, kind, title.
 func collect(ctx *ui.Context, query string, people []api.UserSummary, peopleQ string) []Item {
@@ -167,7 +215,8 @@ func collect(ctx *ui.Context, query string, people []api.UserSummary, peopleQ st
 }
 
 // emptyItems: unread channels (spaces in order, then DMs), then the recent routes,
-// then 홈 (unless it is a recent route).
+// then 홈 (unless it is a recent route), then every available command (commandItems)
+// so the commands can be found without knowing their names.
 func emptyItems(ctx *ui.Context) []Item {
 	var out []Item
 	seen := map[string]bool{}
@@ -195,7 +244,44 @@ func emptyItems(ctx *ui.Context) []Item {
 	if home := homeItem(); !seen[itemKey(home)] {
 		out = append(out, home)
 	}
+	return append(out, commandItems(ctx)...)
+}
+
+// groupRank orders the command groups of the empty query (the overlay lists the
+// groups in first-item order): 이동 right after 홈, then 명령, 설정, any other.
+var groupRank = map[string]int{groupGo: 0, groupCommand: 1, groupSetting: 2}
+
+// commandItems are the available commands by group (groupRank, then the group name)
+// then title (the non-empty query's tie order) — stable and deterministic.
+func commandItems(ctx *ui.Context) []Item {
+	var out []Item
+	for _, c := range availableCommands(ctx) {
+		out = append(out, Item{Kind: ItemCommand, Title: c.Title, Command: &c})
+	}
+	rank := func(it Item) int {
+		if r, ok := groupRank[groupOf(it)]; ok {
+			return r
+		}
+		return len(groupRank)
+	}
+	slices.SortStableFunc(out, func(a, b Item) int {
+		if c := cmp.Compare(rank(a), rank(b)); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(groupOf(a), groupOf(b)); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Title, b.Title)
+	})
 	return out
+}
+
+// availableCommands copies the registered commands whose Available(ctx) holds.
+func availableCommands(ctx *ui.Context) []Command {
+	mu.Lock()
+	cs := cloneCommands(commands)
+	mu.Unlock()
+	return slices.DeleteFunc(cs, func(c Command) bool { return c.Available != nil && !c.Available(ctx) })
 }
 
 // refresh updates a remembered channel/DM item's badge from the Store.
@@ -251,7 +337,7 @@ type homeSource struct{}
 
 func (homeSource) Items(_ *ui.Context, q string) []Item {
 	it := homeItem()
-	s, ok := matchTitle(q, it.Title, "home")
+	s, ok := matchCommand(q, it.Title, "", "home")
 	if !ok {
 		return nil
 	}
@@ -468,16 +554,9 @@ func peopleItems(ctx *ui.Context, q string, people []api.UserSummary, peopleQ st
 type commandSource struct{}
 
 func (commandSource) Items(ctx *ui.Context, q string) []Item {
-	mu.Lock()
-	cs := cloneCommands(commands)
-	mu.Unlock()
 	var out []Item
-	for i := range cs {
-		c := cs[i]
-		if c.Available != nil && !c.Available(ctx) {
-			continue
-		}
-		s, ok := matchTitle(q, c.Title, append([]string{c.ID}, c.Keywords...)...)
+	for _, c := range availableCommands(ctx) {
+		s, ok := matchCommand(q, c.Title, c.ID, c.Keywords...)
 		if !ok {
 			continue
 		}

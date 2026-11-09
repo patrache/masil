@@ -2036,7 +2036,8 @@ func RegisterSource(s Source)
 func Open(ctx *ui.Context, initial string) ui.Overlay // ctrl+k
 func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Korean initial-consonant search key)
 ```
-- 검색: `sahilm/fuzzy` 로 `Title`, `Chosung(Title)`, `Keywords` 를 각각 맞춰 최고 점수. 입력이 비면 최근 이동 8개 + 안 읽은 채널.
+- 검색: `sahilm/fuzzy` 로 후보를 각각 맞춰 최고 점수. 채널·DM·방·사람 항목은 제목·`Chosung`·이름·핸들을 퍼지로 맞춘다. **명령(과 `홈`)은 [결정, 2026-11-09]** `Title`·`Chosung(Title)`·한글이 든 `Keywords`(예: `새 채널`)만 퍼지로 맞추고, 영문 `Keywords` 와 명령 `ID` 는 소문자로 바꾼 입력(2글자 이상)이 키워드·ID 전체나 그 낱말(키워드는 공백, ID 는 `.` `_` `-` 로 나눔)의 **앞부분**일 때만 맞는다(점수는 그 낱말에 대한 퍼지 점수) — 영문 낱말에 부분열 퍼지를 걸면 `a` 하나로 거의 모든 명령이 걸렸다. 예: `cre` → 채널 만들기·방 만들기·초대 링크 만들기, `ch` → 채널 명령, `ㅊㄴ` → 채널 만들기, `a` → 친구 추가 아님.
+- 입력이 비면: 안 읽은 채널(방 순서, 그다음 DM) → 최근 이동 8개 → `홈` → `Available(ctx)` 가 참인 **모든 명령**(그룹 `이동` → `명령` → `설정` 순, 그룹 안은 제목 순 — 빈 입력이 아닐 때 동점의 정렬과 같다). 명령 이름을 몰라도 팔레트만 열어 찾을 수 있게 한다. 목록이 창보다 길면 선택 행을 따라 스크롤한다. 보여 줄 것이 하나도 없을 때만 `검색어를 입력해 이동하거나 명령을 실행하세요` 를 띄운다.
 - core 기본 소스: 채널·DM·방(Store), 친구, 명령. 2글자 이상이면 `SearchUsers` 를 300ms 디바운스로 불러 사람 항목 추가.
 - 팔레트 입력은 `textinput`(실제 커서, `ctrl+k` 를 `DeleteAfterCursor` 에서 뺌, 5.3.7). 팔레트가 열린 상태의 `ctrl+k` = 닫기.
 - **명령 실행(CR-B)**: 팔레트 안 `enter`(명령 항목)는 `Run` 을 직접 부르지 않고 `ui.RunCommand(c.ID, "")` 만 낸다. 팔레트·슬래시 명령·시험의 `RunCommandMsg` 가 모두 앱의 같은 디스패치(5.3.4 7단계: `Lookup` → 팔레트 먼저 닫기 → `Available` 재확인·`지금은 쓸 수 없는 명령이에요` 토스트 → `Run(ctx, Args)` 에 `Args` 그대로)를 탄다. `RunCommandMsg` 는 방송되지 않으므로 컴포넌트가 받아 따로 실행하지 않는다.

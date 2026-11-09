@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -108,7 +109,8 @@ func TestRanking(t *testing.T) {
 
 	// Empty query: unread channels first, then recently chosen routes (newest first, max 8),
 	// then 홈 (widget/tiny/compact have no other way back to it).
-	items = palette.ItemsForTest(ctx, "")
+	// The available commands follow (TestEmptyQueryListsCommands).
+	items = routeItems(palette.ItemsForTest(ctx, ""))
 	if len(items) != 2 || items[0].Title != "#일반" || items[0].Badge.Count != 3 ||
 		items[1].Route == nil || items[1].Route.Kind != ui.RouteHome {
 		t.Fatalf("empty query: %+v, want #일반 with badge 3 then 홈", items)
@@ -122,11 +124,188 @@ func TestRanking(t *testing.T) {
 	}
 	palette.RememberForTest(palette.Item{Kind: palette.ItemRoute, Title: "최근 3",
 		Route: &ui.Route{Kind: ui.RouteHashtag, ID: "3"}}) // chosen again: moves to the front, no duplicate
-	got := titles(palette.ItemsForTest(ctx, ""))
+	got := titles(routeItems(palette.ItemsForTest(ctx, "")))
 	want := []string{"#일반", "최근 3", "최근 9", "최근 8", "최근 7", "최근 6", "최근 5", "최근 4", "최근 2", "홈"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("empty query = %q, want %q", got, want)
 	}
+}
+
+// routeItems are the items that are not commands, in order.
+func routeItems(items []palette.Item) []palette.Item {
+	var out []palette.Item
+	for _, it := range items {
+		if it.Kind != palette.ItemCommand {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// commandIDs are the ids of the command items, in order.
+func commandIDs(items []palette.Item) []string {
+	var out []string
+	for _, it := range items {
+		if it.Command != nil {
+			out = append(out, it.Command.ID)
+		}
+	}
+	return out
+}
+
+// TestEmptyQueryListsCommands: an empty query lists, after the unread channels, the
+// recent routes and 홈, every available command grouped 이동 → 명령 → 설정 and by
+// title within a group (owner report 2026-11-09: only 홈 was listed, so commands
+// could not be found without knowing their names). Chat's commands: ui/chat
+// TestPaletteEmptyQueryChatCommands.
+func TestEmptyQueryListsCommands(t *testing.T) {
+	t.Cleanup(palette.SnapshotForTest())
+	t.Cleanup(palette.ResetRecentForTest())
+	ctx := uitest.New(t).Context()
+	palette.Register(palette.Command{ID: "t.on", Title: "시험 켜짐", Group: "명령",
+		Available: func(*ui.Context) bool { return true }})
+	palette.Register(palette.Command{ID: "t.off", Title: "시험 꺼짐", Group: "명령",
+		Available: func(*ui.Context) bool { return false }})
+
+	items := palette.ItemsForTest(ctx, "")
+	home := slices.IndexFunc(items, func(it palette.Item) bool { return it.Route != nil && it.Route.Kind == ui.RouteHome })
+	if home < 0 {
+		t.Fatalf("empty query: no 홈 in %q", titles(items))
+	}
+	for i, it := range items {
+		if (it.Kind == palette.ItemCommand) != (i > home) {
+			t.Fatalf("empty query: %q at %d, want routes up to 홈 then only commands (%q)", it.Title, i, titles(items))
+		}
+	}
+	cmds := items[home+1:]
+	rank := map[string]int{"이동": 0, "명령": 1, "설정": 2}
+	for i := 1; i < len(cmds); i++ {
+		a, b := cmds[i-1].Command, cmds[i].Command
+		ra, rb := rank[a.Group], rank[b.Group]
+		if ra > rb || (ra == rb && a.Title > b.Title) {
+			t.Fatalf("empty query: %q (%s) before %q (%s), want 이동→명령→설정 then title order", a.Title, a.Group, b.Title, b.Group)
+		}
+	}
+	ids := commandIDs(cmds)
+	for _, id := range []string{"help", "settings", "blocks", "logout", "quit", "reconnect", "theme.cycle", "layout.auto", "t.on"} {
+		if !slices.Contains(ids, id) {
+			t.Errorf("empty query: %s missing from %q", id, ids)
+		}
+	}
+	if slices.Contains(ids, "t.off") {
+		t.Errorf("empty query: Available false t.off listed (%q)", ids)
+	}
+	if len(ids) == 0 || ids[0] != "help" { // 도움말 is the first 이동 command by title
+		t.Errorf("empty query: commands %q, want help (도움말) first", ids)
+	}
+	if again := commandIDs(palette.ItemsForTest(ctx, "")); !slices.Equal(again, ids) {
+		t.Fatalf("empty query not deterministic: %q then %q", ids, again)
+	}
+}
+
+// subseq: the runes of q appear in s in order (case-insensitive) — a fuzzy title match.
+func subseq(s, q string) bool {
+	rs := []rune(strings.ToLower(s))
+	i := 0
+	for _, r := range strings.ToLower(q) {
+		for i < len(rs) && rs[i] != r {
+			i++
+		}
+		if i == len(rs) {
+			return false
+		}
+		i++
+	}
+	return true
+}
+
+// hasWordPrefix: q (lowercased) prefixes the id, an English keyword, or one of their words.
+func hasWordPrefix(c *palette.Command, q string) bool {
+	q = strings.ToLower(q)
+	cands := append([]string{c.ID}, strings.FieldsFunc(c.ID, func(r rune) bool { return r == '.' || r == '_' || r == '-' })...)
+	for _, k := range c.Keywords {
+		cands = append(cands, k)
+		cands = append(cands, strings.Fields(k)...)
+	}
+	for _, w := range cands {
+		if strings.HasPrefix(strings.ToLower(w), q) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestCommandMatching: titles and their chosung match fuzzily; English keywords and
+// command ids only by word prefix (2+ letters), so one Latin letter no longer lists
+// nearly every command (owner report 2026-11-09). Chat's commands: ui/chat
+// TestPaletteCommandWordPrefix.
+func TestCommandMatching(t *testing.T) {
+	t.Cleanup(palette.ResetRecentForTest())
+	ctx := uitest.New(t).Context()
+
+	for _, q := range []string{"a", "o", "e", "co", "CO", "lay", "au", "theme", "sign o"} {
+		for _, it := range palette.ItemsForTest(ctx, q) {
+			if it.Command != nil && !subseq(it.Title, q) && (len([]rune(q)) < 2 || !hasWordPrefix(it.Command, q)) {
+				t.Errorf("query %q: %s (%q) matches neither its title nor a word prefix", q, it.Command.ID, it.Title)
+			}
+		}
+	}
+	for q, want := range map[string][]string{
+		"au":     {"layout.auto"},
+		"co":     {"layout.pin.command", "theme.cycle", "reconnect"}, // command, color, connect
+		"CO":     {"layout.pin.command", "theme.cycle", "reconnect"},
+		"lay":    {"layout.auto", "layout.pin.widget", "layout.pin.tiny"},
+		"sign o": {"logout"}, // a whole multi-word keyword prefix
+		"ㄷㅇㅁ":    {"help"},
+		"ㄹㅇㅇ ㅈㄷ": {"layout.auto"},
+		"단축키":    {"help"},   // Hangul keyword
+		"차단해제":   {"blocks"}, // Hangul keyword "차단 해제" stays fuzzy
+	} {
+		ids := commandIDs(palette.ItemsForTest(ctx, q))
+		for _, id := range want {
+			if !slices.Contains(ids, id) {
+				t.Errorf("query %q: %s missing from %q", q, id, ids)
+			}
+		}
+	}
+	for q, not := range map[string]string{"a": "layout.auto", "e": "help", "co": "help", "ut": "logout", "nf": "settings"} {
+		if ids := commandIDs(palette.ItemsForTest(ctx, q)); slices.Contains(ids, not) {
+			t.Errorf("query %q: unrelated %s listed (%q)", q, not, ids)
+		}
+	}
+	// 홈's English keyword is a word too.
+	isHome := func(it palette.Item) bool { return it.Route != nil && it.Route.Kind == ui.RouteHome }
+	if !slices.ContainsFunc(palette.ItemsForTest(ctx, "ho"), isHome) || slices.ContainsFunc(palette.ItemsForTest(ctx, "me"), isHome) {
+		t.Errorf("홈: want matched by ho (home), not by me")
+	}
+}
+
+// TestEmptyQueryScrollsSmall: the longer empty-query list scrolls in the small modes —
+// moving down to the last command shows it, moving back up shows the first item, and
+// the frame stays intact.
+func TestEmptyQueryScrollsSmall(t *testing.T) {
+	t.Cleanup(palette.ResetRecentForTest())
+	sizes := []uitest.Size{{W: 44, H: 16}, {W: 50, H: 20}, {W: 80, H: 24}, {W: 120, H: 15}, {W: 160, H: 16}, {W: 44, H: 24}}
+	uitest.ForEachSize(t, sizes, func(t *testing.T, h *uitest.Harness) {
+		items := palette.ItemsForTest(h.Context(), "")
+		first, last := items[0].Title, items[len(items)-1].Title
+		h.Press("ctrl+k")
+		if s := h.Screen(); !strings.Contains(s, first) || strings.Contains(s, last) {
+			t.Fatalf("opened: want %q shown and %q scrolled off:\n%s", first, last, s)
+		}
+		for range items {
+			h.Press("down")
+		}
+		if s := h.Screen(); !strings.Contains(s, last) {
+			t.Fatalf("after down×%d: last command %q not shown:\n%s", len(items), last, s)
+		}
+		h.Check()
+		h.Press("pgup", "pgup", "pgup", "pgup", "pgup", "pgup", "pgup", "pgup", "pgup", "pgup")
+		if s := h.Screen(); !strings.Contains(s, first) || !strings.Contains(s, "이동") {
+			t.Fatalf("after pgup: first item %q / 이동 header not shown:\n%s", first, s)
+		}
+		h.Check()
+	})
 }
 
 func usersSearches(h *uitest.Harness) []string {
