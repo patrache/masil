@@ -29,6 +29,7 @@ func ownerScene(t *testing.T, h *uitest.Harness, fake *termpanetest.Fake, snap f
 	r.join(1, "편집", true)
 	r.join(2, "편집", true)
 	r.addGuest(3)
+	h.Press("ctrl+\\", "enter")
 	snap("sas_owner")
 	r.pickRow("확인 없이 허용")
 	h.Press("enter")

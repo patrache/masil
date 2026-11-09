@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/ui/uitest"
 )
 
@@ -59,5 +60,32 @@ func TestProposalQueueEnterDoesNotRun(t *testing.T) {
 	}
 	if n := len(r.s.own.host.Proposals()); n != 1 {
 		t.Fatalf("waiting proposals = %d", n)
+	}
+}
+
+// A join request never takes the owner's keys: it waits (toast, band) until
+// the owner opens the check-number dialog on purpose.
+func TestJoinRequestWaitsForOwner(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r := newShareRig(t, h, fake, map[uint8]api.UserSummary{1: minjiUser})
+	r.shareFriends("minji")
+	h.Press("ctrl+\\", "1")
+	g := r.addGuest(1)
+	if r.s.dlg != nil {
+		t.Fatalf("the join request opened a dialog by itself:\n%s", h.Screen())
+	}
+	if !strings.Contains(h.Screen(), "참가 요청 1건") {
+		t.Fatalf("no waiting join request in the band:\n%s", h.Screen())
+	}
+	h.Press("j", "j", "j", "j", "enter", "space", "enter")
+	r.settle()
+	if n := len(r.s.own.host.Members()); n != 0 {
+		t.Fatalf("tree keys let %d people in", n)
+	}
+	h.Press("esc")
+	h.Press("ctrl+\\", "enter")
+	if r.s.dlg == nil || !strings.Contains(h.Screen(), g.SAS()) {
+		t.Fatalf("ctrl+\\ enter did not open the check-number dialog:\n%s", h.Screen())
 	}
 }

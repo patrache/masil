@@ -293,9 +293,6 @@ func (s *Surface) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 			s.dlg = nil
 			s.relayout(ctx)
 		}
-		if s.dlg == nil {
-			s.nextJoinDialog(ctx)
-		}
 		return true, cmd
 	}
 	if s.root == nil {
@@ -367,7 +364,10 @@ func (s *Surface) prefixKey(ctx *ui.Context, k string) tea.Cmd {
 		s.openNewTerm(ctx, termhostExec)
 	case "S":
 		return s.shareKey(ctx)
-	case "enter":
+	case "enter": // a waiting join request first, else the proposals
+		if s.nextJoinDialog(ctx) {
+			return nil
+		}
 		return s.openProposals(ctx)
 	case "z":
 		s.cellZoom = !s.cellZoom

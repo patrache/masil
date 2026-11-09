@@ -158,6 +158,11 @@ desc = "도구 허브 상태: 공유 중. folder = 폴더 이름, n = 들어온 
 params = { folder = "string", n = "int" }
 other = "{folder} · 🔴 공유 중 {n}명"
 
+[join_pending]
+desc = "띠·초소형 요약: 오너가 아직 열어 보지 않은 참가 요청 수와 확인 숫자 대화상자를 여는 키. n = 수, key = 키(번역하지 않음)"
+params = { n = "int", key = "string" }
+other = "참가 요청 {n}건({key} 확인)"
+
 [join_requesting]
 desc = "토스트·대기 줄: 누가 참가를 요청함. name = 표시 이름"
 params = { name = "string" }

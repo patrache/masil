@@ -273,6 +273,14 @@ var areaWorkspace = area{
 				En: {Other: "{folder} · 🔴 Sharing with {n}"},
 			},
 		},
+		"join_pending": {
+			desc:   "띠·초소형 요약: 오너가 아직 열어 보지 않은 참가 요청 수와 확인 숫자 대화상자를 여는 키. n = 수, key = 키(번역하지 않음)",
+			params: []Param{{Name: "n", Type: "int"}, {Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "참가 요청 {n}건({key} 확인)"},
+				En: {Other: "{n} join requests ({key} to check)"},
+			},
+		},
 		"join_requesting": {
 			desc:   "토스트·대기 줄: 누가 참가를 요청함. name = 표시 이름",
 			params: []Param{{Name: "name", Type: "string"}},
@@ -1369,6 +1377,11 @@ func (a_ WorkspaceT) HubStatusPrivate(folder string, n int) string {
 // HubStatusSharing: 도구 허브 상태: 공유 중. folder = 폴더 이름, n = 들어온 사람 수
 func (a_ WorkspaceT) HubStatusSharing(folder string, n int) string {
 	return a_.t.render(&areaWorkspace, "hub_status_sharing", false, 0, "folder", folder, "n", strconv.Itoa(n))
+}
+
+// JoinPending: 띠·초소형 요약: 오너가 아직 열어 보지 않은 참가 요청 수와 확인 숫자 대화상자를 여는 키. n = 수, key = 키(번역하지 않음)
+func (a_ WorkspaceT) JoinPending(n int, key string) string {
+	return a_.t.render(&areaWorkspace, "join_pending", false, 0, "n", strconv.Itoa(n), "key", key)
 }
 
 // JoinRequesting: 토스트·대기 줄: 누가 참가를 요청함. name = 표시 이름

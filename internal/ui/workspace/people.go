@@ -24,7 +24,6 @@ func newSASDialog(s *Surface, ctx *ui.Context, j share.JoinRequest) *form {
 		if s.own != nil {
 			s.own.sasSeat = 0
 			s.dropAsked(j.Seat)
-			s.nextJoinDialog(ctx)
 		}
 	}
 	host := s.own.host

@@ -16,6 +16,7 @@ import (
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/workspace/audit"
 	"github.com/patrache/masil/internal/workspace/share"
 	"github.com/patrache/masil/internal/workspace/wire"
@@ -280,9 +281,11 @@ func (s *Surface) ownerEvent(ctx *ui.Context, ev share.Event) tea.Cmd {
 	o := s.own
 	switch e := ev.(type) {
 	case share.EventJoinRequest:
+		// The request waits (toast, band, people list) until the owner opens
+		// its dialog: a dialog that popped up by itself would take the keys
+		// the owner was typing and could let someone in unchecked.
 		o.asked = append(o.asked, e.JoinRequest)
 		name := s.peer(ctx, e.Seat, e.UserID).name
-		s.nextJoinDialog(ctx)
 		return ui.Toast(t.JoinRequesting(name), ui.ToastAlert)
 	case share.EventJoinExpired:
 		s.dropAsked(e.Seat)
@@ -351,15 +354,22 @@ func (s *Surface) dropAsked(seat uint8) {
 }
 
 // nextJoinDialog opens the check-number dialog of the oldest waiting
-// request when no dialog is open.
-func (s *Surface) nextJoinDialog(ctx *ui.Context) {
+// request when no dialog is open (only on an owner action: ctrl+\ enter, enter
+// in the people list); false when nothing waits.
+func (s *Surface) nextJoinDialog(ctx *ui.Context) bool {
 	o := s.own
 	if o == nil || s.dlg != nil || len(o.asked) == 0 {
-		return
+		return false
 	}
 	j := o.asked[0]
 	o.sasSeat = j.Seat
 	s.dlg = newSASDialog(s, ctx, j)
+	return true
+}
+
+// openKey is the key that opens what waits for the owner: ctrl+\ enter.
+func openKey(ctx *ui.Context) string {
+	return ctx.Keys.Binding(keymap.TermhostEscape).Help().Key + " enter"
 }
 
 // ownerBand is the sharing band: 🔴 공유 중 · n명 · who and how (B6.7).
@@ -382,6 +392,9 @@ func (s *Surface) ownerBand(ctx *ui.Context) (string, lipgloss.Style, bool) {
 	}
 	if o.paused {
 		parts = append(parts, t.KeyboardPaused())
+	}
+	if n := len(o.asked); n > 0 {
+		parts = append(parts, t.JoinPending(n, openKey(ctx)))
 	}
 	if n := len(o.host.Proposals()); n > 0 {
 		parts = append(parts, t.ProposalPending(n, "enter"))

@@ -42,6 +42,9 @@ func (s *Surface) tinyView(ctx *ui.Context, w, h int) []string {
 		}
 	}
 	parts = append(parts, t.TinyProposals(len(ps)))
+	if n := len(s.own.asked); n > 0 {
+		parts = append(parts, t.JoinPending(n, openKey(ctx)))
+	}
 	red := lipgloss.NewStyle().Foreground(th.P.Acc2).Bold(true)
 	var lines []string
 	for _, l := range textwidth.Wrap(strings.Join(parts, " · "), max(w-1, 1)) {

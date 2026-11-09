@@ -133,6 +133,7 @@ func (r *shareRig) settle() {
 func (r *shareRig) join(seat uint8, level string, verified bool) {
 	r.t.Helper()
 	g := r.addGuest(seat)
+	r.h.Press("ctrl+\\", "enter")
 	if r.s.dlg == nil || !strings.Contains(r.h.Screen(), formatSAS(g.SAS())) {
 		r.t.Fatalf("no check-number dialog with %q:\n%s", g.SAS(), r.h.Screen())
 	}
@@ -259,6 +260,11 @@ func TestJoinApprovalFlow(t *testing.T) {
 	if !strings.Contains(scr, "민지님이 참가하려고 해요") {
 		t.Errorf("no join toast:\n%s", scr)
 	}
+	h.Press("ctrl+\\", "enter")
+	scr = h.Screen()
+	if !strings.Contains(scr, "민지님이 참가하려고 해요") {
+		t.Errorf("no join toast:\n%s", scr)
+	}
 	if g.SAS() == "" || !strings.Contains(scr, g.SAS()) {
 		t.Fatalf("check number %q not shown:\n%s", g.SAS(), scr)
 	}
@@ -284,6 +290,7 @@ func TestSASMismatchWarns(t *testing.T) {
 	r := newShareRig(t, h, fake, map[uint8]api.UserSummary{1: {ID: fixtures.UserMinji, Handle: "minji", DisplayName: "민지"}})
 	r.shareFriends("minji")
 	r.addGuest(1)
+	h.Press("ctrl+\\", "enter")
 	r.pickRow("다름")
 	h.Press("enter")
 	r.settle()

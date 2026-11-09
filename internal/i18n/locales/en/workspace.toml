@@ -103,6 +103,9 @@ other = "{folder} · 🔒 Only me · {n} terminals"
 [hub_status_sharing]
 other = "{folder} · 🔴 Sharing with {n}"
 
+[join_pending]
+other = "{n} join requests ({key} to check)"
+
 [join_requesting]
 other = "{name} wants to join"
 
