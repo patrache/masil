@@ -11,6 +11,7 @@ func FuzzDecode(f *testing.F) {
 	}
 	f.Add([]byte(`{"schema_version":1,"nodes":[{"id":"a","kind":"api"}]}`))
 	f.Add([]byte(`{"schema_version":1,"nodes":[{"id":"a","kind":"client","traffic":null}],"edges":[{}]}`))
+	f.Add(canonicalTooLarge())
 	f.Fuzz(func(t *testing.T, data []byte) {
 		d, err := Decode(data)
 		if err != nil {

@@ -20,7 +20,7 @@
 
 ### 1.2 읽기 규칙 (`archdoc.Decode`)
 
-1. 1MB(1,048,576바이트) 초과 → `too_large`. JSON 객체 하나가 아니거나 뒤에 다른 값이 있음 → `syntax`.
+1. 1MB(1,048,576바이트) 초과 → `too_large`. 읽은 설계의 정규 인코딩(1.1)이 1MB 를 넘어도 `too_large` — 빠진 필드를 기본값으로 채우면 입력보다 커질 수 있고, 다시 읽히지 않는 설계를 받으면 안 되므로(저장·카드 사본·공유가 같은 한도를 쓴다). JSON 객체 하나가 아니거나 뒤에 다른 값이 있음 → `syntax`.
 2. `schema_version` 이 1 이 아니면 → `schema_version`(다른 검사는 하지 않는다).
 3. 모르는 필드는 무시한다(뒤 버전이 더할 수 있게). 빠진 필드는 그 객체의 기본값(노드는 `kind` 의 기본값 `archdoc.Defaults`, 연결은 `DefaultEdge`, `traffic` 은 `DefaultTraffic`, `duration_s` 는 300)을 쓴다. `null` 은 빠진 것과 같다.
 4. 목록(`nodes`·`boxes`·`edges`·`faults`)이 1.3 한도보다 길면 그 목록의 항목은 하나도 읽지 않고 `too_many_*` 하나만 낸다(작은 파일이 수십만 개 객체·이슈를 만들지 못하게).

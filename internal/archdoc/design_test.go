@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -241,6 +242,18 @@ func TestDecodeLimits(t *testing.T) {
 			}
 		}
 	})
+	t.Run("canonical_too_large", func(t *testing.T) {
+		// Under 1 MB as written, over 1 MB once Encode fills in every field: the
+		// limit is on the canonical form, or Decode(Encode(d)) would fail (P3 review).
+		data := canonicalTooLarge()
+		if len(data) > MaxBytes {
+			t.Fatalf("input is %d bytes, want <= MaxBytes", len(data))
+		}
+		_, err := Decode(data)
+		if !hasIssue(issuesOf(t, err), "", IssueTooLarge) {
+			t.Fatalf("issues = %v", issuesOf(t, err))
+		}
+	})
 	t.Run("schema_version", func(t *testing.T) {
 		b := mutate(t, mustEncode(t, small()), func(m map[string]any) { m["schema_version"] = json.Number("2") })
 		_, err := Decode(b)
@@ -414,4 +427,27 @@ func TestFieldTableMatchesTags(t *testing.T) {
 	check("edge", reflect.TypeFor[Edge](), fieldNames(edgeFields), "id")
 	check("fault", reflect.TypeFor[Fault](), fieldNames(faultFields), "id")
 	check("meta", reflect.TypeFor[Design](), fieldNames(metaFields), "schema_version", "nodes", "boxes", "edges", "faults")
+}
+
+// canonicalTooLarge is a compact design that Decode would expand past MaxBytes:
+// 300 one-grapheme labels of 3,001 bytes and 1,000 minimal edges.
+func canonicalTooLarge() []byte {
+	var b bytes.Buffer
+	b.WriteString(`{"schema_version":1,"nodes":[`)
+	label := "a" + strings.Repeat("\u0301", 1500)
+	for i := range MaxNodes {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		fmt.Fprintf(&b, `{"id":"n%03d","kind":"api","label":%q}`, i, label)
+	}
+	b.WriteString(`],"edges":[`)
+	for i := range MaxEdges {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		fmt.Fprintf(&b, `{"id":"e%04d","from":"n000","to":"n001"}`, i)
+	}
+	b.WriteString(`]}`)
+	return b.Bytes()
 }

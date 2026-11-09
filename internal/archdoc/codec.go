@@ -387,6 +387,7 @@ func readID(o *obj) (string, bool) {
 // ignored (later versions may add some); fields that are absent take the
 // defaults of their object (Defaults(kind) for nodes). Integers must be written
 // as plain integers. Any problem returns an *InvalidError (errors.Is ErrInvalid).
+// Both the input and the canonical Encode of the result must fit in MaxBytes.
 // The slices come back sorted by ID; empty lists are nil.
 func Decode(data []byte) (*Design, error) {
 	if len(data) > MaxBytes {
@@ -446,6 +447,12 @@ func Decode(data []byte) (*Design, error) {
 		return nil, invalid(is...)
 	}
 	d.sortByID()
+	// The 1 MB limit holds for the canonical form too: missing fields filled in
+	// by default can make it larger than the input, and a design whose Encode
+	// would not decode again must not be accepted (arch.md 1.2).
+	if enc, err := d.Encode(); err != nil || len(enc) > MaxBytes {
+		return nil, invalid(Issue{Code: IssueTooLarge})
+	}
 	return d, nil
 }
 
