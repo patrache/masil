@@ -13,7 +13,8 @@ import (
 	"github.com/patrache/masil/internal/secrets"
 )
 
-// fakeOS is the in-memory OS store of NewStore; it reports BackendMemory.
+// fakeOS is the in-memory OS store of NewStore; it reports BackendMemory. A
+// call made with a done context fails with the context's error.
 type fakeOS struct {
 	mu        sync.Mutex
 	available bool
@@ -22,7 +23,10 @@ type fakeOS struct {
 
 func (f *fakeOS) Name() secrets.Backend { return secrets.BackendMemory }
 
-func (f *fakeOS) Set(_ context.Context, _, account, value string) error {
+func (f *fakeOS) Set(ctx context.Context, _, account, value string) error {
+	if err := ctx.Err(); err != nil { // like a real store: a done context fails the call
+		return err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !f.available {
@@ -32,7 +36,10 @@ func (f *fakeOS) Set(_ context.Context, _, account, value string) error {
 	return nil
 }
 
-func (f *fakeOS) Get(_ context.Context, _, account string) (string, error) {
+func (f *fakeOS) Get(ctx context.Context, _, account string) (string, error) {
+	if err := ctx.Err(); err != nil { // like a real store: a done context fails the call
+		return "", err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !f.available {
@@ -45,7 +52,10 @@ func (f *fakeOS) Get(_ context.Context, _, account string) (string, error) {
 	return v, nil
 }
 
-func (f *fakeOS) Delete(_ context.Context, _, account string) error {
+func (f *fakeOS) Delete(ctx context.Context, _, account string) error {
+	if err := ctx.Err(); err != nil { // like a real store: a done context fails the call
+		return err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !f.available {

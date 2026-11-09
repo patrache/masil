@@ -6,10 +6,12 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/app"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/ui/uitest/fixtures"
@@ -65,6 +67,31 @@ func TestLogoutWipeOption(t *testing.T) {
 		for _, k := range mine {
 			if _, ok := vals[k.Account()]; ok {
 				t.Errorf("%s kept", k.Account())
+			}
+		}
+		if _, ok := vals[other.Account()]; !ok {
+			t.Error("another account's value was wiped")
+		}
+	})
+	t.Run("checked, the server never answers", func(t *testing.T) {
+		// The logout request times out; the wipe must not run on its spent context.
+		t.Setenv("MASIL_FEATURES", "all")
+		app.SetLogoutTimeoutForTest(t, 50*time.Millisecond)
+		h, st, mine, other := logoutWithStore(t)
+		h.API.Handle("POST /v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+			case <-time.After(5 * time.Second):
+			}
+		})
+		h.Press("space", "enter")
+		if !loggedOut(h) {
+			t.Fatalf("not logged out:\n%s", h.Screen())
+		}
+		vals := secrettest.Values(st)
+		for _, k := range mine {
+			if _, ok := vals[k.Account()]; ok {
+				t.Errorf("%s kept after a stalled logout request", k.Account())
 			}
 		}
 		if _, ok := vals[other.Account()]; !ok {

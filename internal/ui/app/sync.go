@@ -22,8 +22,12 @@ import (
 // Timings and texts.
 const (
 	bootstrapRetry = 10 * time.Second // a failed bootstrap is retried after this
-	logoutTimeout  = 10 * time.Second // POST /v1/auth/logout before logging out locally anyway
+	wipeTimeout    = 30 * time.Second // logout's "이 기기의 도구 로그인도 지우기" (one OS call per value)
 )
+
+// logoutTimeout bounds POST /v1/auth/logout before logging out locally anyway
+// (a var for tests: SetLogoutTimeoutForTest).
+var logoutTimeout = 10 * time.Second
 
 // LoggedOutMsg reasons (ui.LoggedOutMsg.Reason).
 const (
@@ -246,7 +250,8 @@ func (n NavState) pruneChannels(known func(id string) bool) NavState {
 // logoutConfirmed is the confirmed "logout" command: POST /v1/auth/logout with the
 // current token, then the local logout whatever the outcome (logoutDoneMsg).
 // wipeTools also removes this masil account's tool secrets on this device
-// (secrets.DeleteAll; the scope is read now, before the session ends).
+// (secrets.DeleteAll on its own context, before the request; the scope is read
+// now, before the session ends).
 func (m *Model) logoutConfirmed(wipeTools bool) tea.Cmd {
 	if m.login != nil || m.loggingOut {
 		return nil
@@ -256,15 +261,18 @@ func (m *Model) logoutConfirmed(wipeTools bool) tea.Cmd {
 	st := m.ctx.Secrets
 	server, user, scoped := m.ctx.SecretScope()
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), logoutTimeout)
-		defer cancel()
-		err := client.Logout(ctx)
+		// The wipe first, on its own context: a slow or dead server (the case
+		// where masil logs out locally anyway) must not leave it a spent one.
 		if wipeTools && scoped && st != nil {
-			if werr := st.DeleteAll(ctx, server, user); werr != nil {
+			wctx, wcancel := context.WithTimeout(context.Background(), wipeTimeout)
+			if werr := st.DeleteAll(wctx, server, user); werr != nil {
 				slog.Warn("wipe tool logins", "err", werr)
 			}
+			wcancel()
 		}
-		return logoutDoneMsg{err: err}
+		ctx, cancel := context.WithTimeout(context.Background(), logoutTimeout)
+		defer cancel()
+		return logoutDoneMsg{err: client.Logout(ctx)}
 	}
 }
 
