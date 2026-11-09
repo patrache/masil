@@ -455,7 +455,7 @@ func suggestName(rule, field string) string {
 			return n
 		}
 		return "secret"
-	case "":
+	case "", "literal_credential":
 		return "secret"
 	}
 	return rule

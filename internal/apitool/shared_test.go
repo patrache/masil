@@ -1,6 +1,7 @@
 package apitool
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -383,5 +384,35 @@ func TestGateNamesSetValues(t *testing.T) {
 	raw, _ := json.Marshal(s2)
 	if len(h2) != 1 || strings.Contains(string(raw), key) {
 		t.Fatalf("the kept value left on the next edit: held=%+v send=%s", h2, raw)
+	}
+}
+
+// A literal Basic password, bearer token or API key in a request's auth is
+// held whatever its name (as RedactRequest masks it); placeholders pass.
+func TestGateHoldsLiteralAuth(t *testing.T) {
+	for _, a := range []Auth{
+		{Kind: AuthBasic, User: "admin", Pass: "q8Zr3Kp9Lm2Xw7Tb5Nc4"},
+		{Kind: AuthAPIKey, Name: "appid", In: "header", Value: "hunter2hunter2"},
+		{Kind: AuthBearer, Token: "short-token"},
+	} {
+		c := sharedFixture()
+		c.Requests["r-get"].Auth = a
+		send, held := Gate(Diff(nil, c))
+		if len(held) != 1 || held[0].Obj != "req:r-get" || held[0].F != "auth" {
+			t.Fatalf("%+v: held = %+v", a, held)
+		}
+		lit := cmp.Or(a.Pass, a.Value, a.Token)
+		if got := held[0].Text[held[0].Finding.Start:held[0].Finding.End]; got != lit {
+			t.Fatalf("%+v: finding = %q", a, got)
+		}
+		raw, _ := json.Marshal(send)
+		if strings.Contains(string(raw), lit) {
+			t.Fatalf("%+v: the literal is in send", a)
+		}
+	}
+	c := sharedFixture()
+	c.Requests["r-get"].Auth = Auth{Kind: AuthBasic, User: "admin", Pass: "{{pw}}"}
+	if _, held := Gate(Diff(nil, c)); len(held) != 0 {
+		t.Fatalf("placeholders held: %+v", held)
 	}
 }

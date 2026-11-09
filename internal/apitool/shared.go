@@ -732,6 +732,11 @@ func scanField(field string, raw json.RawMessage, hint string) (Finding, string,
 	if json.Unmarshal(raw, &v) != nil {
 		return Finding{}, "", false
 	}
+	if field == "auth" {
+		if f, s, ok := scanAuth(raw); ok {
+			return f, s, true
+		}
+	}
 	name := field
 	if field == "value" {
 		name = hint
@@ -743,6 +748,27 @@ func scanField(field string, raw json.RawMessage, hint string) (Finding, string,
 		if f, ok := scanQuery(u); ok {
 			return f, u, true
 		}
+	}
+	return Finding{}, "", false
+}
+
+// scanAuth holds a request auth's typed-in password, token or key whatever
+// its name (RedactRequest's rule): the detector's span if it has one, else
+// the whole trimmed value.
+func scanAuth(raw json.RawMessage) (Finding, string, bool) {
+	var a Auth
+	if json.Unmarshal(raw, &a) != nil {
+		return Finding{}, "", false
+	}
+	for _, v := range []string{a.Pass, a.Token, a.Value} {
+		if !literalCredential(v) {
+			continue
+		}
+		if fs := Detect("", v); len(fs) > 0 {
+			return fs[0], v, true
+		}
+		s, e := trimmedSpan(v)
+		return Finding{Rule: "literal_credential", Start: s, End: e}, v, true
 	}
 	return Finding{}, "", false
 }
