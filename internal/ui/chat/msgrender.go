@@ -213,7 +213,7 @@ func renderMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle)
 	case ui.DensityLine:
 		return []string{lineMessage(ctx, t, m, st)}
 	case ui.DensityMinimal:
-		return []string{minimalMessage(t, m, st)}
+		return []string{minimalMessage(ctx, t, m, st)}
 	case ui.DensityBubble:
 		return bubbleMessage(ctx, t, m, mine, st)
 	default:
@@ -258,15 +258,22 @@ func lineMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle) s
 	return fit(head+body+suffix, st.Width)
 }
 
-// minimalMessage: "이름(6칸) 본문(Plain)" on one line.
-func minimalMessage(t *theme.Theme, m *api.Message, st msgStyle) string {
+// minimalMessage: "이름(6칸) 본문(Plain)" on one line (a registered card: its
+// first line).
+func minimalMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle) string {
 	name := textwidth.Truncate(widgets.UserName(t, m.Author, false), minimalNameMax, "…") + blank(t, 1)
 	room := st.Width - textwidth.Width(name)
 	body := ""
 	if room > 0 {
-		if m.Deleted {
+		var card []string
+		switch {
+		case m.Deleted:
 			body = t.S.Deleted.Render(textwidth.Truncate(deletedText, room, "…"))
-		} else {
+		case cardLines(ctx, m, room, &card):
+			if len(card) > 0 {
+				body = card[0]
+			}
+		default:
 			body = t.S.Base.Render(markup.Plain(plainBody(m), room))
 		}
 	}
@@ -368,6 +375,7 @@ func bodyLines(ctx *ui.Context, t *theme.Theme, m *api.Message, width int) []str
 		for _, l := range textwidth.Wrap(rollText(*m.Roll), width) {
 			out = append(out, t.S.Base.Render(l))
 		}
+	case m.Kind == api.MessageKindCard && cardLines(ctx, m, width, &out):
 	default:
 		out = markup.Render(markup.Parse(m.Body, markup.ParseOptions{Hashtags: false}), t, renderOpts(ctx, m, width, false))
 	}
@@ -387,12 +395,37 @@ func compactBody(ctx *ui.Context, t *theme.Theme, m *api.Message, width int) str
 	case m.Kind == "roll" && m.Roll != nil:
 		return t.S.Base.Render(textwidth.Truncate(rollText(*m.Roll), width, "…"))
 	}
+	var card []string
+	if cardLines(ctx, m, width, &card) {
+		if len(card) > 0 {
+			return card[0]
+		}
+		return ""
+	}
 	o := renderOpts(ctx, m, width, true)
 	o.MaxLines = 1
 	if ls := markup.Render(markup.Parse(m.Body, markup.ParseOptions{Hashtags: false}), t, o); len(ls) > 0 {
 		return ls[0]
 	}
 	return ""
+}
+
+// cardLines draws a card message of a registered type into *out, each line cut
+// to width (a renderer that overflows cannot break the pane), and reports
+// whether it did. Unknown types and non-card messages => false: the body is
+// drawn as markup like any text message (api.md 5.10 fallback).
+func cardLines(ctx *ui.Context, m *api.Message, width int, out *[]string) bool {
+	cr, ok := ui.MessageCard(m)
+	if !ok {
+		return false
+	}
+	ls := cr.Lines(ctx, m, width)
+	lines := make([]string, 0, len(ls))
+	for _, l := range ls {
+		lines = append(lines, fit(l, width))
+	}
+	*out = lines
+	return true
 }
 
 // plainBody is the text Plain previews (poll question, roll result, body).

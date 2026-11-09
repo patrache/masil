@@ -136,9 +136,18 @@ func run(ctx context.Context, o Options, d deps) error {
 		cfg:      o.Config,
 		osLang:   i18n.DetectOS(),
 	}
-	dm.lang = resolveLanguage(dm.osLang, o.Config)
+	dm.setLang(resolveLanguage(dm.osLang, o.Config))
 	dm.desktop.Store(o.Config.Notify.Desktop)
 	return dm.loop(ctx)
+}
+
+// setLang records the effective language: the next session's Accept-Language
+// and, right away, the language OS notifications render alert templates in.
+func (dm *daemon) setLang(l i18n.Locale) {
+	dm.lang = l
+	if s, ok := dm.notifier.(interface{ setLocale(i18n.Locale) }); ok {
+		s.setLocale(l)
+	}
 }
 
 // resolveLanguage decides the daemon's language from [ui] language and the
@@ -260,7 +269,7 @@ func (dm *daemon) reloadConfig() {
 	dm.reloadWarned = false
 	dm.cfg = c
 	if l := resolveLanguage(dm.osLang, c); l != dm.lang {
-		dm.lang = l // read when the next session starts
+		dm.setLang(l) // Accept-Language: read when the next session starts
 		dm.log.Info("language changed", "lang", string(l))
 	}
 	if old := dm.desktop.Swap(c.Notify.Desktop); old != c.Notify.Desktop {

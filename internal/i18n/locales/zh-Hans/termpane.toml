@@ -1,0 +1,2 @@
+[exec_return]
+other = "使用 {program} 期间 · 新消息 {messages} · 提及 {mentions}"

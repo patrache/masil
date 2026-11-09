@@ -1,0 +1,50 @@
+[doc_comment_mention_title]
+other = "{actor} mentioned you in a comment on {doc} · {space}"
+
+[focus_summary_body]
+other = "Thread replies {thread_reply} · Invites {invite} · Friend requests {friend_request} · Other {other}"
+
+[focus_summary_title]
+other = "Focus ended — mentions {mention}, DMs {dm}"
+
+[invite_space_title]
+other = "{actor} invited you to {space}"
+
+[message_channel_title]
+other = "{actor} · {space} #{channel}"
+
+[message_dm_title]
+other = "{actor}"
+
+[message_group_title]
+other = "{actor} · {group}"
+
+[post_like_title]
+other = "{actor} liked your post"
+
+[post_mention_title]
+other = "{actor} mentioned you in a post"
+
+[post_quote_title]
+other = "{actor} quoted your post"
+
+[post_reply_title]
+other = "{actor} replied to your post"
+
+[post_repost_title]
+other = "{actor} reposted your post"
+
+[social_follow_accepted_title]
+other = "{actor} accepted your follow request"
+
+[social_follow_request_title]
+other = "{actor} asked to follow you"
+
+[social_follow_title]
+other = "{actor} followed you"
+
+[social_friend_request_title]
+other = "{actor} sent you a friend request"
+
+[social_guestbook_title]
+other = "{actor} signed your guestbook"

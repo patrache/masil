@@ -254,3 +254,48 @@ func TestHarnessDefaults(t *testing.T) {
 		t.Fatalf("default size = %dx%d, want 120x40", l.Cols, l.Rows)
 	}
 }
+
+// ctx.Post from a goroutine is recorded, not delivered, until Flush: Send never
+// drains it on its own (tests choose the moment a goroutine's result lands).
+func TestHarnessPostFlush(t *testing.T) {
+	h, p, rec := withProbe(t, func(ctx *ui.Context, msg tea.Msg) tea.Cmd {
+		if msg.(probeMsg) == "go" {
+			post := ctx.Post
+			go func() {
+				post.Post(probeMsg("from-goroutine-1"))
+				post.Coalesce("k", probeMsg("dirty-a"))
+				post.Coalesce("k", probeMsg("dirty-b"))
+				post.Post(probeMsg("from-goroutine-2"))
+			}()
+		}
+		return nil
+	})
+	if h.Context().Post == nil {
+		t.Fatal("ctx.Post is nil")
+	}
+	h.Send(probeMsg("go"))
+	h.WaitPosted(3, time.Second)
+	if got := gotNames(p); !reflect.DeepEqual(got, []string{"go"}) {
+		t.Fatalf("delivered before Flush: %v", got)
+	}
+	h.Send(probeMsg("other"))
+	if got := gotNames(p); !reflect.DeepEqual(got, []string{"go", "other"}) {
+		t.Fatalf("Send drained the posts: %v", got)
+	}
+	h.Flush()
+	want := []string{"go", "other", "from-goroutine-1", "dirty-b", "from-goroutine-2"}
+	if got := gotNames(p); !reflect.DeepEqual(got, want) {
+		t.Fatalf("after Flush = %v, want %v", got, want)
+	}
+	h.Flush() // empty: no-op
+	if len(rec.errs) != 0 || rec.fatals != 0 {
+		t.Fatalf("unexpected reports: %v", rec.errs)
+	}
+
+	// WaitPosted reports a Fatal when the posts never come.
+	h2, _, rec2 := withProbe(t, nil)
+	h2.WaitPosted(1, 20*time.Millisecond)
+	if rec2.fatals != 1 {
+		t.Fatalf("WaitPosted timeout fatals = %d, want 1", rec2.fatals)
+	}
+}

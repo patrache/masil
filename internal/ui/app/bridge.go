@@ -13,13 +13,15 @@ import (
 
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
 )
 
 // Realtime bridge (CA 5.3.4 step 5, CA 5.4 start order, idle, watch): the realtime
-// client runs on its own goroutine and reaches the UI only through m.send
-// (tea.Program.Send) as ui.EventMsg / ui.RealtimeStateMsg. Every Store access stays on
+// client runs on its own goroutine and reaches the UI only through the delivery
+// queue (deliver.go, then tea.Program.Send) as ui.EventMsg / ui.RealtimeStateMsg;
+// a full queue drops events and queues resyncNeededMsg instead. Every Store access stays on
 // the Update goroutine.
 
 // Bridge timings (CA 5.4, CA 5.3.2 timers).
@@ -82,20 +84,26 @@ func (m *Model) startRealtime() tea.Cmd {
 	}
 	m.rtGen++
 	run := &rtRun{}
-	send := m.send
+	q := m.queue() // the realtime goroutine only queues: it never waits for Update
+	me, notifier, now, excl := m.creds.UserID, m.notifier, m.ctx.Now, &m.excl
+	excl.noteConfig(m.ctx)
 	c := realtime.New(realtime.Options{
 		API:      m.ctx.API,
 		DeviceID: devID,
 		Mode:     realtime.ModeFull,
 		Resume:   m.resume,
 		OnEvent: func(ev realtime.Event) {
-			if !run.stopped.Load() {
-				send(ui.EventMsg{Event: ev})
+			if run.stopped.Load() {
+				return
 			}
+			if termhost.Exclusive() { // Update is suspended: pop alerts and count here
+				excl.observe(ev, me, notifier, now)
+			}
+			q.push(ui.EventMsg{Event: ev})
 		},
 		OnState: func(st realtime.State) {
 			if !run.stopped.Load() {
-				send(ui.RealtimeStateMsg{State: st})
+				q.push(ui.RealtimeStateMsg{State: st})
 			}
 		},
 		Logger: slog.Default(),

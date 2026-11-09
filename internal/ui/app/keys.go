@@ -319,9 +319,8 @@ func (m *Model) openAlertToast() tea.Cmd {
 	}
 	for _, it := range m.toasts.newestFirst() {
 		if it.msg.Kind == ui.ToastAlert && it.msg.Route != nil {
-			r := *it.msg.Route
 			m.toasts.remove(it.id)
-			return m.applyNavigate(ui.NavigateMsg{Route: r})
+			return m.openToastTarget(it)
 		}
 	}
 	return nil

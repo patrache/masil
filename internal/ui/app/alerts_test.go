@@ -415,3 +415,105 @@ func TestAlertOSNotificationOffUpdate(t *testing.T) {
 		t.Fatalf("OS notifications after the Cmd = %+v, want ALCMD once", h.Notify.Shown)
 	}
 }
+
+// An alert whose target type core does not know asks ui.AlertTargetCmd (P2-P4
+// register "workspace_share", "doc:arch", "doc:apicol"); enter on its toast
+// runs the registered Cmd instead of opening the inbox. A registered func
+// returning nil (its tool's flag is off) opens nothing (CA 5.3.6); an
+// unregistered type keeps the 0.1.2 inbox fallback.
+func TestAlertEnterUsesRegistry(t *testing.T) {
+	t.Cleanup(ui.SnapshotRegistryForTest())
+	var opened []string
+	ui.RegisterAlertTarget("doc:arch", func(_ *ui.Context, a api.Alert) tea.Cmd {
+		return func() tea.Msg { opened = append(opened, a.Target.ID); return nil }
+	})
+	ui.RegisterAlertTarget("doc", func(*ui.Context, api.Alert) tea.Cmd { return nil }) // flag off
+
+	h := uitest.New(t)
+	before := h.Nav()
+	arch := api.Alert{ID: "RD1", Kind: api.AlertMention, Title: "문서 멘션", Body: "보세요",
+		Target: api.AlertTarget{Type: "doc", ID: "DOC1", DocType: "arch"}, CreatedAt: h.Clock().Now()}
+	sendAlert(h, arch)
+	if !hasAlertToast(h) {
+		t.Fatalf("no ToastAlert\n%s", h.Screen())
+	}
+	if len(opened) != 0 {
+		t.Fatal("the alert itself must not open the target")
+	}
+	h.Press("enter")
+	if !reflect.DeepEqual(opened, []string{"DOC1"}) {
+		t.Fatalf("registered target opened = %v, want [DOC1]", opened)
+	}
+	if !reflect.DeepEqual(h.Nav(), before) {
+		t.Fatalf("registered target must not navigate: %+v", h.Nav())
+	}
+	if hasAlertToast(h) {
+		t.Fatal("the opened toast is dismissed")
+	}
+
+	// doc_type apicol falls to "doc", whose func returns nil => nothing opens.
+	api2 := arch
+	api2.ID, api2.Target.DocType = "RD2", "apicol"
+	sendAlert(h, api2)
+	h.Press("enter")
+	if n := h.Nav(); !reflect.DeepEqual(n, before) || len(opened) != 1 {
+		t.Fatalf("nil Cmd: nav = %+v opened = %v, want nothing opened", n, opened)
+	}
+	if hasAlertToast(h) {
+		t.Fatal("the nil-Cmd toast is dismissed")
+	}
+
+	// An unregistered unknown type keeps the inbox fallback.
+	share := arch
+	share.ID, share.Target = "RD5", api.AlertTarget{Type: "workspace_share", ID: "WS1"}
+	sendAlert(h, share)
+	h.Press("enter")
+	if n := h.Nav(); !navShows(n, app.NotifRoute) || len(opened) != 1 {
+		t.Fatalf("unregistered: nav = %+v opened = %v, want the inbox", n, opened)
+	}
+
+	// A click on the toast takes the same path.
+	h2 := uitest.New(t)
+	arch.ID = "RD3"
+	sendAlert(h2, arch)
+	box := h2.Model.Frame().Toast
+	if box == nil {
+		t.Fatalf("no toast box\n%s", h2.Screen())
+	}
+	h2.Click(box.Rect.X+2, box.Rect.Y+1)
+	if !reflect.DeepEqual(opened, []string{"DOC1", "DOC1"}) {
+		t.Fatalf("click: opened = %v", opened)
+	}
+	// A click on a nil-Cmd toast opens nothing either.
+	before2 := h2.Nav()
+	api2.ID = "RD4"
+	sendAlert(h2, api2)
+	box = h2.Model.Frame().Toast
+	if box == nil {
+		t.Fatalf("no toast box\n%s", h2.Screen())
+	}
+	h2.Click(box.Rect.X+2, box.Rect.Y+1)
+	if n := h2.Nav(); !reflect.DeepEqual(n, before2) || len(opened) != 2 {
+		t.Fatalf("click nil Cmd: nav = %+v opened = %v, want nothing opened", n, opened)
+	}
+	if hasAlertToast(h2) {
+		t.Fatal("the clicked nil-Cmd toast is dismissed")
+	}
+}
+
+// The toast and the OS notification render the template from the catalog, not
+// the server's fallback title.
+func TestAlertToastUsesTemplate(t *testing.T) {
+	h := uitest.New(t)
+	a := api.Alert{ID: "RT1", Kind: api.AlertSocial, Title: "옛 서버 제목",
+		Template:  &api.AlertTemplate{ID: "social.follow", Params: map[string]any{"actor": "하나"}},
+		Target:    api.AlertTarget{Type: "user", ID: fixtures.UserMinji},
+		CreatedAt: h.Clock().Now()}
+	sendAlert(h, a)
+	if !strings.Contains(h.Screen(), "하나님이 팔로우했어요") {
+		t.Fatalf("toast lacks the rendered template\n%s", h.Screen())
+	}
+	if len(h.Notify.Shown) != 1 || h.Notify.Shown[0].Title != "하나님이 팔로우했어요" {
+		t.Fatalf("OS notification = %+v", h.Notify.Shown)
+	}
+}

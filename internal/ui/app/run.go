@@ -31,10 +31,12 @@ func runProgram(ctx context.Context, m *Model, opts ...tea.ProgramOption) error 
 	}
 	p := tea.NewProgram(m, append([]tea.ProgramOption{tea.WithContext(ctx)}, opts...)...)
 	m.send = p.Send
+	m.queue() // ctx.Post and the realtime bridge deliver through it
 	_, err = p.Run()
 
 	// The event loop is over: nothing else touches m now.
 	m.stopRealtime()
+	m.closeQueue()
 	m.send = nil
 	if m.creds != nil {
 		if werr := writeState(m.ctx.Paths, m.savedState()); werr != nil {

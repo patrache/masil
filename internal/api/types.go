@@ -388,7 +388,7 @@ type Message struct {
 	ID           string            `json:"id"`
 	ChannelID    string            `json:"channel_id"`
 	Author       UserSummary       `json:"author"`
-	Kind         string            `json:"kind"` // text|me|roll|poll|system
+	Kind         string            `json:"kind"` // text|me|roll|poll|system|card
 	Body         string            `json:"body"`
 	Mentions     []MentionRef      `json:"mentions"`
 	MentionHere  bool              `json:"mention_here"`
@@ -399,10 +399,23 @@ type Message struct {
 	Poll         *Poll             `json:"poll"`
 	Roll         *RollResult       `json:"roll"`
 	System       *SystemEvent      `json:"system"`
+	Card         *Card             `json:"card"` // v0.1.3: set iff Kind == MessageKindCard
 	ClientNonce  *string           `json:"client_nonce"`
 	CreatedAt    time.Time         `json:"created_at"`
 	EditedAt     *time.Time        `json:"edited_at"`
 	Deleted      bool              `json:"deleted"`
+}
+
+// MessageKindCard is Message.kind "card" (v0.1.3, C1.2): one kind for every
+// tool card; Card.Type tells them apart and Body is the fallback summary.
+const MessageKindCard = "card"
+
+// Card is Message.card (api.md 2): a tool card's type, schema version and
+// per-type data (kept raw; each tool's renderer decodes its own shape).
+type Card struct {
+	Type string          `json:"type"`
+	V    int             `json:"v"`
+	Data json.RawMessage `json:"data"`
 }
 
 // QuotedPost is a union discriminated by "available".
@@ -510,17 +523,31 @@ type Alert struct {
 	CreatedAt        time.Time    `json:"created_at"`
 	Suppressed       bool         `json:"suppressed"`        // focus/dnd: no OS notification
 	SuppressedReason *string      `json:"suppressed_reason"` // focus|dnd|null
+	// Template is what the client renders from its catalog (notify.Render);
+	// Title/Body are the server's fallback in the request language. nil on
+	// alerts from an older server or an older stored record.
+	Template *AlertTemplate `json:"template"`
+}
+
+// AlertTemplate is Alert.template: an id registered in
+// docs/contract/i18n/alert-templates.json and its params (strings and JSON
+// numbers — float64 after decoding).
+type AlertTemplate struct {
+	ID     string         `json:"id"`
+	Params map[string]any `json:"params"`
 }
 
 // AlertTarget is Alert.target.
 type AlertTarget struct {
-	Type         string  `json:"type"` // channel|message|post|space|user|notification
+	Type         string  `json:"type"` // channel|message|post|space|user|notification|doc (P0 0.1.3) — unknown types go to ui.AlertTargetCmd
 	ID           string  `json:"id"`
 	ChannelID    *string `json:"channel_id"`
 	MessageID    *string `json:"message_id"`
 	ThreadRootID *string `json:"thread_root_id"`
 	PostID       *string `json:"post_id"`
 	SpaceID      *string `json:"space_id"`
+	// DocType is "arch" | "apicol" when Type == "doc" (absent otherwise).
+	DocType string `json:"doc_type,omitempty"`
 }
 
 // FocusSummary summarizes a finished focus session.

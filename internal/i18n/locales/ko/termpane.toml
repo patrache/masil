@@ -1,0 +1,4 @@
+[exec_return]
+desc = "토스트: 화면 전환(exec)으로 띄운 프로그램에서 masil 로 돌아왔을 때, 그동안 온 남의 새 메시지·멘션 개수. program = 프로그램 이름(lazygit 등, 번역하지 않음)"
+params = { program = "string", messages = "int", mentions = "int" }
+other = "{program} 쓰는 동안 · 새 메시지 {messages} · 멘션 {mentions}"

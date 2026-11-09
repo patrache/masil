@@ -548,6 +548,9 @@ func (v *threadView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.
 	if v.pane.escDrag(ctx, msg) {
 		return true, nil
 	}
+	if handled, cmd := v.pane.cardKey(ctx, msg); handled {
+		return true, cmd
+	}
 	if ctx.Keys.Matches(msg, keymap.ComposeFocus) {
 		if v.inputBlocked(ctx) {
 			return false, nil

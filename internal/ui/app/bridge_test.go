@@ -332,3 +332,123 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 	}
 	return b
 }
+
+// A6.3 #1 in short: while the UI is stuck the realtime goroutine keeps reading
+// and pinging (it only pushes to the queue), and once the UI is free again every
+// event arrives in the order the server sent it.
+func TestBridgeKeepsPingingWhileUIBlocked(t *testing.T) {
+	m, _, _, _ := bridgeModel(t)
+	var mu sync.Mutex
+	var delivered []string
+	gate := make(chan struct{})
+	m.send = func(msg tea.Msg) {
+		<-gate
+		if e, ok := msg.(ui.EventMsg); ok {
+			mu.Lock()
+			delivered = append(delivered, e.Event.Type+":"+string(e.Event.Data))
+			mu.Unlock()
+		}
+	}
+	conn := newBridgeConn()
+	m.rtDial = func(ctx context.Context, url string, h http.Header) (realtime.Conn, error) { return conn, nil }
+	m.startRealtime()
+
+	pings := make(chan struct{}, 1000)
+	closed := make(chan struct{})
+	go func() { // drain the client's frames, counting pings
+		for {
+			select {
+			case b := <-conn.out:
+				var f struct {
+					Type string `json:"type"`
+				}
+				if json.Unmarshal(b, &f) == nil && f.Type == "ping" {
+					pings <- struct{}{}
+				}
+			case <-conn.done:
+				close(closed)
+				return
+			}
+		}
+	}()
+	h := helloData()
+	h["heartbeat_interval_ms"] = 20
+	conn.push(t, "hello", nil, h)
+	conn.push(t, "ready", nil, readyData(false, false))
+
+	// UI blocked for 3s (plan Task 10) while the server sends 5 events a second (+ pongs).
+	var want []string
+	blockedUntil := time.Now().Add(3 * time.Second)
+	seen := 0
+	for i := 1; time.Now().Before(blockedUntil); i++ {
+		data := map[string]any{"user_id": fixtures.UserMinji, "n": i}
+		conn.push(t, "typing", nil, data)
+		want = append(want, "typing:"+string(mustJSON(t, data)))
+		deadline := time.After(200 * time.Millisecond)
+	wait:
+		for {
+			select {
+			case <-pings:
+				seen++
+				conn.push(t, "pong", nil, map[string]any{})
+			case <-deadline:
+				break wait
+			}
+		}
+	}
+	select {
+	case <-closed:
+		t.Fatal("the connection closed while the UI was blocked")
+	default:
+	}
+	if seen < 10 {
+		t.Fatalf("only %d pings while the UI was blocked, want the heartbeat to keep running", seen)
+	}
+	close(gate)
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		mu.Lock()
+		got := slices.Clone(delivered)
+		mu.Unlock()
+		var typing []string
+		for _, d := range got {
+			if strings.HasPrefix(d, "typing:") {
+				typing = append(typing, d)
+			}
+		}
+		if len(typing) == len(want) {
+			if !slices.Equal(typing, want) {
+				t.Fatalf("delivery order %v, want %v", typing, want)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("delivered %d of %d events", len(typing), len(want))
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// The queue's resyncNeededMsg runs the bootstrap; another one while that
+// bootstrap is in flight runs it once more afterwards (bootAgain — events were
+// dropped after the snapshot may have been taken), never more.
+func TestResyncNeededRunsBootstrapOnce(t *testing.T) {
+	m, srv, _, _ := bridgeModel(t)
+	m.ctx.Store.Sync.Ready = true
+	drive(t, m, resyncNeededMsg{})
+	if n := meRequests(srv); n != 1 {
+		t.Fatalf("one resync: GET /v1/me = %d, want 1", n)
+	}
+	// Two more while the next bootstrap is in flight.
+	_, boot := m.Update(resyncNeededMsg{})
+	_, again := m.Update(resyncNeededMsg{})
+	if again != nil {
+		t.Fatal("a resync during the flight must not start a second bootstrap now")
+	}
+	for _, msg := range runCmd(boot) {
+		drive(t, m, msg)
+	}
+	if n := meRequests(srv); n != 3 {
+		t.Fatalf("resyncs during a flight: GET /v1/me = %d, want 3 (1 + the flight + one bootAgain)", n)
+	}
+}

@@ -30,6 +30,9 @@ type toastExpireMsg struct{ id int }
 type toastItem struct {
 	id  int
 	msg ui.ToastMsg
+	// alert is set on an alert toast whose target core does not know: opening it
+	// asks ui.AlertTargetCmd first (Model.openToastTarget).
+	alert *api.Alert
 }
 
 // toastHit maps screen rows [y0, y1) of the toast box to the toast drawn there.
@@ -52,6 +55,13 @@ func (s *toastState) push(ctx *ui.Context, t ui.ToastMsg) tea.Cmd {
 		s.items = slices.Delete(s.items, 0, n)
 	}
 	return ui.After(ctx, toastTTL, toastExpireMsg{id: s.next})
+}
+
+// pushAlert is push for an alert toast whose target opens through ui.AlertTargetCmd.
+func (s *toastState) pushAlert(ctx *ui.Context, t ui.ToastMsg, a api.Alert) tea.Cmd {
+	cmd := s.push(ctx, t)
+	s.items[len(s.items)-1].alert = &a
+	return cmd
 }
 
 // remove drops the toast with id (no-op when it is already gone).
@@ -167,16 +177,20 @@ func (m *Model) clickToast(msg tea.MouseClickMsg) (tea.Cmd, bool) {
 			hit = h
 		}
 	}
-	var route *ui.Route
+	var open *toastItem
 	for _, it := range m.toasts.items {
 		if it.id == hit.id && it.msg.Route != nil {
-			rt := *it.msg.Route
-			route = &rt
+			open = &it
 		}
 	}
 	m.toasts.remove(hit.id)
-	if route == nil {
+	if open == nil {
 		return nil, true
 	}
-	return ui.Navigate(*route), true
+	if open.alert != nil {
+		if cmd, ok := ui.AlertTargetCmd(m.ctx, *open.alert); ok {
+			return cmd, true // nil when its tool's flag is off: nothing opens
+		}
+	}
+	return ui.Navigate(*open.msg.Route), true
 }

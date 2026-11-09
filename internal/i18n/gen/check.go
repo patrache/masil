@@ -87,6 +87,11 @@ func checkKey(k *Key, fail func(*Key, string, ...any)) {
 		fail(k, "count must name an int param, got %q", k.Count)
 	}
 	want := sortedKeys(declared)
+	// Alert templates follow the server rule (api.md alert templates): each
+	// language uses a subset of the declared params, all languages together
+	// use every one (ko doc.comment_mention leaves {space} out).
+	subset := k.Area == alertsArea
+	union := map[string]bool{}
 	for _, lang := range langs {
 		r := k.Text[lang]
 		if r == nil {
@@ -128,11 +133,28 @@ func checkKey(k *Key, fail func(*Key, string, ...any)) {
 				}
 			}
 		}
-		if got := sortedKeys(used); !slices.Equal(got, want) {
-			fail(k, "params differ in %s: uses %v, declared %v", lang, got, want)
+		got := sortedKeys(used)
+		if !subset {
+			if !slices.Equal(got, want) {
+				fail(k, "params differ in %s: uses %v, declared %v", lang, got, want)
+			}
+			continue
+		}
+		for _, p := range got {
+			union[p] = true
+			if _, ok := declared[p]; !ok {
+				fail(k, "params differ in %s: uses %v, declared %v", lang, got, want)
+				break
+			}
 		}
 	}
+	if got := sortedKeys(union); subset && !slices.Equal(got, want) {
+		fail(k, "params differ across languages: use %v, declared %v", got, want)
+	}
 }
+
+// alertsArea holds the alert templates (key = template id with "." as "_").
+const alertsArea = "alerts"
 
 func forms(r *Raw) []string {
 	var out []string

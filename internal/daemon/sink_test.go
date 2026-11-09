@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 )
 
@@ -32,7 +33,7 @@ func TestLedgerSinkShowsFormattedTextOnly(t *testing.T) {
 	if len(all) != 1 {
 		t.Fatalf("shown %d", len(all))
 	}
-	want := notify.Format(api.Alert{ID: "H1", Title: title, Body: body})
+	want := notify.Format(api.Alert{ID: "H1", Title: title, Body: body}, nil)
 	if all[0] != want {
 		t.Fatalf("backend got %+v, want Format output %+v", all[0], want)
 	}
@@ -51,5 +52,31 @@ func TestLedgerSinkShowsFormattedTextOnly(t *testing.T) {
 	}
 	if out := logs.String(); strings.Contains(out, "Start-Process") || strings.Contains(out, "do shell script") {
 		t.Fatalf("title/body logged:\n%s", out)
+	}
+}
+
+// The daemon renders alert templates from its catalog in its effective
+// language; an alert without a template keeps the server's text.
+func TestLedgerSinkRendersTemplate(t *testing.T) {
+	p := testPaths(t)
+	rec := &lockedRecorder{}
+	s := newLedgerSink(rec, notify.OpenLedger(p), nil)
+	in := notify.Input{Role: notify.RoleDaemon, Now: t0, DesktopEnabled: true}
+	follow := func(id string) api.Alert {
+		return api.Alert{ID: id, Kind: api.AlertDM, Title: "server", CreatedAt: t0,
+			Template: &api.AlertTemplate{ID: "message.dm", Params: map[string]any{"actor": "하나"}}, Body: "안녕"}
+	}
+	if _, shown, err := s.Handle(follow("T1"), in); !shown || err != nil {
+		t.Fatalf("Handle: shown=%v err=%v", shown, err)
+	}
+	s.setLocale(i18n.En)
+	g := follow("T2")
+	g.Template = &api.AlertTemplate{ID: "social.follow", Params: map[string]any{"actor": "하나"}}
+	if _, shown, err := s.Handle(g, in); !shown || err != nil {
+		t.Fatalf("Handle: shown=%v err=%v", shown, err)
+	}
+	all := rec.all()
+	if len(all) != 2 || all[0].Title != "하나" || all[0].Body != "안녕" || all[1].Title != "하나 followed you" {
+		t.Fatalf("shown = %+v", all)
 	}
 }

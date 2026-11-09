@@ -72,5 +72,5 @@ func (n *Notifier) Show(a api.Alert) error {
 	if !isNew || n.backend == nil {
 		return nil
 	}
-	return n.backend.Show(Format(a))
+	return n.backend.Show(Format(a, i18n.For(n.Locale())))
 }

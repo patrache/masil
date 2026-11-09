@@ -101,8 +101,9 @@ type Model struct {
 	upgradeRequired bool // 426 / close 4010 seen: status "✕ 업데이트 필요"
 
 	// Realtime bridge (Task 30, bridge.go).
-	send         func(tea.Msg) // tea.Program.Send (Run); nil = no realtime, hooks only set flags
-	rtDial       dialFunc      // tests: scripted socket (nil = coder/websocket)
+	send         func(tea.Msg)              // tea.Program.Send (Run); nil = no realtime, hooks only set flags
+	q            atomic.Pointer[eventQueue] // non-blocking delivery to send (deliver.go); nil until a sender exists
+	rtDial       dialFunc                   // tests: scripted socket (nil = coder/websocket)
 	rt           *realtime.Client
 	rtRun        *rtRun
 	rtCancel     context.CancelFunc
@@ -111,6 +112,7 @@ type Model struct {
 	offRT        ui.Realtime          // the disabled no-op restored when realtime stops
 	readyThisRun bool                 // ready received on the current run
 	observe      func(tea.Msg)        // tests: sees every broadcast msg
+	excl         execWatch            // exec-mode alerts and the return toast (exclusive.go)
 
 	// Bootstrap / resync (Task 30, sync.go).
 	booting       bool // a bootstrap is in flight
@@ -223,6 +225,7 @@ func New(o Options) *Model {
 		Loc:    loc,
 		T:      i18n.For(res.Effective),
 		Lang:   res.Effective,
+		Post:   appPoster{m},
 	}
 	m.ctx.Keys.Localize(m.ctx.T) // help descriptions in the shown language
 	m.ctx.Clipboard = o.Clipboard
@@ -286,7 +289,7 @@ func (m *Model) Init() tea.Cmd {
 // focus session or a 429 cooldown is showing.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// API hook flags first (401 / 426 seen on an HTTP goroutine since the last Update).
-	pre := m.takeFlags()
+	pre := tea.Batch(m.takeFlags(), m.takeReturn())
 	var watch tea.Cmd
 	switch msg.(type) {
 	case tea.KeyPressMsg, tea.MouseMsg, tea.PasteMsg:
@@ -376,6 +379,10 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmd, m.broadcast(msg))
 	case readyTimeoutMsg:
 		return m, m.onReadyTimeout(msg)
+	case resyncNeededMsg: // the bridge queue overflowed and dropped events
+		return m, m.startBootstrap()
+	case ExecReturnedMsg: // the return toast follows termhost.Exclusive (takeReturn)
+		return m, nil
 	case bootstrapDoneMsg:
 		return m, m.onBootstrapDone(msg)
 	case bootstrapRetryMsg:
