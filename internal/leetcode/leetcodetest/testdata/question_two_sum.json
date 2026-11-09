@@ -1,0 +1,18 @@
+{
+  "data": {
+    "question": {
+      "questionId": "1",
+      "questionFrontendId": "1",
+      "titleSlug": "two-sum",
+      "title": "Two Sum",
+      "difficulty": "Easy",
+      "isPaidOnly": false,
+      "topicTags": [{"name": "Array", "slug": "array"}, {"name": "Hash Table", "slug": "hash-table"}],
+      "content": "<p>Test fixture: return the indices of the two numbers that add up to <code>target</code>.</p>",
+      "codeSnippets": [
+        {"lang": "Go", "langSlug": "golang", "code": "func twoSum(nums []int, target int) []int {\n    \n}"}
+      ],
+      "exampleTestcaseList": ["[2,7,11,15]\n9", "[3,2,4]\n6", "[3,3]\n6"]
+    }
+  }
+}
