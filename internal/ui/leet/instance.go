@@ -13,6 +13,7 @@ import (
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/termpane"
 )
 
 // One leet instance: "leet:today" (today's problem) or "leet:<date>/<slug>"
@@ -52,12 +53,25 @@ type instance struct {
 	tab     int  // widget sub-tab
 	reading bool // tiny: the problem's paged view
 	page    int  // tiny reading page
+
+	ed      codeEditor // the editor slot (nil = empty)
+	edFocus bool       // keys go to the editor
+	// where the last draw put the editor (Cursor)
+	edX, edY int
+	edShown  bool
+
+	runReqs, submitReqs int // run / submit requests taken (tests)
 }
 
 var (
-	_ ui.Component  = (*instance)(nil)
-	_ ui.KeyHandler = (*instance)(nil)
-	_ ui.Titled     = (*instance)(nil)
+	_ ui.Component     = (*instance)(nil)
+	_ ui.KeyHandler    = (*instance)(nil)
+	_ ui.Titled        = (*instance)(nil)
+	_ ui.KeyGrabber    = (*instance)(nil)
+	_ ui.InputCapturer = (*instance)(nil)
+	_ ui.Cursorer      = (*instance)(nil)
+	_ ui.StatusTexter  = (*instance)(nil)
+	_ ui.Closer        = (*instance)(nil)
 )
 
 func newInstance(_ *ui.Context, r ui.Route) ui.Component {
@@ -110,6 +124,40 @@ func fetchMe(ctx *ui.Context) tea.Cmd {
 
 func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
+	case runRequestedMsg:
+		if m.id == in.id {
+			return in.runRequested(ctx)
+		}
+		return nil
+	case submitRequestedMsg:
+		if m.id == in.id {
+			return in.submitRequested(ctx)
+		}
+		return nil
+	case termpane.ExitedMsg:
+		switch m.InstanceID {
+		case in.id + execSuffix: // E ended: the slot shows what it wrote
+			if in.ed != nil {
+				if err := in.ed.Reload(); err != nil {
+					return ui.Toast(ctx.T.Leetcode.FileFailed(), ui.ToastError)
+				}
+			}
+			return nil
+		case in.id: // nvim in the pane ended
+			if p, ok := in.ed.(*paneEditor); ok {
+				cmd := p.Update(ctx, msg)
+				in.ed, in.edFocus = nil, false
+				return cmd
+			}
+			return nil
+		}
+	case langChangedMsg, firstRunDoneMsg:
+		if in.ed != nil && in.canEdit() {
+			if p, err := leetcode.SolutionPath(solutionDir(ctx), in.date, in.q.FrontendID, in.q.Slug, currentLang(ctx)); err != nil || p != in.ed.Path() {
+				return in.dropEditor()
+			}
+		}
+		return nil
 	case ui.ResultMsg[*api.LeetMe]:
 		if m.Tag == meTag && m.Err == nil {
 			rememberMe(ctx, m.Value)
@@ -141,6 +189,20 @@ func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			return ui.Copy(ctx, m.url, ctx.T.Leetcode.LinkCopied())
 		}
 	}
+	if in.ed != nil {
+		return in.ed.Update(ctx, msg)
+	}
+	return nil
+}
+
+// runRequested / submitRequested: r, ctrl+\ r, :Run (Task 21 runs it).
+func (in *instance) runRequested(*ui.Context) tea.Cmd {
+	in.runReqs++
+	return nil
+}
+
+func (in *instance) submitRequested(*ui.Context) tea.Cmd {
+	in.submitReqs++
 	return nil
 }
 
@@ -167,7 +229,50 @@ func (in *instance) loaded(ctx *ui.Context, l *loaded) tea.Cmd {
 	return report(ctx, in.date, in.q)
 }
 
-func (in *instance) Resize(_ *ui.Context, size ui.Size) { in.size = size }
+func (in *instance) Resize(ctx *ui.Context, size ui.Size) {
+	in.size = size
+	in.layoutEditor(ctx)
+}
+
+// GrabsKeys: nvim in the pane has the keys (ctrl+c and tab included).
+func (in *instance) GrabsKeys() bool {
+	p, ok := in.ed.(*paneEditor)
+	return ok && in.edFocus && p.GrabsKeys()
+}
+
+// CapturesInput: the editor has the printable keys.
+func (in *instance) CapturesInput() bool {
+	return in.ed != nil && in.edFocus && in.ed.CapturesInput()
+}
+
+// Cursor is the editor's cursor, moved to its place in the instance.
+func (in *instance) Cursor() *tea.Cursor {
+	if in.ed == nil || !in.edFocus {
+		return nil
+	}
+	c := in.ed.Cursor()
+	if c == nil {
+		return nil
+	}
+	if !in.edShown {
+		return nil
+	}
+	cc := *c
+	cc.X += in.edX
+	cc.Y += in.edY
+	return &cc
+}
+
+// StatusText is the pane's "typing into nvim" line while it has the keys.
+func (in *instance) StatusText(ctx *ui.Context) (string, bool) {
+	if p, ok := in.ed.(*paneEditor); ok && in.edFocus {
+		return p.StatusText(ctx)
+	}
+	return "", false
+}
+
+// CloseTool ends nvim in the pane.
+func (in *instance) CloseTool(*ui.Context) tea.Cmd { return in.dropEditor() }
 
 func (in *instance) Title(ctx *ui.Context) (string, ui.Badge) {
 	return ctx.T.Leetcode.Name(), ui.Badge{}
@@ -175,6 +280,20 @@ func (in *instance) Title(ctx *ui.Context) (string, ui.Badge) {
 
 func (in *instance) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	k := msg.String()
+	if in.edActive(ctx) {
+		handled, cmd := in.ed.HandleKey(ctx, msg)
+		if g, ok := in.ed.(*goEditor); ok && g.takeLeave() {
+			in.edFocus = false
+			return true, cmd
+		}
+		if handled {
+			return true, cmd
+		}
+		if _, ok := in.ed.(*goEditor); ok {
+			return false, cmd // ctrl+c: the app's
+		}
+		// nvim left with ctrl+\ esc: the tool's keys
+	}
 	sp := splitFor(ctx.Mode, in.zoomed, in.size.W)
 	if sp.Tiny && in.reading {
 		switch k {
@@ -193,10 +312,10 @@ func (in *instance) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.C
 	}
 	if sp.Tabbed {
 		switch k {
-		case "right", "l":
+		case "right":
 			in.tab = (in.tab + 1) % tabCount
 			return true, nil
-		case "left", "h":
+		case "left":
 			in.tab = (in.tab + tabCount - 1) % tabCount
 			return true, nil
 		case "1", "2", "3":
@@ -207,6 +326,16 @@ func (in *instance) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.C
 	switch k {
 	case "o":
 		return true, in.openBrowser()
+	case "e":
+		return true, in.openEditor(ctx)
+	case "E":
+		return true, in.execEdit(ctx)
+	case "r":
+		return true, emit(runRequestedMsg{id: in.id})
+	case "s":
+		return true, emit(submitRequestedMsg{id: in.id})
+	case "l":
+		return true, in.cycleLang(ctx)
 	case "enter":
 		if sp.Tiny {
 			in.reading, in.page = true, 0
@@ -250,6 +379,7 @@ func (in *instance) View(ctx *ui.Context, _ bool) string {
 	if w <= 0 || h <= 0 {
 		return ""
 	}
+	in.edShown = false
 	th := themeOf(ctx)
 	sp := splitFor(ctx.Mode, in.zoomed, w)
 	var rows []string
@@ -327,12 +457,33 @@ func (in *instance) window(lines []string, h int) []string {
 	return lines[in.scroll:min(len(lines), in.scroll+h)]
 }
 
-// editorLines is the editor slot (Task 20 fills it).
+// editorLines is the editor slot: the editor, or how to open one.
 func (in *instance) editorLines(ctx *ui.Context, th *theme.Theme, w, h int) []string {
 	if w <= 0 || h <= 0 {
 		return nil
 	}
+	if in.ed != nil {
+		x, y, _, _, ok := in.edRect(ctx)
+		in.edX, in.edY, in.edShown = x, y, ok
+		return strings.Split(in.ed.View(ctx, in.edFocus), "\n")
+	}
 	return []string{th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.CodePlaceholder(), w, "…"))}
+}
+
+// hints is the bottom key line: the editor's while it has the keys.
+func (in *instance) hints(ctx *ui.Context, th *theme.Theme, wide string, w int) string {
+	t := ctx.T
+	if in.ed != nil && in.edFocus {
+		switch e := in.ed.(type) {
+		case *goEditor:
+			wide = t.Leetcode.RunUsesSavedGoeditor()
+		case *paneEditor:
+			if e.GrabsKeys() {
+				wide = t.Leetcode.RunUsesSaved()
+			}
+		}
+	}
+	return th.S.Dim.Render(textwidth.Truncate(wide, w, "…"))
 }
 
 // resultLines is the result slot (Task 21 fills it).
@@ -357,7 +508,7 @@ func (in *instance) viewSplit(ctx *ui.Context, th *theme.Theme, sp split, w, h i
 		for len(rows) < h-1 {
 			rows = append(rows, "")
 		}
-		return append(rows, th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.HintsWide(), w, "…")))
+		return append(rows, in.hints(ctx, th, ctx.T.Leetcode.HintsWide(), w))
 	}
 	left := in.window(in.problemLines(ctx, th, sp.Left), bodyH)
 	right := in.editorLines(ctx, th, sp.Right, bodyH)
@@ -372,7 +523,7 @@ func (in *instance) viewSplit(ctx *ui.Context, th *theme.Theme, sp split, w, h i
 		}
 		rows = append(rows, fitStyled(th, l, sp.Left)+rule+fitStyled(th, r, sp.Right))
 	}
-	return append(rows, th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.HintsWide(), w, "…")))
+	return append(rows, in.hints(ctx, th, ctx.T.Leetcode.HintsWide(), w))
 }
 
 // viewTabbed: the short head, the sub-tabs, the tab's body, the key hints.
@@ -416,12 +567,19 @@ func (in *instance) viewTabbed(ctx *ui.Context, th *theme.Theme, w, h int) []str
 		}
 		rows = append(rows, l)
 	}
-	return append(rows, th.S.Dim.Render(textwidth.Truncate(t.Leetcode.HintsWidget(), w, "…")))
+	return append(rows, in.hints(ctx, th, t.Leetcode.HintsWidget(), w))
 }
 
 // viewTiny: the status line and the keys, or the paged problem.
 func (in *instance) viewTiny(ctx *ui.Context, th *theme.Theme, w, h int) []string {
 	t := ctx.T
+	if in.ed != nil && in.edFocus && h > 1 { // the built-in editor gets the screen
+		rows := in.editorLines(ctx, th, w, h-1)
+		for len(rows) < h-1 {
+			rows = append(rows, "")
+		}
+		return append(rows[:h-1], in.hints(ctx, th, t.Leetcode.TinyActions(), w))
+	}
 	if in.reading {
 		lines := in.problemLines(ctx, th, w)
 		per := max(1, h-1)

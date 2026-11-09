@@ -25,3 +25,20 @@ func TestSplitFor(t *testing.T) {
 		}
 	}
 }
+
+func TestChooseEditor(t *testing.T) {
+	for _, c := range []struct {
+		paneOK bool
+		nvim   string
+		want   editorKind
+	}{
+		{true, "/usr/bin/nvim", editorPane},
+		{true, "", editorGoeditor},
+		{false, "/usr/bin/nvim", editorGoeditor},
+		{false, "", editorGoeditor},
+	} {
+		if got := chooseEditor(c.paneOK, c.nvim); got != c.want {
+			t.Errorf("chooseEditor(%v, %q) = %v, want %v", c.paneOK, c.nvim, got, c.want)
+		}
+	}
+}

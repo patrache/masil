@@ -95,6 +95,20 @@ var areaLeetcode = area{
 				En: {Other: "#daily is on in {space}"},
 			},
 		},
+		"editor_failed": {
+			desc: "토스트: 편집기를 열지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "편집기를 열지 못했어요"},
+				En: {Other: "Couldn't open the editor"},
+			},
+		},
+		"file_failed": {
+			desc: "토스트: 풀이 파일을 만들거나 읽지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "풀이 파일을 열지 못했어요"},
+				En: {Other: "Couldn't open the solution file"},
+			},
+		},
 		"first_run_dir": {
 			desc:   "첫 실행 안내: 풀이 파일이 저장될 폴더. dir = 폴더 경로(번역하지 않음)",
 			params: []Param{{Name: "dir", Type: "string"}},
@@ -226,6 +240,13 @@ var areaLeetcode = area{
 				En: {Other: "Daily LC"},
 			},
 		},
+		"no_external_editor": {
+			desc: "토스트: E(화면 전환 편집)를 눌렀지만 nvim 도 $EDITOR 도 없을 때. e = masil 안 편집기 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "nvim 도 $EDITOR 도 없어요 · e 로 masil 안 편집기를 쓰세요"},
+				En: {Other: "No nvim or $EDITOR · press e for masil's editor"},
+			},
+		},
 		"off": {
 			desc: "설정 값: 꺼짐",
 			max:  6,
@@ -287,11 +308,40 @@ var areaLeetcode = area{
 				En: {Other: "Results of r run · s submit show here"},
 			},
 		},
+		"run_uses_saved": {
+			desc: "편집기에 있을 때 맨 아래 안내: 실행·제출은 디스크에 저장(:w)한 파일 내용으로 한다. ctrl+\\ r/s 는 키 이름(번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장(:w)한 내용으로 실행해요 · ctrl+\\ r 실행 · ctrl+\\ s 제출"},
+				En: {Other: "Runs what you saved (:w) · ctrl+\\ r run · ctrl+\\ s submit"},
+			},
+		},
+		"run_uses_saved_goeditor": {
+			desc: "masil 안 편집기(goeditor)에 있을 때 맨 아래 안내: 저장한 내용으로 실행, :Run :Submit 명령, esc 두 번이면 편집기에서 나옴. 명령 이름은 번역하지 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장(:w)한 내용으로 실행해요 · :Run · :Submit · esc esc 나가기"},
+				En: {Other: "Runs what you saved (:w) · :Run · :Submit · esc esc leave"},
+			},
+		},
 		"save_failed": {
 			desc: "토스트: config.toml 에 설정을 저장하지 못했을 때(이번 실행에는 바뀐 값이 쓰임)",
 			text: map[Locale]Forms{
 				Ko: {Other: "설정을 저장하지 못했어요"},
 				En: {Other: "Could not save the setting"},
+			},
+		},
+		"save_file_failed": {
+			desc: "토스트: 풀이 파일을 저장(:w)하지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "풀이 파일을 저장하지 못했어요"},
+				En: {Other: "Couldn't save the solution file"},
+			},
+		},
+		"saved": {
+			desc:   "토스트: 풀이 파일을 저장(:w)했을 때. file = 파일 이름",
+			params: []Param{{Name: "file", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{file} 저장했어요"},
+				En: {Other: "Saved {file}"},
 			},
 		},
 		"settings_auto_status": {
@@ -493,6 +543,16 @@ func (a_ LeetcodeT) DailyEnabled(space string) string {
 	return a_.t.render(&areaLeetcode, "daily_enabled", false, 0, "space", space)
 }
 
+// EditorFailed: 토스트: 편집기를 열지 못했을 때
+func (a_ LeetcodeT) EditorFailed() string {
+	return a_.t.render(&areaLeetcode, "editor_failed", false, 0)
+}
+
+// FileFailed: 토스트: 풀이 파일을 만들거나 읽지 못했을 때
+func (a_ LeetcodeT) FileFailed() string {
+	return a_.t.render(&areaLeetcode, "file_failed", false, 0)
+}
+
 // FirstRunDir: 첫 실행 안내: 풀이 파일이 저장될 폴더. dir = 폴더 경로(번역하지 않음)
 func (a_ LeetcodeT) FirstRunDir(dir string) string {
 	return a_.t.render(&areaLeetcode, "first_run_dir", false, 0, "dir", dir)
@@ -578,6 +638,11 @@ func (a_ LeetcodeT) Name() string {
 	return a_.t.render(&areaLeetcode, "name", false, 0)
 }
 
+// NoExternalEditor: 토스트: E(화면 전환 편집)를 눌렀지만 nvim 도 $EDITOR 도 없을 때. e = masil 안 편집기 키
+func (a_ LeetcodeT) NoExternalEditor() string {
+	return a_.t.render(&areaLeetcode, "no_external_editor", false, 0)
+}
+
 // Off: 설정 값: 꺼짐
 func (a_ LeetcodeT) Off() string {
 	return a_.t.render(&areaLeetcode, "off", false, 0)
@@ -618,9 +683,29 @@ func (a_ LeetcodeT) ResultPlaceholder() string {
 	return a_.t.render(&areaLeetcode, "result_placeholder", false, 0)
 }
 
+// RunUsesSaved: 편집기에 있을 때 맨 아래 안내: 실행·제출은 디스크에 저장(:w)한 파일 내용으로 한다. ctrl+\ r/s 는 키 이름(번역하지 않음)
+func (a_ LeetcodeT) RunUsesSaved() string {
+	return a_.t.render(&areaLeetcode, "run_uses_saved", false, 0)
+}
+
+// RunUsesSavedGoeditor: masil 안 편집기(goeditor)에 있을 때 맨 아래 안내: 저장한 내용으로 실행, :Run :Submit 명령, esc 두 번이면 편집기에서 나옴. 명령 이름은 번역하지 않음
+func (a_ LeetcodeT) RunUsesSavedGoeditor() string {
+	return a_.t.render(&areaLeetcode, "run_uses_saved_goeditor", false, 0)
+}
+
 // SaveFailed: 토스트: config.toml 에 설정을 저장하지 못했을 때(이번 실행에는 바뀐 값이 쓰임)
 func (a_ LeetcodeT) SaveFailed() string {
 	return a_.t.render(&areaLeetcode, "save_failed", false, 0)
+}
+
+// SaveFileFailed: 토스트: 풀이 파일을 저장(:w)하지 못했을 때
+func (a_ LeetcodeT) SaveFileFailed() string {
+	return a_.t.render(&areaLeetcode, "save_file_failed", false, 0)
+}
+
+// Saved: 토스트: 풀이 파일을 저장(:w)했을 때. file = 파일 이름
+func (a_ LeetcodeT) Saved(file string) string {
+	return a_.t.render(&areaLeetcode, "saved", false, 0, "file", file)
 }
 
 // SettingsAutoStatus: 설정 줄 이름: 문제를 여는 동안 상태 메시지에 '1606 푸는 중' 을 자동으로 보이기

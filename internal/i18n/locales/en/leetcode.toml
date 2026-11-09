@@ -31,6 +31,12 @@ other = "#daily is off in {space}"
 [daily_enabled]
 other = "#daily is on in {space}"
 
+[editor_failed]
+other = "Couldn't open the editor"
+
+[file_failed]
+other = "Couldn't open the solution file"
+
 [first_run_dir]
 other = "Solutions folder {dir}"
 
@@ -82,6 +88,9 @@ other = "Fetching the problem…"
 [name]
 other = "Daily LC"
 
+[no_external_editor]
+other = "No nvim or $EDITOR · press e for masil's editor"
+
 [off]
 other = "off"
 
@@ -106,8 +115,20 @@ other = "{page}/{pages} · ↑↓ page · esc back"
 [result_placeholder]
 other = "Results of r run · s submit show here"
 
+[run_uses_saved]
+other = "Runs what you saved (:w) · ctrl+\\ r run · ctrl+\\ s submit"
+
+[run_uses_saved_goeditor]
+other = "Runs what you saved (:w) · :Run · :Submit · esc esc leave"
+
 [save_failed]
 other = "Could not save the setting"
+
+[save_file_failed]
+other = "Couldn't save the solution file"
+
+[saved]
+other = "Saved {file}"
 
 [settings_auto_status]
 other = "Show in my status"
