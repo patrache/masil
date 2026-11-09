@@ -33,6 +33,33 @@ type cachedDay struct {
 	Question *Question `json:"question"`
 }
 
+// fetchMark is one fetched/<day>.json: on the clock's UTC day Day, LeetCode
+// named Date as today (they differ), after Tries fetches, the last at At.
+type fetchMark struct {
+	Day   string    `json:"day"`
+	Date  string    `json:"date"`
+	At    time.Time `json:"at"`
+	Tries int       `json:"tries"`
+}
+
+func (c *Cache) fetchedPath(day string) string { return filepath.Join(c.Dir, "fetched", day+".json") }
+
+// fetched is the mark of the clock day day.
+func (c *Cache) fetched(day string) (fetchMark, bool) {
+	var m fetchMark
+	if !validDate(day) || !c.read(c.fetchedPath(day), &m) || m.Day != day || !validDate(m.Date) || m.Tries < 1 {
+		return fetchMark{}, false
+	}
+	return m, true
+}
+
+func (c *Cache) putFetched(m fetchMark) error {
+	if !validDate(m.Day) || !validDate(m.Date) {
+		return fmt.Errorf("%w: cache day %q", ErrBadSlug, m.Day)
+	}
+	return c.write(c.fetchedPath(m.Day), m)
+}
+
 func (c *Cache) dailyPath(date string) string { return filepath.Join(c.Dir, "daily", date+".json") }
 func (c *Cache) questionPath(slug string) string {
 	return filepath.Join(c.Dir, "questions", slug+".json")
@@ -90,7 +117,7 @@ func (c *Cache) Prune(now time.Time, keep time.Duration) error {
 	}
 	cutoff := now.Add(-keep)
 	var errs []error
-	for _, sub := range []string{"daily", "questions"} {
+	for _, sub := range []string{"daily", "fetched", "questions"} {
 		entries, err := os.ReadDir(filepath.Join(c.Dir, sub))
 		if errors.Is(err, fs.ErrNotExist) {
 			continue

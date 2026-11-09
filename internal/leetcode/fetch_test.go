@@ -74,6 +74,65 @@ func TestTodayOncePerUTCDay(t *testing.T) {
 	}
 }
 
+// When LeetCode's day differs from the clock's (a skewed clock, or LeetCode
+// not yet rolled over), the day is still fetched once: later calls on the same
+// clock day are cache hits with LeetCode's date. Only when LeetCode lags the
+// clock is one more fetch allowed, LagRetry later, so a fetch at the very
+// first second of the day does not pin yesterday's problem all day.
+func TestTodayOncePerUTCDayWhenDatesDiffer(t *testing.T) {
+	srv := leetcodetest.New(t)
+	srv.SetDaily("daily_1606.json") // 2026-11-09
+	// clock one day ahead
+	c := &clock{time.Date(2026, 11, 10, 2, 5, 0, 0, time.UTC)}
+	f, _ := newFetcher(t, srv, c)
+	if q, date, cached, err := f.Today(t.Context()); err != nil || cached || date != "2026-11-09" || q.FrontendID != "1606" {
+		t.Fatalf("first = %+v %q %v %v", q, date, cached, err)
+	}
+	total := len(srv.Requests())
+	for _, at := range []time.Duration{time.Second, time.Minute} {
+		c.t = time.Date(2026, 11, 10, 2, 5, 0, 0, time.UTC).Add(at)
+		q, date, cached, err := f.Today(t.Context())
+		if err != nil || !cached || date != "2026-11-09" || q.FrontendID != "1606" {
+			t.Fatalf("+%v = %+v %q %v %v", at, q, date, cached, err)
+		}
+	}
+	if n := len(srv.Requests()); n != total {
+		t.Fatalf("same clock day sent %d more requests", n-total)
+	}
+	// LeetCode lags the clock: one more try after LagRetry, then none that day
+	c.t = time.Date(2026, 11, 10, 2, 5, 0, 0, time.UTC).Add(leetcode.LagRetry)
+	if _, date, _, err := f.Today(t.Context()); err != nil || date != "2026-11-09" {
+		t.Fatalf("retry = %q %v", date, err)
+	}
+	if n := dailyQueries(srv); n != 2 {
+		t.Fatalf("%d daily queries after the lag retry, want 2", n)
+	}
+	for _, at := range []time.Duration{2 * leetcode.LagRetry, 10 * time.Hour, 21*time.Hour + 50*time.Minute} {
+		c.t = time.Date(2026, 11, 10, 2, 5, 0, 0, time.UTC).Add(at)
+		if _, date, cached, err := f.Today(t.Context()); err != nil || !cached || date != "2026-11-09" {
+			t.Fatalf("+%v = %q %v %v", at, date, cached, err)
+		}
+	}
+	if n := dailyQueries(srv); n != 2 {
+		t.Fatalf("%d daily queries in the clock day, want 2", n)
+	}
+
+	// clock one day behind: LeetCode is ahead, never a second fetch
+	srv2 := leetcodetest.New(t)
+	srv2.SetDaily("daily_1606.json") // 2026-11-09
+	c2 := &clock{time.Date(2026, 11, 8, 0, 0, 1, 0, time.UTC)}
+	f2, _ := newFetcher(t, srv2, c2)
+	for _, at := range []time.Duration{0, time.Minute, leetcode.LagRetry, 23 * time.Hour} {
+		c2.t = time.Date(2026, 11, 8, 0, 0, 1, 0, time.UTC).Add(at)
+		if _, date, _, err := f2.Today(t.Context()); err != nil || date != "2026-11-09" {
+			t.Fatalf("behind +%v = %q %v", at, date, err)
+		}
+	}
+	if n := dailyQueries(srv2); n != 1 {
+		t.Fatalf("clock behind: %d daily queries, want 1", n)
+	}
+}
+
 func TestTodayNeverShowsYesterday(t *testing.T) {
 	srv := leetcodetest.New(t)
 	c := &clock{time.Date(2026, 11, 9, 2, 5, 0, 0, time.UTC)}
