@@ -10,6 +10,9 @@ other = "Set the daily problem of {date} to {slug}."
 [admin_usage]
 other = "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"
 
+[attach_code]
+other = "Attach my code as a spoiler"
+
 [auto_status_desc]
 other = "When on, friends can see that you are solving a problem"
 
@@ -33,6 +36,12 @@ other = "Daily problem settings"
 
 [code_placeholder]
 other = "e open the editor"
+
+[code_stored_warning]
+other = "The code is stored as is on the masil server; anyone who can read this channel and the operators can see it."
+
+[code_too_long]
+other = "The code is over 4000 characters and can't be attached"
 
 [collapse_hint]
 other = "v collapse"
@@ -172,6 +181,9 @@ other = "Too many LeetCode requests · open it again in a moment"
 [reading_footer]
 other = "{page}/{pages} · ↑↓ page · esc back"
 
+[record_failed]
+other = "Couldn't record the solve"
+
 [result_expected]
 other = "Expected"
 
@@ -229,6 +241,27 @@ other = "Share my streak with friends"
 [settings_title]
 other = "Daily problem settings"
 
+[share_button]
+other = "Leave"
+
+[share_failed]
+other = "Couldn't leave the card"
+
+[share_footer]
+other = "space check · enter leave · esc close"
+
+[share_hint]
+other = "c leave a card"
+
+[share_no_spaces]
+other = "No space has #daily on · only the record is kept"
+
+[share_title]
+other = "Leave a card"
+
+[shared]
+other = "Card left"
+
 [signed_in]
 other = "Signed in as {user} · free account (10s between runs)"
 
@@ -237,6 +270,9 @@ other = "Signed in as {user} · premium (1s between runs)"
 
 [solved]
 other = "solved"
+
+[solving_status]
+other = "solving {id}"
 
 [submit_failed]
 other = "✗ {status} · {correct}/{total} · failing input…"

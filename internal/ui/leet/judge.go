@@ -155,6 +155,9 @@ func (in *instance) send(ctx *ui.Context, kind judgeKind, c *leetcode.Credential
 	in.waitUntil = time.Time{}
 	in.judgeSeq++
 	lang := currentLang(ctx)
+	if splitFor(ctx.Mode, in.zoomed, in.size.W).Tabbed {
+		in.tab = tabResult // the widget shows where the answer comes
+	}
 	j := &judgeState{kind: kind, phase: jSending, seq: in.judgeSeq, q: in.q, date: in.date, lang: lang, code: string(b)}
 	in.judge = j
 	client, q, code, id, seq := newClient(c), in.q, j.code, in.id, j.seq

@@ -140,9 +140,14 @@ func (in *instance) resultText(ctx *ui.Context) []rline {
 	}
 	if r.StatusMsg == "Accepted" {
 		if r.RuntimePercentile != nil {
-			return append(out, rline{t.Leetcode.AcceptedLine(status, topPercent(*r.RuntimePercentile), runtime), okSt, false})
+			out = append(out, rline{t.Leetcode.AcceptedLine(status, topPercent(*r.RuntimePercentile), runtime), okSt, false})
+		} else {
+			out = append(out, rline{t.Leetcode.AcceptedLineShort(status, runtime), okSt, false})
 		}
-		return append(out, rline{t.Leetcode.AcceptedLineShort(status, runtime), okSt, false})
+		if in.accepted != nil {
+			out = append(out, rline{t.Leetcode.ShareHint(), dimSt, false})
+		}
+		return out
 	}
 	return append(out,
 		rline{t.Leetcode.SubmitFailed(status, r.TotalCorrect, r.TotalTestcases), badSt, false},

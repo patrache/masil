@@ -67,6 +67,10 @@ type instance struct {
 	judgeSeq  int
 	pending   judgeKind // the run / submit waiting for a login
 	waitUntil time.Time // the pacer said wait until then (zero = no)
+
+	accepted   *acceptedMsg // the last Accepted submit (c leaves its card)
+	statusOn   bool         // auto status shows "solving" now
+	prevStatus savedStatus  // my status before that
 }
 
 var (
@@ -162,6 +166,24 @@ func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		return nil
 	case loginDoneMsg:
 		return in.loginDone(ctx)
+	case acceptedMsg:
+		if m.id != in.id {
+			return nil
+		}
+		in.accepted = &m
+		putAccepted(m)
+		return tea.Batch(recordSolve(ctx, m), in.restoreStatus(ctx))
+	case ui.ResultMsg[*api.LeetSolveResult]:
+		if m.Tag != recordTag || in.accepted == nil {
+			return nil
+		}
+		if m.Err != nil {
+			return ui.Toast(ctx.T.Leetcode.RecordFailed(), ui.ToastError)
+		}
+		return fetchMe(ctx) // the hub's 풂 and 🔥
+	case ui.ResultMsg[*api.UserStatus], ui.ResultMsg[struct{}]:
+		statusResult(ctx, msg)
+		return nil
 	case termpane.ExitedMsg:
 		switch m.InstanceID {
 		case in.id + execSuffix: // E ended: the slot shows what it wrote
@@ -250,11 +272,12 @@ func (in *instance) loaded(ctx *ui.Context, l *loaded) tea.Cmd {
 		in.q, in.doc = nil, nil
 		return nil
 	}
+	status := in.startStatus(ctx)
 	if in.target != "" {
-		return nil
+		return status
 	}
 	rememberDay(ctx, in.date, in.q, true)
-	return report(ctx, in.date, in.q)
+	return tea.Batch(report(ctx, in.date, in.q), status)
 }
 
 func (in *instance) Resize(ctx *ui.Context, size ui.Size) {
@@ -300,7 +323,10 @@ func (in *instance) StatusText(ctx *ui.Context) (string, bool) {
 }
 
 // CloseTool ends nvim in the pane.
-func (in *instance) CloseTool(*ui.Context) tea.Cmd { return in.dropEditor() }
+// CloseTool ends nvim in the pane and puts my status back.
+func (in *instance) CloseTool(ctx *ui.Context) tea.Cmd {
+	return tea.Batch(in.dropEditor(), in.restoreStatus(ctx))
+}
 
 func (in *instance) Title(ctx *ui.Context) (string, ui.Badge) {
 	return ctx.T.Leetcode.Name(), ui.Badge{}
@@ -364,6 +390,11 @@ func (in *instance) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.C
 		return true, emit(submitRequestedMsg{id: in.id})
 	case "l":
 		return true, in.cycleLang(ctx)
+	case "c":
+		if in.accepted != nil {
+			return true, ui.OpenRegisteredOverlay(OverlayShare, in.id)
+		}
+		return true, nil
 	case "v":
 		if in.judge != nil {
 			in.judge.toggled = !in.judge.toggled

@@ -43,6 +43,13 @@ var areaLeetcode = area{
 				En: {Other: "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"},
 			},
 		},
+		"attach_code": {
+			desc: "풀이 카드 대화상자 체크 칸: 내 코드를 스포일러(펼쳐야 보임)로 카드에 붙이기",
+			text: map[Locale]Forms{
+				Ko: {Other: "코드도 스포일러로 붙이기"},
+				En: {Other: "Attach my code as a spoiler"},
+			},
+		},
 		"auto_status_desc": {
 			desc:       "설정 줄 설명: 상태 메시지 자동 표시를 켜면 친구에게 지금 문제를 푸는 중이 보인다는 개인정보 안내(A10.5 — 줄여 쓰지 않음)",
 			noTruncate: true,
@@ -100,6 +107,22 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "e 편집기 열기"},
 				En: {Other: "e open the editor"},
+			},
+		},
+		"code_stored_warning": {
+			desc:       "풀이 카드 대화상자 주의(A10.5 — 줄여 쓰지 않음): 붙인 코드는 masil 서버에 그대로 저장되고 그 채널을 읽는 사람과 운영자가 볼 수 있다",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "코드는 masil 서버에 그대로 저장되고, 이 채널을 읽을 수 있는 사람과 운영자가 볼 수 있어요."},
+				En: {Other: "The code is stored as is on the masil server; anyone who can read this channel and the operators can see it."},
+			},
+		},
+		"code_too_long": {
+			desc: "풀이 카드 대화상자: 코드가 4000자를 넘어 붙일 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "코드가 4000자를 넘어 붙일 수 없어요"},
+				En: {Other: "The code is over 4000 characters and can't be attached"},
 			},
 		},
 		"collapse_hint": {
@@ -449,6 +472,13 @@ var areaLeetcode = area{
 				En: {Other: "{page}/{pages} · ↑↓ page · esc back"},
 			},
 		},
+		"record_failed": {
+			desc: "토스트: 통과 기록(연속 풀이용)을 masil 에 남기지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "풀이 기록을 남기지 못했어요"},
+				En: {Other: "Couldn't record the solve"},
+			},
+		},
 		"result_expected": {
 			desc: "실행 결과 줄 라벨: 기대하는 출력",
 			max:  8,
@@ -595,6 +625,57 @@ var areaLeetcode = area{
 				En: {Other: "Daily problem settings"},
 			},
 		},
+		"share_button": {
+			desc: "풀이 카드 대화상자 확인 단추",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "남기기"},
+				En: {Other: "Leave"},
+			},
+		},
+		"share_failed": {
+			desc: "토스트: 풀이 카드를 남기지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 남기지 못했어요"},
+				En: {Other: "Couldn't leave the card"},
+			},
+		},
+		"share_footer": {
+			desc: "풀이 카드 대화상자 맨 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "space 체크 · enter 남기기 · esc 닫기"},
+				En: {Other: "space check · enter leave · esc close"},
+			},
+		},
+		"share_hint": {
+			desc: "제출 통과 뒤 결과 줄 아래 안내: c 로 #daily 에 풀이 카드 남기기",
+			text: map[Locale]Forms{
+				Ko: {Other: "c 카드 남기기"},
+				En: {Other: "c leave a card"},
+			},
+		},
+		"share_no_spaces": {
+			desc: "풀이 카드 대화상자: #daily 가 켜진 내 방이 없을 때(풀이 기록만 남는다)",
+			text: map[Locale]Forms{
+				Ko: {Other: "#daily 가 켜진 방이 없어요 · 기록만 남아요"},
+				En: {Other: "No space has #daily on · only the record is kept"},
+			},
+		},
+		"share_title": {
+			desc: "풀이 카드 남기기 대화상자 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "카드 남기기"},
+				En: {Other: "Leave a card"},
+			},
+		},
+		"shared": {
+			desc: "토스트: 풀이 카드를 남겼을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 남겼어요"},
+				En: {Other: "Card left"},
+			},
+		},
 		"signed_in": {
 			desc:   "토스트: 쿠키 로그인 성공(무료 계정). user = LeetCode 사용자 이름(번역하지 않음)",
 			params: []Param{{Name: "user", Type: "string"}},
@@ -617,6 +698,15 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "풂"},
 				En: {Other: "solved"},
+			},
+		},
+		"solving_status": {
+			desc:   "상태 메시지 자동 표시(설정에서 켰을 때): 친구에게 보이는 내 상태. id = 문제 번호",
+			params: []Param{{Name: "id", Type: "string"}},
+			max:    40,
+			text: map[Locale]Forms{
+				Ko: {Other: "{id} 푸는 중"},
+				En: {Other: "solving {id}"},
 			},
 		},
 		"submit_failed": {
@@ -734,6 +824,11 @@ func (a_ LeetcodeT) AdminUsage() string {
 	return a_.t.render(&areaLeetcode, "admin_usage", false, 0)
 }
 
+// AttachCode: 풀이 카드 대화상자 체크 칸: 내 코드를 스포일러(펼쳐야 보임)로 카드에 붙이기
+func (a_ LeetcodeT) AttachCode() string {
+	return a_.t.render(&areaLeetcode, "attach_code", false, 0)
+}
+
 // AutoStatusDesc: 설정 줄 설명: 상태 메시지 자동 표시를 켜면 친구에게 지금 문제를 푸는 중이 보인다는 개인정보 안내(A10.5 — 줄여 쓰지 않음)
 func (a_ LeetcodeT) AutoStatusDesc() string {
 	return a_.t.render(&areaLeetcode, "auto_status_desc", false, 0)
@@ -772,6 +867,16 @@ func (a_ LeetcodeT) CmdSettings() string {
 // CodePlaceholder: 편집기 자리가 아직 비었을 때. e = 편집기 열기 키
 func (a_ LeetcodeT) CodePlaceholder() string {
 	return a_.t.render(&areaLeetcode, "code_placeholder", false, 0)
+}
+
+// CodeStoredWarning: 풀이 카드 대화상자 주의(A10.5 — 줄여 쓰지 않음): 붙인 코드는 masil 서버에 그대로 저장되고 그 채널을 읽는 사람과 운영자가 볼 수 있다
+func (a_ LeetcodeT) CodeStoredWarning() string {
+	return a_.t.render(&areaLeetcode, "code_stored_warning", false, 0)
+}
+
+// CodeTooLong: 풀이 카드 대화상자: 코드가 4000자를 넘어 붙일 수 없을 때
+func (a_ LeetcodeT) CodeTooLong() string {
+	return a_.t.render(&areaLeetcode, "code_too_long", false, 0)
 }
 
 // CollapseHint: 펼친 오류 전문을 접는 키 안내
@@ -1004,6 +1109,11 @@ func (a_ LeetcodeT) ReadingFooter(page int, pages int) string {
 	return a_.t.render(&areaLeetcode, "reading_footer", false, 0, "page", strconv.Itoa(page), "pages", strconv.Itoa(pages))
 }
 
+// RecordFailed: 토스트: 통과 기록(연속 풀이용)을 masil 에 남기지 못했을 때
+func (a_ LeetcodeT) RecordFailed() string {
+	return a_.t.render(&areaLeetcode, "record_failed", false, 0)
+}
+
 // ResultExpected: 실행 결과 줄 라벨: 기대하는 출력
 func (a_ LeetcodeT) ResultExpected() string {
 	return a_.t.render(&areaLeetcode, "result_expected", false, 0)
@@ -1099,6 +1209,41 @@ func (a_ LeetcodeT) SettingsTitle() string {
 	return a_.t.render(&areaLeetcode, "settings_title", false, 0)
 }
 
+// ShareButton: 풀이 카드 대화상자 확인 단추
+func (a_ LeetcodeT) ShareButton() string {
+	return a_.t.render(&areaLeetcode, "share_button", false, 0)
+}
+
+// ShareFailed: 토스트: 풀이 카드를 남기지 못했을 때
+func (a_ LeetcodeT) ShareFailed() string {
+	return a_.t.render(&areaLeetcode, "share_failed", false, 0)
+}
+
+// ShareFooter: 풀이 카드 대화상자 맨 아래 키 안내
+func (a_ LeetcodeT) ShareFooter() string {
+	return a_.t.render(&areaLeetcode, "share_footer", false, 0)
+}
+
+// ShareHint: 제출 통과 뒤 결과 줄 아래 안내: c 로 #daily 에 풀이 카드 남기기
+func (a_ LeetcodeT) ShareHint() string {
+	return a_.t.render(&areaLeetcode, "share_hint", false, 0)
+}
+
+// ShareNoSpaces: 풀이 카드 대화상자: #daily 가 켜진 내 방이 없을 때(풀이 기록만 남는다)
+func (a_ LeetcodeT) ShareNoSpaces() string {
+	return a_.t.render(&areaLeetcode, "share_no_spaces", false, 0)
+}
+
+// ShareTitle: 풀이 카드 남기기 대화상자 제목
+func (a_ LeetcodeT) ShareTitle() string {
+	return a_.t.render(&areaLeetcode, "share_title", false, 0)
+}
+
+// Shared: 토스트: 풀이 카드를 남겼을 때
+func (a_ LeetcodeT) Shared() string {
+	return a_.t.render(&areaLeetcode, "shared", false, 0)
+}
+
 // SignedIn: 토스트: 쿠키 로그인 성공(무료 계정). user = LeetCode 사용자 이름(번역하지 않음)
 func (a_ LeetcodeT) SignedIn(user string) string {
 	return a_.t.render(&areaLeetcode, "signed_in", false, 0, "user", user)
@@ -1112,6 +1257,11 @@ func (a_ LeetcodeT) SignedInPremium(user string) string {
 // Solved: 허브·초소형 줄: 오늘 문제를 풀었음(통과)
 func (a_ LeetcodeT) Solved() string {
 	return a_.t.render(&areaLeetcode, "solved", false, 0)
+}
+
+// SolvingStatus: 상태 메시지 자동 표시(설정에서 켰을 때): 친구에게 보이는 내 상태. id = 문제 번호
+func (a_ LeetcodeT) SolvingStatus(id string) string {
+	return a_.t.render(&areaLeetcode, "solving_status", false, 0, "id", id)
 }
 
 // SubmitFailed: 제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수

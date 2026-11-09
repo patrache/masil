@@ -74,3 +74,13 @@ func RequestsForTest(c ui.Component) (run, submit int) {
 	in := c.(*instance)
 	return in.runReqs, in.submitReqs
 }
+
+// ReloadConfigForTest reads config.toml again into ctx.Config.
+func ReloadConfigForTest(ctx *ui.Context) error {
+	c, err := config.Load(ctx.Paths)
+	if err != nil {
+		return err
+	}
+	*ctx.Config = *c
+	return nil
+}
