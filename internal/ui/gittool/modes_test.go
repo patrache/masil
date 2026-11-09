@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/gittool"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/uitest"
 )
@@ -66,6 +68,11 @@ func TestTinyOpensExec(t *testing.T) {
 	got := f.Started()
 	if len(got) != 1 {
 		t.Fatalf("Started = %+v:\n%s", got, h.Screen())
+	}
+	// The mode termpane.Launch decided (P0 Choose's tiny rule), as the
+	// instance got it in termpane.Launched.Mode.
+	if m := gittool.LaunchedModeForTest(h.Instance(ui.Route{Kind: ui.RouteTool, ID: "git:/r/masil", Arg: ui.ToolGit}.Key())); m != termhost.ModeExec {
+		t.Fatalf("tiny: Launched.Mode = %q, want %q", m, termhost.ModeExec)
 	}
 	if slices.Contains(got[0].Args, "--use-config-file") {
 		t.Fatalf("tiny: the pane overlay rode an exec launch: %q", got[0].Args)

@@ -7,6 +7,7 @@ import (
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/lazygit"
 	"github.com/patrache/masil/internal/termhost"
+	"github.com/patrache/masil/internal/ui"
 )
 
 // SetEnvForTest makes the tool find lazygit, run git and read the OS in e
@@ -61,4 +62,14 @@ func WaitProbeForTest(t interface {
 		}
 		runtime.Gosched()
 	}
+}
+
+// LaunchedModeForTest is the mode termpane.Launch decided for instance c
+// (termpane.Launched.Mode; "" before it launched or when c is not one).
+func LaunchedModeForTest(c ui.Component) termhost.Mode {
+	in, ok := c.(*instance)
+	if !ok {
+		return ""
+	}
+	return in.mode
 }
