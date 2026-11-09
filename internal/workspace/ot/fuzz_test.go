@@ -137,7 +137,7 @@ func (w *fuzzWorld) serve() {
 			}
 			switch m.kind {
 			case mOp:
-				seq, applied, err := w.seqr.SubmitID(m.p.ClientOpID, m.p.BaseSeq, m.p.Op)
+				seq, applied, err := w.seqr.SubmitID(i, m.p.ClientOpID, m.p.BaseSeq, m.p.Op)
 				if errors.Is(err, ErrDuplicate) {
 					w.deliver(p, msg{kind: mAck, id: m.p.ClientOpID, seq: seq})
 					continue
@@ -152,7 +152,7 @@ func (w *fuzzWorld) serve() {
 					}
 				}
 			case mReopen:
-				_, applied := w.seqr.AppliedID(m.id)
+				_, applied := w.seqr.AppliedID(i, m.id)
 				p.subscribed = true
 				w.deliver(p, msg{kind: mState, seq: w.seqr.Seq(), text: w.seqr.Text(), pendingApplied: m.id != "" && applied})
 			}

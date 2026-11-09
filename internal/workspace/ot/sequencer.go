@@ -14,9 +14,15 @@ var (
 	ErrDuplicate = errors.New("ot: operation already sequenced")
 )
 
+// opKey names one sender's client op id: ids are only unique per sender.
+type opKey struct {
+	author int
+	id     string
+}
+
 type histEntry struct {
-	op Op
-	id string
+	op  Op
+	key opKey // id "" = not remembered
 }
 
 // Sequencer is the single place that orders one document's edits (the
@@ -25,11 +31,11 @@ type Sequencer struct {
 	text []rune
 	seq  int64
 	hist []histEntry // hist[i] has seq = s.seq - len(hist) + 1 + i
-	ids  map[string]int64
+	ids  map[opKey]int64
 }
 
 func NewSequencer(text []rune) *Sequencer {
-	return &Sequencer{text: append([]rune(nil), text...), ids: map[string]int64{}}
+	return &Sequencer{text: append([]rune(nil), text...), ids: map[opKey]int64{}}
 }
 
 // Seq is the last assigned sequence number (0 before any edit).
@@ -53,15 +59,19 @@ func (s *Sequencer) after(baseSeq int64) ([]histEntry, error) {
 // since, applies it and assigns the next sequence number. applied is the
 // transformed operation to broadcast.
 func (s *Sequencer) Submit(baseSeq int64, op Op) (seq int64, applied Op, err error) {
-	return s.SubmitID("", baseSeq, op)
+	return s.SubmitID(0, "", baseSeq, op)
 }
 
-// SubmitID is Submit that also remembers clientOpID (when not empty): a
-// second submission of the same id returns its original seq with
-// ErrDuplicate and changes nothing (retransmission after a reconnect).
-func (s *Sequencer) SubmitID(clientOpID string, baseSeq int64, op Op) (seq int64, applied Op, err error) {
+// SubmitID is Submit that also remembers (author, clientOpID) when the id is
+// not empty: a second submission of the same id from the same author returns
+// its original seq with ErrDuplicate and changes nothing (retransmission
+// after a reconnect). author is the sender's seat as the owner knows it
+// (never taken from the message); the same id from another author is a
+// different edit.
+func (s *Sequencer) SubmitID(author int, clientOpID string, baseSeq int64, op Op) (seq int64, applied Op, err error) {
+	key := opKey{author: author, id: clientOpID}
 	if clientOpID != "" {
-		if seq, ok := s.ids[clientOpID]; ok {
+		if seq, ok := s.ids[key]; ok {
 			return seq, nil, ErrDuplicate
 		}
 	}
@@ -83,14 +93,17 @@ func (s *Sequencer) SubmitID(clientOpID string, baseSeq int64, op Op) (seq int64
 	}
 	s.text = text
 	s.seq++
-	s.hist = append(s.hist, histEntry{op: op, id: clientOpID})
+	if clientOpID == "" {
+		key = opKey{}
+	}
+	s.hist = append(s.hist, histEntry{op: op, key: key})
 	if clientOpID != "" {
-		s.ids[clientOpID] = s.seq
+		s.ids[key] = s.seq
 	}
 	if over := len(s.hist) - HistoryLimit; over > 0 {
 		for _, h := range s.hist[:over] {
-			if h.id != "" {
-				delete(s.ids, h.id)
+			if h.key.id != "" {
+				delete(s.ids, h.key)
 			}
 		}
 		s.hist = append([]histEntry(nil), s.hist[over:]...)
@@ -98,12 +111,13 @@ func (s *Sequencer) SubmitID(clientOpID string, baseSeq int64, op Op) (seq int64
 	return s.seq, op, nil
 }
 
-// AppliedID reports the seq a client op id was sequenced at, while retained.
-func (s *Sequencer) AppliedID(clientOpID string) (int64, bool) {
+// AppliedID reports the seq author's client op id was sequenced at, while
+// retained.
+func (s *Sequencer) AppliedID(author int, clientOpID string) (int64, bool) {
 	if clientOpID == "" {
 		return 0, false
 	}
-	seq, ok := s.ids[clientOpID]
+	seq, ok := s.ids[opKey{author: author, id: clientOpID}]
 	return seq, ok
 }
 

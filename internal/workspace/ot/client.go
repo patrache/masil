@@ -1,6 +1,8 @@
 package ot
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"strconv"
 )
@@ -31,10 +33,15 @@ type Client struct {
 }
 
 // NewClient starts synchronized at seq with text. Client op ids are
-// idPrefix + "-" + counter.
+// idPrefix + "-" + 16 random hex digits (new for every Client) + "-" +
+// counter, so a document reopened (or a masil restarted) with the same
+// prefix never reuses an id the sequencer still remembers.
 func NewClient(idPrefix string, seq int64, text []rune) *Client {
 	t := append([]rune(nil), text...)
-	return &Client{prefix: idPrefix, seq: seq, base: t, text: append([]rune(nil), t...)}
+	var nonce [8]byte
+	_, _ = rand.Read(nonce[:]) // crypto/rand.Read never fails (Go 1.24+)
+	prefix := idPrefix + "-" + hex.EncodeToString(nonce[:])
+	return &Client{prefix: prefix, seq: seq, base: t, text: append([]rune(nil), t...)}
 }
 
 // Text is a copy of the local document.
