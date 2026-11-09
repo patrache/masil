@@ -334,7 +334,7 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			if m.mode == modePanel && m.panel.editing {
 				// leaving the box commits the value (a bad one is dropped)
 				cmd := m.commitInput(ctx)
-				m.panel.editing, m.panel.input, m.panel.hint = false, "", ""
+				m.panel.stopInput()
 				return cmd
 			}
 		}

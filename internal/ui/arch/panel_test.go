@@ -318,3 +318,32 @@ func TestListViewFormEditing(t *testing.T) {
 		t.Errorf("list form design differs from the canvas keys:\n%s\nwant\n%s", got, want)
 	}
 }
+
+// The panel's input is a bubbles textinput (virtual cursor off, the real one
+// through Cursorer): the cursor moves inside the value, edits land there, and
+// the real cursor follows it.
+func TestPanelInputEditsMidString(t *testing.T) {
+	h, c := panelHarness(t, panelDesign())
+	openPanelOn(t, h, c, "api")
+	toField(t, h, c, "label")
+	h.Press("enter")
+	if !c.panel.editing {
+		t.Fatal("enter on the label is not editing")
+	}
+	end := h.Cursor()
+	if end == nil {
+		t.Fatal("no real cursor while editing")
+	}
+	h.Press("home")
+	h.Type("pay-")
+	h.Press("right", "right", "right") // past "api"
+	h.Type("!")
+	h.Press("left")
+	if cur := h.Cursor(); cur == nil || cur.X != end.X+4 {
+		t.Errorf("cursor %+v, want one cell before the end of %q (end was %+v)", cur, "pay-api!", end)
+	}
+	h.Press("enter")
+	if got := findNode(designOf(t, c), "api").Label; got != "pay-api!" {
+		t.Errorf("label %q, want %q", got, "pay-api!")
+	}
+}

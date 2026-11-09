@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/archdoc"
@@ -22,11 +24,77 @@ type panelState struct {
 	target  string
 	cur     int
 	editing bool
-	input   string
+	ti      textinput.Model // the value being typed (editing)
 	hint    string
 	pick    *picker
 	// where the typed number is drawn (the real cursor), set by the last frame
 	curX, curY int
+}
+
+// panelInputMax is the widest value the panel's input takes (cells).
+const panelInputMax = 60
+
+// newPanelInput is a bubbles textinput for the panel holding v, the cursor
+// at its end: no prompt, the real cursor (virtual cursor off: Focus starts no
+// blink), ctrl+k (the palette) out of DeleteAfterCursor, clipboard paste and
+// suggestions unbound. Feed it through typeKey only.
+func newPanelInput(v string) textinput.Model {
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.SetVirtualCursor(false)
+	km := textinput.DefaultKeyMap()
+	keys := slices.DeleteFunc(slices.Clone(km.DeleteAfterCursor.Keys()), func(k string) bool { return k == "ctrl+k" })
+	km.DeleteAfterCursor = key.NewBinding(key.WithKeys(keys...))
+	none := key.NewBinding(key.WithDisabled())
+	km.Paste = none
+	km.AcceptSuggestion, km.NextSuggestion, km.PrevSuggestion = none, none, none
+	ti.KeyMap = km
+	ti.Focus()
+	ti.SetValue(v)
+	ti.CursorEnd()
+	return ti
+}
+
+// startInput opens the input on v.
+func (p *panelState) startInput(v string) {
+	p.editing, p.hint, p.ti = true, "", newPanelInput(v)
+}
+
+// stopInput closes the input.
+func (p *panelState) stopInput() {
+	p.editing, p.hint, p.ti = false, "", textinput.Model{}
+}
+
+// input is the value typed so far.
+func (p *panelState) input() string {
+	if !p.editing {
+		return ""
+	}
+	return p.ti.Value()
+}
+
+// typeKey feeds k to the input: typed text is one sanitized line inserted at
+// the cursor (refused past panelInputMax cells), other keys move or delete.
+func (p *panelState) typeKey(k tea.KeyPressMsg) tea.Cmd {
+	var msg tea.Msg = k
+	if k.Text != "" && k.Mod&(tea.ModCtrl|tea.ModAlt|tea.ModMeta|tea.ModSuper|tea.ModHyper) == 0 {
+		txt := strings.NewReplacer("\r", " ", "\n", " ", "\t", " ").Replace(textwidth.Sanitize(k.Text))
+		msg = tea.PasteMsg{Content: txt}
+	}
+	prev, pos := p.ti.Value(), p.ti.Position()
+	var cmd tea.Cmd
+	p.ti, cmd = p.ti.Update(msg)
+	if textwidth.Width(p.ti.Value()) > panelInputMax {
+		p.ti.SetValue(prev)
+		p.ti.SetCursor(pos)
+	}
+	return cmd
+}
+
+// cursorCells is how many cells of the input come before its cursor.
+func (p *panelState) cursorCells() int {
+	rs := []rune(p.ti.Value())
+	return textwidth.Width(string(rs[:min(p.ti.Position(), len(rs))]))
 }
 
 // formRow is one row of the settings form.
@@ -130,20 +198,14 @@ func (m *canvasModel) panelKey(ctx *ui.Context, k tea.KeyPressMsg, s string) (bo
 	if m.panel.editing {
 		switch s {
 		case "esc":
-			m.panel.editing, m.panel.input, m.panel.hint = false, "", ""
+			m.panel.stopInput()
 		case "enter":
 			return true, m.commitInput(ctx), true
-		case "backspace":
-			if r := []rune(m.panel.input); len(r) > 0 {
-				m.panel.input = string(r[:len(r)-1])
-			}
 		default:
 			if reservedGlobal(s) {
 				return false, nil, true
 			}
-			if k.Text != "" && textwidth.Width(m.panel.input) < 60 {
-				m.panel.input += textwidth.Sanitize(k.Text)
-			}
+			return true, m.panel.typeKey(k), true
 		}
 		return true, nil, true
 	}
@@ -188,11 +250,9 @@ func (m *canvasModel) activate(ctx *ui.Context) tea.Cmd {
 		cur := slices.IndexFunc(items, func(c choice) bool { return c.value == rawString(m.raw(row.obj, f.Field)) })
 		m.panel.pick = &picker{field: f, obj: row.obj, items: items, cur: max(cur, 0)}
 	case inputText:
-		m.panel.editing, m.panel.hint = true, ""
-		m.panel.input = cleanText(rawString(m.raw(row.obj, f.Field)))
+		m.panel.startInput(cleanText(rawString(m.raw(row.obj, f.Field))))
 	default:
-		m.panel.editing, m.panel.hint = true, ""
-		m.panel.input = strings.ReplaceAll(typed(f, rawInt(m.raw(row.obj, f.Field))), ",", "")
+		m.panel.startInput(strings.ReplaceAll(typed(f, rawInt(m.raw(row.obj, f.Field))), ",", ""))
 	}
 	return nil
 }
@@ -217,14 +277,14 @@ func jsonBool(b bool) json.RawMessage {
 func (m *canvasModel) commitInput(ctx *ui.Context) tea.Cmd {
 	row, ok := m.panelRow(ctx)
 	if !ok {
-		m.panel.editing = false
+		m.panel.stopInput()
 		return nil
 	}
 	f := row.def
 	if f.Input == inputText {
-		return m.commitField(ctx, row.obj, f, jsonString(strings.TrimSpace(m.panel.input)))
+		return m.commitField(ctx, row.obj, f, jsonString(strings.TrimSpace(m.panel.input())))
 	}
-	n, ok := parseTyped(m.panel.input)
+	n, ok := parseTyped(m.panel.input())
 	if !ok || n < f.Min || n > f.Max {
 		m.panel.hint = ctx.T.Archcanvas.RangeHint(typed(fieldDef{}, f.Min), typed(fieldDef{}, f.Max))
 		return nil
@@ -243,7 +303,7 @@ func (m *canvasModel) commitField(ctx *ui.Context, obj string, f fieldDef, v jso
 		}
 		return nil
 	}
-	m.panel.editing, m.panel.input, m.panel.hint = false, "", ""
+	m.panel.stopInput()
 	return m.commit(ctx, ch)
 }
 
@@ -315,6 +375,7 @@ type formLine struct {
 	st  sty
 	row int // the selectable row index (-1 = none)
 	in  bool
+	cur int // in the settings panel: the real cursor's cell in s (other dialogs: its end)
 }
 
 // formLines are the form's lines: the title, the rows (or the open list),
@@ -365,7 +426,8 @@ func (m *canvasModel) formLines(ctx *ui.Context, w int) []formLine {
 			st = sSel
 		}
 		if i == m.panel.cur && m.panel.editing {
-			out = append(out, formLine{s: label + " " + m.panel.input, st: sAcc, row: i, in: true})
+			out = append(out, formLine{s: label + " " + m.panel.input(), st: sAcc, row: i, in: true,
+				cur: textwidth.Width(label) + 1 + m.panel.cursorCells()})
 			if m.panel.hint != "" {
 				for _, l := range textwidth.Wrap(m.panel.hint, w) {
 					add(l, sWarn)
@@ -421,7 +483,7 @@ func (m *canvasModel) drawForm(ctx *ui.Context, b *buf, r layout.Rect, x0, w int
 		l := lines[off+i]
 		b.line(x0, r.Y+i, w, l.s, l.st)
 		if l.in {
-			m.panel.curX = x0 + min(textwidth.Width(l.s), w-1)
+			m.panel.curX = x0 + min(l.cur, w-1)
 			m.panel.curY = r.Y + i
 		}
 	}
