@@ -58,6 +58,14 @@ func TestQuitWithLivePanesConfirms(t *testing.T) {
 	}
 }
 
+func TestQuitListSanitized(t *testing.T) {
+	h := uitest.New(t)
+	got := app.PaneListForTest(h.Model, []string{"lazy\u202egit\x1b[31m", "nvim"})
+	if !strings.Contains(got, "nvim 1개") || strings.ContainsAny(got, "\u202e\x1b") {
+		t.Fatalf("quit list = %q: the raw program name", got)
+	}
+}
+
 func TestQuitListFormat(t *testing.T) {
 	fakePanes(t, []string{"lazygit", "nvim"})
 	h := uitest.New(t)

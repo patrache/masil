@@ -496,6 +496,21 @@ func TestPaneViewIsPure(t *testing.T) {
 	}
 }
 
+// The program's name comes from config or a tool; it is drawn sanitized like
+// the title (the status hint, the exit question).
+func TestPaneProgramNameSanitized(t *testing.T) {
+	rig := newRig(t, termpane.Options{})
+	rig.f.program = "/usr/bin/lazy\u202egit\x1b[31m"
+	ctx := rig.h.Context()
+	hint, _ := rig.pane.StatusText(ctx)
+	rig.h.Press("ctrl+\\", "x")
+	for name, s := range map[string]string{"hint": hint, "screen": rig.h.Screen()} {
+		if strings.ContainsAny(s, "\u202e\x1b") {
+			t.Errorf("%s draws the raw program name: %q", name, s)
+		}
+	}
+}
+
 func TestPaneGolden(t *testing.T) {
 	sizes := append(slices.Clone(uitest.Required), uitest.Size{W: 40, H: 14})
 	for _, sz := range sizes {

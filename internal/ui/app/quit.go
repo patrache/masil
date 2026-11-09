@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/termhost"
+	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/widgets"
 )
@@ -70,6 +71,7 @@ func paneList(m *Model, names []string) string {
 	var order []string
 	count := map[string]int{}
 	for _, n := range names {
+		n = textwidth.Sanitize(n) // a program name is drawn like any other text
 		if count[n] == 0 {
 			order = append(order, n)
 		}

@@ -71,3 +71,6 @@ func SetPanesForTest(running func() []string, closeAll func(grace time.Duration)
 
 // OptionsFromEnvForTest is Run's reading of the process env (MASIL_PANE).
 func OptionsFromEnvForTest(o Options) Options { return optionsFromEnv(o) }
+
+// PaneListForTest is the quit question's program list.
+func PaneListForTest(m *Model, names []string) string { return paneList(m, names) }

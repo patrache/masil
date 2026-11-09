@@ -299,8 +299,8 @@ func (p *Pane) baseTitle() string {
 	return p.program()
 }
 
-// program is the program's base name ("lazygit").
-func (p *Pane) program() string { return filepath.Base(p.h.Program()) }
+// program is the program's base name ("lazygit"), sanitized for drawing.
+func (p *Pane) program() string { return textwidth.Sanitize(filepath.Base(p.h.Program())) }
 
 // Title implements ui.Titled: "<title> · <shared badge>" while shared (the
 // title is cut first so the badge always shows), "<title> · 끝남 · 종료 코드 n"
