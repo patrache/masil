@@ -69,6 +69,16 @@ func notifInstance(h *uitest.Harness) ui.Component {
 	return h.Instance(app.NotifRoute.Key())
 }
 
+// selectFirstNotif selects the newest notification row (below the 안 읽은 대화 section).
+func selectFirstNotif(t *testing.T, h *uitest.Harness) {
+	t.Helper()
+	h.Screen()
+	ids := NotifIDs(notifInstance(h))
+	if len(ids) == 0 || !SelectNotifRow(notifInstance(h), ids[0]) {
+		t.Fatalf("no notification row to select: %v", NotifRowIDs(notifInstance(h)))
+	}
+}
+
 func TestNotificationsGolden(t *testing.T) {
 	sweep(t, uitest.AllSizes(), "notifications", notifOpts(t, false, nil), nil)
 
@@ -114,8 +124,9 @@ func TestNotificationsCommandPane(t *testing.T) {
 			t.Fatalf("notifications pane lacks %q:\n%s", want, body)
 		}
 	}
-	if top := region(s, pane.Rect)[0]; !strings.Contains(top, "알림") || !strings.Contains(top, "2") {
-		t.Fatalf("notifications pane title %q, want 알림 with badge 2", top)
+	// 2 unread notifications + the unread #일반 (notify all) of the 안 읽은 대화 section
+	if top := region(s, pane.Rect)[0]; !strings.Contains(top, "알림") || !strings.Contains(top, "3") {
+		t.Fatalf("notifications pane title %q, want 알림 with badge 3", top)
 	}
 	if i, j := strings.Index(body, "하나님이 좋아함"), strings.Index(body, "민지님이 멘션"); i < 0 || j < 0 || i > j {
 		t.Fatalf("newest first: like (%d) must precede mention (%d):\n%s", i, j, body)
@@ -198,6 +209,7 @@ func TestNotificationEnterMarksReadAndRoutes(t *testing.T) {
 	srv.JSON("POST /v1/notifications/read", http.StatusOK, map[string]int{"unread_count": 1})
 	h := uitest.New(t, notifOptsWith(srv, false, nil)...)
 	first := fixtures.Notifications()[0]
+	selectFirstNotif(t, h)
 	h.Press("enter")
 	r, ok := lastReq(h, "POST", "/v1/notifications/read")
 	if !ok {
@@ -224,6 +236,7 @@ func TestNotificationEnterReadSendsNothing(t *testing.T) {
 	items[0].Read = true
 	srv.JSON("GET /v1/notifications", http.StatusOK, api.NotificationPage{Items: items, UnreadCount: 1})
 	h := uitest.New(t, notifOptsWith(srv, false, nil)...)
+	selectFirstNotif(t, h)
 	h.Press("enter")
 	if rs := reqsTo(h, "POST", "/v1/notifications/read"); len(rs) != 0 {
 		t.Fatalf("enter on a read notification sent %+v", rs)
@@ -244,6 +257,7 @@ func TestNotificationEnterFollowRequestOpensOverlay(t *testing.T) {
 	}
 	srv.JSON("GET /v1/notifications", http.StatusOK, api.NotificationPage{Items: []api.Notification{fr}, UnreadCount: 1})
 	h := uitest.New(t, notifOptsWith(srv, false, nil)...)
+	selectFirstNotif(t, h)
 	h.Press("enter")
 	if len(h.Model.Frame().Overlays) != 1 {
 		t.Fatalf("overlays = %+v, want feed.follow_requests", h.Model.Frame().Overlays)
@@ -297,8 +311,9 @@ func TestNotificationCreatedEventPrepends(t *testing.T) {
 	if !strings.Contains(h.Screen(), "준호님이 답글을 남겼어요") {
 		t.Fatalf("new notification not drawn:\n%s", h.Screen())
 	}
-	if _, badge := notifInstance(h).(ui.Titled).Title(h.Context()); badge.Count != 3 {
-		t.Fatalf("title badge = %+v, want Count 3", badge)
+	// the server's unread_count 3 + the unread #일반 conversation
+	if _, badge := notifInstance(h).(ui.Titled).Title(h.Context()); badge.Count != 4 {
+		t.Fatalf("title badge = %+v, want Count 4", badge)
 	}
 }
 
@@ -350,6 +365,7 @@ func TestNotificationSpaceInviteRoutes(t *testing.T) {
 			s.DirectInvites = append(s.DirectInvites, api.DirectInvite{ID: want, Status: "pending",
 				Space: api.SpacePreview{ID: fixtures.SpaceNova, Name: "노바 개발방"}})
 		}
+		selectFirstNotif(t, h)
 		h.Press("enter")
 		nav := h.Nav()
 		stack := nav.Tabs[nav.Active].Stack

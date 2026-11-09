@@ -481,7 +481,11 @@ func (commandSource) Items(ctx *ui.Context, q string) []Item {
 		if !ok {
 			continue
 		}
-		out = append(out, Item{Kind: ItemCommand, Title: c.Title, Command: &c, Score: s})
+		it := Item{Kind: ItemCommand, Title: c.Title, Command: &c, Score: s}
+		if c.Badge != nil && ctx != nil {
+			it.Badge = c.Badge(ctx)
+		}
+		out = append(out, it)
 	}
 	return out
 }

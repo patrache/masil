@@ -130,10 +130,13 @@ type markReadOutcome struct {
 }
 
 // notifications is RouteNotifications: the inbox, newest first, in the command
-// pane's lower right (SlotNotifications) or as the single pane in Main.
+// pane's lower right (SlotNotifications) or as the single pane in Main. The
+// "안 읽은 대화" section (inboxconv.go) comes before the notifications.
 type notifications struct {
-	list  *widgets.List[api.Notification]
+	list  *widgets.List[inboxRow]
 	items []api.Notification // newest first, blocked actors skipped
+	convs []convRow          // the 안 읽은 대화 section, newest first
+	rows  []inboxRow         // what the List shows: convs, then items
 	size  ui.Size
 	spin  *widgets.Spinner
 	fade  widgets.Fade
@@ -160,7 +163,7 @@ var (
 // newNotifications builds RouteNotifications.
 func newNotifications(_ *ui.Context, _ ui.Route) ui.Component {
 	n := &notifications{spin: widgets.NewSpinner(), listY: -1}
-	n.list = widgets.NewList(func(x api.Notification) string { return x.ID }, n.renderItem)
+	n.list = widgets.NewList(func(x inboxRow) string { return x.id() }, n.renderRow)
 	return n
 }
 
@@ -246,11 +249,11 @@ func (n *notifications) maybeMore(ctx *ui.Context) tea.Cmd {
 
 func (n *notifications) selectedIndex() int {
 	sel, ok := n.list.Selected()
-	if !ok {
+	if !ok || sel.conv != nil {
 		return -1
 	}
 	for i, x := range n.items {
-		if x.ID == sel.ID {
+		if x.ID == sel.n.ID {
 			return i
 		}
 	}
@@ -373,17 +376,28 @@ func (n *notifications) build(ctx *ui.Context) []api.Notification {
 	return out
 }
 
-// sync re-reads the window into the List (the rows are cheap, so every sync
-// redraws: read flags and names change in place). A list at the top stays at
-// the top, so a new notification shows.
+// sync re-reads the window and the unread conversations into the List (the
+// rows are cheap, so every sync redraws: read flags and names change in place).
+// A list at the top stays at the top, so a new notification shows.
 func (n *notifications) sync(ctx *ui.Context) {
 	items := n.build(ctx)
+	convs := buildConvs(ctx, items)
+	rows := joinRows(ctx, convs, items)
 	a := n.list.Anchor()
-	atTop := len(n.items) == 0 || a.ItemID == "" || (a.ItemID == n.items[0].ID && a.LineOffset == 0)
-	n.items = items
-	n.list.SetItems(items)
-	if atTop && len(items) > 0 {
-		n.list.Restore(widgets.ScrollAnchor{ItemID: items[0].ID})
+	atTop := len(n.rows) == 0 || a.ItemID == "" || (a.ItemID == n.rows[0].id() && a.LineOffset == 0)
+	n.items, n.convs, n.rows = items, convs, rows
+	n.list.SetItems(rows)
+	if atTop && len(rows) > 0 {
+		n.list.Restore(widgets.ScrollAnchor{ItemID: rows[0].id()})
+	}
+}
+
+// syncConvs re-syncs when the section changed since the last sync: a read can
+// reach the Store outside this view's Update (a channel view's local read
+// result is broadcast to it after the inbox already ran), so View checks.
+func (n *notifications) syncConvs(ctx *ui.Context) {
+	if !reflect.DeepEqual(buildConvs(ctx, n.items), n.convs) {
+		n.sync(ctx)
 	}
 }
 
@@ -523,10 +537,6 @@ func (n *notifications) narrow(ctx *ui.Context) bool {
 	return n.size.W < notifNarrowWidth || d == ui.DensityLine || d == ui.DensityMinimal
 }
 
-func (n *notifications) renderItem(ctx *ui.Context, x api.Notification, selected bool, width int) []string {
-	return []string{n.row(ctx, x, selected && n.focused, width)}
-}
-
 // row draws one notification in exactly width cells:
 //
 //	wide:   "  ● ♥ 하나님이 내 글을 좋아해요 · "오늘 첫 눈…"      3분"
@@ -652,19 +662,28 @@ func (n *notifications) View(ctx *ui.Context, focused bool) string {
 	if w <= 0 || h <= 0 {
 		return ""
 	}
+	n.syncConvs(ctx)
 	if n.focused != focused {
 		n.focused = focused
-		n.list.SetItems(n.items) // the selection bar follows the focus
+		n.list.SetItems(n.rows) // the selection bar follows the focus
 	}
 	n.listY, n.listH = -1, 0
 	var out []string
 	switch {
-	case len(n.items) == 0 && (n.loading || !n.loaded):
+	case len(n.rows) == 0 && (n.loading || !n.loaded):
 		out = append(out, n.loadingLine(ctx, w))
-	case len(n.items) == 0 && n.err != nil:
+	case len(n.rows) == 0 && n.err != nil:
 		out = strings.Split(widgets.Empty(t, n.size, "⚠", retryHint(ctx, textNotifLoadFail), ""), "\n")
-	case len(n.items) == 0:
+	case len(n.rows) == 0:
 		out = strings.Split(widgets.Empty(t, n.size, iconNotifEmpty, textNotifEmpty, ""), "\n")
+	case len(n.items) == 0:
+		// the section alone: the notifications' state (loading / failed / none) right under it
+		foot := n.sectionFoot(ctx, w)
+		n.listY, n.listH = 0, min(max(h-len(foot), 0), n.contentLines())
+		if n.listH > 0 {
+			out = append(out, strings.Split(n.list.View(ctx, ui.Size{W: w, H: n.listH}), "\n")...)
+		}
+		out = append(out, foot...)
 	default:
 		footer := 0
 		if n.loadingMore {
@@ -684,9 +703,40 @@ func (n *notifications) View(ctx *ui.Context, focused bool) string {
 	return blankRows(t, out, w, h)
 }
 
+// contentLines is how many lines the rows take (one each, plus section headers).
+func (n *notifications) contentLines() int {
+	c := len(n.rows)
+	for _, r := range n.rows {
+		if r.head != "" {
+			c++
+		}
+	}
+	return c
+}
+
+// sectionFoot is drawn under the 안 읽은 대화 section while no notification is
+// shown: the "알림" header, then loading, the retry notice or "새 알림이 없어요".
+func (n *notifications) sectionFoot(ctx *ui.Context, w int) []string {
+	t := themeOf(ctx)
+	indent := t.S.Base.Render(strings.Repeat(" ", notifGutterW))
+	var out []string
+	if ctx.Density() != ui.DensityMinimal {
+		out = append(out, fit(t, indent+t.S.Subtitle.Render(textNotifHeader), w))
+	}
+	switch {
+	case n.loading || !n.loaded:
+		out = append(out, n.loadingLine(ctx, w))
+	case n.err != nil:
+		out = append(out, fit(t, indent+t.S.Dim.Render("⚠ "+retryHint(ctx, textNotifLoadFail)), w))
+	default:
+		out = append(out, fit(t, indent+t.S.Dim.Render(textNotifEmpty), w))
+	}
+	return out
+}
+
 func (n *notifications) Resize(_ *ui.Context, size ui.Size) {
 	if n.size.W != size.W {
-		n.list.SetItems(n.items) // the narrow / wide copy depends on the width
+		n.list.SetItems(n.rows) // the narrow / wide copy depends on the width
 	}
 	n.size = size
 }
@@ -703,12 +753,12 @@ func (n *notifications) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, t
 		}
 		return true, n.markAll(ctx)
 	}
-	if len(n.items) == 0 {
+	if len(n.rows) == 0 {
 		return false, nil
 	}
 	if ctx.Keys.Matches(msg, keymap.ListOpen) {
 		if x, ok := n.list.Selected(); ok {
-			return true, n.open(ctx, x)
+			return true, n.openRow(ctx, x)
 		}
 		return true, nil
 	}
@@ -731,24 +781,16 @@ func (n *notifications) markAll(ctx *ui.Context) tea.Cmd {
 	return n.markRead(ctx, nil)
 }
 
-// rowAt is the notification drawn on list row y: the List's anchor is the top
-// row's item after layout, and every notification is one line.
-func (n *notifications) rowAt(y int) (api.Notification, bool) {
-	if y < 0 || y >= n.listH {
-		return api.Notification{}, false
+// openRow opens a conversation (marking a thread's notifications read) or a notification.
+func (n *notifications) openRow(ctx *ui.Context, r inboxRow) tea.Cmd {
+	if r.conv == nil {
+		return n.open(ctx, r.n)
 	}
-	a := n.list.Anchor()
-	start := 0
-	for i, x := range n.items {
-		if x.ID == a.ItemID {
-			start = i
-			break
-		}
+	var cmds []tea.Cmd
+	if len(r.conv.notifs) > 0 {
+		cmds = append(cmds, n.markRead(ctx, r.conv.notifs))
 	}
-	if i := start + a.LineOffset + y; i >= 0 && i < len(n.items) {
-		return n.items[i], true
-	}
-	return api.Notification{}, false
+	return tea.Batch(append(cmds, ui.Navigate(r.conv.route))...)
 }
 
 func (n *notifications) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
@@ -764,23 +806,24 @@ func (n *notifications) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.
 		if m.Button != tea.MouseLeft {
 			return nil
 		}
-		x, ok := n.rowAt(ly.Y)
+		x, ok := n.list.At(ly.Y)
 		if !ok {
 			return nil
 		}
-		n.list.Select(x.ID)
-		return n.open(ctx, x)
+		n.list.Select(x.id())
+		return n.openRow(ctx, x)
 	}
 	return nil
 }
 
 // ---- optional capabilities ----
 
-// Title is "알림" with the unread count.
+// Title is "알림" with the unread count: notifications plus the unread
+// conversations no notification counts (Store.InboxBadge).
 func (n *notifications) Title(ctx *ui.Context) (string, ui.Badge) {
 	b := ui.Badge{}
 	if ctx != nil && ctx.Store != nil {
-		b.Count = ctx.Store.NotifUnread
+		b.Count = ctx.Store.InboxBadge()
 	}
 	return textNotifTitle, b
 }
@@ -788,7 +831,7 @@ func (n *notifications) Title(ctx *ui.Context) (string, ui.Badge) {
 func (n *notifications) Help(ctx *ui.Context) []key.Binding {
 	open := ctx.Keys.Binding(keymap.ListOpen)
 	open.SetHelp(open.Help().Key, "열기")
-	if n.err != nil && len(n.items) == 0 {
+	if n.err != nil && len(n.rows) == 0 {
 		r := ctx.Keys.Binding(keymap.PostReply)
 		r.SetHelp(r.Help().Key, textRetry)
 		return []key.Binding{r}

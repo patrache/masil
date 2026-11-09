@@ -36,9 +36,10 @@ type Store struct {
 	reducerOrder []Reducer
 
 	viewing    map[string]bool
-	counted    *idSet // message.created IDs already applied to unread/mention counters
-	mentioned  *idSet // message IDs whose mention was already counted (direct or @here notification)
-	removedInv *idSet // direct invite IDs already dropped by space.invite_removed (a late invite_received is ignored)
+	counted    *idSet                 // message.created IDs already applied to unread/mention counters
+	mentioned  *idSet                 // message IDs whose mention was already counted (direct or @here notification)
+	removedInv *idSet                 // direct invite IDs already dropped by space.invite_removed (a late invite_received is ignored)
+	lastMsg    map[string]api.Message // channel id -> newest top-level message seen this session (LastMessage)
 	now        func() time.Time
 
 	flight       *flight           // open while a bootstrap is in flight (flight.go)
@@ -102,6 +103,7 @@ func (s *Store) clear() {
 	s.counted = newIDSet(dedupeIDs)
 	s.mentioned = newIDSet(dedupeIDs)
 	s.removedInv = newIDSet(dedupeIDs)
+	s.lastMsg = map[string]api.Message{}
 	s.flight, s.replaying, s.applying, s.snapshotLast = nil, false, false, nil
 }
 
@@ -244,6 +246,7 @@ func (s *Store) syncSpaceChannel(ch *api.Channel) {
 func (s *Store) dropChannel(id string) {
 	ch := s.Channels[id]
 	delete(s.Channels, id)
+	delete(s.lastMsg, id)
 	s.DMOrder = removeString(s.DMOrder, id)
 	if ch != nil && ch.SpaceID != nil {
 		if sd := s.Spaces[*ch.SpaceID]; sd != nil {

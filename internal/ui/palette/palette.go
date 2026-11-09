@@ -20,6 +20,7 @@ type Command struct {
 	KeyHint   string // "ctrl+w 1"
 	Available func(ctx *ui.Context) bool
 	Run       func(ctx *ui.Context, args string) tea.Cmd
+	Badge     func(ctx *ui.Context) ui.Badge // drawn on the item (nil = none), e.g. the 알림함's unread count
 }
 
 var (

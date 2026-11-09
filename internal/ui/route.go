@@ -34,6 +34,14 @@ const (
 	FriendsIncoming = "incoming" // 받은 요청
 )
 
+// RouteChannel Query: {QueryJump: JumpUnread} with Anchor = my read pointer
+// selects the first message after it that someone else wrote (the 알림함's
+// "안 읽은 대화" rows), instead of the anchor itself.
+const (
+	QueryJump  = "jump"
+	JumpUnread = "unread"
+)
+
 // Route is a logical place.
 type Route struct {
 	Kind   RouteKind

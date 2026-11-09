@@ -222,6 +222,21 @@ func (p *msgPane) has(id string) bool {
 	return ok
 }
 
+// firstUnreadAfter is the first message row after anchor that someone else
+// wrote (as the unread divider counts: my own messages are never new), "" = none.
+func (p *msgPane) firstUnreadAfter(ctx *ui.Context, anchor string) string {
+	for _, r := range p.rows {
+		if r.Kind != rowMessage || r.Msg == nil || r.Msg.ID <= anchor {
+			continue
+		}
+		if ctx != nil && ctx.Store != nil && ctx.Store.IsMe(r.Msg.Author.ID) {
+			continue
+		}
+		return r.ID
+	}
+	return ""
+}
+
 // lastSelectable is the id of the last message / pending row ("" = none).
 func (p *msgPane) lastSelectable() string {
 	for i := len(p.rows) - 1; i >= 0; i-- {

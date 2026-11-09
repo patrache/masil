@@ -288,7 +288,13 @@ func (v *channelView) onHistory(ctx *ui.Context, m ui.ResultMsg[historyPage]) te
 	v.pane.refresh(ctx)
 	v.pane.stopLoading()
 	if q.Around != "" && q.Around == v.jump {
-		v.pane.selectID(q.Around)
+		target := q.Around
+		if v.route.Query[ui.QueryJump] == ui.JumpUnread {
+			if id := v.pane.firstUnreadAfter(ctx, q.Around); id != "" {
+				target = id
+			}
+		}
+		v.pane.selectID(target)
 		v.jump = ""
 	}
 	v.syncOpen(ctx)
@@ -444,6 +450,11 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		v.route = m.Route
 		if c := chatOf(ctx); c != nil {
 			c.SetActiveChannel(v.id())
+		}
+		if ch := v.channel(ctx); m.Route.Query[ui.QueryJump] == ui.JumpUnread && ch != nil && ch.My.LastReadMessageID != nil {
+			// reopened at the first unread (알림함): the divider follows the read pointer of now
+			v.pane.lastRead = *ch.My.LastReadMessageID
+			v.pane.refresh(ctx)
 		}
 		switch {
 		case m.Route.Anchor != "" && v.pane.failed != "":

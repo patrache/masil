@@ -564,14 +564,14 @@ func (l *List) LoadState(v any) {
 	l.List.Restore(st.Anchor)
 }
 
-// Title implements ui.Titled: "피드" / "알림" (badge = unread notifications) / "홈".
+// Title implements ui.Titled: "피드" / "알림" (badge = Store.InboxBadge) / "홈".
 func (l *List) Title(ctx *ui.Context) (title string, badge ui.Badge) {
 	switch l.Route.Kind {
 	case ui.RouteFeed:
 		return "피드", ui.Badge{}
 	case ui.RouteNotifications:
 		if ctx != nil && ctx.Store != nil {
-			badge.Count = ctx.Store.NotifUnread
+			badge.Count = ctx.Store.InboxBadge()
 		}
 		return "알림", badge
 	}
