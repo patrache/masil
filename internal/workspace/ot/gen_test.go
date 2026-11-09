@@ -40,3 +40,5 @@ func randOp(r *rand.Rand, baseLen int) Op {
 	}
 	return b.op
 }
+
+func newRand(seed int64) *rand.Rand { return rand.New(rand.NewSource(seed)) }

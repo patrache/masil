@@ -117,8 +117,9 @@ MinLevel 열: 참가자가 그 종류를 오너에게 보낼 수 있는 최소 �
 | `prop_result` | `{id, action}` |
 | `tree_req` | `{dir}` |
 | `tree_list` | `{dir, entries:[{name, dir, size}], more, error?}` |
-| `doc_open`·`doc_save`·`doc_close` | `{doc}` |
-| `doc_state` | `{doc, seq, text, read_only, reason?, error?}` |
+| `doc_open` | `{doc, pending?}` (`pending` = 재접속 때 아직 받음을 못 받은 내 `client_op_id`) |
+| `doc_save`·`doc_close` | `{doc}` |
+| `doc_state` | `{doc, seq, text, read_only, reason?, error?, pending_seq?}` (`pending_seq` = `doc_open.pending` 이 이미 순번을 받았으면 그 순번) |
 | `doc_op` | `{doc, client_op_id, base_seq, ops}` |
 | `doc_ack` | `{doc, client_op_id, seq}` |
 | `doc_reject` | `{doc, client_op_id, code}` |
@@ -210,7 +211,8 @@ AES-256-GCM(`crypto/aes`+`crypto/cipher`), Ed25519(`crypto/ed25519`). 압축하�
   - 오너는 권한(편집 단계 이상, 만료 안 됨)을 보고, `base_seq` 이후 확정된 편집들에 맞춰 변환한 뒤 다음 순번을 매긴다. 보낸 사람에게 `doc_ack{doc, client_op_id, seq}`, 모두에게 `doc_bcast{doc, seq, author, ops}`(변환된 연산). 보낸 사람은 자기 `doc_bcast` 를 무시하고 `doc_ack` 로 확정한다.
   - 거절은 `doc_reject{doc, client_op_id, code}` — `code`: `stale_base`(오너가 보관한 기록 5,000개보다 오래됨), `future_base`, `base_len`, `level`(권한 없음), `read_only`, `too_large`. 거절받은 쪽은 `doc_open` 으로 `doc_state` 를 다시 받아 대기·버퍼를 버리고 그 상태에서 다시 시작한다.
   - 같은 위치 넣기 동률: 먼저 순번을 받은 쪽이 앞에 온다.
-  - 재접속: `doc_state` 를 다시 받고, 아직 확정 안 된 내 편집(대기 + 버퍼)을 그 위에 다시 얹어 새 `doc_op` 로 보낸다.
+  - **멱등**: 오너는 문서마다 보관 기록(5,000개) 안의 `client_op_id` 를 기억한다. 이미 순번을 받은 `client_op_id` 가 다시 오면 상태를 바꾸지 않고 처음 `seq` 로 `doc_ack` 만 다시 보낸다.
+  - 재접속: 참가자는 대기 중인 편집의 `client_op_id` 를 `doc_open{doc, pending}` 에 싣고, `doc_state` 가 올 때까지 아무것도 보내지 않으며(친 것은 버퍼에 모음) 그사이 오는 `doc_ack`·`doc_bcast` 는 버린다. 오너는 `doc_state{…, pending_seq}` 로 답한다(그 편집이 이미 순번을 받았으면 그 순번, 아니면 0). 참가자는 받은 `text` 와 마지막으로 확정했던 문서의 차이(Diff)에 맞춰, `pending_seq = 0` 이면 대기 + 버퍼를, 아니면 버퍼만 변환해 `text` 위에 다시 얹고 새 `client_op_id` 의 `doc_op` 로 보낸다. 그래서 받음을 잃은 편집이 두 번 들어가지 않는다.
   - 디스크 변경은 오너가 차이를 편집으로 바꿔 `author = -1` 로 순번을 매긴다(저장 안 된 편집과 3방향 합치기).
 
 ## 8. 종료 코드

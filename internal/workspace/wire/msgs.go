@@ -135,17 +135,24 @@ type TreeList struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// DocOpen.Pending names the edit still awaiting its ack when reopening
+// after a reconnect (ot.Client.Resync), so the owner can say whether it was
+// already sequenced.
 type DocOpen struct {
-	Doc string `json:"doc"`
+	Doc     string `json:"doc"`
+	Pending string `json:"pending,omitempty"`
 }
 
+// DocState.PendingSeq is the seq DocOpen.Pending was sequenced at (0 = not
+// sequenced): the client then calls ot.Client.ResetAcked instead of Reset.
 type DocState struct {
-	Doc      string `json:"doc"`
-	Seq      int64  `json:"seq"`
-	Text     string `json:"text"`
-	ReadOnly bool   `json:"read_only"`
-	Reason   string `json:"reason,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Doc        string `json:"doc"`
+	Seq        int64  `json:"seq"`
+	Text       string `json:"text"`
+	ReadOnly   bool   `json:"read_only"`
+	Reason     string `json:"reason,omitempty"`
+	Error      string `json:"error,omitempty"`
+	PendingSeq int64  `json:"pending_seq,omitempty"`
 }
 
 // DocOp.Ops travels in ot.js JSON form (docs/contract/workspace.md 7).

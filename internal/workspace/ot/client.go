@@ -181,7 +181,7 @@ func (c *Client) relay(seq int64, text, from []rune, u Op) (*Pending, error) {
 	t := append([]rune(nil), text...)
 	local := append([]rune(nil), t...)
 	if u != nil && !u.IsNoop() {
-		x := rebaseDiff(from, t)
+		x := Diff(from, t)
 		u2, _, err := Transform(u, x)
 		if err != nil {
 			return nil, err
@@ -209,11 +209,8 @@ func (c *Client) Drop(seq int64, text []rune) {
 	c.pending, c.buffer, c.resync = nil, nil, false
 }
 
-// rebaseDiff is the operation turning a into b used to rebase unconfirmed
-// edits after a reconnect.
-var rebaseDiff = trimDiff
-
-// trimDiff keeps the common prefix and suffix and replaces the middle.
+// trimDiff keeps the common prefix and suffix and replaces the middle
+// (Diff uses it inside each changed hunk).
 func trimDiff(a, b []rune) Op {
 	p := 0
 	for p < len(a) && p < len(b) && a[p] == b[p] {
