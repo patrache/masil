@@ -52,6 +52,7 @@ func setup(t *testing.T) *env {
 	for _, k := range []string{leetcode.EnvSession, leetcode.EnvCSRF, leetcode.EnvCFClearance, "EDITOR"} {
 		t.Setenv(k, "")
 	}
+	leet.TakeEnvCookiesForTest(t) // no environment sign-in unless a test sets one
 	lc := leetcodetest.New(t)
 	t.Cleanup(leet.SetLeetcodeForTest(lc.URL))
 	t.Cleanup(leet.SetOpenURLForTest(func(string) error { return nil })) // never a real browser

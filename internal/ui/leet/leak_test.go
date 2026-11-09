@@ -17,6 +17,7 @@ import (
 	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/leet"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 )
@@ -116,11 +117,20 @@ func sweepAll(t *testing.T, e *env, h *uitest.Harness, logBuf *bytes.Buffer, sw 
 		noValueIn(t, "screen "+itoa(i), s, values...)
 	}
 	noValueUnder(t, "testdata", "", values...)
-	// (e) what the tool asked to start.
-	for i, r := range e.pane.Started() {
+	// (e) what the tool asked to start, and the environment that program
+	// really gets: termhost starts it with os.Environ() and then Request.Env
+	// (termhost.StartPane, the exec mode's Run), so what masil inherited
+	// counts as much as what it adds (A9.1 rule 4).
+	launches := e.pane.Started()
+	if len(launches) == 0 {
+		t.Fatal("no program was launched (the launch sweep would be vacuous)")
+	}
+	for i, r := range launches {
 		noValueIn(t, "launch "+itoa(i)+" args", strings.Join(r.Args, "\x00"), values...)
 		noValueIn(t, "launch "+itoa(i)+" env", strings.Join(r.Env, "\x00"), values...)
 		noValueIn(t, "launch "+itoa(i)+" program", r.Program+"\x00"+r.Dir+"\x00"+r.Title, values...)
+		child := append(os.Environ(), r.Env...)
+		noValueIn(t, "launch "+itoa(i)+" child env", strings.Join(child, "\x00"), values...)
 	}
 }
 
@@ -228,13 +238,20 @@ func TestCookieNeverLeavesPC(t *testing.T) {
 }
 
 // Cookies from the environment are used for this run only: never stored,
-// never sent to masil, never in a launched program's arguments or env.
+// never sent to masil, never in a launched program's arguments or env —
+// neither the env masil adds nor the one the program inherits from masil.
 func TestCookieFromEnvNeverStored(t *testing.T) {
 	logBuf := debugLog(t)
 	e := setup(t)
 	const envSession, envCSRF = "env-SECRET-sess-4321", "env-SECRET-csrf-8765"
 	t.Setenv(leetcode.EnvSession, envSession)
 	t.Setenv(leetcode.EnvCSRF, envCSRF)
+	leet.TakeEnvCookiesForTest(t) // as masil's start does
+	for _, k := range []string{leetcode.EnvSession, leetcode.EnvCSRF} {
+		if v, ok := os.LookupEnv(k); ok {
+			t.Fatalf("%s still in the process environment (%d bytes)", k, len(v))
+		}
+	}
 	e.lc.SetDailyDate("2026-11-05")
 	e.lc.SetUserStatus(true, "sam_lc", false)
 	e.lc.QueueCheck(runID, "check_run_success.json")

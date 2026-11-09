@@ -146,3 +146,19 @@ func SetImageTransportForTest(f func(*http.Request) (*http.Response, error)) (re
 type roundTrip func(*http.Request) (*http.Response, error)
 
 func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// TakeEnvCookiesForTest does what masil's start does with the LEETCODE_*
+// variables now in the environment (t.Setenv them first): moves them out of
+// the process environment into this run's memory. The memory is restored at
+// tb's cleanup.
+func TakeEnvCookiesForTest(tb interface{ Cleanup(func()) }) {
+	envCookieMu.Lock()
+	saved := envCookies
+	envCookieMu.Unlock()
+	takeEnvCookies()
+	tb.Cleanup(func() {
+		envCookieMu.Lock()
+		envCookies = saved
+		envCookieMu.Unlock()
+	})
+}

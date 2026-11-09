@@ -114,13 +114,13 @@ func (in *instance) startJudge(ctx *ui.Context, kind judgeKind) tea.Cmd {
 	store, id := ctx.Secrets, in.id
 	return func() tea.Msg {
 		if !ok {
-			c, found := leetcode.CredentialsFromEnv(os.Getenv)
+			c, found := leetcode.CredentialsFromEnv(envCookie)
 			if !found {
 				return credsLoadedMsg{id: id, kind: kind, err: secrets.ErrNotFound}
 			}
 			return credsLoadedMsg{id: id, kind: kind, creds: c}
 		}
-		c, err := leetcode.LoadCredentials(context.Background(), store, ns, os.Getenv)
+		c, err := leetcode.LoadCredentials(context.Background(), store, ns, envCookie)
 		return credsLoadedMsg{id: id, kind: kind, creds: c, err: err}
 	}
 }
