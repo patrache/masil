@@ -73,70 +73,119 @@ var fieldReason = map[string]string{
 	"not_allowed": "허용되지 않아요",
 }
 
-// Describe returns a Korean, user-facing, one-line description (table per code + fields).
-// nil => "". Every server-supplied piece goes through serverText and the whole
-// line through textwidth.Sanitize, so the result is always safe to print.
-func Describe(err error) string {
-	if err == nil {
-		return ""
-	}
-	return textwidth.Sanitize(describe(err))
+// Explanation is an error taken apart for display (P5 Task 6): what the
+// screen says is errtext.Describe(t, err), which renders it in t's language.
+// Every server-supplied string in it went through serverText (sanitized, at
+// most maxServerText cells).
+type Explanation struct {
+	// Code is CodeOf(err) ("network", "canceled" for transport errors);
+	// "" = not an API error (unknown).
+	Code string
+	// Field and Reason are invalid_request's first details.fields entry by
+	// name ("" = no fields).
+	Field, Reason string
+	// Limit is limit_exceeded's details.limit ("" = absent).
+	Limit string
+	// MinVersion is upgrade_required's details.min_client_version ("" = absent).
+	MinVersion string
+	// RetryAfterSec is rate_limited's Retry-After, rounded up (0 = absent).
+	RetryAfterSec int
 }
 
-func describe(err error) string {
-	code := CodeOf(err)
+// Explain takes err apart (nil => the zero Explanation).
+func Explain(err error) Explanation {
+	if err == nil {
+		return Explanation{}
+	}
+	x := Explanation{Code: serverText(CodeOf(err))}
 	var e *Error
-	errors.As(err, &e)
-	switch code {
-	case "":
-		return "알 수 없는 오류예요"
+	if !errors.As(err, &e) {
+		return x
+	}
+	switch e.Code {
 	case "invalid_request":
-		var f map[string]string
-		if e != nil {
-			f = e.Fields()
+		if f := e.Fields(); len(f) > 0 {
+			names := make([]string, 0, len(f))
+			for k := range f {
+				names = append(names, k)
+			}
+			sort.Strings(names)
+			x.Field, x.Reason = serverText(names[0]), serverText(f[names[0]])
 		}
-		if len(f) == 0 {
-			return "입력값을 확인해 주세요"
-		}
-		names := make([]string, 0, len(f))
-		for k := range f {
-			names = append(names, k)
-		}
-		sort.Strings(names)
-		name := names[0]
-		label, ok := fieldLabel[name]
-		if !ok {
-			label = serverText(name)
-		}
-		reason, ok := fieldReason[f[name]]
-		if !ok {
-			reason = serverText(f[name])
-		}
-		return label + ": " + reason
 	case "limit_exceeded":
 		var d struct {
 			Limit *json.Number `json:"limit"`
 		}
-		if e != nil && e.details(&d) && d.Limit != nil {
-			return fmt.Sprintf("한도를 넘었어요 (최대 %s)", serverText(d.Limit.String()))
+		if e.details(&d) && d.Limit != nil {
+			x.Limit = serverText(d.Limit.String())
 		}
-		return "한도를 넘었어요"
 	case "upgrade_required":
 		var d struct {
 			Min string `json:"min_client_version"`
 		}
-		if e != nil && e.details(&d) && d.Min != "" {
-			return fmt.Sprintf("masil을 업데이트해 주세요 (최소 %s)", serverText(d.Min))
+		if e.details(&d) && d.Min != "" {
+			x.MinVersion = serverText(d.Min)
+		}
+	case "rate_limited":
+		if e.RetryAfter > 0 {
+			x.RetryAfterSec = int(math.Ceil(e.RetryAfter.Seconds()))
+		}
+	}
+	return x
+}
+
+// Describe returns a Korean, user-facing, one-line description (table per code + fields).
+// nil => "". Every server-supplied piece goes through serverText and the whole
+// line through textwidth.Sanitize, so the result is always safe to print.
+// Screens use errtext.Describe(ctx.T, err) (P5 Task 6 removes this one).
+func Describe(err error) string {
+	if err == nil {
+		return ""
+	}
+	return DescribeKo(Explain(err))
+}
+
+// DescribeKo renders x with the Korean table (sanitized). It is errtext's ko
+// rendering until the table moves to the catalog (P5 Task 6).
+func DescribeKo(x Explanation) string {
+	return textwidth.Sanitize(describe(x))
+}
+
+func describe(x Explanation) string {
+	switch x.Code {
+	case "":
+		return "알 수 없는 오류예요"
+	case "invalid_request":
+		if x.Field == "" {
+			return "입력값을 확인해 주세요"
+		}
+		label, ok := fieldLabel[x.Field]
+		if !ok {
+			label = x.Field
+		}
+		reason, ok := fieldReason[x.Reason]
+		if !ok {
+			reason = x.Reason
+		}
+		return label + ": " + reason
+	case "limit_exceeded":
+		if x.Limit != "" {
+			return fmt.Sprintf("한도를 넘었어요 (최대 %s)", x.Limit)
+		}
+		return "한도를 넘었어요"
+	case "upgrade_required":
+		if x.MinVersion != "" {
+			return fmt.Sprintf("masil을 업데이트해 주세요 (최소 %s)", x.MinVersion)
 		}
 		return "masil을 업데이트해 주세요"
 	case "rate_limited":
-		if e != nil && e.RetryAfter > 0 {
-			return fmt.Sprintf("너무 빨라요. %d초 뒤에 다시 해 주세요", int(math.Ceil(e.RetryAfter.Seconds())))
+		if x.RetryAfterSec > 0 {
+			return fmt.Sprintf("너무 빨라요. %d초 뒤에 다시 해 주세요", x.RetryAfterSec)
 		}
 		return "너무 빨라요. 잠시 뒤에 다시 해 주세요"
 	}
-	if s, ok := describeText[code]; ok {
+	if s, ok := describeText[x.Code]; ok {
 		return s
 	}
-	return fmt.Sprintf("알 수 없는 오류예요 (%s)", serverText(code))
+	return fmt.Sprintf("알 수 없는 오류예요 (%s)", x.Code)
 }

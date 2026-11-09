@@ -1,0 +1,13 @@
+overlay/app.helpView
+overlay/palette.overlay
+pane/main/channel
+pane/main/feed
+pane/main/home
+pane/main/login
+pane/main/notifications
+pane/main/settings
+pane/main/thread
+pane/sidebar
+pane/tabs
+pane/thread/thread
+status

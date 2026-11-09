@@ -2,6 +2,7 @@ package app
 
 import (
 	"log/slog"
+	"reflect"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -79,12 +80,18 @@ func (m *Model) syncOverlays() {
 
 // pushOverlay opens o on top (Init + Resize); a full stack (maxOverlays) ignores it.
 func (m *Model) pushOverlay(o ui.Overlay) (tea.Cmd, bool) {
+	return m.pushOverlayID(o, "")
+}
+
+// pushOverlayID is pushOverlay remembering the id o was opened by (Box.ID).
+func (m *Model) pushOverlayID(o ui.Overlay, id string) (tea.Cmd, bool) {
 	if o == nil || len(m.overlays) >= maxOverlays {
 		return nil, false
 	}
 	m.overlays = append(m.overlays, o)
 	m.ovSizes = append(m.ovSizes, ui.Size{})
 	m.ovSized = append(m.ovSized, false)
+	m.ovIDs = append(m.ovIDs, id)
 	m.prefix = prefixNone
 	cmd := o.Init(m.ctx)
 	m.syncOverlays()
@@ -103,6 +110,7 @@ func (m *Model) popOverlay() {
 	m.overlays = m.overlays[:n-1]
 	m.ovSizes = m.ovSizes[:n-1]
 	m.ovSized = m.ovSized[:n-1]
+	m.ovIDs = m.ovIDs[:n-1]
 }
 
 // topOverlay is the top overlay, or nil.
@@ -129,7 +137,7 @@ func (m *Model) openOverlay(msg ui.OpenOverlayMsg) tea.Cmd {
 			return nil
 		}
 	}
-	cmd, _ := m.pushOverlay(o)
+	cmd, _ := m.pushOverlayID(o, msg.ID)
 	return cmd
 }
 
@@ -228,7 +236,7 @@ func (m *Model) overlayLayers() []*lipgloss.Layer {
 			s = strings.Join(textwidth.Fit(strings.Split(body, "\n"), in.W, in.H), "\n")
 		}
 		layers = append(layers, lipgloss.NewLayer(s).X(r.X).Y(r.Y).Z(overlayZ+i))
-		m.frame.Overlays = append(m.frame.Overlays, Box{Rect: r, Bordered: bordered})
+		m.frame.Overlays = append(m.frame.Overlays, Box{Rect: r, Bordered: bordered, ID: m.overlayID(i)})
 	}
 	return layers
 }
@@ -280,4 +288,13 @@ func (m *Model) overlayHints() []string {
 		out = []string{hintItem{Key: "esc", Desc: "닫기"}.String()}
 	}
 	return out
+}
+
+// overlayID is overlays[i]'s Box.ID: its registered id, else its Go type
+// without the pointer star ("palette.Model").
+func (m *Model) overlayID(i int) string {
+	if i < len(m.ovIDs) && m.ovIDs[i] != "" {
+		return m.ovIDs[i]
+	}
+	return strings.TrimPrefix(reflect.TypeOf(m.overlays[i]).String(), "*")
 }

@@ -301,7 +301,7 @@ func (m *Model) logout(reason string) tea.Cmd {
 	m.watched, m.watchSent = nil, false
 	m.prefix = prefixNone
 
-	m.overlays, m.ovSizes, m.ovSized, m.palette = nil, nil, nil, nil
+	m.overlays, m.ovSizes, m.ovSized, m.ovIDs, m.palette = nil, nil, nil, nil, nil
 	m.cache = newInstanceCache()
 	m.panes = map[layout.SlotID]*instance{}
 	m.nav = newNavState()

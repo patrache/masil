@@ -60,7 +60,31 @@ func openOverlay(h *uitest.Harness, o ui.Overlay) {
 	h.Send(ui.OpenOverlayMsg{Overlay: o})
 }
 
-func overlayBoxes(h *uitest.Harness) []app.Box { return h.Model.Frame().Overlays }
+// overlayBoxes are the overlay geometries of the last frame (Box.ID, the
+// x-pseudo region name, is checked in TestOverlayBoxID).
+func overlayBoxes(h *uitest.Harness) []app.Box {
+	out := h.Model.Frame().Overlays
+	for i := range out {
+		out[i].ID = ""
+	}
+	return out
+}
+
+func TestOverlayBoxID(t *testing.T) {
+	h := uitest.New(t)
+	openOverlay(h, &rectOverlay{want: layout.Rect{X: 30, Y: 10, W: 60, H: 12}})
+	h.Send(ui.OpenOverlayMsg{ID: ui.OverlayFocusSummary}) // the registered probe (main_test.go)
+	got := h.Model.Frame().Overlays
+	if len(got) != 2 || got[0].ID != "app_test.rectOverlay" || got[1].ID != ui.OverlayFocusSummary {
+		t.Fatalf("overlay IDs = %+v, want [app_test.rectOverlay %s]", got, ui.OverlayFocusSummary)
+	}
+	h.Send(ui.CloseOverlayMsg{})
+	h.Send(ui.CloseOverlayMsg{})
+	openOverlay(h, &rectOverlay{want: layout.Rect{X: 30, Y: 10, W: 60, H: 12}})
+	if got := h.Model.Frame().Overlays; len(got) != 1 || got[0].ID != "app_test.rectOverlay" {
+		t.Fatalf("after closing, overlay IDs = %+v", got)
+	}
+}
 
 func TestOverlayBoundsClampAndDegrade(t *testing.T) {
 	h := uitest.New(t)

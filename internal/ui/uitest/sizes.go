@@ -13,6 +13,10 @@ type Size struct{ W, H int }
 // Required lists the sizes every screen golden MUST cover.
 var Required = []Size{{200, 60}, {120, 40}, {80, 24}, {50, 20}}
 
+// Tiny is the smallest size the locale checks draw (P5 Task 4: x-pseudo and
+// the per-language sweeps at 40x14, the tiny mode's narrowest fit).
+var Tiny = Size{40, 14}
+
 // ModeSizes lists representative sizes per layout mode.
 var ModeSizes = map[layout.Mode][]Size{
 	layout.ModeCommand:  {{200, 60}, {200, 50}, {240, 70}, {320, 90}},
