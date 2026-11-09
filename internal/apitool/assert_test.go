@@ -229,7 +229,7 @@ func TestExtractToSecretGoesToVault(t *testing.T) {
 	if len(errs) != 0 {
 		t.Fatal(errs)
 	}
-	changed, err := ApplyExtracts(vals, s)
+	changed, err := ApplyExtracts(vals, s, "api.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,20 +255,20 @@ func TestExtractToSecretGoesToVault(t *testing.T) {
 		t.Errorf("Lookup = %+v %v", v, err)
 	}
 	// unknown variable: added to Env; without Env: to Globals
-	if _, err := ApplyExtracts(map[string]string{"new": "1"}, s); err != nil || env.Vars[2].Name != "new" || env.Vars[2].Value != "1" {
+	if _, err := ApplyExtracts(map[string]string{"new": "1"}, s, "api.test"); err != nil || env.Vars[2].Name != "new" || env.Vars[2].Value != "1" {
 		t.Errorf("new var: %v %+v", err, env.Vars)
 	}
 	g := &Scope{Globals: []Var{{Name: "g", Value: "old"}}}
-	if ch, err := ApplyExtracts(map[string]string{"g": "new", "h": "2"}, g); err != nil || len(ch) != 2 || g.Globals[0].Value != "new" || g.Globals[1].Name != "h" {
+	if ch, err := ApplyExtracts(map[string]string{"g": "new", "h": "2"}, g, "api.test"); err != nil || len(ch) != 2 || g.Globals[0].Value != "new" || g.Globals[1].Name != "h" {
 		t.Errorf("globals: %v %v %+v", ch, err, g.Globals)
 	}
 	// unchanged values are not reported
-	if ch, _ := ApplyExtracts(map[string]string{"g": "new"}, g); len(ch) != 0 {
+	if ch, _ := ApplyExtracts(map[string]string{"g": "new"}, g, "api.test"); len(ch) != 0 {
 		t.Errorf("unchanged reported: %v", ch)
 	}
 	// a shared collection keeps extracted plain values as my value
 	sh := &Scope{Env: &Env{ID: "e1", Vars: []Var{{Name: "user_id", Value: "shared"}}}, DocID: "d1"}
-	if _, err := ApplyExtracts(map[string]string{"user_id": "u9"}, sh); err != nil {
+	if _, err := ApplyExtracts(map[string]string{"user_id": "u9"}, sh, "api.test"); err != nil {
 		t.Fatal(err)
 	}
 	if sh.Env.Vars[0].Value != "shared" || sh.Mine == nil || sh.Mine.Values["e1/user_id"] != "u9" {

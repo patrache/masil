@@ -58,6 +58,7 @@ type Response struct {
 	Binary                         bool
 	Timing                         Timing
 	RedirectBlocked                *RedirectBlock // a redirect stopped for a secret (Status is the 3xx)
+	Host                           string         // host of the server that answered (after redirects)
 }
 
 // Sender is the only HTTP client to target servers (requests leave from this
@@ -163,6 +164,9 @@ func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Re
 		Proto:           hr.Proto,
 		ContentType:     hr.Header.Get("Content-Type"),
 		Header:          hr.Header,
+	}
+	if hr.Request != nil && hr.Request.URL != nil {
+		r.Host = normHost(hr.Request.URL.Hostname())
 	}
 	if err := s.readBody(ctx, hr, r); err != nil {
 		return nil, err

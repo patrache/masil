@@ -214,16 +214,24 @@ func (t *Tool) sent(ctx *ui.Context, key string, st *respState, vals map[string]
 	if len(vals) > 0 {
 		// A secret variable's value goes to the vault off the UI goroutine
 		// (the OS store may block or need consent); plain ones are stored here.
+		// A shared request fills only its own secrets, from their allowed hosts.
 		sc := t.scope(ctx)
 		plain := map[string]string{}
-		for name, v := range vals {
-			if key, _, secret := sc.SecretSlot(name); secret {
-				t.pendingPuts = append(t.pendingPuts, pendingPut{key: key, name: name, val: secrets.New(v), quiet: true})
-			} else {
-				plain[name] = v
+		for _, name := range slices.Sorted(maps.Keys(vals)) {
+			key, secret, kerr := sc.ExtractSecretKey(name, st.resp.Host)
+			var be *apitool.ExtractBlockedError
+			switch {
+			case errors.As(kerr, &be) && be.Reason == apitool.ExtractNotShared:
+				cmds = append(cmds, ui.Toast(ctx.T.Apitest.ExtractNotShared(textwidth.Sanitize(be.Var)), ui.ToastError))
+			case errors.As(kerr, &be):
+				cmds = append(cmds, ui.Toast(ctx.T.Apitest.ExtractHostBlocked(textwidth.Sanitize(be.Var), textwidth.Sanitize(be.Host)), ui.ToastError))
+			case secret:
+				t.pendingPuts = append(t.pendingPuts, pendingPut{key: key, name: name, val: secrets.New(vals[name]), quiet: true})
+			default:
+				plain[name] = vals[name]
 			}
 		}
-		changed, err := apitool.ApplyExtracts(plain, sc)
+		changed, err := apitool.ApplyExtracts(plain, sc, st.resp.Host)
 		if err != nil {
 			slog.Warn("api: extracts", "err", err)
 		}
