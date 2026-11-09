@@ -1,9 +1,13 @@
 package chat
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/realtime"
@@ -327,4 +331,371 @@ func hostileHome(t *testing.T, sz uitest.Size) *uitest.Harness {
 
 func TestHomeHostileIntegrity(t *testing.T) {
 	forEachSize(t, uitest.AllSizes(), hostileHome, func(t *testing.T, h *uitest.Harness) { h.Check() })
+}
+
+// ---- joined spaces (home-channels) ----
+
+// homeTextChan is a text channel of space for the home tests.
+func homeTextChan(id, space, name string, pos int, my api.ChannelMyState) api.Channel {
+	if my.Notify == "" {
+		my.Notify = "all"
+	}
+	return api.Channel{ID: id, Kind: api.ChannelText, SpaceID: ptrTo(space), Name: ptrTo(name), Position: pos,
+		MemberCount: 3, CreatedAt: uitest.Start.Add(-24 * time.Hour), My: my}
+}
+
+// homeChanID is the n-th test channel id.
+func homeChanID(n int) string { return fmt.Sprintf("01JBH0ME%018d", n) }
+
+// homeView renders a fresh home on h's context at w x hgt (styled lines: the app's
+// compositor re-encodes SGR, the component output does not).
+func homeViewLines(t *testing.T, h *uitest.Harness, w, hgt int) []string {
+	t.Helper()
+	ctx := h.Context()
+	v := newHome(ctx, ui.Route{Kind: ui.RouteHome}).(*homeView)
+	v.Resize(ctx, ui.Size{W: w, H: hgt})
+	return strings.Split(v.View(ctx, false), "\n")
+}
+
+// homeRowEnds fails unless the main-pane row containing text ends with suffix.
+func homeRowEnds(t *testing.T, main, text, suffix string) {
+	t.Helper()
+	for _, row := range strings.Split(main, "\n") {
+		if strings.Contains(row, text) {
+			if !strings.HasSuffix(strings.TrimRight(row, " "), suffix) {
+				t.Fatalf("row %q must end with %q", row, suffix)
+			}
+			return
+		}
+	}
+	t.Fatalf("no row %q:\n%s", text, main)
+}
+
+func TestHomeSpaceSection(t *testing.T) {
+	h := openHome(t, uitest.Size{W: 120, H: 40})
+	main := paneText(t, h, layout.SlotMain)
+	// after the entry rows, before the DMs, in the sidebar's channel order
+	mustContainInOrder(t, main, "피드 보기", "친구 목록", "─ 노바 개발방", "# 일반", "# 잡담", "# 개발", "# 배포알림", "─ DM", "● 민지", "─ 접속 중인 친구")
+	homeRowEnds(t, main, "# 일반", "3")
+	for _, name := range []string{"# 잡담", "# 개발", "# 배포알림"} {
+		homeRowEnds(t, main, name, name) // read: no badge
+	}
+	// the space label is no row the cursor stops on
+	v := homeOf(t, h)
+	i := v.index(homeSpacePrefix + fixtures.SpaceNova)
+	if i < 0 || v.items[i].selectable() {
+		t.Fatalf("space label row %d must exist and not be selectable", i)
+	}
+}
+
+func TestHomeSpaceOrderFollowsRail(t *testing.T) {
+	board := "01JBH0MESPACE0000000000001"
+	seed := func(s *store.Store) {
+		bootstrappedSeed(s)
+		sd := api.SpaceDetail{Space: api.Space{SpacePreview: api.SpacePreview{ID: board, Name: "보드게임 모임", MemberCount: 3}, MyRole: api.RoleMember}}
+		s.Spaces[board] = &sd
+		s.SpaceOrder = []string{board, fixtures.SpaceNova} // the rail's order, not the id order
+		// positions out of id order: the sidebar sorts by position
+		s.ObserveChannel(homeTextChan(homeChanID(1), board, "셋째", 2, api.ChannelMyState{}))
+		s.ObserveChannel(homeTextChan(homeChanID(2), board, "첫째", 0, api.ChannelMyState{}))
+		s.ObserveChannel(homeTextChan(homeChanID(3), board, "둘째", 1, api.ChannelMyState{}))
+	}
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(seed))
+	mustContainInOrder(t, paneText(t, h, layout.SlotMain),
+		"─ 보드게임 모임", "# 첫째", "# 둘째", "# 셋째", "─ 노바 개발방", "# 일반", "# 배포알림", "─ DM")
+}
+
+func TestHomeChannelBadges(t *testing.T) {
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+	s := h.Context().Store
+	th := h.Context().Theme
+
+	if r := rowWith(t, homeViewLines(t, h, 60, 30), "# 일반"); !strings.Contains(r, th.S.Badge.Render(" 3 ")) || !strings.Contains(r, sgr(th.S.Bold)) {
+		t.Fatalf("unread row: sideBadge + bold: %q", r)
+	}
+
+	s.Channels[fixtures.ChDeploy].My.MentionCount = 1
+	if r := rowWith(t, homeViewLines(t, h, 60, 30), "# 배포알림"); !strings.Contains(r, th.S.BadgeMention.Render(" 1 ")) {
+		t.Fatalf("mention badge missing: %q", r)
+	}
+
+	chat := s.Channels[fixtures.ChChat]
+	chat.My.Muted = true
+	chat.My.UnreadCount = 5
+	r := rowWith(t, homeViewLines(t, h, 60, 30), "# 잡담")
+	if !strings.Contains(r, sgr(th.S.Dim)) || strings.Contains(ansi.Strip(r), "5") {
+		t.Fatalf("muted channel: dim, no unread badge: %q", r)
+	}
+	chat.My.MentionCount = 2
+	if r := rowWith(t, homeViewLines(t, h, 60, 30), "# 잡담"); !strings.Contains(r, th.S.BadgeMention.Render(" 2 ")) {
+		t.Fatalf("muted channel still shows mentions: %q", r)
+	}
+}
+
+func TestHomePrivateChannelLock(t *testing.T) {
+	seed := func(s *store.Store) {
+		bootstrappedSeed(s)
+		ch := homeTextChan(homeChanID(1), fixtures.SpaceNova, "비밀", 9, api.ChannelMyState{})
+		ch.IsPrivate = true
+		s.ObserveChannel(ch)
+	}
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(seed))
+	main := paneText(t, h, layout.SlotMain)
+	mustContainInOrder(t, main, "─ 노바 개발방", "# 배포알림", "🔒비밀", "─ DM")
+	if strings.Contains(main, "# 비밀") {
+		t.Fatalf("a private channel reads 🔒, like the sidebar:\n%s", main)
+	}
+}
+
+func TestHomeChannelOpens(t *testing.T) {
+	for _, sz := range []uitest.Size{{W: 80, H: 30}, {W: 40, H: 14}, {W: 120, H: 30}, {W: 200, H: 60}} {
+		t.Run(fmt.Sprintf("%dx%d", sz.W, sz.H), func(t *testing.T) {
+			h := open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+			home := mainKey(h)
+			homeSelect(t, h, "# 개발")
+			h.Press("enter")
+			dev := ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChDev}
+			if got := top(h); got.Key() != dev.Key() || h.Nav().InDM {
+				t.Fatalf("channel row opened %+v (in DM %v)", got, h.Nav().InDM)
+			}
+			if mainKey(h) != dev.Key() {
+				t.Fatalf("main shows %s", mainKey(h))
+			}
+			nav := h.Nav()
+			if nav.Tabs[nav.Active].Stack[0].Key() != dev.Key() {
+				t.Fatalf("the channel is a tab root: %+v", nav.Tabs[nav.Active].Stack)
+			}
+			if c := chatOf(h.Context()); c == nil || c.SelectedSpace() != fixtures.SpaceNova {
+				t.Fatal("opening a space channel selects its space (as the sidebar does)")
+			}
+			h.Press("ctrl+o") // recorded in history: back to the home
+			if mainKey(h) != home {
+				t.Fatalf("ctrl+o: main %s, want home %s", mainKey(h), home)
+			}
+			h.Press("alt+right")
+			if mainKey(h) != dev.Key() {
+				t.Fatalf("alt+right: main %s, want %s", mainKey(h), dev.Key())
+			}
+		})
+	}
+}
+
+func TestHomeChannelClickOpens(t *testing.T) {
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+	clickText(t, h, layout.SlotMain, "# 배포알림")
+	if top(h).Kind != ui.RouteHome {
+		t.Fatalf("first click only selects, got %+v", top(h))
+	}
+	clickText(t, h, layout.SlotMain, "# 배포알림")
+	if got := top(h); got.Key() != (ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChDeploy}).Key() {
+		t.Fatalf("second click opened %+v", got)
+	}
+	// a click on the space label does nothing
+	h = open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+	clickText(t, h, layout.SlotMain, "─ 노바 개발방")
+	clickText(t, h, layout.SlotMain, "─ 노바 개발방")
+	if top(h).Kind != ui.RouteHome {
+		t.Fatalf("space label clicked open %+v", top(h))
+	}
+}
+
+func TestHomeChannelsLive(t *testing.T) {
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+
+	// a new channel
+	h.Event("channel.created", realtime.ChannelEvent{Channel: homeTextChan(homeChanID(1), fixtures.SpaceNova, "새채널", 4, api.ChannelMyState{})})
+	mustContainInOrder(t, paneText(t, h, layout.SlotMain), "─ 노바 개발방", "# 배포알림", "# 새채널", "─ DM")
+
+	// removed from a private channel: it leaves at once
+	priv := homeTextChan(homeChanID(2), fixtures.SpaceNova, "비밀", 5, api.ChannelMyState{})
+	priv.IsPrivate = true
+	h.Event("channel.created", realtime.ChannelEvent{Channel: priv})
+	mustContain(t, paneText(t, h, layout.SlotMain), "🔒비밀")
+	h.Event("channel.deleted", realtime.ChannelDeleted{ChannelID: priv.ID, SpaceID: ptrTo(fixtures.SpaceNova), Reason: "removed"})
+	if main := paneText(t, h, layout.SlotMain); strings.Contains(main, "비밀") {
+		t.Fatalf("removed from a private channel: the row must leave:\n%s", main)
+	}
+
+	// unread changes
+	h.Event("read_state.updated", realtime.ReadStateUpdated{State: api.UnreadState{ChannelID: fixtures.ChDev, UnreadCount: 5}})
+	h.Event("read_state.updated", realtime.ReadStateUpdated{State: api.UnreadState{ChannelID: fixtures.ChGeneral}})
+	main := paneText(t, h, layout.SlotMain)
+	homeRowEnds(t, main, "# 개발", "5")
+	homeRowEnds(t, main, "# 일반", "# 일반")
+
+	// muted live: the unread badge goes
+	h.Event("channel.prefs_updated", realtime.ChannelPrefsUpdated{ChannelID: fixtures.ChDev, My: api.ChannelMyState{Notify: "all", Muted: true}})
+	homeRowEnds(t, paneText(t, h, layout.SlotMain), "# 개발", "# 개발")
+
+	// a joined space gets its section, after the rail's last space
+	h.Event("space.joined", realtime.SpaceJoined{Space: joinedSpace()})
+	mustContainInOrder(t, paneText(t, h, layout.SlotMain), "─ 노바 개발방", "# 새채널", "─ 보드게임 모임", "# 일반", "─ DM")
+
+	// kicked from a space: its section leaves at once
+	h.Event("space.removed", realtime.SpaceRemoved{SpaceID: fixtures.SpaceNova, Reason: "kicked"})
+	main = paneText(t, h, layout.SlotMain)
+	if strings.Contains(main, "노바 개발방") || strings.Contains(main, "# 개발") {
+		t.Fatalf("a space I left must leave the home:\n%s", main)
+	}
+	mustContainInOrder(t, main, "친구 목록", "─ 보드게임 모임", "# 일반", "─ DM")
+}
+
+func TestHomeKeepsSelectionOnChannelRow(t *testing.T) {
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+	homeSelect(t, h, "# 개발")
+	h.Event("channel.created", realtime.ChannelEvent{Channel: homeTextChan(homeChanID(1), fixtures.SpaceNova, "가장앞", -1, api.ChannelMyState{})})
+	h.Screen()
+	if it, _ := homeOf(t, h).list.Selected(); it.ID != homeChanPrefix+fixtures.ChDev {
+		t.Fatalf("selection moved to %+v", it)
+	}
+}
+
+// bigSpace seeds Nova with n channels in all: the four fixture ones plus n-4 more
+// ("채널05".."채널NN"); unread lists the extra channel numbers with 2 unread each.
+func bigSpace(n int, unread ...int) func(*store.Store) {
+	return func(s *store.Store) {
+		bootstrappedSeed(s)
+		for i := 5; i <= n; i++ {
+			my := api.ChannelMyState{}
+			if slices.Contains(unread, i) {
+				my.UnreadCount = 2
+			}
+			s.ObserveChannel(homeTextChan(homeChanID(i), fixtures.SpaceNova, fmt.Sprintf("채널%02d", i), i, my))
+		}
+	}
+}
+
+func TestHomeLargeSpaceCollapses(t *testing.T) {
+	// 12 channels: all shown
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bigSpace(12)))
+	main := paneText(t, h, layout.SlotMain)
+	mustContainInOrder(t, main, "─ 노바 개발방", "# 일반", "# 잡담", "# 개발", "# 배포알림", "# 채널05", "# 채널12", "─ DM")
+	if strings.Contains(main, "개 더") {
+		t.Fatalf("12 channels are not collapsed:\n%s", main)
+	}
+
+	// 13 channels: only the unread ones (일반 3, 채널07, 채널13) + "…10개 더"
+	h = open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bigSpace(13, 7, 13)))
+	main = paneText(t, h, layout.SlotMain)
+	mustContainInOrder(t, main, "─ 노바 개발방", "# 일반", "# 채널07", "# 채널13", "…10개 더", "─ DM")
+	for _, hidden := range []string{"# 잡담", "# 개발", "# 배포알림", "# 채널05", "# 채널12"} {
+		if strings.Contains(main, hidden) {
+			t.Fatalf("collapsed space shows read channel %q:\n%s", hidden, main)
+		}
+	}
+
+	// live: 채널05 gets a mention, 채널07 is read
+	h.Event("read_state.updated", realtime.ReadStateUpdated{State: api.UnreadState{ChannelID: homeChanID(5), UnreadCount: 1, MentionCount: 1}})
+	h.Event("read_state.updated", realtime.ReadStateUpdated{State: api.UnreadState{ChannelID: homeChanID(7)}})
+	main = paneText(t, h, layout.SlotMain)
+	mustContainInOrder(t, main, "# 일반", "# 채널05", "# 채널13", "…10개 더")
+	if strings.Contains(main, "채널07") {
+		t.Fatalf("a read channel leaves the collapsed section:\n%s", main)
+	}
+
+	// enter on "…N개 더" expands the space in place; the cursor lands on the first
+	// channel it revealed
+	homeSelect(t, h, "개 더")
+	h.Press("enter")
+	if top(h).Kind != ui.RouteHome {
+		t.Fatalf("expanding navigated to %+v", top(h))
+	}
+	main = paneText(t, h, layout.SlotMain)
+	mustContainInOrder(t, main, "─ 노바 개발방", "# 일반", "# 잡담", "# 개발", "# 배포알림", "# 채널05", "# 채널07", "# 채널13", "─ DM")
+	if strings.Contains(main, "개 더") {
+		t.Fatalf("expanded space still has the more row:\n%s", main)
+	}
+	if it, _ := homeOf(t, h).list.Selected(); it.ID != homeChanPrefix+fixtures.ChChat {
+		t.Fatalf("after expanding the cursor is on %+v, want # 잡담", it)
+	}
+
+	// the expansion survives SaveState / LoadState
+	st := homeOf(t, h).SaveState()
+	ctx := h.Context()
+	v := newHome(ctx, ui.Route{Kind: ui.RouteHome}).(*homeView)
+	v.LoadState(st)
+	v.Resize(ctx, ui.Size{W: 60, H: 40})
+	if out := ansi.Strip(v.View(ctx, true)); strings.Contains(out, "개 더") || !strings.Contains(out, "# 채널12") {
+		t.Fatalf("restored home lost the expansion:\n%s", out)
+	}
+
+	// a click on the more row expands at once
+	h = open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bigSpace(14)))
+	mustContain(t, paneText(t, h, layout.SlotMain), "…13개 더") // only 일반 is unread
+	clickText(t, h, layout.SlotMain, "…13개 더")
+	mustContain(t, paneText(t, h, layout.SlotMain), "# 채널14")
+}
+
+func TestHomeNoSpace(t *testing.T) {
+	seed := func(s *store.Store) {
+		bootstrappedSeed(s)
+		for id, ch := range s.Channels {
+			if ch.SpaceID != nil {
+				delete(s.Channels, id)
+			}
+		}
+		delete(s.Spaces, fixtures.SpaceNova)
+		s.SpaceOrder = nil
+	}
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(seed))
+	main := paneText(t, h, layout.SlotMain)
+	mustContainInOrder(t, main, "피드 보기", "친구 목록", "─ DM", "● 민지")
+	if strings.Contains(main, "#") || strings.Contains(main, "노바") {
+		t.Fatalf("no space, no space section:\n%s", main)
+	}
+	for _, it := range homeOf(t, h).items {
+		if it.kind == homeSpace || it.kind == homeChan || it.kind == homeMore {
+			t.Fatalf("no-space user has a space row %+v", it)
+		}
+	}
+}
+
+func TestHomeOnlySpaces(t *testing.T) {
+	// a user with a space but no DM, friend, invite or request: the home lists the
+	// space instead of the empty state
+	seed := func(s *store.Store) {
+		bootstrappedSeed(s)
+		for _, id := range s.DMOrder {
+			delete(s.Channels, id)
+		}
+		s.DMOrder = nil
+		for id := range s.Friends {
+			delete(s.Friends, id)
+		}
+	}
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(seed))
+	main := paneText(t, h, layout.SlotMain)
+	mustContainInOrder(t, main, "피드 보기", "친구 목록", "─ 노바 개발방", "# 일반")
+	if strings.Contains(main, homeEmptyTitle) || strings.Contains(main, "─ DM") {
+		t.Fatalf("home with only a space:\n%s", main)
+	}
+}
+
+func TestHomeChannelsSmallModes(t *testing.T) {
+	for _, c := range []struct {
+		sz   uitest.Size
+		mode layout.Mode
+	}{
+		{uitest.Size{W: 80, H: 30}, layout.ModeWidget},
+		{uitest.Size{W: 40, H: 14}, layout.ModeTiny},
+	} {
+		t.Run(fmt.Sprintf("%dx%d", c.sz.W, c.sz.H), func(t *testing.T) {
+			h := open(t, c.sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+			if h.Context().Mode != c.mode {
+				t.Fatalf("mode %v, want %v", h.Context().Mode, c.mode)
+			}
+			if _, ok := h.Model.Frame().Layout.Pane(layout.SlotSidebar); ok {
+				t.Fatal("setup: no sidebar in this mode")
+			}
+			main := paneText(t, h, layout.SlotMain)
+			mustContainInOrder(t, main, "피드 보기", "─ 노바 개발방", "# 일반", "# 잡담", "# 개발")
+			homeRowEnds(t, main, "# 일반", "3")
+			h.Check()
+			h.Golden("home_channels")
+			// the list scrolls down to the DMs and the online friends
+			homeSelect(t, h, "하나")
+			mustContain(t, paneText(t, h, layout.SlotMain), "● 하나")
+			h.Check()
+		})
+	}
 }

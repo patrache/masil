@@ -1674,7 +1674,7 @@ const (DensityFull Density = iota /*command, standard*/; DensityLine /*compact: 
 ```go
 type RouteKind string
 const (
-	RouteHome          RouteKind = "home"          // chat: DM·친구·피드 진입 목록 (레일 "홈")
+	RouteHome          RouteKind = "home"          // chat: 진입 목록(초대·요청·피드·친구) + 가입한 방별 채널 + DM + 접속 중인 친구 (레일 "홈")
 	RouteChannel       RouteKind = "channel"       // chat: ID=channel id (text|dm|group_dm), Anchor=message id
 	RouteDMs           RouteKind = "dms"           // chat: DM 목록 (DM 표면 루트: 1:1·그룹 DM, 최근 활동 순)
 	RouteThread        RouteKind = "thread"        // chat: ID=root message id, Arg=channel id
@@ -2200,6 +2200,7 @@ type PendingMessage struct{ Nonce, Body, Kind string; ThreadRootID *string; Fail
 - `RegisterPane(SlotSidebar, …)` — 선택된 방의 채널(`# 이름` + 배지) + `─ DM` 목록(접속 점). 표준 모드에서는 맨 위에 방 이름 `▾` 드롭다운(레일 대체)과 그 아래 `DM` 줄(레일의 DM).
 - `RegisterPane(SlotMembers, …)` — 지휘소 오른쪽 위(스레드 닫혔을 때): 채널 멤버 + 접속 상태(60초마다 `GetPresence`).
 - `RegisterRoute(RouteHome|RouteDMs|RouteChannel|RouteThread|RouteSearch|RouteInvite|RouteSpaceSettings|RouteFriends, …)`.
+- `RouteHome` 의 줄 순서: (있으면) `받은 방 초대 N`·`친구 요청 N`, `피드 보기`, `친구 목록`, 그다음 **가입한 방마다 한 구역** — `─ 방 이름`(선택 불가: 사이드바의 방 머리글도 따로 여는 것이 없으므로 `─ DM` 처럼 구분 줄) 아래 그 방의 텍스트 채널을 사이드바와 같은 순서·모양으로(`Store.SpaceChannels` = 내가 읽을 수 있는 채널, `position` 순; 비공개 `🔒이름`, `sideBadge` 안 읽음 수·멘션 배지, 뮤트는 dim). 방 순서는 레일과 같은 `SpaceOrder`. 채널 줄 `enter`(또는 고른 줄 다시 클릭)는 그 채널을 탭 루트로 열고(기록에 남아 `ctrl+o` 로 홈에 돌아온다) 사이드바처럼 그 방을 선택한 방으로 둔다. 채널이 12개를 넘는 방은 배지가 있는 채널만 보이고 끝에 `…N개 더`(선택 가능 — `enter`·클릭 한 번으로 그 자리에서 펼침, 펼친 상태는 `SaveState` 에 남는다). 읽을 채널이 없는 방, 방이 없는 사용자에게는 구역이 없다. 이어서 `─ DM` + DM, `─ 접속 중인 친구` + 온라인·자리비움 친구. 줄은 매 View 마다 Store 에서 다시 만드므로 `channel.created/updated/deleted`·`space.joined/removed/deleted`·`read_state.updated`·`channel.prefs_updated` 가 곧바로 반영된다(DM 줄과 같은 길). 사이드바가 없는 위젯·초소형에서도 같은 목록이 보이고, 넘치면 목록이 스크롤된다. 방·DM·친구·초대·요청이 모두 없을 때만 빈 상태.
 - `RouteInvite` 두 갈래: `ID=<code>` 는 초대 링크 미리보기·수락(`GetInvite`/`AcceptInvite`), `Arg="direct"` 는 **직접 초대**(`ID=<invite id>` 면 그 초대의 수락·거절 화면 `AcceptDirectInvite`/`DeclineDirectInvite`, `ID=""` 면 `Store.DirectInvites` 전체 목록). `RouteHome` 에도 받은 방 초대가 있으면 "받은 방 초대 N" 줄을 보이고 `enter` 로 목록으로 간다. 알림함(sns-fun)의 `space_invite` 알림(`subject.type="space_direct_invite"`, `subject.id`=초대 id)과 `alert{kind:"invite"}` 토스트(앱이 `target.space_id` 로 `Store.DirectInvites` 에서 초대 id 를 찾고, 없으면 `ID=""`)는 이 경로로 이동한다.
 - `RegisterOverlay("chat.reaction_users", …)` — 리액션 누른 사람 목록(`ListReactionUsers`, 페이지네이션), args = `"<messageID> <emoji>"`. `msg.actions` 메뉴의 "리액션 누른 사람"과 리액션 칩 우클릭으로 연다.
 - 차단·신고(5.8 소유 규칙): `msg.actions` 메뉴에 "신고"(`widgets.ReportDialog("message", id, …)`), "작성자 차단"; 멤버 목록·작성자 메뉴에 "사용자 신고"(`"user"`)·"차단"; 방 설정·초대 미리보기에 "방 신고"(`"space"`).
