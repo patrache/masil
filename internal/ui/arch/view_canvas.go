@@ -348,7 +348,10 @@ func (m *canvasModel) drawCanvas(ctx *ui.Context, b *buf, r layout.Rect) {
 	v := m.vp
 	v.W, v.H = r.W, r.H
 	sc, overlapped := m.visibleScene()
-	b.blit(sc.Render(v, m.overlay()), r.X, r.Y)
+	ov := m.overlay()
+	ov.Remote = m.remoteMarks(ctx)
+	b.blit(sc.Render(v, ov), r.X, r.Y)
+	m.drawRemoteTags(ctx, b, ov.Remote)
 	if len(m.design.Nodes) == 0 && len(m.design.Boxes) == 0 {
 		mid := r.Y + r.H/2 - 1
 		for i, s := range []string{t.EmptyCanvas(), t.TrafficHint()} {

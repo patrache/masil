@@ -51,6 +51,12 @@ func (m *canvasModel) inCanvas(p ui.Point) (int, int, bool) {
 
 // HandleMouse: presses, the wheel and right clicks (spec C2.7 mouse table).
 func (m *canvasModel) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, p ui.Point) tea.Cmd {
+	cmd := m.handleMouse(ctx, msg, p)
+	m.syncPresence()
+	return cmd
+}
+
+func (m *canvasModel) handleMouse(ctx *ui.Context, msg tea.MouseMsg, p ui.Point) tea.Cmd {
 	if m.design == nil || m.sink == nil || m.regs.View == viewSummary {
 		return nil
 	}
@@ -223,6 +229,7 @@ func (m *canvasModel) HandleDrag(ctx *ui.Context, msg tea.MouseMsg, p ui.Point) 
 		g.moved = true
 		g.lastX, g.lastY = p.X, p.Y
 		if !release {
+			m.shareDrag(ctx)
 			return cmd
 		}
 	}
@@ -230,6 +237,7 @@ func (m *canvasModel) HandleDrag(ctx *ui.Context, msg tea.MouseMsg, p ui.Point) 
 		return nil
 	}
 	m.gest = nil
+	m.sendDrag(ctx, nil)
 	if g.blocked {
 		return nil
 	}
@@ -383,5 +391,18 @@ func (m *canvasModel) gestureGone() {
 	}
 	if m.mode == modeMove && !slices.ContainsFunc(m.selection(), m.exists) {
 		m.mode, m.moveDX, m.moveDY = modeNormal, 0, 0
+	}
+}
+
+// shareDrag sends the node or box being dragged as presence (room documents).
+func (m *canvasModel) shareDrag(ctx *ui.Context) {
+	g := m.gest
+	if g == nil || g.blocked || (g.kind != gestureMove && g.kind != gestureBoxMove) || m.shared() == nil {
+		return
+	}
+	var ov archdraw.Overlay
+	m.gestureOverlay(&ov)
+	if ov.Ghost != nil {
+		m.sendDrag(ctx, ov.Ghost)
 	}
 }

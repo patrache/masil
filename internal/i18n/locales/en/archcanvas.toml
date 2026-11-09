@@ -62,6 +62,12 @@ other = "Already connected"
 [connect_pick]
 other = "Connect to…"
 
+[copy_not_needed]
+other = "This is already a personal design"
+
+[copy_saved]
+other = "Saved a copy as '{name}'"
+
 [cost_long]
 other = "About ${usd}/mo (estimate · {asof} prices · on-demand · excludes tax, discounts and free tiers)"
 
@@ -572,6 +578,12 @@ other = "Wrap in a box"
 [key_zoom]
 other = "Zoom"
 
+[kicked_notice]
+other = "You can no longer reach this design · it is read-only now"
+
+[kicked_pending]
+other = "{n} edits were not sent · keep them with 'Save a copy' in the palette"
+
 [kind_api]
 other = "API server"
 
@@ -647,6 +659,9 @@ other = "Outside boxes"
 [load_failed]
 other = "Cannot open design \"{name}\""
 
+[locked_notice]
+other = "This design is locked · only its creator and space admins can edit it"
+
 [menu_comment]
 other = "Comment"
 
@@ -677,6 +692,9 @@ other = "{rps}/s served"
 [metrics_total]
 other = "Total"
 
+[moved_by]
+other = "Moved by {name}"
+
 [narrow_no_drag]
 other = "Dragging needs 60 columns or more · edit in the list"
 
@@ -700,6 +718,9 @@ other = "Parts"
 
 [palette_run]
 other = "Start/stop timed run"
+
+[palette_save_copy]
+other = "Save the architecture design as a copy"
 
 [palette_send_card]
 other = "Send design card"
@@ -771,6 +792,39 @@ other = "A number from {min} to {max}"
 [read_only_copy]
 other = "Copy · read-only"
 
+[reject_arch_cycle]
+other = "A box cannot go inside itself"
+
+[reject_arch_depth]
+other = "Boxes nest at most 3 levels deep"
+
+[reject_arch_limit]
+other = "The node, connection, box or fault limit is reached"
+
+[reject_arch_value]
+other = "The server refused this value · it was undone"
+
+[reject_other]
+other = "The edit was refused ({code}) · it was undone"
+
+[reject_too_large]
+other = "The design is too large (1MB) · it was undone"
+
+[room_connecting]
+other = "Space · connecting…"
+
+[room_kicked]
+other = "Space · left · read-only"
+
+[room_live]
+other = "Space · {names}"
+
+[room_locked]
+other = "Space · locked · read-only"
+
+[room_offline]
+other = "Edits ● offline — sent when reconnected"
+
 [run_failed]
 other = "The timed run failed"
 
@@ -785,6 +839,33 @@ other = "Saved"
 
 [save_unsaved]
 other = "Not saved"
+
+[share_already]
+other = "This design is already in a space"
+
+[share_done]
+other = "Shared to {space} · your personal design stays as it is"
+
+[share_failed]
+other = "Could not share the design"
+
+[share_hint]
+other = "enter confirm · esc close"
+
+[share_no_spaces]
+other = "No spaces to share to · join one first"
+
+[share_pick]
+other = "Pick a space"
+
+[share_plaintext_warning]
+other = "A shared design is stored on the masil server without encryption. Space members and the server operators can see it. Keep sensitive designs personal."
+
+[share_title]
+other = "Share to a space"
+
+[share_yes]
+other = "Share"
 
 [snap_col_cost]
 other = "Cost"

@@ -200,6 +200,9 @@ func (m *canvasModel) drawHeader(ctx *ui.Context, b *buf, r layout.Rect) {
 	case saveCopy:
 		state = t.ReadOnlyCopy()
 	}
+	if sh := m.shared(); sh != nil {
+		state = m.roomHeader(ctx, sh)
+	}
 	right := ""
 	if rps, tr := m.traffic(); tr != nil {
 		right = t.TrafficSummary(countShort(ctx, rps), max(tr.ReadPermille, 0)/10, max(tr.ReqKB, 0))

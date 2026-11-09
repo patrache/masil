@@ -31,8 +31,8 @@ func (m *canvasModel) commit(ctx *ui.Context, ch []archdoc.Change) tea.Cmd {
 	if len(ch) == 0 || m.sink == nil {
 		return nil
 	}
-	if ro, _ := m.sink.ReadOnly(); ro {
-		return ui.Toast(ctx.T.Archcanvas.ReadOnlyCopy(), ui.ToastInfo)
+	if ro, why := m.sink.ReadOnly(); ro {
+		return ui.Toast(readOnlyText(ctx.T, why), ui.ToastInfo)
 	}
 	before := m.sink.Objects()
 	if overLimit(before, ch) {
@@ -93,8 +93,8 @@ func (m *canvasModel) replay(ctx *ui.Context, ch []archdoc.Change) tea.Cmd {
 }
 
 func (m *canvasModel) undoStep(ctx *ui.Context, redo bool) tea.Cmd {
-	if ro, _ := m.sink.ReadOnly(); ro {
-		return ui.Toast(ctx.T.Archcanvas.ReadOnlyCopy(), ui.ToastInfo)
+	if ro, why := m.sink.ReadOnly(); ro {
+		return ui.Toast(readOnlyText(ctx.T, why), ui.ToastInfo)
 	}
 	if redo {
 		return m.replay(ctx, m.undo.Redo(m.sink.Objects()))
@@ -118,8 +118,8 @@ func (m *canvasModel) readOnly(ctx *ui.Context) (bool, tea.Cmd) {
 	if m.sink == nil {
 		return true, nil
 	}
-	if ro, _ := m.sink.ReadOnly(); ro {
-		return true, ui.Toast(ctx.T.Archcanvas.ReadOnlyCopy(), ui.ToastInfo)
+	if ro, why := m.sink.ReadOnly(); ro {
+		return true, ui.Toast(readOnlyText(ctx.T, why), ui.ToastInfo)
 	}
 	return false, nil
 }

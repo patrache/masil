@@ -159,6 +159,21 @@ var areaArchcanvas = area{
 				En: {Other: "Connect to…"},
 			},
 		},
+		"copy_not_needed": {
+			desc: "개인 설계에서 사본으로 저장을 고를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미 개인 설계예요"},
+				En: {Other: "This is already a personal design"},
+			},
+		},
+		"copy_saved": {
+			desc:   "사본 저장 뒤 알림. name = 개인 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}'(으)로 사본을 저장했어요"},
+				En: {Other: "Saved a copy as '{name}'"},
+			},
+		},
 		"cost_long": {
 			desc:       "월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월",
 			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
@@ -1391,6 +1406,21 @@ var areaArchcanvas = area{
 				En: {Other: "Zoom"},
 			},
 		},
+		"kicked_notice": {
+			desc: "방 설계에서 내보내졌을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 설계에 더는 접속할 수 없어요 · 읽기 전용으로 바뀌었어요"},
+				En: {Other: "You can no longer reach this design · it is read-only now"},
+			},
+		},
+		"kicked_pending": {
+			desc:   "내보내질 때 보내지 못한 편집이 있을 때. n = 편집 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "보내지 못한 편집 {n}개 · 팔레트의 '사본으로 저장'으로 남겨 두세요"},
+				En: {Other: "{n} edits were not sent · keep them with 'Save a copy' in the palette"},
+			},
+		},
 		"kind_api": {
 			desc: "부품 이름: api(팔레트·패널·새 노드의 기본 라벨)",
 			text: map[Locale]Forms{
@@ -1567,6 +1597,13 @@ var areaArchcanvas = area{
 				En: {Other: "Cannot open design \"{name}\""},
 			},
 		},
+		"locked_notice": {
+			desc: "잠긴 방 설계를 고치려 할 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "잠긴 설계예요 · 만든 사람과 방 관리자만 고칠 수 있어요"},
+				En: {Other: "This design is locked · only its creator and space admins can edit it"},
+			},
+		},
 		"menu_comment": {
 			desc: "오른쪽 클릭 메뉴: 댓글",
 			text: map[Locale]Forms{
@@ -1640,6 +1677,14 @@ var areaArchcanvas = area{
 				En: {Other: "Total"},
 			},
 		},
+		"moved_by": {
+			desc:   "내가 옮긴 것을 다른 사람이 다시 옮겼을 때. name = 그 사람 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 옮김"},
+				En: {Other: "Moved by {name}"},
+			},
+		},
 		"narrow_no_drag": {
 			desc: "60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트",
 			text: map[Locale]Forms{
@@ -1694,6 +1739,13 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "설계 시간 실행 시작/정지"},
 				En: {Other: "Start/stop timed run"},
+			},
+		},
+		"palette_save_copy": {
+			desc: "팔레트: 공유·사본 설계를 개인 설계로 저장",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계 사본으로 저장"},
+				En: {Other: "Save the architecture design as a copy"},
 			},
 		},
 		"palette_send_card": {
@@ -1871,6 +1923,86 @@ var areaArchcanvas = area{
 				En: {Other: "Copy · read-only"},
 			},
 		},
+		"reject_arch_cycle": {
+			desc: "서버 거절: 상자 순환",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자를 자기 안에 넣을 수 없어요"},
+				En: {Other: "A box cannot go inside itself"},
+			},
+		},
+		"reject_arch_depth": {
+			desc: "서버 거절: 상자 3단 초과",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자는 3단까지만 겹칠 수 있어요"},
+				En: {Other: "Boxes nest at most 3 levels deep"},
+			},
+		},
+		"reject_arch_limit": {
+			desc: "서버 거절: 개수 한도",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드·연결·상자·장애 개수 한도에 걸렸어요"},
+				En: {Other: "The node, connection, box or fault limit is reached"},
+			},
+		},
+		"reject_arch_value": {
+			desc: "서버 거절: 값·필드·객체가 규칙 밖",
+			text: map[Locale]Forms{
+				Ko: {Other: "서버가 이 값을 받지 않았어요 · 되돌렸어요"},
+				En: {Other: "The server refused this value · it was undone"},
+			},
+		},
+		"reject_other": {
+			desc:   "서버 거절: 그 밖. code = 거절 코드",
+			params: []Param{{Name: "code", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "편집이 거절됐어요 ({code}) · 되돌렸어요"},
+				En: {Other: "The edit was refused ({code}) · it was undone"},
+			},
+		},
+		"reject_too_large": {
+			desc: "서버 거절: 문서가 너무 큼",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계가 너무 커요 (1MB) · 되돌렸어요"},
+				En: {Other: "The design is too large (1MB) · it was undone"},
+			},
+		},
+		"room_connecting": {
+			desc: "머리 줄: 방 설계에 연결하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · 연결 중…"},
+				En: {Other: "Space · connecting…"},
+			},
+		},
+		"room_kicked": {
+			desc: "머리 줄: 방 설계에서 내보내짐(읽기 전용)",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · 나감 · 읽기 전용"},
+				En: {Other: "Space · left · read-only"},
+			},
+		},
+		"room_live": {
+			desc:   "머리 줄: 방 설계에 연결됨. names = 접속자 이름들(·로 이음)",
+			params: []Param{{Name: "names", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · {names}"},
+				En: {Other: "Space · {names}"},
+			},
+		},
+		"room_locked": {
+			desc: "머리 줄: 잠긴 방 설계(읽기 전용)",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · 잠김 · 읽기 전용"},
+				En: {Other: "Space · locked · read-only"},
+			},
+		},
+		"room_offline": {
+			desc:       "머리 줄: 방 설계 연결이 끊김",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "편집 ● 오프라인 — 다시 연결되면 보냄"},
+				En: {Other: "Edits ● offline — sent when reconnected"},
+			},
+		},
 		"run_failed": {
 			desc: "시간 실행이 실패했을 때 토스트",
 			text: map[Locale]Forms{
@@ -1904,6 +2036,72 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "저장 안 됨"},
 				En: {Other: "Not saved"},
+			},
+		},
+		"share_already": {
+			desc: "이미 방에 있는 설계에서 방에 올리기를 고를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미 방에 있는 설계예요"},
+				En: {Other: "This design is already in a space"},
+			},
+		},
+		"share_done": {
+			desc:   "방에 올린 뒤 알림. space = 방 이름",
+			params: []Param{{Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{space}에 올렸어요 · 개인 설계는 그대로예요"},
+				En: {Other: "Shared to {space} · your personal design stays as it is"},
+			},
+		},
+		"share_failed": {
+			desc: "방에 올리지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올리지 못했어요"},
+				En: {Other: "Could not share the design"},
+			},
+		},
+		"share_hint": {
+			desc: "방에 올리기 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 확인 · esc 닫기"},
+				En: {Other: "enter confirm · esc close"},
+			},
+		},
+		"share_no_spaces": {
+			desc: "올릴 방이 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방이 없어요 · 먼저 방에 들어가 주세요"},
+				En: {Other: "No spaces to share to · join one first"},
+			},
+		},
+		"share_pick": {
+			desc: "방에 올리기: 방 고르기 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방을 고르세요"},
+				En: {Other: "Pick a space"},
+			},
+		},
+		"share_plaintext_warning": {
+			desc:       "방에 올리기 전 확인(법적 문구, 어떤 크기에서도 줄이지 않고 줄바꿈)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올린 설계는 masil 서버에 암호화하지 않고 저장돼요. 방 멤버와 서버 운영자가 볼 수 있어요. 민감한 설계는 개인 설계로 두세요."},
+				En: {Other: "A shared design is stored on the masil server without encryption. Space members and the server operators can see it. Keep sensitive designs personal."},
+			},
+		},
+		"share_title": {
+			desc: "방에 올리기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올리기"},
+				En: {Other: "Share to a space"},
+			},
+		},
+		"share_yes": {
+			desc: "방에 올리기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "올리기"},
+				En: {Other: "Share"},
 			},
 		},
 		"snap_col_cost": {
@@ -2201,6 +2399,16 @@ func (a_ ArchcanvasT) ConnectExists() string {
 // ConnectPick: 설정 폼의 줄: 이 노드에서 이을 대상을 목록에서 고름
 func (a_ ArchcanvasT) ConnectPick() string {
 	return a_.t.render(&areaArchcanvas, "connect_pick", false, 0)
+}
+
+// CopyNotNeeded: 개인 설계에서 사본으로 저장을 고를 때
+func (a_ ArchcanvasT) CopyNotNeeded() string {
+	return a_.t.render(&areaArchcanvas, "copy_not_needed", false, 0)
+}
+
+// CopySaved: 사본 저장 뒤 알림. name = 개인 설계 이름
+func (a_ ArchcanvasT) CopySaved(name string) string {
+	return a_.t.render(&areaArchcanvas, "copy_saved", false, 0, "name", name)
 }
 
 // CostLong: 월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월
@@ -3053,6 +3261,16 @@ func (a_ ArchcanvasT) KeyZoom() string {
 	return a_.t.render(&areaArchcanvas, "key_zoom", false, 0)
 }
 
+// KickedNotice: 방 설계에서 내보내졌을 때
+func (a_ ArchcanvasT) KickedNotice() string {
+	return a_.t.render(&areaArchcanvas, "kicked_notice", false, 0)
+}
+
+// KickedPending: 내보내질 때 보내지 못한 편집이 있을 때. n = 편집 수
+func (a_ ArchcanvasT) KickedPending(n int) string {
+	return a_.t.render(&areaArchcanvas, "kicked_pending", false, 0, "n", strconv.Itoa(n))
+}
+
 // KindApi: 부품 이름: api(팔레트·패널·새 노드의 기본 라벨)
 func (a_ ArchcanvasT) KindApi() string {
 	return a_.t.render(&areaArchcanvas, "kind_api", false, 0)
@@ -3178,6 +3396,11 @@ func (a_ ArchcanvasT) LoadFailed(name string) string {
 	return a_.t.render(&areaArchcanvas, "load_failed", false, 0, "name", name)
 }
 
+// LockedNotice: 잠긴 방 설계를 고치려 할 때
+func (a_ ArchcanvasT) LockedNotice() string {
+	return a_.t.render(&areaArchcanvas, "locked_notice", false, 0)
+}
+
 // MenuComment: 오른쪽 클릭 메뉴: 댓글
 func (a_ ArchcanvasT) MenuComment() string {
 	return a_.t.render(&areaArchcanvas, "menu_comment", false, 0)
@@ -3228,6 +3451,11 @@ func (a_ ArchcanvasT) MetricsTotal() string {
 	return a_.t.render(&areaArchcanvas, "metrics_total", false, 0)
 }
 
+// MovedBy: 내가 옮긴 것을 다른 사람이 다시 옮겼을 때. name = 그 사람 이름
+func (a_ ArchcanvasT) MovedBy(name string) string {
+	return a_.t.render(&areaArchcanvas, "moved_by", false, 0, "name", name)
+}
+
 // NarrowNoDrag: 60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트
 func (a_ ArchcanvasT) NarrowNoDrag() string {
 	return a_.t.render(&areaArchcanvas, "narrow_no_drag", false, 0)
@@ -3266,6 +3494,11 @@ func (a_ ArchcanvasT) PaletteParts() string {
 // PaletteRun: 명령 팔레트 항목: arch.run
 func (a_ ArchcanvasT) PaletteRun() string {
 	return a_.t.render(&areaArchcanvas, "palette_run", false, 0)
+}
+
+// PaletteSaveCopy: 팔레트: 공유·사본 설계를 개인 설계로 저장
+func (a_ ArchcanvasT) PaletteSaveCopy() string {
+	return a_.t.render(&areaArchcanvas, "palette_save_copy", false, 0)
 }
 
 // PaletteSendCard: 명령 팔레트 항목: arch.send_card
@@ -3383,6 +3616,61 @@ func (a_ ArchcanvasT) ReadOnlyCopy() string {
 	return a_.t.render(&areaArchcanvas, "read_only_copy", false, 0)
 }
 
+// RejectArchCycle: 서버 거절: 상자 순환
+func (a_ ArchcanvasT) RejectArchCycle() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_cycle", false, 0)
+}
+
+// RejectArchDepth: 서버 거절: 상자 3단 초과
+func (a_ ArchcanvasT) RejectArchDepth() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_depth", false, 0)
+}
+
+// RejectArchLimit: 서버 거절: 개수 한도
+func (a_ ArchcanvasT) RejectArchLimit() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_limit", false, 0)
+}
+
+// RejectArchValue: 서버 거절: 값·필드·객체가 규칙 밖
+func (a_ ArchcanvasT) RejectArchValue() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_value", false, 0)
+}
+
+// RejectOther: 서버 거절: 그 밖. code = 거절 코드
+func (a_ ArchcanvasT) RejectOther(code string) string {
+	return a_.t.render(&areaArchcanvas, "reject_other", false, 0, "code", code)
+}
+
+// RejectTooLarge: 서버 거절: 문서가 너무 큼
+func (a_ ArchcanvasT) RejectTooLarge() string {
+	return a_.t.render(&areaArchcanvas, "reject_too_large", false, 0)
+}
+
+// RoomConnecting: 머리 줄: 방 설계에 연결하는 중
+func (a_ ArchcanvasT) RoomConnecting() string {
+	return a_.t.render(&areaArchcanvas, "room_connecting", false, 0)
+}
+
+// RoomKicked: 머리 줄: 방 설계에서 내보내짐(읽기 전용)
+func (a_ ArchcanvasT) RoomKicked() string {
+	return a_.t.render(&areaArchcanvas, "room_kicked", false, 0)
+}
+
+// RoomLive: 머리 줄: 방 설계에 연결됨. names = 접속자 이름들(·로 이음)
+func (a_ ArchcanvasT) RoomLive(names string) string {
+	return a_.t.render(&areaArchcanvas, "room_live", false, 0, "names", names)
+}
+
+// RoomLocked: 머리 줄: 잠긴 방 설계(읽기 전용)
+func (a_ ArchcanvasT) RoomLocked() string {
+	return a_.t.render(&areaArchcanvas, "room_locked", false, 0)
+}
+
+// RoomOffline: 머리 줄: 방 설계 연결이 끊김
+func (a_ ArchcanvasT) RoomOffline() string {
+	return a_.t.render(&areaArchcanvas, "room_offline", false, 0)
+}
+
 // RunFailed: 시간 실행이 실패했을 때 토스트
 func (a_ ArchcanvasT) RunFailed() string {
 	return a_.t.render(&areaArchcanvas, "run_failed", false, 0)
@@ -3406,6 +3694,51 @@ func (a_ ArchcanvasT) SaveSaved() string {
 // SaveUnsaved: 머리 줄 저장 상태: 파일 이름이 없는 새 설계
 func (a_ ArchcanvasT) SaveUnsaved() string {
 	return a_.t.render(&areaArchcanvas, "save_unsaved", false, 0)
+}
+
+// ShareAlready: 이미 방에 있는 설계에서 방에 올리기를 고를 때
+func (a_ ArchcanvasT) ShareAlready() string {
+	return a_.t.render(&areaArchcanvas, "share_already", false, 0)
+}
+
+// ShareDone: 방에 올린 뒤 알림. space = 방 이름
+func (a_ ArchcanvasT) ShareDone(space string) string {
+	return a_.t.render(&areaArchcanvas, "share_done", false, 0, "space", space)
+}
+
+// ShareFailed: 방에 올리지 못했을 때
+func (a_ ArchcanvasT) ShareFailed() string {
+	return a_.t.render(&areaArchcanvas, "share_failed", false, 0)
+}
+
+// ShareHint: 방에 올리기 키 안내
+func (a_ ArchcanvasT) ShareHint() string {
+	return a_.t.render(&areaArchcanvas, "share_hint", false, 0)
+}
+
+// ShareNoSpaces: 올릴 방이 하나도 없을 때
+func (a_ ArchcanvasT) ShareNoSpaces() string {
+	return a_.t.render(&areaArchcanvas, "share_no_spaces", false, 0)
+}
+
+// SharePick: 방에 올리기: 방 고르기 머리
+func (a_ ArchcanvasT) SharePick() string {
+	return a_.t.render(&areaArchcanvas, "share_pick", false, 0)
+}
+
+// SharePlaintextWarning: 방에 올리기 전 확인(법적 문구, 어떤 크기에서도 줄이지 않고 줄바꿈)
+func (a_ ArchcanvasT) SharePlaintextWarning() string {
+	return a_.t.render(&areaArchcanvas, "share_plaintext_warning", false, 0)
+}
+
+// ShareTitle: 방에 올리기 대화상자 제목
+func (a_ ArchcanvasT) ShareTitle() string {
+	return a_.t.render(&areaArchcanvas, "share_title", false, 0)
+}
+
+// ShareYes: 방에 올리기 확인 버튼
+func (a_ ArchcanvasT) ShareYes() string {
+	return a_.t.render(&areaArchcanvas, "share_yes", false, 0)
 }
 
 // SnapColCost: 글자 스냅숏 표 머리: 비용

@@ -70,6 +70,12 @@ type canvasModel struct {
 	// mouse (mouse.go, contextmenu.go)
 	gest *gesture // the drag in progress
 	menu *ctxMenu // the open right-click menu
+
+	// a room document (shared.go, presence.go): the drag shared as presence
+	// (dragSentAt = the last frame) and the open share dialog
+	dragShared bool
+	dragSentAt time.Time
+	shareDlg   *shareDialog
 }
 
 var (
@@ -84,6 +90,9 @@ var (
 // (hub x, ui.CloseTool); a failed write says so in a toast.
 func (m *canvasModel) CloseTool(ctx *ui.Context) tea.Cmd {
 	m.cancelGesture()
+	if sh, ok := m.sink.(*sharedSink); ok {
+		sh.close()
+	}
 	if ls, ok := m.sink.(*localSink); ok {
 		if err := ls.flush(); err != nil {
 			return ui.Toast(ctx.T.Archcanvas.SaveFailed(), ui.ToastError)
@@ -114,12 +123,11 @@ func (m *canvasModel) Init(ctx *ui.Context) tea.Cmd {
 	if q[queryDialog] == "open" {
 		dialog = ui.OpenOverlay(newFilesDialog())
 	}
-	m.initSink(ctx)
-	return dialog
+	return tea.Batch(dialog, m.initSink(ctx))
 }
 
 // initSink picks the design source from the instance query.
-func (m *canvasModel) initSink(ctx *ui.Context) {
+func (m *canvasModel) initSink(ctx *ui.Context) tea.Cmd {
 	q := m.route.Query
 	switch {
 	case q[queryFile] != "":
@@ -135,16 +143,18 @@ func (m *canvasModel) initSink(ctx *ui.Context) {
 				m.loadErr = ""
 				d = archdoc.New(name) // a name not saved yet: start it
 				m.setSink(ctx, &localSink{instance: m.route.ID, store: st, name: name, objs: d.ToObjects(), timers: ctx.Timers})
-				return
+				return nil
 			}
 			m.setSink(ctx, &copySink{objs: archdoc.New("").ToObjects(), reason: roBroken})
-			return
+			return nil
 		}
 		m.setSink(ctx, &localSink{instance: m.route.ID, store: st, name: name, objs: d.ToObjects(), timers: ctx.Timers})
+	case q[queryDoc] != "":
+		return m.openShared(ctx, q[queryDoc])
 	default:
-		// a new design; card copies (msg) and room documents (doc) arrive with
-		// P3 Tasks 22 and 26 and start empty until then
-		ro := q[queryMsg] != "" || q[queryDoc] != ""
+		// a new design; card copies (msg) arrive with P3 Task 26 and start
+		// empty until then
+		ro := q[queryMsg] != ""
 		objs := archdoc.New("").ToObjects()
 		if ro {
 			m.setSink(ctx, &copySink{objs: objs})
@@ -152,6 +162,7 @@ func (m *canvasModel) initSink(ctx *ui.Context) {
 			m.setSink(ctx, &localSink{instance: m.route.ID, objs: objs, timers: ctx.Timers})
 		}
 	}
+	return nil
 }
 
 // setSink switches the design source and redraws from it.
@@ -284,6 +295,16 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if msg.instance == m.route.ID {
 			return m.runCommand(ctx, msg.id)
 		}
+	case collabEventMsg:
+		if msg.instance == m.route.ID {
+			return m.onCollab(ctx, msg.E)
+		}
+	case docMetaMsg:
+		if sh := m.shared(); sh != nil && msg.instance == m.route.ID && msg.err == nil && msg.doc != nil {
+			m.setMeta(ctx, sh, msg.doc)
+		}
+	case ui.EventMsg:
+		return m.onDocEvent(ctx, msg.Event)
 	case timedDoneMsg:
 		if msg.instance == m.route.ID {
 			return m.runDone(ctx, msg)
@@ -337,6 +358,19 @@ func (m *canvasModel) runCommand(ctx *ui.Context, id string) tea.Cmd {
 	switch id {
 	case "arch.run":
 		return m.toggleRun(ctx)
+	case "arch.share":
+		if m.shared() != nil {
+			return ui.Toast(ctx.T.Archcanvas.ShareAlready(), ui.ToastInfo)
+		}
+		if m.design == nil {
+			return nil
+		}
+		m.cancelGesture()
+		m.menu = nil
+		m.shareDlg = m.newShareDialog(ctx)
+		return ui.OpenOverlay(m.shareDlg)
+	case "arch.save_copy":
+		return m.saveCopy(ctx)
 	case "arch.export":
 		if m.design == nil {
 			return nil
@@ -389,6 +423,8 @@ func (m *canvasModel) ToolStatus(ctx *ui.Context) string {
 	switch {
 	case m.sink == nil:
 		return t.StatusNew()
+	case m.shared() != nil:
+		return t.StatusRoom(m.title(ctx), 1+len(m.shared().peers))
 	case m.sink.Status() == saveCopy:
 		return t.StatusCopy(m.title(ctx))
 	case m.sink.Status() == saveUnsaved:

@@ -70,6 +70,12 @@ func (m *canvasModel) CapturesInput() bool {
 // HandleKey is the canvas keyboard (spec C2.7). Keys it does not use
 // (ctrl+k, tab, ctrl+t, [ ], the last esc …) go on to the app's globals.
 func (m *canvasModel) HandleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.Cmd) {
+	handled, cmd := m.handleKey(ctx, k)
+	m.syncPresence()
+	return handled, cmd
+}
+
+func (m *canvasModel) handleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.Cmd) {
 	if m.design == nil || m.sink == nil {
 		return false, nil
 	}
