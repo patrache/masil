@@ -24,6 +24,7 @@ import (
 	_ "github.com/charmbracelet/x/vt"
 	_ "github.com/charmbracelet/x/xpty"
 	_ "github.com/coder/websocket"
+	_ "github.com/ebitengine/purego"
 	_ "github.com/godbus/dbus/v5"
 	_ "github.com/gofrs/flock"
 	_ "github.com/ionut-t/goeditor"

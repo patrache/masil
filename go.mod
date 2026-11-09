@@ -15,6 +15,7 @@ require (
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/coder/websocket v1.8.15
+	github.com/ebitengine/purego v0.11.2
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gofrs/flock v0.13.1
 	github.com/ionut-t/goeditor v0.19.0
