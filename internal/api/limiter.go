@@ -13,17 +13,19 @@ import (
 // under rlAPI. contract_limiters_test.go checks every harness row against the
 // api.md 6 table, and checkLimiter proves each method uses its row.
 const (
-	rlSignup  = "RL_SIGNUP"  // POST /v1/auth/signup
-	rlLogin   = "RL_LOGIN"   // POST /v1/auth/login, POST /v1/auth/password (same bucket)
-	rlMessage = "RL_MESSAGE" // message send, thread reply, message edit
-	rlPost    = "RL_POST"    // post/reply/quote, story, guestbook write
-	rlReact   = "RL_REACT"   // reactions, like, repost, vote, pin
-	rlUpload  = "RL_UPLOAD"  // POST /v1/uploads
-	rlSocial  = "RL_SOCIAL"  // friend request, follow, block, DM create, channel member add, invites, space create, report
-	rlSearch  = "RL_SEARCH"  // /v1/search/*, /v1/users/search, /v1/hashtags/search
-	rlDoc     = "RL_DOC"     // room document / version / comment writes (v0.1.3, api.md 5.24)
-	rlWS      = "RL_WS"      // GET /v1/ws (used by realtime, listed for completeness)
-	rlAPI     = "RL_API"     // every authenticated request
+	rlSignup  = "RL_SIGNUP"   // POST /v1/auth/signup
+	rlLogin   = "RL_LOGIN"    // POST /v1/auth/login, POST /v1/auth/password (same bucket)
+	rlMessage = "RL_MESSAGE"  // message send, thread reply, message edit
+	rlPost    = "RL_POST"     // post/reply/quote, story, guestbook write
+	rlReact   = "RL_REACT"    // reactions, like, repost, vote, pin
+	rlUpload  = "RL_UPLOAD"   // POST /v1/uploads
+	rlSocial  = "RL_SOCIAL"   // friend request, follow, block, DM create, channel member add, invites, space create, report
+	rlSearch  = "RL_SEARCH"   // /v1/search/*, /v1/users/search, /v1/hashtags/search
+	rlDoc     = "RL_DOC"      // room document / version / comment writes (v0.1.3, api.md 5.24)
+	rlShare   = "RL_SHARE"    // workspace share create / invites (v0.1.3, api.md 5.26)
+	rlShareWS = "RL_SHARE_WS" // GET /v1/workspace-shares/{id}/ws (used by workspace/share, listed for completeness)
+	rlWS      = "RL_WS"       // GET /v1/ws (used by realtime, listed for completeness)
+	rlAPI     = "RL_API"      // every authenticated request
 )
 
 // noteCooldown records a 429 cooldown for limiter until now+d (never shortens an existing one).

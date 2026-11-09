@@ -36,7 +36,7 @@ type epCase struct {
 
 // dedicatedLimiters are every api.md 0.7 limiter an endpoint can name
 // besides RL_API (RL_WS belongs to realtime).
-var dedicatedLimiters = []string{"RL_SIGNUP", "RL_LOGIN", "RL_MESSAGE", "RL_POST", "RL_REACT", "RL_UPLOAD", "RL_SOCIAL", "RL_SEARCH", "RL_DOC"}
+var dedicatedLimiters = []string{"RL_SIGNUP", "RL_LOGIN", "RL_MESSAGE", "RL_POST", "RL_REACT", "RL_UPLOAD", "RL_SOCIAL", "RL_SEARCH", "RL_DOC", "RL_SHARE"}
 
 // runCases runs every case in its own subtest with a fresh fake server and
 // asserts the recorded method/path/query/body, the auth header, the decoded

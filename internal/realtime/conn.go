@@ -76,6 +76,11 @@ func DialConn(ctx context.Context, url string, h http.Header, limit int64) (Conn
 	return coderConn{c}, nil
 }
 
+// UpgradeError is the *api.Error of a refused (non-101) websocket handshake
+// response, for other sockets that dial with coder/websocket themselves
+// (internal/workspace/share).
+func UpgradeError(resp *http.Response) *api.Error { return upgradeError(resp) }
+
 // upgradeError mirrors the api client's envelope decoding for the handshake
 // response (whose body coder/websocket truncates to 1 KiB).
 func upgradeError(resp *http.Response) *api.Error {

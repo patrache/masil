@@ -1,0 +1,40 @@
+{
+  "id": "01JW0000000000000000000001",
+  "owner": {
+    "id": "01JA0000000000000000000001",
+    "handle": "minji",
+    "display_name": "민지",
+    "avatar_url": "/v1/media/01JU0000000000000000000001",
+    "status": {
+      "emoji": "🎧",
+      "text": "듣는 중…",
+      "expires_at": "2026-11-05T03:00:00.000Z"
+    },
+    "is_private": false,
+    "suspended": false
+  },
+  "title": "결제 서버 디버깅",
+  "status": "ended",
+  "created_at": "2026-11-10T01:00:00.000Z",
+  "ended_at": "2026-11-10T02:00:00.000Z",
+  "end_reason": "timeout",
+  "members": [
+    {
+      "user": {
+        "id": "01JA0000000000000000000002",
+        "handle": "hana",
+        "display_name": "하나",
+        "avatar_url": null,
+        "status": null,
+        "is_private": false,
+        "suspended": false
+      },
+      "seat": 1,
+      "invited_at": "2026-11-10T01:00:00.000Z",
+      "joined_at": "2026-11-10T01:01:00.000Z",
+      "left_at": "2026-11-10T01:30:00.000Z",
+      "max_level": "editor",
+      "verified": true
+    }
+  ]
+}

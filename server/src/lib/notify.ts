@@ -71,6 +71,9 @@ function switchOn(kind: AlertKind, s: UserSettingsRow | undefined): boolean {
       return (s?.notify_friend_request ?? 1) === 1;
     case "social":
       return (s?.notify_social ?? 0) === 1;
+    case "workspace_invite":
+    case "workspace_attention":
+      return (s?.notify_workspace ?? 1) === 1; // v0.1.3 P2
     case "channel_message":
     case "focus_summary":
       return true;

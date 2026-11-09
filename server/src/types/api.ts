@@ -57,6 +57,7 @@ export interface Settings {
     friend_request: boolean;
     thread_reply: boolean;
     social: boolean;
+    workspace: boolean; // v0.1.3 P2: workspace_invite / workspace_attention alerts, default true
   };
   focus_default_min: number; // 1..720, default 25
   leet_share_with_friends: boolean; // v0.1.3 P1: friends see my leet streak (friends board); default true
@@ -406,7 +407,9 @@ export type AlertKind =
   | "friend_request"
   | "channel_message"
   | "social"
-  | "focus_summary";
+  | "focus_summary"
+  | "workspace_invite" // v0.1.3 P2 (api.md 5.26)
+  | "workspace_attention";
 
 export interface Alert {
   id: ID;
@@ -415,7 +418,7 @@ export interface Alert {
   body: string; // <= 200 code points, plain text
   actor: UserSummary | null;
   target: {
-    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc";
+    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc" | "workspace_share"; // workspace_share: v0.1.3 P2
     id: ID;
     channel_id: ID | null;
     message_id: ID | null;
@@ -533,4 +536,28 @@ export interface DocComment {
   resolved_at: Timestamp | null;
   created_at: Timestamp;
   deleted: boolean;
+}
+
+/** v0.1.3 P2 (api.md 2 / 5.26): a workspace share's metadata — the content never reaches the server. */
+export type WorkspaceLevel = "viewer" | "prompter" | "editor" | "keyboard";
+
+export interface WorkspaceShareMember {
+  user: UserSummary;
+  seat: number; // 1..8 (the owner is seat 0)
+  invited_at: Timestamp;
+  joined_at: Timestamp | null;
+  left_at: Timestamp | null;
+  max_level: WorkspaceLevel | null;
+  verified: boolean;
+}
+
+export interface WorkspaceShare {
+  id: ID;
+  owner: UserSummary;
+  title: string; // 1..40 code points, user data
+  status: "live" | "ended";
+  created_at: Timestamp;
+  ended_at: Timestamp | null;
+  end_reason: "ended" | "timeout" | null;
+  members: WorkspaceShareMember[]; // seat order, removed members left out
 }

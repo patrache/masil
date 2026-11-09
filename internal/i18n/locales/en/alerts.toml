@@ -48,3 +48,15 @@ other = "{actor} sent you a friend request"
 
 [social_guestbook_title]
 other = "{actor} signed your guestbook"
+
+[workspace_attention_body]
+other = "Your shared workspace needs a confirmation"
+
+[workspace_attention_title]
+other = "{share}"
+
+[workspace_invite_body]
+other = "{share}"
+
+[workspace_invite_title]
+other = "{actor} shared a workspace with you"

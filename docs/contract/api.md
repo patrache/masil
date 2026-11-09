@@ -139,6 +139,7 @@
 | `RL_SHARE_WS` (v0.1.3) | 30회 / 60초 | `u:<user_id>` | P2 작업공간 공유 `/ws` 연결 시도(경로·행은 P2). 바인딩 namespace 7112 |
 
 - v0.1.3: 방 문서 소켓 `GET /v1/docs/{doc_id}/ws` 의 업그레이드는 기존 `RL_WS` 를 쓴다(새 리미터 없음). 세 새 바인딩은 `server/wrangler.jsonc`·`server/src/lib/ratelimit.ts` 에 P0 Task 26 이 한꺼번에 만든다(다른 줄기는 이 파일들을 고치지 않는다). Workers Rate Limiting 의 period 는 10 또는 60초뿐이라, 설계서의 "공유 만들기 60분 10회" 같은 긴 창은 리미터가 아니라 D1 로 센다(그 설명 한 줄은 P2 가 더한다).
+- v0.1.3 (P2): 작업공간 공유 만들기의 "60분에 10회" 는 D1 `workspace_shares.created_at` 으로 센다(최근 60분 안에 내가 만든 공유 행 수, 끝난 공유 포함). 넘으면 `RL_SHARE` 와 같은 모양의 `429 rate_limited {limiter:"RL_SHARE", retry_after_sec:60}` 이다(5.26).
 
 ---
 
@@ -262,6 +263,7 @@ interface Settings {
     friend_request: boolean;         // default true
     thread_reply: boolean;           // default true
     social: boolean;                 // likes/reposts/follows/post replies/quotes/guestbook; default false
+    workspace: boolean;              // v0.1.3 (P2): workspace_invite / workspace_attention alerts; default true
   };
   focus_default_min: number;         // 1..720, default 25
   leet_share_with_friends: boolean;  // v0.1.3 P1: friends see my leet streak on the friends board (5.25); default true
@@ -559,7 +561,8 @@ interface Notification {
 }
 
 type AlertKind = "dm" | "mention" | "thread_reply" | "invite" | "friend_request"
-               | "channel_message" | "social" | "focus_summary";
+               | "channel_message" | "social" | "focus_summary"
+               | "workspace_invite" | "workspace_attention";   // v0.1.3 (P2, 5.26)
 
 interface Alert {                    // desktop-notification candidate (events.md 4.7)
   id: ID;
@@ -568,7 +571,8 @@ interface Alert {                    // desktop-notification candidate (events.m
   body: string;                      // <= 200 code points, plain text (markdown stripped)
   actor: UserSummary | null;
   target: {
-    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc";   // "doc": v0.1.3
+    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc"   // "doc": v0.1.3
+        | "workspace_share";                                                                // v0.1.3 (P2): id = share id, every other id null
     id: ID;
     channel_id: ID | null;
     message_id: ID | null;
@@ -687,6 +691,30 @@ interface AdminAction {
 
 - **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. `template.params` 는 그 id 에 선언된 인자를 모두 싣지만, 언어별 문구는 그 가운데 일부만 써도 된다(세 언어 문구가 쓰는 인자의 합집합 = 선언 — 예 `doc.comment_mention` 의 ko 제목은 `{space}` 를 쓰지 않는다). 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
 - **문서 대상 (`target.type:"doc"`)**: 모양 `{ type: "doc", id: <doc_id>, space_id, doc_type: "arch" | "apicol", channel_id: null, message_id: null, thread_root_id: null, post_id: null }`. 클라이언트는 `doc_type` 으로 어느 도구가 열지 고른다(CA 5.3.6 `RegisterAlertTarget` 의 `"doc:<doc_type>"` 키). 0.1.2 클라이언트는 모르는 대상의 alert 를 OS 알림으로만 보이고 이동하지 않는다.
+- **작업공간 공유 대상 (`target.type:"workspace_share"`, v0.1.3 P2)**: 모양 `{ type: "workspace_share", id: <share_id>, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null }`(`doc_type` 없음). `kind` 는 `workspace_invite`(초대받음, `template {id:"workspace.invite", params:{actor, share}}`)·`workspace_attention`(공유 중 프로그램이 확인을 기다림, 오너에게만, `template {id:"workspace.attention", params:{share}}`). 설정 스위치는 `notify.workspace`. 알림함 행은 만들지 않는다.
+- **작업공간 공유 (v0.1.3 P2, 5.26)**: 공유의 메타정보만 서버에 있다 — 내용·경로·파일 이름·명령·화면은 서버에 가지 않는다(`docs/contract/workspace.md`).
+
+```ts
+interface WorkspaceShare {
+  id: ID;
+  owner: UserSummary;
+  title: string;                     // 1..40 code points, user data (shown sanitized)
+  status: "live" | "ended";
+  created_at: Timestamp;
+  ended_at: Timestamp | null;
+  end_reason: "ended" | "timeout" | null;   // ended = the owner ended it; timeout = the owner was gone 2 minutes
+  members: WorkspaceShareMember[];   // seat order; members the owner removed (or who left) are not listed
+}
+interface WorkspaceShareMember {
+  user: UserSummary;
+  seat: number;                      // 1..8 (the owner is seat 0, workspace.md 2)
+  invited_at: Timestamp;
+  joined_at: Timestamp | null;       // last socket connect
+  left_at: Timestamp | null;         // last socket close
+  max_level: "viewer" | "prompter" | "editor" | "keyboard" | null;   // highest level the owner granted (ctl_levels)
+  verified: boolean;                 // the confirmation numbers were compared
+}
+```
 
 ### 2.1 본문 문법 (메시지·글 공통)
 
@@ -1633,6 +1661,30 @@ interface LeetFriendStreak { user: UserSummary; current: number; best: number }
 
 - 루트(`leet.daily`)는 수정할 수 없고(5.10 — `400 fields.message_id = "not_allowed"`), 리액션·고정·스레드 답글은 일반 메시지와 같다.
 - 이 절의 #daily 는 "그 방의 `leet_space_settings.enabled = 1` 이고 `channel_id` 채널이 살아 있음" 이다. 채널이 지워진 방은 꺼진 것과 같이 취급한다.
+### 5.26 작업공간 공유 (v0.1.3, P2 — WorkspaceHub, 설계서 B10)
+
+내 PC 폴더를 고른 사람과 종단간 암호화로 공유하는 작업공간(설계서 B부)의 **메타정보**. 서버는 공유 이름·오너·초대된 사람·자리·단계·끝난 이유만 안다. 내용은 공유 소켓 `GET /v1/workspace-shares/{share_id}/ws`(프레임·라우팅·종료 코드 = `docs/contract/workspace.md`)의 암호문으로만 흐르고 서버는 저장도 기록도 하지 않는다. 타입 `WorkspaceShare`·`WorkspaceShareMember` 는 2장.
+
+**초대 자격**: 초대 대상은 나 아님, 정지 중 아님, 나와 어느 방향으로도 차단 없음, 그리고 (친구 또는 같은 방 멤버). 하나라도 어긋나면 아무것도 쓰지 않고 `403 action_not_allowed`, `details.user_ids` = 어긋난 사람들의 ID. 없는 사용자 참조는 `404`.
+
+**한도 (`422 limit_exceeded` 의 `details.what`)**: `live_workspace_shares`(진행 중인 내 공유, 사용자당 3), `workspace_share_members`(내보내지지 않은 참가자, 공유당 8). 0.5 의 목록에 더하는 값이다.
+
+**권한**: 오너와 내보내지지 않은 멤버만 공유를 본다(그 밖 — 내보내진 사람 포함 — 모든 경로 `404`, 존재를 숨김). 초대 더하기·끝내기는 오너만(멤버 `403 forbidden`).
+
+| 경로 | 요청 | 응답·부수효과 |
+|---|---|---|
+| `POST /v1/workspace-shares` | `{ title, users: UserRef[] }` (title 1..40, users 1..8) | `201 { share }` — 자리 1..n 을 요청 순서대로. 초대받은 사람마다 `workspace_share.invited` + alert `workspace_invite`(`notify.workspace`), 오너의 다른 연결에 `workspace_share.updated`. 내 진행 중 공유가 이미 3개 → `422 limit_exceeded {what:"live_workspace_shares", limit:3}`. 최근 60분 동안 만든 공유 10개 → `429 rate_limited {limiter:"RL_SHARE", retry_after_sec:60}`(0.7) · `RL_SHARE` |
+| `GET /v1/workspace-shares?role=owner\|invited&status=live\|ended` | — | `200 { items: WorkspaceShare[] }` — 기본 `role=owner`, `status=live`. 최근 만든 순, 최대 50(페이지 없음). `invited` 는 내가 내보내지지 않은 멤버인 공유 |
+| `GET /v1/workspace-shares/{share_id}` | — | `200 { share }` |
+| `POST /v1/workspace-shares/{share_id}/invites` | `{ users: UserRef[] }` (1..8) | `200 { share }` — 이미 멤버인 사람은 건너뜀(오류 아님). 새로 초대된 사람마다 `workspace_share.invited` + alert, 오너·기존 멤버에 `workspace_share.updated`. 내보내지지 않은 멤버 합계가 8 을 넘으면 `422 limit_exceeded {what:"workspace_share_members", limit:8}`, 끝난 공유 → `409 conflict {reason:"ended"}` · `RL_SHARE` |
+| `DELETE /v1/workspace-shares/{share_id}/participants/{user}` | — | `204` — 오너가 멤버를 내보내거나, 멤버가 `@me` 로 나감(멤버가 남을 → `403 forbidden`, 오너가 자기를 → `403 forbidden`, 멤버 아닌 사람 → `404`). `removed_at` 기록, 열린 공유 소켓 `4101`, 오너·남은 멤버·나간 사람에게 `workspace_share.updated` |
+| `DELETE /v1/workspace-shares/{share_id}` | — | `204` — 오너만. `status='ended'`, `end_reason='ended'`, 오너·멤버에게 `workspace_share.ended {share_id, reason:"ended"}`, 열린 공유 소켓 모두 `4100`. 이미 끝났으면 아무것도 하지 않고 `204` |
+| `GET /v1/workspace-shares/{share_id}/ws` | WebSocket 업그레이드 | `docs/contract/workspace.md`. 공유가 없거나 끝났거나, 오너도 내보내지지 않은 멤버도 아니거나, 멤버와 오너가 차단 관계면 업그레이드 전에 `404` · `RL_SHARE_WS` |
+
+- 검증 오류: `title` 1..40(`fields.title = "too_short"\|"too_long"\|"required"`), `users` 가 비었거나 8 개를 넘으면 `fields.users = "invalid"`, `role`·`status` 가 목록 밖이면 `fields.role`·`fields.status = "invalid"`. 같은 사람을 두 번 적으면 한 번으로 친다.
+- 내보낸 멤버를 다시 초대하면 같은 자리로 다시 들어온다(`invited_at` 새로, `joined_at`·`left_at`·`max_level`·`verified` 초기화). 빈 자리가 없고 내보낸 행이 자리를 잡고 있으면 가장 오래 전에 내보낸 행을 지우고 그 자리를 쓴다.
+- 오너 소켓이 2분 넘게 끊기면 서버가 공유를 끝낸다(`end_reason='timeout'`, `workspace_share.ended {reason:"timeout"}`). 오너가 돌아와도 저절로 다시 열리지 않는다.
+- 끝난 공유 행은 끝난 지 30일 뒤 정리 작업이 지운다(data-model.md 6).
 
 ## 6. 엔드포인트 요약표
 
@@ -1741,6 +1793,13 @@ interface LeetFriendStreak { user: UserSummary; current: number; best: number }
 | GET | /v1/leet/me | ✓ | |
 | GET | /v1/spaces/{space_id}/leet/board | ✓ | |
 | GET | /v1/leet/friends/board | ✓ | |
+| POST | /v1/workspace-shares | ✓ | RL_SHARE |
+| GET | /v1/workspace-shares | ✓ | |
+| GET | /v1/workspace-shares/{share_id} | ✓ | |
+| POST | /v1/workspace-shares/{share_id}/invites | ✓ | RL_SHARE |
+| DELETE | /v1/workspace-shares/{share_id}/participants/{user} | ✓ | |
+| DELETE | /v1/workspace-shares/{share_id} | ✓ | |
+| GET | /v1/workspace-shares/{share_id}/ws | ✓ | RL_SHARE_WS |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

@@ -57,7 +57,7 @@ function parseDocTable(md: string): Map<string, string[]> {
     const perMethod = new Map<string, Set<string>>(methods.map((m) => [m, new Set<string>()]));
     if (limiterCell !== "" && limiterCell !== "—") {
       for (const part of limiterCell.split(",").map((s) => s.trim())) {
-        const mm = /^(RL_[A-Z]+)(?:\(([A-Z/]+)\))?$/.exec(part);
+        const mm = /^(RL_[A-Z_]+)(?:\(([A-Z/]+)\))?$/.exec(part);
         if (!mm) throw new Error(`api.md 6: bad limiter cell in: ${line}`);
         const applies = mm[2] ? mm[2].split("/") : methods;
         for (const m of applies) {
@@ -284,7 +284,7 @@ function unscannableLimiterCalls(sources: Record<string, string>): string[] {
       if (rel === "src/lib/auth.ts" && /^checkLimit\(\s*c\.env\s*,\s*"RL_API"/.test(src.slice(pos))) continue;
       if (!inRoutes) flag(pos, "checkLimit outside src/routes");
       else if (!regAt(pos)) flag(pos, "checkLimit outside a route registration");
-      else if (!/^checkLimit\(\s*c\.env\s*,\s*"RL_[A-Z]+"/.test(src.slice(pos))) flag(pos, 'checkLimit not as checkLimit(c.env, "RL_X", ...)');
+      else if (!/^checkLimit\(\s*c\.env\s*,\s*"RL_[A-Z_]+"/.test(src.slice(pos))) flag(pos, 'checkLimit not as checkLimit(c.env, "RL_X", ...)');
     }
     if (imported.has("limit")) {
       for (const pos of ids("limit")) {
@@ -295,10 +295,10 @@ function unscannableLimiterCalls(sources: Record<string, string>): string[] {
         if (!inRoutes) flag(pos, "limit outside src/routes");
         else if (!r) flag(pos, "limit outside a route registration (hoisted, wrapped or mounted with .use())");
         else if (depthFrom(m.code, r.open, pos) !== 1) flag(pos, "limit inside a handler, not a registration argument");
-        else if (!/^limit\(\s*"RL_[A-Z]+"\s*[,)]/.test(src.slice(pos))) flag(pos, 'limit not as limit("RL_X"[, key])');
+        else if (!/^limit\(\s*"RL_[A-Z_]+"\s*[,)]/.test(src.slice(pos))) flag(pos, 'limit not as limit("RL_X"[, key])');
       }
     }
-    for (const x of m.code.matchAll(/\bRL_[A-Z]+\b/g)) flag(x.index!, "rate-limit binding referenced directly");
+    for (const x of m.code.matchAll(/\bRL_[A-Z_]+\b/g)) flag(x.index!, "rate-limit binding referenced directly");
     for (const x of m.code.matchAll(/\benv\s*(\?\.)?\s*\[/g)) flag(x.index!, "env indexed by a computed key");
     for (const x of m.code.matchAll(/(\?\.|\.)\s*limit\s*\(/g)) {
       if (!/\berr\s*$/.test(m.code.slice(0, x.index!))) flag(x.index!, "binding .limit() call");
@@ -318,7 +318,7 @@ function scanRouteLimiters(sources: Record<string, string>): Map<string, Scanned
       const seg = src.slice(r.open, r.close);
       const names = (re: RegExp) => [...new Set([...seg.matchAll(re)].map((x) => x[1]))].filter((x) => x !== BASE_LIMITER).sort();
       if (out.has(r.key)) throw new Error(`${relPath(file)}: ${r.key} registered twice`);
-      out.set(r.key, { limit: names(/\blimit\(\s*"(RL_[A-Z]+)"/g), checkLimit: names(/\bcheckLimit\(\s*c\.env\s*,\s*"(RL_[A-Z]+)"/g) });
+      out.set(r.key, { limit: names(/\blimit\(\s*"(RL_[A-Z_]+)"/g), checkLimit: names(/\bcheckLimit\(\s*c\.env\s*,\s*"(RL_[A-Z_]+)"/g) });
     }
   }
   return out;

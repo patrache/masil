@@ -47,7 +47,7 @@ describe("signup/login", () => {
     expect(r.status).toBe(201);
     expect(r.body.token).toMatch(/^msl_[A-Za-z0-9_-]{43}$/);
     expect(r.body.session).toMatchObject({ client: "tui", device_name: "mbp", current: true });
-    expect(r.body.user).toMatchObject({ handle, display_name: "민지", role: "user", is_private: false, settings: { dm_policy: "friends_and_spaces", notify: { dm: true, social: false }, focus_default_min: 25 }, presence: { status: "offline", mode: "auto", focus: null } });
+    expect(r.body.user).toMatchObject({ handle, display_name: "민지", role: "user", is_private: false, settings: { dm_policy: "friends_and_spaces", notify: { dm: true, social: false, workspace: true }, focus_default_min: 25 }, presence: { status: "offline", mode: "auto", focus: null } });
     const row = await env.DB.prepare("SELECT password_hash FROM users WHERE handle=?").bind(handle).first<any>();
     expect(row.password_hash.startsWith("pbkdf2_sha256$100000$")).toBe(true);
   });

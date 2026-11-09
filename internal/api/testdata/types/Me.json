@@ -25,7 +25,8 @@
       "invite": true,
       "friend_request": true,
       "thread_reply": true,
-      "social": false
+      "social": false,
+      "workspace": true
     },
     "focus_default_min": 25,
     "leet_share_with_friends": true

@@ -27,6 +27,7 @@ import type {
   Timestamp,
   UnreadState,
   UserSummary,
+  WorkspaceShare,
 } from "./api";
 
 export type ServerEventType =
@@ -83,6 +84,9 @@ export type ServerEventType =
   | "doc.created" // v0.1.3 events.md 4.10
   | "doc.updated"
   | "doc.comment_created"
+  | "workspace_share.invited" // v0.1.3 P2 events.md 4.11
+  | "workspace_share.updated"
+  | "workspace_share.ended"
   | "story.created"
   | "story.deleted"
   | "device.tui_state";
@@ -209,6 +213,9 @@ export interface ServerEventDataMap {
   "doc.created": { doc: Doc };
   "doc.updated": { doc: Doc; deleted: boolean };
   "doc.comment_created": { doc_id: ID; comment: DocComment };
+  "workspace_share.invited": { share: WorkspaceShare };
+  "workspace_share.updated": { share: WorkspaceShare };
+  "workspace_share.ended": { share_id: ID; reason: "ended" | "timeout" };
   "story.created": { user_id: ID; story_id: ID; expires_at: Timestamp };
   "story.deleted": { user_id: ID; story_id: ID };
   // 4.9 daemon coordination

@@ -87,3 +87,22 @@ other = "{actor}님의 친구 요청"
 desc = "알림 제목: 내 방명록에 글이 남음. actor = 쓴 사람"
 params = { actor = "string" }
 other = "{actor}님의 방명록"
+
+[workspace_attention_body]
+desc = "알림 본문: 내가 공유 중인 작업공간의 프로그램이 확인을 기다림(내용은 싣지 않음)"
+other = "공유 중인 작업공간에서 확인이 필요해요"
+
+[workspace_attention_title]
+desc = "알림 제목: 공유 중인 작업공간 이름. share = 공유 이름(사용자 글)"
+params = { share = "string" }
+other = "{share}"
+
+[workspace_invite_body]
+desc = "알림 본문: 초대받은 작업공간 공유 이름. share = 공유 이름(사용자 글)"
+params = { share = "string" }
+other = "{share}"
+
+[workspace_invite_title]
+desc = "알림 제목: 작업공간 공유에 초대받음. actor = 공유한 사람 이름"
+params = { actor = "string" }
+other = "{actor}님이 작업공간을 공유했어요"

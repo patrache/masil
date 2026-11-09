@@ -132,6 +132,7 @@ function toSettings(user: UserRow, s: UserSettingsRow | null): Settings {
       friend_request: (s?.notify_friend_request ?? 1) === 1,
       thread_reply: (s?.notify_thread_reply ?? 1) === 1,
       social: (s?.notify_social ?? 0) === 1,
+      workspace: (s?.notify_workspace ?? 1) === 1,
     },
     focus_default_min: s?.focus_default_min ?? 25,
     leet_share_with_friends: (s?.leet_share_with_friends ?? 1) === 1,

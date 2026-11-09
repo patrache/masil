@@ -42,7 +42,8 @@ const (
 	ChannelGroupDM ChannelKind = "group_dm"
 )
 
-// AlertKind is dm|mention|thread_reply|invite|friend_request|channel_message|social|focus_summary.
+// AlertKind is dm|mention|thread_reply|invite|friend_request|channel_message|social|focus_summary
+// (v0.1.3 P2: also workspace_invite|workspace_attention).
 type AlertKind string
 
 // AlertKind values.
@@ -55,6 +56,9 @@ const (
 	AlertChannelMessage AlertKind = "channel_message"
 	AlertSocial         AlertKind = "social"
 	AlertFocusSummary   AlertKind = "focus_summary"
+
+	AlertWorkspaceInvite    AlertKind = "workspace_invite"    // v0.1.3 P2 (api.md 5.26)
+	AlertWorkspaceAttention AlertKind = "workspace_attention" // v0.1.3 P2: the owner's shared program waits for a confirmation
 )
 
 // NotificationType is the notification inbox item type (api.md 2):
@@ -131,6 +135,7 @@ type NotifySettings struct {
 	FriendRequest bool `json:"friend_request"`
 	ThreadReply   bool `json:"thread_reply"`
 	Social        bool `json:"social"`
+	Workspace     bool `json:"workspace"` // v0.1.3: workspace_invite / workspace_attention
 }
 
 // Focus is an active focus session.
@@ -542,7 +547,7 @@ type AlertTemplate struct {
 
 // AlertTarget is Alert.target.
 type AlertTarget struct {
-	Type         string  `json:"type"` // channel|message|post|space|user|notification|doc (P0 0.1.3) — unknown types go to ui.AlertTargetCmd
+	Type         string  `json:"type"` // channel|message|post|space|user|notification|doc (P0 0.1.3)|workspace_share (P2 0.1.3, ID = share id) — unknown types go to ui.AlertTargetCmd
 	ID           string  `json:"id"`
 	ChannelID    *string `json:"channel_id"`
 	MessageID    *string `json:"message_id"`

@@ -279,6 +279,8 @@ THIRD_PARTY_NOTICES, scripts/notices.sh   P0   (제3자 고지, 1.2)
 cmd/masil/
   register_tools.go                    P0   (blank import of internal/ui/tools, internal/ui/secretsui)
   register_<tool>.go                   P1~P4 (각 도구 패키지 blank import — 도구 연결은 여기서만)
+  register_workspace.go                P2   (blank import of internal/ui/workspace)
+  cmd_workspace.go                     P2   (`masil workspace open <경로>`·`stop [공유 ID]`, 출시 전 숨김)
   importgraph_test.go                  P0   (2.2 규칙 강제; 각 줄기는 자기 패키지 접두사 상수 한 줄)
   notices_test.go                      P0
 internal/
@@ -296,6 +298,18 @@ internal/
   ui/termpane/termpanetest/            P0   (시험 대역 — 시험에서만 import)
   ui/tools/                            P0   (도구 허브·도구 표면 명령·팔레트 소스)
   ui/secretsui/                        P0   (동의·가림 입력 오버레이)
+  workspace/ot/                        P2   (평문 OT: 변환·합성·무작위 수렴 시험)
+  workspace/wire/                      P2   (공유 프레임·종류·평문 헤더)
+  workspace/wscrypto/                  P2   (키 교환·SAS·프레임 암호·키 회전)
+  workspace/fsroot/                    P2   (폴더 뿌리 안 경로 검사·비밀 파일 차단·원자적 쓰기)
+  workspace/journal/                   P2   (저장 안 된 편집 복구 일지)
+  workspace/audit/                     P2   (공유 감사 기록, 덧붙이기만·0600)
+  workspace/hooks/                     P2   (claude HTTP hook 수신기 — 관찰만)
+  workspace/launch/                    P2   (터미널 프로그램 목록·우회 모드 점검)
+  workspace/share/                     P2   (공유 엔진: Host·Guest·DocManager·터미널 중계)
+  workspace/share/sharetest/           P2   (가짜 relay — 시험에서만 import)
+  store/wsstore/                       P2   (초대받은 공유·내 공유 목록 reducer)
+  ui/workspace/                        P2   (작업공간 화면: 폴더 고르기·혼자 쓰기·오너·참가자, ws.* 팔레트, 즉시 끊기 가드, alert 대상)
   (도구 패키지)                         P1 LeetCode·lazygit, P2 작업공간, P3 아키텍처 설계, P4 API 시험 — 이름과 행은 각 줄기가 더한다
   apitool/                             P4   (API 시험 엔진, UI 없음: 모델·로컬 파일·변수·전송·가드·검사·가리기·탐지·기록·실행기·공유 매핑·카드 데이터)
   apitool/convert/                     P4   (curl·OpenAPI JSON·Postman v2.1 가져오기/내보내기)
@@ -360,6 +374,8 @@ ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keym
 - `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
 - 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
 - `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
+- (P2) 작업공간 엔진 `internal/workspace/...` 는 `internal/ui`·bubbletea·`internal/secrets` 를 전이로도 import 하지 않는다(화면 없이 시험·재사용) — `internal/workspace/imports_test.go` `TestImportRules` 가 강제한다. 화면 `internal/ui/workspace` 만 엔진과 `ui`·`termpane`·`palette` 를 잇는다.
+- (P2) `internal/api` 는 `internal/workspace/...` 를 전이로도 import 하지 않는다 — 공유 내용(평문·키)은 구조적으로 REST 요청에 실릴 수 없고, 서버에는 암호문 프레임만 relay 로 간다(같은 시험 + 위 `TestImportGraph` 접두사).
 
 P1 도구 패키지(P1 Task 24 가 맞춘 실제 의존):
 
@@ -462,6 +478,8 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 | `api/shared/<doc_id>.lost.json` | TUI(API 시험, P4) | 동시 편집에서 덮어써진 내 본문(최근 20개) |
 | `tools-state.json` 의 P1 섹션 | `ui/leet`·`ui/gittool` | `leet` = `{"lang": "<언어 ID — l 로 마지막에 고른 것>", "first_run_done": bool, "accounts": {"<masil 서버 호스트>/<masil 사용자 ID>": {"username": "<LeetCode 사용자 이름>", "premium": bool}}}` — 쿠키 값은 여기 없다(`secrets` 만). `git` = `{"recent": ["<저장소 절대 경로>", …]}`(최근 연 저장소, 앞이 최근). 둘 다 masil 서버로 보내지 않는다 |
 | 캐시 `leetcode/`, `lazygit/` | `leetcode`·`lazygit` | `<캐시>/leetcode/{daily/<date>.json, questions/<slug>.json, fetched/<UTC 날짜>.json}`(오늘의 문제·연 문제, 0600 — 쿠키 없음), `<캐시>/lazygit/theme-<해시>.yml`(패널 lazygit 의 색만 덧씌움, 0600). 풀이 파일은 설정 폴더 밖 `[tools.leet] dir`(기본 `~/masil/leetcode/<date>-<번호>-<slug>.<확장자>`) |
+| `workspace-audit/<공유 ID>.jsonl` | TUI(작업공간 오너, P2) | 공유 감사 기록(설계서 B8.5): 한 줄 JSON 덧붙이기만, 폴더 0700·파일 0600. 참가 요청·SAS 결과·권한 단계·제안·제안 처리·키보드 입력(참가자 것만)·참가자 저장. 캐시가 아니라 설정 폴더에 둔다(지워지지 않게). masil 서버로 보내지 않는다 |
+| `<캐시>/workspace-journal/<폴더 해시>/` | TUI(작업공간, P2) | 저장 안 된 편집의 복구 일지(파일마다). 저장하면 지우고, 다음에 같은 폴더를 열면 되살릴지 묻는다. 폴더 경로는 해시로만. masil 서버로 보내지 않는다 |
 | `secrets/` | TUI | 도구 자격증명 저장소(`internal/secrets`)의 대체 자리. 폴더 0700. `tools.json`(0600) = 사용자가 "파일에 저장"에 동의한 값, `index.json`(0600) = 저장한 값 **이름**만(값 없음, `Store.List`), `.gitignore` = `*` 한 줄. 파일 형식은 `secrets` 패키지 내부(다른 패키지가 직접 읽지 않음). OS 키체인에 저장된 값은 여기 없다 |
 
 ### 3.3 `config.toml`
@@ -2636,7 +2654,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 |---|---|
 | core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
 | P1 LeetCode·lazygit | `ui/leet`: `leet.open`(오늘의 문제 열기), `leet.board`(지금 방의 순위·친구 순위 — 방 안에서만), `leet.settings`(도구 설정 창), `leet.daily.toggle`(지금 방의 #daily 켜기·끄기 — 방 owner·admin 만) — 모두 `Available` 에 `features.On(ui.ToolLeet)`. `ui/gittool`: `git.open`(저장소 고르기) — `features.On(ui.ToolGit)`. 전부 `Label func(*i18n.T)` |
-| P2 작업공간 | `ws.*` |
+| P2 작업공간 `ui/workspace` | `ws.open`, `ws.share.start`, `ws.share.end`, `ws.people`, `ws.proposals`, `ws.join`, `ws.term.new`, `ws.autosave.toggle`, `ws.notify.toggle` — 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("workspace")`(공유 중일 때만 `ws.share.end`·`ws.people`·`ws.proposals`, 폴더가 열렸을 때 `ws.term.new`·`ws.autosave.toggle`, 초대가 있을 때 `ws.join`). `ws.notify.toggle` = `PATCH /v1/me/settings {notify:{workspace}}`(설정 화면 줄은 없음) |
 | P3 아키텍처 설계 | `arch.*` |
 | P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd`(+ `n` nonce)로 인스턴스 `api:main` 에 전달(`ui.OpenTool`). 여는 대상은 Query 개인 컬렉션 `col`·`req`(이름·요청 ID), 공유 컬렉션 `doc`·`req`(인스턴스 `api:doc:<doc_id>`, P4 Task 18·20) |
 
@@ -3163,6 +3181,14 @@ daemon-release: `daemon` 판정 시험(락 있음/없음/오류 × 서버 신호
 - **비밀값**: `Secret` 이 어떤 출력에도 `(redacted)`, 사용자·도구별 분리, `secrettest.AssertNoLeak` 으로 masil 서버 요청·`logs/` 에 값 0회.
 - **방 문서**: Go reducer 가 `docs/contract/collab-vectors.json`(서버 시험과 같은 파일)을 모두 통과(`TestDocVectors`, `collabtest` `TestHubVectors`).
 - P3 의 시뮬레이션 결정성(amd64·arm64), P2 의 OT 무작위 시험은 각 줄기가 이 목록에 더한다.
+
+**v0.1.3 추가 — P2 필수 시험** (작업공간):
+
+- **OT 무작위 수렴**: `internal/workspace/ot` `TestFuzzConvergence`(시드 고정, 셋 이상이 같은 줄을 동시에 편집해도 모두 같은 글로 수렴), `share` `TestThreeWayLiveEditing`.
+- **키 교환·SAS**: `wscrypto` 키 교환·프레임 암호·키 회전 시험, `share` `TestMITMSASDiffers`(중간자면 SAS 가 다름)·`TestTamperedFramesDroppedAndWarned`·`TestKickRekeysAndKickedCannotRead`.
+- **경로**: `fsroot` `TestCheckRejects`(`..`·절대 경로·심볼릭 링크 탈출·비밀 파일·조작 이름), `share` `TestPeerCannotOpenSecrets`, `ui/workspace` `TestGuestTreeSanitizesHostileNames`.
+- **수락 기준 B16**: `internal/workspace/share/acceptance_test.go`·`internal/ui/workspace/acceptance_test.go`(`TestNoFolderDataInAnyRequest`·`TestEndFromOtherDevice`·`TestAuditCoversLadder`) 와 각 Task 의 시험 이름 표(P2 계획 Task 25).
+- **즉시 끊기**: `ui/workspace` `TestKillFromChatScreen`(다른 화면에서 `ctrl+\ x` 가 확인 없이 끊음)·`TestKillOnWorkspaceItself`, `share` `TestKillStopsInputWithinOneSecond`.
 
 ### 10.4 `internal/ui/uitest/fixtures` (core)
 

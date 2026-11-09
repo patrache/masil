@@ -757,6 +757,42 @@ ALTER TABLE user_settings ADD COLUMN leet_share_with_friends INTEGER NOT NULL DE
 - `leet_daily_roots` 는 채널·날짜마다 #daily 루트를 하나로 묶는 경합 장치다: `INSERT OR IGNORE`(`message_id` NULL)로 먼저 차지한 요청만 루트 카드를 만들고 `message_id` 를 채운다. 만들다 실패하면 그 NULL 행을 지운다. NULL 로 30초 넘게 남은 행은 다음 요청이 `claimed_at` 비교로 넘겨받는다(api.md 5.25).
 - `leet_solves.passed_at` 은 첫 기록의 서버 시각을 그대로 둔다. 연속 풀이는 `utcDate(passed_at) = date` 인 날만 채운다(유예 없음, 설계서 JA26).
 - 삭제(1.4 와의 관계): `leet_*` 는 메시지가 아니라 관계·기록 표라 **실제 삭제**한다 — `DELETE /v1/leet/solves/{date}` 는 `leet_solves` 행을 지우고 풀이 카드 메시지는 1.4 의 소프트 삭제를 따른다. 방이 지워져도(소프트) `leet_space_settings` 는 남지만 방이 살아 있는 동안만 읽힌다. 채널을 지우면(소프트) 그 방의 #daily 는 꺼진 것과 같이 취급되고 루트를 만들지 않는다.
+### 3.15 작업공간 공유 — `0007_workspace.sql` (v0.1.3 P2, 설계서 B10)
+
+```sql
+CREATE TABLE workspace_shares (
+  id          TEXT PRIMARY KEY,
+  owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,                              -- 1..40 code points (user data)
+  status      TEXT NOT NULL CHECK (status IN ('live','ended')),
+  created_at  INTEGER NOT NULL,
+  ended_at    INTEGER,
+  end_reason  TEXT CHECK (end_reason IN ('ended','timeout'))
+);
+CREATE INDEX idx_workspace_shares_owner ON workspace_shares(owner_id, status, created_at);
+CREATE INDEX idx_workspace_shares_ended ON workspace_shares(status, ended_at);
+
+CREATE TABLE workspace_share_members (
+  share_id    TEXT NOT NULL REFERENCES workspace_shares(id) ON DELETE CASCADE,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seat        INTEGER NOT NULL CHECK (seat BETWEEN 1 AND 8),
+  invited_at  INTEGER NOT NULL,
+  joined_at   INTEGER,                                    -- last share-socket connect
+  left_at     INTEGER,                                    -- last share-socket close
+  removed_at  INTEGER,                                    -- the owner removed them, or they left (DELETE .../participants/@me)
+  max_level   TEXT CHECK (max_level IN ('viewer','prompter','editor','keyboard')),
+  verified    INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0,1)),
+  PRIMARY KEY (share_id, user_id),
+  UNIQUE (share_id, seat)
+);
+CREATE INDEX idx_workspace_share_members_user ON workspace_share_members(user_id, share_id);
+
+ALTER TABLE user_settings ADD COLUMN notify_workspace INTEGER NOT NULL DEFAULT 1 CHECK (notify_workspace IN (0,1));
+```
+
+- 이 두 표에는 위 열만 있다(서버 시험이 `PRAGMA table_info` 로 확인). 경로·파일 이름·명령·화면·키·확인 숫자는 D1 에도 DO 저장소에도 쓰지 않는다. `WorkspaceHub` DO 는 공유가 살아 있는 동안 공유 메타(id·오너·제목)와 단계표·확인 여부(평문 메타정보)만 DO 저장소에 두고, 공유가 끝나면 이를 지우고 끝남 표시만 남긴다. 최근 키프레임 묶음 암호문은 메모리에만 둔다(`docs/contract/workspace.md` 4장).
+- "60분에 10회" 공유 만들기 한도는 `idx_workspace_shares_owner` 로 `created_at` 을 센다(api.md 0.7).
+- `max_level`·`verified` 는 오너가 보낸 `ctl_levels` 의 최고 단계·확인 여부를 DO 가 옮겨 적는다. `joined_at`·`left_at` 은 DO 가 연결·종료 때 적는다.
 
 ## 4. 검색 — `0002_search.sql` (FTS5)
 
@@ -835,6 +871,7 @@ cleanup 작업 목록:
 7. **상태 메시지 만료**: `status_expires_at < now` → `status_emoji/status_text/status_expires_at = NULL` (API 응답은 이미 만료분을 null 로 보여 줌).
 8. **정지 만료**: `suspended_until < now` → `suspended_at/suspended_until/suspend_reason = NULL` (인증 미들웨어는 이미 만료를 활성으로 취급).
 9. **접속 상태 정정**: `status <> 'offline' AND online_until < now` → `status='offline'`.
+10. **끝난 작업공간 공유** (v0.1.3 P2): `status='ended' AND ended_at < now - 30일` 인 `workspace_shares` 행 → DELETE(멤버 행은 `ON DELETE CASCADE`).
 
 DO 내부 보존(D1 아님): UserHub 이벤트 로그는 사용자당 최근 2,000건 또는 24시간 중 짧은 쪽(`events.md` 6.2). TopicHub 시청자 임대는 300초.
 

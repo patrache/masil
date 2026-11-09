@@ -116,6 +116,24 @@ export const TEMPLATES = {
       "zh-Hans": { title: "{actor} 在 {space} · {doc} 的评论中提到了你" },
     },
   },
+  // v0.1.3 P2 (api.md 5.26): workspace share invite / "a program in my shared workspace is waiting for a confirmation".
+  // zh-Hans copies en until the P5 review ledger checks it.
+  "workspace.invite": {
+    body: "template",
+    text: {
+      ko: { title: "{actor}님이 작업공간을 공유했어요", body: "{share}" },
+      en: { title: "{actor} shared a workspace with you", body: "{share}" },
+      "zh-Hans": { title: "{actor} shared a workspace with you", body: "{share}" },
+    },
+  },
+  "workspace.attention": {
+    body: "template",
+    text: {
+      ko: { title: "{share}", body: "공유 중인 작업공간에서 확인이 필요해요" },
+      en: { title: "{share}", body: "Your shared workspace needs a confirmation" },
+      "zh-Hans": { title: "{share}", body: "Your shared workspace needs a confirmation" },
+    },
+  },
 } as const satisfies Record<string, TemplateDef>;
 
 export type AlertTemplateId = keyof typeof TEMPLATES;

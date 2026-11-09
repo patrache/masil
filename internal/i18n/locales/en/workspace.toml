@@ -1,0 +1,620 @@
+[ago_minutes]
+other = "{n} min ago"
+
+[ago_now]
+other = "just now"
+
+[ago_seconds]
+other = "{n}s ago"
+
+[attention_toast]
+other = "{name} · ⏳ waiting for approval"
+
+[attention_waiting]
+other = "⏳ Waiting for approval"
+
+[autosave_off]
+other = "Autosave off"
+
+[autosave_on]
+other = "Autosave on"
+
+[band_private]
+other = "🔒 Only me · {folder}"
+
+[band_sharing]
+other = "🔴 Sharing · {n}"
+
+[cancel]
+other = "Cancel"
+
+[check_accept_edits]
+other = "This mode allows file edits without asking"
+
+[check_blocked_bypass]
+other = "A program started in a mode that skips permission checks (dangerously…) cannot be shared"
+
+[check_blocked_mode]
+other = "This permission mode cannot be shared (only manual, plan and acceptEdits)"
+
+[check_blocked_settings]
+other = "A program started with its own --settings cannot be shared"
+
+[check_shell_warning]
+other = "masil cannot check the mode of programs run inside a shell"
+
+[cli_no_shares]
+other = "No shares to end"
+
+[cli_not_dir]
+other = "Not a folder: {path}"
+
+[cli_not_logged_in]
+other = "Log in first with masil login"
+
+[cli_open_usage]
+other = "masil workspace open <path> — open this folder as a workspace"
+
+[cli_stop_failed]
+other = "Could not end the share: {err}"
+
+[cli_stop_usage]
+other = "masil workspace stop [share id] — end my workspace shares (all without an id)"
+
+[cli_stopped]
+other = "Ended {n} share(s)"
+
+[cli_usage]
+other = "masil workspace open <path> | stop [share id] — open a workspace or end sharing"
+
+[code_cannot_open]
+other = "This file cannot be opened"
+
+[code_cannot_open_binary]
+other = "Binary files are not opened"
+
+[code_cannot_open_large]
+other = "Files over 2 MiB are not opened"
+
+[code_deleted_on_disk]
+other = "Deleted on disk"
+
+[code_empty_hint]
+other = "Pick a file in the tree and press enter"
+
+[code_readonly_large]
+other = "Read-only · over 512 KiB"
+
+[code_readonly_mixed_eol]
+other = "Read-only · mixed line endings"
+
+[code_unsaved]
+other = "● Unsaved"
+
+[company_code_notice]
+other = "If this is company code, check your company's policy first"
+
+[composer_placeholder]
+other = "Write a proposal and press enter"
+
+[declined_expired]
+other = "The owner did not answer within 5 minutes, so the join request ended"
+
+[declined_owner]
+other = "The owner did not let you in"
+
+[disk_merged]
+other = "Merged changes from disk · u undo · d use the disk version"
+
+[dlg_hint]
+other = "↑↓ choose · enter confirm · esc close"
+
+[dm_hint]
+other = "Do not paste code or secrets"
+
+[dm_unencrypted]
+other = "🔓 Not encrypted"
+
+[end_confirm]
+other = "End sharing"
+
+[end_discard]
+other = "Discard"
+
+[end_keep]
+other = "Keep open (continue alone)"
+
+[end_programs_keep]
+other = "Terminal programs keep running"
+
+[end_save]
+other = "Save"
+
+[end_title]
+other = "End sharing"
+
+[end_unsaved_head]
+other = "Unsaved edits by participants"
+
+[end_unsaved_prompt]
+other = "Save / discard / keep open (continue alone)"
+
+[ended]
+other = "The share has ended"
+
+[ended_hint]
+other = "Press any key to close"
+
+[follow_off_hint]
+other = "Not following · {key} f to follow"
+
+[guest_band]
+other = "🔴 {title} · {name}'s workspace · me: {level}"
+
+[guest_reconnecting]
+other = "Reconnecting…"
+
+[guest_term_empty]
+other = "No terminal is shared"
+
+[guest_tiny]
+other = "Watching {title} · enlarge the window to see the screen"
+
+[guest_tiny_keys]
+other = "q leave"
+
+[hub_name]
+other = "Workspace"
+
+[hub_status_idle]
+other = "Open a folder · {n} invites"
+
+[hub_status_private]
+other = "{folder} · 🔒 Only me · {n} terminals"
+
+[hub_status_sharing]
+other = "{folder} · 🔴 Sharing with {n}"
+
+[invited_row]
+other = "{owner} · {title} · {when}"
+
+[invited_title]
+other = "Shared with you"
+
+[join_connecting]
+other = "Connecting…"
+
+[join_match]
+other = "Match"
+
+[join_mismatch]
+other = "Different"
+
+[join_pending]
+other = "{n} join requests ({key} to check)"
+
+[join_requesting]
+other = "{name} wants to join"
+
+[join_sas_title]
+other = "Check number · {name}'s workspace"
+
+[join_waiting_owner]
+other = "Waiting for {name} to let you in"
+
+[keyboard_duration]
+other = "Duration"
+
+[keyboard_extend]
+other = "Extend the keyboard · {name}"
+
+[keyboard_handle_label]
+other = "Handle"
+
+[keyboard_handle_mismatch]
+other = "The handle does not match"
+
+[keyboard_hours]
+other = "{n} h"
+
+[keyboard_minutes]
+other = "{n} min"
+
+[keyboard_needs_verify]
+other = "Only people whose number was checked can edit or get the keyboard"
+
+[keyboard_paused]
+other = "Owner away · keyboard paused"
+
+[keyboard_remaining]
+other = "keyboard {mmss}"
+
+[keyboard_title]
+other = "Give the keyboard · {name}"
+
+[keyboard_type_handle]
+other = "Type {handle} exactly to allow"
+
+[keyboard_warning]
+other = "If you give {name} the keyboard, {name} can run anything on this PC just as {owner} can: delete files, read secrets (environment variables included), press \"yes\" in a program's permission prompt, send files over the internet. masil cannot filter keys one by one. Give it only to people you trust, only as long as needed."
+
+[keyboard_warning_own_device]
+other = "This is another device of {owner}'s. It will be able to run anything on this PC."
+
+[kick_confirm]
+other = "Remove {name}?"
+
+[kick_yes]
+other = "Remove"
+
+[kill_hint]
+other = "{key} then x ends sharing"
+
+[killed_toast]
+other = "Sharing cut off"
+
+[last_input]
+other = "Last input: {name} · {ago}"
+
+[legal_notice]
+other = "When someone else types into this session, they may in effect be using {owner}'s account and subscription. AI service terms may limit sharing an account or subscription. For several people working together, API key billing (charged to the owner as used) is the clearer way. Please check the terms of the services you use."
+
+[legal_notice_short]
+other = "With the keyboard they may in effect use {owner}'s account and subscription. Please check the terms of the services you use."
+
+[level_editor]
+other = "edit"
+
+[level_keyboard]
+other = "keyboard"
+
+[level_prompter]
+other = "propose"
+
+[level_viewer]
+other = "view"
+
+[multiline_confirm]
+other = "Each line may run on its own"
+
+[newterm_custom]
+other = "Type a command"
+
+[newterm_title]
+other = "New terminal"
+
+[notify_failed]
+other = "Could not change workspace alerts"
+
+[notify_off]
+other = "Workspace alerts off"
+
+[notify_on]
+other = "Workspace alerts on"
+
+[open_failed]
+other = "Could not open the folder"
+
+[owner_only_answer]
+other = "← only the owner can answer"
+
+[palette_autosave_toggle]
+other = "Workspace: toggle autosave"
+
+[palette_join]
+other = "Workspace: join a share"
+
+[palette_notify_toggle]
+other = "Toggle workspace alerts"
+
+[palette_open]
+other = "Open workspace"
+
+[palette_people]
+other = "Workspace: participants"
+
+[palette_proposals]
+other = "Workspace: proposals"
+
+[palette_share_end]
+other = "Workspace: end sharing"
+
+[palette_share_start]
+other = "Workspace: start sharing"
+
+[palette_term_new]
+other = "Workspace: new terminal"
+
+[pan_more]
+other = "→ {n} more"
+
+[path_prompt]
+other = "Type a path"
+
+[peer_joined]
+other = "{name} joined"
+
+[peer_left]
+other = "{name} left"
+
+[people_keys]
+other = "+/- level · k keyboard · K extend · x remove"
+
+[people_offline]
+other = "offline"
+
+[people_title]
+other = "People {n}"
+
+[people_waiting]
+other = "waiting"
+
+[pick_folder_title]
+other = "Open a folder"
+
+[prefix_help_code]
+other = "to the code cell"
+
+[prefix_help_exec]
+other = "run full screen"
+
+[prefix_help_follow]
+other = "follow the cursor"
+
+[prefix_help_new_term]
+other = "new terminal"
+
+[prefix_help_people]
+other = "to the people list"
+
+[prefix_help_proposals]
+other = "proposals"
+
+[prefix_help_share]
+other = "start sharing"
+
+[prefix_help_term]
+other = "to the terminal cell"
+
+[prefix_help_tree]
+other = "to the tree cell"
+
+[prop_done]
+other = "The owner used your proposal"
+
+[prop_failed]
+other = "Could not send the proposal"
+
+[prop_rejected]
+other = "The owner declined your proposal"
+
+[prop_sent]
+other = "Proposal sent"
+
+[proposal_approve]
+other = "Do it"
+
+[proposal_edit]
+other = "Edit, then insert"
+
+[proposal_edit_label]
+other = "Edited text"
+
+[proposal_from]
+other = "{name} · {kind}"
+
+[proposal_insert]
+other = "Insert"
+
+[proposal_insert_send]
+other = "Insert and send"
+
+[proposal_kind_delete]
+other = "delete"
+
+[proposal_kind_rename]
+other = "rename"
+
+[proposal_kind_text]
+other = "proposal"
+
+[proposal_more_lines]
+other = "…{n} more lines"
+
+[proposal_no_terminal]
+other = "No shared terminal to put proposals in"
+
+[proposal_pending]
+other = "{n} proposals waiting ({key} to view)"
+
+[proposal_reject]
+other = "Reject"
+
+[proposals_empty]
+other = "No proposals waiting"
+
+[proposals_hint]
+other = "↑↓ choose · i insert · s insert and send · e edit · r reject · esc close"
+
+[proposals_hint_fs]
+other = "↑↓ choose · a do it · r reject · esc close"
+
+[proposals_title]
+other = "Proposals · {n}"
+
+[recent_folders]
+other = "Recent folders"
+
+[recent_none]
+other = "No folders opened yet"
+
+[recovery_available]
+other = "There is unsaved work to recover"
+
+[recovery_body]
+other = "Edits to {n} files were not saved before masil stopped. Recovering puts them back as edits; they reach the disk when you save."
+
+[recovery_discard]
+other = "Discard"
+
+[recovery_restore]
+other = "Recover"
+
+[sas_allow]
+other = "Match · allow"
+
+[sas_allow_unverified]
+other = "Allow without checking"
+
+[sas_compare_hint]
+other = "Compare the numbers outside masil (a voice call, in person, another messenger). Comparing over masil DMs is not full protection: the server could change DMs too."
+
+[sas_decline]
+other = "Decline"
+
+[sas_keyboard_later]
+other = "The keyboard can be given later from the people list"
+
+[sas_level]
+other = "Level"
+
+[sas_mismatch]
+other = "Different"
+
+[sas_mismatch_warning]
+other = "Someone may be in the middle"
+
+[sas_peer_matched]
+other = "{name} pressed match too"
+
+[sas_title]
+other = "Check number · {name}"
+
+[save_failed]
+other = "Could not save"
+
+[saved]
+other = "Saved {file}"
+
+[share_autosave]
+other = "Autosave (2 s after an edit)"
+
+[share_dialog_hint]
+other = "↑↓ choose · space toggle · enter start sharing · esc close"
+
+[share_dialog_title]
+other = "Start sharing"
+
+[share_ended]
+other = "Sharing ended"
+
+[share_failed]
+other = "Could not start sharing"
+
+[share_files]
+other = "Files (tree and editor)"
+
+[share_invite_friends]
+other = "Invite (up to {n})"
+
+[share_invite_full]
+other = "You can invite up to {n} people"
+
+[share_invite_none]
+other = "No friends to invite"
+
+[share_invite_space]
+other = "Invite members of one space"
+
+[share_notice_screen]
+other = "The moment sharing starts, the current terminal screen is visible as it is, and so is everything printed after it (secrets included, if a program prints them). The file deny list protects only the tree and the editor, not terminal output."
+
+[share_space_failed]
+other = "Could not load the space's members"
+
+[share_space_loading]
+other = "Loading the space's members…"
+
+[share_term_size]
+other = "Terminal size"
+
+[share_term_size_fit]
+other = "Fit the window"
+
+[share_terminal]
+other = "Terminal {n} · {name}"
+
+[share_title_default]
+other = "{name}'s workspace"
+
+[share_title_label]
+other = "Share name"
+
+[share_title_server_visible]
+other = "The server can see this"
+
+[share_what]
+other = "What to share"
+
+[stop_program_option]
+other = "Send programs an interrupt (ctrl+c)"
+
+[subtab_code]
+other = "Code"
+
+[subtab_people]
+other = "Who({n})"
+
+[subtab_term]
+other = "Term"
+
+[subtab_tree]
+other = "Tree"
+
+[tamper_continue]
+other = "Keep sharing"
+
+[tamper_stop]
+other = "Stop sharing"
+
+[tamper_warning]
+other = "Content is being changed by the server or the network. Stop sharing?"
+
+[term_empty_hint]
+other = "n new terminal"
+
+[term_title_unsaved]
+other = "{n} unsaved"
+
+[tiny_keyboard]
+other = "keyboard {name} {mmss}"
+
+[tiny_owner_keys]
+other = "s send · i insert · r reject · x end sharing"
+
+[tiny_owner_keys_fs]
+other = "a approve · r reject · x end sharing"
+
+[tiny_owner_summary]
+other = "🔴 Sharing · {n}"
+
+[tiny_proposals]
+other = "{n} proposals"
+
+[tiny_solo_summary]
+other = "{folder} · 🔒 Only me · make the window bigger to edit"
+
+[tree_more_entries]
+other = "…{n} more"
+
+[tree_secret_hidden]
+other = "🔒 {name} (not shared)"
+
+[unverified]
+other = "unverified"
+
+[windows_no_terminal]
+other = "Terminals inside masil do not work on Windows yet. Press {key} to run full screen"
+
+[windows_term_share_disabled]
+other = "Terminals cannot be shared on Windows"
