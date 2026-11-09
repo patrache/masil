@@ -3,10 +3,13 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 )
 
@@ -107,5 +110,23 @@ func TestCLIWorkspace(t *testing.T) {
 	}
 	if got := e.out.String(); got != "끝낼 공유가 없어요\n" {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+// A failed end is said with errtext.Describe (the catalog-driven error
+// line), and the stop exits 1.
+func TestCLIWorkspaceStopFailure(t *testing.T) {
+	srv := apitest.New(t)
+	e := newEnv(t, srv.URL)
+	t.Setenv("MASIL_FEATURES", "workspace")
+	saveCreds(t, e.Paths, srv.URL)
+	srv.JSON("DELETE /v1/workspace-shares/{id}", 500, map[string]any{"error": map[string]any{"code": "internal_error", "message": "boom"}})
+	if code := e.run("workspace", "stop", "ws_x"); code != 1 {
+		t.Fatalf("failed stop => %d, want 1", code)
+	}
+	tr := i18n.For(i18n.Ko)
+	want := tr.Workspace.CliStopFailed(errtext.Describe(tr, &api.Error{Status: 500, Code: "internal_error", Message: "boom"}))
+	if got := e.err.String(); !strings.Contains(got, want) {
+		t.Fatalf("stderr = %q, want %q", got, want)
 	}
 }

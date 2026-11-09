@@ -10,9 +10,9 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/features"
 	"github.com/patrache/masil/internal/i18n"
-	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui/workspace"
 )
 
@@ -91,7 +91,7 @@ func cmdWorkspaceStop(ctx context.Context, env *Env, args []string) error {
 	} else {
 		shares, err := client.ListWorkspaceShares(c, "owner", "live")
 		if err != nil {
-			fmt.Fprintln(env.Stderr, t.CliStopFailed(textwidth.Sanitize(api.Describe(err))))
+			fmt.Fprintln(env.Stderr, t.CliStopFailed(errtext.Describe(i18n.For(i18n.Ko), err)))
 			return err
 		}
 		for _, s := range shares {
@@ -106,7 +106,7 @@ func cmdWorkspaceStop(ctx context.Context, env *Env, args []string) error {
 	n := 0
 	for _, id := range ids {
 		if err := client.EndWorkspaceShare(c, id); err != nil {
-			fmt.Fprintln(env.Stderr, t.CliStopFailed(textwidth.Sanitize(api.Describe(err))))
+			fmt.Fprintln(env.Stderr, t.CliStopFailed(errtext.Describe(i18n.For(i18n.Ko), err)))
 			if firstErr == nil {
 				firstErr = err
 			}
