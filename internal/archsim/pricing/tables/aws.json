@@ -1,0 +1,1212 @@
+{
+ "provider": "aws",
+ "as_of": "2026-11",
+ "note": "On-demand list prices in USD, Linux, tax, discounts and free tiers excluded. Entered by hand from the public pages in sources (no automated collection); where a region was not entered type by type, the price is the us-east/us-central/eastus price times that family's regional ratio. Re-check against sources before each release. Managed types are representative node types. Object storage and the load balancer are usage-priced: their instance entry carries a nominal (1 micro-USD) or hourly price and the rest is in the region fields.",
+ "sources": [
+  "https://aws.amazon.com/ec2/pricing/on-demand/",
+  "https://aws.amazon.com/ebs/pricing/",
+  "https://aws.amazon.com/elasticloadbalancing/pricing/",
+  "https://aws.amazon.com/s3/pricing/",
+  "https://aws.amazon.com/elasticache/pricing/",
+  "https://aws.amazon.com/rds/postgresql/pricing/",
+  "https://aws.amazon.com/amazon-mq/pricing/",
+  "https://aws.amazon.com/opensearch-service/pricing/"
+ ],
+ "defaults": {
+  "lb": "alb",
+  "cache": "cache.r7g.large",
+  "db_primary": "db.r7g.large",
+  "db_replica": "db.r7g.large",
+  "queue": "mq.m5.large",
+  "object_storage": "s3",
+  "search": "r7g.large.search",
+  "api": "c7g.large",
+  "worker": "c7g.large"
+ },
+ "regions": {
+  "us-east-1": {
+   "instances": [
+    {
+     "name": "alb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 22500
+    },
+    {
+     "name": "c7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 16384,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 290000
+    },
+    {
+     "name": "c7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 580000
+    },
+    {
+     "name": "c7g.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 72500
+    },
+    {
+     "name": "c7g.medium",
+     "vcpu": 1,
+     "memory_mib": 2048,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 36300
+    },
+    {
+     "name": "c7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 145000
+    },
+    {
+     "name": "c7i.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 89200
+    },
+    {
+     "name": "c7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 178500
+    },
+    {
+     "name": "cache.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 13384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 219000
+    },
+    {
+     "name": "cache.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 26952,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 437000
+    },
+    {
+     "name": "cache.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 3164,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 65000
+    },
+    {
+     "name": "db.m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 168000
+    },
+    {
+     "name": "db.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 239000
+    },
+    {
+     "name": "db.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 478000
+    },
+    {
+     "name": "db.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 65000
+    },
+    {
+     "name": "m6i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 96000
+    },
+    {
+     "name": "m7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 326400
+    },
+    {
+     "name": "m7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 652800
+    },
+    {
+     "name": "m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 81600
+    },
+    {
+     "name": "m7g.medium",
+     "vcpu": 1,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 40800
+    },
+    {
+     "name": "m7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 163200
+    },
+    {
+     "name": "m7i.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 403200
+    },
+    {
+     "name": "m7i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 100800
+    },
+    {
+     "name": "m7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 201600
+    },
+    {
+     "name": "mq.m5.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 288000
+    },
+    {
+     "name": "r7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 428400
+    },
+    {
+     "name": "r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 107100
+    },
+    {
+     "name": "r7g.large.search",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 178000
+    },
+    {
+     "name": "r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 214200
+    },
+    {
+     "name": "s3",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "t3.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 83200
+    },
+    {
+     "name": "t3.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 41600
+    },
+    {
+     "name": "t3.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 10400
+    },
+    {
+     "name": "t3.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 20800
+    },
+    {
+     "name": "t4g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 67200
+    },
+    {
+     "name": "t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 33600
+    },
+    {
+     "name": "t4g.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 8400
+    },
+    {
+     "name": "t4g.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 16800
+    },
+    {
+     "name": "t4g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 134400
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 80000,
+    "ssd_fast": 125000,
+    "hdd": 45000
+   },
+   "iops_month_micro_usd": 5000,
+   "egress_gb_micro_usd": 90000,
+   "lb_hourly_micro_usd": 22500,
+   "lb_gb_micro_usd": 8000,
+   "object_gb_month_micro_usd": 23000,
+   "managed": {
+    "lb": "alb",
+    "cache": "cache.r7g.large",
+    "db_primary": "db.r7g.large",
+    "db_replica": "db.r7g.large",
+    "queue": "mq.m5.large",
+    "object_storage": "s3",
+    "search": "r7g.large.search"
+   }
+  },
+  "ap-northeast-2": {
+   "instances": [
+    {
+     "name": "alb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 22500
+    },
+    {
+     "name": "c7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 16384,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 327700
+    },
+    {
+     "name": "c7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 655400
+    },
+    {
+     "name": "c7g.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 81900
+    },
+    {
+     "name": "c7g.medium",
+     "vcpu": 1,
+     "memory_mib": 2048,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 41000
+    },
+    {
+     "name": "c7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 163800
+    },
+    {
+     "name": "c7i.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 100900
+    },
+    {
+     "name": "c7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 201700
+    },
+    {
+     "name": "cache.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 13384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 267200
+    },
+    {
+     "name": "cache.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 26952,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 533100
+    },
+    {
+     "name": "cache.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 3164,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 79300
+    },
+    {
+     "name": "db.m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 205000
+    },
+    {
+     "name": "db.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 291600
+    },
+    {
+     "name": "db.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 583200
+    },
+    {
+     "name": "db.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 79300
+    },
+    {
+     "name": "m6i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 118100
+    },
+    {
+     "name": "m7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 401500
+    },
+    {
+     "name": "m7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 802900
+    },
+    {
+     "name": "m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 100400
+    },
+    {
+     "name": "m7g.medium",
+     "vcpu": 1,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 50200
+    },
+    {
+     "name": "m7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 200700
+    },
+    {
+     "name": "m7i.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 495900
+    },
+    {
+     "name": "m7i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 124000
+    },
+    {
+     "name": "m7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 248000
+    },
+    {
+     "name": "mq.m5.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 351400
+    },
+    {
+     "name": "r7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 518400
+    },
+    {
+     "name": "r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 129600
+    },
+    {
+     "name": "r7g.large.search",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 217200
+    },
+    {
+     "name": "r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 259200
+    },
+    {
+     "name": "s3",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "t3.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 104000
+    },
+    {
+     "name": "t3.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 52000
+    },
+    {
+     "name": "t3.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 13000
+    },
+    {
+     "name": "t3.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 26000
+    },
+    {
+     "name": "t4g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 84000
+    },
+    {
+     "name": "t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 42000
+    },
+    {
+     "name": "t4g.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 10500
+    },
+    {
+     "name": "t4g.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 21000
+    },
+    {
+     "name": "t4g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 168000
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 91200,
+    "ssd_fast": 142400,
+    "hdd": 51000
+   },
+   "iops_month_micro_usd": 5700,
+   "egress_gb_micro_usd": 126000,
+   "lb_hourly_micro_usd": 22500,
+   "lb_gb_micro_usd": 8000,
+   "object_gb_month_micro_usd": 25000,
+   "managed": {
+    "lb": "alb",
+    "cache": "cache.r7g.large",
+    "db_primary": "db.r7g.large",
+    "db_replica": "db.r7g.large",
+    "queue": "mq.m5.large",
+    "object_storage": "s3",
+    "search": "r7g.large.search"
+   }
+  },
+  "ap-northeast-1": {
+   "instances": [
+    {
+     "name": "alb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 24300
+    },
+    {
+     "name": "c7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 16384,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 365400
+    },
+    {
+     "name": "c7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 730800
+    },
+    {
+     "name": "c7g.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 91400
+    },
+    {
+     "name": "c7g.medium",
+     "vcpu": 1,
+     "memory_mib": 2048,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 45700
+    },
+    {
+     "name": "c7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 182700
+    },
+    {
+     "name": "c7i.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 112500
+    },
+    {
+     "name": "c7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 224900
+    },
+    {
+     "name": "cache.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 13384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 273700
+    },
+    {
+     "name": "cache.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 26952,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 546300
+    },
+    {
+     "name": "cache.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 3164,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 81300
+    },
+    {
+     "name": "db.m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 210000
+    },
+    {
+     "name": "db.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 298700
+    },
+    {
+     "name": "db.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 597500
+    },
+    {
+     "name": "db.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 81300
+    },
+    {
+     "name": "m6i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 123800
+    },
+    {
+     "name": "m7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 421100
+    },
+    {
+     "name": "m7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 842100
+    },
+    {
+     "name": "m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 105300
+    },
+    {
+     "name": "m7g.medium",
+     "vcpu": 1,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 52600
+    },
+    {
+     "name": "m7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 210500
+    },
+    {
+     "name": "m7i.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 520100
+    },
+    {
+     "name": "m7i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 130000
+    },
+    {
+     "name": "m7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 260100
+    },
+    {
+     "name": "mq.m5.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 360000
+    },
+    {
+     "name": "r7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 518400
+    },
+    {
+     "name": "r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 129600
+    },
+    {
+     "name": "r7g.large.search",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 222500
+    },
+    {
+     "name": "r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 259200
+    },
+    {
+     "name": "s3",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "t3.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 109000
+    },
+    {
+     "name": "t3.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 54500
+    },
+    {
+     "name": "t3.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 13600
+    },
+    {
+     "name": "t3.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 27200
+    },
+    {
+     "name": "t4g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 88000
+    },
+    {
+     "name": "t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 44000
+    },
+    {
+     "name": "t4g.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 11000
+    },
+    {
+     "name": "t4g.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 22000
+    },
+    {
+     "name": "t4g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 176100
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 96000,
+    "ssd_fast": 142000,
+    "hdd": 54000
+   },
+   "iops_month_micro_usd": 6000,
+   "egress_gb_micro_usd": 114000,
+   "lb_hourly_micro_usd": 24300,
+   "lb_gb_micro_usd": 8000,
+   "object_gb_month_micro_usd": 25000,
+   "managed": {
+    "lb": "alb",
+    "cache": "cache.r7g.large",
+    "db_primary": "db.r7g.large",
+    "db_replica": "db.r7g.large",
+    "queue": "mq.m5.large",
+    "object_storage": "s3",
+    "search": "r7g.large.search"
+   }
+  },
+  "eu-central-1": {
+   "instances": [
+    {
+     "name": "alb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 27000
+    },
+    {
+     "name": "c7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 16384,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 330600
+    },
+    {
+     "name": "c7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 661200
+    },
+    {
+     "name": "c7g.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 82600
+    },
+    {
+     "name": "c7g.medium",
+     "vcpu": 1,
+     "memory_mib": 2048,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 41400
+    },
+    {
+     "name": "c7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 165300
+    },
+    {
+     "name": "c7i.large",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 101700
+    },
+    {
+     "name": "c7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 203500
+    },
+    {
+     "name": "cache.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 13384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 258400
+    },
+    {
+     "name": "cache.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 26952,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 515700
+    },
+    {
+     "name": "cache.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 3164,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 76700
+    },
+    {
+     "name": "db.m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 198200
+    },
+    {
+     "name": "db.r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 282000
+    },
+    {
+     "name": "db.r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 564000
+    },
+    {
+     "name": "db.t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 76700
+    },
+    {
+     "name": "m6i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 115200
+    },
+    {
+     "name": "m7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 391700
+    },
+    {
+     "name": "m7g.4xlarge",
+     "vcpu": 16,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 783400
+    },
+    {
+     "name": "m7g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 97900
+    },
+    {
+     "name": "m7g.medium",
+     "vcpu": 1,
+     "memory_mib": 4096,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 49000
+    },
+    {
+     "name": "m7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 195800
+    },
+    {
+     "name": "m7i.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 483800
+    },
+    {
+     "name": "m7i.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 121000
+    },
+    {
+     "name": "m7i.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 241900
+    },
+    {
+     "name": "mq.m5.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 339800
+    },
+    {
+     "name": "r7g.2xlarge",
+     "vcpu": 8,
+     "memory_mib": 65536,
+     "nic_mbps": 15000,
+     "hourly_micro_usd": 518400
+    },
+    {
+     "name": "r7g.large",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 129600
+    },
+    {
+     "name": "r7g.large.search",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 210000
+    },
+    {
+     "name": "r7g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 259200
+    },
+    {
+     "name": "s3",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "t3.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 95700
+    },
+    {
+     "name": "t3.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 47800
+    },
+    {
+     "name": "t3.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 12000
+    },
+    {
+     "name": "t3.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 23900
+    },
+    {
+     "name": "t4g.large",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 77300
+    },
+    {
+     "name": "t4g.medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 38600
+    },
+    {
+     "name": "t4g.micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 9700
+    },
+    {
+     "name": "t4g.small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 19300
+    },
+    {
+     "name": "t4g.xlarge",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 154600
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 95200,
+    "ssd_fast": 149000,
+    "hdd": 54000
+   },
+   "iops_month_micro_usd": 6000,
+   "egress_gb_micro_usd": 90000,
+   "lb_hourly_micro_usd": 27000,
+   "lb_gb_micro_usd": 8000,
+   "object_gb_month_micro_usd": 24500,
+   "managed": {
+    "lb": "alb",
+    "cache": "cache.r7g.large",
+    "db_primary": "db.r7g.large",
+    "db_replica": "db.r7g.large",
+    "queue": "mq.m5.large",
+    "object_storage": "s3",
+    "search": "r7g.large.search"
+   }
+  }
+ }
+}

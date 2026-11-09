@@ -1,0 +1,243 @@
+{
+ "provider": "azure",
+ "as_of": "2026-11",
+ "note": "On-demand list prices in USD, Linux, tax, discounts and free tiers excluded. Entered by hand from the public pages in sources (no automated collection); where a region was not entered type by type, the price is the us-east/us-central/eastus price times that family's regional ratio. Re-check against sources before each release. Managed types are representative node types. Object storage and the load balancer are usage-priced: their instance entry carries a nominal (1 micro-USD) or hourly price and the rest is in the region fields.",
+ "sources": [
+  "https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/",
+  "https://azure.microsoft.com/en-us/pricing/details/managed-disks/",
+  "https://azure.microsoft.com/en-us/pricing/details/bandwidth/",
+  "https://azure.microsoft.com/en-us/pricing/details/load-balancer/",
+  "https://azure.microsoft.com/en-us/pricing/details/storage/blobs/"
+ ],
+ "defaults": {
+  "lb": "standard-lb",
+  "object_storage": "blob-hot",
+  "api": "Standard_D2s_v5",
+  "worker": "Standard_D2s_v5",
+  "cache": "Standard_E2s_v5",
+  "db_primary": "Standard_E2s_v5",
+  "db_replica": "Standard_E2s_v5",
+  "queue": "Standard_D2s_v5",
+  "search": "Standard_E2s_v5"
+ },
+ "regions": {
+  "eastus": {
+   "instances": [
+    {
+     "name": "Standard_B1s",
+     "vcpu": 1,
+     "memory_mib": 1024,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 10400
+    },
+    {
+     "name": "Standard_B2ms",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 83200
+    },
+    {
+     "name": "Standard_B2s",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 41600
+    },
+    {
+     "name": "Standard_D2ps_v5",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 77000
+    },
+    {
+     "name": "Standard_D2s_v5",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 96000
+    },
+    {
+     "name": "Standard_D4s_v5",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 192000
+    },
+    {
+     "name": "Standard_D8s_v5",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 384000
+    },
+    {
+     "name": "Standard_E2s_v5",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 126000
+    },
+    {
+     "name": "Standard_E4s_v5",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 252000
+    },
+    {
+     "name": "Standard_F2s_v2",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 84600
+    },
+    {
+     "name": "Standard_F4s_v2",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 169000
+    },
+    {
+     "name": "blob-hot",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "standard-lb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 25000
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 75000,
+    "ssd_fast": 140000,
+    "hdd": 46000
+   },
+   "iops_month_micro_usd": 4900,
+   "egress_gb_micro_usd": 87000,
+   "lb_hourly_micro_usd": 25000,
+   "lb_gb_micro_usd": 5000,
+   "object_gb_month_micro_usd": 18000,
+   "managed": {
+    "lb": "standard-lb",
+    "object_storage": "blob-hot"
+   }
+  },
+  "koreacentral": {
+   "instances": [
+    {
+     "name": "Standard_B1s",
+     "vcpu": 1,
+     "memory_mib": 1024,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 12000
+    },
+    {
+     "name": "Standard_B2ms",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 95700
+    },
+    {
+     "name": "Standard_B2s",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 47800
+    },
+    {
+     "name": "Standard_D2ps_v5",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 88500
+    },
+    {
+     "name": "Standard_D2s_v5",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 110400
+    },
+    {
+     "name": "Standard_D4s_v5",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 220800
+    },
+    {
+     "name": "Standard_D8s_v5",
+     "vcpu": 8,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 441600
+    },
+    {
+     "name": "Standard_E2s_v5",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 144900
+    },
+    {
+     "name": "Standard_E4s_v5",
+     "vcpu": 4,
+     "memory_mib": 32768,
+     "nic_mbps": 12500,
+     "hourly_micro_usd": 289800
+    },
+    {
+     "name": "Standard_F2s_v2",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 5000,
+     "hourly_micro_usd": 97300
+    },
+    {
+     "name": "Standard_F4s_v2",
+     "vcpu": 4,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 194300
+    },
+    {
+     "name": "blob-hot",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "standard-lb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 25000
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 86300,
+    "ssd_fast": 161000,
+    "hdd": 52900
+   },
+   "iops_month_micro_usd": 5600,
+   "egress_gb_micro_usd": 120000,
+   "lb_hourly_micro_usd": 25000,
+   "lb_gb_micro_usd": 5000,
+   "object_gb_month_micro_usd": 20800,
+   "managed": {
+    "lb": "standard-lb",
+    "object_storage": "blob-hot"
+   }
+  }
+ }
+}
