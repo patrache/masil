@@ -137,6 +137,14 @@ func resolveLocale(env *Env) i18n.Resolution {
 	return i18n.Resolve(in)
 }
 
+// newClient is the api client for a user command: every request carries the
+// effective UI language as Accept-Language (api.md 0.1).
+func newClient(env *Env, server string, opts ...api.Option) *api.Client {
+	c := api.New(server, opts...)
+	c.SetLanguage(string(resolveLocale(env).Effective))
+	return c
+}
+
 // startTUI runs the app and explains a failure on stderr.
 func startTUI(ctx context.Context, env *Env, o app.Options) error {
 	if o.Locale == nil {
@@ -207,8 +215,7 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 	}
 
 	server := env.Config.ServerURL()
-	client := api.New(server)
-	client.SetLanguage(string(resolveLocale(env).Effective))
+	client := newClient(env, server)
 	c, cancel := context.WithTimeout(ctx, loginTimeout)
 	defer cancel()
 	res, err := client.Login(c, api.LoginRequest{Handle: handle, Password: password, Client: clientName, DeviceName: deviceName()})
@@ -225,7 +232,7 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 		// Do not leave an unusable session behind on the server.
 		lc, lcancel := context.WithTimeout(ctx, logoutTimeout)
 		defer lcancel()
-		_ = api.New(cr.Server, api.WithToken(cr.Token)).Logout(lc)
+		_ = newClient(env, cr.Server, api.WithToken(cr.Token)).Logout(lc)
 		return err
 	}
 	slog.Info("logged in", "handle", cr.Handle, "token", cr.Redacted())
@@ -264,7 +271,7 @@ func cmdLogout(ctx context.Context, env *Env, args []string) error {
 	}
 	c, cancel := context.WithTimeout(ctx, logoutTimeout)
 	defer cancel()
-	if err := api.New(cr.Server, api.WithToken(cr.Token)).Logout(c); err != nil && api.CodeOf(err) != "unauthorized" {
+	if err := newClient(env, cr.Server, api.WithToken(cr.Token)).Logout(c); err != nil && api.CodeOf(err) != "unauthorized" {
 		slog.Warn("server logout failed", "err", err)
 		fmt.Fprintf(env.Stderr, "서버에 로그아웃을 알리지 못했어요 (%s). 이 기기의 로그인 정보는 지울게요\n", textwidth.Sanitize(api.Describe(err)))
 	}
