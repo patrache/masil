@@ -11,6 +11,22 @@ type TermpaneT struct{ t *T }
 var areaTermpane = area{
 	name: "termpane",
 	keys: map[string]*entry{
+		"chat_unread": {
+			desc:   "표준 모드 상태줄 오른쪽: 도구 표면이 채팅을 가리고 있을 때 채팅의 안 읽은 메시지 수. n = 개수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "💬 안 읽음 {n}"},
+				En: {Other: "💬 {n} unread"},
+			},
+		},
+		"count_item": {
+			desc:   "목록 한 항목: 프로그램 이름과 실행 중인 개수. program = 프로그램 이름(번역하지 않음)",
+			params: []Param{{Name: "program", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{program} {n}개"},
+				En: {Other: "{program} ×{n}"},
+			},
+		},
 		"downgraded": {
 			desc:   "토스트: 고른(또는 설정한) 여는 방식을 이 환경에서 못 써서 화면 전환(exec)으로 열었을 때. mode = 여는 방식 이름(tools.mode_pane·mode_window 문구)",
 			params: []Param{{Name: "mode", Type: "string"}},
@@ -180,6 +196,13 @@ var areaTermpane = area{
 				En: {Other: "In nvim terminal mode, press {key} ctrl+n as {key} {key} ctrl+n"},
 			},
 		},
+		"nested_warning": {
+			desc: "시작 토스트: masil 패널 안(MASIL_PANE=1)에서 masil 을 또 켰을 때. 막지는 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "패널 안에서 masil 을 켰어요 · 키가 겹칠 수 있어요"},
+				En: {Other: "masil started inside a pane · keys may clash"},
+			},
+		},
 		"pane_limit": {
 			desc:   "토스트: 살아 있는 패널이 상한(모든 도구 합계)이라 새 패널을 못 열 때. max = 상한",
 			params: []Param{{Name: "max", Type: "int"}},
@@ -194,6 +217,36 @@ var areaTermpane = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{key} 다음: esc 나가기 · z 확대 · x 끝내기 · p 팔레트 · ? 도움말"},
 				En: {Other: "{key} then: esc leave · z zoom · x end · p palette · ? help"},
+			},
+		},
+		"quit_confirm": {
+			desc:       "대화상자 본문(무엇을 하는지): masil 을 끌 때 살아 있는 패널 프로그램 목록과 함께 끌지 묻기. list = count_item 을 \", \" 로 이은 것(예: lazygit 1개, nvim 1개)",
+			params:     []Param{{Name: "list", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{list}가 실행 중이에요. 함께 끌까요?"},
+				En: {Other: "{list} still running. Quit them too?"},
+			},
+		},
+		"quit_no": {
+			desc: "대화상자 단추(기본 선택): 끄지 않고 돌아가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "아니오"},
+				En: {Other: "No"},
+			},
+		},
+		"quit_title": {
+			desc: "대화상자 제목: masil 을 끌 때 패널 프로그램이 아직 돌고 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "masil 끄기"},
+				En: {Other: "Quit masil"},
+			},
+		},
+		"quit_yes": {
+			desc: "대화상자 단추: 패널 프로그램을 끝내고 masil 도 끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "함께 끄기"},
+				En: {Other: "Quit all"},
 			},
 		},
 		"scroll_hint": {
@@ -213,6 +266,16 @@ var areaTermpane = area{
 			},
 		},
 	},
+}
+
+// ChatUnread: 표준 모드 상태줄 오른쪽: 도구 표면이 채팅을 가리고 있을 때 채팅의 안 읽은 메시지 수. n = 개수
+func (a_ TermpaneT) ChatUnread(n int) string {
+	return a_.t.render(&areaTermpane, "chat_unread", false, 0, "n", strconv.Itoa(n))
+}
+
+// CountItem: 목록 한 항목: 프로그램 이름과 실행 중인 개수. program = 프로그램 이름(번역하지 않음)
+func (a_ TermpaneT) CountItem(program string, n int) string {
+	return a_.t.render(&areaTermpane, "count_item", false, 0, "program", program, "n", strconv.Itoa(n))
 }
 
 // Downgraded: 토스트: 고른(또는 설정한) 여는 방식을 이 환경에서 못 써서 화면 전환(exec)으로 열었을 때. mode = 여는 방식 이름(tools.mode_pane·mode_window 문구)
@@ -330,6 +393,11 @@ func (a_ TermpaneT) KbdNvim(key string) string {
 	return a_.t.render(&areaTermpane, "kbd_nvim", false, 0, "key", key)
 }
 
+// NestedWarning: 시작 토스트: masil 패널 안(MASIL_PANE=1)에서 masil 을 또 켰을 때. 막지는 않음
+func (a_ TermpaneT) NestedWarning() string {
+	return a_.t.render(&areaTermpane, "nested_warning", false, 0)
+}
+
 // PaneLimit: 토스트: 살아 있는 패널이 상한(모든 도구 합계)이라 새 패널을 못 열 때. max = 상한
 func (a_ TermpaneT) PaneLimit(max int) string {
 	return a_.t.render(&areaTermpane, "pane_limit", false, 0, "max", strconv.Itoa(max))
@@ -338,6 +406,26 @@ func (a_ TermpaneT) PaneLimit(max int) string {
 // PrefixHint: 상태줄: 접두키를 누른 뒤 2초 동안 다음 키를 기다릴 때. key = 접두키(ctrl+\ 등)
 func (a_ TermpaneT) PrefixHint(key string) string {
 	return a_.t.render(&areaTermpane, "prefix_hint", false, 0, "key", key)
+}
+
+// QuitConfirm: 대화상자 본문(무엇을 하는지): masil 을 끌 때 살아 있는 패널 프로그램 목록과 함께 끌지 묻기. list = count_item 을 ", " 로 이은 것(예: lazygit 1개, nvim 1개)
+func (a_ TermpaneT) QuitConfirm(list string) string {
+	return a_.t.render(&areaTermpane, "quit_confirm", false, 0, "list", list)
+}
+
+// QuitNo: 대화상자 단추(기본 선택): 끄지 않고 돌아가기
+func (a_ TermpaneT) QuitNo() string {
+	return a_.t.render(&areaTermpane, "quit_no", false, 0)
+}
+
+// QuitTitle: 대화상자 제목: masil 을 끌 때 패널 프로그램이 아직 돌고 있음
+func (a_ TermpaneT) QuitTitle() string {
+	return a_.t.render(&areaTermpane, "quit_title", false, 0)
+}
+
+// QuitYes: 대화상자 단추: 패널 프로그램을 끝내고 masil 도 끔
+func (a_ TermpaneT) QuitYes() string {
+	return a_.t.render(&areaTermpane, "quit_yes", false, 0)
 }
 
 // ScrollHint: 상태줄: 패널의 보기 스크롤(지난 줄 보기) 중

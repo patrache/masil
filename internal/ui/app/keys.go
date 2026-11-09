@@ -301,7 +301,7 @@ func (m *Model) quitKey(msg tea.KeyPressMsg) tea.Cmd {
 		pre = cmd
 	}
 	if m.quitArmed {
-		return tea.Batch(pre, tea.Quit)
+		return tea.Batch(pre, m.requestQuit(false)) // quit.go: live panes are asked about first
 	}
 	m.quitArmed = true
 	m.quitGen++

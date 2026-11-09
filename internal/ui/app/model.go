@@ -66,6 +66,7 @@ type Model struct {
 	escGen    int         // generation of the pending escapeArmMsg
 	quitArmed bool        // the first ctrl+c armed quitting (CA 5.5 app.quit)
 	quitGen   int         // generation of the pending quitArmMsg
+	quitAsk   ui.Overlay  // the open "panes still run" quit question (quit.go), nil = none
 
 	cols, rows int
 	sized      bool // a WindowSizeMsg arrived
@@ -282,7 +283,7 @@ func resolveLocale(r *i18n.Resolution, cfg *config.Config) i18n.Resolution {
 func (m *Model) Init() tea.Cmd {
 	cmds := m.initCmds
 	m.initCmds = nil
-	cmds = append(cmds, m.startRealtime())
+	cmds = append(cmds, m.startRealtime(), m.nestedPaneWarning())
 	return tea.Batch(cmds...)
 }
 
@@ -330,6 +331,8 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toastExpireMsg:
 		m.toasts.remove(msg.id)
 		return m, nil
+	case quitRequestMsg: // ctrl+c twice and the palette's 종료 (quit.go)
+		return m, m.requestQuit(msg.confirm)
 	case quitArmMsg:
 		if msg.gen == m.quitGen {
 			m.quitArmed = false

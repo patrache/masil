@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 
 	tea "charm.land/bubbletea/v2"
 
 	minstance "github.com/patrache/masil/internal/instance"
+	"github.com/patrache/masil/internal/ui"
 )
 
 // Run acquires the TUI lock, builds the tea.Program (alt screen via View),
@@ -49,4 +51,15 @@ func runProgram(ctx context.Context, m *Model, opts ...tea.ProgramOption) error 
 		return nil
 	}
 	return err
+}
+
+// nestedPaneWarning is the start toast when masil runs inside a masil pane
+// (MASIL_PANE=1, v0.1.3 A7.4): the two would fight over keys like ctrl+\. It
+// only warns (Init, once); nothing is blocked.
+func (m *Model) nestedPaneWarning() tea.Cmd {
+	if os.Getenv("MASIL_PANE") != "1" {
+		return nil
+	}
+	slog.Info("masil started inside a masil pane")
+	return ui.Toast(m.ctx.T.Termpane.NestedWarning(), ui.ToastInfo)
 }

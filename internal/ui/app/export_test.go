@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -58,4 +59,12 @@ func RunProgramForTest(ctx context.Context, o Options, opts ...tea.ProgramOption
 func ConfirmLogoutForTest(m *Model) tea.Cmd {
 	_, cmd := m.Update(logoutConfirmedMsg{})
 	return cmd
+}
+
+// SetPanesForTest replaces termhost.Running / termhost.CloseAll for the quit
+// confirmation (P0 Task 20).
+func SetPanesForTest(running func() []string, closeAll func(grace time.Duration)) (restore func()) {
+	oldR, oldC := runningPanes, closeAllPanes
+	runningPanes, closeAllPanes = running, closeAll
+	return func() { runningPanes, closeAllPanes = oldR, oldC }
 }
