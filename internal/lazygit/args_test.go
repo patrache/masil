@@ -86,4 +86,18 @@ func TestLaunchArgsNoUserConfigNoOverlay(t *testing.T) {
 	if slices.Contains(got, "--use-config-file") {
 		t.Fatalf("comma cache dir: args = %q", got)
 	}
+	// The user's config folder (lazygit -cd) holding a comma: lazygit would
+	// split its config.yml in two and fail on the missing halves — no overlay.
+	odd := filepath.Join(t.TempDir(), "conf,ig")
+	if err := os.Mkdir(odd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(odd, "config.yml"), []byte("keybinding: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r = &fakeRunner{out: map[string]string{"/bin/lg -cd": odd}}
+	got = LaunchArgs(context.Background(), envWith(r, nil), "/bin/lg", "/r/masil", "pane", true, theme.Get(theme.Default), t.TempDir())
+	if slices.Contains(got, "--use-config-file") {
+		t.Fatalf("comma config dir: args = %q", got)
+	}
 }

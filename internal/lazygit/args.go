@@ -35,14 +35,15 @@ func absRepo(repo string) string {
 
 // LaunchArgs returns the arguments for one launch. The color overlay is
 // added only in the pane mode (mode is the mode termhost.Choose settled on),
-// with overlayOn, and when the user's config files are known; any failure
-// launches without it.
+// with overlayOn, and when the user's config files are known and none holds
+// a comma; any failure launches without it.
 func LaunchArgs(ctx context.Context, env Env, bin, repo string, mode termhost.Mode, overlayOn bool, th *theme.Theme, cacheDir string) []string {
 	if mode != termhost.ModePane || !overlayOn || cacheDir == "" {
 		return Args(repo, nil, "")
 	}
 	files, ok := UserConfigFiles(ctx, env, bin)
-	if !ok {
+	// lazygit splits the list on commas: a path holding one cannot be in it.
+	if !ok || slices.ContainsFunc(files, func(f string) bool { return strings.Contains(f, ",") }) {
 		return Args(repo, nil, "")
 	}
 	overlay, err := WriteOverlay(cacheDir, OverlayColorsFrom(th))
