@@ -2,9 +2,15 @@
 
 **masil**(마실)은 이미 열려 있는 터미널 안에서 친구·동료와 채팅하고 가볍게 SNS 도 하는 **터미널 채팅 + SNS** 입니다. 슬랙처럼 방·채널·스레드로 대화하고, 피드·스토리·방명록을 오가며, 다른 창에서 일하다가도 멘션·DM 을 데스크톱 알림으로 받습니다.
 
-> **개발 중 비공개 저장소입니다.** 공개 전환 전에는 아래 설치 스크립트와 Homebrew 설치가 동작하지 않습니다(내려받기 단계에서 실패). 지금은 [로컬 개발](#로컬-개발) 방법으로 직접 빌드해 쓰세요.
-
 ## 설치
+
+### Homebrew (macOS · Linux)
+
+```sh
+brew install patrache/tap/masil
+```
+
+업그레이드는 `brew update && brew upgrade masil` 입니다.
 
 ### macOS · Linux — 설치 스크립트
 
@@ -39,14 +45,6 @@ curl -fsSL https://raw.githubusercontent.com/patrache/masil/main/scripts/install
 ```powershell
 $env:MASIL_VERSION = '0.1.0'; irm https://raw.githubusercontent.com/patrache/masil/main/scripts/install.ps1 | iex
 ```
-
-### Homebrew (macOS · Linux)
-
-```sh
-brew install patrache/tap/masil
-```
-
-업그레이드는 `brew upgrade masil` 입니다.
 
 ### 직접 내려받기
 
@@ -134,9 +132,9 @@ masil daemon uninstall   # 자동 시작 해제
 
 ```
 masil 알림 데몬
-  자동 시작  등록됨 · launchd /Users/sam/Library/LaunchAgents/com.patrache.masil.daemon.plist
+  자동 시작  등록됨 · launchd ~/Library/LaunchAgents/com.patrache.masil.daemon.plist
   실행       실행 중
-  계정       @sam · http://localhost:8787
+  계정       @me · https://…
   알림       켜짐
   동기화     11:04 저장 · seq 1041
 ```
@@ -182,46 +180,6 @@ desktop = true             # OS 데스크톱 알림 (masil 과 알림 데몬 모
 1. **먼저** `masil daemon uninstall` 로 자동 시작을 해제합니다(실행 파일을 먼저 지우면 자동 시작 등록만 남습니다).
 2. Homebrew 로 설치했다면 `brew uninstall masil`, 아니면 실행 파일(`~/.local/bin/masil` 또는 `%LOCALAPPDATA%\Programs\masil`)을 지웁니다.
 3. 계정 정보·설정까지 지우려면 `~/.config/masil` 폴더를 지웁니다.
-
-## 운영자 (전역 admin)
-
-공개 가입·공개 이미지 서비스라 불법·유해 콘텐츠에 대응할 수단이 첫 출시부터 필요합니다. 전역 운영자는 `masil admin` 명령으로 신고를 처리하고 콘텐츠를 지우고 계정을 정지합니다.
-
-```
-masil admin reports|report <id>|resolve <id> <resolution>|remove <type> <id>|suspend @h [--for 7d]|unsuspend @h|users|actions
-```
-
-```sh
-masil admin reports [--status open|resolved|dismissed] [--type <대상 종류>]                   # 신고 목록
-masil admin report <id>                                                                     # 신고 상세
-masil admin resolve <id> content_removed|user_suspended|no_action [--note <메모>]            # 신고 처리
-masil admin remove message|post|story|guestbook_entry|upload|space <id> --reason <사유> [--report <신고 id>]   # 콘텐츠 강제 삭제
-masil admin suspend @handle [--for 7d|12h|30m] --reason <사유> [--report <신고 id>]          # 계정 정지 (--for 없으면 무기한)
-masil admin unsuspend @handle                                                               # 정지 해제
-masil admin users [--q <검색어>] [--suspended true|false]                                    # 사용자 목록
-masil admin actions [--target-type <종류>] [--target <id>]                                   # 운영 조치 기록
-```
-
-- `remove`·`suspend` 는 `--reason` 이 필수입니다(감사 기록이 비지 않도록).
-- 목록 명령(`reports`·`users`·`actions`)은 `--cursor <c>`·`--limit <n>` 으로 다음 페이지를 봅니다. 다음 페이지가 있으면 끝에 이어 볼 명령을 알려 줍니다.
-- `masil admin` 은 **숨김 명령이라 `masil help` 목록에 나오지 않습니다.**
-- 운영자가 아니면 `운영자 권한이 없습니다.` 가 나옵니다.
-
-### 운영자 지정
-
-운영자로 올리는 API 는 없습니다. 오너가 D1 데이터베이스에서 다음 SQL 을 한 번 실행합니다.
-
-```sql
-UPDATE users SET role = 'admin' WHERE handle = '<handle>';
-```
-
-로컬 개발 서버에서는:
-
-```sh
-cd server && npx wrangler d1 execute DB --local --command "UPDATE users SET role = 'admin' WHERE handle = '<handle>'"
-```
-
-운영(원격) D1 에서의 실행은 **오너 승인 후 오너가** 직접 합니다.
 
 ## 문제 해결
 
