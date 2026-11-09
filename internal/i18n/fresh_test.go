@@ -10,11 +10,10 @@ import (
 )
 
 // TestGeneratedFresh regenerates into a temp dir and compares with the
-// committed zz_*_gen.go files.
+// committed zz_*_gen.go files. It also runs under -short: CI runs
+// "go test -short ./..." and this is its only "go generate left no diff" check
+// (i18n spec 6.4.3); the generator takes well under a second.
 func TestGeneratedFresh(t *testing.T) {
-	if testing.Short() {
-		t.Skip("runs go run ./gen")
-	}
 	out := t.TempDir()
 	cmd := exec.Command("go", "run", "./gen", "-out", out, "-fmt=false", "-q")
 	if b, err := cmd.CombinedOutput(); err != nil {
