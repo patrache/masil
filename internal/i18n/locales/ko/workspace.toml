@@ -458,11 +458,11 @@ other = "← 오너만 답할 수 있음"
 
 [palette_autosave_toggle]
 desc = "명령 팔레트: 작업공간 자동 저장 켜기/끄기"
-other = "작업공간: 자동 저장 켜기/끄기"
+other = "자동 저장 켜기/끄기"
 
 [palette_join]
 desc = "명령 팔레트: 초대받은 공유에 참가"
-other = "작업공간: 초대받은 공유 참가"
+other = "초대받은 공유 참가"
 
 [palette_notify_toggle]
 desc = "명령 팔레트: 작업공간 알림(초대·승인 대기) 켜기/끄기"
@@ -474,23 +474,23 @@ other = "작업공간 열기"
 
 [palette_people]
 desc = "명령 팔레트: 공유 중인 작업공간의 참가자 칸으로"
-other = "작업공간: 참가자"
+other = "참가자"
 
 [palette_proposals]
-desc = "팔레트 명령: 작업공간 제안 대기열"
-other = "작업공간: 제안 대기열"
+desc = "팔레트 명령: 작업공간 제안 대기 목록"
+other = "제안 대기 목록"
 
 [palette_share_end]
 desc = "팔레트 명령: 작업공간 공유 끝"
-other = "작업공간: 공유 끝"
+other = "공유 끝"
 
 [palette_share_start]
 desc = "팔레트 명령: 작업공간 공유 시작"
-other = "작업공간: 공유 시작"
+other = "작업공간 공유 시작"
 
 [palette_term_new]
 desc = "명령 팔레트: 작업공간에 새 터미널"
-other = "작업공간: 새 터미널"
+other = "새 터미널"
 
 [pan_more]
 desc = "참가자 터미널 칸 오른쪽 위: 창 오른쪽에 가려진 칸 수. n = 칸 수"

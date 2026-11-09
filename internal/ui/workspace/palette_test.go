@@ -25,6 +25,17 @@ func TestPaletteCommands(t *testing.T) {
 			t.Errorf("%s: label/group %v %q", id, c.Label != nil, c.Group)
 		}
 	}
+	// the titles of P2 Task 24 (the palette shows them as they are)
+	titles := map[string]string{"ws.open": "작업공간 열기", "ws.share.start": "작업공간 공유 시작",
+		"ws.share.end": "공유 끝", "ws.people": "참가자", "ws.proposals": "제안 대기 목록",
+		"ws.join": "초대받은 공유 참가", "ws.term.new": "새 터미널",
+		"ws.autosave.toggle": "자동 저장 켜기/끄기", "ws.notify.toggle": "작업공간 알림 켜기/끄기"}
+	for id, want := range titles {
+		c, _ := palette.Lookup(id)
+		if got := c.Label(ctx.T); got != want {
+			t.Errorf("%s: title %q, want %q", id, got, want)
+		}
+	}
 	avail := func(id string) bool {
 		c, _ := palette.Lookup(id)
 		return c.Available(ctx)

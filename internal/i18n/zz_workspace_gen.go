@@ -769,14 +769,14 @@ var areaWorkspace = area{
 		"palette_autosave_toggle": {
 			desc: "명령 팔레트: 작업공간 자동 저장 켜기/끄기",
 			text: map[Locale]Forms{
-				Ko: {Other: "작업공간: 자동 저장 켜기/끄기"},
+				Ko: {Other: "자동 저장 켜기/끄기"},
 				En: {Other: "Workspace: toggle autosave"},
 			},
 		},
 		"palette_join": {
 			desc: "명령 팔레트: 초대받은 공유에 참가",
 			text: map[Locale]Forms{
-				Ko: {Other: "작업공간: 초대받은 공유 참가"},
+				Ko: {Other: "초대받은 공유 참가"},
 				En: {Other: "Workspace: join a share"},
 			},
 		},
@@ -797,35 +797,35 @@ var areaWorkspace = area{
 		"palette_people": {
 			desc: "명령 팔레트: 공유 중인 작업공간의 참가자 칸으로",
 			text: map[Locale]Forms{
-				Ko: {Other: "작업공간: 참가자"},
+				Ko: {Other: "참가자"},
 				En: {Other: "Workspace: participants"},
 			},
 		},
 		"palette_proposals": {
-			desc: "팔레트 명령: 작업공간 제안 대기열",
+			desc: "팔레트 명령: 작업공간 제안 대기 목록",
 			text: map[Locale]Forms{
-				Ko: {Other: "작업공간: 제안 대기열"},
+				Ko: {Other: "제안 대기 목록"},
 				En: {Other: "Workspace: proposals"},
 			},
 		},
 		"palette_share_end": {
 			desc: "팔레트 명령: 작업공간 공유 끝",
 			text: map[Locale]Forms{
-				Ko: {Other: "작업공간: 공유 끝"},
+				Ko: {Other: "공유 끝"},
 				En: {Other: "Workspace: end sharing"},
 			},
 		},
 		"palette_share_start": {
 			desc: "팔레트 명령: 작업공간 공유 시작",
 			text: map[Locale]Forms{
-				Ko: {Other: "작업공간: 공유 시작"},
+				Ko: {Other: "작업공간 공유 시작"},
 				En: {Other: "Workspace: start sharing"},
 			},
 		},
 		"palette_term_new": {
 			desc: "명령 팔레트: 작업공간에 새 터미널",
 			text: map[Locale]Forms{
-				Ko: {Other: "작업공간: 새 터미널"},
+				Ko: {Other: "새 터미널"},
 				En: {Other: "Workspace: new terminal"},
 			},
 		},
@@ -2085,7 +2085,7 @@ func (a_ WorkspaceT) PalettePeople() string {
 	return a_.t.render(&areaWorkspace, "palette_people", false, 0)
 }
 
-// PaletteProposals: 팔레트 명령: 작업공간 제안 대기열
+// PaletteProposals: 팔레트 명령: 작업공간 제안 대기 목록
 func (a_ WorkspaceT) PaletteProposals() string {
 	return a_.t.render(&areaWorkspace, "palette_proposals", false, 0)
 }
