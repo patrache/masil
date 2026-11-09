@@ -179,6 +179,42 @@ func TestCardKeyHook(t *testing.T) {
 	}
 }
 
+// A key the renderer handles may change how the card draws (a spoiler
+// unfolded): chat draws the card again right away (the list caches lines by
+// id, width and selection, which a handled key does not change).
+func TestCardKeyRepaints(t *testing.T) {
+	unfolded := false
+	registerDesign(t, ui.CardRenderer{
+		Lines: func(ctx *ui.Context, m *api.Message, width int) []string {
+			l := designLines(ctx, m, width)[:1]
+			if unfolded {
+				l = append(l, ctx.Theme.S.Dim.Render("UNFOLDED"))
+			}
+			return l
+		},
+		Key: func(_ *ui.Context, _ *api.Message, k tea.KeyPressMsg) (bool, tea.Cmd) {
+			if k.String() != "space" {
+				return false, nil
+			}
+			unfolded = !unfolded
+			return true, nil
+		},
+	})
+	h := cardChannel(t, uitest.Size{W: 120, H: 40})
+	selectText(t, h, designBody)
+	if strings.Contains(h.Screen(), "UNFOLDED") {
+		t.Fatal("unfolded before the key")
+	}
+	h.Press("space")
+	if !strings.Contains(h.Screen(), "UNFOLDED") {
+		t.Fatalf("the card was not drawn again after a handled key:\n%s", h.Screen())
+	}
+	h.Press("space")
+	if strings.Contains(h.Screen(), "UNFOLDED") {
+		t.Fatalf("not folded again:\n%s", h.Screen())
+	}
+}
+
 // A card by a user I blocked is drawn folded; its renderer's Key and Open
 // never see keys on it (chat handles it like any folded message).
 func TestCardBlockedAuthorFolded(t *testing.T) {
