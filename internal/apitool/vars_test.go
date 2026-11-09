@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/url"
 	"regexp"
 	"slices"
 	"testing"
@@ -201,4 +202,13 @@ func TestExpandReportsUsedSecrets(t *testing.T) {
 	if used[1].Secret {
 		t.Errorf("base_url marked secret")
 	}
+}
+
+func mustURL(t *testing.T, s string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
 }
