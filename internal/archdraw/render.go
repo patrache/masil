@@ -247,6 +247,7 @@ func (s *Scene) Render(v Viewport, ov Overlay) *Grid {
 		if gh == nil {
 			return
 		}
+		gh = &Ghost{ID: gh.ID, X: clampCoord(gh.X), Y: clampCoord(gh.Y), IntoBox: gh.IntoBox} // a peer's drag: any int
 		if i, ok := s.nodeIdx[gh.ID]; ok {
 			r := nodeRectAt(gh.X, gh.Y, z)
 			drawDashed(g, rect{r.x - ox, r.y - oy, r.w, r.h}, s.nodes[i].label, st)

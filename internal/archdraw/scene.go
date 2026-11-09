@@ -159,6 +159,15 @@ type Scene struct {
 	searches [3]int
 }
 
+// worldLimit bounds every world coordinate and size a Scene keeps. A valid
+// design stays within ±100,000 (archdoc); an unvalidated one is clamped so the
+// zoom scaling, the rect sums and the route search area cannot overflow.
+const worldLimit = 1 << 24
+
+func clampCoord(v int) int { return min(max(v, -worldLimit), worldLimit) }
+
+func clampSize(v int) int { return min(max(v, 0), 2*worldLimit) }
+
 // cleanLabel makes user text one safe line for drawing.
 func cleanLabel(s string) string {
 	s = strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ", "\t", " ").Replace(s)
@@ -180,7 +189,7 @@ func Build(d *archdoc.Design) *Scene {
 			label = cleanLabel(string(n.Kind))
 		}
 		s.nodeIdx[n.ID] = len(s.nodes)
-		s.nodes = append(s.nodes, sceneNode{id: n.ID, label: label, kind: n.Kind, x: n.Pos[0], y: n.Pos[1]})
+		s.nodes = append(s.nodes, sceneNode{id: n.ID, label: label, kind: n.Kind, x: clampCoord(n.Pos[0]), y: clampCoord(n.Pos[1])})
 	}
 	slices.SortFunc(s.nodes, func(a, b sceneNode) int { return cmp.Compare(a.id, b.id) })
 	for i, n := range s.nodes {
@@ -200,7 +209,7 @@ func Build(d *archdoc.Design) *Scene {
 		}
 		s.boxes = append(s.boxes, sceneBox{
 			id: id, label: label, kind: b.Kind, parent: b.Parent,
-			x: b.Rect[0], y: b.Rect[1], w: max(b.Rect[2], 0), h: max(b.Rect[3], 0),
+			x: clampCoord(b.Rect[0]), y: clampCoord(b.Rect[1]), w: clampSize(b.Rect[2]), h: clampSize(b.Rect[3]),
 			depth: boxDepth(raw, id),
 		})
 	}
