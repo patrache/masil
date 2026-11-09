@@ -29,6 +29,9 @@ other = "Couldn't load the card's design"
 [card_design_title]
 other = "📐 {title}"
 
+[card_doc_loading]
+other = "Still loading the document — try sending again in a moment"
+
 [card_nodes]
 other = "{n} nodes"
 

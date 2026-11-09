@@ -407,9 +407,14 @@ func (m *canvasModel) runCommand(ctx *ui.Context, id string) tea.Cmd {
 		if m.design == nil {
 			return nil
 		}
+		dlg := m.newSendDialog(ctx)
+		if dlg == nil {
+			sh := m.shared()
+			return tea.Batch(ui.Toast(ctx.T.Archcanvas.CardDocLoading(), ui.ToastInfo), m.fetchMeta(ctx, sh.docID))
+		}
 		m.cancelGesture()
 		m.menu = nil
-		m.sendDlg = m.newSendDialog(ctx)
+		m.sendDlg = dlg
 		return ui.OpenOverlay(m.sendDlg)
 	case "arch.export":
 		if m.design == nil {

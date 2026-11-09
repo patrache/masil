@@ -14,6 +14,7 @@ import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/archdoc"
 	"github.com/patrache/masil/internal/archsim"
+	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -394,5 +395,76 @@ func TestCardCopyFetched(t *testing.T) {
 	waitUntil(t, h, "the copy", func() bool { return len(canvasOf(t, h, r).design.Nodes) == len(d.Nodes) })
 	if canvasOf(t, h, r).sink.Status() != saveCopy {
 		t.Error("not a copy")
+	}
+}
+
+// docRequests counts GET /v1/docs/D1 (the document's metadata).
+func docRequests(h *uitest.Harness) int {
+	n := 0
+	for _, r := range h.API.Requests() {
+		if r.Method == "GET" && r.Path == "/v1/docs/D1" {
+			n++
+		}
+	}
+	return n
+}
+
+// TestRoomCardNeverCarriesCopy: a card from a room document never carries the
+// document as a copy — not even before GetDoc has answered (the space is not
+// known yet: arch.send_card asks for it again and says to wait) — so room
+// content never leaves the room.
+func TestRoomCardNeverCarriesCopy(t *testing.T) {
+	hub := collabtest.New(t)
+	sharedFixture(t, hub, api.Doc{SpaceID: fixtures.SpaceNova, Title: fixtureName})
+	h, c, sh := docHarness(t, hub)
+	cardServer(h)
+	ctx := h.Context()
+	d := c.design
+	res := archsim.Analyze(d, archsim.Options{})
+	for _, sim := range []bool{false, true} {
+		mk := designCard
+		if sim {
+			mk = simCard
+		}
+		if _, _, err := mk(ctx.T, d, res, cardRef{room: true, docID: "D1"}); err != errNoRoomRef {
+			t.Errorf("sim=%v: a room card without its space: err = %v", sim, err)
+		}
+	}
+
+	// GetDoc has not answered (and fails again): no dialog, a toast, a retry
+	sh.meta = nil
+	h.API.Error("GET /v1/docs/{doc_id}", http.StatusInternalServerError, "internal")
+	before := docRequests(h)
+	h.Send(ui.RunCommandMsg{ID: "arch.send_card"})
+	if c.sendDlg != nil {
+		t.Fatal("arch.send_card opened before the document's space was known")
+	}
+	if !strings.Contains(h.Screen(), "문서 정보를 받는 중") {
+		t.Errorf("no wait toast:\n%s", h.Screen())
+	}
+	if docRequests(h) == before {
+		t.Error("GetDoc was not asked again")
+	}
+	if n := len(sentCards(t, h)); n != 0 {
+		t.Fatalf("%d sends", n)
+	}
+
+	// GetDoc answers: the card names the document and carries no copy
+	hub.Register(h.API)
+	h.Send(ui.RunCommandMsg{ID: "arch.send_card"})
+	waitUntil(t, h, "the document's metadata", func() bool { return sh.meta != nil })
+	h.Send(ui.RunCommandMsg{ID: "arch.send_card"})
+	if c.sendDlg == nil {
+		t.Fatal("no send dialog once the metadata came")
+	}
+	pickChannel(t, h, c.sendDlg, "민지")
+	h.Press("enter", "enter")
+	got := sentCards(t, h)
+	if len(got) != 1 || got[0].Card == nil {
+		t.Fatalf("sends = %+v", got)
+	}
+	data := got[0].Card.Data
+	if string(data["design"]) != "null" || string(data["doc_id"]) != `"D1"` || string(data["space_id"]) != fmt.Sprintf("%q", fixtures.SpaceNova) {
+		t.Errorf("room card data: design %s doc %s space %s", data["design"], data["doc_id"], data["space_id"])
 	}
 }

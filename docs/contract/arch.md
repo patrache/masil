@@ -200,7 +200,7 @@ CollabHub 는 op 프레임마다 op 하나씩 이 검사를 거친 뒤 적용한
 | `cost_usd_month` | 정수 ≥ 0 | 월 비용 추정(달러) |
 | `price_asof` | `YYYY-MM` | 가격표 기준 연월 |
 | `engine_version` | 정수 ≥ 1 | 숫자를 만든 엔진(`archsim.EngineVersion`) |
-| `design` | 설계 JSON v1(1장, `schema_version: 1` 만 서버가 봄) \| `null` | 사본 — `doc_id` 가 `null` 일 때만. 개인 설계 카드는 늘 사본을 싣는다(받는 사람이 열 길이 그것뿐) |
+| `design` | 설계 JSON v1(1장, `schema_version: 1` 만 서버가 봄) \| `null` | 사본 — `doc_id` 가 `null` 일 때만. 개인 설계 카드는 늘 사본을 싣는다(받는 사람이 열 길이 그것뿐). 방 문서에서 만든 카드는 **절대** 사본을 싣지 않는다 — 문서의 방(`GetDoc`)을 아직 모르면 카드를 만들지 않고 `card_doc_loading` 안내 후 `GetDoc` 을 다시 부른다 |
 
 ### 3.2 type 별 필드
 

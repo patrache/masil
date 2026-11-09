@@ -201,7 +201,13 @@ func (m *canvasModel) openShared(ctx *ui.Context, docID string) tea.Cmd {
 		},
 	})
 	m.setSink(ctx, &sharedSink{s: s, docID: docID, objs: objectsOf(s.View())})
-	cl := ctx.API
+	return m.fetchMeta(ctx, docID)
+}
+
+// fetchMeta asks for room document docID's metadata (docMetaMsg; a failure
+// leaves the old metadata, and arch.send_card asks again).
+func (m *canvasModel) fetchMeta(ctx *ui.Context, docID string) tea.Cmd {
+	cl, inst := ctx.API, m.route.ID
 	if cl == nil {
 		return nil
 	}

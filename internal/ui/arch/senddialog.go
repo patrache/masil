@@ -56,10 +56,15 @@ type sendDoneMsg struct {
 // sendW is the dialog's widest outer width: a whole card line (60 cells) fits.
 const sendW = 72
 
+// newSendDialog is nil for a room document whose space is not known yet
+// (GetDoc has not answered): its card may not fall back to a copy.
 func (m *canvasModel) newSendDialog(ctx *ui.Context) *sendDialog {
 	d := &sendDialog{design: m.design, result: m.result}
-	if sh := m.shared(); sh != nil && sh.meta != nil && sh.meta.SpaceID != "" {
-		d.ref = cardRef{spaceID: sh.meta.SpaceID, docID: sh.docID}
+	if sh := m.shared(); sh != nil {
+		if sh.meta == nil || sh.meta.SpaceID == "" {
+			return nil
+		}
+		d.ref = cardRef{spaceID: sh.meta.SpaceID, docID: sh.docID, room: true}
 	}
 	if d.result == nil {
 		d.result = archsim.Analyze(m.design, archsim.Options{})

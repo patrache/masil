@@ -81,6 +81,13 @@ var areaArchcanvas = area{
 				En: {Other: "📐 {title}"},
 			},
 		},
+		"card_doc_loading": {
+			desc: "방 문서의 정보(방)를 아직 받지 못해 카드를 만들 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "문서 정보를 받는 중이에요 — 잠시 뒤 다시 보내 주세요"},
+				En: {Other: "Still loading the document — try sending again in a moment"},
+			},
+		},
 		"card_nodes": {
 			desc:   "설계 카드 요약: 노드 수",
 			params: []Param{{Name: "n", Type: "int"}},
@@ -2950,6 +2957,11 @@ func (a_ ArchcanvasT) CardCopyFailed() string {
 // CardDesignTitle: 채팅 설계 카드의 첫 줄
 func (a_ ArchcanvasT) CardDesignTitle(title string) string {
 	return a_.t.render(&areaArchcanvas, "card_design_title", false, 0, "title", title)
+}
+
+// CardDocLoading: 방 문서의 정보(방)를 아직 받지 못해 카드를 만들 수 없을 때
+func (a_ ArchcanvasT) CardDocLoading() string {
+	return a_.t.render(&areaArchcanvas, "card_doc_loading", false, 0)
 }
 
 // CardNodes: 설계 카드 요약: 노드 수

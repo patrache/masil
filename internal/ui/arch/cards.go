@@ -44,11 +44,18 @@ const (
 // errCardTooBig: the card with its design copy is over 16KB (card_too_big).
 var errCardTooBig = errors.New("arch: card data over 16KB")
 
+// errNoRoomRef: a room document's card without the document's space (its
+// metadata has not come yet) — it may not fall back to a copy.
+var errNoRoomRef = errors.New("arch: room document card without its space")
+
 // cardRef names the room document a card points at ("" docID = a personal
-// design: the card carries a copy instead; versionNo 0 = unknown).
+// design: the card carries a copy instead; versionNo 0 = unknown). room: the
+// design is a room document — its card never carries a copy (room content
+// stays in the room, JC12).
 type cardRef struct {
 	spaceID, docID string
 	versionNo      int
+	room           bool
 }
 
 // designCardData is arch.design v1 data.
@@ -127,8 +134,11 @@ func refFields(ref cardRef) (sp, doc *string, ver *int) {
 }
 
 // designCopy is the compact design JSON a card carries when it names no room
-// document.
+// document (never for a room document: errNoRoomRef without its space).
 func designCopy(d *archdoc.Design, ref cardRef) (json.RawMessage, error) {
+	if ref.room && (ref.docID == "" || ref.spaceID == "") {
+		return nil, errNoRoomRef
+	}
 	if ref.docID != "" && ref.spaceID != "" {
 		return nil, nil
 	}
