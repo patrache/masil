@@ -16,14 +16,15 @@ import (
 type editMode int
 
 const (
-	modeNormal  editMode = iota
-	modeMove             // m: arrows move a ghost, enter commits, esc cancels
-	modeConnect          // c: hjkl picks the target, enter connects
-	modeMulti            // v: hjkl adds to the selection, space toggles
-	modeFind             // /: typing a node name, enter jumps
-	modePick             // a (part) or g (box kind): the palette cursor
-	modeHelp             // ?: the tool's help over the canvas
-	modePanel            // e: the settings panel has the keys (P3 Task 18)
+	modeNormal   editMode = iota
+	modeMove              // m: arrows move a ghost, enter commits, esc cancels
+	modeConnect           // c: hjkl picks the target, enter connects
+	modeMulti             // v: hjkl adds to the selection, space toggles
+	modeFind              // /: typing a node name, enter jumps
+	modePick              // a (part) or g (box kind): the palette cursor
+	modeHelp              // ?: the tool's help over the canvas
+	modePanel             // e: the settings panel has the keys (P3 Task 18)
+	modeComments          // C: the comments panel has the keys (P3 Task 25)
 )
 
 var (
@@ -64,7 +65,8 @@ func gridStep(d archdraw.Dir) (int, int) {
 
 // CapturesInput: typing a find query never reaches the soft globals.
 func (m *canvasModel) CapturesInput() bool {
-	return m.mode == modeFind || m.faults != nil || (m.mode == modePanel && (m.panel.editing || m.panel.pick != nil))
+	return m.mode == modeFind || m.faults != nil || (m.mode == modePanel && (m.panel.editing || m.panel.pick != nil)) ||
+		(m.mode == modeComments && m.cmt.composing)
 }
 
 // HandleKey is the canvas keyboard (spec C2.7). Keys it does not use
@@ -101,6 +103,8 @@ func (m *canvasModel) handleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.C
 		return m.moveKey(ctx, s)
 	case modeConnect:
 		return m.connectKey(ctx, s)
+	case modeComments:
+		return m.commentKey(ctx, k, s)
 	case modeHelp:
 		if s == "esc" || s == "?" || s == "q" {
 			m.mode = modeNormal
@@ -276,6 +280,8 @@ func (m *canvasModel) normalKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 	case "?":
 		m.mode = modeHelp
 		return true, nil
+	case "C":
+		return true, m.commentOn(ctx, m.selectionAnchor())
 	}
 	return false, nil
 }

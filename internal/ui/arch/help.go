@@ -27,6 +27,7 @@ var helpKeys = []helpKey{
 	{"c", func(t *i18n.T) string { return t.Archcanvas.KeyConnect() }},
 	{"e p", func(t *i18n.T) string { return t.Archcanvas.KeyPanel() }},
 	{"x", func(t *i18n.T) string { return t.Archcanvas.KeyFault() }},
+	{"C", func(t *i18n.T) string { return t.Archcanvas.KeyComment() }},
 	{"g", func(t *i18n.T) string { return t.Archcanvas.KeyWrap() }},
 	{"v", func(t *i18n.T) string { return t.Archcanvas.KeyMulti() + " · " + t.Archcanvas.KeyView() }},
 	{"d", func(t *i18n.T) string { return t.Archcanvas.KeyDelete() }},
@@ -74,6 +75,11 @@ func (m *canvasModel) Help(ctx *ui.Context) []key.Binding {
 		return []key.Binding{bind("j k", a.KeySelect(), "j", "k"), bind("enter", a.KeyEdit(), "enter"), cancel}
 	case modeHelp:
 		return []key.Binding{cancel}
+	case modeComments:
+		if m.cmt.composing {
+			return []key.Binding{bind("enter", a.KeySend(), "enter"), cancel}
+		}
+		return []key.Binding{bind("j k", a.KeySelect(), "j", "k"), bind("enter", a.KeyReply(), "enter"), bind("x", a.KeyResolve(), "x"), bind("C", a.KeyComment(), "C"), cancel}
 	}
 	if ro := m.sink == nil || isReadOnly(m.sink); ro {
 		return []key.Binding{bind("hjkl", a.KeySelect(), "h", "j", "k", "l"), bind("/", a.KeyFind(), "/"), bind("?", a.KeyHelp(), "?")}
@@ -143,6 +149,12 @@ func (m *canvasModel) drawFind(b *buf, r layout.Rect) {
 func (m *canvasModel) Cursor() *tea.Cursor {
 	if m.mode == modePanel && m.panel.editing && m.panel.curY >= 0 {
 		return tea.NewCursor(m.panel.curX, m.panel.curY)
+	}
+	if m.mode == modeComments {
+		if m.cmt.composing && m.cmt.curY >= 0 {
+			return tea.NewCursor(m.cmt.curX, m.cmt.curY)
+		}
+		return nil
 	}
 	if m.mode != modeFind {
 		return nil

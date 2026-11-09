@@ -56,6 +56,39 @@ other = "On"
 [choice_region_box]
 other = "From box"
 
+[comments_deleted]
+other = "(deleted comment)"
+
+[comments_empty]
+other = "No comments yet · press C to add one"
+
+[comments_failed]
+other = "Couldn't send the comment"
+
+[comments_group_at]
+other = "Empty spot ({x}, {y})"
+
+[comments_group_unknown]
+other = "Unknown place"
+
+[comments_load_failed]
+other = "Couldn't load the comments"
+
+[comments_new]
+other = "New comment · {target}"
+
+[comments_personal]
+other = "Comments are only for designs shared to a room"
+
+[comments_reply]
+other = "Reply to {name}"
+
+[comments_resolved]
+other = "resolved"
+
+[comments_title]
+other = "Comments {n}"
+
 [connect_exists]
 other = "Already connected"
 
@@ -85,6 +118,9 @@ other = "spike"
 
 [curve_wave]
 other = "wave"
+
+[deleted_node_comment]
+other = "Comments on deleted nodes"
 
 [disk_hdd]
 other = "HDD"
@@ -506,6 +542,9 @@ other = "Cancel"
 [key_checks]
 other = "Checks"
 
+[key_comment]
+other = "comment"
+
 [key_confirm]
 other = "Confirm"
 
@@ -548,11 +587,20 @@ other = "Choose"
 [key_redo]
 other = "Redo"
 
+[key_reply]
+other = "reply"
+
+[key_resolve]
+other = "resolve"
+
 [key_run]
 other = "Run"
 
 [key_select]
 other = "Select"
+
+[key_send]
+other = "send"
 
 [key_speed]
 other = "Speed"

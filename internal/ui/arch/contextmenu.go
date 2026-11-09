@@ -36,26 +36,28 @@ func (a menuAction) label(t *i18n.T) string {
 // ctxMenu is the right-click menu of a node, box or edge, drawn over the
 // canvas at pane cell (x, y).
 type ctxMenu struct {
-	target string
-	x, y   int
-	sel    int
+	target  string
+	x, y    int
+	sel     int
+	actions []menuAction // what it lists (menuActions for an object)
+	spot    string       // an empty spot's comment anchor (target "")
 }
 
 // openMenu opens the menu of target at pane cell (x, y), selecting target.
 func (m *canvasModel) openMenu(target string, x, y int) {
 	m.cancelGesture()
 	m.sel = target
-	m.menu = &ctxMenu{target: target, x: x, y: y}
+	m.menu = &ctxMenu{target: target, x: x, y: y, actions: menuActions}
 }
 
 // menuRect is where the menu is drawn (clamped into the canvas).
 func (m *canvasModel) menuRect(t *i18n.T) layout.Rect {
 	w := 0
-	for _, a := range menuActions {
+	for _, a := range m.menu.actions {
 		w = max(w, textwidth.Width(a.label(t)))
 	}
 	w += 4
-	h := len(menuActions) + 2
+	h := len(m.menu.actions) + 2
 	c := m.regs.Canvas
 	x := min(m.menu.x, c.X+c.W-w)
 	y := min(m.menu.y, c.Y+c.H-h)
@@ -64,7 +66,7 @@ func (m *canvasModel) menuRect(t *i18n.T) layout.Rect {
 
 // runMenu runs menu action a on the menu's target and closes the menu.
 func (m *canvasModel) runMenu(ctx *ui.Context, a menuAction) tea.Cmd {
-	target := m.menu.target
+	target, spot := m.menu.target, m.menu.spot
 	m.menu = nil
 	switch a {
 	case menuSettings:
@@ -78,19 +80,25 @@ func (m *canvasModel) runMenu(ctx *ui.Context, a menuAction) tea.Cmd {
 	case menuFault:
 		m.sel = target
 		return m.openFaults(ctx, target)
+	case menuComment:
+		if target == "" {
+			return m.commentOn(ctx, spot)
+		}
+		m.sel = target
+		return m.commentOn(ctx, m.selectionAnchor())
 	}
-	return nil // comment (Task 25) arrives later
+	return nil
 }
 
 // menuKey: j/k move, enter runs, esc closes; the rest is swallowed.
 func (m *canvasModel) menuKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 	switch s {
 	case "j", "down":
-		m.menu.sel = min(m.menu.sel+1, len(menuActions)-1)
+		m.menu.sel = min(m.menu.sel+1, len(m.menu.actions)-1)
 	case "k", "up":
 		m.menu.sel = max(m.menu.sel-1, 0)
 	case "enter":
-		return true, m.runMenu(ctx, menuActions[m.menu.sel])
+		return true, m.runMenu(ctx, m.menu.actions[m.menu.sel])
 	case "esc":
 		m.menu = nil
 	default:
@@ -104,7 +112,7 @@ func (m *canvasModel) menuKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 func (m *canvasModel) menuClick(ctx *ui.Context, p ui.Point) tea.Cmd {
 	r := m.menuRect(ctx.T)
 	if p.X > r.X && p.X < r.X+r.W-1 && p.Y > r.Y && p.Y < r.Y+r.H-1 {
-		return m.runMenu(ctx, menuActions[p.Y-r.Y-1])
+		return m.runMenu(ctx, m.menu.actions[p.Y-r.Y-1])
 	}
 	m.menu = nil
 	return nil
@@ -132,7 +140,7 @@ func (m *canvasModel) drawMenu(ctx *ui.Context, b *buf) {
 	b.set(r.X+r.W-1, r.Y, "┐", 1, sAcc)
 	b.set(r.X, r.Y+r.H-1, "└", 1, sAcc)
 	b.set(r.X+r.W-1, r.Y+r.H-1, "┘", 1, sAcc)
-	for i, a := range menuActions {
+	for i, a := range m.menu.actions {
 		if 1+i >= r.H-1 {
 			break
 		}

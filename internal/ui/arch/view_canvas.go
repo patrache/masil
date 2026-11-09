@@ -249,7 +249,10 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 		m.drawSummary(ctx, b, r.Canvas)
 		return b.render(ctx.Theme)
 	case viewList:
-		if m.mode == modePanel {
+		if m.mode == modeComments && r.Panel.W <= 2 {
+			b.fill(r.Canvas, sBase)
+			m.drawComments(ctx, b, r.Canvas, r.Canvas.X+1, r.Canvas.W-2)
+		} else if m.mode == modePanel {
 			b.fill(r.Canvas, sBase)
 			m.drawForm(ctx, b, r.Canvas, r.Canvas.X+1, r.Canvas.W-2)
 		} else {
@@ -257,6 +260,11 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 		}
 	default:
 		m.drawCanvas(ctx, b, r.Canvas)
+		if m.mode == modeComments && r.Panel.W <= 2 {
+			// no room for the panel drawer: the comments take the canvas
+			b.fill(r.Canvas, sBase)
+			m.drawComments(ctx, b, r.Canvas, r.Canvas.X+1, r.Canvas.W-2)
+		}
 	}
 	if m.mode == modeHelp {
 		m.drawHelp(ctx, b, r.Canvas)
@@ -275,7 +283,8 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 // overlay is what the canvas draws on top of the design: the selection, the
 // move ghost (m) and the connect line (c).
 func (m *canvasModel) overlay() archdraw.Overlay {
-	ov := archdraw.Overlay{Badges: m.shownBadges(), Buttons: true, Selected: map[string]bool{}, RouteLimit: archdraw.FrameRouteLimit}
+	ov := archdraw.Overlay{Badges: m.shownBadges(), Buttons: true, Selected: map[string]bool{}, RouteLimit: archdraw.FrameRouteLimit,
+		Comments: m.commentCounts()}
 	for _, id := range m.selection() {
 		ov.Selected[id] = true
 	}

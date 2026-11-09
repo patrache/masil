@@ -82,6 +82,54 @@ other = "켬"
 desc = "리전 선택지: 감싼 리전 상자를 따름"
 other = "상자 따름"
 
+[comments_deleted]
+desc = "지운 댓글 자리(답글이 남은 첫 댓글)"
+other = "(지운 댓글)"
+
+[comments_empty]
+desc = "댓글 패널: 댓글이 하나도 없을 때"
+other = "댓글이 없어요 · C 로 달아 보세요"
+
+[comments_failed]
+desc = "댓글 보내기·해결 처리가 실패했을 때"
+other = "댓글을 보내지 못했어요"
+
+[comments_group_at]
+desc = "댓글 묶음 이름: 빈 자리 좌표에 단 댓글. x·y = 세계 좌표"
+params = { x = "int", y = "int" }
+other = "빈 자리 ({x}, {y})"
+
+[comments_group_unknown]
+desc = "댓글 묶음 이름: 앵커 모양을 모르는 댓글(뒤 버전이 단 것 등)"
+other = "위치 모름"
+
+[comments_load_failed]
+desc = "댓글 목록을 불러오지 못했을 때(패널 안)"
+other = "댓글을 불러오지 못했어요"
+
+[comments_new]
+desc = "새 댓글 입력 칸 머리. target = 댓글을 다는 곳 이름"
+params = { target = "string" }
+other = "새 댓글 · {target}"
+
+[comments_personal]
+desc = "개인 설계·사본에서 댓글을 달려 할 때 안내"
+other = "댓글은 방에 올린 설계에만 달 수 있어요"
+
+[comments_reply]
+desc = "답글 입력 칸 머리. name = 첫 댓글 쓴 사람"
+params = { name = "string" }
+other = "{name}님에게 답글"
+
+[comments_resolved]
+desc = "해결된 댓글 묶음 표시"
+other = "해결됨"
+
+[comments_title]
+desc = "댓글 패널 머리. n = 아직 해결 안 된 댓글 묶음 수"
+params = { n = "int" }
+other = "댓글 {n}"
+
 [connect_exists]
 desc = "연결하려는 두 노드가 이미 이어져 있을 때 토스트"
 other = "이미 연결돼 있어요"
@@ -127,6 +175,10 @@ other = "급증"
 [curve_wave]
 desc = "트래픽 모양 이름: wave"
 other = "물결"
+
+[deleted_node_comment]
+desc = "댓글 묶음 이름: 지금 설계에 없는 노드·연결·상자에 단 댓글"
+other = "삭제된 노드에 단 댓글"
 
 [disk_hdd]
 desc = "디스크 종류: HDD"
@@ -725,6 +777,10 @@ other = "취소"
 desc = "키 안내: 점검 줄 펼치기"
 other = "점검"
 
+[key_comment]
+desc = "키 안내: C — 고른 곳(없으면 화면 가운데)에 댓글"
+other = "댓글"
+
 [key_confirm]
 desc = "키 안내: 확정"
 other = "확정"
@@ -781,6 +837,14 @@ other = "고르기"
 desc = "키 안내: 다시하기"
 other = "다시하기"
 
+[key_reply]
+desc = "키 안내: 댓글 패널의 enter — 답글"
+other = "답글"
+
+[key_resolve]
+desc = "키 안내: 댓글 패널의 x — 해결·다시 열기"
+other = "해결"
+
 [key_run]
 desc = "키 안내: 시간 실행 시작·정지"
 other = "시간 실행"
@@ -788,6 +852,10 @@ other = "시간 실행"
 [key_select]
 desc = "키 안내: 가장 가까운 노드로 선택 이동"
 other = "선택"
+
+[key_send]
+desc = "키 안내: 댓글 입력의 enter — 보내기"
+other = "보내기"
 
 [key_speed]
 desc = "키 안내: 시간 실행 배속"

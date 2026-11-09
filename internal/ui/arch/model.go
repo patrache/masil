@@ -76,6 +76,8 @@ type canvasModel struct {
 	dragSentAt time.Time
 	shareDlg   *shareDialog
 	verDlg     *versionsDialog // the open versions dialog (versions.go)
+
+	cmt commentsState // a room document's comments (comments.go)
 }
 
 var (
@@ -103,7 +105,7 @@ func (m *canvasModel) CloseTool(ctx *ui.Context) tea.Cmd {
 
 // newCanvas is the tool's ui.ToolSpec.New: the sink is chosen in Init.
 func newCanvas(_ *ui.Context, r ui.Route) ui.Component {
-	return &canvasModel{route: r, hidden: map[archdraw.Zoom]*archdraw.Scene{}}
+	return &canvasModel{route: r, hidden: map[archdraw.Zoom]*archdraw.Scene{}, cmt: commentsState{curY: -1}}
 }
 
 // storeOf opens the personal design folder.
@@ -150,7 +152,11 @@ func (m *canvasModel) initSink(ctx *ui.Context) tea.Cmd {
 		}
 		m.setSink(ctx, &localSink{instance: m.route.ID, store: st, name: name, objs: d.ToObjects(), timers: ctx.Timers})
 	case q[queryDoc] != "":
-		return m.openShared(ctx, q[queryDoc])
+		cmd := m.openShared(ctx, q[queryDoc])
+		if q[queryComments] == "1" {
+			return tea.Batch(cmd, m.openComments(ctx)) // a mention alert
+		}
+		return tea.Batch(cmd, m.loadComments(ctx, q[queryDoc]))
 	default:
 		// a new design; card copies (msg) arrive with P3 Task 26 and start
 		// empty until then
@@ -282,6 +288,9 @@ func (m *canvasModel) edge(id string) *archdoc.Edge {
 }
 
 func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
+	if cmd, ok := m.commentMsg(ctx, msg); ok {
+		return cmd
+	}
 	switch msg := msg.(type) {
 	case saveDueMsg:
 		if ls, ok := m.sink.(*localSink); ok && msg.instance == m.route.ID {
@@ -406,6 +415,7 @@ func (m *canvasModel) Resize(ctx *ui.Context, size ui.Size) {
 func (m *canvasModel) layout() {
 	m.regs = computeRegions(m.layMode, m.size.W, m.size.H, m.drawer)
 	m.vp.W, m.vp.H = m.regs.Canvas.W, m.regs.Canvas.H
+	m.showComments()
 	if !m.zoomSet {
 		m.vp.Zoom = archdraw.ZoomDetail
 		if m.layMode == layout.ModeWidget || m.regs.Canvas.W < listBelow {

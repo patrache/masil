@@ -135,6 +135,10 @@ func (m *canvasModel) drawPanel(ctx *ui.Context, b *buf, r layout.Rect) {
 		b.set(r.X, y, "│", 1, sLine)
 	}
 	inner := r.W - 3
+	if m.mode == modeComments {
+		m.drawComments(ctx, b, r, r.X+2, inner)
+		return
+	}
 	if m.mode == modePanel {
 		m.drawForm(ctx, b, r, r.X+2, inner)
 		return

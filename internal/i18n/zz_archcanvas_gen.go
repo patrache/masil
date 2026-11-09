@@ -145,6 +145,87 @@ var areaArchcanvas = area{
 				En: {Other: "From box"},
 			},
 		},
+		"comments_deleted": {
+			desc: "지운 댓글 자리(답글이 남은 첫 댓글)",
+			text: map[Locale]Forms{
+				Ko: {Other: "(지운 댓글)"},
+				En: {Other: "(deleted comment)"},
+			},
+		},
+		"comments_empty": {
+			desc: "댓글 패널: 댓글이 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글이 없어요 · C 로 달아 보세요"},
+				En: {Other: "No comments yet · press C to add one"},
+			},
+		},
+		"comments_failed": {
+			desc: "댓글 보내기·해결 처리가 실패했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글을 보내지 못했어요"},
+				En: {Other: "Couldn't send the comment"},
+			},
+		},
+		"comments_group_at": {
+			desc:   "댓글 묶음 이름: 빈 자리 좌표에 단 댓글. x·y = 세계 좌표",
+			params: []Param{{Name: "x", Type: "int"}, {Name: "y", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "빈 자리 ({x}, {y})"},
+				En: {Other: "Empty spot ({x}, {y})"},
+			},
+		},
+		"comments_group_unknown": {
+			desc: "댓글 묶음 이름: 앵커 모양을 모르는 댓글(뒤 버전이 단 것 등)",
+			text: map[Locale]Forms{
+				Ko: {Other: "위치 모름"},
+				En: {Other: "Unknown place"},
+			},
+		},
+		"comments_load_failed": {
+			desc: "댓글 목록을 불러오지 못했을 때(패널 안)",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글을 불러오지 못했어요"},
+				En: {Other: "Couldn't load the comments"},
+			},
+		},
+		"comments_new": {
+			desc:   "새 댓글 입력 칸 머리. target = 댓글을 다는 곳 이름",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "새 댓글 · {target}"},
+				En: {Other: "New comment · {target}"},
+			},
+		},
+		"comments_personal": {
+			desc: "개인 설계·사본에서 댓글을 달려 할 때 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글은 방에 올린 설계에만 달 수 있어요"},
+				En: {Other: "Comments are only for designs shared to a room"},
+			},
+		},
+		"comments_reply": {
+			desc:   "답글 입력 칸 머리. name = 첫 댓글 쓴 사람",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님에게 답글"},
+				En: {Other: "Reply to {name}"},
+			},
+		},
+		"comments_resolved": {
+			desc: "해결된 댓글 묶음 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "해결됨"},
+				En: {Other: "resolved"},
+			},
+		},
+		"comments_title": {
+			desc:   "댓글 패널 머리. n = 아직 해결 안 된 댓글 묶음 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글 {n}"},
+				En: {Other: "Comments {n}"},
+			},
+		},
 		"connect_exists": {
 			desc: "연결하려는 두 노드가 이미 이어져 있을 때 토스트",
 			text: map[Locale]Forms{
@@ -219,6 +300,13 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "물결"},
 				En: {Other: "wave"},
+			},
+		},
+		"deleted_node_comment": {
+			desc: "댓글 묶음 이름: 지금 설계에 없는 노드·연결·상자에 단 댓글",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제된 노드에 단 댓글"},
+				En: {Other: "Comments on deleted nodes"},
 			},
 		},
 		"disk_hdd": {
@@ -1238,6 +1326,13 @@ var areaArchcanvas = area{
 				En: {Other: "Checks"},
 			},
 		},
+		"key_comment": {
+			desc: "키 안내: C — 고른 곳(없으면 화면 가운데)에 댓글",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글"},
+				En: {Other: "comment"},
+			},
+		},
 		"key_confirm": {
 			desc: "키 안내: 확정",
 			text: map[Locale]Forms{
@@ -1336,6 +1431,20 @@ var areaArchcanvas = area{
 				En: {Other: "Redo"},
 			},
 		},
+		"key_reply": {
+			desc: "키 안내: 댓글 패널의 enter — 답글",
+			text: map[Locale]Forms{
+				Ko: {Other: "답글"},
+				En: {Other: "reply"},
+			},
+		},
+		"key_resolve": {
+			desc: "키 안내: 댓글 패널의 x — 해결·다시 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "해결"},
+				En: {Other: "resolve"},
+			},
+		},
 		"key_run": {
 			desc: "키 안내: 시간 실행 시작·정지",
 			text: map[Locale]Forms{
@@ -1348,6 +1457,13 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "선택"},
 				En: {Other: "Select"},
+			},
+		},
+		"key_send": {
+			desc: "키 안내: 댓글 입력의 enter — 보내기",
+			text: map[Locale]Forms{
+				Ko: {Other: "보내기"},
+				En: {Other: "send"},
 			},
 		},
 		"key_speed": {
@@ -2683,6 +2799,61 @@ func (a_ ArchcanvasT) ChoiceRegionBox() string {
 	return a_.t.render(&areaArchcanvas, "choice_region_box", false, 0)
 }
 
+// CommentsDeleted: 지운 댓글 자리(답글이 남은 첫 댓글)
+func (a_ ArchcanvasT) CommentsDeleted() string {
+	return a_.t.render(&areaArchcanvas, "comments_deleted", false, 0)
+}
+
+// CommentsEmpty: 댓글 패널: 댓글이 하나도 없을 때
+func (a_ ArchcanvasT) CommentsEmpty() string {
+	return a_.t.render(&areaArchcanvas, "comments_empty", false, 0)
+}
+
+// CommentsFailed: 댓글 보내기·해결 처리가 실패했을 때
+func (a_ ArchcanvasT) CommentsFailed() string {
+	return a_.t.render(&areaArchcanvas, "comments_failed", false, 0)
+}
+
+// CommentsGroupAt: 댓글 묶음 이름: 빈 자리 좌표에 단 댓글. x·y = 세계 좌표
+func (a_ ArchcanvasT) CommentsGroupAt(x int, y int) string {
+	return a_.t.render(&areaArchcanvas, "comments_group_at", false, 0, "x", strconv.Itoa(x), "y", strconv.Itoa(y))
+}
+
+// CommentsGroupUnknown: 댓글 묶음 이름: 앵커 모양을 모르는 댓글(뒤 버전이 단 것 등)
+func (a_ ArchcanvasT) CommentsGroupUnknown() string {
+	return a_.t.render(&areaArchcanvas, "comments_group_unknown", false, 0)
+}
+
+// CommentsLoadFailed: 댓글 목록을 불러오지 못했을 때(패널 안)
+func (a_ ArchcanvasT) CommentsLoadFailed() string {
+	return a_.t.render(&areaArchcanvas, "comments_load_failed", false, 0)
+}
+
+// CommentsNew: 새 댓글 입력 칸 머리. target = 댓글을 다는 곳 이름
+func (a_ ArchcanvasT) CommentsNew(target string) string {
+	return a_.t.render(&areaArchcanvas, "comments_new", false, 0, "target", target)
+}
+
+// CommentsPersonal: 개인 설계·사본에서 댓글을 달려 할 때 안내
+func (a_ ArchcanvasT) CommentsPersonal() string {
+	return a_.t.render(&areaArchcanvas, "comments_personal", false, 0)
+}
+
+// CommentsReply: 답글 입력 칸 머리. name = 첫 댓글 쓴 사람
+func (a_ ArchcanvasT) CommentsReply(name string) string {
+	return a_.t.render(&areaArchcanvas, "comments_reply", false, 0, "name", name)
+}
+
+// CommentsResolved: 해결된 댓글 묶음 표시
+func (a_ ArchcanvasT) CommentsResolved() string {
+	return a_.t.render(&areaArchcanvas, "comments_resolved", false, 0)
+}
+
+// CommentsTitle: 댓글 패널 머리. n = 아직 해결 안 된 댓글 묶음 수
+func (a_ ArchcanvasT) CommentsTitle(n int) string {
+	return a_.t.render(&areaArchcanvas, "comments_title", false, 0, "n", strconv.Itoa(n))
+}
+
 // ConnectExists: 연결하려는 두 노드가 이미 이어져 있을 때 토스트
 func (a_ ArchcanvasT) ConnectExists() string {
 	return a_.t.render(&areaArchcanvas, "connect_exists", false, 0)
@@ -2731,6 +2902,11 @@ func (a_ ArchcanvasT) CurveSpike() string {
 // CurveWave: 트래픽 모양 이름: wave
 func (a_ ArchcanvasT) CurveWave() string {
 	return a_.t.render(&areaArchcanvas, "curve_wave", false, 0)
+}
+
+// DeletedNodeComment: 댓글 묶음 이름: 지금 설계에 없는 노드·연결·상자에 단 댓글
+func (a_ ArchcanvasT) DeletedNodeComment() string {
+	return a_.t.render(&areaArchcanvas, "deleted_node_comment", false, 0)
 }
 
 // DiskHdd: 디스크 종류: HDD
@@ -3433,6 +3609,11 @@ func (a_ ArchcanvasT) KeyChecks() string {
 	return a_.t.render(&areaArchcanvas, "key_checks", false, 0)
 }
 
+// KeyComment: 키 안내: C — 고른 곳(없으면 화면 가운데)에 댓글
+func (a_ ArchcanvasT) KeyComment() string {
+	return a_.t.render(&areaArchcanvas, "key_comment", false, 0)
+}
+
 // KeyConfirm: 키 안내: 확정
 func (a_ ArchcanvasT) KeyConfirm() string {
 	return a_.t.render(&areaArchcanvas, "key_confirm", false, 0)
@@ -3503,6 +3684,16 @@ func (a_ ArchcanvasT) KeyRedo() string {
 	return a_.t.render(&areaArchcanvas, "key_redo", false, 0)
 }
 
+// KeyReply: 키 안내: 댓글 패널의 enter — 답글
+func (a_ ArchcanvasT) KeyReply() string {
+	return a_.t.render(&areaArchcanvas, "key_reply", false, 0)
+}
+
+// KeyResolve: 키 안내: 댓글 패널의 x — 해결·다시 열기
+func (a_ ArchcanvasT) KeyResolve() string {
+	return a_.t.render(&areaArchcanvas, "key_resolve", false, 0)
+}
+
 // KeyRun: 키 안내: 시간 실행 시작·정지
 func (a_ ArchcanvasT) KeyRun() string {
 	return a_.t.render(&areaArchcanvas, "key_run", false, 0)
@@ -3511,6 +3702,11 @@ func (a_ ArchcanvasT) KeyRun() string {
 // KeySelect: 키 안내: 가장 가까운 노드로 선택 이동
 func (a_ ArchcanvasT) KeySelect() string {
 	return a_.t.render(&areaArchcanvas, "key_select", false, 0)
+}
+
+// KeySend: 키 안내: 댓글 입력의 enter — 보내기
+func (a_ ArchcanvasT) KeySend() string {
+	return a_.t.render(&areaArchcanvas, "key_send", false, 0)
 }
 
 // KeySpeed: 키 안내: 시간 실행 배속

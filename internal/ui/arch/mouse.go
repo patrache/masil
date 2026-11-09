@@ -165,7 +165,7 @@ func (m *canvasModel) press(ctx *ui.Context, p ui.Point) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	if m.mode != modeNormal && m.mode != modePanel {
+	if m.mode != modeNormal && m.mode != modePanel && m.mode != modeComments {
 		m.mode, m.cursor, m.moveDX, m.moveDY = modeNormal, "", 0, 0
 		m.multi = nil
 	}
@@ -204,6 +204,13 @@ func (m *canvasModel) rightClick(p ui.Point) tea.Cmd {
 	switch hit := sc.HitTest(m.vp, sx, sy); hit.Kind {
 	case archdraw.HitNode, archdraw.HitHandle, archdraw.HitBox, archdraw.HitBoxBorder, archdraw.HitEdge:
 		m.openMenu(hit.ID, p.X, p.Y)
+	case archdraw.HitNone:
+		if m.shared() != nil {
+			// an empty spot: only 댓글, at that world point
+			wx, wy := m.vp.ToWorld(sx, sy)
+			m.sel = ""
+			m.menu = &ctxMenu{x: p.X, y: p.Y, actions: []menuAction{menuComment}, spot: spotAnchor(wx, wy)}
+		}
 	}
 	return nil
 }
