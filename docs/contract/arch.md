@@ -102,4 +102,48 @@
 
 **장애** (`faults[]`): `id`, `at_s`(0..600), `kind`(`node_off` `instances_off` `latency` `az_off` `region_off`), `target`, `count`(0..1,000), `add_ms`(0..600,000), `dur_s`(0..600, 0 = 끝까지).
 
-기본값(빠진 필드): 노드는 `archdoc.Defaults(kind)`(API 요청당 CPU 8,000µs, 인스턴스 2, CPU 2, 메모리 4,096MiB, 디스크 `ssd` 100GB 3,000 IOPS, 타임아웃 2,000ms, 재시도 0, 대기열 1,000 등 — 부품별 값은 `design.go`), 연결은 `http1`·`latency_micros` −1·비율 1,000/1,000, 상자·장애는 0·`""`.
+기본값(빠진 필드): 노드는 `archdoc.Defaults(kind)`(API 요청당 CPU 8,000µs, 인스턴스 2, CPU 2, 메모리 4,096MiB, 디스크 `ssd` 100GB 3,000 IOPS, 타임아웃 2,000ms, 재시도 0, 대기열 1,000 등 — 부품별 값은 `design.go`), 연결은 `http1`·`latency_micros` −1·비율 1,000/1,000, 상자는 `rect` `[0, 0, 32, 18]`, 그 밖은 0·`""`.
+
+---
+
+## 2. 협업 객체 사상 (CollabHub `arch`)
+
+공유 설계(`collab_docs.type = "arch"`)는 collab.md 1장의 객체 묶음이다. Go 는 `archdoc.Objects`(`map[객체 키]map[필드]JSON`), `(*Design).ToObjects`, `archdoc.FromObjects` 로 옮긴다.
+
+### 2.1 객체
+
+| 객체 키(`Op.id`) | `Op.type` | 필드 |
+|---|---|---|
+| `meta` | `meta` | `title`, `seed`, `duration_s` |
+| `n:<노드 id>` | `node` | 1.4 노드 표에서 `id` 를 뺀 전부(`kind` 포함). `traffic.*` 는 트래픽이 있는 노드에만 |
+| `b:<상자 id>` | `box` | `kind`, `label`, `region_code`, `rect`, `parent` |
+| `e:<연결 id>` | `edge` | `from`, `to`, `protocol`, `mbps`, `latency_micros`, `read_permille`, `write_permille` |
+| `f:<장애 id>` | `fault` | `at_s`, `kind`, `target`, `count`, `add_ms`, `dur_s` |
+
+- 필드 이름은 1.4 의 JSON 이름을 점으로 편 것(`autoscale.min`, `disk.iops`, `params.hit_permille`, `traffic.rps`). 값은 1.4 와 같은 JSON 값.
+- 위치는 한 필드 `pos`(`[x, y]`), 상자 사각형은 한 필드 `rect`(`[x, y, w, h]`) — 둘이 동시에 옮길 때 x 와 y 가 서로 다른 사람 값으로 섞이지 않게.
+- 만들 때는 `put{id: 키, type, fields: 모든 필드}`, 고칠 때는 `set` 하나에 필드 하나, 지우기 `del`, 되살리기 `undel`. 노드를 지울 때 그 노드에 닿은 연결·장애도 같은 프레임에서 `del` 한다(못 해도 2.3 이 숨긴다).
+- `id` 는 1.3 규칙(`^[A-Za-z0-9_-]{1,62}$`)이라 키는 collab.md 1.2 의 64자 안에 든다.
+
+### 2.2 로컬 변경 (`archdoc.Change`)
+
+| `ChangeKind` | collab op | 로컬 적용(`Objects.Apply`) |
+|---|---|---|
+| `ChangePut` | `put`(type = `ObjType(키)`) | 없으면 만들고, 있으면 준 필드만 덮음. `Value` = 필드 JSON 객체 |
+| `ChangeSet` | `set` | 살아 있는 객체의 필드 하나. 지운·없는 객체면 버림. `Value` nil = 그 필드 지움(로컬만) |
+| `ChangeDel` | `del` | 객체를 지움 |
+| `ChangeRestore` | `undel` | 없을 때만 `Value`(필드 JSON 객체)로 되살림 — 서버는 필드를 갖고 있으므로 `undel` 만 보낸다 |
+
+`DiffObjects(a, b)` 는 a 를 b 로 만드는 변경을 `(객체 키, 필드)` 순으로 낸다(새 객체 = `ChangePut`, 사라진 객체 = `ChangeDel`, 바뀐 필드 = `ChangeSet`).
+
+### 2.3 관대한 적재 (`FromObjects`)
+
+검증을 거치지 않은 공유 문서·오프라인 재전송·되돌리기가 만든 상태도 모든 클라이언트에서 **같은** 설계가 되게, 결정적으로 고친다(입력 순서와 무관 — 객체 키 정렬 순으로 읽는다). 고친 것마다 이슈(경로 = `<객체 키>.<필드>`)를 돌려준다.
+
+1. 모르는 필드는 무시. 지워진 객체는 없는 것과 같다.
+2. 필드 값의 타입이 틀리거나 범위 밖이면 그 필드만 기본값(노드 = `Defaults(kind)`, 연결 = `DefaultEdge`, 상자 = 2.1 의 기본) — `range`·`label_too_long`·`unknown_kind`. `autoscale.enabled` 인데 `min > max` 면 둘 다 기본값.
+3. `kind` 가 모르는 값인 노드·상자·장애는 뺀다(`unknown_kind`).
+4. 한도 초과: 상자 100·노드 300 을 넘는 것은 ID 순 뒤에서 버린다(`too_many_*`).
+5. 없는 상자를 가리키는 상자 `parent` 는 `""`(`dangling_ref`). 상자 부모 순환은 순환 안에서 **가장 작은 ID** 의 `parent` 를 `""` 로(`depth`). 그 뒤 3단보다 깊은 상자는 ID 순으로 하나씩, 3단 안에 들 때까지 조부모로 올린다(`depth`). 종류 규칙(1.3 `parent_kind`)은 고치지 않는다 — 설계 점검이 경고한다.
+6. 없는 상자를 가리키는 노드 `parent`, 없는 노드·자기 자신을 가리키는 `params.failover_to` 는 `""`(`dangling_ref`).
+7. 끝점이 없는 연결, 대상이 없거나 종류가 맞지 않는 장애는 뺀다(경로 = 객체 키, `dangling_ref`). 그 뒤 연결 1,000·장애 50 초과분을 ID 순 뒤에서 버린다.

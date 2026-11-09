@@ -427,7 +427,7 @@ func Decode(data []byte) (*Design, error) {
 		return n
 	})
 	d.Boxes = decodeList(root, "boxes", &is, func(o *obj, path string) Box {
-		var b Box
+		b := defaultBox()
 		decodeInto(&b, o, boxFields, path, &is)
 		return b
 	})
