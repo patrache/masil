@@ -113,6 +113,10 @@ func (m *canvasModel) drawHelp(ctx *ui.Context, b *buf, r layout.Rect) {
 	for _, k := range helpKeys {
 		lines = append(lines, line{textwidth.PadRight(k.keys, kw) + "  " + k.desc(ctx.T), sBase})
 	}
+	lines = append(lines, line{"", sBase})
+	for _, s := range textwidth.Wrap(ctx.T.Archcanvas.ExportRights(), w) {
+		lines = append(lines, line{s, sDim})
+	}
 	for i, l := range lines {
 		if i >= r.H {
 			break

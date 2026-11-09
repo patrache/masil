@@ -227,6 +227,87 @@ desc = "시간 실행 이벤트: 쓰기 실패(장애 조치 대상 없음)"
 params = { target = "string" }
 other = "{target} 쓰기 실패 100%"
 
+[export_copied]
+desc = "클립보드로 보낸 뒤 알림"
+other = "클립보드에 복사했어요"
+
+[export_d2]
+desc = "내보내기 형식: D2"
+other = "D2 그림 (.d2)"
+
+[export_hint]
+desc = "내보내기 키 안내"
+other = "j k 고르기 · enter 확인 · esc 닫기"
+
+[export_json]
+desc = "내보내기 형식: 설계 JSON"
+other = "설계 JSON (.json)"
+
+[export_mermaid]
+desc = "내보내기 형식: Mermaid"
+other = "Mermaid 그림 (.mmd)"
+
+[export_overwrite_title]
+desc = "덮어쓰기 확인 제목. name = 파일 이름"
+params = { name = "string" }
+other = "'{name}' 파일이 이미 있어요. 덮어쓸까요?"
+
+[export_overwrite_yes]
+desc = "덮어쓰기 확인 버튼"
+other = "덮어쓰기"
+
+[export_path]
+desc = "저장될 파일 경로. path = 경로"
+params = { path = "string" }
+other = "저장 위치 {path}"
+
+[export_rights]
+desc = "내보낸 파일의 권리 고지(법적 문구, 내보내기 대화상자·도움말)"
+legal = true
+other = "생성된 파일의 권리는 사용자에게 있음"
+
+[export_save_failed]
+desc = "파일로 저장하지 못했을 때"
+other = "파일로 저장하지 못했어요"
+
+[export_saved]
+desc = "파일로 저장한 뒤 알림. path = 경로"
+params = { path = "string" }
+no_truncate = true
+other = "{path} 에 저장했어요"
+
+[export_terraform]
+desc = "내보내기 형식: Terraform"
+other = "Terraform AWS 뼈대 (.tf)"
+
+[export_text120]
+desc = "내보내기 형식: 글자 스냅숏 120칸"
+other = "글자 스냅숏 120칸 (.txt)"
+
+[export_text80]
+desc = "내보내기 형식: 글자 스냅숏 80칸"
+other = "글자 스냅숏 80칸 (.txt)"
+
+[export_title]
+desc = "내보내기 대화상자 제목"
+other = "내보내기"
+
+[export_to_clipboard]
+desc = "내보내기 대상: 클립보드"
+other = "클립보드"
+
+[export_to_file]
+desc = "내보내기 대상: 파일"
+other = "파일로 저장"
+
+[export_use_file]
+desc = "클립보드 한도(256KB)를 넘을 때"
+other = "클립보드에 담기엔 너무 커요 · 파일로 저장하세요"
+
+[export_where]
+desc = "내보내기 대상 고르기 머리"
+other = "어디로 보낼까요?"
+
 [fault_add_ms]
 desc = "장애 메뉴: 더할 지연 ms 입력 머리"
 other = "더할 지연 ms"
@@ -501,6 +582,74 @@ other = "작업 데이터 MiB"
 desc = "설정 칸: 쓰기 요청 하나가 쓰는 IOPS × 1000"
 other = "쓰기 IOPS‰"
 
+[files_bad_name]
+desc = "파일 이름으로 쓸 수 없는 이름"
+other = "쓸 수 없는 이름이에요"
+
+[files_delete_body]
+desc = "지우기 확인 본문"
+other = "지운 설계는 되돌릴 수 없어요"
+
+[files_delete_title]
+desc = "지우기 확인 제목. name = 설계 이름"
+params = { name = "string" }
+other = "'{name}' 설계를 지울까요?"
+
+[files_delete_yes]
+desc = "지우기 확인 버튼"
+other = "지우기"
+
+[files_deleted]
+desc = "지운 뒤 알림. name = 설계 이름"
+params = { name = "string" }
+other = "'{name}' 설계를 지웠어요"
+
+[files_empty]
+desc = "개인 설계가 하나도 없을 때"
+other = "저장한 설계가 없어요"
+
+[files_failed]
+desc = "설계 폴더를 읽거나 쓰지 못했을 때"
+other = "설계 폴더를 읽거나 쓰지 못했어요"
+
+[files_hint]
+desc = "개인 설계 목록 키 안내"
+other = "enter 열기 · n 새로 · r 이름 바꾸기 · d 지우기 · i 가져오기 · esc 닫기"
+
+[files_import_prompt]
+desc = "JSON 가져오기 경로 입력 칸 머리"
+other = "가져올 설계 JSON 파일 경로"
+
+[files_input_hint]
+desc = "입력 칸 키 안내"
+other = "enter 확인 · esc 취소"
+
+[files_is_open]
+desc = "열려 있는 설계를 바꾸거나 지우려 할 때"
+other = "열려 있는 설계예요 · 닫은 뒤 다시 해 주세요"
+
+[files_name_exists]
+desc = "같은 이름의 설계가 있을 때"
+other = "같은 이름의 설계가 있어요"
+
+[files_new_prompt]
+desc = "새 설계 이름 입력 칸 머리"
+other = "새 설계 이름"
+
+[files_nodes]
+desc = "개인 설계 목록 줄: 노드 수"
+params = { n = "int" }
+other = "노드 {n}개"
+
+[files_rename_prompt]
+desc = "이름 바꾸기 입력 칸 머리. name = 지금 이름"
+params = { name = "string" }
+other = "'{name}'의 새 이름"
+
+[files_title]
+desc = "개인 설계 열기 대화상자 제목"
+other = "내 설계"
+
 [find_none]
 desc = "찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말"
 params = { q = "string" }
@@ -520,6 +669,32 @@ desc = "설정 패널: 인스턴스 종류의 시간당 가격. usd = 달러(소
 params = { usd = "string", asof = "string" }
 no_truncate = true
 other = "시간당 ~${usd} (추정 · {asof} 가격표)"
+
+[import_done]
+desc = "가져온 뒤 알림. name = 저장한 이름"
+params = { name = "string" }
+other = "'{name}'(으)로 가져왔어요"
+
+[import_invalid]
+desc = "가져올 설계가 검사에 걸렸을 때. issue = 경로: 코드"
+params = { issue = "string" }
+other = "설계 검사에 걸렸어요: {issue}"
+
+[import_read_failed]
+desc = "가져올 파일을 읽지 못했을 때"
+other = "파일을 읽지 못했어요"
+
+[import_syntax]
+desc = "가져올 파일이 JSON 객체가 아닐 때"
+other = "설계 JSON 파일이 아니에요"
+
+[import_too_large]
+desc = "가져올 파일이 1MB 를 넘을 때"
+other = "1MB보다 큰 파일은 가져올 수 없어요"
+
+[import_version]
+desc = "가져올 파일의 schema_version 이 다를 때"
+other = "지원하지 않는 설계 버전이에요"
 
 [invalid_value]
 desc = "설정 칸 값을 설계가 받지 않을 때(라벨 너무 김·금지 문자·최소 > 최대)"
@@ -939,6 +1114,36 @@ other = "저장됨"
 desc = "머리 줄 저장 상태: 파일 이름이 없는 새 설계"
 other = "저장 안 됨"
 
+[snap_col_cost]
+desc = "글자 스냅숏 표 머리: 비용"
+other = "비용"
+
+[snap_col_instances]
+desc = "글자 스냅숏 표 머리: 대수"
+other = "대수"
+
+[snap_col_kind]
+desc = "글자 스냅숏 표 머리: 종류"
+other = "종류"
+
+[snap_col_name]
+desc = "글자 스냅숏 표 머리: 이름"
+other = "이름"
+
+[snap_col_p99]
+desc = "글자 스냅숏 표 머리: p99"
+other = "p99"
+
+[snap_col_util]
+desc = "글자 스냅숏 표 머리: 사용률"
+other = "사용률"
+
+[snap_cost_note]
+desc = "글자 스냅숏 총비용 뒤 꼬리. asof = 가격표 기준 연월"
+params = { asof = "string" }
+legal = true
+other = "/월 (추정 · {asof} 가격표)"
+
 [status_copy]
 desc = "허브 상태: 채팅 카드에서 연 사본"
 params = { title = "string" }
@@ -958,6 +1163,11 @@ desc = "허브 상태: 방에 공유된 설계. title = 설계 제목, n = 지�
 params = { title = "string", n = "int" }
 count = "n"
 other = "{title} (방) · {n}명 편집 중"
+
+[tf_header]
+desc = "Terraform 내보내기 머리 주석(법적 문구)"
+legal = true
+other = "자동 생성된 뼈대 · 실행 전 검토 필요 · masil 은 이 파일을 실행하지 않음"
 
 [tiny_bottleneck]
 desc = "초소형 요약 병목 줄"

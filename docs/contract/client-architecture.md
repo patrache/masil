@@ -519,6 +519,7 @@ embedded = true            # false => 내장 패널을 쓰지 않음(도구는 �
 [tools.lazygit]            # [tools.<절>] — 절 이름 = config.ToolConfigSection(도구 ID): git → lazygit, leet·workspace·arch·api 는 ID 그대로
 open = "auto"              # auto | pane | exec | window (그 밖 값 => auto). 모든 도구 공통 키
 # 나머지 키는 그 도구 소유: P1 [tools.lazygit] path·repo·theme_overlay, [tools.leet] lang·dir·auto_status / P4 [tools.api] …
+# [tools.arch] export_dir = "~/masil/arch-exports"  # 내보내기(파일로 저장) 폴더. 비거나 없으면 이 기본값, "~/" 는 홈 (P3 Task 20)
 ```
 
 ```go

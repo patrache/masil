@@ -134,7 +134,7 @@ func registerCommands() {
 		{ID: "arch.new", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteNew() }, Keywords: []string{"arch", "architecture", "new"}, Available: flag,
 			Run: func(*ui.Context, string) tea.Cmd { return openNew(nil) }},
 		{ID: "arch.open", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteOpen() }, Keywords: []string{"arch", "architecture", "open"}, Available: flag,
-			Run: func(*ui.Context, string) tea.Cmd { return openNew(map[string]string{queryDialog: "open"}) }},
+			Run: func(*ui.Context, string) tea.Cmd { return ui.OpenOverlay(newFilesDialog()) }},
 		{ID: "arch.share", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteShare() }, Keywords: []string{"arch", "share"}, Available: front, Run: toFront("arch.share")},
 		{ID: "arch.export", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteExport() }, Keywords: []string{"arch", "export", "mermaid", "terraform"}, Available: front, Run: toFront("arch.export")},
 		{ID: "arch.versions", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteVersions() }, Keywords: []string{"arch", "versions"}, Available: front, Run: toFront("arch.versions")},

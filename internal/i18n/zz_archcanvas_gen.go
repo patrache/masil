@@ -383,6 +383,144 @@ var areaArchcanvas = area{
 				En: {Other: "{target} writes failing 100%"},
 			},
 		},
+		"export_copied": {
+			desc: "클립보드로 보낸 뒤 알림",
+			text: map[Locale]Forms{
+				Ko: {Other: "클립보드에 복사했어요"},
+				En: {Other: "Copied to the clipboard"},
+			},
+		},
+		"export_d2": {
+			desc: "내보내기 형식: D2",
+			text: map[Locale]Forms{
+				Ko: {Other: "D2 그림 (.d2)"},
+				En: {Other: "D2 diagram (.d2)"},
+			},
+		},
+		"export_hint": {
+			desc: "내보내기 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "j k 고르기 · enter 확인 · esc 닫기"},
+				En: {Other: "j k choose · enter confirm · esc close"},
+			},
+		},
+		"export_json": {
+			desc: "내보내기 형식: 설계 JSON",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 JSON (.json)"},
+				En: {Other: "Design JSON (.json)"},
+			},
+		},
+		"export_mermaid": {
+			desc: "내보내기 형식: Mermaid",
+			text: map[Locale]Forms{
+				Ko: {Other: "Mermaid 그림 (.mmd)"},
+				En: {Other: "Mermaid diagram (.mmd)"},
+			},
+		},
+		"export_overwrite_title": {
+			desc:   "덮어쓰기 확인 제목. name = 파일 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}' 파일이 이미 있어요. 덮어쓸까요?"},
+				En: {Other: "'{name}' exists. Overwrite it?"},
+			},
+		},
+		"export_overwrite_yes": {
+			desc: "덮어쓰기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "덮어쓰기"},
+				En: {Other: "Overwrite"},
+			},
+		},
+		"export_path": {
+			desc:   "저장될 파일 경로. path = 경로",
+			params: []Param{{Name: "path", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "저장 위치 {path}"},
+				En: {Other: "Saves to {path}"},
+			},
+		},
+		"export_rights": {
+			desc:  "내보낸 파일의 권리 고지(법적 문구, 내보내기 대화상자·도움말)",
+			legal: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "생성된 파일의 권리는 사용자에게 있음"},
+				En: {Other: "You own the rights to the generated files"},
+			},
+		},
+		"export_save_failed": {
+			desc: "파일로 저장하지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일로 저장하지 못했어요"},
+				En: {Other: "Could not save the file"},
+			},
+		},
+		"export_saved": {
+			desc:       "파일로 저장한 뒤 알림. path = 경로",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 에 저장했어요"},
+				En: {Other: "Saved to {path}"},
+			},
+		},
+		"export_terraform": {
+			desc: "내보내기 형식: Terraform",
+			text: map[Locale]Forms{
+				Ko: {Other: "Terraform AWS 뼈대 (.tf)"},
+				En: {Other: "Terraform AWS skeleton (.tf)"},
+			},
+		},
+		"export_text120": {
+			desc: "내보내기 형식: 글자 스냅숏 120칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "글자 스냅숏 120칸 (.txt)"},
+				En: {Other: "Text snapshot, 120 columns (.txt)"},
+			},
+		},
+		"export_text80": {
+			desc: "내보내기 형식: 글자 스냅숏 80칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "글자 스냅숏 80칸 (.txt)"},
+				En: {Other: "Text snapshot, 80 columns (.txt)"},
+			},
+		},
+		"export_title": {
+			desc: "내보내기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내기"},
+				En: {Other: "Export"},
+			},
+		},
+		"export_to_clipboard": {
+			desc: "내보내기 대상: 클립보드",
+			text: map[Locale]Forms{
+				Ko: {Other: "클립보드"},
+				En: {Other: "Clipboard"},
+			},
+		},
+		"export_to_file": {
+			desc: "내보내기 대상: 파일",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일로 저장"},
+				En: {Other: "Save to a file"},
+			},
+		},
+		"export_use_file": {
+			desc: "클립보드 한도(256KB)를 넘을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "클립보드에 담기엔 너무 커요 · 파일로 저장하세요"},
+				En: {Other: "Too large for the clipboard · save it to a file"},
+			},
+		},
+		"export_where": {
+			desc: "내보내기 대상 고르기 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "어디로 보낼까요?"},
+				En: {Other: "Where to?"},
+			},
+		},
 		"fault_add_ms": {
 			desc: "장애 메뉴: 더할 지연 ms 입력 머리",
 			text: map[Locale]Forms{
@@ -858,6 +996,122 @@ var areaArchcanvas = area{
 				En: {Other: "Write IOPS‰"},
 			},
 		},
+		"files_bad_name": {
+			desc: "파일 이름으로 쓸 수 없는 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "쓸 수 없는 이름이에요"},
+				En: {Other: "That name cannot be used"},
+			},
+		},
+		"files_delete_body": {
+			desc: "지우기 확인 본문",
+			text: map[Locale]Forms{
+				Ko: {Other: "지운 설계는 되돌릴 수 없어요"},
+				En: {Other: "A deleted design cannot be brought back"},
+			},
+		},
+		"files_delete_title": {
+			desc:   "지우기 확인 제목. name = 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}' 설계를 지울까요?"},
+				En: {Other: "Delete the design '{name}'?"},
+			},
+		},
+		"files_delete_yes": {
+			desc: "지우기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "지우기"},
+				En: {Other: "Delete"},
+			},
+		},
+		"files_deleted": {
+			desc:   "지운 뒤 알림. name = 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}' 설계를 지웠어요"},
+				En: {Other: "Deleted the design '{name}'"},
+			},
+		},
+		"files_empty": {
+			desc: "개인 설계가 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장한 설계가 없어요"},
+				En: {Other: "No saved designs yet"},
+			},
+		},
+		"files_failed": {
+			desc: "설계 폴더를 읽거나 쓰지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 폴더를 읽거나 쓰지 못했어요"},
+				En: {Other: "Could not read or write the designs folder"},
+			},
+		},
+		"files_hint": {
+			desc: "개인 설계 목록 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 열기 · n 새로 · r 이름 바꾸기 · d 지우기 · i 가져오기 · esc 닫기"},
+				En: {Other: "enter open · n new · r rename · d delete · i import · esc close"},
+			},
+		},
+		"files_import_prompt": {
+			desc: "JSON 가져오기 경로 입력 칸 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "가져올 설계 JSON 파일 경로"},
+				En: {Other: "Path of the design JSON to import"},
+			},
+		},
+		"files_input_hint": {
+			desc: "입력 칸 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 확인 · esc 취소"},
+				En: {Other: "enter confirm · esc cancel"},
+			},
+		},
+		"files_is_open": {
+			desc: "열려 있는 설계를 바꾸거나 지우려 할 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "열려 있는 설계예요 · 닫은 뒤 다시 해 주세요"},
+				En: {Other: "That design is open · close it first"},
+			},
+		},
+		"files_name_exists": {
+			desc: "같은 이름의 설계가 있을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "같은 이름의 설계가 있어요"},
+				En: {Other: "A design with that name exists"},
+			},
+		},
+		"files_new_prompt": {
+			desc: "새 설계 이름 입력 칸 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 설계 이름"},
+				En: {Other: "New design name"},
+			},
+		},
+		"files_nodes": {
+			desc:   "개인 설계 목록 줄: 노드 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 {n}개"},
+				En: {Other: "{n} nodes"},
+			},
+		},
+		"files_rename_prompt": {
+			desc:   "이름 바꾸기 입력 칸 머리. name = 지금 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}'의 새 이름"},
+				En: {Other: "New name for '{name}'"},
+			},
+		},
+		"files_title": {
+			desc: "개인 설계 열기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "내 설계"},
+				En: {Other: "My designs"},
+			},
+		},
 		"find_none": {
 			desc:   "찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말",
 			params: []Param{{Name: "q", Type: "string"}},
@@ -888,6 +1142,50 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "시간당 ~${usd} (추정 · {asof} 가격표)"},
 				En: {Other: "~${usd}/h (estimate · {asof} prices)"},
+			},
+		},
+		"import_done": {
+			desc:   "가져온 뒤 알림. name = 저장한 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}'(으)로 가져왔어요"},
+				En: {Other: "Imported as '{name}'"},
+			},
+		},
+		"import_invalid": {
+			desc:   "가져올 설계가 검사에 걸렸을 때. issue = 경로: 코드",
+			params: []Param{{Name: "issue", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 검사에 걸렸어요: {issue}"},
+				En: {Other: "The design failed a check: {issue}"},
+			},
+		},
+		"import_read_failed": {
+			desc: "가져올 파일을 읽지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일을 읽지 못했어요"},
+				En: {Other: "Could not read the file"},
+			},
+		},
+		"import_syntax": {
+			desc: "가져올 파일이 JSON 객체가 아닐 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 JSON 파일이 아니에요"},
+				En: {Other: "Not a design JSON file"},
+			},
+		},
+		"import_too_large": {
+			desc: "가져올 파일이 1MB 를 넘을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "1MB보다 큰 파일은 가져올 수 없어요"},
+				En: {Other: "Files over 1MB cannot be imported"},
+			},
+		},
+		"import_version": {
+			desc: "가져올 파일의 schema_version 이 다를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "지원하지 않는 설계 버전이에요"},
+				En: {Other: "Unsupported design version"},
 			},
 		},
 		"invalid_value": {
@@ -1608,6 +1906,57 @@ var areaArchcanvas = area{
 				En: {Other: "Not saved"},
 			},
 		},
+		"snap_col_cost": {
+			desc: "글자 스냅숏 표 머리: 비용",
+			text: map[Locale]Forms{
+				Ko: {Other: "비용"},
+				En: {Other: "Cost"},
+			},
+		},
+		"snap_col_instances": {
+			desc: "글자 스냅숏 표 머리: 대수",
+			text: map[Locale]Forms{
+				Ko: {Other: "대수"},
+				En: {Other: "Count"},
+			},
+		},
+		"snap_col_kind": {
+			desc: "글자 스냅숏 표 머리: 종류",
+			text: map[Locale]Forms{
+				Ko: {Other: "종류"},
+				En: {Other: "Kind"},
+			},
+		},
+		"snap_col_name": {
+			desc: "글자 스냅숏 표 머리: 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름"},
+				En: {Other: "Name"},
+			},
+		},
+		"snap_col_p99": {
+			desc: "글자 스냅숏 표 머리: p99",
+			text: map[Locale]Forms{
+				Ko: {Other: "p99"},
+				En: {Other: "p99"},
+			},
+		},
+		"snap_col_util": {
+			desc: "글자 스냅숏 표 머리: 사용률",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용률"},
+				En: {Other: "Util"},
+			},
+		},
+		"snap_cost_note": {
+			desc:   "글자 스냅숏 총비용 뒤 꼬리. asof = 가격표 기준 연월",
+			params: []Param{{Name: "asof", Type: "string"}},
+			legal:  true,
+			text: map[Locale]Forms{
+				Ko: {Other: "/월 (추정 · {asof} 가격표)"},
+				En: {Other: "/mo (estimate · {asof} prices)"},
+			},
+		},
 		"status_copy": {
 			desc:   "허브 상태: 채팅 카드에서 연 사본",
 			params: []Param{{Name: "title", Type: "string"}},
@@ -1638,6 +1987,14 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{title} (방) · {n}명 편집 중"},
 				En: {One: "{title} (room) · {n} editing", Other: "{title} (room) · {n} editing"},
+			},
+		},
+		"tf_header": {
+			desc:  "Terraform 내보내기 머리 주석(법적 문구)",
+			legal: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 생성된 뼈대 · 실행 전 검토 필요 · masil 은 이 파일을 실행하지 않음"},
+				En: {Other: "Generated skeleton · review before use · masil never runs this file"},
 			},
 		},
 		"tiny_bottleneck": {
@@ -1991,6 +2348,101 @@ func (a_ ArchcanvasT) EvWritesFailing(target string) string {
 	return a_.t.render(&areaArchcanvas, "ev_writes_failing", false, 0, "target", target)
 }
 
+// ExportCopied: 클립보드로 보낸 뒤 알림
+func (a_ ArchcanvasT) ExportCopied() string {
+	return a_.t.render(&areaArchcanvas, "export_copied", false, 0)
+}
+
+// ExportD2: 내보내기 형식: D2
+func (a_ ArchcanvasT) ExportD2() string {
+	return a_.t.render(&areaArchcanvas, "export_d2", false, 0)
+}
+
+// ExportHint: 내보내기 키 안내
+func (a_ ArchcanvasT) ExportHint() string {
+	return a_.t.render(&areaArchcanvas, "export_hint", false, 0)
+}
+
+// ExportJson: 내보내기 형식: 설계 JSON
+func (a_ ArchcanvasT) ExportJson() string {
+	return a_.t.render(&areaArchcanvas, "export_json", false, 0)
+}
+
+// ExportMermaid: 내보내기 형식: Mermaid
+func (a_ ArchcanvasT) ExportMermaid() string {
+	return a_.t.render(&areaArchcanvas, "export_mermaid", false, 0)
+}
+
+// ExportOverwriteTitle: 덮어쓰기 확인 제목. name = 파일 이름
+func (a_ ArchcanvasT) ExportOverwriteTitle(name string) string {
+	return a_.t.render(&areaArchcanvas, "export_overwrite_title", false, 0, "name", name)
+}
+
+// ExportOverwriteYes: 덮어쓰기 확인 버튼
+func (a_ ArchcanvasT) ExportOverwriteYes() string {
+	return a_.t.render(&areaArchcanvas, "export_overwrite_yes", false, 0)
+}
+
+// ExportPath: 저장될 파일 경로. path = 경로
+func (a_ ArchcanvasT) ExportPath(path string) string {
+	return a_.t.render(&areaArchcanvas, "export_path", false, 0, "path", path)
+}
+
+// ExportRights: 내보낸 파일의 권리 고지(법적 문구, 내보내기 대화상자·도움말)
+func (a_ ArchcanvasT) ExportRights() string {
+	return a_.t.render(&areaArchcanvas, "export_rights", false, 0)
+}
+
+// ExportSaveFailed: 파일로 저장하지 못했을 때
+func (a_ ArchcanvasT) ExportSaveFailed() string {
+	return a_.t.render(&areaArchcanvas, "export_save_failed", false, 0)
+}
+
+// ExportSaved: 파일로 저장한 뒤 알림. path = 경로
+func (a_ ArchcanvasT) ExportSaved(path string) string {
+	return a_.t.render(&areaArchcanvas, "export_saved", false, 0, "path", path)
+}
+
+// ExportTerraform: 내보내기 형식: Terraform
+func (a_ ArchcanvasT) ExportTerraform() string {
+	return a_.t.render(&areaArchcanvas, "export_terraform", false, 0)
+}
+
+// ExportText120: 내보내기 형식: 글자 스냅숏 120칸
+func (a_ ArchcanvasT) ExportText120() string {
+	return a_.t.render(&areaArchcanvas, "export_text120", false, 0)
+}
+
+// ExportText80: 내보내기 형식: 글자 스냅숏 80칸
+func (a_ ArchcanvasT) ExportText80() string {
+	return a_.t.render(&areaArchcanvas, "export_text80", false, 0)
+}
+
+// ExportTitle: 내보내기 대화상자 제목
+func (a_ ArchcanvasT) ExportTitle() string {
+	return a_.t.render(&areaArchcanvas, "export_title", false, 0)
+}
+
+// ExportToClipboard: 내보내기 대상: 클립보드
+func (a_ ArchcanvasT) ExportToClipboard() string {
+	return a_.t.render(&areaArchcanvas, "export_to_clipboard", false, 0)
+}
+
+// ExportToFile: 내보내기 대상: 파일
+func (a_ ArchcanvasT) ExportToFile() string {
+	return a_.t.render(&areaArchcanvas, "export_to_file", false, 0)
+}
+
+// ExportUseFile: 클립보드 한도(256KB)를 넘을 때
+func (a_ ArchcanvasT) ExportUseFile() string {
+	return a_.t.render(&areaArchcanvas, "export_use_file", false, 0)
+}
+
+// ExportWhere: 내보내기 대상 고르기 머리
+func (a_ ArchcanvasT) ExportWhere() string {
+	return a_.t.render(&areaArchcanvas, "export_where", false, 0)
+}
+
 // FaultAddMs: 장애 메뉴: 더할 지연 ms 입력 머리
 func (a_ ArchcanvasT) FaultAddMs() string {
 	return a_.t.render(&areaArchcanvas, "fault_add_ms", false, 0)
@@ -2326,6 +2778,86 @@ func (a_ ArchcanvasT) FieldWriteIops() string {
 	return a_.t.render(&areaArchcanvas, "field_write_iops", false, 0)
 }
 
+// FilesBadName: 파일 이름으로 쓸 수 없는 이름
+func (a_ ArchcanvasT) FilesBadName() string {
+	return a_.t.render(&areaArchcanvas, "files_bad_name", false, 0)
+}
+
+// FilesDeleteBody: 지우기 확인 본문
+func (a_ ArchcanvasT) FilesDeleteBody() string {
+	return a_.t.render(&areaArchcanvas, "files_delete_body", false, 0)
+}
+
+// FilesDeleteTitle: 지우기 확인 제목. name = 설계 이름
+func (a_ ArchcanvasT) FilesDeleteTitle(name string) string {
+	return a_.t.render(&areaArchcanvas, "files_delete_title", false, 0, "name", name)
+}
+
+// FilesDeleteYes: 지우기 확인 버튼
+func (a_ ArchcanvasT) FilesDeleteYes() string {
+	return a_.t.render(&areaArchcanvas, "files_delete_yes", false, 0)
+}
+
+// FilesDeleted: 지운 뒤 알림. name = 설계 이름
+func (a_ ArchcanvasT) FilesDeleted(name string) string {
+	return a_.t.render(&areaArchcanvas, "files_deleted", false, 0, "name", name)
+}
+
+// FilesEmpty: 개인 설계가 하나도 없을 때
+func (a_ ArchcanvasT) FilesEmpty() string {
+	return a_.t.render(&areaArchcanvas, "files_empty", false, 0)
+}
+
+// FilesFailed: 설계 폴더를 읽거나 쓰지 못했을 때
+func (a_ ArchcanvasT) FilesFailed() string {
+	return a_.t.render(&areaArchcanvas, "files_failed", false, 0)
+}
+
+// FilesHint: 개인 설계 목록 키 안내
+func (a_ ArchcanvasT) FilesHint() string {
+	return a_.t.render(&areaArchcanvas, "files_hint", false, 0)
+}
+
+// FilesImportPrompt: JSON 가져오기 경로 입력 칸 머리
+func (a_ ArchcanvasT) FilesImportPrompt() string {
+	return a_.t.render(&areaArchcanvas, "files_import_prompt", false, 0)
+}
+
+// FilesInputHint: 입력 칸 키 안내
+func (a_ ArchcanvasT) FilesInputHint() string {
+	return a_.t.render(&areaArchcanvas, "files_input_hint", false, 0)
+}
+
+// FilesIsOpen: 열려 있는 설계를 바꾸거나 지우려 할 때
+func (a_ ArchcanvasT) FilesIsOpen() string {
+	return a_.t.render(&areaArchcanvas, "files_is_open", false, 0)
+}
+
+// FilesNameExists: 같은 이름의 설계가 있을 때
+func (a_ ArchcanvasT) FilesNameExists() string {
+	return a_.t.render(&areaArchcanvas, "files_name_exists", false, 0)
+}
+
+// FilesNewPrompt: 새 설계 이름 입력 칸 머리
+func (a_ ArchcanvasT) FilesNewPrompt() string {
+	return a_.t.render(&areaArchcanvas, "files_new_prompt", false, 0)
+}
+
+// FilesNodes: 개인 설계 목록 줄: 노드 수
+func (a_ ArchcanvasT) FilesNodes(n int) string {
+	return a_.t.render(&areaArchcanvas, "files_nodes", false, 0, "n", strconv.Itoa(n))
+}
+
+// FilesRenamePrompt: 이름 바꾸기 입력 칸 머리. name = 지금 이름
+func (a_ ArchcanvasT) FilesRenamePrompt(name string) string {
+	return a_.t.render(&areaArchcanvas, "files_rename_prompt", false, 0, "name", name)
+}
+
+// FilesTitle: 개인 설계 열기 대화상자 제목
+func (a_ ArchcanvasT) FilesTitle() string {
+	return a_.t.render(&areaArchcanvas, "files_title", false, 0)
+}
+
 // FindNone: 찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말
 func (a_ ArchcanvasT) FindNone(q string) string {
 	return a_.t.render(&areaArchcanvas, "find_none", false, 0, "q", q)
@@ -2344,6 +2876,36 @@ func (a_ ArchcanvasT) HelpTitle() string {
 // HourlyPrice: 설정 패널: 인스턴스 종류의 시간당 가격. usd = 달러(소수), asof = 가격표 기준 연월
 func (a_ ArchcanvasT) HourlyPrice(usd string, asof string) string {
 	return a_.t.render(&areaArchcanvas, "hourly_price", false, 0, "usd", usd, "asof", asof)
+}
+
+// ImportDone: 가져온 뒤 알림. name = 저장한 이름
+func (a_ ArchcanvasT) ImportDone(name string) string {
+	return a_.t.render(&areaArchcanvas, "import_done", false, 0, "name", name)
+}
+
+// ImportInvalid: 가져올 설계가 검사에 걸렸을 때. issue = 경로: 코드
+func (a_ ArchcanvasT) ImportInvalid(issue string) string {
+	return a_.t.render(&areaArchcanvas, "import_invalid", false, 0, "issue", issue)
+}
+
+// ImportReadFailed: 가져올 파일을 읽지 못했을 때
+func (a_ ArchcanvasT) ImportReadFailed() string {
+	return a_.t.render(&areaArchcanvas, "import_read_failed", false, 0)
+}
+
+// ImportSyntax: 가져올 파일이 JSON 객체가 아닐 때
+func (a_ ArchcanvasT) ImportSyntax() string {
+	return a_.t.render(&areaArchcanvas, "import_syntax", false, 0)
+}
+
+// ImportTooLarge: 가져올 파일이 1MB 를 넘을 때
+func (a_ ArchcanvasT) ImportTooLarge() string {
+	return a_.t.render(&areaArchcanvas, "import_too_large", false, 0)
+}
+
+// ImportVersion: 가져올 파일의 schema_version 이 다를 때
+func (a_ ArchcanvasT) ImportVersion() string {
+	return a_.t.render(&areaArchcanvas, "import_version", false, 0)
 }
 
 // InvalidValue: 설정 칸 값을 설계가 받지 않을 때(라벨 너무 김·금지 문자·최소 > 최대)
@@ -2846,6 +3408,41 @@ func (a_ ArchcanvasT) SaveUnsaved() string {
 	return a_.t.render(&areaArchcanvas, "save_unsaved", false, 0)
 }
 
+// SnapColCost: 글자 스냅숏 표 머리: 비용
+func (a_ ArchcanvasT) SnapColCost() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_cost", false, 0)
+}
+
+// SnapColInstances: 글자 스냅숏 표 머리: 대수
+func (a_ ArchcanvasT) SnapColInstances() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_instances", false, 0)
+}
+
+// SnapColKind: 글자 스냅숏 표 머리: 종류
+func (a_ ArchcanvasT) SnapColKind() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_kind", false, 0)
+}
+
+// SnapColName: 글자 스냅숏 표 머리: 이름
+func (a_ ArchcanvasT) SnapColName() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_name", false, 0)
+}
+
+// SnapColP99: 글자 스냅숏 표 머리: p99
+func (a_ ArchcanvasT) SnapColP99() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_p99", false, 0)
+}
+
+// SnapColUtil: 글자 스냅숏 표 머리: 사용률
+func (a_ ArchcanvasT) SnapColUtil() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_util", false, 0)
+}
+
+// SnapCostNote: 글자 스냅숏 총비용 뒤 꼬리. asof = 가격표 기준 연월
+func (a_ ArchcanvasT) SnapCostNote(asof string) string {
+	return a_.t.render(&areaArchcanvas, "snap_cost_note", false, 0, "asof", asof)
+}
+
 // StatusCopy: 허브 상태: 채팅 카드에서 연 사본
 func (a_ ArchcanvasT) StatusCopy(title string) string {
 	return a_.t.render(&areaArchcanvas, "status_copy", false, 0, "title", title)
@@ -2864,6 +3461,11 @@ func (a_ ArchcanvasT) StatusPersonal(title string) string {
 // StatusRoom: 허브 상태: 방에 공유된 설계. title = 설계 제목, n = 지금 편집 중인 사람 수
 func (a_ ArchcanvasT) StatusRoom(title string, n int) string {
 	return a_.t.render(&areaArchcanvas, "status_room", false, n, "title", title, "n", strconv.Itoa(n))
+}
+
+// TfHeader: Terraform 내보내기 머리 주석(법적 문구)
+func (a_ ArchcanvasT) TfHeader() string {
+	return a_.t.render(&areaArchcanvas, "tf_header", false, 0)
 }
 
 // TinyBottleneck: 초소형 요약 병목 줄

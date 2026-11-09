@@ -110,6 +110,17 @@ func (m *canvasModel) Init(ctx *ui.Context) tea.Cmd {
 		return nil
 	}
 	q := m.route.Query
+	var dialog tea.Cmd
+	if q[queryDialog] == "open" {
+		dialog = ui.OpenOverlay(newFilesDialog())
+	}
+	m.initSink(ctx)
+	return dialog
+}
+
+// initSink picks the design source from the instance query.
+func (m *canvasModel) initSink(ctx *ui.Context) {
+	q := m.route.Query
 	switch {
 	case q[queryFile] != "":
 		name := q[queryFile]
@@ -124,10 +135,10 @@ func (m *canvasModel) Init(ctx *ui.Context) tea.Cmd {
 				m.loadErr = ""
 				d = archdoc.New(name) // a name not saved yet: start it
 				m.setSink(ctx, &localSink{instance: m.route.ID, store: st, name: name, objs: d.ToObjects(), timers: ctx.Timers})
-				return nil
+				return
 			}
 			m.setSink(ctx, &copySink{objs: archdoc.New("").ToObjects(), reason: roBroken})
-			return nil
+			return
 		}
 		m.setSink(ctx, &localSink{instance: m.route.ID, store: st, name: name, objs: d.ToObjects(), timers: ctx.Timers})
 	default:
@@ -141,7 +152,6 @@ func (m *canvasModel) Init(ctx *ui.Context) tea.Cmd {
 			m.setSink(ctx, &localSink{instance: m.route.ID, objs: objs, timers: ctx.Timers})
 		}
 	}
-	return nil
 }
 
 // setSink switches the design source and redraws from it.
@@ -327,6 +337,13 @@ func (m *canvasModel) runCommand(ctx *ui.Context, id string) tea.Cmd {
 	switch id {
 	case "arch.run":
 		return m.toggleRun(ctx)
+	case "arch.export":
+		if m.design == nil {
+			return nil
+		}
+		m.cancelGesture()
+		m.menu = nil
+		return ui.OpenOverlay(m.newExportDialog(ctx))
 	}
 	return nil
 }

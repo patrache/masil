@@ -149,6 +149,63 @@ other = "{target} scales out to {n}"
 [ev_writes_failing]
 other = "{target} writes failing 100%"
 
+[export_copied]
+other = "Copied to the clipboard"
+
+[export_d2]
+other = "D2 diagram (.d2)"
+
+[export_hint]
+other = "j k choose · enter confirm · esc close"
+
+[export_json]
+other = "Design JSON (.json)"
+
+[export_mermaid]
+other = "Mermaid diagram (.mmd)"
+
+[export_overwrite_title]
+other = "'{name}' exists. Overwrite it?"
+
+[export_overwrite_yes]
+other = "Overwrite"
+
+[export_path]
+other = "Saves to {path}"
+
+[export_rights]
+other = "You own the rights to the generated files"
+
+[export_save_failed]
+other = "Could not save the file"
+
+[export_saved]
+other = "Saved to {path}"
+
+[export_terraform]
+other = "Terraform AWS skeleton (.tf)"
+
+[export_text120]
+other = "Text snapshot, 120 columns (.txt)"
+
+[export_text80]
+other = "Text snapshot, 80 columns (.txt)"
+
+[export_title]
+other = "Export"
+
+[export_to_clipboard]
+other = "Clipboard"
+
+[export_to_file]
+other = "Save to a file"
+
+[export_use_file]
+other = "Too large for the clipboard · save it to a file"
+
+[export_where]
+other = "Where to?"
+
 [fault_add_ms]
 other = "Added latency ms"
 
@@ -350,6 +407,54 @@ other = "Working set MiB"
 [field_write_iops]
 other = "Write IOPS‰"
 
+[files_bad_name]
+other = "That name cannot be used"
+
+[files_delete_body]
+other = "A deleted design cannot be brought back"
+
+[files_delete_title]
+other = "Delete the design '{name}'?"
+
+[files_delete_yes]
+other = "Delete"
+
+[files_deleted]
+other = "Deleted the design '{name}'"
+
+[files_empty]
+other = "No saved designs yet"
+
+[files_failed]
+other = "Could not read or write the designs folder"
+
+[files_hint]
+other = "enter open · n new · r rename · d delete · i import · esc close"
+
+[files_import_prompt]
+other = "Path of the design JSON to import"
+
+[files_input_hint]
+other = "enter confirm · esc cancel"
+
+[files_is_open]
+other = "That design is open · close it first"
+
+[files_name_exists]
+other = "A design with that name exists"
+
+[files_new_prompt]
+other = "New design name"
+
+[files_nodes]
+other = "{n} nodes"
+
+[files_rename_prompt]
+other = "New name for '{name}'"
+
+[files_title]
+other = "My designs"
+
 [find_none]
 other = "No node matches '{q}'"
 
@@ -361,6 +466,24 @@ other = "Architecture design help"
 
 [hourly_price]
 other = "~${usd}/h (estimate · {asof} prices)"
+
+[import_done]
+other = "Imported as '{name}'"
+
+[import_invalid]
+other = "The design failed a check: {issue}"
+
+[import_read_failed]
+other = "Could not read the file"
+
+[import_syntax]
+other = "Not a design JSON file"
+
+[import_too_large]
+other = "Files over 1MB cannot be imported"
+
+[import_version]
+other = "Unsupported design version"
 
 [invalid_value]
 other = "That value cannot be used"
@@ -663,6 +786,27 @@ other = "Saved"
 [save_unsaved]
 other = "Not saved"
 
+[snap_col_cost]
+other = "Cost"
+
+[snap_col_instances]
+other = "Count"
+
+[snap_col_kind]
+other = "Kind"
+
+[snap_col_name]
+other = "Name"
+
+[snap_col_p99]
+other = "p99"
+
+[snap_col_util]
+other = "Util"
+
+[snap_cost_note]
+other = "/mo (estimate · {asof} prices)"
+
 [status_copy]
 other = "{title} (copy)"
 
@@ -675,6 +819,9 @@ other = "{title} (personal)"
 [status_room]
 one = "{title} (room) · {n} editing"
 other = "{title} (room) · {n} editing"
+
+[tf_header]
+other = "Generated skeleton · review before use · masil never runs this file"
 
 [tiny_bottleneck]
 other = "⚠ {label} {limit} {util}%"
