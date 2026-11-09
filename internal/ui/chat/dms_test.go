@@ -397,3 +397,22 @@ func TestDMPreviewOnlyFromLiveWindow(t *testing.T) {
 		t.Fatalf("the live window's newest message must preview: %q", got)
 	}
 }
+
+// A blocked member's message is never previewed on the DM list (same rule as the
+// 알림함 "안 읽은 대화" convLast): a group DM keeps the blocked person's text out.
+func TestDMPreviewHidesBlockedAuthor(t *testing.T) {
+	h := openDMs(t, widgetSz, dmsRoute)
+	ctx := h.Context()
+	ch := ctx.Store.Channels[groupDMID]
+	ch.LastMessageID = nil
+	msg := api.Message{ID: "01JDDMM0000000000000000002", ChannelID: groupDMID, Body: "차단된 사람의 글",
+		Author: *ctx.Store.User(fixtures.UserHana)}
+	chatOf(ctx).Window(groupDMID).Replace([]api.Message{msg}, false, false)
+	if got := dmPreview(ctx, ch); !strings.Contains(got, "차단된 사람의 글") {
+		t.Fatalf("before the block the message previews: %q", got)
+	}
+	ctx.Store.Blocks[fixtures.UserHana] = uitest.Start
+	if got := dmPreview(ctx, ch); got != "" {
+		t.Fatalf("a blocked author's message must not preview: %q", got)
+	}
+}

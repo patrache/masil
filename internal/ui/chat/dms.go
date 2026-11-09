@@ -205,7 +205,7 @@ func dmPreview(ctx *ui.Context, ch *api.Channel) string {
 			}
 		}
 	}
-	if !ok {
+	if !ok || ctx.Store.IsBlocked(m.Author.ID) { // a blocked author is never previewed (as convLast)
 		return ""
 	}
 	body := m.Body
