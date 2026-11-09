@@ -157,3 +157,35 @@ func TestSlashCatalogLocale(t *testing.T) {
 		t.Fatalf("Catalog(nil) = %+v, want the ko table", got)
 	}
 }
+
+func TestSlashToolsBehindFlags(t *testing.T) {
+	t.Setenv("MASIL_FEATURES", "")
+	if _, ok, err := Parse("/tools"); !ok || err == nil || err.Error() != "알 수 없는 명령이에요: /tools" {
+		t.Fatalf("flags off: Parse(/tools) = ok %v, err %v; want the unknown-command error", ok, err)
+	}
+	for _, s := range Catalog(i18n.KoT()) {
+		if s.Name == Tools {
+			t.Fatalf("flags off: Catalog lists /tools: %+v", s)
+		}
+	}
+
+	t.Setenv("MASIL_FEATURES", "git")
+	for _, in := range []string{"/tools", "/TOOLS", "  /tools  ", "/tools 뭐든"} {
+		cmd, ok, err := Parse(in)
+		if !ok || err != nil || cmd == nil || cmd.Name != Tools {
+			t.Fatalf("flags on: Parse(%q) = %+v, %v, %v", in, cmd, ok, err)
+		}
+	}
+	var row *Spec
+	for _, s := range Catalog(i18n.KoT()) {
+		if s.Name == Tools {
+			row = &s
+		}
+	}
+	if row == nil || row.Usage != "/tools" || row.Desc != i18n.KoT().Tools.SlashDesc() {
+		t.Fatalf("flags on: Catalog /tools row = %+v", row)
+	}
+	if got := Catalog(nil); got[len(got)-1].Name != Tools {
+		t.Fatalf("Catalog(nil): last row = %+v, want /tools", got[len(got)-1])
+	}
+}

@@ -448,3 +448,57 @@ func TestInviteCreatedGolden(t *testing.T) {
 		h.Golden("invite_created")
 	})
 }
+
+var (
+	hubRecorded *[]string
+	hubOnce     sync.Once
+)
+
+// recordHub stands in for ui/tools' tools.hub palette command (chat never imports ui/tools).
+func recordHub(t testing.TB) *[]string {
+	t.Helper()
+	got := &[]string{}
+	hubRecorded = got
+	hubOnce.Do(func() {
+		if _, ok := palette.Lookup("tools.hub"); ok {
+			t.Fatal("palette command tools.hub already registered in this binary")
+		}
+		palette.Register(palette.Command{ID: "tools.hub", Title: "tools.hub", Group: palette.GroupNav, Run: func(_ *ui.Context, args string) tea.Cmd {
+			*hubRecorded = append(*hubRecorded, "tools.hub|"+args)
+			return nil
+		}})
+	})
+	return got
+}
+
+func TestSlashToolsOpensHub(t *testing.T) {
+	got := recordHub(t)
+	t.Setenv("MASIL_FEATURES", "all")
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	sendSlash(t, h, "/tools")
+	if want := []string{"tools.hub|"}; !slices.Equal(*got, want) {
+		t.Fatalf("/tools ran %v, want %v", *got, want)
+	}
+	if v := channelOf(t, h).composer.c.Value(); v != "" {
+		t.Fatalf("/tools: composer keeps %q", v)
+	}
+	if n := len(reqs(h.API, "POST", "/v1/channels/"+devID(t, h)+"/messages")); n != 0 {
+		t.Fatalf("/tools sent a message (%d)", n)
+	}
+}
+
+func TestSlashToolsUnknownWhenFlagsOff(t *testing.T) {
+	got := recordHub(t)
+	t.Setenv("MASIL_FEATURES", "")
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	sendSlash(t, h, "/tools")
+	if len(*got) != 0 {
+		t.Fatalf("flags off: /tools ran %v", *got)
+	}
+	if v := channelOf(t, h).composer.c.Value(); v != "/tools" {
+		t.Fatalf("flags off: draft = %q, want kept", v)
+	}
+	if got := toastText(t, h); got != "알 수 없는 명령이에요: /tools" {
+		t.Fatalf("flags off: toast %q", got)
+	}
+}

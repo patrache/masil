@@ -13,6 +13,7 @@ const (
 	FrontTab           Front = iota // single-pane modes show the chat surface: the active tab, or the DM surface when InDM (its stack top, or its thread)
 	FrontFeed                       // ... show the feed surface (standard: FeedSwapped)
 	FrontNotifications              // ... show the notifications route
+	FrontTools                      // the tool surface is in front: single-pane modes show Tools[ToolActive] in Main, command in SlotTool (v0.1.3 A8)
 )
 
 // TabState is one open place (a tab, or the DM surface).
@@ -35,6 +36,13 @@ type NavState struct {
 	InDM   bool       // the chat surface is DM (else Tabs[Active]): FrontTab shows it, command/standard Main shows it
 	Feed   []ui.Route // feed surface stack; Feed[0].Kind == RouteFeed (default {feed, Arg:"following"}); never empty
 	Front  Front      // which surface single-pane modes (and standard's FeedSwapped) show in Main
+
+	// The tool surface (v0.1.3 A8.4, tools.go): the hub (RouteTools, always
+	// Tools[0] when open) and the tool instances (RouteTool), at most maxTools.
+	// It is never saved (state.json) nor recorded in the history.
+	Tools      []ui.Route
+	ToolActive int             // index into Tools
+	ToolZoom   map[string]bool // instance Route.Key() -> wide view (missing = ToolSpec.WideDefault)
 }
 
 // dmPred reports whether a channel id is a DM or group DM (Store.IsDM); nil knows none.
@@ -69,15 +77,18 @@ func newNavState() NavState {
 func (n NavState) LayoutState(mode layout.Mode) layout.State {
 	t, ok := n.activeTab()
 	thr := ok && t.Thread != nil
+	tools := n.Front == FrontTools && len(n.Tools) > 0
 	return layout.State{
 		ThreadOpen:  thr && (mode == layout.ModeCommand || n.Front == FrontTab),
 		FeedSwapped: mode == layout.ModeStandard && n.Front == FrontFeed,
+		ToolOpen:    tools && mode == layout.ModeCommand,
+		Zoomed:      tools && n.zoomed(),
 	}
 }
 
 // Keys returns every route key held anywhere (instance-cache pinning): each tab's stack
 // then its thread (tab order), the DM surface's stack then its thread, the feed surface
-// stack, then NotifRoute.
+// stack, then NotifRoute, then the tool surface.
 func (n NavState) Keys() []string {
 	var out []string
 	for _, t := range append(append([]TabState(nil), n.Tabs...), n.DM) {
@@ -91,7 +102,11 @@ func (n NavState) Keys() []string {
 	for _, r := range n.Feed {
 		out = append(out, r.Key())
 	}
-	return append(out, NotifRoute.Key())
+	out = append(out, NotifRoute.Key())
+	for _, r := range n.Tools {
+		out = append(out, r.Key())
+	}
+	return out
 }
 
 // activeTab returns the chat surface (the DM surface when InDM, else Tabs[Active])
@@ -152,6 +167,7 @@ func (n NavState) clone() NavState {
 	if len(c.Feed) == 0 || c.Feed[0].Kind != ui.RouteFeed {
 		c.Feed = append([]ui.Route{defaultFeedRoute}, c.Feed...)
 	}
+	c.cloneTools(n)
 	return c
 }
 
@@ -362,6 +378,8 @@ func (n NavState) navigate(m ui.NavigateMsg, mode layout.Mode, isDM dmPred) (Nav
 	}
 	c := n.clone()
 	switch {
+	case isToolKind(r.Kind):
+		return c.openTool(r, mode)
 	case r.Kind == ui.RouteDMs:
 		c.InDM, c.Front = true, FrontTab
 		c.DM.Stack, c.DM.Thread = c.DM.Stack[:1], nil
@@ -424,6 +442,8 @@ func (n NavState) back(focus layout.SlotID, mode layout.Mode, l layout.Layout) N
 		return false
 	}
 	switch focus {
+	case layout.SlotTool: // esc on the tool surface goes back to the chat (the tools stay open)
+		c.Front = FrontTab
 	case layout.SlotThread:
 		t.Thread = nil
 	case layout.SlotFeed:
@@ -434,6 +454,8 @@ func (n NavState) back(focus layout.SlotID, mode layout.Mode, l layout.Layout) N
 			return c
 		}
 		switch k := shown.Key(); {
+		case isToolKind(shown.Kind):
+			c.Front = FrontTab
 		case t.Thread != nil && k == t.Thread.Key():
 			t.Thread = nil
 		case k == c.Feed[len(c.Feed)-1].Key():
@@ -461,6 +483,10 @@ func (n NavState) shownMain(mode layout.Mode) ui.Route {
 		return n.Feed[len(n.Feed)-1]
 	case FrontNotifications:
 		return NotifRoute
+	case FrontTools:
+		if r, ok := n.activeTool(); ok {
+			return r
+		}
 	}
 	t := *n.surface()
 	top := t.Stack[len(t.Stack)-1]
@@ -510,9 +536,12 @@ func (n NavState) toggleNotifications(mode layout.Mode) (NavState, *FocusIntent)
 	return c, &FocusIntent{Slot: layout.SlotMain, RouteKey: c.shownMain(mode).Key()}
 }
 
-// widgetPos is the widget/tiny tab shown: 0 채팅, 1 DM, 2 피드, 3 알림.
+// widgetPos is the widget/tiny tab shown: 0 채팅, 1 DM, 2 피드, 3 알림, 4 도구
+// (the tool tab exists while a tool is open).
 func (n NavState) widgetPos() int {
 	switch {
+	case n.Front == FrontTools:
+		return widgetTools
 	case n.Front == FrontFeed:
 		return 2
 	case n.Front == FrontNotifications:
@@ -532,13 +561,20 @@ func (n *NavState) setWidgetPos(i int) {
 		n.Front = FrontFeed
 	case 3:
 		n.Front = FrontNotifications
+	case widgetTools:
+		if len(n.Tools) > 0 {
+			n.Front = FrontTools
+		}
 	}
 }
 
-// barPos is the compact/standard tab shown: Tabs indexes, then DM (len(Tabs)), 피드, 알림.
+// barPos is the compact/standard tab shown: Tabs indexes, then DM (len(Tabs)), 피드, 알림,
+// then 도구 while a tool is open.
 func (n NavState) barPos() int {
 	nt := len(n.Tabs)
 	switch {
+	case n.Front == FrontTools:
+		return nt + 3
 	case n.Front == FrontFeed:
 		return nt + 1
 	case n.Front == FrontNotifications:
@@ -560,6 +596,8 @@ func (n *NavState) setBarPos(i int) {
 		n.Front, n.InDM = FrontTab, true
 	case i == nt+1:
 		n.Front = FrontFeed
+	case i == nt+3 && len(n.Tools) > 0:
+		n.Front = FrontTools
 	default:
 		n.Front = FrontNotifications
 	}
@@ -583,12 +621,16 @@ func (n NavState) cycleTab(delta int, mode layout.Mode) NavState {
 		if c.InDM {
 			cur = nt
 		}
+		tools := c.Front == FrontTools
 		c.setBarPos(wrap(cur, nt+1))
-		c.Front = FrontTab // Main shows that place now (the feed column stays as it was)
+		c.Front = FrontTab        // Main shows that place now (the feed column stays as it was)
+		if tools && !c.zoomed() { // ... and the tool column beside it too
+			c.Front = FrontTools
+		}
 	case layout.ModeWidget, layout.ModeTiny:
-		c.setWidgetPos(wrap(c.widgetPos(), 4))
+		c.setWidgetPos(wrap(c.widgetPos(), 4+c.toolTabs()))
 	default:
-		c.setBarPos(wrap(c.barPos(), len(c.Tabs)+3))
+		c.setBarPos(wrap(c.barPos(), len(c.Tabs)+3+c.toolTabs()))
 	}
 	return c
 }
@@ -600,11 +642,11 @@ func (n NavState) selectTab(i int, mode layout.Mode) NavState {
 	c := n.clone()
 	switch mode {
 	case layout.ModeWidget, layout.ModeTiny:
-		if i >= 0 && i < 4 {
+		if i >= 0 && i < 4+c.toolTabs() {
 			c.setWidgetPos(i)
 		}
 	case layout.ModeCompact:
-		if i >= 0 && i < len(c.Tabs)+3 {
+		if i >= 0 && i < len(c.Tabs)+3+c.toolTabs() {
 			c.setBarPos(i)
 		}
 	}

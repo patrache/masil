@@ -39,6 +39,7 @@ func resolveFocus(intent FocusIntent, l layout.Layout, routes map[layout.SlotID]
 // focusOrder is the focus ring order (CA 5.3.5).
 var focusOrder = []layout.SlotID{
 	layout.SlotRail, layout.SlotSidebar, layout.SlotMain, layout.SlotThread,
+	layout.SlotTool, // v0.1.3: command's tool surface (in place of the feed and right columns)
 	layout.SlotFeed, layout.SlotMembers, layout.SlotNotifications,
 }
 

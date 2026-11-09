@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/features"
 	"github.com/patrache/masil/internal/i18n"
 )
 
@@ -28,6 +29,9 @@ const (
 	Focus       = "focus"
 	Roll        = "roll"
 	Invite      = "invite"
+	// Tools opens the tool hub (v0.1.3 A8.1) — only while a tool feature flag
+	// is on (features.Any); otherwise it is an unknown command, as before.
+	Tools Name = "tools"
 )
 
 // Command is a parsed slash command.
@@ -119,8 +123,13 @@ func Parse(input string) (cmd *Command, ok bool, err error) {
 		c, err = parseRoll(rest)
 	case Invite:
 		c, err = parseInvite(rest)
+	case Tools:
+		if !features.Any() {
+			return nil, true, unknownCommand(head)
+		}
+		c = &Command{Name: Tools} // arguments are ignored
 	default:
-		return nil, true, errors.New("알 수 없는 명령이에요: /" + head)
+		return nil, true, unknownCommand(head)
 	}
 	if err != nil {
 		return nil, true, err
@@ -132,9 +141,20 @@ func Parse(input string) (cmd *Command, ok bool, err error) {
 // (nil = ko). The 0.1.2 rows stay Korean until P5 moves them to the catalog;
 // new rows take their text from t.
 func Catalog(t *i18n.T) []Spec {
-	out := make([]Spec, len(catalog))
+	out := make([]Spec, len(catalog), len(catalog)+1)
 	copy(out, catalog)
+	if features.Any() {
+		if t == nil {
+			t = i18n.KoT()
+		}
+		out = append(out, Spec{Tools, "/tools", t.Tools.SlashDesc()})
+	}
 	return out
+}
+
+// unknownCommand is Parse's error for an ASCII name that is no command (here).
+func unknownCommand(head string) error {
+	return errors.New("알 수 없는 명령이에요: /" + head)
 }
 
 func usage(n Name) error {

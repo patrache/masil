@@ -228,6 +228,7 @@ func New(o Options) *Model {
 		Post:   appPoster{m},
 	}
 	m.ctx.Keys.Localize(m.ctx.T) // help descriptions in the shown language
+	m.initTools(o.Paths)         // ctx.ToolState (never nil), ctx.OpenTools
 	m.ctx.Clipboard = o.Clipboard
 	if m.ctx.Clipboard == nil {
 		m.ctx.Clipboard = clipboard.System()
@@ -250,7 +251,7 @@ func New(o Options) *Model {
 			r = *o.InitialRoute
 		}
 		m.login = &r
-	} else if o.InitialRoute != nil {
+	} else if o.InitialRoute != nil && (!isToolKind(o.InitialRoute.Kind) || toolRouteOK(*o.InitialRoute)) {
 		if !isRootKind(o.InitialRoute.Kind) {
 			// A non-root start route (`masil join` => RouteInvite) opens on the home tab,
 			// as after a fresh login, never on top of the restored active channel.
@@ -306,6 +307,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // dispatch handles one message (CA 5.3.4 steps).
 func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if cmd, ok := m.toolMsg(msg); ok { // the tool surface's msgs (tools.go)
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case statusTickMsg:
 		if msg.gen == m.tickGen {

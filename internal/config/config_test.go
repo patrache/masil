@@ -75,6 +75,8 @@ func TestResolvePathsEnv(t *testing.T) {
 		TUILock:         filepath.Join(d, "tui.lock"),
 		DaemonLock:      filepath.Join(d, "daemon.lock"),
 		LogDir:          filepath.Join(d, "logs"),
+		ToolsState:      filepath.Join(d, "tools-state.json"),
+		SecretsDir:      filepath.Join(d, "secrets"),
 	}
 	if p != want {
 		t.Fatalf("paths = %+v\nwant   %+v", p, want)

@@ -63,6 +63,10 @@ const (
 	PostOpenMedia     Action = "post.open_media"
 	PostAuthor        Action = "post.author"
 	PostCompose       Action = "post.compose"
+	// v0.1.3 tool surface (P0 Task 18). The shell binds them only while a tool
+	// feature flag is on (features.Any); off, ctrl+t reaches the composer.
+	ToolsToggle Action = "tools.toggle" // ctrl+t: tool surface <-> chat (hard)
+	ToolsZoom   Action = "tools.zoom"   // the key after ctrl+w (z): the active tool's wide view
 )
 
 // Keymap maps actions to bindings.
@@ -135,6 +139,10 @@ var defaults = map[Action]spec{
 	PostOpenMedia:     {[]string{"o"}, "", Lit("이미지")},
 	PostAuthor:        {[]string{"u"}, "", Lit("작성자")},
 	PostCompose:       {[]string{"c"}, "", Lit("글쓰기")},
+	ToolsToggle:       {keys: []string{"ctrl+t"}, Desc: func(t *i18n.T) string { return t.Tools.KeyToggle() }},
+	// tools.zoom is matched on the key after the ctrl+w prefix (like its digits),
+	// so its help label names the prefix too.
+	ToolsZoom: {keys: []string{"z"}, helpKey: "ctrl+w z", Desc: func(t *i18n.T) string { return t.Tools.KeyZoom() }},
 }
 
 // descIn is the row description in t (ko when t is nil).

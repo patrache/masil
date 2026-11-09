@@ -112,6 +112,8 @@ func (m *Model) routeTitle(r ui.Route) string {
 		return "설정"
 	case ui.RouteHelp:
 		return "도움말"
+	case ui.RouteTools, ui.RouteTool:
+		return m.toolTitle(r)
 	}
 	return string(r.Kind)
 }

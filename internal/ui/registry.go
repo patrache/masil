@@ -23,6 +23,7 @@ type Registry struct {
 	AlertTargets map[string]AlertTargetFunc
 	// Cards draws kind "card" messages by card type (RegisterCard).
 	Cards map[string]CardRenderer
+	Tools map[string]ToolSpec // RegisterTool (tool.go), by tool id
 }
 
 // OverlayFocusSummary is opened by core (ui/app) but registered by sns-fun ui/fun; args = alert id (CA 9.1).
@@ -41,6 +42,7 @@ func emptyRegistry() Registry {
 
 		AlertTargets: map[string]AlertTargetFunc{},
 		Cards:        map[string]CardRenderer{},
+		Tools:        map[string]ToolSpec{},
 	}
 }
 
@@ -52,6 +54,7 @@ func (r Registry) clone() Registry {
 
 		AlertTargets: maps.Clone(r.AlertTargets),
 		Cards:        maps.Clone(r.Cards),
+		Tools:        cloneTools(r.Tools),
 	}
 }
 

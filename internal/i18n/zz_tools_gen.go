@@ -3,10 +3,275 @@
 
 package i18n
 
+import "strconv"
+
 // ToolsT holds the "tools" area messages (locales/*/tools.toml).
 type ToolsT struct{ t *T }
 
 var areaTools = area{
 	name: "tools",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"help_group": {
+			desc: "도움말 화면의 묶음 머리: 도구 표면 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구"},
+				En: {Other: "Tools"},
+			},
+		},
+		"hub_close": {
+			desc:   "허브 첫 줄 오른쪽 끝: 도구 표면을 닫는 키(ctrl+t 등, 키맵에서)",
+			params: []Param{{Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{key} 닫기"},
+				En: {Other: "{key} close"},
+			},
+		},
+		"hub_empty": {
+			desc: "허브에 켜진 도구가 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 쓸 수 있는 도구가 없어요"},
+				En: {Other: "No tools available yet"},
+			},
+		},
+		"hub_footer": {
+			desc:   "허브 바닥 줄 키 안내(range = 숫자 범위, 예: 1–5)",
+			params: []Param{{Name: "range", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 열기 · m 여는 방식 고르기 · x 닫기 · {range} 바로"},
+				En: {Other: "enter open · m open with… · x close · {range} jump"},
+			},
+		},
+		"hub_open_header": {
+			desc: "허브의 열린 도구 인스턴스 목록 머리(앞뒤에 ── 가 붙음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "열려 있음"},
+				En: {Other: "Open"},
+			},
+		},
+		"key_toggle": {
+			desc: "도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 ↔ 채팅"},
+				En: {Other: "Tools ↔ chat"},
+			},
+		},
+		"key_zoom": {
+			desc: "도움말 키 설명: ctrl+w z — 활성 도구의 넓게 보기 켜고 끄기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 넓게 보기"},
+				En: {Other: "Wide tool view"},
+			},
+		},
+		"limit_toast": {
+			desc:   "도구 표면에 더 열 수 없을 때의 토스트(허브 포함 개수)",
+			params: []Param{{Name: "max", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "도구는 {max}개까지 열 수 있어요 · 허브에서 하나를 닫아 주세요"},
+				En: {Other: "Up to {max} tools can be open · close one in the hub"},
+			},
+		},
+		"menu_footer": {
+			desc: "여는 방식 메뉴의 바닥 줄 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 고르기 · esc 취소"},
+				En: {Other: "enter choose · esc cancel"},
+			},
+		},
+		"menu_title": {
+			desc:   "허브의 여는 방식 메뉴 머리(tool = 아이콘과 도구 이름, 앞뒤에 ── 가 붙음)",
+			params: []Param{{Name: "tool", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "여는 방식 · {tool}"},
+				En: {Other: "Open with · {tool}"},
+			},
+		},
+		"mode_auto": {
+			desc: "여는 방식 메뉴: 알아서 고르기(설정·환경에 따라)",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동"},
+				En: {Other: "Auto"},
+			},
+		},
+		"mode_exec": {
+			desc: "여는 방식 메뉴: 터미널을 그 프로그램에 넘겨줌(끝나면 돌아옴)",
+			text: map[Locale]Forms{
+				Ko: {Other: "화면 전환"},
+				En: {Other: "Full screen"},
+			},
+		},
+		"mode_pane": {
+			desc: "여는 방식 메뉴: masil 안 패널에서",
+			text: map[Locale]Forms{
+				Ko: {Other: "패널"},
+				En: {Other: "Pane"},
+			},
+		},
+		"mode_window": {
+			desc: "여는 방식 메뉴: tmux 팝업 창",
+			text: map[Locale]Forms{
+				Ko: {Other: "외부 창"},
+				En: {Other: "Window"},
+			},
+		},
+		"palette_hub": {
+			desc: "명령 팔레트: 도구 허브 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 허브"},
+				En: {Other: "Tool hub"},
+			},
+		},
+		"palette_next": {
+			desc: "명령 팔레트: 열린 다음 도구로",
+			text: map[Locale]Forms{
+				Ko: {Other: "다음 도구"},
+				En: {Other: "Next tool"},
+			},
+		},
+		"palette_prev": {
+			desc: "명령 팔레트: 열린 이전 도구로",
+			text: map[Locale]Forms{
+				Ko: {Other: "이전 도구"},
+				En: {Other: "Previous tool"},
+			},
+		},
+		"palette_toggle": {
+			desc: "명령 팔레트: 도구 표면과 채팅 사이 오가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 ↔ 채팅"},
+				En: {Other: "Tools ↔ chat"},
+			},
+		},
+		"palette_zoom": {
+			desc: "명령 팔레트: 활성 도구의 넓게 보기 켜고 끄기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 넓게 보기"},
+				En: {Other: "Wide tool view"},
+			},
+		},
+		"slash_desc": {
+			desc: "입력창 /tools 자동 완성·도움말 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 허브를 열어요"},
+				En: {Other: "Open the tool hub"},
+			},
+		},
+		"tab_label": {
+			desc: "컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "도구", Short: "도"},
+				En: {Other: "Tools", Short: "Tl"},
+			},
+		},
+	},
+}
+
+// HelpGroup: 도움말 화면의 묶음 머리: 도구 표면 키
+func (a_ ToolsT) HelpGroup() string {
+	return a_.t.render(&areaTools, "help_group", false, 0)
+}
+
+// HubClose: 허브 첫 줄 오른쪽 끝: 도구 표면을 닫는 키(ctrl+t 등, 키맵에서)
+func (a_ ToolsT) HubClose(key string) string {
+	return a_.t.render(&areaTools, "hub_close", false, 0, "key", key)
+}
+
+// HubEmpty: 허브에 켜진 도구가 하나도 없을 때
+func (a_ ToolsT) HubEmpty() string {
+	return a_.t.render(&areaTools, "hub_empty", false, 0)
+}
+
+// HubFooter: 허브 바닥 줄 키 안내(range = 숫자 범위, 예: 1–5)
+func (a_ ToolsT) HubFooter(rangeArg string) string {
+	return a_.t.render(&areaTools, "hub_footer", false, 0, "range", rangeArg)
+}
+
+// HubOpenHeader: 허브의 열린 도구 인스턴스 목록 머리(앞뒤에 ── 가 붙음)
+func (a_ ToolsT) HubOpenHeader() string {
+	return a_.t.render(&areaTools, "hub_open_header", false, 0)
+}
+
+// KeyToggle: 도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기
+func (a_ ToolsT) KeyToggle() string {
+	return a_.t.render(&areaTools, "key_toggle", false, 0)
+}
+
+// KeyZoom: 도움말 키 설명: ctrl+w z — 활성 도구의 넓게 보기 켜고 끄기
+func (a_ ToolsT) KeyZoom() string {
+	return a_.t.render(&areaTools, "key_zoom", false, 0)
+}
+
+// LimitToast: 도구 표면에 더 열 수 없을 때의 토스트(허브 포함 개수)
+func (a_ ToolsT) LimitToast(max int) string {
+	return a_.t.render(&areaTools, "limit_toast", false, 0, "max", strconv.Itoa(max))
+}
+
+// MenuFooter: 여는 방식 메뉴의 바닥 줄 키 안내
+func (a_ ToolsT) MenuFooter() string {
+	return a_.t.render(&areaTools, "menu_footer", false, 0)
+}
+
+// MenuTitle: 허브의 여는 방식 메뉴 머리(tool = 아이콘과 도구 이름, 앞뒤에 ── 가 붙음)
+func (a_ ToolsT) MenuTitle(tool string) string {
+	return a_.t.render(&areaTools, "menu_title", false, 0, "tool", tool)
+}
+
+// ModeAuto: 여는 방식 메뉴: 알아서 고르기(설정·환경에 따라)
+func (a_ ToolsT) ModeAuto() string {
+	return a_.t.render(&areaTools, "mode_auto", false, 0)
+}
+
+// ModeExec: 여는 방식 메뉴: 터미널을 그 프로그램에 넘겨줌(끝나면 돌아옴)
+func (a_ ToolsT) ModeExec() string {
+	return a_.t.render(&areaTools, "mode_exec", false, 0)
+}
+
+// ModePane: 여는 방식 메뉴: masil 안 패널에서
+func (a_ ToolsT) ModePane() string {
+	return a_.t.render(&areaTools, "mode_pane", false, 0)
+}
+
+// ModeWindow: 여는 방식 메뉴: tmux 팝업 창
+func (a_ ToolsT) ModeWindow() string {
+	return a_.t.render(&areaTools, "mode_window", false, 0)
+}
+
+// PaletteHub: 명령 팔레트: 도구 허브 열기
+func (a_ ToolsT) PaletteHub() string {
+	return a_.t.render(&areaTools, "palette_hub", false, 0)
+}
+
+// PaletteNext: 명령 팔레트: 열린 다음 도구로
+func (a_ ToolsT) PaletteNext() string {
+	return a_.t.render(&areaTools, "palette_next", false, 0)
+}
+
+// PalettePrev: 명령 팔레트: 열린 이전 도구로
+func (a_ ToolsT) PalettePrev() string {
+	return a_.t.render(&areaTools, "palette_prev", false, 0)
+}
+
+// PaletteToggle: 명령 팔레트: 도구 표면과 채팅 사이 오가기
+func (a_ ToolsT) PaletteToggle() string {
+	return a_.t.render(&areaTools, "palette_toggle", false, 0)
+}
+
+// PaletteZoom: 명령 팔레트: 활성 도구의 넓게 보기 켜고 끄기
+func (a_ ToolsT) PaletteZoom() string {
+	return a_.t.render(&areaTools, "palette_zoom", false, 0)
+}
+
+// SlashDesc: 입력창 /tools 자동 완성·도움말 설명
+func (a_ ToolsT) SlashDesc() string {
+	return a_.t.render(&areaTools, "slash_desc", false, 0)
+}
+
+// TabLabel: 컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)
+func (a_ ToolsT) TabLabel() string {
+	return a_.t.render(&areaTools, "tab_label", false, 0)
+}
+
+// TabLabelShort: 컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형) (short form)
+func (a_ ToolsT) TabLabelShort() string {
+	return a_.t.render(&areaTools, "tab_label", true, 0)
 }
