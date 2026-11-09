@@ -12,7 +12,7 @@ import (
 // is not tiny) and draws it at the size under test.
 func TestGoldenOwner2(t *testing.T) {
 	fake := setup(t)
-	for _, sz := range uitest.Required {
+	for _, sz := range append(append([]uitest.Size(nil), uitest.Required...), uitest.Tiny) {
 		t.Run(fmt.Sprintf("%dx%d", sz.W, sz.H), func(t *testing.T) {
 			h := uitest.New(t)
 			r, _, g := sharedTermRig(t, h, fake, "편집", true)

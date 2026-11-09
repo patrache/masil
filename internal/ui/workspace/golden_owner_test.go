@@ -44,7 +44,8 @@ func ownerScene(t *testing.T, h *uitest.Harness, fake *termpanetest.Fake, snap f
 
 func TestGoldenOwner(t *testing.T) {
 	fake := setup(t)
-	uitest.ForEachSize(t, uitest.Required, func(t *testing.T, h *uitest.Harness) {
+	sizes := append(append([]uitest.Size(nil), uitest.Required...), uitest.Tiny)
+	uitest.ForEachSize(t, sizes, func(t *testing.T, h *uitest.Harness) {
 		r := ownerScene(t, h, fake, func(name string) { h.Golden(name) })
 		h.Golden("sharing_band")
 		h.Press("ctrl+\\", "4")
