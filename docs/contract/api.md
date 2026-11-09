@@ -1631,6 +1631,8 @@ interface DocComment {
 | GET/POST | /v1/docs/{doc_id}/versions | ✓ | RL_DOC(POST) |
 | GET | /v1/docs/{doc_id}/versions/{no} | ✓ | |
 | POST | /v1/docs/{doc_id}/versions/{no}/restore | ✓ | RL_DOC |
+| GET/POST | /v1/docs/{doc_id}/comments | ✓ | RL_DOC(POST) |
+| PATCH/DELETE | /v1/docs/{doc_id}/comments/{comment_id} | ✓ | RL_DOC |
 | GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)

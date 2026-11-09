@@ -139,6 +139,10 @@ var pendingLimiterRows = map[string]string{
 	"DELETE /v1/docs/*":                  "P0 Task 30",
 	"POST /v1/docs/*/versions":           "P0 Task 30",
 	"POST /v1/docs/*/versions/*/restore": "P0 Task 30",
+	// Doc comments (server P0 Task 29).
+	"POST /v1/docs/*/comments":     "P0 Task 30",
+	"PATCH /v1/docs/*/comments/*":  "P0 Task 30",
+	"DELETE /v1/docs/*/comments/*": "P0 Task 30",
 }
 
 // uncoveredLimiterRows reports every row that names a request limiter but no

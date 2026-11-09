@@ -12,13 +12,17 @@ import { limit } from "../lib/ratelimit";
 import { vJson, vQuery, zText } from "../lib/validate";
 import {
   collabHub,
+  createComment,
   createDoc,
+  deleteComment,
   createVersion,
   deleteDoc,
   getVersion,
+  listComments,
   listDocs,
   listVersions,
   loadDocFor,
+  patchComment,
   patchDoc,
   restoreVersion,
   serializeDocs,
@@ -44,6 +48,19 @@ const PatchBody = z.object({
 });
 
 const VersionBody = z.object({ name: zText(1, 60) });
+
+const CommentListQuery = z.object({ cursor: z.string().optional(), limit: z.string().optional() });
+
+const CommentBody = z.object({
+  anchor: zText(1, 128),
+  body: zText(1, 2000),
+  root_id: z.string().nullable().optional(),
+});
+
+const CommentPatch = z.object({
+  body: zText(1, 2000).optional(),
+  resolved: z.boolean().optional(),
+});
 
 /** A version number path segment: a positive integer, else 404 (as for an unknown version). */
 function versionNo(raw: string): number {
@@ -106,6 +123,29 @@ docRoutes.get("/docs/:doc_id/versions/:no", requireAuth, async (c) => {
 docRoutes.post("/docs/:doc_id/versions/:no/restore", requireAuth, limit("RL_DOC"), async (c) => {
   const docId = idParam(c, "doc_id", "doc");
   return c.json(await restoreVersion(rt(c), docId, getAuth(c).userId, versionNo(c.req.param("no"))));
+});
+
+// ---- comments (api.md 5.24, P0 Task 29) ----
+
+docRoutes.get("/docs/:doc_id/comments", requireAuth, vQuery(CommentListQuery), async (c) => {
+  const q = c.req.valid("query");
+  return c.json(await listComments(c.env.DB, idParam(c, "doc_id", "doc"), getAuth(c).userId, { cursor: q.cursor, limit: parseLimit(q.limit) }));
+});
+
+docRoutes.post("/docs/:doc_id/comments", requireAuth, limit("RL_DOC"), vJson(CommentBody), async (c) => {
+  const comment = await createComment(rt(c), idParam(c, "doc_id", "doc"), getAuth(c).userId, c.req.valid("json"));
+  return c.json({ comment }, 201);
+});
+
+docRoutes.patch("/docs/:doc_id/comments/:comment_id", requireAuth, limit("RL_DOC"), vJson(CommentPatch), async (c) => {
+  const docId = idParam(c, "doc_id", "doc");
+  const comment = await patchComment(rt(c), docId, idParam(c, "comment_id", "comment"), getAuth(c).userId, c.req.valid("json"));
+  return c.json({ comment });
+});
+
+docRoutes.delete("/docs/:doc_id/comments/:comment_id", requireAuth, limit("RL_DOC"), async (c) => {
+  await deleteComment(rt(c), idParam(c, "doc_id", "doc"), idParam(c, "comment_id", "comment"), getAuth(c).userId);
+  return c.body(null, 204);
 });
 
 /**
