@@ -108,6 +108,8 @@ func (im *oaImporter) run() (*apitool.Collection, Report, error) {
 		}
 	}
 	im.col.Envs = []apitool.Env{*im.env}
+	im.rep.Suggestions = append(im.rep.Suggestions, suggestVars(im.col.Vars)...)
+	im.rep.Suggestions = append(im.rep.Suggestions, suggestVars(im.env.Vars)...)
 	return im.col, im.rep, nil
 }
 
@@ -238,7 +240,7 @@ func (im *oaImporter) operation(path, method string, item, op *object) {
 			}
 			r.Headers = append(r.Headers, apitool.KV{Key: name, Value: val, Off: !required})
 		case "path":
-			im.colVar(name, val)
+			im.colVar(name, "") // empty (plan Task 10): an example id is not a value to send
 		case "cookie":
 			im.rep.Ignored = append(im.rep.Ignored, "cookie parameter: "+name+" ("+label+")")
 		}

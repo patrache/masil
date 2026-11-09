@@ -72,8 +72,13 @@ func TestImportPostmanBodies(t *testing.T) {
 		t.Fatalf("json = %+v", b)
 	}
 	if b := byName(t, c, "Upload").Body; !reflect.DeepEqual(b, apitool.Body{Kind: apitool.BodyMultipart, Form: []apitool.FormField{
-		{KV: apitool.KV{Key: "title", Value: "doc"}}, {KV: apitool.KV{Key: "file"}, File: "/home/me/a.png", FileName: "a.png"}}}) {
+		{KV: apitool.KV{Key: "title", Value: "doc"}}, {KV: apitool.KV{Key: "file"}, FileName: "a.png"}}}) {
 		t.Fatalf("formdata = %+v", b)
+	}
+	// The file path from the collection is never kept: the user picks the
+	// file again (an imported src could name any file on this PC).
+	if !slices.Contains(rep.Dropped, "file: file (/home/me/a.png)") {
+		t.Fatalf("dropped = %q", rep.Dropped)
 	}
 	if b := byName(t, c, "Plain text").Body; !reflect.DeepEqual(b, apitool.Body{Kind: apitool.BodyRaw, Text: "hello"}) {
 		t.Fatalf("raw = %+v", b)
@@ -82,6 +87,23 @@ func TestImportPostmanBodies(t *testing.T) {
 		t.Fatalf("graphql = %+v", b)
 	}
 	if len(rep.Suggestions) != 0 {
+		t.Fatalf("suggestions = %+v", rep.Suggestions)
+	}
+}
+
+func TestImportPostmanSuggestsVariableSecrets(t *testing.T) {
+	tok := "ghp_" + strings.Repeat("aB3d", 9)
+	doc := `{"info":{"name":"v","schema":"` + postmanSchema + `"},"item":[],
+		"variable":[{"key":"api_token","value":"` + tok + `"},{"key":"base_url","value":"https://api.test"}]}`
+	c, rep, err := ImportPostman([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Vars) != 2 {
+		t.Fatalf("vars = %+v", c.Vars)
+	}
+	if len(rep.Suggestions) != 1 || rep.Suggestions[0].Where != "variable:api_token" || rep.Suggestions[0].RequestID != "" ||
+		rep.Suggestions[0].Finding.Rule != "github_token" {
 		t.Fatalf("suggestions = %+v", rep.Suggestions)
 	}
 }

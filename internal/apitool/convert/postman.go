@@ -172,6 +172,7 @@ func ImportPostman(data []byte) (*apitool.Collection, Report, error) {
 	im.events(pc.Event, name)
 	auth := im.auth(pc.Auth, apitool.Auth{}, name)
 	im.items(pc.Item, &im.col.Root, auth)
+	im.rep.Suggestions = append(im.rep.Suggestions, suggestVars(im.col.Vars)...)
 	return im.col, im.rep, nil
 }
 
@@ -448,10 +449,12 @@ func (im *pmImporter) body(b *pmBody, name string) apitool.Body {
 						src = srcs[0]
 					}
 				}
-				f.File = src
+				// The path is never kept: a collection from someone else
+				// could name any file on this PC. The user picks it again.
 				f.FileName = string(kv.Key)
 				if src != "" {
 					f.FileName = path.Base(strings.ReplaceAll(src, `\`, "/"))
+					im.rep.Dropped = append(im.rep.Dropped, "file: "+string(kv.Key)+" ("+src+")")
 				}
 			} else {
 				f.Value = string(kv.Value)

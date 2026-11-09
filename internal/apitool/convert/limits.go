@@ -39,8 +39,9 @@ type Report struct {
 }
 
 // Suggestion is a detector finding in one field: Where is "url",
-// "query:<name>", "header:<name>", "auth:pass|token|value", "body" or
-// "form:<name>"; RequestID names the request in a collection import.
+// "query:<name>", "header:<name>", "auth:pass|token|value", "body",
+// "form:<name>" or "variable:<name>" (a collection or environment variable,
+// no RequestID); RequestID names the request in a collection import.
 type Suggestion struct {
 	RequestID string
 	Where     string
@@ -52,6 +53,21 @@ func checkSize(n int) error {
 		return fmt.Errorf("%w (%d bytes, max %d)", ErrTooLarge, n, MaxImportBytes)
 	}
 	return nil
+}
+
+// suggestVars runs the secret detector over the values of the non-secret
+// variables vs (C3.9: secret-looking values already in an imported file).
+func suggestVars(vs []apitool.Var) []Suggestion {
+	var out []Suggestion
+	for _, v := range vs {
+		if v.Secret || v.Value == "" {
+			continue
+		}
+		for _, f := range apitool.Detect(v.Name, v.Value) {
+			out = append(out, Suggestion{Where: "variable:" + v.Name, Finding: f})
+		}
+	}
+	return out
 }
 
 // suggest runs the secret detector over every field of r a credential can

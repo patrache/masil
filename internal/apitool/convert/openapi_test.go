@@ -98,7 +98,7 @@ func TestImportOpenAPI30(t *testing.T) {
 	if show.URL != "{{base_url}}/pets/{{petId}}" {
 		t.Fatalf("show URL = %q", show.URL)
 	}
-	if !reflect.DeepEqual(c.Vars, []apitool.Var{{Name: "petId", Value: "42"}}) {
+	if !reflect.DeepEqual(c.Vars, []apitool.Var{{Name: "petId"}}) { // path variables start empty (plan Task 10)
 		t.Fatalf("vars = %+v", c.Vars)
 	}
 	del := byName(t, c, "DELETE /pets/{petId}")
@@ -326,6 +326,18 @@ func TestOpenAPISuggestsSecrets(t *testing.T) {
 		t.Fatalf("headers = %+v", r.Headers)
 	}
 	if len(rep.Suggestions) != 1 || rep.Suggestions[0].RequestID != r.ID || rep.Suggestions[0].Where != "header:X-Token" {
+		t.Fatalf("suggestions = %+v", rep.Suggestions)
+	}
+}
+
+func TestOpenAPISuggestsVariableSecrets(t *testing.T) {
+	tok := "ghp_" + strings.Repeat("aB3d", 9)
+	doc := `{"openapi":"3.0.0","info":{"title":"S"},"servers":[{"url":"https://api.test/?key=` + tok + `"}],"paths":{}}`
+	_, rep, err := ImportOpenAPI([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Suggestions) != 1 || rep.Suggestions[0].Where != "variable:base_url" || rep.Suggestions[0].RequestID != "" {
 		t.Fatalf("suggestions = %+v", rep.Suggestions)
 	}
 }
