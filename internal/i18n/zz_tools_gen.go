@@ -3,10 +3,80 @@
 
 package i18n
 
+import "strconv"
+
 // ToolsT holds the "tools" area messages (locales/*/tools.toml).
 type ToolsT struct{ t *T }
 
 var areaTools = area{
 	name: "tools",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"help_group": {
+			desc: "도움말 화면의 묶음 머리: 도구 표면 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구"},
+				En: {Other: "Tools"},
+			},
+		},
+		"key_toggle": {
+			desc: "도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 ↔ 채팅"},
+				En: {Other: "Tools ↔ chat"},
+			},
+		},
+		"key_zoom": {
+			desc: "도움말 키 설명: ctrl+w z — 활성 도구의 넓게 보기 켜고 끄기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 넓게 보기"},
+				En: {Other: "Wide tool view"},
+			},
+		},
+		"limit_toast": {
+			desc:   "도구 표면에 더 열 수 없을 때의 토스트(허브 포함 개수)",
+			params: []Param{{Name: "max", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "도구는 {max}개까지 열 수 있어요 · 허브에서 하나를 닫아 주세요"},
+				En: {Other: "Up to {max} tools can be open · close one in the hub"},
+			},
+		},
+		"tab_label": {
+			desc: "컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "도구", Short: "도"},
+				En: {Other: "Tools", Short: "Tl"},
+			},
+		},
+	},
+}
+
+// HelpGroup: 도움말 화면의 묶음 머리: 도구 표면 키
+func (a_ ToolsT) HelpGroup() string {
+	return a_.t.render(&areaTools, "help_group", false, 0)
+}
+
+// KeyToggle: 도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기
+func (a_ ToolsT) KeyToggle() string {
+	return a_.t.render(&areaTools, "key_toggle", false, 0)
+}
+
+// KeyZoom: 도움말 키 설명: ctrl+w z — 활성 도구의 넓게 보기 켜고 끄기
+func (a_ ToolsT) KeyZoom() string {
+	return a_.t.render(&areaTools, "key_zoom", false, 0)
+}
+
+// LimitToast: 도구 표면에 더 열 수 없을 때의 토스트(허브 포함 개수)
+func (a_ ToolsT) LimitToast(max int) string {
+	return a_.t.render(&areaTools, "limit_toast", false, 0, "max", strconv.Itoa(max))
+}
+
+// TabLabel: 컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)
+func (a_ ToolsT) TabLabel() string {
+	return a_.t.render(&areaTools, "tab_label", false, 0)
+}
+
+// TabLabelShort: 컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형) (short form)
+func (a_ ToolsT) TabLabelShort() string {
+	return a_.t.render(&areaTools, "tab_label", true, 0)
 }

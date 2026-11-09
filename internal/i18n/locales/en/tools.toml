@@ -1,0 +1,15 @@
+[help_group]
+other = "Tools"
+
+[key_toggle]
+other = "Tools ↔ chat"
+
+[key_zoom]
+other = "Wide tool view"
+
+[limit_toast]
+other = "Up to {max} tools can be open · close one in the hub"
+
+[tab_label]
+other = "Tools"
+short = "Tl"

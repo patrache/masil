@@ -31,14 +31,24 @@ func (m *Model) tabItems() ([]widgets.Tab, int) {
 		for _, t := range m.nav.Tabs {
 			items = append(items, m.rootTab(t.Stack[0]))
 		}
-		return append(items, dms, feed, notif), m.nav.clone().barPos()
+		items = append(items, dms, feed, notif)
+		if m.nav.toolTabs() > 0 {
+			items = append(items, widgets.Tab{Label: m.ctx.T.Tools.TabLabel()})
+		}
+		return items, m.nav.clone().barPos()
 	}
 	unread, mentions := st.ChannelUnread()
 	chat := widgets.Tab{Label: "채팅", Badge: ui.Badge{Count: unread, Mention: mentions > 0}}
+	tools := widgets.Tab{Label: m.ctx.T.Tools.TabLabel()}
 	if m.lay.Mode == layout.ModeTiny {
 		chat.Label, feed.Label, notif.Label = "챗", "피", "알"
+		tools.Label = m.ctx.T.Tools.TabLabelShort()
 	}
-	return []widgets.Tab{chat, dms, feed, notif}, m.nav.widgetPos()
+	items := []widgets.Tab{chat, dms, feed, notif}
+	if m.nav.toolTabs() > 0 { // the tool tab exists while a tool is open (A8.3)
+		items = append(items, tools)
+	}
+	return items, m.nav.widgetPos()
 }
 
 // rootTab is the compact tab of a tab root.
@@ -70,7 +80,9 @@ func (m *Model) contextLine(w int) string {
 		return ""
 	}
 	text := ""
-	if t, ok := m.nav.activeTab(); ok {
+	if m.nav.Front == FrontTools { // the tool surface: the active tool's title (A8.3)
+		text = m.toolContext()
+	} else if t, ok := m.nav.activeTab(); ok {
 		root := t.Stack[0]
 		if root.Kind == ui.RouteDMs && len(t.Stack) >= 2 && t.Stack[1].Kind == ui.RouteChannel {
 			root = t.Stack[1]

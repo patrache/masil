@@ -19,6 +19,7 @@ type Registry struct {
 	Panes    map[layout.SlotID]PaneFactory
 	Routes   map[RouteKind]RouteFactory
 	Overlays map[string]func(*Context, string) Overlay
+	Tools    map[string]ToolSpec // RegisterTool (tool.go), by tool id
 }
 
 // OverlayFocusSummary is opened by core (ui/app) but registered by sns-fun ui/fun; args = alert id (CA 9.1).
@@ -34,6 +35,7 @@ func emptyRegistry() Registry {
 		Panes:    map[layout.SlotID]PaneFactory{},
 		Routes:   map[RouteKind]RouteFactory{},
 		Overlays: map[string]func(*Context, string) Overlay{},
+		Tools:    map[string]ToolSpec{},
 	}
 }
 
@@ -42,6 +44,7 @@ func (r Registry) clone() Registry {
 		Panes:    maps.Clone(r.Panes),
 		Routes:   maps.Clone(r.Routes),
 		Overlays: maps.Clone(r.Overlays),
+		Tools:    cloneTools(r.Tools),
 	}
 }
 

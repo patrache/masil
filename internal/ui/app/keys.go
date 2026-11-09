@@ -114,6 +114,9 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 	case keys.Matches(msg, keymap.NotificationsOpen):
 		return m.applyToggle(m.nav.toggleNotifications(m.lay.Mode))
 	}
+	if cmd, ok := m.toolKey(msg); ok { // ctrl+t, before the composer's transpose (tools.go)
+		return cmd
+	}
 	var pre tea.Cmd
 	tabKey := keys.Matches(msg, keymap.FocusNext) || keys.Matches(msg, keymap.FocusPrev) || keys.Matches(msg, keymap.ComposeComplete)
 	if tabKey && completing(comp) { // CR-A: an open completion popup takes tab/shift+tab first
@@ -151,6 +154,10 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Batch(cmd, m.openHelp())
 	case keys.Matches(msg, keymap.FeedToggle):
 		return tea.Batch(cmd, m.applyToggle(m.nav.toggleFeed(m.lay.Mode)))
+	case keys.Matches(msg, keymap.TabPrev) && m.onToolSurface():
+		return tea.Batch(cmd, m.applyTools(m.nav.cycleTool(-1, m.lay.Mode)))
+	case keys.Matches(msg, keymap.TabNext) && m.onToolSurface():
+		return tea.Batch(cmd, m.applyTools(m.nav.cycleTool(+1, m.lay.Mode)))
 	case keys.Matches(msg, keymap.TabPrev):
 		return tea.Batch(cmd, m.switchTab(-1))
 	case keys.Matches(msg, keymap.TabNext):
@@ -173,6 +180,9 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 // by pane geometry, w goes to the next pane, 1..5 pin a mode, 0 returns to auto; any
 // other key cancels the prefix and is dropped.
 func (m *Model) windowKey(msg tea.KeyPressMsg) tea.Cmd {
+	if cmd, ok := m.toolWindowKey(msg); ok { // ctrl+w z: tools.zoom (tools.go)
+		return cmd
+	}
 	s := msg.String()
 	switch s {
 	case "h", "left":
@@ -248,8 +258,11 @@ func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
 	case m.login != nil: // a forced login screen is left by navigating
 		m.login = nil
 	}
+	if isToolKind(msg.Route.Kind) { // the tool surface (tools.go)
+		return m.navigateTool(msg)
+	}
 	n, intent := m.nav.navigate(msg, m.lay.Mode, m.isDM)
-	m.nav = n
+	m.nav = m.keepToolColumn(n)
 	if intent.Slot != "" {
 		m.intent = intent
 	}
@@ -288,12 +301,13 @@ func (m *Model) applyToggle(n NavState, intent *FocusIntent) tea.Cmd {
 // intent follows what Main shows now.
 func (m *Model) switchTab(delta int) tea.Cmd {
 	wasMain := m.focus.Slot == layout.SlotMain
+	prev := m.toolSnap()
 	m.nav = m.nav.cycleTab(delta, m.lay.Mode)
 	cmd := m.relayout()
 	if wasMain {
 		m.followMain()
 	}
-	return cmd
+	return tea.Batch(cmd, m.toolSwitched(prev))
 }
 
 // goBack is nav.back / ui.BackMsg: one step back on the surface of the focused slot.
