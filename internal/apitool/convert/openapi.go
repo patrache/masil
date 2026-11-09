@@ -39,6 +39,21 @@ type oaImporter struct {
 	env     *apitool.Env
 	folders map[string]*apitool.Folder
 	seenRef map[string]bool
+	out     int // text produced so far (MaxImportOutput)
+}
+
+// charge counts n produced bytes; over the budget reports true.
+func (im *oaImporter) charge(n int) bool {
+	im.out += n + rowCost
+	return im.over()
+}
+
+func (im *oaImporter) over() bool { return im.out > MaxImportOutput }
+
+// validPath: a path key appended to {{base_url}} must stay a path ("@x" or
+// "x.com/…" would change the host, '\\' is read as '/' by some clients).
+func validPath(p string) bool {
+	return strings.HasPrefix(p, "/") && !strings.ContainsAny(p, "@\\")
 }
 
 // ImportOpenAPI reads an OpenAPI 3.0/3.1 JSON document (C3.9): every path
@@ -88,6 +103,10 @@ func (im *oaImporter) run() (*apitool.Collection, Report, error) {
 	paths := obj(im.root.get("paths"))
 	if paths != nil {
 		for _, p := range paths.keys {
+			if !validPath(p) {
+				im.rep.Ignored = append(im.rep.Ignored, "path: "+p)
+				continue
+			}
 			item := obj(im.resolve(paths.vals[p]))
 			if item == nil {
 				continue
@@ -98,6 +117,9 @@ func (im *oaImporter) run() (*apitool.Collection, Report, error) {
 				}
 				if op := obj(im.resolve(item.vals[m])); op != nil {
 					im.operation(p, strings.ToUpper(m), item, op)
+				}
+				if im.over() {
+					return nil, Report{}, fmt.Errorf("%w (an import makes more than %d bytes)", ErrTooLarge, MaxImportOutput)
 				}
 			}
 		}
@@ -223,6 +245,9 @@ func (im *oaImporter) operation(path, method string, item, op *object) {
 		im.colVar(name, "")
 		return "{{" + name + "}}"
 	})
+	if im.charge(len(r.Name) + len(r.URL)) {
+		return
+	}
 
 	for _, p := range im.params(item, op) {
 		name := str(p.get("name"))
@@ -231,6 +256,9 @@ func (im *oaImporter) operation(path, method string, item, op *object) {
 		}
 		required, _ := p.get("required").(bool)
 		val := im.example(p)
+		if im.charge(len(name) + len(val)) {
+			return
+		}
 		switch str(p.get("in")) {
 		case "query":
 			r.Query = append(r.Query, apitool.KV{Key: name, Value: val, Off: !required})
@@ -247,6 +275,9 @@ func (im *oaImporter) operation(path, method string, item, op *object) {
 	}
 	if rb := obj(im.resolve(op.get("requestBody"))); rb != nil {
 		r.Body = im.body(obj(rb.get("content")))
+	}
+	if im.charge(len(r.Body.Text)) {
+		return
 	}
 	im.auth(r, op, label)
 
@@ -451,6 +482,9 @@ func (im *oaImporter) formFields(media *object, multipart bool) []apitool.FormFi
 			f.Value = im.example(p)
 		}
 		out = append(out, f)
+		if im.charge(len(name) + len(f.Value)) {
+			break
+		}
 	}
 	return out
 }

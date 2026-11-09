@@ -19,6 +19,12 @@ import (
 const (
 	MaxImportBytes = 10 << 20 // an imported file or pasted command
 	MaxDepth       = 64       // JSON nesting
+	// MaxImportOutput caps the text an import produces: $ref re-use (one
+	// path item or body referenced many times) must not turn a small file
+	// into gigabytes; over it the import is ErrTooLarge.
+	MaxImportOutput = MaxImportBytes
+	// rowCost is what a produced row or request counts beyond its text.
+	rowCost = 16
 )
 
 var (
