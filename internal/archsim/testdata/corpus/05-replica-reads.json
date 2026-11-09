@@ -1,0 +1,18 @@
+{
+ "schema_version": 1, "title": "05-replica-reads", "seed": 105, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 2000, "read_permille": 900}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": "", "instances": 10},
+  {"id": "primary", "kind": "db_primary", "label": "primary", "pos": [40, 0], "parent": ""},
+  {"id": "replica1", "kind": "db_replica", "label": "replica1", "pos": [40, 6], "parent": ""},
+  {"id": "replica2", "kind": "db_replica", "label": "replica2", "pos": [40, 12], "parent": ""}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "api", "to": "primary", "read_permille": 200, "write_permille": 1000},
+  {"id": "e3", "from": "api", "to": "replica1", "read_permille": 400, "write_permille": 0},
+  {"id": "e4", "from": "api", "to": "replica2", "read_permille": 400, "write_permille": 0}
+ ],
+ "faults": []
+}

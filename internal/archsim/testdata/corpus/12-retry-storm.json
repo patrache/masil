@@ -1,0 +1,14 @@
+{
+ "schema_version": 1, "title": "12-retry-storm", "seed": 112, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 900, "read_permille": 800}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": "", "instances": 4, "retries": 3},
+  {"id": "db", "kind": "db_primary", "label": "db", "pos": [40, 0], "parent": "", "cpu_cores": 1}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000}
+ ],
+ "faults": []
+}
