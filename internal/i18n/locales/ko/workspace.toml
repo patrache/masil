@@ -24,6 +24,14 @@ other = "{name} · ⏳ 승인 대기"
 desc = "터미널 칸 제목: 프로그램이 승인을 기다림"
 other = "⏳ 승인 대기"
 
+[autosave_off]
+desc = "토스트: 자동 저장을 끔"
+other = "자동 저장을 껐어요"
+
+[autosave_on]
+desc = "토스트: 자동 저장을 켬"
+other = "자동 저장을 켰어요"
+
 [band_private]
 desc = "상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)"
 params = { folder = "string" }
@@ -62,6 +70,41 @@ other = "직접 지정한 --settings 가 있어 공유할 수 없어요"
 desc = "프로그램 점검 경고: 셸 안에서 실행하는 프로그램은 모드를 확인할 수 없음(스펙 고정 문구)"
 no_truncate = true
 other = "셸 안에서 실행하는 프로그램의 모드는 masil이 확인할 수 없어요"
+
+[cli_no_shares]
+desc = "CLI 결과: 끝낼 공유가 없음"
+other = "끝낼 공유가 없어요"
+
+[cli_not_dir]
+desc = "CLI 오류: 경로가 폴더가 아님. path = 사용자가 준 경로(번역하지 않음)"
+params = { path = "string" }
+other = "폴더가 아니에요: {path}"
+
+[cli_not_logged_in]
+desc = "CLI 오류: 로그인이 필요함"
+other = "로그인이 필요해요. masil login 으로 먼저 로그인해 주세요"
+
+[cli_open_usage]
+desc = "masil help 의 한 줄: 작업공간 열기 명령 사용법(명령·인자 이름은 번역하지 않음)"
+other = "masil workspace open <경로> — 이 폴더를 작업공간으로 열어요"
+
+[cli_stop_failed]
+desc = "CLI 오류: 공유를 끝내지 못함. err = 오류 설명"
+params = { err = "string" }
+other = "공유를 끝내지 못했어요: {err}"
+
+[cli_stop_usage]
+desc = "masil help 의 한 줄: 작업공간 공유 끝 명령 사용법(명령·인자 이름은 번역하지 않음)"
+other = "masil workspace stop [공유 ID] — 내 작업공간 공유를 끝내요(ID 가 없으면 모두)"
+
+[cli_stopped]
+desc = "CLI 결과: 공유를 끝낸 수. n = 개수"
+params = { n = "int" }
+other = "공유 {n}개를 끝냈어요"
+
+[cli_usage]
+desc = "masil help 의 한 줄: workspace 명령 전체"
+other = "masil workspace open <경로> | stop [공유 ID] — 작업공간을 열거나 공유를 끝내요"
 
 [code_cannot_open]
 desc = "코드 칸: 열 수 없는 파일(차단·무시·찾을 수 없음 등)을 골랐을 때"
@@ -341,6 +384,10 @@ desc = "상태줄 힌트: 공유를 바로 끊는 키. key = 접두키(번역하
 params = { key = "string" }
 other = "{key} 다음 x 공유 끝"
 
+[killed_toast]
+desc = "토스트: 즉시 끊기(ctrl+\\ x)로 공유를 끊음"
+other = "공유를 즉시 끊었어요"
+
 [last_input]
 desc = "공유 중: 마지막으로 입력한 사람과 지난 시간. name = 표시 이름, ago = 지난 시간"
 params = { name = "string", ago = "string" }
@@ -389,6 +436,18 @@ other = "명령 직접 입력"
 desc = "새 터미널 대화상자 제목"
 other = "새 터미널"
 
+[notify_failed]
+desc = "토스트: 작업공간 알림 설정을 바꾸지 못함"
+other = "작업공간 알림 설정을 바꾸지 못했어요"
+
+[notify_off]
+desc = "토스트: 작업공간 알림을 끔"
+other = "작업공간 알림을 껐어요"
+
+[notify_on]
+desc = "토스트: 작업공간 알림을 켬"
+other = "작업공간 알림을 켰어요"
+
 [open_failed]
 desc = "토스트: 고른 폴더를 열지 못했을 때"
 other = "폴더를 열 수 없어요"
@@ -396,6 +455,26 @@ other = "폴더를 열 수 없어요"
 [owner_only_answer]
 desc = "참가자 화면 터미널 제목: 승인 창은 오너만 답할 수 있음"
 other = "← 오너만 답할 수 있음"
+
+[palette_autosave_toggle]
+desc = "명령 팔레트: 작업공간 자동 저장 켜기/끄기"
+other = "작업공간: 자동 저장 켜기/끄기"
+
+[palette_join]
+desc = "명령 팔레트: 초대받은 공유에 참가"
+other = "작업공간: 초대받은 공유 참가"
+
+[palette_notify_toggle]
+desc = "명령 팔레트: 작업공간 알림(초대·승인 대기) 켜기/끄기"
+other = "작업공간 알림 켜기/끄기"
+
+[palette_open]
+desc = "명령 팔레트: 작업공간 도구 열기(폴더 고르기)"
+other = "작업공간 열기"
+
+[palette_people]
+desc = "명령 팔레트: 공유 중인 작업공간의 참가자 칸으로"
+other = "작업공간: 참가자"
 
 [palette_proposals]
 desc = "팔레트 명령: 작업공간 제안 대기열"
@@ -408,6 +487,10 @@ other = "작업공간: 공유 끝"
 [palette_share_start]
 desc = "팔레트 명령: 작업공간 공유 시작"
 other = "작업공간: 공유 시작"
+
+[palette_term_new]
+desc = "명령 팔레트: 작업공간에 새 터미널"
+other = "작업공간: 새 터미널"
 
 [pan_more]
 desc = "참가자 터미널 칸 오른쪽 위: 창 오른쪽에 가려진 칸 수. n = 칸 수"

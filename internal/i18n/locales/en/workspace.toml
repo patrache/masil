@@ -13,6 +13,12 @@ other = "{name} · ⏳ waiting for approval"
 [attention_waiting]
 other = "⏳ Waiting for approval"
 
+[autosave_off]
+other = "Autosave off"
+
+[autosave_on]
+other = "Autosave on"
+
 [band_private]
 other = "🔒 Only me · {folder}"
 
@@ -36,6 +42,30 @@ other = "A program started with its own --settings cannot be shared"
 
 [check_shell_warning]
 other = "masil cannot check the mode of programs run inside a shell"
+
+[cli_no_shares]
+other = "No shares to end"
+
+[cli_not_dir]
+other = "Not a folder: {path}"
+
+[cli_not_logged_in]
+other = "Log in first with masil login"
+
+[cli_open_usage]
+other = "masil workspace open <path> — open this folder as a workspace"
+
+[cli_stop_failed]
+other = "Could not end the share: {err}"
+
+[cli_stop_usage]
+other = "masil workspace stop [share id] — end my workspace shares (all without an id)"
+
+[cli_stopped]
+other = "Ended {n} share(s)"
+
+[cli_usage]
+other = "masil workspace open <path> | stop [share id] — open a workspace or end sharing"
 
 [code_cannot_open]
 other = "This file cannot be opened"
@@ -220,6 +250,9 @@ other = "Remove"
 [kill_hint]
 other = "{key} then x ends sharing"
 
+[killed_toast]
+other = "Sharing cut off"
+
 [last_input]
 other = "Last input: {name} · {ago}"
 
@@ -250,11 +283,35 @@ other = "Type a command"
 [newterm_title]
 other = "New terminal"
 
+[notify_failed]
+other = "Could not change workspace alerts"
+
+[notify_off]
+other = "Workspace alerts off"
+
+[notify_on]
+other = "Workspace alerts on"
+
 [open_failed]
 other = "Could not open the folder"
 
 [owner_only_answer]
 other = "← only the owner can answer"
+
+[palette_autosave_toggle]
+other = "Workspace: toggle autosave"
+
+[palette_join]
+other = "Workspace: join a share"
+
+[palette_notify_toggle]
+other = "Toggle workspace alerts"
+
+[palette_open]
+other = "Open workspace"
+
+[palette_people]
+other = "Workspace: participants"
 
 [palette_proposals]
 other = "Workspace: proposals"
@@ -264,6 +321,9 @@ other = "Workspace: end sharing"
 
 [palette_share_start]
 other = "Workspace: start sharing"
+
+[palette_term_new]
+other = "Workspace: new terminal"
 
 [pan_more]
 other = "→ {n} more"

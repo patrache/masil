@@ -49,6 +49,20 @@ var areaWorkspace = area{
 				En: {Other: "⏳ Waiting for approval"},
 			},
 		},
+		"autosave_off": {
+			desc: "토스트: 자동 저장을 끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 저장을 껐어요"},
+				En: {Other: "Autosave off"},
+			},
+		},
+		"autosave_on": {
+			desc: "토스트: 자동 저장을 켬",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 저장을 켰어요"},
+				En: {Other: "Autosave on"},
+			},
+		},
 		"band_private": {
 			desc:   "상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)",
 			params: []Param{{Name: "folder", Type: "string"}},
@@ -110,6 +124,65 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "셸 안에서 실행하는 프로그램의 모드는 masil이 확인할 수 없어요"},
 				En: {Other: "masil cannot check the mode of programs run inside a shell"},
+			},
+		},
+		"cli_no_shares": {
+			desc: "CLI 결과: 끝낼 공유가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "끝낼 공유가 없어요"},
+				En: {Other: "No shares to end"},
+			},
+		},
+		"cli_not_dir": {
+			desc:   "CLI 오류: 경로가 폴더가 아님. path = 사용자가 준 경로(번역하지 않음)",
+			params: []Param{{Name: "path", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "폴더가 아니에요: {path}"},
+				En: {Other: "Not a folder: {path}"},
+			},
+		},
+		"cli_not_logged_in": {
+			desc: "CLI 오류: 로그인이 필요함",
+			text: map[Locale]Forms{
+				Ko: {Other: "로그인이 필요해요. masil login 으로 먼저 로그인해 주세요"},
+				En: {Other: "Log in first with masil login"},
+			},
+		},
+		"cli_open_usage": {
+			desc: "masil help 의 한 줄: 작업공간 열기 명령 사용법(명령·인자 이름은 번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "masil workspace open <경로> — 이 폴더를 작업공간으로 열어요"},
+				En: {Other: "masil workspace open <path> — open this folder as a workspace"},
+			},
+		},
+		"cli_stop_failed": {
+			desc:   "CLI 오류: 공유를 끝내지 못함. err = 오류 설명",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "공유를 끝내지 못했어요: {err}"},
+				En: {Other: "Could not end the share: {err}"},
+			},
+		},
+		"cli_stop_usage": {
+			desc: "masil help 의 한 줄: 작업공간 공유 끝 명령 사용법(명령·인자 이름은 번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "masil workspace stop [공유 ID] — 내 작업공간 공유를 끝내요(ID 가 없으면 모두)"},
+				En: {Other: "masil workspace stop [share id] — end my workspace shares (all without an id)"},
+			},
+		},
+		"cli_stopped": {
+			desc:   "CLI 결과: 공유를 끝낸 수. n = 개수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 {n}개를 끝냈어요"},
+				En: {Other: "Ended {n} share(s)"},
+			},
+		},
+		"cli_usage": {
+			desc: "masil help 의 한 줄: workspace 명령 전체",
+			text: map[Locale]Forms{
+				Ko: {Other: "masil workspace open <경로> | stop [공유 ID] — 작업공간을 열거나 공유를 끝내요"},
+				En: {Other: "masil workspace open <path> | stop [share id] — open a workspace or end sharing"},
 			},
 		},
 		"code_cannot_open": {
@@ -573,6 +646,13 @@ var areaWorkspace = area{
 				En: {Other: "{key} then x ends sharing"},
 			},
 		},
+		"killed_toast": {
+			desc: "토스트: 즉시 끊기(ctrl+\\ x)로 공유를 끊음",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유를 즉시 끊었어요"},
+				En: {Other: "Sharing cut off"},
+			},
+		},
 		"last_input": {
 			desc:   "공유 중: 마지막으로 입력한 사람과 지난 시간. name = 표시 이름, ago = 지난 시간",
 			params: []Param{{Name: "name", Type: "string"}, {Name: "ago", Type: "string"}},
@@ -651,6 +731,27 @@ var areaWorkspace = area{
 				En: {Other: "New terminal"},
 			},
 		},
+		"notify_failed": {
+			desc: "토스트: 작업공간 알림 설정을 바꾸지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간 알림 설정을 바꾸지 못했어요"},
+				En: {Other: "Could not change workspace alerts"},
+			},
+		},
+		"notify_off": {
+			desc: "토스트: 작업공간 알림을 끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간 알림을 껐어요"},
+				En: {Other: "Workspace alerts off"},
+			},
+		},
+		"notify_on": {
+			desc: "토스트: 작업공간 알림을 켬",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간 알림을 켰어요"},
+				En: {Other: "Workspace alerts on"},
+			},
+		},
 		"open_failed": {
 			desc: "토스트: 고른 폴더를 열지 못했을 때",
 			text: map[Locale]Forms{
@@ -663,6 +764,41 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "← 오너만 답할 수 있음"},
 				En: {Other: "← only the owner can answer"},
+			},
+		},
+		"palette_autosave_toggle": {
+			desc: "명령 팔레트: 작업공간 자동 저장 켜기/끄기",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간: 자동 저장 켜기/끄기"},
+				En: {Other: "Workspace: toggle autosave"},
+			},
+		},
+		"palette_join": {
+			desc: "명령 팔레트: 초대받은 공유에 참가",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간: 초대받은 공유 참가"},
+				En: {Other: "Workspace: join a share"},
+			},
+		},
+		"palette_notify_toggle": {
+			desc: "명령 팔레트: 작업공간 알림(초대·승인 대기) 켜기/끄기",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간 알림 켜기/끄기"},
+				En: {Other: "Toggle workspace alerts"},
+			},
+		},
+		"palette_open": {
+			desc: "명령 팔레트: 작업공간 도구 열기(폴더 고르기)",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간 열기"},
+				En: {Other: "Open workspace"},
+			},
+		},
+		"palette_people": {
+			desc: "명령 팔레트: 공유 중인 작업공간의 참가자 칸으로",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간: 참가자"},
+				En: {Other: "Workspace: participants"},
 			},
 		},
 		"palette_proposals": {
@@ -684,6 +820,13 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "작업공간: 공유 시작"},
 				En: {Other: "Workspace: start sharing"},
+			},
+		},
+		"palette_term_new": {
+			desc: "명령 팔레트: 작업공간에 새 터미널",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간: 새 터미널"},
+				En: {Other: "Workspace: new terminal"},
 			},
 		},
 		"pan_more": {
@@ -1442,6 +1585,16 @@ func (a_ WorkspaceT) AttentionWaiting() string {
 	return a_.t.render(&areaWorkspace, "attention_waiting", false, 0)
 }
 
+// AutosaveOff: 토스트: 자동 저장을 끔
+func (a_ WorkspaceT) AutosaveOff() string {
+	return a_.t.render(&areaWorkspace, "autosave_off", false, 0)
+}
+
+// AutosaveOn: 토스트: 자동 저장을 켬
+func (a_ WorkspaceT) AutosaveOn() string {
+	return a_.t.render(&areaWorkspace, "autosave_on", false, 0)
+}
+
 // BandPrivate: 상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)
 func (a_ WorkspaceT) BandPrivate(folder string) string {
 	return a_.t.render(&areaWorkspace, "band_private", false, 0, "folder", folder)
@@ -1480,6 +1633,46 @@ func (a_ WorkspaceT) CheckBlockedSettings() string {
 // CheckShellWarning: 프로그램 점검 경고: 셸 안에서 실행하는 프로그램은 모드를 확인할 수 없음(스펙 고정 문구)
 func (a_ WorkspaceT) CheckShellWarning() string {
 	return a_.t.render(&areaWorkspace, "check_shell_warning", false, 0)
+}
+
+// CliNoShares: CLI 결과: 끝낼 공유가 없음
+func (a_ WorkspaceT) CliNoShares() string {
+	return a_.t.render(&areaWorkspace, "cli_no_shares", false, 0)
+}
+
+// CliNotDir: CLI 오류: 경로가 폴더가 아님. path = 사용자가 준 경로(번역하지 않음)
+func (a_ WorkspaceT) CliNotDir(path string) string {
+	return a_.t.render(&areaWorkspace, "cli_not_dir", false, 0, "path", path)
+}
+
+// CliNotLoggedIn: CLI 오류: 로그인이 필요함
+func (a_ WorkspaceT) CliNotLoggedIn() string {
+	return a_.t.render(&areaWorkspace, "cli_not_logged_in", false, 0)
+}
+
+// CliOpenUsage: masil help 의 한 줄: 작업공간 열기 명령 사용법(명령·인자 이름은 번역하지 않음)
+func (a_ WorkspaceT) CliOpenUsage() string {
+	return a_.t.render(&areaWorkspace, "cli_open_usage", false, 0)
+}
+
+// CliStopFailed: CLI 오류: 공유를 끝내지 못함. err = 오류 설명
+func (a_ WorkspaceT) CliStopFailed(err string) string {
+	return a_.t.render(&areaWorkspace, "cli_stop_failed", false, 0, "err", err)
+}
+
+// CliStopUsage: masil help 의 한 줄: 작업공간 공유 끝 명령 사용법(명령·인자 이름은 번역하지 않음)
+func (a_ WorkspaceT) CliStopUsage() string {
+	return a_.t.render(&areaWorkspace, "cli_stop_usage", false, 0)
+}
+
+// CliStopped: CLI 결과: 공유를 끝낸 수. n = 개수
+func (a_ WorkspaceT) CliStopped(n int) string {
+	return a_.t.render(&areaWorkspace, "cli_stopped", false, 0, "n", strconv.Itoa(n))
+}
+
+// CliUsage: masil help 의 한 줄: workspace 명령 전체
+func (a_ WorkspaceT) CliUsage() string {
+	return a_.t.render(&areaWorkspace, "cli_usage", false, 0)
 }
 
 // CodeCannotOpen: 코드 칸: 열 수 없는 파일(차단·무시·찾을 수 없음 등)을 골랐을 때
@@ -1787,6 +1980,11 @@ func (a_ WorkspaceT) KillHint(key string) string {
 	return a_.t.render(&areaWorkspace, "kill_hint", false, 0, "key", key)
 }
 
+// KilledToast: 토스트: 즉시 끊기(ctrl+\ x)로 공유를 끊음
+func (a_ WorkspaceT) KilledToast() string {
+	return a_.t.render(&areaWorkspace, "killed_toast", false, 0)
+}
+
 // LastInput: 공유 중: 마지막으로 입력한 사람과 지난 시간. name = 표시 이름, ago = 지난 시간
 func (a_ WorkspaceT) LastInput(name string, ago string) string {
 	return a_.t.render(&areaWorkspace, "last_input", false, 0, "name", name, "ago", ago)
@@ -1837,6 +2035,21 @@ func (a_ WorkspaceT) NewtermTitle() string {
 	return a_.t.render(&areaWorkspace, "newterm_title", false, 0)
 }
 
+// NotifyFailed: 토스트: 작업공간 알림 설정을 바꾸지 못함
+func (a_ WorkspaceT) NotifyFailed() string {
+	return a_.t.render(&areaWorkspace, "notify_failed", false, 0)
+}
+
+// NotifyOff: 토스트: 작업공간 알림을 끔
+func (a_ WorkspaceT) NotifyOff() string {
+	return a_.t.render(&areaWorkspace, "notify_off", false, 0)
+}
+
+// NotifyOn: 토스트: 작업공간 알림을 켬
+func (a_ WorkspaceT) NotifyOn() string {
+	return a_.t.render(&areaWorkspace, "notify_on", false, 0)
+}
+
 // OpenFailed: 토스트: 고른 폴더를 열지 못했을 때
 func (a_ WorkspaceT) OpenFailed() string {
 	return a_.t.render(&areaWorkspace, "open_failed", false, 0)
@@ -1845,6 +2058,31 @@ func (a_ WorkspaceT) OpenFailed() string {
 // OwnerOnlyAnswer: 참가자 화면 터미널 제목: 승인 창은 오너만 답할 수 있음
 func (a_ WorkspaceT) OwnerOnlyAnswer() string {
 	return a_.t.render(&areaWorkspace, "owner_only_answer", false, 0)
+}
+
+// PaletteAutosaveToggle: 명령 팔레트: 작업공간 자동 저장 켜기/끄기
+func (a_ WorkspaceT) PaletteAutosaveToggle() string {
+	return a_.t.render(&areaWorkspace, "palette_autosave_toggle", false, 0)
+}
+
+// PaletteJoin: 명령 팔레트: 초대받은 공유에 참가
+func (a_ WorkspaceT) PaletteJoin() string {
+	return a_.t.render(&areaWorkspace, "palette_join", false, 0)
+}
+
+// PaletteNotifyToggle: 명령 팔레트: 작업공간 알림(초대·승인 대기) 켜기/끄기
+func (a_ WorkspaceT) PaletteNotifyToggle() string {
+	return a_.t.render(&areaWorkspace, "palette_notify_toggle", false, 0)
+}
+
+// PaletteOpen: 명령 팔레트: 작업공간 도구 열기(폴더 고르기)
+func (a_ WorkspaceT) PaletteOpen() string {
+	return a_.t.render(&areaWorkspace, "palette_open", false, 0)
+}
+
+// PalettePeople: 명령 팔레트: 공유 중인 작업공간의 참가자 칸으로
+func (a_ WorkspaceT) PalettePeople() string {
+	return a_.t.render(&areaWorkspace, "palette_people", false, 0)
 }
 
 // PaletteProposals: 팔레트 명령: 작업공간 제안 대기열
@@ -1860,6 +2098,11 @@ func (a_ WorkspaceT) PaletteShareEnd() string {
 // PaletteShareStart: 팔레트 명령: 작업공간 공유 시작
 func (a_ WorkspaceT) PaletteShareStart() string {
 	return a_.t.render(&areaWorkspace, "palette_share_start", false, 0)
+}
+
+// PaletteTermNew: 명령 팔레트: 작업공간에 새 터미널
+func (a_ WorkspaceT) PaletteTermNew() string {
+	return a_.t.render(&areaWorkspace, "palette_term_new", false, 0)
 }
 
 // PanMore: 참가자 터미널 칸 오른쪽 위: 창 오른쪽에 가려진 칸 수. n = 칸 수

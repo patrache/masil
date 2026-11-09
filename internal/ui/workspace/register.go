@@ -17,7 +17,6 @@ import (
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
-	"github.com/patrache/masil/internal/ui/palette"
 )
 
 // pickerID is the folder picker's instance (a route without a folder).
@@ -52,24 +51,6 @@ func init() {
 			{Key: "enter", Help: func(t *i18n.T) string { return t.Workspace.PrefixHelpProposals() }},
 		},
 		WideDefault: true,
-	})
-	palette.Register(palette.Command{
-		ID: "ws.share.start", Label: func(t *i18n.T) string { return t.Workspace.PaletteShareStart() },
-		Keywords: []string{"workspace", "share"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return activeSharing(ctx) == 0 },
-		Run:       wsCommand("share.start"),
-	})
-	palette.Register(palette.Command{
-		ID: "ws.share.end", Label: func(t *i18n.T) string { return t.Workspace.PaletteShareEnd() },
-		Keywords: []string{"workspace", "share", "end"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return activeSharing(ctx) == 1 },
-		Run:       wsCommand("share.end"),
-	})
-	palette.Register(palette.Command{
-		ID: "ws.proposals", Label: func(t *i18n.T) string { return t.Workspace.PaletteProposals() },
-		Keywords: []string{"workspace", "proposals"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return activeSharing(ctx) == 1 },
-		Run:       wsCommand("proposals"),
 	})
 }
 
@@ -187,4 +168,10 @@ func hubStatus(ctx *ui.Context) string {
 		n = len(st.Invited())
 	}
 	return t.HubStatusIdle(n)
+}
+
+// OpenRoute is the route that opens folder abs (an absolute path) in the
+// workspace tool — `masil workspace open <path>` starts the TUI on it.
+func OpenRoute(abs string) ui.Route {
+	return ui.Route{Kind: ui.RouteTool, ID: instanceID(abs), Arg: ui.ToolWorkspace, Query: map[string]string{"open": abs}}
 }

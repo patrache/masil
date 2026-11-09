@@ -35,6 +35,7 @@ type Surface struct {
 	root      *fsroot.Root
 	jr        *journal.Journal
 	docs      *share.DocManager
+	autosave  bool // the documents save themselves (ws.autosave.toggle, the share dialog)
 
 	tree *treeCell
 	code *codeCell
@@ -352,10 +353,7 @@ func (s *Surface) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 	case termpane.PrefixSurface:
 		return true, func() tea.Msg { return ui.ToolSurfaceMsg{Action: ui.ToolSurfaceToggle} }
 	case termpane.PrefixKill:
-		if ui.KillSwitchActive() {
-			return true, ui.KillAll(ctx)
-		}
-		return true, nil
+		return true, killNow(ctx)
 	default: // leave, scroll, help, literal, cancel: nothing outside a terminal
 		return true, nil
 	}

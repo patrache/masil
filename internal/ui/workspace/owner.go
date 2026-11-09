@@ -294,8 +294,9 @@ func (s *Surface) shareStarted(ctx *ui.Context, m shareStartedMsg) tea.Cmd {
 	}
 	s.own = &ownerShare{host: m.host, id: m.info.ID, title: m.info.Title, members: m.info.Members, files: m.opts.files,
 		terms: map[string]uint8{}, shared: map[uint8]share.Terminal{}, audit: m.log}
+	guard.add(m.host)
 	if m.opts.files {
-		s.docs.SetAutosave(m.opts.autosave)
+		s.setAutosave(m.opts.autosave)
 	}
 	size := share.FixedSizes[min(max(m.opts.size, 0), len(share.FixedSizes)-1)]
 	next := uint8(1)
@@ -340,6 +341,8 @@ func (s *Surface) ownerUpdate(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if m.surface == s.id {
 			return s.wsCommand(ctx, m.action)
 		}
+	case sharesKilledMsg:
+		return s.onKilled(ctx)
 	case shareEndMsg:
 		if m.surface == s.id {
 			cmd := s.shareEnded(ctx)
@@ -424,12 +427,11 @@ func (s *Surface) shareEnded(ctx *ui.Context) tea.Cmd {
 	if s.own.audit != nil {
 		_ = s.own.audit.Close()
 	}
+	guard.drop(s.own.host)
 	s.own.release()
 	s.own = nil
 	s.clearPeers()
-	if s.docs != nil {
-		s.docs.SetAutosave(false)
-	}
+	s.setAutosave(false)
 	if s.focus == PanePeople {
 		s.focus = PaneTree
 	}
@@ -563,6 +565,7 @@ func (s *Surface) ownerClose(*ui.Context) tea.Cmd {
 	if o == nil {
 		return pending
 	}
+	guard.drop(o.host)
 	o.release()
 	s.own = nil
 	return tea.Batch(pending, endHostCmd(o.host, o.audit))
@@ -637,6 +640,29 @@ func (s *Surface) wsCommand(ctx *ui.Context, action string) tea.Cmd {
 		}
 	case "proposals":
 		return s.openProposals(ctx)
+	case "people":
+		s.setFocus(ctx, PanePeople)
+	case "term.new":
+		if s.root != nil && s.dlg == nil {
+			s.openNewTerm(ctx, s.termMode())
+		}
+	case "autosave":
+		if s.docs == nil {
+			return nil
+		}
+		s.setAutosave(!s.autosave)
+		if s.autosave {
+			return ui.Toast(ctx.T.Workspace.AutosaveOn(), ui.ToastInfo)
+		}
+		return ui.Toast(ctx.T.Workspace.AutosaveOff(), ui.ToastInfo)
 	}
 	return nil
+}
+
+// setAutosave turns the documents' autosave on or off.
+func (s *Surface) setAutosave(on bool) {
+	s.autosave = on
+	if s.docs != nil {
+		s.docs.SetAutosave(on)
+	}
 }

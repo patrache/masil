@@ -52,7 +52,20 @@ func copyFixture(t *testing.T) string {
 func setup(t *testing.T) *termpanetest.Fake {
 	t.Helper()
 	t.Setenv("MASIL_FEATURES", "workspace")
+	forgetSurfaces()
+	t.Cleanup(forgetSurfaces)
 	return termpanetest.Install(t)
+}
+
+// forgetSurfaces drops the surfaces and shares a test left open (one
+// process runs many harnesses; the real app has one).
+func forgetSurfaces() {
+	liveMu.Lock()
+	live = nil
+	liveMu.Unlock()
+	guard.mu.Lock()
+	clear(guard.hosts)
+	guard.mu.Unlock()
 }
 
 func openRoute(id, dir string) ui.Route {

@@ -771,11 +771,8 @@ func (s *Surface) guestPrefix(ctx *ui.Context, r termpane.PrefixResult) (bool, t
 		return true, func() tea.Msg { return ui.ShellActionMsg{Action: ui.ShellPalette} }
 	case termpane.PrefixSurface:
 		return true, func() tea.Msg { return ui.ToolSurfaceMsg{Action: ui.ToolSurfaceToggle} }
-	case termpane.PrefixKill:
-		if ui.KillSwitchActive() { // my own share elsewhere is cut first
-			return true, ui.KillAll(ctx)
-		}
-		return true, nil
+	case termpane.PrefixKill: // my own share elsewhere is cut
+		return true, killNow(ctx)
 	case termpane.PrefixLiteral:
 		if s.guestGrabs() {
 			_ = s.guest.eng.Input(s.guest.termCur, []byte{0x1c})
