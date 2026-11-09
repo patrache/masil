@@ -944,6 +944,15 @@ var areaApitest = area{
 				En: {Other: "This request goes to an address on my PC or my network (last changed by {name})"},
 			},
 		},
+		"private_target_unknown": {
+			desc:       "private_target 와 같은 질문인데 마지막으로 바꾼 사람을 모를 때(처음 받은 문서·오프라인 사본·카드로 연 문서)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 (누가 마지막으로 바꿨는지 몰라요)"},
+				En: {Other: "This request goes to an address on my PC or my network (who changed it last is not known)"},
+			},
+		},
 		"private_title": {
 			desc: "private_target 창 제목",
 			max:  30,
@@ -2367,6 +2376,11 @@ func (a_ ApitestT) PrivateSend() string {
 // PrivateTarget: 남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)
 func (a_ ApitestT) PrivateTarget(name string) string {
 	return a_.t.render(&areaApitest, "private_target", false, 0, "name", name)
+}
+
+// PrivateTargetUnknown: private_target 와 같은 질문인데 마지막으로 바꾼 사람을 모를 때(처음 받은 문서·오프라인 사본·카드로 연 문서)
+func (a_ ApitestT) PrivateTargetUnknown() string {
+	return a_.t.render(&areaApitest, "private_target_unknown", false, 0)
 }
 
 // PrivateTitle: private_target 창 제목

@@ -59,6 +59,7 @@ type sharedDoc struct {
 	copyDue          bool
 	pendingReq       string               // the request to open once the document arrived
 	lastAt           map[string]time.Time // request id -> when a peer changed it
+	ownSnapshot      bool                 // the first snapshot is the document I uploaded
 	held             *heldEdit            // ops the detector held, waiting for the answer
 	declined         map[string]bool      // held values the user kept local (heldKey)
 }
@@ -185,6 +186,11 @@ func (t *Tool) openDoc(ctx *ui.Context, id, req string) *sharedDoc {
 		sd.view = collab.NewDoc(cp.Snapshot)
 		if c, err := apitool.CollectionFromDoc(cp.Snapshot); err == nil {
 			t.setCol(sd, c)
+			reqs := map[string]bool{}
+			for id := range c.Requests {
+				reqs[id] = true
+			}
+			t.markRequests(ctx, sd, reqs, nil, "") // who changed them last is not known
 		}
 	}
 	if ctx.API != nil && collab.IsName(id) {
@@ -635,6 +641,51 @@ func (t *Tool) rebuild(sd *sharedDoc) {
 	}
 }
 
+// markForeign marks the requests a remote change touched as someone
+// else's (C3.10 private targets): a request or its rows mark that request;
+// a variable (environment, collection vars) marks every request of the
+// document, since any URL may read it. author "" (a snapshot: the first
+// load or a catch-up) marks them unknown unless a peer is already known.
+func (t *Tool) markForeign(ctx *ui.Context, sd *sharedDoc, changes []collab.Change, author string) {
+	reqs := map[string]bool{}
+	all := false
+	for _, c := range changes {
+		if r := reqOfObject(sd.view, c.ID); r != "" {
+			reqs[r] = true
+		} else if strings.HasPrefix(c.ID, "envvar:") || strings.HasPrefix(c.ID, "env:") || (c.ID == "col" && c.Field != "name") {
+			all = true
+		}
+	}
+	direct := maps.Clone(reqs)
+	if all && sd.col != nil {
+		for id := range sd.col.Requests {
+			reqs[id] = true
+		}
+	}
+	t.markRequests(ctx, sd, reqs, direct, author)
+}
+
+// markRequests marks reqs someone else's: by author (direct ones also get
+// the "last changed" time), or unknown when author is "".
+func (t *Tool) markRequests(ctx *ui.Context, sd *sharedDoc, reqs, direct map[string]bool, author string) {
+	seq := 0
+	if sd.view != nil {
+		seq = int(sd.view.Seq())
+	}
+	for r := range reqs {
+		if author == "" {
+			if !t.foreign[r].foreign() {
+				t.foreign[r] = foreignInfo{Unknown: true, Seq: seq}
+			}
+			continue
+		}
+		t.foreign[r] = foreignInfo{By: userName(ctx, author), Seq: seq}
+		if direct[r] {
+			sd.lastAt[r] = t.now(ctx)
+		}
+	}
+}
+
 // reqOfObject is the request an object belongs to ("" = none).
 func reqOfObject(d *collab.Doc, id string) string {
 	if r, ok := strings.CutPrefix(id, "req:"); ok {
@@ -658,14 +709,12 @@ func (t *Tool) onCollabEvent(ctx *ui.Context, m collabEventMsg) tea.Cmd {
 	switch e := m.e.(type) {
 	case collab.EventChanged:
 		t.rebuild(sd)
-		if e.Remote && e.Author != "" && e.Author != myID(ctx) {
-			by := userName(ctx, e.Author)
-			for _, c := range e.Changes {
-				if r := reqOfObject(sd.view, c.ID); r != "" {
-					t.foreign[r] = foreignInfo{By: by, Seq: int(sd.view.Seq())}
-					sd.lastAt[r] = t.now(ctx)
-				}
-			}
+		switch {
+		case !e.Remote || (e.Author != "" && e.Author == myID(ctx)):
+		case e.Author == "" && sd.ownSnapshot:
+			sd.ownSnapshot = false // the document I just uploaded
+		default:
+			t.markForeign(ctx, sd, e.Changes, e.Author)
 		}
 		return t.afterChange(ctx, sd, e.Remote)
 	case collab.EventOverwritten:
@@ -1062,6 +1111,14 @@ func (t *Tool) startUpload(ctx *ui.Context, p *uploadPlan) tea.Cmd {
 			if sd.title == "" {
 				sd.title = d.Title
 			}
+			// I wrote every request of the new document: its copy and its
+			// first snapshot are mine.
+			if sd.col != nil {
+				for id := range sd.col.Requests {
+					delete(t.foreign, id)
+				}
+			}
+			sd.ownSnapshot = true
 			return ui.Toast(ctx.T.Apitest.UploadDone(textwidth.Sanitize(d.Title)), ui.ToastSuccess)
 		}
 	})

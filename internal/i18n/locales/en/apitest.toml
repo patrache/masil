@@ -362,6 +362,9 @@ other = "Send anyway"
 [private_target]
 other = "This request goes to an address on my PC or my network (last changed by {name})"
 
+[private_target_unknown]
+other = "This request goes to an address on my PC or my network (who changed it last is not known)"
+
 [private_title]
 other = "Request to my PC or network"
 

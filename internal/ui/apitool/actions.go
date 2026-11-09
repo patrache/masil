@@ -33,11 +33,16 @@ import (
 // a variable), saving to the personal collection.
 
 // foreignInfo marks a request someone else changed last (a shared
-// collection): By is their display name, Seq the version.
+// collection): By is their display name, Seq the version. Unknown: I cannot
+// tell who did (the document's first snapshot, the offline copy) — not me.
 type foreignInfo struct {
-	By  string
-	Seq int
+	By      string
+	Seq     int
+	Unknown bool
 }
+
+// foreign reports whether the request counts as someone else's.
+func (fi foreignInfo) foreign() bool { return fi.By != "" || fi.Unknown }
 
 // pendingSecret is a pasted secret-looking span waiting for the
 // secret_detected answer: the field's whole text and the span.
@@ -179,7 +184,7 @@ func (t *Tool) send(ctx *ui.Context) tea.Cmd {
 		if err != nil {
 			return t.sendError(key, req, pk, err)
 		}
-		p.Foreign, p.LastBy, p.PrivateOK = fi.By != "", fi.By, privOK
+		p.Foreign, p.LastBy, p.PrivateOK = fi.foreign(), fi.By, privOK
 		if err := os.MkdirAll(spillDir, 0o700); err != nil {
 			slog.Warn("api: spill dir", "err", err)
 		}

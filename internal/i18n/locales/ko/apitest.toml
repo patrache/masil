@@ -575,6 +575,12 @@ no_truncate = true
 legal = true
 other = "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 ({name}님이 마지막으로 바꿈)"
 
+[private_target_unknown]
+desc = "private_target 와 같은 질문인데 마지막으로 바꾼 사람을 모를 때(처음 받은 문서·오프라인 사본·카드로 연 문서)"
+no_truncate = true
+legal = true
+other = "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 (누가 마지막으로 바꿨는지 몰라요)"
+
 [private_title]
 desc = "private_target 창 제목"
 max = 30

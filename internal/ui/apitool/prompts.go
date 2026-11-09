@@ -88,8 +88,12 @@ func registerOverlays() {
 	})
 	ui.RegisterOverlay(overlayPrivate, func(ctx *ui.Context, args string) ui.Overlay {
 		p, a := decodeArgs(args), ctx.T.Apitest
+		line := a.PrivateTargetUnknown()
+		if p.By != "" {
+			line = a.PrivateTarget(p.By)
+		}
 		return &dialog{inst: p.Inst, kind: dkPrivate, title: a.PrivateTitle(), prefW: 60,
-			body:    []string{a.PrivateTarget(p.By)},
+			body:    []string{line},
 			choices: []string{a.PrivateSend(), a.Cancel()}}
 	})
 }

@@ -229,7 +229,7 @@ func (t *Tool) launch(ctx *ui.Context, pr *pendingRun, privOK map[string]bool) (
 		Dyn:  dyn(ctx),
 		Foreign: func(id string) (string, bool) {
 			fi, ok := foreign[id]
-			return fi.By, ok && fi.By != ""
+			return fi.By, ok && fi.foreign()
 		},
 		PrivateOK: privOK,
 	}

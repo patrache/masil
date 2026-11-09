@@ -416,6 +416,9 @@ func TestOfflineSendWorks(t *testing.T) {
 	hub.SetOnline(fixtures.UserSam, false)
 	tl.focus = paneRequest
 	h.Press("enter")
+	// 127.0.0.1 from a document whose author I cannot know asks once
+	waitFor(t, h, "the private-target question", func() bool { return hasWhole(overlayText(h), ko.PrivateTargetUnknown()) })
+	h.Press("enter") // 그래도 보내기
 	waitScreen(t, h, "201")
 	if hits.Load() != 1 {
 		t.Fatalf("target hits = %d", hits.Load())
@@ -441,6 +444,41 @@ func TestLastChangedShown(t *testing.T) {
 	}
 	if fi := tl.foreign["r-pay"]; fi.By != "하나" {
 		t.Fatalf("foreign = %+v", fi)
+	}
+}
+
+// A peer changing a variable the URLs read (base_url) makes every request
+// of the document theirs for the private-target check (C3.10).
+func TestPeerVarChangeMarksRequestsForeign(t *testing.T) {
+	hub := collabtest.New(t)
+	seedShared(hub, sharedCollection("https://api.example.com"))
+	h := openAPI(t, uitest.WithCollab(hub))
+	tl := openShared(t, h, "r-pay")
+	hub.Inject(sharedDocID, fixtures.UserHana, []collab.Op{{Op: collab.OpSet, ID: "envvar:v1", Field: "value", Value: json.RawMessage(`"http://169.254.169.254"`)}})
+	waitFor(t, h, "both requests hana's", func() bool {
+		return tl.foreign["r-pay"].By == "하나" && tl.foreign["r-get"].By == "하나"
+	})
+}
+
+// A request whose last author I cannot know (the document's first
+// snapshot, the offline copy, a document opened from a card) is not mine:
+// a private target asks once before it is sent.
+func TestUnknownAuthorAsksForPrivateTarget(t *testing.T) {
+	srv, hits := hitServer(t, created)
+	hub := collabtest.New(t)
+	seedShared(hub, sharedCollection(srv.URL))
+	h := openAPI(t, uitest.WithCollab(hub))
+	tl := openShared(t, h, "r-get")
+	tl.focus = paneRequest
+	h.Press("enter")
+	waitFor(t, h, "the private-target question", func() bool { return hasWhole(overlayText(h), ko.PrivateTargetUnknown()) })
+	if hits.Load() != 0 {
+		t.Fatalf("sent before the answer: %d", hits.Load())
+	}
+	h.Press("enter") // 그래도 보내기
+	waitScreen(t, h, "201")
+	if hits.Load() != 1 {
+		t.Fatalf("target hits = %d", hits.Load())
 	}
 }
 
