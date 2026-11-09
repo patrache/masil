@@ -45,7 +45,7 @@ var presenceModes = []struct {
 
 func init() {
 	palette.Register(palette.Command{
-		ID: "presence.set", Title: "접속 상태 바꾸기", Group: "명령",
+		ID: "presence.set", Title: "접속 상태 바꾸기", Group: palette.GroupCommand,
 		Keywords: []string{"자리비움", "방해금지", "away", "dnd", "presence", "접속"},
 		Run:      runPresenceSet,
 	})

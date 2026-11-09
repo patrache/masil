@@ -1,0 +1,26 @@
+# Korean string literals allowed per package (module prefix dropped, sorted).
+# Counts only go down: lower with
+#   go test ./internal/i18n -run TestHangulLiteralRatchet -args -write-ratchet
+# Packages not listed (all new 0.1.3 packages) allow 0 — use the catalog.
+
+cmd/masil 85
+# permanent: operator CLI stays Korean (i18n 1.3)
+internal/admincli 77
+internal/api 47
+internal/autostart 7
+internal/humanize 24
+internal/markup 3
+internal/slash 25
+internal/textwidth 2
+internal/theme 4
+internal/ui 2
+internal/ui/app 101
+internal/ui/authui 26
+internal/ui/chat 574
+internal/ui/feed 342
+internal/ui/fun 85
+internal/ui/keymap 43
+internal/ui/layout 5
+internal/ui/palette 11
+internal/ui/settings 90
+internal/ui/widgets 96

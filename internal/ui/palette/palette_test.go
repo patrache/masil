@@ -97,7 +97,7 @@ func TestRanking(t *testing.T) {
 	}
 
 	avail := false
-	palette.Register(palette.Command{ID: "t.hidden", Title: "숨은 명령", Group: "명령",
+	palette.Register(palette.Command{ID: "t.hidden", Title: "숨은 명령", Group: palette.GroupCommand,
 		Available: func(*ui.Context) bool { return avail }})
 	if got := titles(palette.ItemsForTest(ctx, "숨은")); len(got) != 0 {
 		t.Fatalf("Available false must exclude the command: %q", got)
@@ -162,9 +162,9 @@ func TestEmptyQueryListsCommands(t *testing.T) {
 	t.Cleanup(palette.SnapshotForTest())
 	t.Cleanup(palette.ResetRecentForTest())
 	ctx := uitest.New(t).Context()
-	palette.Register(palette.Command{ID: "t.on", Title: "시험 켜짐", Group: "명령",
+	palette.Register(palette.Command{ID: "t.on", Title: "시험 켜짐", Group: palette.GroupCommand,
 		Available: func(*ui.Context) bool { return true }})
-	palette.Register(palette.Command{ID: "t.off", Title: "시험 꺼짐", Group: "명령",
+	palette.Register(palette.Command{ID: "t.off", Title: "시험 꺼짐", Group: palette.GroupCommand,
 		Available: func(*ui.Context) bool { return false }})
 
 	items := palette.ItemsForTest(ctx, "")
@@ -178,7 +178,7 @@ func TestEmptyQueryListsCommands(t *testing.T) {
 		}
 	}
 	cmds := items[home+1:]
-	rank := map[string]int{"이동": 0, "명령": 1, "설정": 2}
+	rank := map[string]int{palette.GroupNav: 0, palette.GroupCommand: 1, palette.GroupSettings: 2}
 	for i := 1; i < len(cmds); i++ {
 		a, b := cmds[i-1].Command, cmds[i].Command
 		ra, rb := rank[a.Group], rank[b.Group]
@@ -210,7 +210,7 @@ func TestCommandBadgeEveryQuery(t *testing.T) {
 	t.Cleanup(palette.SnapshotForTest())
 	t.Cleanup(palette.ResetRecentForTest())
 	ctx := uitest.New(t).Context()
-	palette.Register(palette.Command{ID: "t.badged", Title: "시험 배지", Group: "이동",
+	palette.Register(palette.Command{ID: "t.badged", Title: "시험 배지", Group: palette.GroupNav,
 		Badge: func(*ui.Context) ui.Badge { return ui.Badge{Count: 3} }})
 	for _, q := range []string{"", "시험 배지"} {
 		i := slices.IndexFunc(palette.ItemsForTest(ctx, q), func(it palette.Item) bool {

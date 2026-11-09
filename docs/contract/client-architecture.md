@@ -1581,7 +1581,7 @@ func (f Formatter) DayDivider(t time.Time, loc *time.Location) string
 ```go
 package slash
 const Tools Name = "tools"           // /tools → ui.RunCommand("tools.hub", ""); 도구 기능 플래그(features.Any())가 꺼져 있으면 행이 없고 기존 "알 수 없는 명령" 동작
-func Catalog(t *i18n.T) []Spec        // v0.1.3: 인자 t 가 더해진다(시그니처 변경, P0 Task 9a). Catalog(i18n.Ko()) == 0.1.2 의 Catalog() 표. 새 행(/tools)의 설명은 t 에서. ctx 가 없는 곳(CLI)은 함수 안에서 i18n.Ko()
+func Catalog(t *i18n.T) []Spec        // v0.1.3: 인자 t 가 더해진다(시그니처 변경, P0 Task 9a). Catalog(i18n.KoT()) == 0.1.2 의 Catalog() 표. 새 행(/tools)의 설명은 t 에서. ctx 가 없는 곳(CLI)은 함수 안에서 i18n.KoT()
 ```
 
 ```go
@@ -1924,7 +1924,7 @@ type Poster interface {
 	Coalesce(key string, msg tea.Msg) // 같은 key 는 아직 배달 안 된 것 하나만 남김(최신으로 교체) — 예: termpane.DirtyMsg
 }
 ```
-- 화면에 그리는 모든 문구는 `ctx.T` 에서 꺼낸다(새 패키지는 한글 문자열 리터럴 0개 — `internal/i18n/ratchet_test.go`). 패키지 수준 변수·`init()` 에서 `i18n.Ko()`/`i18n.For` 로 문구를 굳히지 않는다(언어 바꾸기 대비, P5 `TestNoPackageLevelCatalog`).
+- 화면에 그리는 모든 문구는 `ctx.T` 에서 꺼낸다(새 패키지는 한글 문자열 리터럴 0개 — `internal/i18n/ratchet_test.go`). 패키지 수준 변수·`init()` 에서 `i18n.KoT()`/`i18n.For` 로 문구를 굳히지 않는다(언어 바꾸기 대비, P5 `TestNoPackageLevelCatalog`).
 - **고루틴 규칙**: `internal/ui/...` 의 고루틴(패널 출력·외부 창 대기·방 문서 세션 콜백 등)이 화면에 무언가 알리려면 `ctx.Post` 만 쓴다(`tea.Program.Send` 직접 호출 금지). 지연은 지금처럼 `ui.After` 만(타이머 규칙 그대로).
 - 도구는 비밀값을 `ctx.Secrets` 로만 읽고 쓴다(전역 저장소·도구별 생성자 없음). 기기 전용 기억은 `ctx.ToolState.Section(<도구 ID>, &v)`·`SetSection` 으로 자기 섹션만.
 

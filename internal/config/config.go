@@ -57,6 +57,9 @@ type UIConfig struct {
 	Animations      bool   `toml:"animations"`
 	PaintBackground bool   `toml:"paint_background"`
 	Clock           string `toml:"clock"`
+	// Language is auto | ko | en | zh-Hans (i18n spec 6.2). 0.1.3 opens ko only
+	// and hides the settings row; MASIL_LANG still overrides it.
+	Language string `toml:"language"`
 }
 
 // NotifyConfig is the [notify] table.
@@ -85,6 +88,7 @@ func Defaults() *Config {
 			Animations:      true,
 			PaintBackground: true,
 			Clock:           "24h",
+			Language:        "auto",
 		},
 		Notify: NotifyConfig{Desktop: true},
 		Keys:   map[string][]string{},
@@ -98,6 +102,8 @@ var (
 	validPins   = []string{"auto", "command", "standard", "compact", "widget", "tiny"}
 	validImages = []string{"auto", "kitty", "iterm2", "halfblock", "off"}
 	validClocks = []string{"24h", "12h"}
+	validLangs  = []string{"auto", "ko", "en", "zh-hans"} // compared lower-cased
+
 )
 
 // Load reads config.toml: missing file => Defaults(); unknown keys ignored;
@@ -257,6 +263,7 @@ func (c *Config) validate() []string {
 	positive("layout.widget_min_rows", &c.Layout.WidgetMinRows, d.Layout.WidgetMinRows)
 	enum("ui.images", &c.UI.Images, d.UI.Images, validImages)
 	enum("ui.clock", &c.UI.Clock, d.UI.Clock, validClocks)
+	enum("ui.language", &c.UI.Language, d.UI.Language, validLangs)
 	return bad
 }
 

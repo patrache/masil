@@ -1,0 +1,17 @@
+[lang_name_en]
+other = "English"
+
+[lang_name_ko]
+other = "한국어"
+
+[lang_name_zh]
+other = "简体中文"
+
+[palette_group_command]
+other = "Commands"
+
+[palette_group_nav]
+other = "Go to"
+
+[palette_group_settings]
+other = "Settings"

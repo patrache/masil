@@ -21,7 +21,7 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayPins, newPins)
 	palette.Register(palette.Command{
-		ID: "pins.show", Title: "고정 메시지 보기", Keywords: []string{"pins", "pinned", "고정", "고정 메시지", "핀"}, Group: "이동",
+		ID: "pins.show", Title: "고정 메시지 보기", Keywords: []string{"pins", "pinned", "고정", "고정 메시지", "핀"}, Group: palette.GroupNav,
 		Available: func(ctx *ui.Context) bool { return viewedChannel(ctx) != nil },
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			id := strings.TrimSpace(args)

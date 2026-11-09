@@ -50,7 +50,7 @@ func TestChatPaletteCommandsRegistered(t *testing.T) {
 			t.Errorf("%s not registered by ui/chat", id)
 			continue
 		}
-		if c.Title == "" || c.Run == nil || (c.Group != "이동" && c.Group != "명령" && c.Group != "설정") {
+		if c.Title == "" || c.Run == nil || (c.Group != palette.GroupNav && c.Group != palette.GroupCommand && c.Group != palette.GroupSettings) {
 			t.Errorf("%s: incomplete command %+v", id, c)
 		}
 		func() {

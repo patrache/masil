@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/slash"
 	"github.com/patrache/masil/internal/textwidth"
@@ -228,10 +229,10 @@ func emojiCandidates(prefix string) []widgets.Completion {
 
 // commandCandidates are the /command items whose name starts with prefix
 // (without '/'), in slash.Catalog order.
-func commandCandidates(prefix string) []widgets.Completion {
+func commandCandidates(t *i18n.T, prefix string) []widgets.Completion {
 	p := strings.ToLower(prefix)
 	var out []widgets.Completion
-	for _, s := range slash.Catalog() {
+	for _, s := range slash.Catalog(t) {
 		name := string(s.Name)
 		if !strings.HasPrefix(name, p) {
 			continue
@@ -276,7 +277,7 @@ func (cc *chatComposer) candidates(ctx *ui.Context) []widgets.Completion {
 	case completionEmoji:
 		return emojiCandidates(cc.comp.token[1:])
 	case completionCommand:
-		return commandCandidates(cc.comp.token[1:])
+		return commandCandidates(ctx.T, cc.comp.token[1:])
 	}
 	return nil
 }

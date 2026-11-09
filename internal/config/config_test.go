@@ -120,7 +120,7 @@ func TestDefaults(t *testing.T) {
 	if c.Layout != wantLayout {
 		t.Fatalf("layout = %+v, want %+v", c.Layout, wantLayout)
 	}
-	wantUI := config.UIConfig{Mouse: true, Images: "auto", Animations: true, PaintBackground: true, Clock: "24h"}
+	wantUI := config.UIConfig{Mouse: true, Images: "auto", Animations: true, PaintBackground: true, Clock: "24h", Language: "auto"}
 	if c.UI != wantUI {
 		t.Fatalf("ui = %+v, want %+v", c.UI, wantUI)
 	}
@@ -500,4 +500,26 @@ func TestSaveRefusesAfterFailedLoad(t *testing.T) {
 			t.Fatalf("server = %q", got.Server)
 		}
 	})
+}
+
+func TestUILanguageValidated(t *testing.T) {
+	p := testPaths(t)
+	writeConfig(t, p, "[ui]\nlanguage=\"fr\"\nclock=\"12h\"\n", 0o600)
+	c, err := config.Load(p)
+	if !errors.Is(err, config.ErrPartial) {
+		t.Fatalf("err = %v, want ErrPartial", err)
+	}
+	if c.UI.Language != "auto" || c.UI.Clock != "12h" {
+		t.Fatalf("ui = %+v, want language auto, clock kept", c.UI)
+	}
+	if !strings.Contains(err.Error(), "ui.language") {
+		t.Fatalf("error %q does not name ui.language", err)
+	}
+	for _, v := range []string{"auto", "ko", "en", "zh-Hans"} {
+		writeConfig(t, p, "[ui]\nlanguage=\""+v+"\"\n", 0o600)
+		c, err := config.Load(p)
+		if err != nil || c.UI.Language != v {
+			t.Fatalf("language %q: got %q, err %v", v, c.UI.Language, err)
+		}
+	}
 }

@@ -597,3 +597,46 @@ func TestPageDone(t *testing.T) {
 		t.Error("nil page should be Done")
 	}
 }
+
+func TestAcceptLanguageOnEveryRequest(t *testing.T) {
+	var mu sync.Mutex
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, r.Method+" "+r.URL.Path+" => "+r.Header.Get("Accept-Language"))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	c := api.New(srv.URL, api.WithToken("msl_test"))
+	if got := c.AuthHeader().Get("Accept-Language"); got != "" {
+		t.Fatalf("before SetLanguage: Accept-Language = %q, want none", got)
+	}
+	c.SetLanguage("ko")
+	_, _ = c.GetMe(ctx)
+	_, _ = c.UpdateProfile(ctx, api.UpdateProfileRequest{Bio: api.Some("hi")})
+	_, _ = c.Login(ctx, api.LoginRequest{Handle: "sam", Password: "pw"})
+	_ = c.Logout(ctx)
+	mu.Lock()
+	got := slices.Clone(seen)
+	mu.Unlock()
+	if len(got) < 4 {
+		t.Fatalf("requests = %q, want at least 4", got)
+	}
+	for _, line := range got {
+		if !strings.HasSuffix(line, "=> ko") {
+			t.Errorf("request without Accept-Language ko: %s", line)
+		}
+	}
+	if got := c.AuthHeader().Get("Accept-Language"); got != "ko" {
+		t.Fatalf("AuthHeader Accept-Language = %q, want ko", got)
+	}
+	if got := c.AuthHeader().Get("Authorization"); got != "Bearer msl_test" {
+		t.Fatalf("AuthHeader Authorization = %q", got)
+	}
+	c.SetLanguage("")
+	if got := c.AuthHeader().Get("Accept-Language"); got != "" {
+		t.Fatalf("SetLanguage(\"\"): Accept-Language = %q, want none", got)
+	}
+}

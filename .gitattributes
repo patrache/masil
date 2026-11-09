@@ -1,2 +1,5 @@
 # Check out text with LF everywhere (Windows too): byte-compared fixtures and goldens.
 * text=auto eol=lf
+
+# Generated i18n catalog: resolve conflicts in locales/*.toml, then rerun "go generate ./internal/i18n".
+internal/i18n/zz_*_gen.go linguist-generated=true

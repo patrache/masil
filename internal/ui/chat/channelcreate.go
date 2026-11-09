@@ -18,7 +18,7 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayChannelCreate, newChannelCreate)
 	palette.Register(palette.Command{
-		ID: "channel.create", Title: "채널 만들기", Keywords: []string{"channel", "create", "new", "private", "채널", "새 채널", "비공개", "만들기"}, Group: "명령",
+		ID: "channel.create", Title: "채널 만들기", Keywords: []string{"channel", "create", "new", "private", "채널", "새 채널", "비공개", "만들기"}, Group: palette.GroupCommand,
 		Available: canCreateChannel,
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			return ui.OpenRegisteredOverlay(overlayChannelCreate, spaceArg(ctx, args))

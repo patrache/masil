@@ -103,7 +103,7 @@ func recordCommands(t testing.TB, ids ...string) *[]string {
 			if _, ok := palette.Lookup(id); ok {
 				t.Fatalf("palette command %q already registered in this binary", id)
 			}
-			palette.Register(palette.Command{ID: id, Title: id, Group: "명령", Run: func(_ *ui.Context, args string) tea.Cmd {
+			palette.Register(palette.Command{ID: id, Title: id, Group: palette.GroupCommand, Run: func(_ *ui.Context, args string) tea.Cmd {
 				*recorded = append(*recorded, id+"|"+args)
 				return nil
 			}})

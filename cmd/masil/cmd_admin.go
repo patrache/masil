@@ -9,6 +9,7 @@ import (
 	"github.com/patrache/masil/internal/admincli"
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -55,5 +56,7 @@ func adminClient(env *Env) (*api.Client, error) {
 		fmt.Fprintf(env.Stderr, "로그인한 서버(%s)와 설정 서버(%s)가 다릅니다\n", textwidth.Sanitize(cr.Server), textwidth.Sanitize(server))
 		return nil, fmt.Errorf("%w: server mismatch", errAdminClient)
 	}
-	return api.New(server, api.WithToken(cr.Token)), nil
+	c := api.New(server, api.WithToken(cr.Token))
+	c.SetLanguage(string(i18n.Ko)) // the operator CLI stays Korean (i18n 1.3); the header is still sent
+	return c, nil
 }

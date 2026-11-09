@@ -24,7 +24,7 @@ import (
 func init() {
 	ui.RegisterRoute(ui.RouteInvite, newInvite)
 	palette.Register(palette.Command{
-		ID: "invites.inbox", Title: "받은 방 초대", Keywords: []string{"invites", "inbox", "direct invite", "초대", "방 초대", "받은 초대"}, Group: "이동",
+		ID: "invites.inbox", Title: "받은 방 초대", Keywords: []string{"invites", "inbox", "direct invite", "초대", "방 초대", "받은 초대"}, Group: palette.GroupNav,
 		Run: func(*ui.Context, string) tea.Cmd { return ui.Navigate(ui.Route{Kind: ui.RouteInvite, Arg: "direct"}) },
 	})
 }

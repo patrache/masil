@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 )
 
 func intp(n int) *int { return &n }
@@ -111,7 +112,7 @@ func hasHangul(s string) bool {
 
 func TestCatalogOrder(t *testing.T) {
 	want := []Name{Me, Shrug, Poll, Status, Focus, Roll, Invite}
-	cat := Catalog()
+	cat := Catalog(nil)
 	if len(cat) != len(want) {
 		t.Fatalf("Catalog has %d entries, want %d", len(cat), len(want))
 	}
@@ -133,7 +134,26 @@ func TestCatalogOrder(t *testing.T) {
 		t.Errorf("shrug desc = %q", cat[1].Desc)
 	}
 	cat[0].Usage = "mutated"
-	if Catalog()[0].Usage == "mutated" {
+	if Catalog(nil)[0].Usage == "mutated" {
 		t.Error("Catalog must return a copy")
+	}
+}
+
+func TestSlashCatalogLocale(t *testing.T) {
+	want := []Spec{
+		{Me, "/me <행동>", "행동을 3인칭으로 보내요"},
+	}
+	cat := Catalog(i18n.KoT())
+	if len(cat) != 7 {
+		t.Fatalf("Catalog(ko) has %d rows, want 7", len(cat))
+	}
+	if cat[0] != want[0] {
+		t.Fatalf("Catalog(ko)[0] = %+v, want %+v", cat[0], want[0])
+	}
+	if !reflect.DeepEqual(cat, catalog) {
+		t.Fatalf("Catalog(ko) must equal the 0.1.2 table:\n%+v\n%+v", cat, catalog)
+	}
+	if got := Catalog(nil); !reflect.DeepEqual(got, cat) {
+		t.Fatalf("Catalog(nil) = %+v, want the ko table", got)
 	}
 }

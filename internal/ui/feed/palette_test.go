@@ -86,15 +86,15 @@ func TestPaletteCommandsRun(t *testing.T) {
 
 func TestPaletteCommandMeta(t *testing.T) {
 	want := map[string]struct{ title, group, hint string }{
-		"post.new":        {"새 글 쓰기", "명령", "c"},
-		"story.new":       {"새 스토리 올리기", "명령", ""},
-		"feed.following":  {"피드: 팔로잉", "이동", "f"},
-		"feed.discover":   {"피드: 전체(발견)", "이동", ""},
-		"trends":          {"트렌드 Top 10", "이동", ""},
-		"notifications":   {"알림함", "이동", "ctrl+n"},
-		"profile.me":      {"내 프로필", "이동", ""},
-		"profile.edit":    {"프로필 편집", "설정", ""},
-		"follow_requests": {"팔로우 요청", "명령", ""},
+		"post.new":        {"새 글 쓰기", palette.GroupCommand, "c"},
+		"story.new":       {"새 스토리 올리기", palette.GroupCommand, ""},
+		"feed.following":  {"피드: 팔로잉", palette.GroupNav, "f"},
+		"feed.discover":   {"피드: 전체(발견)", palette.GroupNav, ""},
+		"trends":          {"트렌드 Top 10", palette.GroupNav, ""},
+		"notifications":   {"알림함", palette.GroupNav, "ctrl+n"},
+		"profile.me":      {"내 프로필", palette.GroupNav, ""},
+		"profile.edit":    {"프로필 편집", palette.GroupSettings, ""},
+		"follow_requests": {"팔로우 요청", palette.GroupCommand, ""},
 	}
 	for id, w := range want {
 		c, ok := palette.Lookup(id)

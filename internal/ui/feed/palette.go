@@ -24,9 +24,9 @@ const (
 
 // Palette groups (palette.Command.Group).
 const (
-	groupGo      = "이동"
-	groupCommand = "명령"
-	groupSetting = "설정"
+	groupGo      = palette.GroupNav
+	groupCommand = palette.GroupCommand
+	groupSetting = palette.GroupSettings
 )
 
 // Hashtag source scores: a Top 10 trend outranks the "open this tag" item

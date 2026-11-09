@@ -24,7 +24,7 @@ import (
 func init() {
 	ui.RegisterRoute(ui.RouteSpaceSettings, newSpaceSettings)
 	palette.Register(palette.Command{
-		ID: "space.settings", Title: "방 설정", Keywords: []string{"space", "settings", "members", "roles", "bans", "방", "설정", "멤버", "역할", "관리"}, Group: "이동",
+		ID: "space.settings", Title: "방 설정", Keywords: []string{"space", "settings", "members", "roles", "bans", "방", "설정", "멤버", "역할", "관리"}, Group: palette.GroupNav,
 		Available: func(ctx *ui.Context) bool { return currentSpaceID(ctx) != "" },
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {
 			id := currentSpaceID(ctx)
@@ -35,7 +35,7 @@ func init() {
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "space.leave", Title: "방 나가기", Keywords: []string{"space", "leave", "quit", "방", "나가기", "탈퇴"}, Group: "명령",
+		ID: "space.leave", Title: "방 나가기", Keywords: []string{"space", "leave", "quit", "방", "나가기", "탈퇴"}, Group: palette.GroupCommand,
 		Available: func(ctx *ui.Context) bool { return currentSpaceID(ctx) != "" },
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {
 			id := currentSpaceID(ctx)

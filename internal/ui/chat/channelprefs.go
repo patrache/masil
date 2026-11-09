@@ -22,7 +22,7 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayChannelPrefs, newChannelPrefs)
 	palette.Register(palette.Command{
-		ID: "channel.prefs", Title: "채널 설정", Keywords: []string{"channel", "settings", "notify", "mute", "알림", "음소거", "대화 설정"}, Group: "명령",
+		ID: "channel.prefs", Title: "채널 설정", Keywords: []string{"channel", "settings", "notify", "mute", "알림", "음소거", "대화 설정"}, Group: palette.GroupCommand,
 		Available: func(ctx *ui.Context) bool { return viewedChannel(ctx) != nil },
 		Run:       func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayChannelPrefs, args) },
 	})

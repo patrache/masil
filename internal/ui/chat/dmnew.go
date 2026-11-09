@@ -15,7 +15,7 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayDMNew, newDMDialog)
 	palette.Register(palette.Command{
-		ID: "dm.new", Title: "새 대화 (DM·그룹 DM)", Keywords: []string{"dm", "direct message", "group", "대화", "그룹 DM", "메시지 보내기"}, Group: "명령",
+		ID: "dm.new", Title: "새 대화 (DM·그룹 DM)", Keywords: []string{"dm", "direct message", "group", "대화", "그룹 DM", "메시지 보내기"}, Group: palette.GroupCommand,
 		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayDMNew, args) },
 	})
 }

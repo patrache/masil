@@ -1,0 +1,23 @@
+[lang_name_en]
+desc = "언어 목록의 영어 이름 — 모든 언어에서 그 언어 자신의 이름"
+other = "English"
+
+[lang_name_ko]
+desc = "언어 목록의 한국어 이름 — 모든 언어에서 그 언어 자신의 이름"
+other = "한국어"
+
+[lang_name_zh]
+desc = "언어 목록의 간체 중국어 이름 — 모든 언어에서 그 언어 자신의 이름"
+other = "简体中文"
+
+[palette_group_command]
+desc = "명령 팔레트의 묶음 머리: 명령"
+other = "명령"
+
+[palette_group_nav]
+desc = "명령 팔레트의 묶음 머리: 이동(채널·DM·화면으로 가기)"
+other = "이동"
+
+[palette_group_settings]
+desc = "명령 팔레트의 묶음 머리: 설정"
+other = "설정"

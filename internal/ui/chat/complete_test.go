@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -186,7 +187,7 @@ func TestEmojiTable(t *testing.T) {
 
 func TestCommandCompletion(t *testing.T) {
 	var labels []string
-	for _, c := range commandCandidates("") {
+	for _, c := range commandCandidates(i18n.KoT(), "") {
 		labels = append(labels, c.Label)
 		if c.Detail == "" || c.Insert != c.Label+" " {
 			t.Fatalf("command item: %+v", c)

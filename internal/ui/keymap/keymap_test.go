@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui/keymap"
 )
 
@@ -300,5 +301,37 @@ func TestLoadOverridesHistory(t *testing.T) {
 		if !def.Matches(k, keymap.NavHistoryForward) {
 			t.Errorf("default nav.history_forward must match %s", k.String())
 		}
+	}
+}
+
+func TestKeymapLocalize(t *testing.T) {
+	const a = keymap.Action("test.localized")
+	t.Cleanup(keymap.SetRowForTest(a, []string{"ctrl+t"}, func(t *i18n.T) string { return t.Testonly.EnOnly() }))
+	k := keymap.Default()
+	if got := k.Help(a)[0].Help().Desc; got != i18n.KoT().Testonly.EnOnly() {
+		t.Fatalf("default desc = %q, want the ko catalog text", got)
+	}
+	litBefore := k.Binding(keymap.AppQuit).Help()
+	k.Localize(i18n.For(i18n.En))
+	if got := k.Help(a)[0].Help().Desc; got != "Only in English" {
+		t.Fatalf("after Localize(en) desc = %q", got)
+	}
+	if got := k.Help(a)[0].Help().Key; got != "ctrl+t" {
+		t.Fatalf("Localize changed the help key: %q", got)
+	}
+	if got := k.Binding(keymap.AppQuit).Help(); got != litBefore || got.Desc != "종료" {
+		t.Fatalf("Lit row changed: %+v", got)
+	}
+	// Overrides keep their keys through Localize.
+	o, errs := keymap.Load(map[string][]string{string(a): {"ctrl+y"}})
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	o.Localize(i18n.For(i18n.En))
+	if b := o.Binding(a); b.Help().Key != "ctrl+y" || b.Help().Desc != "Only in English" || b.Keys()[0] != "ctrl+y" {
+		t.Fatalf("override after Localize = %+v keys %v", b.Help(), b.Keys())
+	}
+	if got := keymap.Lit("그대로")(i18n.For(i18n.En)); got != "그대로" {
+		t.Fatalf("Lit = %q", got)
 	}
 }

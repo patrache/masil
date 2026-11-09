@@ -22,6 +22,7 @@ import (
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/clipboard"
 	mconfig "github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/theme"
@@ -121,7 +122,12 @@ func New(tb testing.TB, opts ...Option) *Harness {
 	clock := NewFakeClock(Start)
 	rec := &notify.Recorder{}
 	h := &Harness{T: tb, API: srv, Notify: rec, Clip: &clipboard.Recorder{}, clock: clock}
+	lang := c.locale
+	if lang == "" {
+		lang = i18n.Ko
+	}
 	h.Model = app.New(app.Options{
+		Locale:          &i18n.Resolution{Requested: lang, Effective: lang, Source: i18n.SourceEnv},
 		Paths:           paths,
 		Config:          cfg,
 		Credentials:     creds,

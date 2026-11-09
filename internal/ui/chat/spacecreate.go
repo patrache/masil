@@ -16,11 +16,11 @@ func init() {
 	ui.RegisterOverlay(overlaySpaceCreate, newSpaceCreate)
 	ui.RegisterOverlay(overlaySpaceJoin, newSpaceJoin)
 	palette.Register(palette.Command{
-		ID: "space.create", Title: "방 만들기", Keywords: []string{"space", "create", "new", "방", "새 방", "만들기"}, Group: "명령",
+		ID: "space.create", Title: "방 만들기", Keywords: []string{"space", "create", "new", "방", "새 방", "만들기"}, Group: palette.GroupCommand,
 		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlaySpaceCreate, args) },
 	})
 	palette.Register(palette.Command{
-		ID: "space.join", Title: "초대 코드로 방 참여", Keywords: []string{"space", "join", "invite", "code", "참여", "초대 코드", "입장"}, Group: "명령",
+		ID: "space.join", Title: "초대 코드로 방 참여", Keywords: []string{"space", "join", "invite", "code", "참여", "초대 코드", "입장"}, Group: palette.GroupCommand,
 		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlaySpaceJoin, args) },
 	})
 }

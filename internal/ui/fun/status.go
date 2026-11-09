@@ -97,12 +97,12 @@ func untilEndOfDay(now time.Time, loc *time.Location) (int, bool) {
 
 func init() {
 	palette.Register(palette.Command{
-		ID: "status.set", Title: "상태 메시지 설정", Group: "명령",
+		ID: "status.set", Title: "상태 메시지 설정", Group: palette.GroupCommand,
 		Keywords: []string{"status", "상태", "듣는 중", "배포 중"},
 		Run:      runStatusSet,
 	})
 	palette.Register(palette.Command{
-		ID: "status.clear", Title: "상태 메시지 지우기", Group: "명령",
+		ID: "status.clear", Title: "상태 메시지 지우기", Group: palette.GroupCommand,
 		Keywords:  []string{"status", "clear", "상태"},
 		Available: func(ctx *ui.Context) bool { return ctx.Me() != nil && ctx.Me().Status != nil },
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {

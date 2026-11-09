@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 )
 
 // Name is a slash command name.
@@ -127,8 +128,10 @@ func Parse(input string) (cmd *Command, ok bool, err error) {
 	return c, true, nil
 }
 
-// Catalog lists every command for composer completion & help.
-func Catalog() []Spec {
+// Catalog lists every command for composer completion & help in t's language
+// (nil = ko). The 0.1.2 rows stay Korean until P5 moves them to the catalog;
+// new rows take their text from t.
+func Catalog(t *i18n.T) []Spec {
 	out := make([]Spec, len(catalog))
 	copy(out, catalog)
 	return out
