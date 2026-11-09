@@ -13,9 +13,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/apitool"
+	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
+	"github.com/patrache/masil/internal/ui/secretsui"
 )
 
 // pane is a part of the tool screen: the tree, the request editor, the
@@ -96,6 +98,14 @@ type Tool struct {
 	jobs   map[jobKind]*job
 	jobSeq int
 	cursor *tea.Cursor
+
+	foreign        map[string]foreignInfo // request id -> last changed by someone else
+	privateOK      map[string]bool        // privKey -> a private target was allowed
+	fileChanged    bool                   // the collection changed outside masil
+	pendingSecret  *pendingSecret
+	pendingPuts    []pendingPut
+	pendingHost    *apitool.HostNotAllowedError
+	pendingPrivate string
 }
 
 var (
@@ -123,6 +133,9 @@ func New(ctx *ui.Context, r ui.Route) ui.Component {
 		split:   splitDef,
 		focus:   paneRequest,
 		jobs:    map[jobKind]*job{},
+
+		foreign:   map[string]foreignInfo{},
+		privateOK: map[string]bool{},
 	}
 	cfg := apiConfig{History: true}
 	if ctx.Config != nil {
@@ -314,6 +327,40 @@ func (t *Tool) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		t.recent = nil
 	case tea.PasteMsg:
 		return t.onPaste(ctx, m)
+	case dialogMsg:
+		if m.Inst == t.route.ID {
+			return t.onDialog(ctx, m)
+		}
+	case secretPutMsg:
+		if m.t == t {
+			return t.onSecretPut(ctx, m)
+		}
+	case secretsui.ConsentMsg:
+		if m.Tool != ui.ToolAPI || len(t.pendingPuts) == 0 {
+			return nil
+		}
+		if m.Choice == secrets.FallbackUnset {
+			t.pendingPuts = nil
+			return nil
+		}
+		return t.flushPuts(ctx)
+	case saveConfirmedMsg:
+		if m.t == t && t.req != nil {
+			return t.writeRequest(ctx)
+		}
+	case ui.ToolSwitchedMsg:
+		if m.Route.ID == t.route.ID {
+			return t.checkFile()
+		}
+	case ui.FocusChangedMsg:
+		if m.RouteKey == t.route.Key() {
+			return t.checkFile()
+		}
+	case fileCheckMsg:
+		if m.t == t && m.name == t.colName {
+			t.fileChanged = m.changed
+		}
+		return nil
 	}
 	return t.update(ctx, msg)
 }
@@ -515,6 +562,10 @@ func (t *Tool) globalKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 			t.cancelJob(jobSend)
 			return true, nil
 		}
+	case "R":
+		if t.fileChanged {
+			return true, t.reloadFile(ctx)
+		}
 	}
 	return false, nil
 }
@@ -593,7 +644,7 @@ func (t *Tool) newRequest(ctx *ui.Context) tea.Cmd {
 	r := &apitool.Request{Name: ctx.T.Apitest.NewRequest(), Method: "GET"}
 	t.colName, t.req = "", r
 	t.ed.load(r)
-	t.ed.onURL = true
+	t.ed.url = newLineInput("")
 	t.rv.show("")
 	t.focus = paneRequest
 	return nil

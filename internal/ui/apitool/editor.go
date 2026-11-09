@@ -2,12 +2,15 @@ package apitool
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/patrache/masil/internal/apitool"
 	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 )
 
@@ -114,6 +117,9 @@ func (e *editor) store() {
 	r.Headers = e.headers.Rows()
 	r.Asserts = parseAssertRows(e.asserts.Rows())
 	r.Extracts = parseExtractRows(e.extracts.Rows())
+	if r.Body.Kind == apitool.BodyJSON || r.Body.Kind == apitool.BodyRaw {
+		r.Body.Text = e.body.text()
+	}
 	if r.Body.Kind == apitool.BodyURLEncoded || r.Body.Kind == apitool.BodyMultipart {
 		r.Body.Form = parseFormRows(e.form.Rows(), r.Body.Form)
 	}
@@ -180,12 +186,27 @@ func (e *editor) tabLine(ctx *ui.Context, w int) string {
 	return textwidth.Truncate(b.String(), w, "…")
 }
 
-// view draws the editor in w x h.
+// view draws the editor in w x h: the file_changed band (when the
+// collection changed outside masil), the URL line, the tab line and the tab.
 func (e *editor) view(ctx *ui.Context, t *Tool, w, h int, focused bool) []string {
 	e.lastW, e.hasCur = w, false
 	if h <= 0 {
 		return nil
 	}
+	var band []string
+	if t.fileChanged && h > 2 {
+		text := textwidth.Truncate(ctx.T.Apitest.FileChanged()+" (R)", w, "…")
+		band = []string{style(ctx.Theme, func(s theme.Styles) lipgloss.Style { return s.Warning }, text)}
+	}
+	out := e.rows(ctx, t, w, h-len(band), focused)
+	if e.hasCur {
+		e.curY += len(band)
+	}
+	return textwidth.Fit(append(band, out...), w, h)
+}
+
+// rows are the URL line, the tab line and the tab in w x h.
+func (e *editor) rows(ctx *ui.Context, t *Tool, w, h int, focused bool) []string {
 	out := []string{e.urlLine(ctx, t, w)}
 	if e.req == nil || h == 1 {
 		return textwidth.Fit(out, w, h)
@@ -558,4 +579,189 @@ func (a *textArea) cursor() *tea.Cursor {
 	from := min(a.left, a.col)
 	x := textwidth.Width(textwidth.Sanitize(string(a.lines[a.row][from:a.col])))
 	return tea.NewCursor(min(x, max(a.w-1, 0)), a.row-a.top)
+}
+
+// ---- keys ----
+
+// methods is the method cycle of m on the URL line.
+var methods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+
+// bodyKinds is the body kind cycle of b on the body tab.
+var bodyKinds = []apitool.BodyKind{apitool.BodyNone, apitool.BodyJSON, apitool.BodyURLEncoded, apitool.BodyMultipart, apitool.BodyRaw}
+
+// settings rows (C3.7).
+const (
+	setTimeout = iota
+	setFollow
+	setMax
+	setTLS
+	setRows
+)
+
+// handleKey is the request editor's keys. On the URL line: ⏎ sends, u edits
+// the URL, m cycles the method, 1–6 pick a tab, j/↓ go into it. In a tab:
+// the table keys (k/↑ on the first row goes back to the URL line), body
+// ⏎ edits / b cycles the kind, settings space toggles / ⏎ edits a number.
+func (e *editor) handleKey(ctx *ui.Context, t *Tool, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	if e.req == nil {
+		return false, nil
+	}
+	k := msg.String()
+	switch {
+	case e.url != nil:
+		switch k {
+		case "enter":
+			e.req.URL = strings.TrimSpace(e.url.text())
+			e.url = nil
+		case "esc":
+			e.url = nil
+		default:
+			e.url.key(msg)
+		}
+		return true, nil
+	case e.setEdit != nil:
+		switch k {
+		case "enter":
+			e.applySetting(e.setEdit.text())
+			e.setEdit = nil
+		case "esc":
+			e.setEdit = nil
+		default:
+			if msg.Text == "" || (msg.Text >= "0" && msg.Text <= "9") {
+				e.setEdit.key(msg)
+			}
+		}
+		return true, nil
+	case e.body.editing:
+		e.body.key(msg)
+		e.req.Body.Text = e.body.text()
+		return true, nil
+	}
+	if tb := e.table(); tb != nil && !e.onURL && tb.CapturesInput() {
+		_, changed, cmd := tb.HandleKey(ctx, msg)
+		if changed {
+			e.store()
+		}
+		return true, cmd
+	}
+	if len(k) == 1 && k >= "1" && k <= "6" {
+		e.tab = edTab(k[0] - '1')
+		e.setRow = 0
+		return true, nil
+	}
+	if e.onURL {
+		switch k {
+		case "enter":
+			return true, t.send(ctx)
+		case "u":
+			e.url = newLineInput(e.req.URL)
+		case "m":
+			i := slices.Index(methods, methodOf(e.req))
+			e.req.Method = methods[(i+1)%len(methods)]
+		case "j", "down":
+			e.onURL = false
+		case "h", "left":
+			e.tab = (e.tab + edTabs - 1) % edTabs
+		case "l", "right":
+			e.tab = (e.tab + 1) % edTabs
+		default:
+			return false, nil
+		}
+		return true, nil
+	}
+	if e.tab == tabBody && k == "b" {
+		i := slices.Index(bodyKinds, e.req.Body.Kind)
+		e.store()
+		e.req.Body.Kind = bodyKinds[(max(i, 0)+1)%len(bodyKinds)]
+		e.form.SetRows(formRows(e.req.Body.Form))
+		return true, nil
+	}
+	if tb := e.table(); tb != nil {
+		if (k == "k" || k == "up") && tb.cur == 0 {
+			e.onURL = true
+			return true, nil
+		}
+		handled, changed, cmd := tb.HandleKey(ctx, msg)
+		if changed {
+			e.store()
+		}
+		return handled, cmd
+	}
+	if e.tab == tabBody {
+		switch k {
+		case "enter":
+			if e.req.Body.Kind == "" || e.req.Body.Kind == apitool.BodyNone {
+				e.req.Body.Kind = apitool.BodyJSON
+			}
+			e.body.editing = true
+		case "k", "up":
+			e.onURL = true
+		default:
+			return false, nil
+		}
+		return true, nil
+	}
+	switch k {
+	case "j", "down":
+		e.setRow = min(e.setRow+1, setRows-1)
+	case "k", "up":
+		if e.setRow == 0 {
+			e.onURL = true
+		}
+		e.setRow = max(e.setRow-1, 0)
+	case "space", "enter":
+		s := &e.req.Settings
+		switch e.setRow {
+		case setFollow:
+			s.NoFollow = !s.NoFollow
+		case setTLS:
+			s.Insecure = !s.Insecure
+		case setTimeout:
+			e.setEdit = newLineInput(strconv.Itoa(s.Effective().TimeoutMS))
+		case setMax:
+			e.setEdit = newLineInput(strconv.Itoa(s.Effective().MaxRedirects))
+		}
+	default:
+		return false, nil
+	}
+	return true, nil
+}
+
+// applySetting stores the edited number of the selected settings row.
+func (e *editor) applySetting(v string) {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 0 {
+		return
+	}
+	switch e.setRow {
+	case setTimeout:
+		e.req.Settings.TimeoutMS = n
+	case setMax:
+		e.req.Settings.MaxRedirects = n
+	}
+}
+
+// settingRows are the settings tab's rows.
+func (e *editor) settingRows(ctx *ui.Context) []string {
+	if e.req == nil {
+		return nil
+	}
+	a := ctx.T.Apitest
+	s := e.req.Settings.Effective()
+	state := func(on bool) string {
+		if on {
+			return a.StateOn()
+		}
+		return a.StateOff()
+	}
+	rows := []string{
+		a.SetTimeout(s.TimeoutMS),
+		a.SetFollow(state(!s.NoFollow)),
+		a.SetMax(s.MaxRedirects),
+		a.SetTls(state(!s.Insecure)),
+	}
+	if e.setEdit != nil {
+		rows[e.setRow] = e.setEdit.text() + "▏"
+	}
+	return rows
 }

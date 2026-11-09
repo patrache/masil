@@ -42,6 +42,14 @@ var areaApitest = area{
 				En: {Other: "{name} changed the body · Restore mine"},
 			},
 		},
+		"cancel": {
+			desc: "창의 선택지: 취소",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
 		"card_result_body": {
 			desc:   "api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)",
 			params: []Param{{Name: "method", Type: "string"}, {Name: "path", Type: "string"}, {Name: "status", Type: "int"}, {Name: "ms", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
@@ -168,6 +176,66 @@ var areaApitest = area{
 				En: {Other: "Settings"},
 			},
 		},
+		"export_copied": {
+			desc: "curl 을 복사한 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl 을 복사했어요"},
+				En: {Other: "Copied the curl command"},
+			},
+		},
+		"export_curl": {
+			desc: "내보내기 선택지: curl 명령 복사({{변수}} 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl 복사 · 변수 그대로"},
+				En: {Other: "Copy curl · variables as they are"},
+			},
+		},
+		"export_curl_plain": {
+			desc: "내보내기 선택지: curl 명령 복사(비밀 아닌 변수는 값으로 채움, 비밀은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl 복사 · 비밀 아닌 변수는 값으로"},
+				En: {Other: "Copy curl · non-secret variables filled in"},
+			},
+		},
+		"export_failed": {
+			desc:   "내보내기 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내지 못했어요 · {err}"},
+				En: {Other: "Could not export · {err}"},
+			},
+		},
+		"export_path": {
+			desc: "Postman 파일로 저장: 경로 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장할 파일 경로"},
+				En: {Other: "File to save to"},
+			},
+		},
+		"export_postman": {
+			desc: "내보내기 선택지: 컬렉션을 Postman v2.1 파일로 저장",
+			text: map[Locale]Forms{
+				Ko: {Other: "컬렉션을 Postman v2.1 파일로 저장"},
+				En: {Other: "Save the collection as a Postman v2.1 file"},
+			},
+		},
+		"export_saved": {
+			desc:       "Postman 파일로 저장한 뒤 창(path = 저장한 경로, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 에 저장했어요"},
+				En: {Other: "Saved to {path}"},
+			},
+		},
+		"export_title": {
+			desc: "내보내기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내기"},
+				En: {Other: "Export"},
+			},
+		},
 		"file_changed": {
 			desc: "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄",
 			text: map[Locale]Forms{
@@ -282,6 +350,14 @@ var areaApitest = area{
 				En: {Other: "History cleared"},
 			},
 		},
+		"host_allow": {
+			desc: "host_block 창의 선택지: 이 호스트를 허용 목록에 넣고 보내기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 호스트 허용"},
+				En: {Other: "Allow this host"},
+			},
+		},
 		"host_block": {
 			desc:       "비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)",
 			params:     []Param{{Name: "var", Type: "string"}, {Name: "host", Type: "string"}},
@@ -290,6 +366,14 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{{{var}}} 을 {host} 로 보내려 해요 · 이 호스트 허용 / 취소"},
 				En: {Other: "About to send {{{var}}} to {host} · Allow this host / Cancel"},
+			},
+		},
+		"host_block_title": {
+			desc: "host_block 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 변수 보낼 곳 확인"},
+				En: {Other: "Where a secret goes"},
 			},
 		},
 		"hub_status": {
@@ -313,6 +397,84 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{col} (로컬)"},
 				En: {Other: "{col} (local)"},
+			},
+		},
+		"import_done": {
+			desc:   "가져오기 보고: 컬렉션으로 가져온 요청 수(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 에 요청 {n}개를 가져왔어요"},
+				En: {One: "Imported {n} request into {name}", Other: "Imported {n} requests into {name}"},
+			},
+		},
+		"import_dropped": {
+			desc:   "가져오기 보고: 스크립트 말고 버린 것 목록(list = 쉼표로 이은 목록)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "버린 것: {list}"},
+				En: {Other: "Dropped: {list}"},
+			},
+		},
+		"import_env_done": {
+			desc:   "가져오기 보고: Postman 환경을 가져왔을 때(name = 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 {name} 을 가져왔어요"},
+				En: {Other: "Imported the environment {name}"},
+			},
+		},
+		"import_failed": {
+			desc:   "가져오기 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "가져오지 못했어요 · {err}"},
+				En: {Other: "Could not import · {err}"},
+			},
+		},
+		"import_ignored": {
+			desc:   "가져오기 보고: 읽지 않은 옵션·부분 목록(list = 쉼표로 이은 목록)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "읽지 않은 것: {list}"},
+				En: {Other: "Not read: {list}"},
+			},
+		},
+		"import_prompt": {
+			desc: "가져오기 창: 경로 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "가져올 파일 경로 · curl, OpenAPI JSON, Postman v2.1 컬렉션·환경"},
+				En: {Other: "File to import · curl, OpenAPI JSON, Postman v2.1 collection or environment"},
+			},
+		},
+		"import_secret_where": {
+			desc:   "가져오기 보고: 비밀값처럼 보이는 칸 목록(list = '요청 이름 · header:X-Api-Key' 꼴을 쉼표로 이은 것)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "찾은 곳: {list}"},
+				En: {Other: "Found in: {list}"},
+			},
+		},
+		"import_title": {
+			desc: "가져오기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "가져오기"},
+				En: {Other: "Import"},
+			},
+		},
+		"import_too_large": {
+			desc: "가져올 파일이 10MB 를 넘을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "10MB 가 넘는 파일은 가져올 수 없어요"},
+				En: {Other: "Files over 10MB can't be imported"},
+			},
+		},
+		"import_unknown": {
+			desc: "가져올 파일의 형식을 알 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl, OpenAPI JSON, Postman v2.1 형식이 아니에요"},
+				En: {Other: "Not curl, OpenAPI JSON or Postman v2.1"},
 			},
 		},
 		"kv_empty": {
@@ -361,12 +523,43 @@ var areaApitest = area{
 				En: {Other: "OpenAPI YAML can't be read yet · Convert it to JSON and import again"},
 			},
 		},
+		"overwrite_body": {
+			desc: "밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 본문",
+			text: map[Locale]Forms{
+				Ko: {Other: "masil 밖에서 이 컬렉션 파일을 고쳤어요. 내 편집으로 덮어쓸까요?"},
+				En: {Other: "This collection's files were changed outside masil. Overwrite them with my edits?"},
+			},
+		},
+		"overwrite_title": {
+			desc: "밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "파일이 바뀌었어요"},
+				En: {Other: "The file changed"},
+			},
+		},
+		"overwrite_yes": {
+			desc: "덮어쓰기 확인 창의 단추",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "덮어쓰기"},
+				En: {Other: "Overwrite"},
+			},
+		},
 		"phases": {
 			desc:   "상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)",
 			params: []Param{{Name: "dns", Type: "int"}, {Name: "connect", Type: "int"}, {Name: "tls", Type: "int"}, {Name: "first", Type: "int"}},
 			text: map[Locale]Forms{
 				Ko: {Other: "DNS {dns} · 연결 {connect} · TLS {tls} · 첫 바이트 {first}"},
 				En: {Other: "DNS {dns} · connect {connect} · TLS {tls} · first byte {first}"},
+			},
+		},
+		"private_send": {
+			desc: "private_target 창의 선택지: 이 버전은 그래도 보내기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "그래도 보내기"},
+				En: {Other: "Send anyway"},
 			},
 		},
 		"private_target": {
@@ -377,6 +570,30 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 ({name}님이 마지막으로 바꿈)"},
 				En: {Other: "This request goes to an address on my PC or my network (last changed by {name})"},
+			},
+		},
+		"private_title": {
+			desc: "private_target 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 PC·내 네트워크로 가는 요청"},
+				En: {Other: "Request to my PC or network"},
+			},
+		},
+		"redirect_blocked": {
+			desc:   "비밀 변수가 허용 목록 밖 호스트로 가지 않게 리다이렉트를 멈췄을 때의 토스트(var = 변수 이름, host = 호스트)",
+			params: []Param{{Name: "var", Type: "string"}, {Name: "host", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{var}}} 때문에 {host} 로의 리다이렉트를 멈췄어요"},
+				En: {Other: "Stopped the redirect to {host} because of {{{var}}}"},
+			},
+		},
+		"report_close": {
+			desc: "보고 창 맨 아래: 닫는 키",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 닫기"},
+				En: {Other: "esc close"},
 			},
 		},
 		"resp_body": {
@@ -429,6 +646,29 @@ var areaApitest = area{
 				En: {Other: "Run {i}/{n} ✓{ok} ✕{fail}"},
 			},
 		},
+		"save_failed": {
+			desc:   "개인 컬렉션 저장 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "저장하지 못했어요 · {err}"},
+				En: {Other: "Could not save · {err}"},
+			},
+		},
+		"save_first": {
+			desc: "저장 안 한 새 요청으로 컬렉션 내보내기를 고를 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "먼저 ctrl+s 로 저장해 주세요"},
+				En: {Other: "Save it first with ctrl+s"},
+			},
+		},
+		"saved": {
+			desc:   "요청을 개인 컬렉션에 저장한 뒤 토스트(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 에 저장했어요"},
+				En: {Other: "Saved to {name}"},
+			},
+		},
 		"scripts_dropped": {
 			desc:   "Postman 가져오기: 버린 스크립트(사전 요청·테스트) 수",
 			params: []Param{{Name: "n", Type: "int"}},
@@ -436,6 +676,13 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "스크립트 {n}개는 가져오지 않았어요"},
 				En: {One: "{n} script was not imported", Other: "{n} scripts were not imported"},
+			},
+		},
+		"secret_bad_name": {
+			desc: "변수 이름에 쓸 수 없는 글자가 있을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 이름은 영문·숫자·_ . - 만 써요"},
+				En: {Other: "Variable names use letters, digits, _ . - only"},
 			},
 		},
 		"secret_detected": {
@@ -447,6 +694,45 @@ var areaApitest = area{
 				En: {Other: "Looks like a secret → Make it a variable"},
 			},
 		},
+		"secret_keep": {
+			desc: "secret_detected 창의 선택지: 붙여넣은 그대로 두기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "그대로 두기"},
+				En: {Other: "Keep as is"},
+			},
+		},
+		"secret_name": {
+			desc: "secret_detected 창: 아래 칸에 넣을 변수 이름 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 이름 (값은 이 PC 의 비밀 보관소에만)"},
+				En: {Other: "Variable name (the value stays in this PC's secret store)"},
+			},
+		},
+		"secret_saved": {
+			desc:   "비밀값을 변수로 바꾸고 보관소에 넣은 뒤 토스트(name = 변수 이름, where = 보관 위치)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "where", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{name}}} 로 바꿨어요 · 값은 {where}"},
+				En: {Other: "Replaced with {{{name}}} · the value is in {where}"},
+			},
+		},
+		"secret_title": {
+			desc: "secret_detected 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀값 발견"},
+				En: {Other: "Secret found"},
+			},
+		},
+		"secret_to_var": {
+			desc: "secret_detected 창의 선택지: 변수로 바꾸기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "변수로 바꾸기"},
+				En: {Other: "Make it a variable"},
+			},
+		},
 		"send_button": {
 			desc: "요청 줄 오른쪽의 보내기 단추",
 			max:  12,
@@ -455,12 +741,82 @@ var areaApitest = area{
 				En: {Other: "[Send ⏎]"},
 			},
 		},
+		"send_canceled": {
+			desc: "보내는 중 esc 로 취소했을 때 응답 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "보내기를 취소했어요"},
+				En: {Other: "Send canceled"},
+			},
+		},
+		"send_failed": {
+			desc:   "연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인, 영어일 수 있음)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "보내지 못했어요 · {err}"},
+				En: {Other: "Could not send · {err}"},
+			},
+		},
+		"send_timeout": {
+			desc: "요청 타임아웃이 지났을 때 응답 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간이 다 됐어요 · 설정 탭에서 타임아웃 늘리기"},
+				En: {Other: "Timed out · raise the timeout in the Settings tab"},
+			},
+		},
 		"sending": {
 			desc: "요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)",
 			max:  24,
 			text: map[Locale]Forms{
 				Ko: {Other: "보내는 중… esc 취소"},
 				En: {Other: "Sending… esc to cancel"},
+			},
+		},
+		"set_follow": {
+			desc:   "요청 설정 줄: 리다이렉트 따라가기(state = on/off 문구)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "리다이렉트 따라가기 {state} · space 바꾸기"},
+				En: {Other: "Follow redirects {state} · space toggle"},
+			},
+		},
+		"set_max": {
+			desc:   "요청 설정 줄: 리다이렉트 최대 횟수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "리다이렉트 최대 {n}번 · ⏎ 바꾸기"},
+				En: {Other: "Redirects at most {n} · ⏎ change"},
+			},
+		},
+		"set_timeout": {
+			desc:   "요청 설정 줄: 타임아웃(ms = 밀리초)",
+			params: []Param{{Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "타임아웃 {ms}ms · ⏎ 바꾸기"},
+				En: {Other: "Timeout {ms}ms · ⏎ change"},
+			},
+		},
+		"set_tls": {
+			desc:   "요청 설정 줄: TLS 인증서 검사(state = on/off 문구)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "TLS 인증서 검사 {state} · space 바꾸기"},
+				En: {Other: "TLS certificate check {state} · space toggle"},
+			},
+		},
+		"state_off": {
+			desc: "설정 값: 끔",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "끔"},
+				En: {Other: "off"},
+			},
+		},
+		"state_on": {
+			desc: "설정 값: 켬",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "켬"},
+				En: {Other: "on"},
 			},
 		},
 		"status_line": {
@@ -554,6 +910,14 @@ var areaApitest = area{
 				En: {Other: "My collections (local)"},
 			},
 		},
+		"undefined_var": {
+			desc:   "보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{name}}} 값이 없어요 · e 환경에서 넣기"},
+				En: {Other: "{{{name}}} has no value · set it in e Environments"},
+			},
+		},
 		"upload_plaintext_note": {
 			desc:       "'방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)",
 			noTruncate: true,
@@ -584,6 +948,11 @@ func (a_ ApitestT) BodyNone() string {
 // BodyOverwritten: 공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)
 func (a_ ApitestT) BodyOverwritten(name string) string {
 	return a_.t.render(&areaApitest, "body_overwritten", false, 0, "name", name)
+}
+
+// Cancel: 창의 선택지: 취소
+func (a_ ApitestT) Cancel() string {
+	return a_.t.render(&areaApitest, "cancel", false, 0)
 }
 
 // CardResultBody: api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)
@@ -666,6 +1035,46 @@ func (a_ ApitestT) EdSettings() string {
 	return a_.t.render(&areaApitest, "ed_settings", false, 0)
 }
 
+// ExportCopied: curl 을 복사한 뒤 토스트
+func (a_ ApitestT) ExportCopied() string {
+	return a_.t.render(&areaApitest, "export_copied", false, 0)
+}
+
+// ExportCurl: 내보내기 선택지: curl 명령 복사({{변수}} 그대로)
+func (a_ ApitestT) ExportCurl() string {
+	return a_.t.render(&areaApitest, "export_curl", false, 0)
+}
+
+// ExportCurlPlain: 내보내기 선택지: curl 명령 복사(비밀 아닌 변수는 값으로 채움, 비밀은 그대로)
+func (a_ ApitestT) ExportCurlPlain() string {
+	return a_.t.render(&areaApitest, "export_curl_plain", false, 0)
+}
+
+// ExportFailed: 내보내기 실패(err = 원인)
+func (a_ ApitestT) ExportFailed(err string) string {
+	return a_.t.render(&areaApitest, "export_failed", false, 0, "err", err)
+}
+
+// ExportPath: Postman 파일로 저장: 경로 칸 위 안내
+func (a_ ApitestT) ExportPath() string {
+	return a_.t.render(&areaApitest, "export_path", false, 0)
+}
+
+// ExportPostman: 내보내기 선택지: 컬렉션을 Postman v2.1 파일로 저장
+func (a_ ApitestT) ExportPostman() string {
+	return a_.t.render(&areaApitest, "export_postman", false, 0)
+}
+
+// ExportSaved: Postman 파일로 저장한 뒤 창(path = 저장한 경로, 줄여 쓰지 않음)
+func (a_ ApitestT) ExportSaved(path string) string {
+	return a_.t.render(&areaApitest, "export_saved", false, 0, "path", path)
+}
+
+// ExportTitle: 내보내기 창 제목
+func (a_ ApitestT) ExportTitle() string {
+	return a_.t.render(&areaApitest, "export_title", false, 0)
+}
+
 // FileChanged: 열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄
 func (a_ ApitestT) FileChanged() string {
 	return a_.t.render(&areaApitest, "file_changed", false, 0)
@@ -741,9 +1150,19 @@ func (a_ ApitestT) HistoryCleared() string {
 	return a_.t.render(&areaApitest, "history_cleared", false, 0)
 }
 
+// HostAllow: host_block 창의 선택지: 이 호스트를 허용 목록에 넣고 보내기
+func (a_ ApitestT) HostAllow() string {
+	return a_.t.render(&areaApitest, "host_allow", false, 0)
+}
+
 // HostBlock: 비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)
 func (a_ ApitestT) HostBlock(varArg string, host string) string {
 	return a_.t.render(&areaApitest, "host_block", false, 0, "var", varArg, "host", host)
+}
+
+// HostBlockTitle: host_block 창 제목
+func (a_ ApitestT) HostBlockTitle() string {
+	return a_.t.render(&areaApitest, "host_block_title", false, 0)
 }
 
 // HubStatus: 허브의 API 줄 상태: 마지막으로 연 개인 컬렉션과 환경(col = 컬렉션 이름, env = 환경 이름)
@@ -759,6 +1178,56 @@ func (a_ ApitestT) HubStatusEmpty() string {
 // HubStatusNoEnv: 허브의 API 줄 상태: 환경을 고르지 않았을 때(col = 컬렉션 이름)
 func (a_ ApitestT) HubStatusNoEnv(col string) string {
 	return a_.t.render(&areaApitest, "hub_status_no_env", false, 0, "col", col)
+}
+
+// ImportDone: 가져오기 보고: 컬렉션으로 가져온 요청 수(name = 컬렉션 이름)
+func (a_ ApitestT) ImportDone(name string, n int) string {
+	return a_.t.render(&areaApitest, "import_done", false, n, "name", name, "n", strconv.Itoa(n))
+}
+
+// ImportDropped: 가져오기 보고: 스크립트 말고 버린 것 목록(list = 쉼표로 이은 목록)
+func (a_ ApitestT) ImportDropped(list string) string {
+	return a_.t.render(&areaApitest, "import_dropped", false, 0, "list", list)
+}
+
+// ImportEnvDone: 가져오기 보고: Postman 환경을 가져왔을 때(name = 환경 이름)
+func (a_ ApitestT) ImportEnvDone(name string) string {
+	return a_.t.render(&areaApitest, "import_env_done", false, 0, "name", name)
+}
+
+// ImportFailed: 가져오기 실패(err = 원인)
+func (a_ ApitestT) ImportFailed(err string) string {
+	return a_.t.render(&areaApitest, "import_failed", false, 0, "err", err)
+}
+
+// ImportIgnored: 가져오기 보고: 읽지 않은 옵션·부분 목록(list = 쉼표로 이은 목록)
+func (a_ ApitestT) ImportIgnored(list string) string {
+	return a_.t.render(&areaApitest, "import_ignored", false, 0, "list", list)
+}
+
+// ImportPrompt: 가져오기 창: 경로 칸 위 안내
+func (a_ ApitestT) ImportPrompt() string {
+	return a_.t.render(&areaApitest, "import_prompt", false, 0)
+}
+
+// ImportSecretWhere: 가져오기 보고: 비밀값처럼 보이는 칸 목록(list = '요청 이름 · header:X-Api-Key' 꼴을 쉼표로 이은 것)
+func (a_ ApitestT) ImportSecretWhere(list string) string {
+	return a_.t.render(&areaApitest, "import_secret_where", false, 0, "list", list)
+}
+
+// ImportTitle: 가져오기 창 제목
+func (a_ ApitestT) ImportTitle() string {
+	return a_.t.render(&areaApitest, "import_title", false, 0)
+}
+
+// ImportTooLarge: 가져올 파일이 10MB 를 넘을 때
+func (a_ ApitestT) ImportTooLarge() string {
+	return a_.t.render(&areaApitest, "import_too_large", false, 0)
+}
+
+// ImportUnknown: 가져올 파일의 형식을 알 수 없을 때
+func (a_ ApitestT) ImportUnknown() string {
+	return a_.t.render(&areaApitest, "import_unknown", false, 0)
 }
 
 // KvEmpty: 헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄
@@ -791,14 +1260,49 @@ func (a_ ApitestT) OpenapiYamlUnsupported() string {
 	return a_.t.render(&areaApitest, "openapi_yaml_unsupported", false, 0)
 }
 
+// OverwriteBody: 밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 본문
+func (a_ ApitestT) OverwriteBody() string {
+	return a_.t.render(&areaApitest, "overwrite_body", false, 0)
+}
+
+// OverwriteTitle: 밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 제목
+func (a_ ApitestT) OverwriteTitle() string {
+	return a_.t.render(&areaApitest, "overwrite_title", false, 0)
+}
+
+// OverwriteYes: 덮어쓰기 확인 창의 단추
+func (a_ ApitestT) OverwriteYes() string {
+	return a_.t.render(&areaApitest, "overwrite_yes", false, 0)
+}
+
 // Phases: 상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)
 func (a_ ApitestT) Phases(dns int, connect int, tls int, first int) string {
 	return a_.t.render(&areaApitest, "phases", false, 0, "dns", strconv.Itoa(dns), "connect", strconv.Itoa(connect), "tls", strconv.Itoa(tls), "first", strconv.Itoa(first))
 }
 
+// PrivateSend: private_target 창의 선택지: 이 버전은 그래도 보내기
+func (a_ ApitestT) PrivateSend() string {
+	return a_.t.render(&areaApitest, "private_send", false, 0)
+}
+
 // PrivateTarget: 남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)
 func (a_ ApitestT) PrivateTarget(name string) string {
 	return a_.t.render(&areaApitest, "private_target", false, 0, "name", name)
+}
+
+// PrivateTitle: private_target 창 제목
+func (a_ ApitestT) PrivateTitle() string {
+	return a_.t.render(&areaApitest, "private_title", false, 0)
+}
+
+// RedirectBlocked: 비밀 변수가 허용 목록 밖 호스트로 가지 않게 리다이렉트를 멈췄을 때의 토스트(var = 변수 이름, host = 호스트)
+func (a_ ApitestT) RedirectBlocked(varArg string, host string) string {
+	return a_.t.render(&areaApitest, "redirect_blocked", false, 0, "var", varArg, "host", host)
+}
+
+// ReportClose: 보고 창 맨 아래: 닫는 키
+func (a_ ApitestT) ReportClose() string {
+	return a_.t.render(&areaApitest, "report_close", false, 0)
 }
 
 // RespBody: 응답 탭: 본문
@@ -831,9 +1335,29 @@ func (a_ ApitestT) RunProgressShort(i int, n int, ok int, fail int) string {
 	return a_.t.render(&areaApitest, "run_progress_short", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
 }
 
+// SaveFailed: 개인 컬렉션 저장 실패(err = 원인)
+func (a_ ApitestT) SaveFailed(err string) string {
+	return a_.t.render(&areaApitest, "save_failed", false, 0, "err", err)
+}
+
+// SaveFirst: 저장 안 한 새 요청으로 컬렉션 내보내기를 고를 때의 토스트
+func (a_ ApitestT) SaveFirst() string {
+	return a_.t.render(&areaApitest, "save_first", false, 0)
+}
+
+// Saved: 요청을 개인 컬렉션에 저장한 뒤 토스트(name = 컬렉션 이름)
+func (a_ ApitestT) Saved(name string) string {
+	return a_.t.render(&areaApitest, "saved", false, 0, "name", name)
+}
+
 // ScriptsDropped: Postman 가져오기: 버린 스크립트(사전 요청·테스트) 수
 func (a_ ApitestT) ScriptsDropped(n int) string {
 	return a_.t.render(&areaApitest, "scripts_dropped", false, n, "n", strconv.Itoa(n))
+}
+
+// SecretBadName: 변수 이름에 쓸 수 없는 글자가 있을 때의 토스트
+func (a_ ApitestT) SecretBadName() string {
+	return a_.t.render(&areaApitest, "secret_bad_name", false, 0)
 }
 
 // SecretDetected: 공유로 올라갈 칸에서 비밀값처럼 보이는 글자를 찾았을 때의 안내(줄여 쓰지 않음)
@@ -841,14 +1365,84 @@ func (a_ ApitestT) SecretDetected() string {
 	return a_.t.render(&areaApitest, "secret_detected", false, 0)
 }
 
+// SecretKeep: secret_detected 창의 선택지: 붙여넣은 그대로 두기
+func (a_ ApitestT) SecretKeep() string {
+	return a_.t.render(&areaApitest, "secret_keep", false, 0)
+}
+
+// SecretName: secret_detected 창: 아래 칸에 넣을 변수 이름 안내
+func (a_ ApitestT) SecretName() string {
+	return a_.t.render(&areaApitest, "secret_name", false, 0)
+}
+
+// SecretSaved: 비밀값을 변수로 바꾸고 보관소에 넣은 뒤 토스트(name = 변수 이름, where = 보관 위치)
+func (a_ ApitestT) SecretSaved(name string, where string) string {
+	return a_.t.render(&areaApitest, "secret_saved", false, 0, "name", name, "where", where)
+}
+
+// SecretTitle: secret_detected 창 제목
+func (a_ ApitestT) SecretTitle() string {
+	return a_.t.render(&areaApitest, "secret_title", false, 0)
+}
+
+// SecretToVar: secret_detected 창의 선택지: 변수로 바꾸기
+func (a_ ApitestT) SecretToVar() string {
+	return a_.t.render(&areaApitest, "secret_to_var", false, 0)
+}
+
 // SendButton: 요청 줄 오른쪽의 보내기 단추
 func (a_ ApitestT) SendButton() string {
 	return a_.t.render(&areaApitest, "send_button", false, 0)
 }
 
+// SendCanceled: 보내는 중 esc 로 취소했을 때 응답 칸
+func (a_ ApitestT) SendCanceled() string {
+	return a_.t.render(&areaApitest, "send_canceled", false, 0)
+}
+
+// SendFailed: 연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인, 영어일 수 있음)
+func (a_ ApitestT) SendFailed(err string) string {
+	return a_.t.render(&areaApitest, "send_failed", false, 0, "err", err)
+}
+
+// SendTimeout: 요청 타임아웃이 지났을 때 응답 칸
+func (a_ ApitestT) SendTimeout() string {
+	return a_.t.render(&areaApitest, "send_timeout", false, 0)
+}
+
 // Sending: 요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)
 func (a_ ApitestT) Sending() string {
 	return a_.t.render(&areaApitest, "sending", false, 0)
+}
+
+// SetFollow: 요청 설정 줄: 리다이렉트 따라가기(state = on/off 문구)
+func (a_ ApitestT) SetFollow(state string) string {
+	return a_.t.render(&areaApitest, "set_follow", false, 0, "state", state)
+}
+
+// SetMax: 요청 설정 줄: 리다이렉트 최대 횟수
+func (a_ ApitestT) SetMax(n int) string {
+	return a_.t.render(&areaApitest, "set_max", false, 0, "n", strconv.Itoa(n))
+}
+
+// SetTimeout: 요청 설정 줄: 타임아웃(ms = 밀리초)
+func (a_ ApitestT) SetTimeout(ms int) string {
+	return a_.t.render(&areaApitest, "set_timeout", false, 0, "ms", strconv.Itoa(ms))
+}
+
+// SetTls: 요청 설정 줄: TLS 인증서 검사(state = on/off 문구)
+func (a_ ApitestT) SetTls(state string) string {
+	return a_.t.render(&areaApitest, "set_tls", false, 0, "state", state)
+}
+
+// StateOff: 설정 값: 끔
+func (a_ ApitestT) StateOff() string {
+	return a_.t.render(&areaApitest, "state_off", false, 0)
+}
+
+// StateOn: 설정 값: 켬
+func (a_ ApitestT) StateOn() string {
+	return a_.t.render(&areaApitest, "state_on", false, 0)
 }
 
 // StatusLine: 응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면
@@ -909,6 +1503,11 @@ func (a_ ApitestT) TreeHistory() string {
 // TreeLocal: 나무의 개인 컬렉션 묶음 머리
 func (a_ ApitestT) TreeLocal() string {
 	return a_.t.render(&areaApitest, "tree_local", false, 0)
+}
+
+// UndefinedVar: 보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)
+func (a_ ApitestT) UndefinedVar(name string) string {
+	return a_.t.render(&areaApitest, "undefined_var", false, 0, "name", name)
 }
 
 // UploadPlaintextNote: '방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)

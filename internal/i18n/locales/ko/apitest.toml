@@ -21,6 +21,11 @@ desc = "공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 �
 params = { name = "string" }
 other = "{name}님이 본문을 바꿨어요 · 내 내용 복구"
 
+[cancel]
+desc = "창의 선택지: 취소"
+max = 12
+other = "취소"
+
 [card_result_body]
 desc = "api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)"
 params = { method = "string", path = "string", status = "int", ms = "int", ok = "int", total = "int" }
@@ -99,6 +104,42 @@ desc = "요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)"
 max = 8
 other = "설정"
 
+[export_copied]
+desc = "curl 을 복사한 뒤 토스트"
+other = "curl 을 복사했어요"
+
+[export_curl]
+desc = "내보내기 선택지: curl 명령 복사({{변수}} 그대로)"
+other = "curl 복사 · 변수 그대로"
+
+[export_curl_plain]
+desc = "내보내기 선택지: curl 명령 복사(비밀 아닌 변수는 값으로 채움, 비밀은 그대로)"
+other = "curl 복사 · 비밀 아닌 변수는 값으로"
+
+[export_failed]
+desc = "내보내기 실패(err = 원인)"
+params = { err = "string" }
+other = "내보내지 못했어요 · {err}"
+
+[export_path]
+desc = "Postman 파일로 저장: 경로 칸 위 안내"
+other = "저장할 파일 경로"
+
+[export_postman]
+desc = "내보내기 선택지: 컬렉션을 Postman v2.1 파일로 저장"
+other = "컬렉션을 Postman v2.1 파일로 저장"
+
+[export_saved]
+desc = "Postman 파일로 저장한 뒤 창(path = 저장한 경로, 줄여 쓰지 않음)"
+params = { path = "string" }
+no_truncate = true
+other = "{path} 에 저장했어요"
+
+[export_title]
+desc = "내보내기 창 제목"
+max = 30
+other = "내보내기"
+
 [file_changed]
 desc = "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄"
 other = "파일이 바뀌었어요 · 다시 읽기"
@@ -168,12 +209,22 @@ other = "API 시험 도움말"
 desc = "기록을 모두 지운 뒤 토스트"
 other = "기록을 모두 지웠어요"
 
+[host_allow]
+desc = "host_block 창의 선택지: 이 호스트를 허용 목록에 넣고 보내기"
+max = 30
+other = "이 호스트 허용"
+
 [host_block]
 desc = "비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)"
 params = { var = "string", host = "string" }
 no_truncate = true
 legal = true
 other = "{{{var}}} 을 {host} 로 보내려 해요 · 이 호스트 허용 / 취소"
+
+[host_block_title]
+desc = "host_block 창 제목"
+max = 30
+other = "비밀 변수 보낼 곳 확인"
 
 [hub_status]
 desc = "허브의 API 줄 상태: 마지막으로 연 개인 컬렉션과 환경(col = 컬렉션 이름, env = 환경 이름)"
@@ -188,6 +239,54 @@ other = "새 요청 · curl 붙여넣기"
 desc = "허브의 API 줄 상태: 환경을 고르지 않았을 때(col = 컬렉션 이름)"
 params = { col = "string" }
 other = "{col} (로컬)"
+
+[import_done]
+desc = "가져오기 보고: 컬렉션으로 가져온 요청 수(name = 컬렉션 이름)"
+params = { name = "string", n = "int" }
+count = "n"
+other = "{name} 에 요청 {n}개를 가져왔어요"
+
+[import_dropped]
+desc = "가져오기 보고: 스크립트 말고 버린 것 목록(list = 쉼표로 이은 목록)"
+params = { list = "string" }
+other = "버린 것: {list}"
+
+[import_env_done]
+desc = "가져오기 보고: Postman 환경을 가져왔을 때(name = 환경 이름)"
+params = { name = "string" }
+other = "환경 {name} 을 가져왔어요"
+
+[import_failed]
+desc = "가져오기 실패(err = 원인)"
+params = { err = "string" }
+other = "가져오지 못했어요 · {err}"
+
+[import_ignored]
+desc = "가져오기 보고: 읽지 않은 옵션·부분 목록(list = 쉼표로 이은 목록)"
+params = { list = "string" }
+other = "읽지 않은 것: {list}"
+
+[import_prompt]
+desc = "가져오기 창: 경로 칸 위 안내"
+other = "가져올 파일 경로 · curl, OpenAPI JSON, Postman v2.1 컬렉션·환경"
+
+[import_secret_where]
+desc = "가져오기 보고: 비밀값처럼 보이는 칸 목록(list = '요청 이름 · header:X-Api-Key' 꼴을 쉼표로 이은 것)"
+params = { list = "string" }
+other = "찾은 곳: {list}"
+
+[import_title]
+desc = "가져오기 창 제목"
+max = 30
+other = "가져오기"
+
+[import_too_large]
+desc = "가져올 파일이 10MB 를 넘을 때"
+other = "10MB 가 넘는 파일은 가져올 수 없어요"
+
+[import_unknown]
+desc = "가져올 파일의 형식을 알 수 없을 때"
+other = "curl, OpenAPI JSON, Postman v2.1 형식이 아니에요"
 
 [kv_empty]
 desc = "헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄"
@@ -217,10 +316,29 @@ other = "값 없음(내 값 넣기)"
 desc = "OpenAPI 가져오기에서 YAML 파일을 받았을 때(JSON 만 읽음)"
 other = "OpenAPI YAML 은 아직 못 읽어요 · JSON 으로 바꿔 가져와 주세요"
 
+[overwrite_body]
+desc = "밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 본문"
+other = "masil 밖에서 이 컬렉션 파일을 고쳤어요. 내 편집으로 덮어쓸까요?"
+
+[overwrite_title]
+desc = "밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 제목"
+max = 30
+other = "파일이 바뀌었어요"
+
+[overwrite_yes]
+desc = "덮어쓰기 확인 창의 단추"
+max = 12
+other = "덮어쓰기"
+
 [phases]
 desc = "상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)"
 params = { dns = "int", connect = "int", tls = "int", first = "int" }
 other = "DNS {dns} · 연결 {connect} · TLS {tls} · 첫 바이트 {first}"
+
+[private_send]
+desc = "private_target 창의 선택지: 이 버전은 그래도 보내기"
+max = 30
+other = "그래도 보내기"
 
 [private_target]
 desc = "남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)"
@@ -228,6 +346,21 @@ params = { name = "string" }
 no_truncate = true
 legal = true
 other = "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 ({name}님이 마지막으로 바꿈)"
+
+[private_title]
+desc = "private_target 창 제목"
+max = 30
+other = "내 PC·내 네트워크로 가는 요청"
+
+[redirect_blocked]
+desc = "비밀 변수가 허용 목록 밖 호스트로 가지 않게 리다이렉트를 멈췄을 때의 토스트(var = 변수 이름, host = 호스트)"
+params = { var = "string", host = "string" }
+other = "{{{var}}} 때문에 {host} 로의 리다이렉트를 멈췄어요"
+
+[report_close]
+desc = "보고 창 맨 아래: 닫는 키"
+max = 20
+other = "esc 닫기"
 
 [resp_body]
 desc = "응답 탭: 본문"
@@ -261,11 +394,29 @@ params = { i = "int", n = "int", ok = "int", fail = "int" }
 max = 24
 other = "실행 {i}/{n} ✓{ok} ✕{fail}"
 
+[save_failed]
+desc = "개인 컬렉션 저장 실패(err = 원인)"
+params = { err = "string" }
+other = "저장하지 못했어요 · {err}"
+
+[save_first]
+desc = "저장 안 한 새 요청으로 컬렉션 내보내기를 고를 때의 토스트"
+other = "먼저 ctrl+s 로 저장해 주세요"
+
+[saved]
+desc = "요청을 개인 컬렉션에 저장한 뒤 토스트(name = 컬렉션 이름)"
+params = { name = "string" }
+other = "{name} 에 저장했어요"
+
 [scripts_dropped]
 desc = "Postman 가져오기: 버린 스크립트(사전 요청·테스트) 수"
 params = { n = "int" }
 count = "n"
 other = "스크립트 {n}개는 가져오지 않았어요"
+
+[secret_bad_name]
+desc = "변수 이름에 쓸 수 없는 글자가 있을 때의 토스트"
+other = "변수 이름은 영문·숫자·_ . - 만 써요"
 
 [secret_detected]
 desc = "공유로 올라갈 칸에서 비밀값처럼 보이는 글자를 찾았을 때의 안내(줄여 쓰지 않음)"
@@ -273,15 +424,82 @@ no_truncate = true
 legal = true
 other = "비밀값처럼 보여요 → 변수로 바꾸기"
 
+[secret_keep]
+desc = "secret_detected 창의 선택지: 붙여넣은 그대로 두기"
+max = 30
+other = "그대로 두기"
+
+[secret_name]
+desc = "secret_detected 창: 아래 칸에 넣을 변수 이름 안내"
+other = "변수 이름 (값은 이 PC 의 비밀 보관소에만)"
+
+[secret_saved]
+desc = "비밀값을 변수로 바꾸고 보관소에 넣은 뒤 토스트(name = 변수 이름, where = 보관 위치)"
+params = { name = "string", where = "string" }
+other = "{{{name}}} 로 바꿨어요 · 값은 {where}"
+
+[secret_title]
+desc = "secret_detected 창 제목"
+max = 30
+other = "비밀값 발견"
+
+[secret_to_var]
+desc = "secret_detected 창의 선택지: 변수로 바꾸기"
+max = 30
+other = "변수로 바꾸기"
+
 [send_button]
 desc = "요청 줄 오른쪽의 보내기 단추"
 max = 12
 other = "[보내기 ⏎]"
 
+[send_canceled]
+desc = "보내는 중 esc 로 취소했을 때 응답 칸"
+other = "보내기를 취소했어요"
+
+[send_failed]
+desc = "연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인, 영어일 수 있음)"
+params = { err = "string" }
+other = "보내지 못했어요 · {err}"
+
+[send_timeout]
+desc = "요청 타임아웃이 지났을 때 응답 칸"
+other = "시간이 다 됐어요 · 설정 탭에서 타임아웃 늘리기"
+
 [sending]
 desc = "요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)"
 max = 24
 other = "보내는 중… esc 취소"
+
+[set_follow]
+desc = "요청 설정 줄: 리다이렉트 따라가기(state = on/off 문구)"
+params = { state = "string" }
+other = "리다이렉트 따라가기 {state} · space 바꾸기"
+
+[set_max]
+desc = "요청 설정 줄: 리다이렉트 최대 횟수"
+params = { n = "int" }
+other = "리다이렉트 최대 {n}번 · ⏎ 바꾸기"
+
+[set_timeout]
+desc = "요청 설정 줄: 타임아웃(ms = 밀리초)"
+params = { ms = "int" }
+other = "타임아웃 {ms}ms · ⏎ 바꾸기"
+
+[set_tls]
+desc = "요청 설정 줄: TLS 인증서 검사(state = on/off 문구)"
+params = { state = "string" }
+other = "TLS 인증서 검사 {state} · space 바꾸기"
+
+[state_off]
+desc = "설정 값: 끔"
+max = 6
+other = "끔"
+
+[state_on]
+desc = "설정 값: 켬"
+max = 6
+other = "켬"
 
 [status_line]
 desc = "응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면"
@@ -341,6 +559,11 @@ other = "기록"
 desc = "나무의 개인 컬렉션 묶음 머리"
 max = 22
 other = "내 컬렉션 (로컬)"
+
+[undefined_var]
+desc = "보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)"
+params = { name = "string" }
+other = "{{{name}}} 값이 없어요 · e 환경에서 넣기"
 
 [upload_plaintext_note]
 desc = "'방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)"

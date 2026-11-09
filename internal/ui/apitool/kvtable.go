@@ -430,3 +430,23 @@ func (t *KVTable) Cursor() *tea.Cursor {
 	}
 	return tea.NewCursor(x, y)
 }
+
+// EditCell is the cell being edited: its row's key and the edit buffer
+// (ok false when nothing is edited).
+func (t *KVTable) EditCell() (key, text string, ok bool) {
+	if !t.editing || t.cur >= len(t.rows) {
+		return "", "", false
+	}
+	return t.rows[t.cur].Key, string(t.buf), true
+}
+
+// ReplaceEdit replaces the edit buffer with s and commits it; it reports a
+// change (false when nothing is edited).
+func (t *KVTable) ReplaceEdit(s string) bool {
+	if !t.editing {
+		return false
+	}
+	t.buf = []rune(s)
+	t.pos = len(t.buf)
+	return t.commit()
+}

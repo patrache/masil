@@ -12,6 +12,9 @@ other = "none"
 [body_overwritten]
 other = "{name} changed the body · Restore mine"
 
+[cancel]
+other = "Cancel"
+
 [card_result_body]
 other = "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"
 
@@ -60,6 +63,30 @@ other = "Query {n}"
 [ed_settings]
 other = "Settings"
 
+[export_copied]
+other = "Copied the curl command"
+
+[export_curl]
+other = "Copy curl · variables as they are"
+
+[export_curl_plain]
+other = "Copy curl · non-secret variables filled in"
+
+[export_failed]
+other = "Could not export · {err}"
+
+[export_path]
+other = "File to save to"
+
+[export_postman]
+other = "Save the collection as a Postman v2.1 file"
+
+[export_saved]
+other = "Saved to {path}"
+
+[export_title]
+other = "Export"
+
 [file_changed]
 other = "The file changed · Reload"
 
@@ -105,8 +132,14 @@ other = "API test help"
 [history_cleared]
 other = "History cleared"
 
+[host_allow]
+other = "Allow this host"
+
 [host_block]
 other = "About to send {{{var}}} to {host} · Allow this host / Cancel"
+
+[host_block_title]
+other = "Where a secret goes"
 
 [hub_status]
 other = "{col} (local) · {env}"
@@ -116,6 +149,37 @@ other = "New request · paste curl"
 
 [hub_status_no_env]
 other = "{col} (local)"
+
+[import_done]
+one = "Imported {n} request into {name}"
+other = "Imported {n} requests into {name}"
+
+[import_dropped]
+other = "Dropped: {list}"
+
+[import_env_done]
+other = "Imported the environment {name}"
+
+[import_failed]
+other = "Could not import · {err}"
+
+[import_ignored]
+other = "Not read: {list}"
+
+[import_prompt]
+other = "File to import · curl, OpenAPI JSON, Postman v2.1 collection or environment"
+
+[import_secret_where]
+other = "Found in: {list}"
+
+[import_title]
+other = "Import"
+
+[import_too_large]
+other = "Files over 10MB can't be imported"
+
+[import_unknown]
+other = "Not curl, OpenAPI JSON or Postman v2.1"
 
 [kv_empty]
 other = "No rows · a to add"
@@ -135,11 +199,32 @@ other = "No value (set mine)"
 [openapi_yaml_unsupported]
 other = "OpenAPI YAML can't be read yet · Convert it to JSON and import again"
 
+[overwrite_body]
+other = "This collection's files were changed outside masil. Overwrite them with my edits?"
+
+[overwrite_title]
+other = "The file changed"
+
+[overwrite_yes]
+other = "Overwrite"
+
 [phases]
 other = "DNS {dns} · connect {connect} · TLS {tls} · first byte {first}"
 
+[private_send]
+other = "Send anyway"
+
 [private_target]
 other = "This request goes to an address on my PC or my network (last changed by {name})"
+
+[private_title]
+other = "Request to my PC or network"
+
+[redirect_blocked]
+other = "Stopped the redirect to {host} because of {{{var}}}"
+
+[report_close]
+other = "esc close"
 
 [resp_body]
 other = "Body"
@@ -159,18 +244,72 @@ other = "Raw"
 [run_progress_short]
 other = "Run {i}/{n} ✓{ok} ✕{fail}"
 
+[save_failed]
+other = "Could not save · {err}"
+
+[save_first]
+other = "Save it first with ctrl+s"
+
+[saved]
+other = "Saved to {name}"
+
 [scripts_dropped]
 one = "{n} script was not imported"
 other = "{n} scripts were not imported"
 
+[secret_bad_name]
+other = "Variable names use letters, digits, _ . - only"
+
 [secret_detected]
 other = "Looks like a secret → Make it a variable"
+
+[secret_keep]
+other = "Keep as is"
+
+[secret_name]
+other = "Variable name (the value stays in this PC's secret store)"
+
+[secret_saved]
+other = "Replaced with {{{name}}} · the value is in {where}"
+
+[secret_title]
+other = "Secret found"
+
+[secret_to_var]
+other = "Make it a variable"
 
 [send_button]
 other = "[Send ⏎]"
 
+[send_canceled]
+other = "Send canceled"
+
+[send_failed]
+other = "Could not send · {err}"
+
+[send_timeout]
+other = "Timed out · raise the timeout in the Settings tab"
+
 [sending]
 other = "Sending… esc to cancel"
+
+[set_follow]
+other = "Follow redirects {state} · space toggle"
+
+[set_max]
+other = "Redirects at most {n} · ⏎ change"
+
+[set_timeout]
+other = "Timeout {ms}ms · ⏎ change"
+
+[set_tls]
+other = "TLS certificate check {state} · space toggle"
+
+[state_off]
+other = "off"
+
+[state_on]
+other = "on"
 
 [status_line]
 other = "{status} {text} · {ms}ms ({phases}) · {size} · checks {ok}/{total} {mark}"
@@ -206,6 +345,9 @@ other = "History"
 
 [tree_local]
 other = "My collections (local)"
+
+[undefined_var]
+other = "{{{name}}} has no value · set it in e Environments"
 
 [upload_plaintext_note]
 other = "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"
