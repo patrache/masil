@@ -89,9 +89,10 @@ type versionSnapMsg struct {
 	err        error
 }
 
-// versionPreviewMsg puts version label (objs) on canvas instance.
+// versionPreviewMsg puts version no (label, objs) on canvas instance.
 type versionPreviewMsg struct {
 	instance string
+	no       int
 	label    string
 	objs     archdoc.Objects
 }
@@ -99,6 +100,7 @@ type versionPreviewMsg struct {
 // versionPreview is the version a room document's canvas shows instead of
 // the live state.
 type versionPreview struct {
+	no    int // the version's number (a card sent from the preview names it)
 	label string
 	objs  archdoc.Objects
 }
@@ -221,8 +223,8 @@ func (d *versionsDialog) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		if !msg.diff {
-			inst, label := d.instance, versionLabel(ctx, msg.v)
-			return tea.Batch(closeOverlay, func() tea.Msg { return versionPreviewMsg{instance: inst, label: label, objs: cur} })
+			inst, no, label := d.instance, msg.v.No, versionLabel(ctx, msg.v)
+			return tea.Batch(closeOverlay, func() tea.Msg { return versionPreviewMsg{instance: inst, no: no, label: label, objs: cur} })
 		}
 		prev, err := snapObjects(msg.prev)
 		if err != nil {

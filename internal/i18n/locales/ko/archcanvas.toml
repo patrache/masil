@@ -96,6 +96,19 @@ other = "📐 {title} 시뮬"
 desc = "사본을 담은 카드가 16KB 를 넘을 때(보내지 않음)"
 other = "방에 올려 공유하세요"
 
+[card_version_failed]
+desc = "방 문서 카드: 카드가 가리킬 문서 버전을 남기지 못함(버전 한도·네트워크·그사이 편집)"
+other = "카드가 가리킬 버전을 남기지 못했어요 — 잠시 뒤 다시 해 보세요"
+
+[card_version_name]
+desc = "방 문서 카드를 보낼 때 남기는 이름 버전(1..60자). title = 설계 제목(50자로 자름)"
+params = { title = "string" }
+other = "카드 · {title}"
+
+[card_version_unsaved]
+desc = "방 문서 카드: 아직 저장되지 않은 내 편집이 있어 버전을 가리킬 수 없음"
+other = "편집이 아직 저장 중이에요 — 저장된 뒤 다시 보내 주세요"
+
 [check_az_outside_vpc]
 desc = "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것"
 params = { targets = "string" }

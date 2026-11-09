@@ -471,3 +471,99 @@ func TestRoomCardNeverCarriesCopy(t *testing.T) {
 		t.Errorf("room card data: design %s doc %s space %s", data["design"], data["doc_id"], data["space_id"])
 	}
 }
+
+// versionPosts counts POST /v1/docs/D1/versions (named versions made).
+func versionPosts(h *uitest.Harness) int {
+	n := 0
+	for _, r := range h.API.Requests() {
+		if r.Method == "POST" && r.Path == "/v1/docs/D1/versions" {
+			n++
+		}
+	}
+	return n
+}
+
+// TestRoomCardCarriesVersion: a room document's card names the document
+// version its numbers come from — a version at the state I see (made at send
+// time unless the newest already is that state) — and a member's replay of a
+// sim card loads that version.
+func TestRoomCardCarriesVersion(t *testing.T) {
+	hub := collabtest.New(t)
+	sharedFixture(t, hub, api.Doc{SpaceID: fixtures.SpaceNova, Title: fixtureName})
+	h, c, _ := docHarness(t, hub)
+	cardServer(h)
+	send := func(sim bool) sentCard {
+		t.Helper()
+		before := len(sentCards(t, h))
+		h.Send(ui.RunCommandMsg{ID: "arch.send_card"})
+		if c.sendDlg == nil {
+			t.Fatal("no send dialog")
+		}
+		if sim {
+			h.Press("s")
+		}
+		pickChannel(t, h, c.sendDlg, "#일반")
+		h.Press("enter")
+		waitUntil(t, h, "the preview", func() bool { return c.sendDlg.step == 1 })
+		h.Press("enter")
+		got := sentCards(t, h)
+		if len(got) != before+1 {
+			t.Fatalf("sends = %d", len(got))
+		}
+		return got[len(got)-1]
+	}
+	// my edits not saved yet: no version can name this state — a hint, nothing made or sent
+	h.Send(ui.RunCommandMsg{ID: "arch.send_card"})
+	c.sendDlg.unsaved = true
+	h.Press("enter")
+	if c.sendDlg.step != 0 || !strings.Contains(h.Screen(), "편집이 아직 저장 중") || versionPosts(h) != 0 {
+		t.Fatalf("unsaved edits: step %d, %d versions:\n%s", c.sendDlg.step, versionPosts(h), h.Screen())
+	}
+	h.Press("esc")
+
+	s := send(false)
+	if v := string(s.Card.Data["version_no"]); v != "1" {
+		t.Errorf("the design card's version_no = %s", v)
+	}
+	if n := versionPosts(h); n != 1 {
+		t.Errorf("%d versions made", n)
+	}
+	vs, err := h.Context().API.ListDocVersions(t.Context(), "D1")
+	if err != nil || len(vs) != 1 || vs[0].Name == nil || !strings.Contains(*vs[0].Name, "결제 시스템 v3") {
+		t.Fatalf("versions %+v (%v)", vs, err)
+	}
+	// nothing changed since: the same version, none made
+	s = send(true)
+	if v := string(s.Card.Data["version_no"]); v != "1" || s.Card.Type != ui.CardArchSim {
+		t.Errorf("the sim card's version_no = %s (%s)", v, s.Card.Type)
+	}
+	if n := versionPosts(h); n != 1 {
+		t.Errorf("%d versions made for an unchanged document", n)
+	}
+
+	// a member replays the sim card from that version
+	ctx := h.Context()
+	cr, _ := ui.CardFor(ui.CardArchSim)
+	m := api.Message{ID: "01JDVER0000000000000000001", ChannelID: fixtures.ChGeneral, Kind: api.MessageKindCard, Body: s.Body,
+		Card: &api.Card{Type: s.Card.Type, V: s.Card.V, Data: mustJSON(t, s.Card.Data)}, Author: api.UserSummary{ID: fixtures.UserMinji, Handle: "minji"}}
+	if lines := ansi.Strip(strings.Join(cr.Lines(ctx, &m, 100), "\n")); !strings.Contains(lines, "R 다시 돌려 보기") {
+		t.Errorf("no replay hint on a member's room card:\n%s", lines)
+	}
+	handled, cmd := cr.Key(ctx, &m, tea.KeyPressMsg{Code: 'R', Text: "R"})
+	if !handled || cmd == nil {
+		t.Fatal("R not handled on a member's room sim card")
+	}
+	h.Send(cmd())
+	if scr := h.Screen(); !strings.Contains(scr, "다시 돌려도 같아요") {
+		t.Errorf("the replay of version 1 does not match:\n%s", scr)
+	}
+}
+
+func mustJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}

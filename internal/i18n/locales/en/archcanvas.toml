@@ -62,6 +62,15 @@ other = "📐 {title} simulation"
 [card_too_big]
 other = "Share it in a room instead"
 
+[card_version_failed]
+other = "Couldn't save the version this card points to — try again in a moment"
+
+[card_version_name]
+other = "Card · {title}"
+
+[card_version_unsaved]
+other = "Your edits are still saving — send again once they're saved"
+
 [check_az_outside_vpc]
 other = "{targets}: AZ outside a VPC"
 

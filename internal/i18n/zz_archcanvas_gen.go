@@ -165,6 +165,28 @@ var areaArchcanvas = area{
 				En: {Other: "Share it in a room instead"},
 			},
 		},
+		"card_version_failed": {
+			desc: "방 문서 카드: 카드가 가리킬 문서 버전을 남기지 못함(버전 한도·네트워크·그사이 편집)",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드가 가리킬 버전을 남기지 못했어요 — 잠시 뒤 다시 해 보세요"},
+				En: {Other: "Couldn't save the version this card points to — try again in a moment"},
+			},
+		},
+		"card_version_name": {
+			desc:   "방 문서 카드를 보낼 때 남기는 이름 버전(1..60자). title = 설계 제목(50자로 자름)",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "카드 · {title}"},
+				En: {Other: "Card · {title}"},
+			},
+		},
+		"card_version_unsaved": {
+			desc: "방 문서 카드: 아직 저장되지 않은 내 편집이 있어 버전을 가리킬 수 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "편집이 아직 저장 중이에요 — 저장된 뒤 다시 보내 주세요"},
+				En: {Other: "Your edits are still saving — send again once they're saved"},
+			},
+		},
 		"check_az_outside_vpc": {
 			desc:   "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것",
 			params: []Param{{Name: "targets", Type: "string"}},
@@ -3012,6 +3034,21 @@ func (a_ ArchcanvasT) CardSimTitle(title string) string {
 // CardTooBig: 사본을 담은 카드가 16KB 를 넘을 때(보내지 않음)
 func (a_ ArchcanvasT) CardTooBig() string {
 	return a_.t.render(&areaArchcanvas, "card_too_big", false, 0)
+}
+
+// CardVersionFailed: 방 문서 카드: 카드가 가리킬 문서 버전을 남기지 못함(버전 한도·네트워크·그사이 편집)
+func (a_ ArchcanvasT) CardVersionFailed() string {
+	return a_.t.render(&areaArchcanvas, "card_version_failed", false, 0)
+}
+
+// CardVersionName: 방 문서 카드를 보낼 때 남기는 이름 버전(1..60자). title = 설계 제목(50자로 자름)
+func (a_ ArchcanvasT) CardVersionName(title string) string {
+	return a_.t.render(&areaArchcanvas, "card_version_name", false, 0, "title", title)
+}
+
+// CardVersionUnsaved: 방 문서 카드: 아직 저장되지 않은 내 편집이 있어 버전을 가리킬 수 없음
+func (a_ ArchcanvasT) CardVersionUnsaved() string {
+	return a_.t.render(&areaArchcanvas, "card_version_unsaved", false, 0)
 }
 
 // CheckAzOutsideVpc: 설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 ", " 로 이은 것

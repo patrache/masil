@@ -320,7 +320,7 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case versionPreviewMsg:
 		if sh := m.shared(); sh != nil && msg.instance == m.route.ID {
-			return m.showVersion(ctx, sh, &versionPreview{label: msg.label, objs: msg.objs})
+			return m.showVersion(ctx, sh, &versionPreview{no: msg.no, label: msg.label, objs: msg.objs})
 		}
 	case docMetaMsg:
 		if sh := m.shared(); sh != nil && msg.instance == m.route.ID && msg.err == nil && msg.doc != nil {

@@ -282,11 +282,11 @@ func (c card) title() string {
 }
 
 func (c card) ref() cardRef {
-	sp, doc := c.design.refs()
+	sp, doc, ver := c.design.refs()
 	if c.sim != nil {
-		sp, doc = c.sim.refs()
+		sp, doc, ver = c.sim.refs()
 	}
-	return cardRef{spaceID: sp, docID: doc}
+	return cardRef{spaceID: sp, docID: doc, versionNo: ver}
 }
 
 func (c card) copyRaw() json.RawMessage {
@@ -296,18 +296,25 @@ func (c card) copyRaw() json.RawMessage {
 	return c.design.Design
 }
 
-func (d *designCardData) refs() (string, string) {
+func (d *designCardData) refs() (string, string, int) {
 	if d == nil {
-		return "", ""
+		return "", "", 0
 	}
-	return deref(d.SpaceID), deref(d.DocID)
+	return deref(d.SpaceID), deref(d.DocID), derefInt(d.VersionNo)
 }
 
-func (d *simCardData) refs() (string, string) {
+func (d *simCardData) refs() (string, string, int) {
 	if d == nil {
-		return "", ""
+		return "", "", 0
 	}
-	return deref(d.SpaceID), deref(d.DocID)
+	return deref(d.SpaceID), deref(d.DocID), derefInt(d.VersionNo)
+}
+
+func derefInt(n *int) int {
+	if n == nil {
+		return 0
+	}
+	return *n
 }
 
 func deref(s *string) string {
@@ -496,7 +503,7 @@ func cardHint(ctx *ui.Context, c card) string {
 	case c.copyDesign() != nil:
 		parts = append(parts, a.CardOpenCopyHint())
 	}
-	if canReplay(c) {
+	if canReplay(ctx, c) {
 		parts = append(parts, a.CardReplayHint())
 	}
 	return strings.Join(parts, " · ")
@@ -564,9 +571,17 @@ func messageThread(m *api.Message) tea.Cmd {
 // taken.
 const replayKey = "R"
 
-// canReplay: c is a sim card with something to run again.
-func canReplay(c card) bool {
-	return c.sim != nil && c.copyDesign() != nil
+// canReplay: c is a sim card with something to run again — its copy, or
+// (for a member of its room) the document version it names.
+func canReplay(ctx *ui.Context, c card) bool {
+	if c.sim == nil {
+		return false
+	}
+	if c.copyDesign() != nil {
+		return true
+	}
+	ref := c.ref()
+	return ref.versionNo > 0 && member(ctx, ref) && ctx.API != nil
 }
 
 // cardKey: R on a sim card replays it (the same design and seed, compared
@@ -577,19 +592,44 @@ func cardKey(ctx *ui.Context, m *api.Message, k tea.KeyPressMsg) (bool, tea.Cmd)
 		return false, nil
 	}
 	c, ok := parseCard(m)
-	if !ok || !canReplay(c) {
+	if !ok || !canReplay(ctx, c) {
 		return false, nil
 	}
 	return true, replay(ctx, c)
 }
 
-// replay runs the card's copy again and says whether the numbers match.
+// replay runs the card's design again — its copy, or the room document
+// version it names — and says whether the numbers match.
 func replay(ctx *ui.Context, c card) tea.Cmd {
-	a := ctx.T.Archcanvas
-	d := c.copyDesign()
-	if d == nil {
-		return ui.Toast(a.CardReplayNone(), ui.ToastInfo)
+	t := ctx.T
+	if d := c.copyDesign(); d != nil {
+		return func() tea.Msg { return replayToast(t, c, d) }
 	}
+	ref, cl := c.ref(), ctx.API
+	if ref.versionNo < 1 || cl == nil {
+		return ui.Toast(t.Archcanvas.CardReplayNone(), ui.ToastInfo)
+	}
+	return func() tea.Msg {
+		failed := ui.ToastMsg{Text: t.Archcanvas.CardCopyFailed(), Kind: ui.ToastError}
+		snap, err := cl.GetDocVersion(context.Background(), ref.docID, ref.versionNo)
+		if err != nil {
+			return failed
+		}
+		objs, err := snapObjects(snap)
+		if err != nil {
+			return failed
+		}
+		d, _ := archdoc.FromObjects(objs, nil)
+		if d == nil {
+			return failed
+		}
+		return replayToast(t, c, d)
+	}
+}
+
+// replayToast analyzes d with the card's seed and compares the numbers.
+func replayToast(t *i18n.T, c card, d *archdoc.Design) tea.Msg {
+	a := t.Archcanvas
 	if seed, err := strconv.ParseUint(c.sim.Seed, 10, 64); err == nil {
 		d.Seed = seed
 	}
@@ -598,9 +638,9 @@ func replay(ctx *ui.Context, c card) tea.Cmd {
 	cost := a.CostShort(humanize.Grouped(int64(r.Cost.TotalUSDMonth)), cleanText(asOfOf(r)))
 	if r.P99Ms == s.P99Ms && r.P50Ms == s.P50Ms && r.ErrorPermille == s.ErrorPermille &&
 		r.Cost.TotalUSDMonth == s.CostUSDMonth && r.RPS == s.MaxRPS && s.EngineVersion == archsim.EngineVersion {
-		return ui.Toast(a.CardReplaySame(r.P99Ms, pct1(r.ErrorPermille), cost), ui.ToastSuccess)
+		return ui.ToastMsg{Text: a.CardReplaySame(r.P99Ms, pct1(r.ErrorPermille), cost), Kind: ui.ToastSuccess}
 	}
-	return ui.Toast(a.CardReplayDiff(r.P99Ms, pct1(r.ErrorPermille), cost), ui.ToastAlert)
+	return ui.ToastMsg{Text: a.CardReplayDiff(r.P99Ms, pct1(r.ErrorPermille), cost), Kind: ui.ToastAlert}
 }
 
 // ---- card copies (arch:msg instances) ----

@@ -34,6 +34,11 @@ type sendDialog struct {
 	busy   bool
 	size   ui.Size
 	rows   int // the preview's card lines at the widest dialog (Bounds)
+
+	// a room document's state when the dialog opened: the card names the
+	// version at seq (pin), never one with my unsaved edits missing
+	seq     int64
+	unsaved bool
 }
 
 // sendChan is a conversation: label names it in the preview and the toast,
@@ -45,6 +50,17 @@ var (
 	_ ui.KeyHandler = (*sendDialog)(nil)
 	_ ui.Titled     = (*sendDialog)(nil)
 )
+
+// sendPinnedMsg is the version a room document's card names (pin).
+type sendPinnedMsg struct {
+	dlg *sendDialog
+	no  int
+	err error
+}
+
+// errDocMoved: the version made is not the state the dialog saw (someone
+// edited in between).
+var errDocMoved = errors.New("arch: the document moved on")
 
 // sendDoneMsg is SendMessage's answer.
 type sendDoneMsg struct {
@@ -65,6 +81,11 @@ func (m *canvasModel) newSendDialog(ctx *ui.Context) *sendDialog {
 			return nil
 		}
 		d.ref = cardRef{spaceID: sh.meta.SpaceID, docID: sh.docID, room: true}
+		if sh.preview != nil {
+			d.ref.versionNo = sh.preview.no // the canvas shows that saved version
+		} else {
+			d.seq, d.unsaved = sh.s.View().Seq(), len(sh.s.Pending()) > 0
+		}
 	}
 	if d.result == nil {
 		d.result = archsim.Analyze(m.design, archsim.Options{})
@@ -139,6 +160,15 @@ func (d *sendDialog) Bounds(body layout.Rect) layout.Rect {
 }
 
 func (d *sendDialog) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
+	if p, ok := msg.(sendPinnedMsg); ok && p.dlg == d {
+		d.busy = false
+		if p.err != nil || p.no < 1 {
+			d.hint = ctx.T.Archcanvas.CardVersionFailed()
+			return nil
+		}
+		d.ref.versionNo = p.no
+		return d.preview(ctx)
+	}
 	m, ok := msg.(sendDoneMsg)
 	if !ok || m.dlg != d {
 		return nil
@@ -201,6 +231,9 @@ func (d *sendDialog) preview(ctx *ui.Context) tea.Cmd {
 	if len(d.chans) == 0 || d.design == nil {
 		return nil
 	}
+	if d.ref.room && d.ref.versionNo == 0 {
+		return d.pin(ctx)
+	}
 	if err := d.build(ctx); err != nil {
 		if errors.Is(err, errCardTooBig) {
 			return tea.Batch(closeOverlay, ui.Toast(ctx.T.Archcanvas.CardTooBig(), ui.ToastInfo))
@@ -211,6 +244,48 @@ func (d *sendDialog) preview(ctx *ui.Context) tea.Cmd {
 	d.step, d.hint = 1, ""
 	d.rows = len(d.previewLines(ctx, sendW-2))
 	return nil
+}
+
+// pin finds the version of the room document at the state the dialog saw:
+// the newest one when it is that state, else a named version made now. With
+// my edits still unsaved there is no such version yet.
+func (d *sendDialog) pin(ctx *ui.Context) tea.Cmd {
+	cl := ctx.API
+	if d.unsaved {
+		d.hint = ctx.T.Archcanvas.CardVersionUnsaved()
+		return nil
+	}
+	if cl == nil {
+		d.hint = ctx.T.Archcanvas.CardVersionFailed()
+		return nil
+	}
+	docID, seq := d.ref.docID, d.seq
+	name := ctx.T.Archcanvas.CardVersionName(cutCodePoints(cardTitle(ctx.T, d.design), 50))
+	d.busy, d.hint = true, ""
+	return func() tea.Msg {
+		bg := context.Background()
+		vs, err := cl.ListDocVersions(bg, docID)
+		if err != nil {
+			return sendPinnedMsg{dlg: d, err: err}
+		}
+		var newest *api.DocVersion
+		for i := range vs {
+			if newest == nil || vs[i].No > newest.No {
+				newest = &vs[i]
+			}
+		}
+		if newest != nil && newest.Seq == seq {
+			return sendPinnedMsg{dlg: d, no: newest.No}
+		}
+		v, err := cl.CreateDocVersion(bg, docID, name)
+		if err != nil {
+			return sendPinnedMsg{dlg: d, err: err}
+		}
+		if v.Seq != seq {
+			return sendPinnedMsg{dlg: d, err: errDocMoved}
+		}
+		return sendPinnedMsg{dlg: d, no: v.No}
+	}
 }
 
 // send posts the previewed card.
