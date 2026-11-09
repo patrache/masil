@@ -68,3 +68,17 @@ func ConfirmLogoutForTest(m *Model) tea.Cmd {
 	_, cmd := m.Update(logoutConfirmedMsg{})
 	return cmd
 }
+
+// SetPanesForTest replaces termhost.Running / termhost.CloseAll for the quit
+// confirmation (P0 Task 20).
+func SetPanesForTest(running func() []string, closeAll func(grace time.Duration)) (restore func()) {
+	oldR, oldC := runningPanes, closeAllPanes
+	runningPanes, closeAllPanes = running, closeAll
+	return func() { runningPanes, closeAllPanes = oldR, oldC }
+}
+
+// OptionsFromEnvForTest is Run's reading of the process env (MASIL_PANE).
+func OptionsFromEnvForTest(o Options) Options { return optionsFromEnv(o) }
+
+// PaneListForTest is the quit question's program list.
+func PaneListForTest(m *Model, names []string) string { return paneList(m, names) }

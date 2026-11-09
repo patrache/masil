@@ -46,6 +46,7 @@ type Options struct {
 	Clipboard       clipboard.Writer // nil => clipboard.System(); uitest passes a clipboard.Recorder
 	Locale          *i18n.Resolution // nil => i18n.Resolve(i18n.DetectOS() + [ui] language)
 	Secrets         *secrets.Store   // nil => secrets.Open(Paths) with this OS's store (run.go)
+	NestedPane      bool             // inside a masil pane (MASIL_PANE=1, read by Run only): a start warning
 }
 
 // Model implements tea.Model.
@@ -64,9 +65,11 @@ type Model struct {
 	focus     FocusIntent // focus resolved for the current layout
 	sentFocus FocusIntent // focus of the last FocusChangedMsg broadcast
 
-	prefix    prefixState // pending ctrl+w prefix (CA 5.3.4 2.2)
+	prefix    prefixState // pending ctrl+w prefix (CA 5.3.4 2.2) or ctrl+\ while sharing
+	escGen    int         // generation of the pending escapeArmMsg
 	quitArmed bool        // the first ctrl+c armed quitting (CA 5.5 app.quit)
 	quitGen   int         // generation of the pending quitArmMsg
+	quitAsk   ui.Overlay  // the open "panes still run" quit question (quit.go), nil = none
 
 	cols, rows int
 	sized      bool // a WindowSizeMsg arrived
@@ -285,7 +288,7 @@ func resolveLocale(r *i18n.Resolution, cfg *config.Config) i18n.Resolution {
 func (m *Model) Init() tea.Cmd {
 	cmds := m.initCmds
 	m.initCmds = nil
-	cmds = append(cmds, m.startRealtime())
+	cmds = append(cmds, m.startRealtime(), m.nestedPaneWarning())
 	return tea.Batch(cmds...)
 }
 
@@ -314,6 +317,9 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if cmd, ok := m.toolMsg(msg); ok { // the tool surface's msgs (tools.go)
 		return m, cmd
 	}
+	if cmd, ok := m.grabMsg(msg); ok { // key grabbing: ctrl+\ timeout, shell actions (keys.go)
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case statusTickMsg:
 		if msg.gen == m.tickGen {
@@ -330,6 +336,8 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toastExpireMsg:
 		m.toasts.remove(msg.id)
 		return m, nil
+	case quitRequestMsg: // ctrl+c twice and the palette's 종료 (quit.go)
+		return m, m.requestQuit(msg.confirm)
 	case quitArmMsg:
 		if msg.gen == m.quitGen {
 			m.quitArmed = false

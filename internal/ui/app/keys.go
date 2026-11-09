@@ -26,7 +26,15 @@ type prefixState int
 const (
 	prefixNone   prefixState = iota
 	prefixWindow             // ctrl+w seen: the next key picks a pane, a pin or cancels
+	prefixEscape             // ctrl+\ seen while a kill switch is active: x cuts it
 )
+
+// escapeWindow is how long ctrl+\ waits for x while a kill switch is active
+// (the same wait as a pane's own prefix, A7.5).
+const escapeWindow = 2 * time.Second
+
+// escapeArmMsg disarms a ctrl+\ of generation gen once escapeWindow has passed.
+type escapeArmMsg struct{ gen int }
 
 // quitArmMsg disarms a ctrl+c arming of generation gen once quitWindow has passed.
 type quitArmMsg struct{ gen int }
@@ -77,10 +85,25 @@ func (m *Model) handleKey(c ui.Component, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 // routeKey routes one key press (CA 5.3.4 step 2).
 func (m *Model) routeKey(msg tea.KeyPressMsg) tea.Cmd {
 	keys := m.ctx.Keys
+	// ctrl+\ x while sharing (A7.5 JX6): any screen, before everything else.
+	if m.prefix == prefixEscape {
+		m.prefix = prefixNone
+		return m.escapeKey(msg)
+	}
+	// A component that grabs the keyboard (a running termpane) gets every key —
+	// ctrl+c and the hard globals included — unless an overlay is above it.
+	if cmd, ok := m.grabbedKey(msg); ok {
+		return cmd
+	}
 	// ctrl+c skips the overlays (2.1) and is decided first.
 	if keys.Matches(msg, keymap.AppQuit) {
 		m.prefix = prefixNone
 		return m.quitKey(msg)
+	}
+	if ui.KillSwitchActive() && keys.MatchesEscape(msg) {
+		m.prefix = prefixEscape
+		m.escGen++
+		return ui.After(m.ctx, escapeWindow, escapeArmMsg{gen: m.escGen})
 	}
 	// 2.1 the top overlay; only a non-modal overlay lets an unhandled key go on (steps 3–6).
 	if len(m.overlays) > 0 {
@@ -205,6 +228,65 @@ func (m *Model) windowKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// grabbing reports whether c owns the keyboard (ui.KeyGrabber).
+func grabbing(c ui.Component) bool {
+	g, ok := c.(ui.KeyGrabber)
+	return ok && g.GrabsKeys()
+}
+
+// grabbedKey gives msg to the focused component when it grabs the keyboard
+// and nothing (an overlay, the login screen) is above it.
+func (m *Model) grabbedKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	if len(m.overlays) > 0 || m.login != nil {
+		return nil, false
+	}
+	comp := m.focusedComponent()
+	if !grabbing(comp) {
+		return nil, false
+	}
+	m.prefix = prefixNone
+	_, cmd := m.handleKey(comp, msg)
+	return cmd, true
+}
+
+// escapeKey is the key after ctrl+\ while a kill switch was active: x cuts
+// every active one at once (no question: failing safe, B8.5); any other key
+// cancels and is dropped.
+func (m *Model) escapeKey(msg tea.KeyPressMsg) tea.Cmd {
+	if msg.String() == "x" && ui.KillSwitchActive() {
+		return ui.KillAll(m.ctx)
+	}
+	return nil
+}
+
+// grabMsg handles the msgs of key grabbing the shell consumes: the ctrl+\
+// timeout and the shell actions a grabbing component asks for (its keys go to
+// its program, so it asks with ui.ShellActionMsg).
+func (m *Model) grabMsg(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case escapeArmMsg:
+		if msg.gen == m.escGen && m.prefix == prefixEscape {
+			m.prefix = prefixNone
+		}
+		return nil, true
+	case ui.ShellActionMsg:
+		switch msg.Action {
+		case ui.ShellFocusLeft:
+			m.moveFocus(-1, 0)
+		case ui.ShellFocusRight:
+			m.moveFocus(+1, 0)
+		case ui.ShellFocusUp:
+			m.moveFocus(0, -1)
+		case ui.ShellFocusDown:
+			m.moveFocus(0, +1)
+		case ui.ShellPalette:
+			return m.openPalette(""), true
+		}
+		return nil, true
+	}
+	return nil, false
+}
+
 // quitKey is app.quit (CA 5.3.4 2.1, 5.5): a focused component capturing input gets it
 // first (a non-empty input clears itself and handles it — Task 22 rule); otherwise the
 // first press arms quitting for quitWindow (toast), the second one quits. With an
@@ -219,7 +301,7 @@ func (m *Model) quitKey(msg tea.KeyPressMsg) tea.Cmd {
 		pre = cmd
 	}
 	if m.quitArmed {
-		return tea.Batch(pre, tea.Quit)
+		return tea.Batch(pre, m.requestQuit(false)) // quit.go: live panes are asked about first
 	}
 	m.quitArmed = true
 	m.quitGen++

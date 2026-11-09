@@ -67,6 +67,11 @@ const (
 	// feature flag is on (features.Any); off, ctrl+t reaches the composer.
 	ToolsToggle Action = "tools.toggle" // ctrl+t: tool surface <-> chat (hard)
 	ToolsZoom   Action = "tools.zoom"   // the key after ctrl+w (z): the active tool's wide view
+	// TermhostEscape is the embedded pane's prefix key (A7.5, P0 Task 16):
+	// ctrl+\ — the same byte 0x1c some terminals report as ctrl+4 (both
+	// bound; MatchesEscape also takes the raw code). It is read only by a
+	// focused pane, and by the shell while a kill switch is active.
+	TermhostEscape Action = "termhost.escape"
 )
 
 // Keymap maps actions to bindings.
@@ -142,7 +147,8 @@ var defaults = map[Action]spec{
 	ToolsToggle:       {keys: []string{"ctrl+t"}, Desc: func(t *i18n.T) string { return t.Tools.KeyToggle() }},
 	// tools.zoom is matched on the key after the ctrl+w prefix (like its digits),
 	// so its help label names the prefix too.
-	ToolsZoom: {keys: []string{"z"}, helpKey: "ctrl+w z", Desc: func(t *i18n.T) string { return t.Tools.KeyZoom() }},
+	ToolsZoom:      {keys: []string{"z"}, helpKey: "ctrl+w z", Desc: func(t *i18n.T) string { return t.Tools.KeyZoom() }},
+	TermhostEscape: {keys: []string{"ctrl+\\", "ctrl+4"}, helpKey: "ctrl+\\", Desc: func(t *i18n.T) string { return t.Termpane.HelpEscape() }},
 }
 
 // descIn is the row description in t (ko when t is nil).
@@ -226,7 +232,49 @@ func Load(overrides map[string][]string) (*Keymap, []error) {
 		}
 		k.b[a] = newBinding(keys, "", s.descIn(nil))
 	}
-	return k, errs
+	return k, append(errs, k.escapeConflicts(overrides)...)
+}
+
+// escapeGlobals are the masil keys decided before the focused component —
+// the ones termhost.escape (A7.5) must not share.
+var escapeGlobals = []Action{AppQuit, PaletteOpen, SearchGlobal, NotificationsOpen, WindowPrefix, FocusNext, FocusPrev, ToolsToggle}
+
+// escapeConflicts is A7.5 "masil 전역 키와 겹치게 바꾸면 경고": an override that
+// puts termhost.escape and a global key on the same key is refused — the
+// overridden side goes back to its default (escape first) — and reported.
+func (k *Keymap) escapeConflicts(overrides map[string][]string) []error {
+	var errs []error
+	_, escMoved := overrides[string(TermhostEscape)]
+	for _, g := range escapeGlobals {
+		// A swap (escape onto a global, that global onto ctrl+\) needs both
+		// sides back: escape first, then the global if they still meet.
+		for range 2 {
+			shared := sharedKeys(k.b[TermhostEscape].Keys(), k.b[g].Keys())
+			if len(shared) == 0 {
+				break
+			}
+			back := g
+			if escMoved {
+				back, escMoved = TermhostEscape, false
+			}
+			s := defaults[back]
+			k.b[back] = newBinding(s.keys, s.helpKey, s.descIn(nil))
+			errs = append(errs, fmt.Errorf("keymap: %s and %s share %s, a masil global key (%s default kept)",
+				TermhostEscape, g, strings.Join(shared, ", "), back))
+		}
+	}
+	return errs
+}
+
+// sharedKeys is the keys in both a and b.
+func sharedKeys(a, b []string) []string {
+	var out []string
+	for _, x := range a {
+		if slices.Contains(b, x) {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // namedKeys are the non-character key names tea.KeyPressMsg.String() produces.
@@ -296,6 +344,24 @@ func (k *Keymap) Binding(a Action) key.Binding {
 func (k *Keymap) Matches(msg tea.KeyPressMsg, a Action) bool {
 	b, ok := k.lookup(a)
 	return ok && key.Matches(msg, b)
+}
+
+// rawFS is the byte ctrl+\ sends (0x1c, ASCII FS). A decoder that does not map
+// it to ctrl+\ hands it over as the bare code.
+const rawFS = 0x1c
+
+// MatchesEscape reports whether msg is termhost.escape (A7.5): one of its keys
+// — by default ctrl+\ and ctrl+4, the same byte — or, while ctrl+\ is bound,
+// the raw 0x1c code a terminal may deliver for it.
+func (k *Keymap) MatchesEscape(msg tea.KeyPressMsg) bool {
+	if k.Matches(msg, TermhostEscape) {
+		return true
+	}
+	if msg.Code != rawFS || msg.Mod&^tea.ModShift != 0 {
+		return false
+	}
+	b, _ := k.lookup(TermhostEscape)
+	return slices.Contains(b.Keys(), "ctrl+\\")
 }
 
 // Bound reports whether msg triggers any action (a nil Keymap behaves like Default).

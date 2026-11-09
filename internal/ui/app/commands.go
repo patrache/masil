@@ -118,7 +118,7 @@ func init() {
 		// Confirmed like logout: the empty palette lists it among the commands, so a
 		// stray enter must not skip the ctrl+c-twice guard.
 		Run: func(*ui.Context, string) tea.Cmd {
-			return ui.OpenOverlay(widgets.Confirm("종료할까요?", "masil을 닫아요.", "종료", "취소", tea.Quit))
+			return msgCmd(quitRequestMsg{confirm: true}) // quit.go: asks about live panes first
 		},
 	})
 	palette.Register(palette.Command{

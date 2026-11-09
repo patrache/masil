@@ -4,17 +4,26 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 
 	tea "charm.land/bubbletea/v2"
 
 	minstance "github.com/patrache/masil/internal/instance"
 	"github.com/patrache/masil/internal/secrets"
+	"github.com/patrache/masil/internal/ui"
 )
 
 // Run acquires the TUI lock, builds the tea.Program (alt screen via View),
 // starts the realtime bridge, runs, and saves state.json on exit.
 func Run(ctx context.Context, o Options) error {
-	return runProgram(ctx, New(o))
+	return runProgram(ctx, New(optionsFromEnv(o)))
+}
+
+// optionsFromEnv is o with what Run takes from the process env: MASIL_PANE=1
+// (set by termhost for every program it runs in a pane) => NestedPane.
+func optionsFromEnv(o Options) Options {
+	o.NestedPane = o.NestedPane || os.Getenv("MASIL_PANE") == "1"
+	return o
 }
 
 // runProgram is Run on an already built model with extra program options (tests:
@@ -60,4 +69,17 @@ func openSecrets(o Options) *secrets.Store {
 		return o.Secrets
 	}
 	return secrets.Open(secrets.Options{Paths: o.Paths})
+}
+
+// nestedPaneWarning is the start toast when masil runs inside a masil pane
+// (MASIL_PANE=1, v0.1.3 A7.4): the two would fight over keys like ctrl+\. It
+// only warns (Init, once); nothing is blocked. Only Run reads the env
+// (optionsFromEnv): a model built otherwise (the test harness) needs
+// Options.NestedPane.
+func (m *Model) nestedPaneWarning() tea.Cmd {
+	if !m.opts.NestedPane {
+		return nil
+	}
+	slog.Info("masil started inside a masil pane")
+	return ui.Toast(m.ctx.T.Termpane.NestedWarning(), ui.ToastInfo)
 }

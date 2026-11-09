@@ -171,6 +171,9 @@ func ceilSeconds(d time.Duration) time.Duration {
 func (m *Model) rightItems() []statusItem {
 	bar := m.ctx.Theme.S.StatusBar
 	var out []statusItem
+	if n := m.unreadBehindTools(); n > 0 { // A8.3: the chat is behind the tool surface
+		out = append(out, statusItem{Text: m.ctx.T.Termpane.ChatUnread(n), Style: bar})
+	}
 	if d := ceilSeconds(m.focusLeft()); d > 0 {
 		mins, secs := int(d/time.Minute), int(d%time.Minute/time.Second)
 		out = append(out, statusItem{Text: fmt.Sprintf("🎯 %02d:%02d", mins, secs), Style: bar})
@@ -182,6 +185,21 @@ func (m *Model) rightItems() []statusItem {
 		out = append(out, statusItem{Text: "📌", Style: bar})
 	}
 	return append(out, m.connectionItem())
+}
+
+// unreadBehindTools is the chat's unread count while the standard mode shows
+// the tool surface (an open tool or the hub, once a tool is open) in its
+// place (0 otherwise: there the chat, its tabs or its column stay in view;
+// the hub alone, with no tool open, keeps the 0.1.2 status line).
+func (m *Model) unreadBehindTools() int {
+	if m.lay.Mode != layout.ModeStandard || m.nav.Front != FrontTools {
+		return 0
+	}
+	if !slices.ContainsFunc(m.nav.Tools, func(r ui.Route) bool { return r.Kind == ui.RouteTool }) {
+		return 0
+	}
+	n, _ := m.ctx.Store.TotalUnread()
+	return n
 }
 
 // statusTickMsg re-renders the status line once a second while a focus session or a
@@ -215,6 +233,11 @@ func (m *Model) hints() (out []string, base int) {
 	var comp ui.Component
 	if in := m.focusedInstance(); in != nil {
 		comp = in.comp
+	}
+	if st, ok := comp.(ui.StatusTexter); ok { // a termpane: where the keys go and how to leave
+		if text, ok := st.StatusText(m.ctx); ok {
+			return []string{text}, 1
+		}
 	}
 	if c, ok := comp.(ui.InputCapturer); ok && c.CapturesInput() {
 		defaults = inputHints

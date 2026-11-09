@@ -146,6 +146,7 @@ func New(tb testing.TB, opts ...Option) *Harness {
 		Timers:          clock,
 		Clipboard:       h.Clip,
 		Secrets:         sec,
+		NestedPane:      c.nestedPane,
 	})
 	h.posts = newRecPoster()
 	h.Model.Context().Post = h.posts // recorded; Flush delivers
