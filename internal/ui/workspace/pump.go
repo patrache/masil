@@ -29,18 +29,19 @@ func (s *Surface) armPump(ctx *ui.Context) tea.Cmd {
 	return ui.After(ctx, pumpEvery, pumpMsg{id: s.id})
 }
 
-// onPump runs one beat: the share engine's events when sharing (it ticks the
-// documents itself), else the documents' own Tick.
+// onPump runs one beat: the share engine's events when sharing, and the
+// documents' own Tick unless the engine ticks them (a share with files).
 func (s *Surface) onPump(ctx *ui.Context) tea.Cmd {
 	s.pumping = false
 	if s.closed || s.docs == nil {
 		return nil
 	}
-	var cmd tea.Cmd
-	if s.ownerActive() {
-		cmd = s.ownerPump(ctx)
-	} else {
-		cmd = s.docEvents(ctx, s.docs.Tick(nowClock(ctx).Now()))
+	var cmds []tea.Cmd
+	if !s.ownerActive() || !s.own.files { // a share without files has no Docs
+		cmds = append(cmds, s.docEvents(ctx, s.docs.Tick(nowClock(ctx).Now())))
 	}
-	return tea.Batch(cmd, s.armPump(ctx))
+	if s.ownerActive() {
+		cmds = append(cmds, s.ownerPump(ctx))
+	}
+	return tea.Batch(append(cmds, s.armPump(ctx))...)
 }

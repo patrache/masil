@@ -133,3 +133,40 @@ func TestAuditLogInConfigDir(t *testing.T) {
 		}
 	}
 }
+
+// A share without files leaves the documents to the UI's pump: outside
+// changes still merge while it runs.
+func TestFilesOffShareStillTicksDocs(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r := newShareRig(t, h, fake, nil)
+	h.Press("j", "enter", "j", "enter", "j", "enter")
+	d := r.s.code.current()
+	if d == nil || d.rel != hubTS {
+		t.Fatalf("hub.ts not open:\n%s", h.Screen())
+	}
+	h.Press("ctrl+\\", "S")
+	r.pickRow("파일")
+	h.Press("space")
+	h.Press("enter")
+	r.settle()
+	if !r.s.sharing() || r.s.own.files {
+		t.Fatalf("no files-off share: sharing %v", r.s.sharing())
+	}
+	path := filepath.Join(r.s.dir, hubTS)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append([]byte("// outside\n"), b...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for range 60 {
+		h.Advance(pumpEvery)
+		h.Flush()
+		r.relay.Pump()
+	}
+	if !strings.HasPrefix(d.ed.Text(), "// outside\n") {
+		t.Fatalf("the outside change did not merge: %.40q", d.ed.Text())
+	}
+}
