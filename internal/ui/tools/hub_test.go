@@ -444,3 +444,25 @@ func TestHubWithoutTools(t *testing.T) {
 	h.Press("1", "m", "x", "enter")
 	h.Check()
 }
+
+// TestHubTitleWithoutBorder: the hub's first line starts with its title "도구"
+// (A8.2) where no pane border carries it (tiny); bordered modes keep the
+// title in the border only.
+func TestHubTitleWithoutBorder(t *testing.T) {
+	installTools(t, "all")
+	fixedEnv(t, macEnv)
+	h := uitest.New(t)
+	h.Resize(40, 14)
+	h.Press("ctrl+t")
+	onHub(t, h)
+	first := strings.Split(h.Screen(), "\n")[1] // under the tab bar
+	if !strings.HasPrefix(first, " 도구 ") || !strings.Contains(first, "ctrl+t 닫기") {
+		t.Errorf("tiny hub first line = %q, want \" 도구 … ctrl+t 닫기\"", first)
+	}
+	h.Resize(120, 40)
+	for _, l := range strings.Split(h.Screen(), "\n") {
+		if strings.Contains(l, "ctrl+t 닫기") && strings.Contains(l, " 도구 ") {
+			t.Errorf("bordered hub draws the title twice: %q", l)
+		}
+	}
+}

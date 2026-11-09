@@ -11,12 +11,14 @@ import (
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
+	"github.com/patrache/masil/internal/ui/layout"
 )
 
 // The hub (A8.2): one row per tool — " {n} {icon} {name}  {status}", n = its
 // Order (the digit that opens it) — then "── 열려 있음 ──" and the open tool
 // instances (title, status), and the key line at the bottom. The first line
-// carries the close key on its right. The selection walks both lists:
+// carries the close key on its right, and the title "도구" on its left in tiny
+// (bordered modes have it in the pane border). The selection walks both lists:
 // enter opens a tool (ModeAuto) or shows an open instance, m picks the way to
 // open a tool this once (openmenu.go), x closes an open instance, a digit opens
 // that tool at once.
@@ -170,6 +172,7 @@ type line struct {
 	left, right string
 	sel         bool
 	header      bool // a section rule (── … ──), drawn dim
+	flush       bool // right text flush with the right edge (the first line)
 }
 
 // View draws the hub in exactly size.W x size.H.
@@ -192,7 +195,11 @@ func (h *hub) View(ctx *ui.Context, focused bool) string {
 	}
 
 	closeKey := ctx.Keys.Binding(keymap.ToolsToggle).Help().Key
-	content := []line{{right: t.Tools.HubClose(textwidth.Sanitize(closeKey)) + " "}}
+	first := line{right: t.Tools.HubClose(textwidth.Sanitize(closeKey)) + " ", flush: true}
+	if ctx.Mode == layout.ModeTiny { // no pane border carries the title there (A8.2 " 도구 … ctrl+t 닫기")
+		first.left = " " + t.Tools.TabLabel()
+	}
+	content := []line{first}
 	selLine := 0
 
 	nameW := 0
@@ -323,6 +330,8 @@ func drawLine(base, dim, sel lipgloss.Style, l line, focused bool, w int) string
 		switch {
 		case l.left == "":
 			right = textwidth.PadLeft(textwidth.Truncate(l.right, w, "…"), w)
+		case l.flush && w-used > len(hubLayout.gap):
+			right = textwidth.PadLeft(textwidth.Truncate(l.right, w-used-len(hubLayout.gap), "…"), w-used)
 		case w-used > len(hubLayout.gap):
 			right = hubLayout.gap + textwidth.Truncate(l.right, w-used-len(hubLayout.gap), "…")
 		}
