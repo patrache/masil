@@ -47,3 +47,14 @@
 - 내 판단: 지휘소에서 `Zoomed` 는 `ToolOpen` 이 거짓이어도 도구 자리(폭 = chat+feed+right)를 만든다(넓게 보기는 도구 표면이 앞에 있을 때만 켜지므로).
 - 내 판단: 표준 `Zoomed` + 스레드 열림이면 사이드바만 없애고 Main/스레드 위아래 나눔은 전체 폭으로 그대로 둔다.
 - 내 판단: 새 시험은 새 파일이 아니라 `layout_test.go` 끝에 붙였고, 다이어그램 골든에서 `SlotTool` 글자는 `o` 다. 새 골든 파일 5개(`tool_open_200x60`, `tool_zoomed_200x60`, `tool_open_120x40`, `tool_zoomed_120x40`, `tool_zoomed_80x24`)만 생겼고 기존 골든은 그대로다.
+
+## P0 리뷰 반영
+
+- 내 판단: `[terminal] embedded = false` 는 내장 패널만 끄는 것으로 읽었다(CA 3.2 "도구는 화면 전환·외부 창으로만", 명세 A7.4 "끄기 스위치"). 그래서 도구 설정 `open = "window"` 이면 규칙 2 를 건너 규칙 4 로 가서 tmux 3.2 이상이면 외부 창, 아니면 exec·downgraded=true 다. `TERM=dumb`·초소형은 그대로 규칙 2·3 에서 exec. 명세 A7.2 의 규칙 2 글귀(첫 일치)와는 문자 그대로는 어긋나므로, 명세 쪽 한 줄 보완은 오너 판단으로 남긴다(명세는 고치지 않았다).
+- 내 판단: 팝업의 `-d`·`-T` 값은 `#` 를 `##` 로 바꿔 넘긴다(tmux 가 형식 문자열로 펼침). 인자가 없는 프로그램도 `-- env <program>` 으로 넘겨, tmux 가 인자 하나를 `sh -c` 로 돌리지 않게 했다(인자가 있으면 예전처럼 `-- <program> <args…>`).
+- 내 판단: OSC 7 경로는 풀어낸 뒤 잘못된 UTF-8·제어 문자(C0·DEL·C1)·양방향 제어 문자가 있거나 `path.Clean` 과 다르면 버린다. `textwidth.Sanitize` 로 비교하지 않은 것은, Sanitize 가 NFC 로 합치므로 macOS 의 NFD 한글 폴더 이름까지 버리게 되기 때문이다.
+- 내 판단: 스냅숏이 붓(SGR)·여백(DECSTBM·DECSLRM)·자동 줄바꿈 끔·원점 모드·LNM·저장된 커서·G0~G3 문자 집합을 싣도록, x/vt 기본 처리기보다 먼저 도는 처리기(false 반환)로 그 상태를 따로 따라간다. 붓은 1×1 에뮬레이터에 같은 SGR 을 넣어 x/vt 자신의 계산으로 구한다 — ultraviolet 의 `ReadStyle` 을 직접 import 하면 go.mod 의 indirect 표시가 어긋나기 때문이다(go.mod 는 Task 1 소유). x/vt 의 규칙을 그대로 따른다(예: `?1049l` 은 커서를 되돌리지 않음).
+- 내 판단: PTY 읽기가 시퀀스·UTF-8 한가운데서 끊긴 경우, readLoop 에서 꼬리를 붙잡아 두지 않고(화면 표시가 늦어지지 않게) 화면 쪽에서 별도 `ansi.Parser` 로 상태를 따라가 끝나지 않은 꼬리 바이트(최대 4 KiB, 넘으면 앞부분만)를 스냅숏 끝에 붙인다. 받는 쪽은 그 뒤 갈래 바이트로 시퀀스를 마저 끝낸다.
+- 내 판단: x/vt 가 내보이지 않아 스냅숏에 못 싣는 것 — 마지막 칸의 줄바꿈 대기 상태, SO/SI 전환, 탭 위치, 대체 화면 아래의 주 화면 — 은 `screen.Snapshot` 주석에 적고 남겼다(P2 가 알 것). 쓰기 처리량은 200×60 에서 측정상 약 5% 느려졌다(1.07 → 1.02 MB/s, x/vt 자체가 대부분).
+- 내 판단: 배치 계획 파일 지도에 `internal/config/tools.go`·`tools_test.go` 를 넣었다(P0 File Structure 행과 Task 11 Files). 코드는 그대로다.
+- 내 판단: `TestComputeExhaustive` 는 도구 상태(`toolStates`)도 엄격한 타일링(테두리 칸 안쪽 1×1 이상)으로 본다. 모드별 공식 검사(`checkFormula`)는 도구 상태에 맞지 않아 돌리지 않는다. 지금 코드로 통과한다(기하 버그 아님, 빠진 시험을 채운 것).
