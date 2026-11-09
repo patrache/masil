@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 type httpHook struct {
@@ -34,14 +35,31 @@ func hasModeFlag(args []string) bool {
 	return false
 }
 
+// pinnedMode is the --permission-mode Prepare appends: the mode Check
+// reports for an allowed argv, "manual" for a blocked one without a mode
+// flag, none for a blocked one with its own (a local-only terminal keeps
+// the mode the user asked for; sharing it stays blocked).
+func pinnedMode(argv []string, opts []string) string {
+	if v := Check(argv); v.Allowed {
+		return v.Mode
+	}
+	if !hasModeFlag(opts) {
+		return defaultClaudeMode
+	}
+	return ""
+}
+
 // Prepare returns the argv to run. For claude it writes a 0600 settings file
 // in tmpDir that disables the bypass permission mode and points the
 // Notification, PermissionRequest and Stop hooks at hookURL (omitted when
 // hookURL is empty), and appends "--settings <file>" (before a "--", if any).
-// Without a --permission-mode flag it also appends "--permission-mode
-// manual": the command-line mode wins over permissions.defaultMode from any
-// settings file (user, project, local), so the mode Check reported is the
-// one claude starts in.
+// Before it, it appends "--permission-mode <the mode Check reported>"
+// (manual without a flag) even when the user gave one: the command-line mode
+// wins over permissions.defaultMode from any settings file (user, project,
+// local), and the last flag wins over an earlier one claude might read as
+// another option's value, so the mode Check reported is the one claude
+// starts in (v0.1.3 security (o)). The file is registered as masil's own
+// for Check until cleanup.
 // cleanup removes the file; call it when the program exits or the workspace
 // closes. The user's own settings files are not touched. Other programs get
 // argv unchanged and a no-op cleanup.
@@ -90,10 +108,17 @@ func Prepare(argv []string, hookURL, tmpDir string) (out []string, cleanup func(
 	}
 	out = make([]string, 0, len(argv)+4)
 	out = append(out, argv[:at]...)
-	if !hasModeFlag(argv[1:at]) {
-		out = append(out, permissionModeFlag, defaultClaudeMode)
+	if mode := pinnedMode(argv, argv[1:at]); mode != "" {
+		out = append(out, permissionModeFlag, mode)
 	}
 	out = append(out, settingsFlag, p)
 	out = append(out, argv[at:]...)
-	return out, func() { _ = os.Remove(p) }, nil
+	markPrepared(p, true)
+	var once sync.Once
+	return out, func() {
+		once.Do(func() {
+			markPrepared(p, false)
+			_ = os.Remove(p)
+		})
+	}, nil
 }

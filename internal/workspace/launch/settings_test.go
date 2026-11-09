@@ -18,7 +18,8 @@ func TestPrepareSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out) != len(argv)+2 || out[len(out)-2] != "--settings" || !slices.Equal(out[:len(argv)], argv) {
+	if len(out) != len(argv)+4 || out[len(out)-4] != "--permission-mode" || out[len(out)-3] != "plan" ||
+		out[len(out)-2] != "--settings" || !slices.Equal(out[:len(argv)], argv) {
 		t.Fatalf("out = %v", out)
 	}
 	p := out[len(out)-1]
