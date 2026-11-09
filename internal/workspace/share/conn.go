@@ -40,11 +40,13 @@ type DialFunc func(ctx context.Context, shareID string) (Conn, error)
 type CloseCode int
 
 const (
-	CloseProtocol    CloseCode = 4000 // bad frame, From not my seat
-	CloseRateLimited CloseCode = 4008 // over the per-connection limits for 3 seconds
-	CloseEnded       CloseCode = 4100 // the share ended
-	CloseKicked      CloseCode = 4101 // the owner removed me
-	CloseReplaced    CloseCode = 4102 // my newer socket took over
+	CloseProtocol     CloseCode = 4000 // bad frame, From not my seat
+	CloseUnauthorized CloseCode = 4001 // my session was revoked (logout, password change)
+	CloseSuspended    CloseCode = 4003 // my account was suspended
+	CloseRateLimited  CloseCode = 4008 // over the per-connection limits for 3 seconds
+	CloseEnded        CloseCode = 4100 // the share ended
+	CloseKicked       CloseCode = 4101 // the owner removed me
+	CloseReplaced     CloseCode = 4102 // my newer socket took over
 )
 
 // CloseCodeOf is the close code err carries, or 0 when it carries none (a

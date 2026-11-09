@@ -13,18 +13,20 @@ type Event interface{ shareEvent() }
 
 // End reasons (EventEnded.Reason, EventDeclined.Reason).
 const (
-	ReasonEnded     = "ended"     // the share ended (owner, other device, timeout)
-	ReasonKill      = "kill"      // the owner's kill switch
-	ReasonKicked    = "kicked"    // the owner removed me
-	ReasonReplaced  = "replaced"  // my newer socket took over
-	ReasonProtocol  = "protocol"  // the server closed 4000
-	ReasonNotFound  = "not_found" // the share is gone (404 on dial)
-	ReasonLeft      = "left"      // I left
-	ReasonDeclined  = "declined"  // the owner said no
-	ReasonMismatch  = "mismatch"  // the check numbers differed
-	ReasonCommit    = "commit"    // the revealed key did not match its commitment
-	ReasonExpired   = "expired"   // the owner did not answer in 5 minutes
-	reasonResumeBad = "resume"    // hs_resume could not be opened: start over
+	ReasonEnded        = "ended"        // the share ended (owner, other device, timeout)
+	ReasonKill         = "kill"         // the owner's kill switch
+	ReasonKicked       = "kicked"       // the owner removed me
+	ReasonReplaced     = "replaced"     // my newer socket took over
+	ReasonProtocol     = "protocol"     // the server closed 4000
+	ReasonNotFound     = "not_found"    // the share is gone (404 on dial)
+	ReasonUnauthorized = "unauthorized" // my session was revoked (4001, 401 on dial)
+	ReasonSuspended    = "suspended"    // my account was suspended (4003, 403 on dial)
+	ReasonLeft         = "left"         // I left
+	ReasonDeclined     = "declined"     // the owner said no
+	ReasonMismatch     = "mismatch"     // the check numbers differed
+	ReasonCommit       = "commit"       // the revealed key did not match its commitment
+	ReasonExpired      = "expired"      // the owner did not answer in 5 minutes
+	reasonResumeBad    = "resume"       // hs_resume could not be opened: start over
 )
 
 // EventJoinRequest (Host): a participant finished the key exchange and waits

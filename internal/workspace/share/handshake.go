@@ -289,6 +289,10 @@ func (l *link) connGone(now time.Time) (gone bool, endReason string) {
 		return true, ReasonReplaced
 	case CloseProtocol:
 		return true, ReasonProtocol
+	case CloseUnauthorized:
+		return true, ReasonUnauthorized
+	case CloseSuspended:
+		return true, ReasonSuspended
 	case CloseRateLimited:
 		l.down, l.nextDial = true, now.Add(rateLimitedWait)
 	default:
@@ -303,7 +307,8 @@ func (l *link) connGone(now time.Time) (gone bool, endReason string) {
 // dialTimeout, so a hanging connect never stalls the UI's calls or the kill
 // switch; stopped reports, once the lock is back, whether the share ended
 // meanwhile (the new socket is then closed). It returns an end reason when
-// the share is gone (404), "" otherwise; ok reports a new socket.
+// the share is gone (404) or my session is (401 revoked, 403 suspended), ""
+// otherwise; ok reports a new socket.
 func (l *link) redial(now time.Time, unlock, lock func(), stopped func() bool) (ok bool, endReason string) {
 	if !l.down || l.dialing || now.Before(l.nextDial) {
 		return false, ""
@@ -323,9 +328,18 @@ func (l *link) redial(now time.Time, unlock, lock func(), stopped func() bool) (
 	}
 	if err != nil {
 		var ae *api.Error
-		if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
-			l.down = false
-			return false, ReasonNotFound
+		if errors.As(err, &ae) {
+			switch {
+			case ae.Status == http.StatusNotFound:
+				l.down = false
+				return false, ReasonNotFound
+			case ae.Status == http.StatusUnauthorized:
+				l.down = false
+				return false, ReasonUnauthorized
+			case ae.Status == http.StatusForbidden && ae.Code == "account_suspended":
+				l.down = false
+				return false, ReasonSuspended
+			}
 		}
 		l.nextDial = now.Add(l.backoff)
 		l.backoff = nextBackoff(l.backoff)

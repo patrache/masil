@@ -62,6 +62,7 @@ type Relay struct {
 	cacheSize int
 	cacheOn   bool
 	ended     bool
+	revoked   map[string]share.CloseCode // user id -> 4001 / 4003 (later dials get 401 / 403)
 	attention int
 	now       func() time.Time
 }
@@ -103,6 +104,12 @@ func (r *Relay) Dial(userID string) share.DialFunc {
 		}
 		r.mu.Lock()
 		defer r.mu.Unlock()
+		switch r.revoked[userID] {
+		case share.CloseUnauthorized:
+			return nil, &api.Error{Status: http.StatusUnauthorized, Code: "unauthorized", Message: "session revoked", Details: json.RawMessage(`{}`)}
+		case share.CloseSuspended:
+			return nil, &api.Error{Status: http.StatusForbidden, Code: "account_suspended", Message: "account suspended", Details: json.RawMessage(`{}`)}
+		}
 		seat, ok := r.seatOf(userID)
 		if !ok || r.ended || shareID != r.shareID {
 			return nil, &api.Error{Status: http.StatusNotFound, Code: "not_found", Message: "workspace share not found", Details: json.RawMessage(`{}`)}
@@ -187,6 +194,33 @@ func (r *Relay) Invite(seat uint8, userID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.members[seat] = userID
+}
+
+// Revoke closes userID's socket with code (share.CloseUnauthorized after a
+// logout or session revoke, share.CloseSuspended after a suspension), as the
+// hub's POST /revoke does, and makes that user's later dials fail like the
+// worker's requireAuth: 401 unauthorized or 403 account_suspended. A
+// suspended owner's share ends (the others close 4100); the owner's 2-minute
+// grace after 4001 is not carried over (call End).
+func (r *Relay) Revoke(userID string, code share.CloseCode) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.revoked == nil {
+		r.revoked = map[string]share.CloseCode{}
+	}
+	r.revoked[userID] = code
+	reason := "session revoked"
+	if code == share.CloseSuspended {
+		reason = "account suspended"
+	}
+	if seat, ok := r.seatOf(userID); ok {
+		if c := r.conns[seat]; c != nil {
+			r.closeConn(c, websocket.CloseError{Code: websocket.StatusCode(code), Reason: reason})
+		}
+	}
+	if userID == r.ownerID && code == share.CloseSuspended {
+		r.endAll()
+	}
 }
 
 // End ends the share (the REST DELETE or the owner timeout): every
