@@ -50,6 +50,10 @@ type link struct {
 	outMu  sync.Mutex
 	conn   Conn
 	outbox []queued
+	// bseal and bsign are the owner's broadcast sealer (K_s) and signer;
+	// they live under outMu so a rekey swaps them between two frames.
+	bseal *wscrypto.Sealer
+	bsign *wscrypto.Signer
 	// sendMu serialises flush so frames reach the socket in outbox order.
 	sendMu sync.Mutex
 
@@ -165,19 +169,35 @@ func (l *link) sendPlain(kind wire.Kind, from, to uint8, body any) error {
 // chunked to the frame limit, and queues the frames. Only the first chunk
 // keeps FlagGroupStart. It returns the bytes queued.
 func (l *link) sendSealed(s *wscrypto.Sealer, signer *wscrypto.Signer, kind wire.Kind, flags, from, to uint8, pt []byte) (int, error) {
+	l.outMu.Lock()
+	defer l.outMu.Unlock()
+	return l.sealLocked(s, signer, kind, flags, from, to, pt)
+}
+
+// sendBroadcast seals pt with the current K_s, signs it and queues it for
+// every member (To = SeatAll).
+func (l *link) sendBroadcast(kind wire.Kind, flags uint8, pt []byte) (int, error) {
+	l.outMu.Lock()
+	defer l.outMu.Unlock()
+	if l.bseal == nil || l.bsign == nil {
+		return 0, ErrNotReady
+	}
+	return l.sealLocked(l.bseal, l.bsign, kind, flags, wire.SeatOwner, wire.SeatAll, pt)
+}
+
+// sealLocked is sendSealed with outMu held.
+func (l *link) sealLocked(s *wscrypto.Sealer, signer *wscrypto.Signer, kind wire.Kind, flags, from, to uint8, pt []byte) (int, error) {
 	if s == nil {
 		return 0, ErrNotReady
+	}
+	if l.conn == nil {
+		return 0, errOffline
 	}
 	extra := 0
 	if signer != nil {
 		extra = wscrypto.SignatureLen
 	}
 	max := wscrypto.MaxPlaintext(extra)
-	l.outMu.Lock()
-	defer l.outMu.Unlock()
-	if l.conn == nil {
-		return 0, errOffline
-	}
 	total := 0
 	for first := true; ; first = false {
 		n := min(max, len(pt))

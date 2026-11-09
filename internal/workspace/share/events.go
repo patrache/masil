@@ -77,15 +77,42 @@ type EventResumed struct{}
 // EventEnded: the share is over for this side.
 type EventEnded struct{ Reason string }
 
-func (EventJoinRequest) shareEvent()   {}
-func (EventJoinExpired) shareEvent()   {}
-func (EventSASReady) shareEvent()      {}
-func (EventPeerJoined) shareEvent()    {}
-func (EventPeerLeft) shareEvent()      {}
-func (EventGranted) shareEvent()       {}
-func (EventDeclined) shareEvent()      {}
-func (EventMITMWarning) shareEvent()   {}
-func (EventTamperWarning) shareEvent() {}
-func (EventReconnecting) shareEvent()  {}
-func (EventResumed) shareEvent()       {}
-func (EventEnded) shareEvent()         {}
+// EventKeyboardPaused (Host): the owner was idle for OwnerIdlePause;
+// keyboard input is held back until OwnerActivity.
+type EventKeyboardPaused struct{}
+
+// EventKeyboardResumed (Host): the owner is back; keyboard input flows.
+type EventKeyboardResumed struct{}
+
+// EventKeyboardEnded (Host): a keyboard holder dropped to editor (Reason is
+// one of the Demote* values).
+type EventKeyboardEnded struct {
+	Seat   uint8
+	Reason string
+}
+
+// EventRoster (Guest): the owner's people list changed.
+type EventRoster struct{ Members []Member }
+
+// Notice codes the engine itself uses.
+const (
+	// NoticeResumed: the owner's socket is back after a drop.
+	NoticeResumed = "resumed"
+)
+
+func (EventKeyboardPaused) shareEvent()  {}
+func (EventKeyboardResumed) shareEvent() {}
+func (EventKeyboardEnded) shareEvent()   {}
+func (EventRoster) shareEvent()          {}
+func (EventJoinRequest) shareEvent()     {}
+func (EventJoinExpired) shareEvent()     {}
+func (EventSASReady) shareEvent()        {}
+func (EventPeerJoined) shareEvent()      {}
+func (EventPeerLeft) shareEvent()        {}
+func (EventGranted) shareEvent()         {}
+func (EventDeclined) shareEvent()        {}
+func (EventMITMWarning) shareEvent()     {}
+func (EventTamperWarning) shareEvent()   {}
+func (EventReconnecting) shareEvent()    {}
+func (EventResumed) shareEvent()         {}
+func (EventEnded) shareEvent()           {}

@@ -27,6 +27,11 @@ type HostConfig struct {
 	ManualTick bool
 	// Root is the shared folder (tree listing, file requests).
 	Root *fsroot.Root
+	// RemoveParticipant and EndShare are the REST calls Kick and Kill/End
+	// make (api.Client.RemoveWorkspaceParticipant / EndWorkspaceShare bound
+	// to this share); nil skips them.
+	RemoveParticipant func(ctx context.Context, userID string) error
+	EndShare          func(ctx context.Context) error
 }
 
 // JoinRequest is a participant waiting for the owner after the key exchange.
@@ -62,6 +67,8 @@ type member struct {
 	verified  bool
 	connected bool
 	goneAt    time.Time
+	kbUntil   time.Time
+	lastInput time.Time
 	o2p       *wscrypto.Sealer
 	p2o       *wscrypto.Opener
 }
@@ -79,14 +86,17 @@ type Host struct {
 	over   bool // ended for any reason
 
 	sess   wscrypto.SessionKey
-	bseal  *wscrypto.Sealer
-	signer *wscrypto.Signer
+	signer *wscrypto.Signer // also in link.bsign (under outMu)
 
 	users   map[uint8]string // seat -> user id as the server says
 	online  map[uint8]bool
 	joins   map[uint8]*joinState
 	members map[uint8]*member
 	hellos  int // srv_hello count (>1 = reconnected)
+
+	lastOwner time.Time // last owner activity (OwnerActivity, owner actions)
+	paused    bool      // keyboard input paused for owner idleness
+	terms     map[uint8]*sharedTerm
 }
 
 // NewHost prepares a host; Start connects.
@@ -117,7 +127,9 @@ func (h *Host) Start(ctx context.Context) error {
 		return err
 	}
 	h.sess, h.signer = sess, signer
-	h.bseal = wscrypto.NewSealer(sess.Key, wscrypto.DirBroadcast)
+	h.outMu.Lock()
+	h.bseal, h.bsign = wscrypto.NewSealer(sess.Key, wscrypto.DirBroadcast), signer
+	h.outMu.Unlock()
 	h.mu.Unlock()
 
 	c, err := h.dial(ctx, h.shareID)
@@ -127,6 +139,7 @@ func (h *Host) Start(ctx context.Context) error {
 	h.mu.Lock()
 	h.setConn(c)
 	h.started = true
+	h.lastOwner = h.now()
 	h.record(audit.EvShareStart, 0, "", map[string]any{"title": h.cfg.Title})
 	h.mu.Unlock()
 	if !h.manual {
@@ -234,6 +247,7 @@ func (h *Host) approveLocked(seat uint8, level wire.Level, verified bool) error 
 	if j == nil || !j.derived {
 		return ErrNoRequest
 	}
+	h.lastOwner = h.now()
 	if !verified {
 		if level > wire.LevelPrompter {
 			return ErrNeedsVerify
@@ -362,9 +376,13 @@ func (h *Host) setOnline(seat uint8, on bool, now time.Time) {
 }
 
 // onReconnected runs after the owner's socket came back within the grace
-// period: same keys, the server is told the level table again.
+// period: same keys and keyboard end times; the server is told the level
+// table again and the participants hear "resumed" (they re-sync what they
+// sent while the owner was away).
 func (h *Host) onReconnected() {
 	h.sendLevels()
+	_, _ = h.broadcast(wire.KindNotice, 0, mustJSON(wire.Notice{Code: NoticeResumed}))
+	h.membersChanged()
 	h.afterReconnect()
 }
 
@@ -531,7 +549,6 @@ func (h *Host) grant(j *joinState, level wire.Level, verified bool) {
 	mb.o2p, mb.p2o = j.o2p, j.p2o
 	mb.level, mb.verified = level, verified
 	mb.connected = h.online[j.seat]
-	h.memberGranted(mb)
 	delete(h.joins, j.seat)
 	result := "skipped"
 	if verified {
@@ -563,7 +580,7 @@ func (h *Host) sendToPeer(mb *member, kind wire.Kind, body []byte) {
 
 // broadcast seals pt with K_s, signs it and sends it to every member.
 func (h *Host) broadcast(kind wire.Kind, flags uint8, pt []byte) (int, error) {
-	return h.sendSealed(h.bseal, h.signer, kind, flags, wire.SeatOwner, wire.SeatAll, pt)
+	return h.sendBroadcast(kind, flags, pt)
 }
 
 // sendLevels tells the server the whole level table (ctl_levels).
@@ -614,7 +631,10 @@ func (h *Host) finishLocked(reason, by string) {
 // sealer and opener (h.mu held).
 func (h *Host) forgetKeys() {
 	clear(h.sess.Key[:])
-	h.bseal, h.signer = nil, nil
+	h.signer = nil
+	h.outMu.Lock()
+	h.bseal, h.bsign = nil, nil
+	h.outMu.Unlock()
 	for _, j := range h.joins {
 		j.o2p, j.p2o, j.kp = nil, nil, nil
 	}
@@ -635,14 +655,27 @@ func (h *Host) record(ev string, seat int, user string, data map[string]any) {
 // ErrUseGrant: the keyboard level is given with GrantKeyboard only.
 var ErrUseGrant = errors.New("share: use GrantKeyboard for the keyboard level")
 
+// dispatchMore handles the participant messages past the handshake
+// (already opened and level-checked).
+func (h *Host) dispatchMore(seat uint8, kind wire.Kind, p []byte) {
+	switch kind {
+	case wire.KindSelfLevel:
+		var m wire.SelfLevel
+		if unmarshal(p, &m) {
+			h.onSelfLevel(seat, m.Level)
+		}
+	case wire.KindTermInput:
+		h.onTermInput(seat, p)
+	}
+}
+
+func (h *Host) tickMore(now time.Time) {
+	h.tickLadder(now)
+}
+
 // Hooks later parts of the engine fill in.
 
-func (h *Host) memberRestarted(*member)               {}
-func (h *Host) memberGranted(*member)                 {}
-func (h *Host) membersChanged()                       {}
-func (h *Host) afterReconnect()                       {}
-func (h *Host) afterGrant(*member)                    {}
-func (h *Host) peerResumed(*member)                   {}
-func (h *Host) keyboardUntilPtr(*member) *time.Time   { return nil }
-func (h *Host) dispatchMore(uint8, wire.Kind, []byte) {}
-func (h *Host) tickMore(time.Time)                    {}
+func (h *Host) afterReconnect()       {}
+func (h *Host) afterGrant(*member)    {}
+func (h *Host) peerResumed(*member)   {}
+func (h *Host) memberRemoved(*member) {}

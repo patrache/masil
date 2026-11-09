@@ -398,8 +398,45 @@ func (g *Guest) stopLocked() {
 	g.kp, g.p2o, g.o2p, g.bopen, g.prevOpen, g.signPub = nil, nil, nil, nil, nil, nil
 }
 
+// dispatchMore handles the owner's messages past the grant.
+func (g *Guest) dispatchMore(kind wire.Kind, p []byte) {
+	switch kind {
+	case wire.KindRoster:
+		var m wire.Roster
+		if unmarshal(p, &m) {
+			g.onRoster(m)
+		}
+	case wire.KindRekey:
+		var m wire.Rekey
+		if unmarshal(p, &m) && len(m.Key) == 32 {
+			var key [32]byte
+			copy(key[:], m.Key)
+			g.prevOpen = g.bopen
+			g.bopen = wscrypto.NewOpener(key, wscrypto.DirBroadcast)
+			clear(g.sess.Key[:])
+			g.sess = wscrypto.SessionKey{Epoch: m.Epoch, Key: key}
+		}
+	case wire.KindEnded:
+		var m wire.Ended
+		if unmarshal(p, &m) {
+			g.endLocked(ReasonEnded)
+		}
+	case wire.KindNotice:
+		var m wire.Notice
+		if !unmarshal(p, &m) {
+			return
+		}
+		if m.Code == NoticeResumed {
+			g.emit(EventResumed{})
+			g.afterResume()
+			return
+		}
+		g.onNotice(m)
+	}
+}
+
 // Hooks later parts of the engine fill in.
 
-func (g *Guest) dispatchMore(wire.Kind, []byte) {}
-func (g *Guest) afterResume()                   {}
-func (g *Guest) tickMore(time.Time)             {}
+func (g *Guest) afterResume()         {}
+func (g *Guest) tickMore(time.Time)   {}
+func (g *Guest) onNotice(wire.Notice) {}
