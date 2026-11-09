@@ -1141,6 +1141,7 @@ func (c *Client) DeleteLeetSolve(ctx context.Context, date string) error        
 func (c *Client) LeetMe(ctx context.Context) (*LeetMe, error)
 func (c *Client) LeetSpaceBoard(ctx context.Context, spaceID, period string) (*LeetBoard, error) // period "" = 서버 기본(week)
 func (c *Client) LeetFriendsBoard(ctx context.Context) (*LeetFriendsBoard, error)
+func (c *Client) AdminSetLeetDaily(ctx context.Context, date string, f LeetDailyFacts) (*LeetDaily, error) // admin (api.md 5.22, P1 Task 7 — masil admin leet-daily set)
 ```
 
 - api.md 6장의 `PUT /v1/leet/daily/{date}` 행은 리미터가 둘(`RL_SOCIAL, RL_MESSAGE`)이다. `request.Limiter` 는 하나만 들므로 늘 세는 `RL_SOCIAL` 을 쓰고, `contract_limiters_test.go` 는 "행이 여럿이면 그중 하나" 로 대조한다.
