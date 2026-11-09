@@ -332,7 +332,7 @@ ui ─▶ (기존) + i18n, features, toolstate, secrets, termhost(타입·Exec),
 ui/termpane ─▶ ui, termhost, keymap, i18n, textwidth
 ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate, secrets, i18n
 도구 패키지(P1~P4) ─▶ ui, ui/termpane, termhost, secrets, collab, api, … (자기 줄기 계획)
-apitool, apitool/convert ─▶ secrets, collab(타입), config, ids, textwidth (api·ui·realtime·store 금지 — collab 을 거친 전이만 예외)
+apitool, apitool/convert ─▶ secrets, collab(타입), config, ids, textwidth (api·ui·realtime·store 금지 — 직접 import 금지, 전이도 금지. 예외는 collab 을 거쳐서만 닿는 경로 하나: import 그래프에서 collab 으로 들어가지 않는 경로로 닿으면 위반)
 ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keymap, apitool, apitool/convert, collab, secrets, api, i18n, textwidth, humanize (ui/termpane 금지)
 ```
 
