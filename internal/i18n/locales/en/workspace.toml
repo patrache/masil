@@ -4,6 +4,12 @@ other = "{n} min ago"
 [ago_now]
 other = "just now"
 
+[attention_toast]
+other = "{name} · ⏳ waiting for approval"
+
+[attention_waiting]
+other = "⏳ Waiting for approval"
+
 [band_private]
 other = "🔒 Only me · {folder}"
 
@@ -60,6 +66,30 @@ other = "Merged changes from disk · u undo · d use the disk version"
 
 [dlg_hint]
 other = "↑↓ choose · enter confirm · esc close"
+
+[end_confirm]
+other = "End sharing"
+
+[end_discard]
+other = "Discard"
+
+[end_keep]
+other = "Keep open (continue alone)"
+
+[end_programs_keep]
+other = "Terminal programs keep running"
+
+[end_save]
+other = "Save"
+
+[end_title]
+other = "End sharing"
+
+[end_unsaved_head]
+other = "Unsaved edits by participants"
+
+[end_unsaved_prompt]
+other = "Save / discard / keep open (continue alone)"
 
 [hub_name]
 other = "Workspace"
@@ -145,6 +175,9 @@ other = "propose"
 [level_viewer]
 other = "view"
 
+[multiline_confirm]
+other = "Each line may run on its own"
+
 [newterm_custom]
 other = "Type a command"
 
@@ -153,6 +186,15 @@ other = "New terminal"
 
 [open_failed]
 other = "Could not open the folder"
+
+[owner_only_answer]
+other = "← only the owner can answer"
+
+[palette_proposals]
+other = "Workspace: proposals"
+
+[palette_share_end]
+other = "Workspace: end sharing"
 
 [palette_share_start]
 other = "Workspace: start sharing"
@@ -196,6 +238,9 @@ other = "new terminal"
 [prefix_help_people]
 other = "to the people list"
 
+[prefix_help_proposals]
+other = "proposals"
+
 [prefix_help_share]
 other = "start sharing"
 
@@ -205,8 +250,56 @@ other = "to the terminal cell"
 [prefix_help_tree]
 other = "to the tree cell"
 
+[proposal_approve]
+other = "Do it"
+
+[proposal_edit]
+other = "Edit, then insert"
+
+[proposal_edit_label]
+other = "Edited text"
+
+[proposal_from]
+other = "{name} · {kind}"
+
+[proposal_insert]
+other = "Insert"
+
+[proposal_insert_send]
+other = "Insert and send"
+
+[proposal_kind_delete]
+other = "delete"
+
+[proposal_kind_rename]
+other = "rename"
+
+[proposal_kind_text]
+other = "proposal"
+
+[proposal_more_lines]
+other = "…{n} more lines"
+
+[proposal_no_terminal]
+other = "No shared terminal to put proposals in"
+
 [proposal_pending]
 other = "{n} proposals waiting ({key} to view)"
+
+[proposal_reject]
+other = "Reject"
+
+[proposals_empty]
+other = "No proposals waiting"
+
+[proposals_hint]
+other = "↑↓ choose · i insert · s insert and send · e edit · r reject · esc close"
+
+[proposals_hint_fs]
+other = "↑↓ choose · a do it · r reject · esc close"
+
+[proposals_title]
+other = "Proposals · {n}"
 
 [recent_folders]
 other = "Recent folders"
@@ -271,6 +364,9 @@ other = "↑↓ choose · space toggle · enter start sharing · esc close"
 [share_dialog_title]
 other = "Start sharing"
 
+[share_ended]
+other = "Sharing ended"
+
 [share_failed]
 other = "Could not start sharing"
 
@@ -310,6 +406,9 @@ other = "The server can see this"
 [share_what]
 other = "What to share"
 
+[stop_program_option]
+other = "Send programs an interrupt (ctrl+c)"
+
 [subtab_code]
 other = "Code"
 
@@ -336,6 +435,21 @@ other = "n new terminal"
 
 [term_title_unsaved]
 other = "{n} unsaved"
+
+[tiny_keyboard]
+other = "keyboard {name} {mmss}"
+
+[tiny_owner_keys]
+other = "s send · i insert · r reject · x end sharing"
+
+[tiny_owner_summary]
+other = "🔴 Sharing · {n}"
+
+[tiny_proposals]
+other = "{n} proposals"
+
+[tiny_solo_summary]
+other = "{folder} · 🔒 Only me · make the window bigger to edit"
 
 [tree_more_entries]
 other = "…{n} more"

@@ -16,9 +16,7 @@ import (
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
-	"github.com/patrache/masil/internal/ui/termpane"
 	"github.com/patrache/masil/internal/workspace/audit"
-	"github.com/patrache/masil/internal/workspace/hooks"
 	"github.com/patrache/masil/internal/workspace/share"
 	"github.com/patrache/masil/internal/workspace/wire"
 )
@@ -58,6 +56,7 @@ type ownerShare struct {
 	asked   []share.JoinRequest // join requests not answered yet
 	sasSeat uint8               // the seat whose check-number dialog is open
 	people  int                 // selected row of the people list
+	tinySel int                 // selected proposal in the tiny summary
 	audit   *audit.Log
 }
 
@@ -246,6 +245,11 @@ func (s *Surface) ownerUpdate(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case wsCommandMsg:
 		if m.surface == s.id {
 			return s.wsCommand(ctx, m.action)
+		}
+	case shareEndMsg:
+		if m.surface == s.id {
+			cmd := s.shareEnded(ctx)
+			return tea.Batch(cmd, ui.Toast(ctx.T.Workspace.ShareEnded(), ui.ToastInfo))
 		}
 	}
 	return nil
@@ -499,13 +503,17 @@ func tamperDialog(s *Surface) *form {
 	return f
 }
 
-// onHook and onNotify: a program asks for the user (Task 22).
-func (s *Surface) onHook(*ui.Context, hooks.Event) tea.Cmd          { return nil }
-func (s *Surface) onNotify(*ui.Context, termpane.NotifyMsg) tea.Cmd { return nil }
-func (s *Surface) onProposal(*ui.Context, share.Proposal) tea.Cmd   { return nil }
+// wsCommand runs a palette command on this instance.
 func (s *Surface) wsCommand(ctx *ui.Context, action string) tea.Cmd {
-	if action == "share.start" {
+	switch action {
+	case "share.start":
 		return s.shareKey(ctx)
+	case "share.end":
+		if s.own != nil {
+			s.dlg = newEndDialog(s)
+		}
+	case "proposals":
+		return s.openProposals(ctx)
 	}
 	return nil
 }

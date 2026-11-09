@@ -35,6 +35,7 @@ type row struct {
 	checked  *bool // a toggle or radio mark ([x] / [ ])
 	act      func(ctx *ui.Context) tea.Cmd
 	input    *field
+	index    int // the item an option stands for (lists)
 }
 
 // field is a one-line text field.
@@ -83,7 +84,8 @@ type form struct {
 	hint   func(ctx *ui.Context) string
 	// shareOnly: the dialog belongs to the running share (it goes when the share ends)
 	shareOnly bool
-	sel       int // index into the selectable rows
+	queue     bool // the proposal queue
+	sel       int  // index into the selectable rows
 	scroll    int
 	follow    bool // the selection moved: bring it into view on the next draw
 	drawn     bool

@@ -303,7 +303,12 @@ func (s *Surface) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 	}
 	s.noteOwnerKey(ctx)
 	if s.GrabsKeys() {
-		return s.term.current().view.HandleKey(ctx, msg)
+		t := s.term.current()
+		ok, cmd := t.view.HandleKey(ctx, msg)
+		if t.attention && !ctx.Keys.MatchesEscape(msg) { // the owner answers it
+			cmd = tea.Batch(cmd, s.setAttention(ctx, t, false))
+		}
+		return ok, cmd
 	}
 	r := s.prefix.Key(ctx, msg)
 	switch r.Action {
@@ -362,6 +367,8 @@ func (s *Surface) prefixKey(ctx *ui.Context, k string) tea.Cmd {
 		s.openNewTerm(ctx, termhostExec)
 	case "S":
 		return s.shareKey(ctx)
+	case "enter":
+		return s.openProposals(ctx)
 	case "z":
 		s.cellZoom = !s.cellZoom
 		s.relayout(ctx)

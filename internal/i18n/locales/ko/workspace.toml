@@ -10,6 +10,15 @@ other = "{n}분 전"
 desc = "지난 시간: 1분 안"
 other = "방금"
 
+[attention_toast]
+desc = "토스트: 터미널 프로그램이 승인을 기다림. name = 프로그램 이름(번역하지 않음)"
+params = { name = "string" }
+other = "{name} · ⏳ 승인 대기"
+
+[attention_waiting]
+desc = "터미널 칸 제목: 프로그램이 승인을 기다림"
+other = "⏳ 승인 대기"
+
 [band_private]
 desc = "상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)"
 params = { folder = "string" }
@@ -95,6 +104,40 @@ other = "디스크에서 바뀐 내용을 합쳤어요 · u 되돌리기 · d �
 [dlg_hint]
 desc = "작업공간 대화상자 바닥 줄 키 안내"
 other = "↑↓ 고르기 · enter 확인 · esc 닫기"
+
+[end_confirm]
+desc = "공유 끝 단추: 공유를 끝냄"
+other = "공유 끝내기"
+
+[end_discard]
+desc = "공유 끝 단추: 버리고 끝내기"
+other = "버리기"
+
+[end_keep]
+desc = "공유 끝 단추: 저장 안 된 채로 열어 두고 혼자 계속"
+other = "열어 두기(혼자 계속)"
+
+[end_programs_keep]
+desc = "공유 끝 대화상자: 프로그램은 계속 돈다는 안내"
+no_truncate = true
+other = "터미널 프로그램은 끝나지 않고 계속 돌아요"
+
+[end_save]
+desc = "공유 끝 단추: 저장하고 끝내기"
+other = "저장"
+
+[end_title]
+desc = "공유 끝 대화상자 제목"
+other = "공유 끝"
+
+[end_unsaved_head]
+desc = "공유 끝 대화상자: 참가자가 고치고 저장하지 않은 파일 목록 제목"
+other = "저장하지 않은 참가자 편집"
+
+[end_unsaved_prompt]
+desc = "공유 끝 대화상자: 저장 안 된 파일을 어떻게 할지(스펙 고정 문구)"
+no_truncate = true
+other = "저장 / 버리기 / 열어 두기(혼자 계속)"
 
 [hub_name]
 desc = "도구 허브·탭·팔레트에 보이는 도구 이름"
@@ -235,6 +278,11 @@ other = "제안"
 desc = "참가 단계 이름: 보기"
 other = "보기"
 
+[multiline_confirm]
+desc = "확인: 여러 줄 제안은 줄마다 따로 실행될 수 있음(스펙 고정 문구)"
+no_truncate = true
+other = "줄마다 따로 실행될 수 있어요"
+
 [newterm_custom]
 desc = "새 터미널 목록의 마지막 줄: 실행할 명령을 직접 입력"
 other = "명령 직접 입력"
@@ -246,6 +294,18 @@ other = "새 터미널"
 [open_failed]
 desc = "토스트: 고른 폴더를 열지 못했을 때"
 other = "폴더를 열 수 없어요"
+
+[owner_only_answer]
+desc = "참가자 화면 터미널 제목: 승인 창은 오너만 답할 수 있음"
+other = "← 오너만 답할 수 있음"
+
+[palette_proposals]
+desc = "팔레트 명령: 작업공간 제안 대기열"
+other = "작업공간: 제안 대기열"
+
+[palette_share_end]
+desc = "팔레트 명령: 작업공간 공유 끝"
+other = "작업공간: 공유 끝"
 
 [palette_share_start]
 desc = "팔레트 명령: 작업공간 공유 시작"
@@ -306,6 +366,10 @@ other = "새 터미널"
 desc = "패널 도움말: 접두키 다음 4 — 사람 목록으로"
 other = "사람 목록으로"
 
+[prefix_help_proposals]
+desc = "패널 도움말: 접두키 다음 enter — 제안 대기열"
+other = "제안 대기열"
+
 [prefix_help_share]
 desc = "패널 도움말: 접두키 다음 S — 공유 시작"
 other = "공유 시작"
@@ -318,10 +382,77 @@ other = "터미널 칸으로"
 desc = "패널 도움말: 접두키 다음 1 — 트리 칸으로"
 other = "트리 칸으로"
 
+[proposal_approve]
+desc = "제안 동작: 파일 이름 바꾸기·지우기 요청을 실행"
+other = "하기"
+
+[proposal_edit]
+desc = "제안 동작: 고쳐서 넣기"
+other = "고쳐서 넣기"
+
+[proposal_edit_label]
+desc = "고쳐서 넣기 입력 칸 이름"
+other = "고친 글"
+
+[proposal_from]
+desc = "제안 한 줄 머리: 보낸 사람과 종류. name = 표시 이름, kind = 종류 이름"
+params = { name = "string", kind = "string" }
+other = "{name} · {kind}"
+
+[proposal_insert]
+desc = "제안 동작: 터미널에 넣기만"
+other = "넣기"
+
+[proposal_insert_send]
+desc = "제안 동작: 넣고 enter"
+other = "넣고 보내기"
+
+[proposal_kind_delete]
+desc = "제안 종류: 파일 지우기 요청"
+other = "지우기"
+
+[proposal_kind_rename]
+desc = "제안 종류: 파일 이름 바꾸기 요청"
+other = "이름 바꾸기"
+
+[proposal_kind_text]
+desc = "제안 종류: 터미널에 넣을 글"
+other = "제안"
+
+[proposal_more_lines]
+desc = "여러 줄 제안을 접어 보일 때 나머지 줄 수. n = 줄 수"
+params = { n = "int" }
+other = "…외 {n}줄"
+
+[proposal_no_terminal]
+desc = "토스트: 제안을 넣을 공유 터미널이 없음"
+other = "제안을 넣을 공유 터미널이 없어요"
+
 [proposal_pending]
 desc = "띠: 기다리는 제안 수와 여는 키. n = 수, key = 키(번역하지 않음)"
 params = { n = "int", key = "string" }
 other = "제안 {n}건 대기({key} 보기)"
+
+[proposal_reject]
+desc = "제안 동작: 거절"
+other = "거절"
+
+[proposals_empty]
+desc = "제안 대기열: 기다리는 제안이 없을 때"
+other = "기다리는 제안이 없어요"
+
+[proposals_hint]
+desc = "제안 대기열 바닥 줄 키 안내"
+other = "↑↓ 고르기 · i 넣기 · s 넣고 보내기 · e 고쳐서 넣기 · r 거절 · esc 닫기"
+
+[proposals_hint_fs]
+desc = "제안 대기열 바닥 줄 키 안내(파일 이름 바꾸기·지우기 요청을 골랐을 때)"
+other = "↑↓ 고르기 · a 하기 · r 거절 · esc 닫기"
+
+[proposals_title]
+desc = "제안 대기열 대화상자 제목. n = 기다리는 수"
+params = { n = "int" }
+other = "제안 대기열 · {n}건"
 
 [recent_folders]
 desc = "폴더 고르기 화면: 최근 연 폴더 목록 제목"
@@ -415,6 +546,10 @@ other = "↑↓ 고르기 · space 켬/끔 · enter 공유 시작 · esc 닫기"
 desc = "공유 시작 대화상자 제목"
 other = "공유 시작"
 
+[share_ended]
+desc = "토스트: 공유가 끝남"
+other = "공유를 끝냈어요"
+
 [share_failed]
 desc = "토스트: 공유를 시작하지 못했을 때"
 other = "공유를 시작하지 못했어요"
@@ -474,6 +609,10 @@ other = "서버에 보이는 정보예요"
 desc = "공유 시작 대화상자: 공유할 것 제목"
 other = "공유할 것"
 
+[stop_program_option]
+desc = "공유 끝 대화상자 선택: 공유한 터미널에 ctrl+c 보내기(스펙 고정 문구)"
+other = "프로그램에 중단 신호 보내기(ctrl+c)"
+
 [subtab_code]
 desc = "위젯 하위 탭: 코드 칸"
 max = 4
@@ -516,6 +655,32 @@ other = "n 새 터미널"
 desc = "터미널 칸 제목 끝: 저장 안 된 문서 수(프로그램은 디스크만 읽음). n = 문서 수"
 params = { n = "int" }
 other = "저장 안 됨 {n}"
+
+[tiny_keyboard]
+desc = "초소형 오너 요약: 키보드를 가진 사람과 남은 시간. name = 핸들, mmss = 분:초"
+params = { name = "string", mmss = "string" }
+other = "키보드 {name} {mmss}"
+
+[tiny_owner_keys]
+desc = "초소형 오너 요약 바닥 줄 키 안내"
+no_truncate = true
+other = "s 넣고 보내기 · i 넣기 · r 거절 · x 공유 끝"
+
+[tiny_owner_summary]
+desc = "초소형 오너 요약 머리. n = 들어온 사람 수"
+params = { n = "int" }
+other = "🔴 공유 중 {n}명"
+
+[tiny_proposals]
+desc = "초소형 오너 요약: 기다리는 제안 수. n = 수"
+params = { n = "int" }
+other = "제안 {n}"
+
+[tiny_solo_summary]
+desc = "초소형 혼자 쓰기 요약. folder = 폴더 이름(번역하지 않음)"
+params = { folder = "string" }
+no_truncate = true
+other = "{folder} · 🔒 나만 보기 · 창을 키우면 편집할 수 있어요"
 
 [tree_more_entries]
 desc = "트리: 한 폴더에서 5,000개 넘게 있어 줄인 나머지 수. n = 나머지 수"

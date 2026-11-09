@@ -234,7 +234,7 @@ func (c *termCell) view(ctx *ui.Context, s *Surface, w, h int, focused bool) []s
 	for i, x := range c.terms {
 		label := strconv.Itoa(x.n) + " " + textwidth.Sanitize(x.name)
 		if x.attention {
-			label += " ●"
+			label += " " + t.AttentionWaiting()
 		}
 		switch {
 		case i == c.cur && focused:

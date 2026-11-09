@@ -24,7 +24,7 @@ import (
 const pickerID = ui.ToolWorkspace + ":pick"
 
 // prefixKeys are the keys this tool adds after ctrl+\ (spec B6.7, JX6).
-var prefixKeys = []string{"1", "2", "3", "4", "n", "S", "e", "f"}
+var prefixKeys = []string{"1", "2", "3", "4", "n", "S", "e", "f", "enter"}
 
 func init() {
 	ui.RegisterTool(ui.ToolSpec{
@@ -49,6 +49,7 @@ func init() {
 			{Key: "S", Help: func(t *i18n.T) string { return t.Workspace.PrefixHelpShare() }},
 			{Key: "e", Help: func(t *i18n.T) string { return t.Workspace.PrefixHelpExec() }},
 			{Key: "f", Help: func(t *i18n.T) string { return t.Workspace.PrefixHelpFollow() }},
+			{Key: "enter", Help: func(t *i18n.T) string { return t.Workspace.PrefixHelpProposals() }},
 		},
 		WideDefault: true,
 	})
@@ -57,6 +58,18 @@ func init() {
 		Keywords: []string{"workspace", "share"}, Group: palette.GroupCommand,
 		Available: func(ctx *ui.Context) bool { return activeSurface(ctx) != "" },
 		Run:       wsCommand("share.start"),
+	})
+	palette.Register(palette.Command{
+		ID: "ws.share.end", Label: func(t *i18n.T) string { return t.Workspace.PaletteShareEnd() },
+		Keywords: []string{"workspace", "share", "end"}, Group: palette.GroupCommand,
+		Available: func(ctx *ui.Context) bool { return activeSurface(ctx) != "" },
+		Run:       wsCommand("share.end"),
+	})
+	palette.Register(palette.Command{
+		ID: "ws.proposals", Label: func(t *i18n.T) string { return t.Workspace.PaletteProposals() },
+		Keywords: []string{"workspace", "proposals"}, Group: palette.GroupCommand,
+		Available: func(ctx *ui.Context) bool { return activeSurface(ctx) != "" },
+		Run:       wsCommand("proposals"),
 	})
 }
 
