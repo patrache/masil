@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
@@ -73,6 +74,24 @@ func graphemes(s string) int {
 		n++
 	}
 	return n
+}
+
+// hasControl reports whether a label or title holds a character the shared
+// document validator also refuses (arch.md 1.3): a C0/C1 control or DEL, a bidi
+// mark, embedding, override or isolate, or a line/paragraph separator. Joiners
+// and variation selectors stay — emoji sequences need them.
+func hasControl(s string) bool {
+	for _, r := range s {
+		switch {
+		case unicode.IsControl(r),
+			r == 0x061C, r == 0x200E, r == 0x200F,
+			r >= 0x202A && r <= 0x202E,
+			r >= 0x2066 && r <= 0x2069,
+			r == 0x2028, r == 0x2029:
+			return true
+		}
+	}
+	return false
 }
 
 // validID reports whether id fits ^[A-Za-z0-9_-]{1,62}$ so "n:"+id is a valid

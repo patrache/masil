@@ -254,6 +254,29 @@ func TestDecodeLimits(t *testing.T) {
 			t.Fatalf("issues = %v", issuesOf(t, err))
 		}
 	})
+	t.Run("label_control", func(t *testing.T) {
+		// Labels and titles hold no control, bidi or line-separator characters,
+		// the same rule as the shared-document validator (arch.md 1.3, P3 review).
+		for _, bad := range []string{"a\nb", "a\tb", "\x1b[31mred", "a\x7f", "a\u0085", "\u202eexe.txt", "a\u2066b", "a\u200fb", "a\u2028b"} {
+			d := small()
+			d.Nodes[2].Label = bad // n_api, first in ID order
+			_, err := Decode(mustEncode(t, d))
+			if !hasIssue(issuesOf(t, err), "nodes[0].label", IssueRange) {
+				t.Errorf("label %q: issues = %v", bad, issuesOf(t, err))
+			}
+			d = small()
+			d.Title = bad
+			_, err = Decode(mustEncode(t, d))
+			if !hasIssue(issuesOf(t, err), "title", IssueRange) {
+				t.Errorf("title %q: issues = %v", bad, issuesOf(t, err))
+			}
+		}
+		d := small()
+		d.Boxes[0].Label = "\U0001F468\u200D\U0001F469\u200D\U0001F467 \u2764\uFE0F e\u0301"
+		if _, err := Decode(mustEncode(t, d)); err != nil {
+			t.Fatalf("emoji sequence rejected: %v", err)
+		}
+	})
 	t.Run("schema_version", func(t *testing.T) {
 		b := mutate(t, mustEncode(t, small()), func(m map[string]any) { m["schema_version"] = json.Number("2") })
 		_, err := Decode(b)

@@ -33,7 +33,7 @@ type fieldDef[T any] struct {
 	lo, hi   int64    // integer range, inclusive (each element for fPair/fQuad)
 	enum     []string // fString: allowed values; nil = any
 	maxBytes int      // fString: byte cap; 0 = none
-	maxG     int      // fString: grapheme cap → label_too_long
+	maxG     int      // fString: grapheme cap → label_too_long; also no hasControl
 	// at returns a pointer to the field, or nil when it lives in an absent
 	// optional part (Traffic) and alloc is false.
 	at func(v *T, alloc bool) any
@@ -288,6 +288,9 @@ func checkField[T any](def fieldDef[T], ptr any) IssueCode {
 			return IssueUnknownKind
 		}
 		if def.maxBytes > 0 && len(*p) > def.maxBytes {
+			return IssueRange
+		}
+		if def.maxG > 0 && hasControl(*p) {
 			return IssueRange
 		}
 		if def.maxG > 0 && graphemes(*p) > def.maxG {

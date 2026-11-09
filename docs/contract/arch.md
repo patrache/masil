@@ -39,11 +39,12 @@
 | `unknown_kind` | 열거값 밖(`kind`·`disk.type`·`params.lb_algo`·`traffic.curve`·`protocol`) | `nodes[0].kind` |
 | `dangling_ref` | 없는 상자·노드·연결을 가리킴(`parent`·`params.failover_to`·`from`·`to`·`target`) | `edges[2].to` |
 | `duplicate_id` | `id` 가 설계 안 다른 객체와 같음(종류를 가리지 않음) | `nodes[1].id` |
-| `range` | 수 범위 밖, 타입 틀림, `id` 모양 틀림, 문자열 64바이트 초과, `autoscale.enabled` 인데 `min > max` | `nodes[0].instances` |
+| `range` | 수 범위 밖, 타입 틀림, `id` 모양 틀림, 문자열 64바이트 초과, `label`·`title` 의 금지 문자(아래), `autoscale.enabled` 인데 `min > max` | `nodes[0].instances` |
 | `label_too_long` | `label` 40 그래핌, `title` 80 그래핌 초과 | `nodes[0].label` |
 | `parent_kind` | 상자 부모 규칙 위반: `region` 은 최상위만, `vpc` 는 최상위 또는 `region` 안, `az` 는 최상위 또는 `vpc` 안 | `boxes[2].parent` |
 
 - `id` 는 `^[A-Za-z0-9_-]{1,62}$`(협업 객체 키 `n:<id>` 가 collab.md 1.2 의 64자 안에 들게). 새 ID 는 `<접두사>_<ULID>`(`n`·`b`·`e`·`f`).
+- `label`·`title` 금지 문자: 제어 문자(U+0000–U+001F, U+007F–U+009F), 양방향 표시·내장·재정의·격리(U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), 줄·문단 구분(U+2028, U+2029). 결합 문자·ZWJ·이체 선택자는 허용(이모지 시퀀스). 서버 검증기(2.1)도 같은 집합을 거부한다.
 - 노드는 아무 상자 안에나, 또는 최상위에 둔다. 장애 `target`: `node_off`·`instances_off` = 노드, `latency` = 노드 또는 연결, `az_off` = `az` 상자, `region_off` = `region` 상자.
 
 ### 1.4 필드
@@ -124,7 +125,8 @@
 - 필드 이름은 1.4 의 JSON 이름을 점으로 편 것(`autoscale.min`, `disk.iops`, `params.hit_permille`, `traffic.rps`). 값은 1.4 와 같은 JSON 값.
 - 위치는 한 필드 `pos`(`[x, y]`), 상자 사각형은 한 필드 `rect`(`[x, y, w, h]`) — 둘이 동시에 옮길 때 x 와 y 가 서로 다른 사람 값으로 섞이지 않게.
 - 만들 때는 `put{id: 키, type, fields: 모든 필드}`, 고칠 때는 `set` 하나에 필드 하나, 지우기 `del`, 되살리기 `undel`. 노드를 지울 때 그 노드에 닿은 연결·장애도 같은 프레임에서 `del` 한다(못 해도 2.3 이 숨긴다).
-- `id` 는 1.3 규칙(`^[A-Za-z0-9_-]{1,62}$`)이라 키는 collab.md 1.2 의 64자 안에 든다.
+- `id` 는 1.3 규칙(`^[A-Za-z0-9_-]{1,62}$`)이라 키는 collab.md 1.2 의 64자 안에 든다. 서버 검증기(`server/src/lib/collab/arch.ts`)의 객체 키 정규식은 정확히 `^(meta|[nbef]:[A-Za-z0-9_-]{1,62})$` 이다 — 새 ID 가 `n_01JA…` 처럼 대문자 ULID 이므로 P3 계획 Task 21 의 `^(meta|[nbef]:[0-9a-z_]{1,40})$` 는 이 줄로 대체된다.
+- 서버의 `label`·`title` 값 검사는 1.3 과 같다: 그래핌 한도(40·80)와 1.3 금지 문자 집합. 클라이언트 `Validate` 를 통과한 설계는 공유(`arch.share`)에서 거부되지 않는다.
 
 ### 2.2 로컬 변경 (`archdoc.Change`)
 
