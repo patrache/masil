@@ -333,6 +333,7 @@ ui/termpane ─▶ ui, termhost, keymap, i18n, textwidth
 ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate, secrets, i18n
 도구 패키지(P1~P4) ─▶ ui, ui/termpane, termhost, secrets, collab, api, … (자기 줄기 계획)
 apitool, apitool/convert ─▶ secrets, collab(타입), config, ids, textwidth (api·ui·realtime·store 금지 — 직접 import 금지, 전이도 금지. 예외는 collab 을 거쳐서만 닿는 경로 하나: import 그래프에서 collab 으로 들어가지 않는 경로로 닿으면 위반)
+  - `apitool` 이 `collab` 에서 쓰는 것은 타입(`Snapshot`·`Object`·`Op`)과 순수 함수 `collab.NewDoc(…).Snapshot()`(스냅숏을 정규형으로 만들기)·`collab.IsName`(1.2 이름 규칙)까지다. `Session`·`Open` 등 연결·상태를 가진 것은 쓰지 않는다(그것은 `ui/apitool` 몫).
 ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keymap, ui/layout, apitool, apitool/convert, collab, secrets, api, errtext, features, i18n, termhost(Mode 타입 — ToolSpec.Open), theme, textwidth, humanize (ui/termpane 금지)
 ```
 
