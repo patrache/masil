@@ -461,3 +461,42 @@ export interface TimelineRow {
   reposter_id: string | null;
   at: number;
 }
+
+/** `collab_docs` (v0.1.3 0005_collab, data-model.md 3.13) */
+export interface CollabDocRow {
+  id: string;
+  space_id: string;
+  type: "arch" | "apicol";
+  title: string;
+  created_by: string;
+  created_at: number;
+  updated_at: number;
+  head_seq: number;
+  locked: 0 | 1;
+  deleted_at: number | null;
+}
+
+/** `collab_versions` (v0.1.3 0005_collab) */
+export interface CollabVersionRow {
+  doc_id: string;
+  no: number;
+  seq: number;
+  name: string | null;
+  auto: 0 | 1;
+  restored_from: number | null;
+  created_by: string | null;
+  created_at: number;
+}
+
+/** `collab_comments` (v0.1.3 0005_collab) */
+export interface CollabCommentRow {
+  id: string;
+  doc_id: string;
+  anchor: string;
+  author_id: string;
+  body: string;
+  root_id: string | null;
+  resolved_at: number | null;
+  created_at: number;
+  deleted: 0 | 1;
+}

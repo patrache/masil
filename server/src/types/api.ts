@@ -494,3 +494,41 @@ export interface AdminAction {
   reason: string;
   created_at: Timestamp;
 }
+
+// ---- v0.1.3 room documents (api.md 5.24, docs/contract/collab.md) ----
+
+export type DocType = "arch" | "apicol";
+
+export interface Doc {
+  id: ID;
+  space_id: ID;
+  type: DocType;
+  title: string; // 1..80
+  created_by: UserSummary;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  head_seq: number; // last sequenced op; 0 = empty
+  locked: boolean;
+}
+
+export interface DocVersion {
+  no: number;
+  seq: number;
+  name: string | null; // null for auto and restore versions
+  auto: boolean;
+  restored_from: number | null;
+  created_by: UserSummary | null; // null for auto versions
+  created_at: Timestamp;
+}
+
+export interface DocComment {
+  id: ID;
+  doc_id: ID;
+  anchor: string;
+  author: UserSummary;
+  body: string; // "" when deleted
+  root_id: ID | null;
+  resolved_at: Timestamp | null;
+  created_at: Timestamp;
+  deleted: boolean;
+}

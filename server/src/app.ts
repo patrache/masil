@@ -11,10 +11,12 @@ import { authRoutes } from "./routes/auth";
 import { blockRoutes } from "./routes/blocks";
 import { channelRoutes } from "./routes/channels";
 import { dmRoutes } from "./routes/dms";
+import { docRoutes } from "./routes/docs";
 import { followRoutes } from "./routes/follows";
 import { friendRoutes } from "./routes/friends";
 import { guestbookRoutes } from "./routes/guestbook";
 import { inviteRoutes } from "./routes/invites";
+import { leetRoutes } from "./routes/leet";
 import { meRoutes } from "./routes/me";
 import { messageRoutes } from "./routes/messages";
 import { metaRoutes } from "./routes/meta";
@@ -29,6 +31,7 @@ import { storyRoutes } from "./routes/stories";
 import { timelineRoutes } from "./routes/timelines";
 import { uploadRoutes } from "./routes/uploads";
 import { userRoutes } from "./routes/users";
+import { workspaceShareRoutes } from "./routes/workspace-shares";
 import { wsRoutes } from "./routes/ws";
 
 export const JSON_BODY_MAX_BYTES = 64 * 1024;
@@ -154,5 +157,9 @@ export function createApp(): Hono<AppEnv> {
   app.route("/v1", reportRoutes);
   app.route("/v1", adminRoutes);
   app.route("/v1", wsRoutes);
+  // v0.1.3: room documents (P0), and the slots P1 / P2 fill in without touching this file
+  app.route("/v1", docRoutes);
+  app.route("/v1", leetRoutes);
+  app.route("/v1", workspaceShareRoutes);
   return app;
 }

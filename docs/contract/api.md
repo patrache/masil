@@ -1625,6 +1625,9 @@ interface DocComment {
 | POST | /v1/admin/users/{user}/suspend, /unsuspend | admin | |
 | GET | /v1/admin/users, /v1/admin/actions | admin | |
 | GET | /v1/ws | ✓ | RL_WS |
+| GET/POST | /v1/spaces/{space_id}/docs | ✓ | RL_DOC(POST) |
+| GET/PATCH/DELETE | /v1/docs/{doc_id} | ✓ | RL_DOC(PATCH/DELETE) |
+| GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

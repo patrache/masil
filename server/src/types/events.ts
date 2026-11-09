@@ -5,6 +5,8 @@ import type {
   Channel,
   ChannelMyState,
   DirectInvite,
+  Doc,
+  DocComment,
   Focus,
   FocusSummary,
   Friend,
@@ -78,6 +80,9 @@ export type ServerEventType =
   | "post.deleted"
   | "post.stats"
   | "post.reply_created"
+  | "doc.created" // v0.1.3 events.md 4.10
+  | "doc.updated"
+  | "doc.comment_created"
   | "story.created"
   | "story.deleted"
   | "device.tui_state";
@@ -201,6 +206,9 @@ export interface ServerEventDataMap {
   "post.deleted": { post_id: ID };
   "post.stats": { post_id: ID; like_count: number; repost_count: number; reply_count: number; quote_count: number };
   "post.reply_created": { parent_id: ID; post: Post };
+  "doc.created": { doc: Doc };
+  "doc.updated": { doc: Doc; deleted: boolean };
+  "doc.comment_created": { doc_id: ID; comment: DocComment };
   "story.created": { user_id: ID; story_id: ID; expires_at: Timestamp };
   "story.deleted": { user_id: ID; story_id: ID };
   // 4.9 daemon coordination

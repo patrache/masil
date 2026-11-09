@@ -1,7 +1,7 @@
 // Shared test helpers (server-architecture.md 7.2).
 import { env, SELF } from "cloudflare:test";
 import { newId } from "../src/lib/ids";
-import type { Me, PollInput, Post, SpaceDetail, Upload } from "../src/types/api";
+import type { Doc, Me, PollInput, Post, SpaceDetail, Upload } from "../src/types/api";
 
 export const BASE = "http://masil.test" as const;
 
@@ -277,6 +277,19 @@ export async function makeSpace(owner: TestUser, members: TestUser[] = []): Prom
   const detail = await api(owner.token).get<{ space: SpaceDetail }>(`/v1/spaces/${spaceId}`);
   if (detail.status !== 200) throw new Error(`space get failed: ${detail.status} ${JSON.stringify(detail.body)}`);
   return { space: detail.body.space, generalChannelId: detail.body.space.default_channel_id };
+}
+
+// ---- room documents (v0.1.3, api.md 5.24) ----
+
+let docSeq = 0;
+
+/** POST /v1/spaces/{spaceId}/docs as `owner` (a member of that space); throws unless 201. */
+export async function makeDoc(owner: TestUser, spaceId: string, type: "arch" | "apicol" = "arch", snapshot?: unknown): Promise<Doc> {
+  const body: Record<string, unknown> = { type, title: `문서 ${++docSeq}` };
+  if (snapshot !== undefined) body.snapshot = snapshot;
+  const r = await api(owner.token).post<{ doc: Doc }>(`/v1/spaces/${spaceId}/docs`, body);
+  if (r.status !== 201) throw new Error(`doc create failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return r.body.doc;
 }
 
 // ---- SNS fixtures (plan 02 Task 1; every later SNS test uses these) ----
