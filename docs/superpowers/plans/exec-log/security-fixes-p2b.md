@@ -40,3 +40,36 @@ Branch `fix/v013-sec-p2b` (from dev/v0.1.3). Findings (r) and (ae) of the commit
 - 내 판단: the participant's own check-number dialog (`dlg_join.go`, guest.go `EventSASReady`) still opens by itself
   with "match" first, but only while the participant is joining (before they have any pane to type into), right after
   their own join action — not the owner-steals-focus case of (ae); left as is.
+
+## Round 2 (reviewer follow-ups on 7f247570)
+
+### (r) follow-up: the Go share engine redialed after 4001 / 4003 — fixed (d9a19864)
+
+- Was open: `internal/workspace/share/handshake.go` `connGone` handled 4000/4008/4100/4101/4102 only; 4001 and 4003
+  fell to the default branch (EventReconnecting + backoff redial), and `redial` stopped only on a 404, so a revoked
+  member redialed into 401 until the app tore the engine down. This supersedes the third "내 판단" bullet above.
+- Fix: `share.CloseUnauthorized` (4001) / `share.CloseSuspended` (4003); `connGone` ends the share with
+  `ReasonUnauthorized` / `ReasonSuspended`; `redial` treats `401` and `403 account_suspended` as terminal like the 404.
+  `sharetest.Relay.Revoke(user, code)` mirrors the hub's `POST /revoke` + requireAuth (later dials 401 / 403; a
+  suspended owner's share ends).
+- Tests: `internal/workspace/share/revoke_test.go` `TestRevokeCloseIsTerminal` (guest and host, 4001 and 4003: EventEnded
+  with the reason, no EventReconnecting, no dial for a minute after), `TestRedialAuthRefusalIsTerminal` (401 / 403 on a
+  redial after a network drop).
+- 내 판단: the UI gets no new text. The participant screen shows `공유가 끝났어요` for any EventEnded (guest.go), and
+  the owner screen goes back to solo; the login screen / suspension notice itself comes from the app's realtime
+  client (events.md 4001 / 4003, `ui/app/bridge.go`), which receives the same revocation.
+
+### (ae) follow-up: the tamper warning dialog opened by itself with "stop" selected — fixed
+
+- Was open: `internal/ui/workspace/owner.go` ownerEvent `share.EventTamperWarning` set `s.dlg = tamperDialog(s)` at
+  once with `TamperStop` (host.Kill) as the selected first option, so an enter the owner was typing in a terminal
+  stopped the share.
+- Fix: `form.holdUntil` — a dialog that opened by itself drops every key for `selfOpenHold` (700 ms); the tamper
+  dialog uses it and starts on `TamperContinue` (`sel: 1`); the option order and texts are unchanged, so no golden
+  changed.
+- Test: `internal/ui/workspace/tamper_dialog_test.go` `TestTamperDialogIgnoresTypedKeys` ("l s enter up enter" right
+  after the warning neither stops the share nor closes it; after 1 s enter continues; up enter still stops).
+- 내 판단: the dialog still opens by itself rather than waiting in the band like a join request, because spec B9 says
+  to warn the owner and ask whether to stop, and an active tampering alert should not wait for the owner to look. The
+  hold + safe default removes the accidental stop. The MITM notice (`noticeDialog`, only a Cancel option) is left
+  opening by itself: its only answer closes it, so stray keys cannot do harm.

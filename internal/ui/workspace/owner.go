@@ -400,7 +400,7 @@ func (s *Surface) ownerEvent(ctx *ui.Context, ev share.Event) tea.Cmd {
 		s.dlg = noticeDialog(func(ctx *ui.Context) string { return ctx.T.Workspace.SasMismatch() },
 			func(ctx *ui.Context) string { return ctx.T.Workspace.SasMismatchWarning() })
 	case share.EventTamperWarning:
-		s.dlg = tamperDialog(s)
+		s.dlg = tamperDialog(s, nowClock(ctx).Now())
 	case share.EventKeyboardPaused:
 		o.paused = true
 	case share.EventKeyboardResumed:
@@ -610,8 +610,10 @@ func noticeDialog(title, text func(*ui.Context) string) *form {
 }
 
 // tamperDialog asks whether to stop a share whose frames keep failing.
-func tamperDialog(s *Surface) *form {
-	f := &form{shareOnly: true}
+// It opens by itself (B9), so it holds input for selfOpenHold and starts on
+// "continue": an enter the owner was typing elsewhere never stops the share.
+func tamperDialog(s *Surface, now time.Time) *form {
+	f := &form{shareOnly: true, holdUntil: now.Add(selfOpenHold), sel: 1}
 	f.title = func(ctx *ui.Context) string { return ctx.T.Workspace.BandSharing(s.ownerPeople()) }
 	f.build = func(ctx *ui.Context) []row {
 		t := ctx.T.Workspace
@@ -628,6 +630,9 @@ func tamperDialog(s *Surface) *form {
 	}
 	return f
 }
+
+// selfOpenHold is how long a dialog that opened by itself ignores keys.
+const selfOpenHold = 700 * time.Millisecond
 
 // wsCommand runs a palette command on this instance.
 func (s *Surface) wsCommand(ctx *ui.Context, action string) tea.Cmd {
