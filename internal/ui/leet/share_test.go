@@ -234,3 +234,46 @@ func TestShareGolden(t *testing.T) {
 		h.Golden("leet_share")
 	})
 }
+
+// Two instances open at once share one status: the status from before the
+// first is what comes back when the last one closes, in any order.
+func TestAutoStatusTwoInstances(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	h := uitest.New(t)
+	writeConfig(t, h, "[tools.leet]\nauto_status = true\n")
+	coffee := "☕"
+	h.Context().Store.Me.Status = &api.UserStatus{Emoji: &coffee, Text: "커피"}
+	h.API.Handle("PUT /v1/me/status", func(w http.ResponseWriter, r *http.Request) {
+		var b map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"emoji": b["emoji"], "text": b["text"], "expires_at": nil}})
+	})
+	h.API.JSON("DELETE /v1/me/status", http.StatusNoContent, nil)
+	dailyReport(h, "2026-11-05", slug1606)
+	openToday(t, h)
+	other := "leet:2026-11-04/" + slug1606
+	h.Send(ui.OpenTool("leet", other, map[string]string{"target": "2026-11-04/" + slug1606})())
+	if leetInstance(h, other) == nil {
+		t.Fatalf("%s not open:\n%s", other, h.Screen())
+	}
+	h.Send(ui.CloseToolMsg{InstanceID: "leet:today"})
+	h.Send(ui.CloseToolMsg{InstanceID: other})
+	var seq []string
+	for _, r := range h.API.Requests() {
+		if r.Path == "/v1/me/status" {
+			seq = append(seq, r.Method+" "+string(r.Body))
+		}
+	}
+	if len(seq) == 0 {
+		t.Fatal("no status requests")
+	}
+	last := seq[len(seq)-1]
+	if !strings.HasPrefix(last, "PUT") || !strings.Contains(last, `"emoji":"☕"`) || !strings.Contains(last, `"text":"커피"`) {
+		t.Fatalf("last status request = %q (all %q)", last, seq)
+	}
+	if st := h.Context().Store.Me.Status; st == nil || st.Text != "커피" {
+		t.Fatalf("store status = %+v", st)
+	}
+}

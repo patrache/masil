@@ -68,9 +68,8 @@ type instance struct {
 	pending   judgeKind // the run / submit waiting for a login
 	waitUntil time.Time // the pacer said wait until then (zero = no)
 
-	accepted   *acceptedMsg // the last Accepted submit (c leaves its card)
-	statusOn   bool         // auto status shows "solving" now
-	prevStatus savedStatus  // my status before that
+	accepted *acceptedMsg // the last Accepted submit (c leaves its card)
+	statusOn bool         // this instance holds the auto "solving" status
 }
 
 var (

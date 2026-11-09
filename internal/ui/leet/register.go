@@ -185,6 +185,8 @@ type memo struct {
 	pacer *leetcode.Pacer       // runs and submits of this account, paced
 	lc    *lcAccount            // who this run signed in as (nil = see tools-state)
 	hold  time.Time             // a 429 holds runs and submits until then
+
+	status statusHold // the auto "solving" status (auto_status)
 }
 
 var (
