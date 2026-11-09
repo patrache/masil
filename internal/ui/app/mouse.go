@@ -12,7 +12,8 @@ import (
 // the panes below (overlayMouse: outside click = close). A click focuses the
 // pane under the pointer (border cells included) and hands it to the component in
 // inner-rect coordinates; the wheel goes to the pane under the pointer without moving
-// the focus. Tab-bar clicks select that tab, a context-line click opens the palette.
+// the focus. Tab-bar clicks select that tab, a context-line click opens the palette
+// (on the tool surface it shows the next open tool: clickContext).
 // Motion and release go to the pane a left press grabbed (dragMouse) and are
 // dropped otherwise.
 func (m *Model) routeMouse(msg tea.MouseMsg) tea.Cmd {
@@ -53,7 +54,7 @@ func (m *Model) routeMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	case layout.SlotContext:
 		if isClick && mo.Button == tea.MouseLeft {
-			return m.openPalette("")
+			return m.clickContext()
 		}
 		return nil
 	}

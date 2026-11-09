@@ -463,9 +463,20 @@ func (m *Model) toolWindowKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	return m.zoomTool(), true
 }
 
+// clickContext is a click on the widget context line's ▾: on the tool surface
+// with more than one entry open it shows the next one (A8.3 "▾ 로 열린 도구
+// 사이를 전환"); otherwise it opens the palette, as in 0.1.2.
+func (m *Model) clickContext() tea.Cmd {
+	if m.nav.Front == FrontTools && len(m.nav.Tools) > 1 {
+		return m.applyTools(m.nav.cycleTool(+1, m.lay.Mode))
+	}
+	return m.openPalette("")
+}
+
 // onToolSurface reports whether the focus is on the tool surface in a mode
 // where [ / ] walk the open tools (widget and tiny keep their tab walk: the
-// tool tab is one of their fixed tabs).
+// tool tab is one of their fixed tabs; widget walks the tools with the context
+// line's ▾ — clickContext — and both with the palette's tools.next/prev).
 func (m *Model) onToolSurface() bool {
 	if m.nav.Front != FrontTools || m.lay.Mode == layout.ModeWidget || m.lay.Mode == layout.ModeTiny {
 		return false

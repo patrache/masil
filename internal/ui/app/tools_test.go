@@ -334,6 +334,36 @@ func TestWidgetToolTabOnlyWhenOpen(t *testing.T) {
 	}
 }
 
+// TestWidgetContextLineCyclesTools: in widget mode the context line's ▾
+// switches between the open tools while the tool surface is in front (A8.3);
+// on the chat it still opens the palette.
+func TestWidgetContextLineCyclesTools(t *testing.T) {
+	installStubTools(t, "all")
+	h := uitest.New(t)
+	h.Resize(80, 24)
+	openTool(h, ui.ToolGit, "g1")
+	openTool(h, ui.ToolArch, "a1")
+	p, ok := h.Model.Frame().Layout.Pane(layout.SlotContext)
+	if !ok {
+		t.Fatal("no context line")
+	}
+	if r, _ := shownTool(h); r.ID != "a1" {
+		t.Fatalf("shown = %+v, want a1", r)
+	}
+	h.Click(p.Rect.X+1, p.Rect.Y)
+	if r, _ := shownTool(h); r.ID != "g1" || h.Model.Nav().Front != app.FrontTools {
+		t.Errorf("▾ on the tool surface: shown %+v, want g1 (the next open tool)", r)
+	}
+	if len(h.Model.Frame().Overlays) != 0 {
+		t.Errorf("▾ on the tool surface opened an overlay")
+	}
+	h.Click(p.Rect.X+1, p.Rect.Y)
+	if r, _ := shownTool(h); r.ID != "a1" {
+		t.Errorf("▾ again: shown %+v, want a1 (wrapped)", r)
+	}
+	h.Check()
+}
+
 func TestCompactToolTab(t *testing.T) {
 	installStubTools(t, "all")
 	h := uitest.New(t)
