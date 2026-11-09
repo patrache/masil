@@ -16,6 +16,9 @@ import (
 func faultDesign() *archdoc.Design {
 	d := archdoc.New("faults")
 	d.Seed = 42 // goldens: the same samples every run
+	// the shortest run: space computes it as a harness Cmd (1s limit), and
+	// 300 s took over that under -race with the whole package running
+	d.DurationS = 60
 	cl := archdoc.Defaults(archdoc.KindClient)
 	cl.ID, cl.Label, cl.Pos = "client", "client", [2]int{0, 2}
 	api := archdoc.Defaults(archdoc.KindAPI)
