@@ -56,6 +56,7 @@ type ownerShare struct {
 	members []api.WorkspaceShareMember
 	files   bool
 	terms   map[string]uint8 // terminal instance id -> shared terminal id
+	shared  map[uint8]share.Terminal
 	paused  bool
 	asked   []share.JoinRequest // join requests not answered yet
 	sasSeat uint8               // the seat whose check-number dialog is open
@@ -208,7 +209,7 @@ func (s *Surface) shareStarted(ctx *ui.Context, m shareStartedMsg) tea.Cmd {
 		return nil
 	}
 	s.own = &ownerShare{host: m.host, id: m.info.ID, title: m.info.Title, members: m.info.Members, files: m.opts.files,
-		terms: map[string]uint8{}, audit: m.log}
+		terms: map[string]uint8{}, shared: map[uint8]share.Terminal{}, audit: m.log}
 	if m.opts.files {
 		s.docs.SetAutosave(m.opts.autosave)
 	}
@@ -229,6 +230,7 @@ func (s *Surface) shareStarted(ctx *ui.Context, m shareStartedMsg) tea.Cmd {
 			_ = m.host.SetTermSize(next, size[0], size[1])
 		}
 		s.own.terms[t.id] = next
+		s.own.shared[next] = st
 		next++
 	}
 	s.relayout(ctx)
@@ -329,6 +331,7 @@ func (s *Surface) shareEnded(ctx *ui.Context) tea.Cmd {
 	if s.own.audit != nil {
 		_ = s.own.audit.Close()
 	}
+	s.own.release()
 	s.own = nil
 	if s.docs != nil {
 		s.docs.SetAutosave(false)
@@ -341,6 +344,16 @@ func (s *Surface) shareEnded(ctx *ui.Context) tea.Cmd {
 	}
 	s.relayout(ctx)
 	return nil
+}
+
+// release hands the shared terminals back: the taps stop and the fixed
+// size goes (the programs keep running, back at their cell's size).
+func (o *ownerShare) release() {
+	for id, st := range o.shared {
+		o.host.UnshareTerminal(id)
+		st.SetFixedSize(0, 0)
+	}
+	o.shared = nil
 }
 
 func (s *Surface) dropAsked(seat uint8) {
@@ -448,6 +461,7 @@ func (s *Surface) ownerClose(*ui.Context) tea.Cmd {
 	if o == nil {
 		return nil
 	}
+	o.release()
 	s.own = nil
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -481,6 +495,7 @@ func (s *Surface) onTermEnded(_ *ui.Context, t *term) {
 	if id, ok := s.own.terms[t.id]; ok {
 		s.own.host.UnshareTerminal(id)
 		delete(s.own.terms, t.id)
+		delete(s.own.shared, id)
 	}
 }
 

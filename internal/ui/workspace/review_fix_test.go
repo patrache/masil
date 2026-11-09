@@ -8,6 +8,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/ui/uitest"
+	"github.com/patrache/masil/internal/workspace/share"
 )
 
 // A file delete request in the tiny summary is named as one and needs its
@@ -168,5 +169,46 @@ func TestFilesOffShareStillTicksDocs(t *testing.T) {
 	}
 	if !strings.HasPrefix(d.ed.Text(), "// outside\n") {
 		t.Fatalf("the outside change did not merge: %.40q", d.ed.Text())
+	}
+}
+
+// recTerm records the taps and the fixed sizes a share sets on a terminal.
+type recTerm struct {
+	fakeTerm
+	taps, stops int
+	sizes       [][2]int
+}
+
+func (r *recTerm) Tap(func([]byte)) func() {
+	r.taps++
+	return func() { r.stops++ }
+}
+func (r *recTerm) SetFixedSize(c, rows int) { r.sizes = append(r.sizes, [2]int{c, rows}) }
+
+// Ending a share hands every shared terminal back: the tap is stopped and
+// the fixed size released.
+func TestShareEndReleasesTerminals(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	rt := &recTerm{}
+	t.Cleanup(SetTerminalForTest(func(string) share.Terminal { return rt }))
+	r := newShareRig(t, h, fake, nil)
+	h.Send(launchMsgForTest(r.s, []string{"sh"}))
+	h.Press("ctrl+\\", "1", "ctrl+\\", "S")
+	r.pickRow("80x24")
+	h.Press("space", "enter")
+	r.settle()
+	if rt.taps != 1 || len(rt.sizes) == 0 || rt.sizes[len(rt.sizes)-1] != [2]int{80, 24} {
+		t.Fatalf("share: taps %d, sizes %v", rt.taps, rt.sizes)
+	}
+	h.Send(wsCommandMsg{surface: r.s.id, action: "share.end"})
+	r.pickRow("공유 끝내기")
+	h.Press("enter")
+	r.settle()
+	if r.s.sharing() {
+		t.Fatal("still sharing")
+	}
+	if rt.stops != rt.taps || len(rt.sizes) == 0 || rt.sizes[len(rt.sizes)-1] != [2]int{0, 0} {
+		t.Fatalf("after the end: taps %d, stops %d, sizes %v", rt.taps, rt.stops, rt.sizes)
 	}
 }
