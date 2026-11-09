@@ -236,6 +236,7 @@ type dialog struct {
 	inst, title string
 	kind        dialogKind
 	data        string
+	pre         []string // lines drawn as they are (sanitized and styled already), before body
 	body        []string // paragraphs, wrapped at draw time
 	input       *lineInput
 	choices     []string
@@ -287,6 +288,12 @@ func (d *dialog) Bounds(body layout.Rect) layout.Rect {
 // lines is the dialog's content wrapped to w (choices included).
 func (d *dialog) lines(w int) []string {
 	var out []string
+	for _, l := range d.pre {
+		out = append(out, textwidth.Truncate(l, w, "…"))
+	}
+	if len(d.pre) > 0 && len(d.body) > 0 {
+		out = append(out, "")
+	}
 	for i, p := range d.body {
 		if i > 0 {
 			out = append(out, "")
@@ -367,7 +374,10 @@ func (d *dialog) View(ctx *ui.Context, _ bool) string {
 	rows := d.lines(cw)
 	inputAt := -1
 	if d.input != nil {
-		n := 0
+		n := len(d.pre)
+		if len(d.pre) > 0 && len(d.body) > 0 {
+			n++
+		}
 		for i, p := range d.body {
 			if i > 0 {
 				n++

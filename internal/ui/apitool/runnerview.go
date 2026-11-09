@@ -70,6 +70,8 @@ type runState struct {
 	done  bool
 	tiny  bool                        // started from the tiny view (its second line shows it)
 	reqs  map[string]*apitool.Request // the snapshot's requests (to open a failed line)
+	sum   *apitool.RunSummary         // set when done (the api.run card)
+	doc   string                      // the shared collection run ("" = personal)
 	runMu sync.Mutex
 	queue []runItem // events the job goroutine handed over
 }
@@ -232,6 +234,9 @@ func (t *Tool) launch(ctx *ui.Context, pr *pendingRun, privOK map[string]bool) (
 		PrivateOK: privOK,
 	}
 	st := &runState{col: snap.Collection.Name, n: pr.n, tiny: pr.tiny, reqs: snap.Collection.Requests}
+	if snap.Scope != nil {
+		st.doc = snap.Scope.DocID
+	}
 	t.run = st
 	j, cmd := t.startJob(ctx, jobRun, func(c context.Context) func(*ui.Context) tea.Cmd {
 		if err := os.MkdirAll(spillDir, 0o700); err != nil {
@@ -263,6 +268,7 @@ func (t *Tool) launch(ctx *ui.Context, pr *pendingRun, privOK map[string]bool) (
 		return func(*ui.Context) tea.Cmd {
 			st.drain()
 			st.done = true
+			st.sum = sum
 			if i := st.firstFailed(); i >= 0 {
 				st.sel = i
 			}
@@ -640,6 +646,10 @@ func (v *runView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 	case "enter":
 		if st.sel < len(st.rows) && st.rows[st.sel].failed {
 			return true, v.t.openRunRow(ctx, st.rows[st.sel])
+		}
+	case "s":
+		if st.done && st.sum != nil {
+			return true, v.t.openShareRun(ctx, st)
 		}
 	}
 	return true, nil

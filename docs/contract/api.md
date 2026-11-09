@@ -659,8 +659,30 @@ interface AdminAction {
 | `leet.solve` | 1 | 서버만(P1) | P1 |
 | `arch.design` | 1 | 사용자(P3) | P3 |
 | `arch.sim` | 1 | 사용자(P3) | P3 |
-| `api.result` | 1 | 사용자(P4) | P4 |
-| `api.run` | 1 | 사용자(P4) | P4 |
+| `api.result` | 1 | 사용자(P4) | 아래 `ApiResultCard` |
+| `api.run` | 1 | 사용자(P4) | 아래 `ApiRunCard` |
+
+  `api.*` data (P4, 설계서 C3.11 — 서버 검사기 `server/src/lib/cards/api.ts`, 클라이언트 `internal/apitool/card.go`; 모르는 키는 거절). 비밀 값은 클라이언트가 보내기 전에 `•••` 로 가리고 16,384 바이트 안으로 줄인다(본문 줄부터, 다음 헤더). `body` 대체 문구는 `🧪 POST /v1/payments · 201 · 142ms · ✓4/4`(결과)·`🧪 결제팀 실행 · 6개 · ✓5 ✕1 · 1500ms`(실행) 꼴.
+
+  ```ts
+  interface ApiResultCard {          // v1
+    method: string;                  // 1자 이상
+    url: string;                     // URL 템플릿("{{base_url}}/v1/payments"); "호스트 보이기"면 비밀 아닌 변수만 치환
+    status: number;                  // 0..999 정수
+    time_ms: number; size: number;   // 0 이상 정수
+    asserts: { passed: number; total: number };
+    env?: string;                    // 환경 이름
+    ref: { collection: string; request_id: string; doc_id?: string };  // doc_id = 공유 컬렉션(apicol 문서)
+    req_headers?: [string, string][];  // ≤20, 고를 때만(민감 헤더는 "•••")
+    body_head?: string[];            // 응답 본문 앞 ≤20줄, 줄당 ≤200 코드 포인트, 고를 때만
+  }
+  interface ApiRunCard {             // v1
+    collection: string;
+    requests: number; passed: number; failed: number; time_ms: number;  // 0 이상 정수
+    failures: { name: string; method: string; status: number; reason: string }[];  // ≤3 (status 0 = 응답 없음)
+    ref: { doc_id?: string };
+  }
+  ```
 
 - **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. `template.params` 는 그 id 에 선언된 인자를 모두 싣지만, 언어별 문구는 그 가운데 일부만 써도 된다(세 언어 문구가 쓰는 인자의 합집합 = 선언 — 예 `doc.comment_mention` 의 ko 제목은 `{space}` 를 쓰지 않는다). 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
 - **문서 대상 (`target.type:"doc"`)**: 모양 `{ type: "doc", id: <doc_id>, space_id, doc_type: "arch" | "apicol", channel_id: null, message_id: null, thread_root_id: null, post_id: null }`. 클라이언트는 `doc_type` 으로 어느 도구가 열지 고른다(CA 5.3.6 `RegisterAlertTarget` 의 `"doc:<doc_type>"` 키). 0.1.2 클라이언트는 모르는 대상의 alert 를 OS 알림으로만 보이고 이동하지 않는다.

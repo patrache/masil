@@ -24,11 +24,23 @@ other = "Saved to {path}"
 [cancel]
 other = "Cancel"
 
+[card_open_hint]
+other = "⏎ Open in the shared collection"
+
 [card_result_body]
 other = "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"
 
+[card_result_meta]
+other = "{status} · {ms}ms · {size} · ✓{ok}/{total}"
+
 [card_run_body]
 other = "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"
+
+[card_run_meta]
+other = "✓{ok} ✕{fail} · {ms}ms"
+
+[card_run_title]
+other = "🧪 {name} run · {n} requests"
 
 [cmd_env]
 other = "API test: environments"
@@ -408,7 +420,7 @@ other = "Iterations are 1 to 1000"
 other = "Delay between requests {ms}ms"
 
 [run_done_hint]
-other = "⏎ open a failed line's response · esc close"
+other = "⏎ Open a failed row's response · s Share as card · esc Close"
 
 [run_env]
 other = "Environment ‹ {name} › · h/l"
@@ -518,6 +530,30 @@ other = "Timeout {ms}ms · ⏎ change"
 
 [set_tls]
 other = "TLS certificate check {state} · space toggle"
+
+[share_failed]
+other = "Couldn't send the card · {err}"
+
+[share_no_channel]
+other = "No channel to send the card to"
+
+[share_opt_body]
+other = "Include the first 20 body lines · {state}"
+
+[share_opt_headers]
+other = "Include request headers · {state}"
+
+[share_opt_host]
+other = "Show host · {state}"
+
+[share_pick]
+other = "This is exactly what will be posted (hidden values show •••). Pick a channel."
+
+[share_sent]
+other = "Card sent · {channel}"
+
+[share_title]
+other = "Share as card"
 
 [shared_kicked]
 other = "You can no longer see this shared collection · {name}"

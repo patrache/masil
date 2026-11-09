@@ -74,6 +74,13 @@ var areaApitest = area{
 				En: {Other: "Cancel"},
 			},
 		},
+		"card_open_hint": {
+			desc: "공유 컬렉션을 가리키는 결과 카드 아래 키 안내(방 멤버에게만)",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 공유 컬렉션에서 열기"},
+				En: {Other: "⏎ Open in the shared collection"},
+			},
+		},
 		"card_result_body": {
 			desc:   "api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)",
 			params: []Param{{Name: "method", Type: "string"}, {Name: "path", Type: "string"}, {Name: "status", Type: "int"}, {Name: "ms", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
@@ -82,12 +89,36 @@ var areaApitest = area{
 				En: {Other: "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"},
 			},
 		},
+		"card_result_meta": {
+			desc:   "api.result 카드 둘째 줄(status = 상태 코드, ms = 시간, size = 크기 문구, ok/total = 검사 통과/전체)",
+			params: []Param{{Name: "status", Type: "int"}, {Name: "ms", Type: "int"}, {Name: "size", Type: "string"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{status} · {ms}ms · {size} · ✓{ok}/{total}"},
+				En: {Other: "{status} · {ms}ms · {size} · ✓{ok}/{total}"},
+			},
+		},
 		"card_run_body": {
 			desc:   "api.run 카드의 0.1.2 클라이언트용 대체 본문(name = 컬렉션 이름, n = 요청 수)",
 			params: []Param{{Name: "name", Type: "string"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}, {Name: "ms", Type: "int"}},
 			text: map[Locale]Forms{
 				Ko: {Other: "🧪 {name} 실행 · {n}개 · ✓{ok} ✕{fail} · {ms}ms"},
 				En: {Other: "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"},
+			},
+		},
+		"card_run_meta": {
+			desc:   "api.run 카드 둘째 줄(ok = 통과, fail = 실패, ms = 총 시간)",
+			params: []Param{{Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}, {Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✓{ok} ✕{fail} · {ms}ms"},
+				En: {Other: "✓{ok} ✕{fail} · {ms}ms"},
+			},
+		},
+		"card_run_title": {
+			desc:   "api.run 카드 첫 줄(name = 컬렉션 이름, n = 요청 수)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧪 {name} 실행 · {n}개"},
+				En: {Other: "🧪 {name} run · {n} requests"},
 			},
 		},
 		"cmd_env": {
@@ -1061,8 +1092,8 @@ var areaApitest = area{
 		"run_done_hint": {
 			desc: "실행이 끝난 뒤 진행 표 아래 키 안내",
 			text: map[Locale]Forms{
-				Ko: {Other: "⏎ 실패한 줄의 응답 열기 · esc 닫기"},
-				En: {Other: "⏎ open a failed line's response · esc close"},
+				Ko: {Other: "⏎ 실패한 줄의 응답 열기 · s 카드로 공유 · esc 닫기"},
+				En: {Other: "⏎ Open a failed row's response · s Share as card · esc Close"},
 			},
 		},
 		"run_env": {
@@ -1349,6 +1380,69 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "TLS 인증서 검사 {state} · space 바꾸기"},
 				En: {Other: "TLS certificate check {state} · space toggle"},
+			},
+		},
+		"share_failed": {
+			desc:   "카드 보내기 실패 토스트(err = 이유)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보내지 못했어요 · {err}"},
+				En: {Other: "Couldn't send the card · {err}"},
+			},
+		},
+		"share_no_channel": {
+			desc: "카드를 보낼 채널이 하나도 없을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보낼 채널이 없어요"},
+				En: {Other: "No channel to send the card to"},
+			},
+		},
+		"share_opt_body": {
+			desc:   "결과 카드 선택지: 응답 본문 앞 20줄 넣기(state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "응답 본문 앞 20줄 넣기 · {state}"},
+				En: {Other: "Include the first 20 body lines · {state}"},
+			},
+		},
+		"share_opt_headers": {
+			desc:   "결과 카드 선택지: 보낸 요청 헤더 넣기(민감한 값은 •••, state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 헤더 넣기 · {state}"},
+				En: {Other: "Include request headers · {state}"},
+			},
+		},
+		"share_opt_host": {
+			desc:   "결과 카드 선택지: URL 의 비밀이 아닌 변수 치환(state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "호스트 보이기 · {state}"},
+				En: {Other: "Show host · {state}"},
+			},
+		},
+		"share_pick": {
+			desc:       "결과 카드 미리보기 창 안내: 위 미리보기가 올라갈 내용 그대로임(가린 값은 •••)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "위 내용 그대로 올라가요(가린 값은 •••). 보낼 채널을 고르세요."},
+				En: {Other: "This is exactly what will be posted (hidden values show •••). Pick a channel."},
+			},
+		},
+		"share_sent": {
+			desc:   "카드를 보낸 뒤의 토스트(channel = 채널 이름)",
+			params: []Param{{Name: "channel", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보냈어요 · {channel}"},
+				En: {Other: "Card sent · {channel}"},
+			},
+		},
+		"share_title": {
+			desc: "결과 카드 미리보기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "카드로 공유"},
+				En: {Other: "Share as card"},
 			},
 		},
 		"shared_kicked": {
@@ -1715,14 +1809,34 @@ func (a_ ApitestT) Cancel() string {
 	return a_.t.render(&areaApitest, "cancel", false, 0)
 }
 
+// CardOpenHint: 공유 컬렉션을 가리키는 결과 카드 아래 키 안내(방 멤버에게만)
+func (a_ ApitestT) CardOpenHint() string {
+	return a_.t.render(&areaApitest, "card_open_hint", false, 0)
+}
+
 // CardResultBody: api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)
 func (a_ ApitestT) CardResultBody(method string, path string, status int, ms int, ok int, total int) string {
 	return a_.t.render(&areaApitest, "card_result_body", false, 0, "method", method, "path", path, "status", strconv.Itoa(status), "ms", strconv.Itoa(ms), "ok", strconv.Itoa(ok), "total", strconv.Itoa(total))
 }
 
+// CardResultMeta: api.result 카드 둘째 줄(status = 상태 코드, ms = 시간, size = 크기 문구, ok/total = 검사 통과/전체)
+func (a_ ApitestT) CardResultMeta(status int, ms int, size string, ok int, total int) string {
+	return a_.t.render(&areaApitest, "card_result_meta", false, 0, "status", strconv.Itoa(status), "ms", strconv.Itoa(ms), "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total))
+}
+
 // CardRunBody: api.run 카드의 0.1.2 클라이언트용 대체 본문(name = 컬렉션 이름, n = 요청 수)
 func (a_ ApitestT) CardRunBody(name string, n int, ok int, fail int, ms int) string {
 	return a_.t.render(&areaApitest, "card_run_body", false, 0, "name", name, "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail), "ms", strconv.Itoa(ms))
+}
+
+// CardRunMeta: api.run 카드 둘째 줄(ok = 통과, fail = 실패, ms = 총 시간)
+func (a_ ApitestT) CardRunMeta(ok int, fail int, ms int) string {
+	return a_.t.render(&areaApitest, "card_run_meta", false, 0, "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail), "ms", strconv.Itoa(ms))
+}
+
+// CardRunTitle: api.run 카드 첫 줄(name = 컬렉션 이름, n = 요청 수)
+func (a_ ApitestT) CardRunTitle(name string, n int) string {
+	return a_.t.render(&areaApitest, "card_run_title", false, 0, "name", name, "n", strconv.Itoa(n))
 }
 
 // CmdEnv: 명령 팔레트: 환경 화면
@@ -2533,6 +2647,46 @@ func (a_ ApitestT) SetTimeout(ms int) string {
 // SetTls: 요청 설정 줄: TLS 인증서 검사(state = on/off 문구)
 func (a_ ApitestT) SetTls(state string) string {
 	return a_.t.render(&areaApitest, "set_tls", false, 0, "state", state)
+}
+
+// ShareFailed: 카드 보내기 실패 토스트(err = 이유)
+func (a_ ApitestT) ShareFailed(err string) string {
+	return a_.t.render(&areaApitest, "share_failed", false, 0, "err", err)
+}
+
+// ShareNoChannel: 카드를 보낼 채널이 하나도 없을 때의 토스트
+func (a_ ApitestT) ShareNoChannel() string {
+	return a_.t.render(&areaApitest, "share_no_channel", false, 0)
+}
+
+// ShareOptBody: 결과 카드 선택지: 응답 본문 앞 20줄 넣기(state = 켬/끔)
+func (a_ ApitestT) ShareOptBody(state string) string {
+	return a_.t.render(&areaApitest, "share_opt_body", false, 0, "state", state)
+}
+
+// ShareOptHeaders: 결과 카드 선택지: 보낸 요청 헤더 넣기(민감한 값은 •••, state = 켬/끔)
+func (a_ ApitestT) ShareOptHeaders(state string) string {
+	return a_.t.render(&areaApitest, "share_opt_headers", false, 0, "state", state)
+}
+
+// ShareOptHost: 결과 카드 선택지: URL 의 비밀이 아닌 변수 치환(state = 켬/끔)
+func (a_ ApitestT) ShareOptHost(state string) string {
+	return a_.t.render(&areaApitest, "share_opt_host", false, 0, "state", state)
+}
+
+// SharePick: 결과 카드 미리보기 창 안내: 위 미리보기가 올라갈 내용 그대로임(가린 값은 •••)
+func (a_ ApitestT) SharePick() string {
+	return a_.t.render(&areaApitest, "share_pick", false, 0)
+}
+
+// ShareSent: 카드를 보낸 뒤의 토스트(channel = 채널 이름)
+func (a_ ApitestT) ShareSent(channel string) string {
+	return a_.t.render(&areaApitest, "share_sent", false, 0, "channel", channel)
+}
+
+// ShareTitle: 결과 카드 미리보기 창 제목
+func (a_ ApitestT) ShareTitle() string {
+	return a_.t.render(&areaApitest, "share_title", false, 0)
 }
 
 // SharedKicked: 공유 컬렉션에서 내보내졌거나 문서가 지워져 닫았을 때의 토스트(name = 컬렉션 이름)

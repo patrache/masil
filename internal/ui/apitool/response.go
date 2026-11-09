@@ -58,6 +58,11 @@ type respState struct {
 	canceled bool
 	method   string
 	url      string
+	// What a result card needs (P4 Task 20; set by a send, not by a run).
+	req  *apitool.Request  // the sent request (its template URL)
+	prep *apitool.Prepared // what went out (the values to mask)
+	env  string            // the environment's name
+	ref  apitool.CardRef
 }
 
 // passed is the number of passed checks.
@@ -509,6 +514,8 @@ func (v *respView) handleKey(ctx *ui.Context, t *Tool, msg tea.KeyPressMsg) (boo
 		return true, v.copyBody(ctx)
 	case "w":
 		return true, t.openSaveBody(ctx)
+	case "s":
+		return true, t.openShareResult(ctx)
 	default:
 		return false, nil
 	}

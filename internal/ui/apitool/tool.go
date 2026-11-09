@@ -132,6 +132,7 @@ type Tool struct {
 	verDoc      string                // whose versions
 	lostQ       []lostItem            // overwritten bodies waiting for the restore question
 	upPlan      *uploadPlan           // the upload waiting for the held question
+	share       *sharePlan            // the card in the share preview
 }
 
 var (

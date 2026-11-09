@@ -168,6 +168,11 @@ func (t *Tool) send(ctx *ui.Context) tea.Cmd {
 	privOK := t.privateOK[pk]
 	d := dyn(ctx)
 	sender, hist, spillDir := t.sender, t.hist, t.spillDir
+	envName := ""
+	if sc.Env != nil {
+		envName = sc.Env.Name
+	}
+	ref := t.cardRef(req.ID)
 	t.rv.show(key)
 	_, cmd := t.startJob(ctx, jobSend, func(c context.Context) func(*ui.Context) tea.Cmd {
 		p, err := apitool.Prepare(req, colID, sc, d)
@@ -183,6 +188,7 @@ func (t *Tool) send(ctx *ui.Context) tea.Cmd {
 			return t.sendError(key, req, pk, err)
 		}
 		st := newRespState(req, resp)
+		st.req, st.prep, st.env, st.ref = req, p, envName, ref
 		vals, _ := apitool.ExtractAll(req.Extracts, resp)
 		if err := hist.Add(req, p, resp); err != nil {
 			slog.Warn("api: history add", "err", err)

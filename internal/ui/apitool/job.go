@@ -36,6 +36,7 @@ const (
 	jobRun
 	jobFile
 	jobShare // shared collections: upload, versions (P4 Task 18)
+	jobCard  // sending a result card (P4 Task 20)
 )
 
 // jobTickMsg asks tool t to look at job id.
