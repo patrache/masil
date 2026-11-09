@@ -287,10 +287,11 @@ func (p *msgPane) selected() (row, bool) {
 // cardKey routes a key on a selected card message (P0 Task 25): the
 // renderer's Key sees it first, enter runs Open when the renderer has one, and
 // e (edit) is swallowed quietly since cards cannot be edited (api.md 5.10).
-// Anything else, and every non-card row, is left to chat (false).
+// Anything else, every non-card row, and a card folded because I blocked its
+// author is left to chat (false).
 func (p *msgPane) cardKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	r, ok := p.selected()
-	if !ok || r.Kind != rowMessage || r.Msg == nil || r.Msg.Deleted || r.Msg.Kind != api.MessageKindCard {
+	if !ok || r.Kind != rowMessage || r.Msg == nil || r.Msg.Deleted || r.Msg.Kind != api.MessageKindCard || folded(ctx, *r.Msg) {
 		return false, nil
 	}
 	if cr, ok := ui.MessageCard(r.Msg); ok {

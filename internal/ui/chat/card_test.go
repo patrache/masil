@@ -179,6 +179,42 @@ func TestCardKeyHook(t *testing.T) {
 	}
 }
 
+// A card by a user I blocked is drawn folded; its renderer's Key and Open
+// never see keys on it (chat handles it like any folded message).
+func TestCardBlockedAuthorFolded(t *testing.T) {
+	var got []string
+	registerDesign(t, ui.CardRenderer{
+		Key: func(_ *ui.Context, m *api.Message, k tea.KeyPressMsg) (bool, tea.Cmd) {
+			got = append(got, "key:"+k.String())
+			return true, nil
+		},
+		Open: func(_ *ui.Context, m *api.Message) tea.Cmd {
+			return func() tea.Msg { got = append(got, "open:"+m.ID); return nil }
+		},
+	})
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChCards},
+		uitest.WithSeed(func(s *store.Store) {
+			cardSeed(s)
+			s.Blocks[fixtures.UserJunho] = uitest.Start
+		}))
+	if scr := h.Screen(); !strings.Contains(scr, "차단한 사용자의 메시지") {
+		t.Fatalf("the blocked author's card is not folded:\n%s", scr)
+	}
+	for _, k := range []string{"b", "enter", "e"} {
+		m := selectText(t, h, designBody)
+		if m.ID != fixtures.MsgCardDesign {
+			t.Fatalf("selected %s", m.ID)
+		}
+		h.Press(k)
+		if cc := channelOf(t, h).composer; cc.editing != nil {
+			t.Fatalf("%s edits a blocked author's card", k)
+		}
+	}
+	if len(got) != 0 {
+		t.Fatalf("renderer hooks ran on a folded card: %v", got)
+	}
+}
+
 // New goldens only: #카드 lives in its own seed (fixtures.Cards).
 func TestCardGolden(t *testing.T) {
 	registerDesign(t, ui.CardRenderer{})
