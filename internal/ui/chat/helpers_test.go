@@ -1010,16 +1010,20 @@ func devID(t testing.TB, h *uitest.Harness) string {
 	return chanID(t, h.Context().Store, "개발")
 }
 
-// channelOf is the conversation instance of the active tab: the top-most
-// RouteChannel of its stack.
+// channelOf is the conversation instance of the chat surface: the top-most
+// RouteChannel of the DM surface's stack when InDM and a DM is open there (CA
+// 5.3.3), else of the active tab's stack.
 func channelOf(t testing.TB, h *uitest.Harness) *channelView {
 	t.Helper()
 	nav := h.Nav()
-	if nav.InDM || (nav.Active >= 0 && nav.Active < len(nav.Tabs)) {
-		st := nav.DM.Stack // the chat surface: the DM surface when InDM (CA 5.3.3)
-		if !nav.InDM {
-			st = nav.Tabs[nav.Active].Stack
-		}
+	var stacks [][]ui.Route
+	if nav.InDM {
+		stacks = append(stacks, nav.DM.Stack)
+	}
+	if nav.Active >= 0 && nav.Active < len(nav.Tabs) {
+		stacks = append(stacks, nav.Tabs[nav.Active].Stack)
+	}
+	for _, st := range stacks {
 		for i := len(st) - 1; i >= 0; i-- {
 			if st[i].Kind != ui.RouteChannel {
 				continue
@@ -1029,7 +1033,7 @@ func channelOf(t testing.TB, h *uitest.Harness) *channelView {
 			}
 		}
 	}
-	t.Fatalf("no channel view on the chat surface: %+v", nav)
+	t.Fatalf("no channel view on the chat surface or the active tab: %+v", nav)
 	return nil
 }
 

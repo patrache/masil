@@ -273,6 +273,35 @@ func TestDragThread(t *testing.T) {
 	}
 }
 
+// TestDragDM: a DM open on the DM surface (CA 5.3.3) drag-copies like a channel,
+// and esc only clears the highlight (the DM stays open above the DM list).
+func TestDragDM(t *testing.T) {
+	for _, sz := range []uitest.Size{{W: 120, H: 40}, {W: 80, H: 24}} {
+		h := open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bootstrappedSeed))
+		h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteChannel, ID: fixtures.DMMinji}})
+		if n := h.Nav(); !n.InDM || mainKey(h) != (ui.Route{Kind: ui.RouteChannel, ID: fixtures.DMMinji}).Key() {
+			t.Fatalf("%v: precondition: the DM is shown on the DM surface: %+v", sz, n)
+		}
+		x, y := posOf(t, h, layout.SlotMain, "점심 국밥")
+		h.Drag(x, y, x+3, y)
+		if got := lastClipboard(h); !strings.Contains(got, "점심 국밥 어때요?") {
+			t.Fatalf("%v: clipboard %q\n%s", sz, got, h.Screen())
+		}
+		if len(highlighted(h)) == 0 {
+			t.Fatalf("%v: the highlight stays after the release", sz)
+		}
+		before := h.Nav()
+		h.Press("esc")
+		if hl := highlighted(h); len(hl) != 0 {
+			t.Fatalf("%v: esc clears the highlight, still %q", sz, hl)
+		}
+		if !reflect.DeepEqual(before, h.Nav()) {
+			t.Fatalf("%v: esc with a highlight only clears it", sz)
+		}
+		h.Check()
+	}
+}
+
 // TestDragEveryMode: drag-copy works in widget (bubbles) and tiny (one line
 // per message, no pane border) too.
 func TestDragEveryMode(t *testing.T) {
