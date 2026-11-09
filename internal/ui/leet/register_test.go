@@ -52,6 +52,7 @@ func setup(t *testing.T) *env {
 	}
 	lc := leetcodetest.New(t)
 	t.Cleanup(leet.SetLeetcodeForTest(lc.URL))
+	t.Cleanup(leet.SetOpenURLForTest(func(string) error { return nil })) // never a real browser
 	return &env{lc: lc, pane: termpanetest.Install(t), home: home}
 }
 

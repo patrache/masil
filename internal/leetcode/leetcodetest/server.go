@@ -48,6 +48,7 @@ type Server struct {
 	tb         testing.TB
 	mu         sync.Mutex
 	daily      string            // fixture of activeDailyCodingChallengeQuestion
+	dailyDate  string            // "" = the fixture's date, else the date answered
 	questions  map[string]string // slug -> fixture (question- or daily-shaped)
 	fails      map[string]failure
 	userStatus map[string]any
@@ -84,6 +85,14 @@ func (s *Server) SetDaily(fixture string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.daily = fixture
+}
+
+// SetDailyDate makes today's-problem answers name date (YYYY-MM-DD) instead
+// of the fixture's own date ("" = the fixture's again).
+func (s *Server) SetDailyDate(date string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dailyDate = date
 }
 
 // SetQuestion makes fixture (question- or daily-shaped) the problem slug.
@@ -215,13 +224,16 @@ func (s *Server) graphql(w http.ResponseWriter, body []byte) {
 		return
 	}
 	s.mu.Lock()
-	daily, status := s.daily, s.userStatus
+	daily, status, date := s.daily, s.userStatus, s.dailyDate
 	s.mu.Unlock()
 	switch {
 	case strings.Contains(q.Query, "activeDailyCodingChallengeQuestion"):
 		var d map[string]any
 		_ = json.Unmarshal(Fixture(s.tb, daily), &d)
 		if a, ok := dig(d, "data", "activeDailyCodingChallengeQuestion").(map[string]any); ok {
+			if date != "" {
+				a["date"] = date
+			}
 			if qq, ok := a["question"].(map[string]any); ok {
 				onlyAsked(qq, q.Query)
 			}

@@ -7,6 +7,9 @@ other = "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <sl
 [auto_status_desc]
 other = "When on, friends can see that you are solving a problem"
 
+[blocked]
+other = "LeetCode is blocking this request right now · o submit in browser"
+
 [cmd_board]
 other = "Daily problem ranking"
 
@@ -18,6 +21,9 @@ other = "Open the daily problem"
 
 [cmd_settings]
 other = "Daily problem settings"
+
+[code_placeholder]
+other = "e open the editor"
 
 [daily_disabled]
 other = "#daily is off in {space}"
@@ -40,6 +46,18 @@ other = "This PC fetches LeetCode problems directly. masil is not affiliated wit
 [first_run_title]
 other = "Daily LC"
 
+[header]
+other = "🧩 {id} · {difficulty} ── {date} (UTC) · next in {countdown}"
+
+[header_widget]
+other = "🧩 {id} {difficulty}"
+
+[hints_wide]
+other = "e editor · r run · s submit · o browser · l language · c card"
+
+[hints_widget]
+other = "← → problem/code/result · e edit · r run · s submit"
+
 [hub_not_loaded]
 other = "Today's problem not fetched yet"
 
@@ -48,6 +66,18 @@ other = "{id} · {difficulty} · {solved} · 🔥 {streak}d"
 
 [hub_status_short]
 other = "{id} · {difficulty}"
+
+[image_link]
+other = "[image] o open"
+
+[link_copied]
+other = "Couldn't open a browser; link copied"
+
+[load_failed]
+other = "Couldn't fetch the problem · o open in browser"
+
+[loading]
+other = "Fetching the problem…"
 
 [name]
 other = "Daily LC"
@@ -63,6 +93,18 @@ other = "Run"
 
 [prefix_submit]
 other = "Submit"
+
+[premium_locked]
+other = "🔒 Premium · o open in browser"
+
+[rate_limited]
+other = "Too many LeetCode requests · open it again in a moment"
+
+[reading_footer]
+other = "{page}/{pages} · ↑↓ page · esc back"
+
+[result_placeholder]
+other = "Results of r run · s submit show here"
 
 [save_failed]
 other = "Could not save the setting"
@@ -93,6 +135,30 @@ other = "Daily problem settings"
 
 [solved]
 other = "solved"
+
+[tab_code]
+other = "Code"
+
+[tab_problem]
+other = "Problem"
+
+[tab_result]
+other = "Result"
+
+[tags]
+other = "Tags {tags}"
+
+[tiny_actions]
+other = "r run · s submit · c card"
+
+[tiny_edit]
+other = "E edit (full screen)"
+
+[tiny_read]
+other = "enter read problem"
+
+[tiny_status]
+other = "🧩 {id} {difficulty} · {solved} · 🔥{streak}"
 
 [unsolved]
 other = "unsolved"

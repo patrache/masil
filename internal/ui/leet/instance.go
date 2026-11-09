@@ -2,31 +2,62 @@ package leet
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/leetcode"
+	"github.com/patrache/masil/internal/leetcode/htmldoc"
 	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 )
 
 // One leet instance: "leet:today" (today's problem) or "leet:<date>/<slug>"
 // (a problem opened from a #daily card). It shows the first-run notice the
-// first time and asks masil for my streaks (the hub remembers them).
+// first time, asks masil for my streaks (the hub remembers them), loads the
+// problem and lays it out for the mode (A10.4): problem | editor side by
+// side, sub-tabs in the widget mode, a few lines in the tiny mode.
 
 // meTag is the ui.Do tag of GET /v1/leet/me.
 const meTag = "leet.me"
+
+// Widget sub-tabs.
+const (
+	tabProblem = iota
+	tabCode
+	tabResult
+	tabCount
+)
 
 type instance struct {
 	id     string
 	target string // "" = today, else "<date>/<slug>"
 	size   ui.Size
+	zoomed bool
+
+	phase phase
+	err   error              // phaseFailed
+	q     *leetcode.Question // nil while loading or failed
+	date  string             // the problem's UTC date
+	doc   *docView
+	// loadDay is the clock's UTC day when today's problem was last asked
+	// for: the first tick of a later day asks once more.
+	loadDay string
+	ticking bool // a countdown tick is armed
+
+	scroll  int  // problem lines scrolled off the top
+	tab     int  // widget sub-tab
+	reading bool // tiny: the problem's paged view
+	page    int  // tiny reading page
 }
 
 var (
-	_ ui.Component = (*instance)(nil)
-	_ ui.Titled    = (*instance)(nil)
+	_ ui.Component  = (*instance)(nil)
+	_ ui.KeyHandler = (*instance)(nil)
+	_ ui.Titled     = (*instance)(nil)
 )
 
 func newInstance(_ *ui.Context, r ui.Route) ui.Component {
@@ -45,8 +76,26 @@ func (in *instance) Init(ctx *ui.Context) tea.Cmd {
 	if !loadState(ctx).FirstRunDone {
 		cmds = append(cmds, ui.OpenRegisteredOverlay(OverlayFirstRun, ""))
 	}
-	cmds = append(cmds, fetchMe(ctx))
+	cmds = append(cmds, fetchMe(ctx), in.load(ctx), in.arm(ctx))
 	return tea.Batch(cmds...)
+}
+
+// load asks for the instance's problem.
+func (in *instance) load(ctx *ui.Context) tea.Cmd {
+	in.phase, in.err = phaseLoading, nil
+	if in.target == "" {
+		in.loadDay = leetcode.UTCDate(nowFunc(ctx)())
+	}
+	return loadProblem(ctx, in.id, in.target)
+}
+
+// arm schedules the next countdown tick (one at a time).
+func (in *instance) arm(ctx *ui.Context) tea.Cmd {
+	if in.ticking {
+		return nil
+	}
+	in.ticking = true
+	return ui.After(ctx, nextTick(nowFunc(ctx)()), tickMsg{id: in.id})
 }
 
 // fetchMe asks masil for my streaks, recent solves and #daily spaces.
@@ -60,10 +109,62 @@ func fetchMe(ctx *ui.Context) tea.Cmd {
 }
 
 func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
-	if m, ok := msg.(ui.ResultMsg[*api.LeetMe]); ok && m.Tag == meTag && m.Err == nil {
-		rememberMe(ctx, m.Value)
+	switch m := msg.(type) {
+	case ui.ResultMsg[*api.LeetMe]:
+		if m.Tag == meTag && m.Err == nil {
+			rememberMe(ctx, m.Value)
+		}
+	case ui.ResultMsg[*loaded]:
+		if m.Tag == loadTag(in.id) && m.Value != nil {
+			return in.loaded(ctx, m.Value)
+		}
+	case ui.ResultMsg[*api.LeetDailyReport]:
+		if in.q != nil && m.Tag == reportTag(in.date) {
+			reported(ctx, in.date, in.q.Slug, m)
+		}
+	case tickMsg:
+		if m.id != in.id {
+			return nil
+		}
+		in.ticking = false
+		cmds := []tea.Cmd{in.arm(ctx)}
+		if day := leetcode.UTCDate(nowFunc(ctx)()); in.target == "" && in.phase != phaseLoading && day > in.loadDay {
+			cmds = append(cmds, in.load(ctx)) // the next problem: asked for once
+		}
+		return tea.Batch(cmds...)
+	case ui.ToolSwitchedMsg:
+		if m.Route.ID == in.id {
+			in.zoomed = m.Zoomed
+		}
+	case openFailedMsg:
+		if m.id == in.id {
+			return ui.Copy(ctx, m.url, ctx.T.Leetcode.LinkCopied())
+		}
 	}
 	return nil
+}
+
+// loaded takes a load's outcome.
+func (in *instance) loaded(ctx *ui.Context, l *loaded) tea.Cmd {
+	switch {
+	case l.q != nil && (l.err == nil || errors.Is(l.err, leetcode.ErrPremiumOnly)):
+		in.q, in.date, in.err = l.q, l.date, nil
+		in.scroll, in.page = 0, 0
+		if l.q.IsPaidOnly || l.err != nil {
+			in.phase, in.doc = phasePremium, nil
+		} else {
+			in.phase, in.doc = phaseReady, newDocView(htmldoc.Convert(l.q.ContentHTML))
+		}
+	default:
+		in.phase, in.err = phaseFailed, l.err
+		in.q, in.doc = nil, nil
+		return nil
+	}
+	if in.target != "" {
+		return nil
+	}
+	rememberDay(ctx, in.date, in.q, true)
+	return report(ctx, in.date, in.q)
 }
 
 func (in *instance) Resize(_ *ui.Context, size ui.Size) { in.size = size }
@@ -72,16 +173,294 @@ func (in *instance) Title(ctx *ui.Context) (string, ui.Badge) {
 	return ctx.T.Leetcode.Name(), ui.Badge{}
 }
 
+func (in *instance) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	k := msg.String()
+	sp := splitFor(ctx.Mode, in.zoomed, in.size.W)
+	if sp.Tiny && in.reading {
+		switch k {
+		case "esc", "q", "enter":
+			in.reading = false
+		case "down", "j", "pgdown", "space":
+			in.page++
+		case "up", "k", "pgup":
+			in.page = max(0, in.page-1)
+		case "o":
+			return true, in.openBrowser()
+		default:
+			return false, nil
+		}
+		return true, nil
+	}
+	if sp.Tabbed {
+		switch k {
+		case "right", "l":
+			in.tab = (in.tab + 1) % tabCount
+			return true, nil
+		case "left", "h":
+			in.tab = (in.tab + tabCount - 1) % tabCount
+			return true, nil
+		case "1", "2", "3":
+			in.tab = int(k[0] - '1')
+			return true, nil
+		}
+	}
+	switch k {
+	case "o":
+		return true, in.openBrowser()
+	case "enter":
+		if sp.Tiny {
+			in.reading, in.page = true, 0
+			return true, nil
+		}
+	case "down", "j":
+		in.scroll++
+		return true, nil
+	case "up", "k":
+		in.scroll = max(0, in.scroll-1)
+		return true, nil
+	case "pgdown", "space":
+		in.scroll += max(1, in.size.H-3)
+		return true, nil
+	case "pgup":
+		in.scroll = max(0, in.scroll-max(1, in.size.H-3))
+		return true, nil
+	case "home", "g":
+		in.scroll = 0
+		return true, nil
+	}
+	return false, nil
+}
+
+// openBrowser opens the problem's page (also from a failed or premium view).
+func (in *instance) openBrowser() tea.Cmd {
+	slug := ""
+	switch {
+	case in.q != nil:
+		slug = in.q.Slug
+	case in.target != "":
+		_, slug, _ = splitTarget(in.target)
+	}
+	return openInBrowser(in.id, slug)
+}
+
+// ---- drawing ----
+
 func (in *instance) View(ctx *ui.Context, _ bool) string {
 	w, h := in.size.W, in.size.H
 	if w <= 0 || h <= 0 {
 		return ""
 	}
 	th := themeOf(ctx)
+	sp := splitFor(ctx.Mode, in.zoomed, w)
+	var rows []string
+	switch {
+	case sp.Tiny:
+		rows = in.viewTiny(ctx, th, w, h)
+	case sp.Tabbed:
+		rows = in.viewTabbed(ctx, th, w, h)
+	default:
+		rows = in.viewSplit(ctx, th, sp, w, h)
+	}
 	out := make([]string, h)
 	for i := range out {
-		out[i] = th.S.Base.Render(strings.Repeat(" ", w))
+		l := ""
+		if i < len(rows) {
+			l = rows[i]
+		}
+		out[i] = fitStyled(th, l, w)
 	}
-	out[0] = fitStyled(th, th.S.Dim.Render(" "+hubIcon+" "+ctx.T.Leetcode.Name()), w)
 	return strings.Join(textwidth.Fit(out, w, h), "\n")
+}
+
+// header is the full head line: id, difficulty, date and the countdown.
+func (in *instance) header(ctx *ui.Context, th *theme.Theme) string {
+	if in.q == nil {
+		return th.S.Title.Render(hubIcon + " " + textwidth.Sanitize(ctx.T.Leetcode.Name()))
+	}
+	return th.S.Title.Render(textwidth.Sanitize(ctx.T.Leetcode.Header(in.q.FrontendID, in.q.Difficulty, in.date, countdown(nowFunc(ctx)()))))
+}
+
+// problemLines is the left column / problem tab at width w: the title, the
+// tags, then the body (or the state line).
+func (in *instance) problemLines(ctx *ui.Context, th *theme.Theme, w int) []string {
+	if w <= 0 {
+		return nil
+	}
+	t := ctx.T
+	var out []string
+	switch in.phase {
+	case phaseLoading:
+		return []string{th.S.Dim.Render(textwidth.Truncate(t.Leetcode.Loading(), w, "…"))}
+	case phaseFailed:
+		for _, l := range textwidth.Wrap(loadErrorText(ctx, in.err), w) {
+			out = append(out, th.S.Warning.Render(l))
+		}
+		return out
+	}
+	for _, l := range textwidth.Wrap(textwidth.Sanitize(in.q.Title), w) {
+		out = append(out, th.S.Bold.Render(l))
+	}
+	if len(in.q.Tags) > 0 {
+		tags := make([]string, len(in.q.Tags))
+		for i, tg := range in.q.Tags {
+			tags[i] = textwidth.Sanitize(tg)
+		}
+		out = append(out, th.S.Dim.Render(textwidth.Truncate(textwidth.Sanitize(t.Leetcode.Tags(strings.Join(tags, " · "))), w, "…")))
+	}
+	out = append(out, "")
+	if in.phase == phasePremium {
+		for _, l := range textwidth.Wrap(t.Leetcode.PremiumLocked(), w) {
+			out = append(out, th.S.Warning.Render(l))
+		}
+		return out
+	}
+	return append(out, in.doc.Lines(th, w, textwidth.Sanitize(t.Leetcode.ImageLink()))...)
+}
+
+// window is lines[scroll : scroll+h] with the scroll clamped.
+func (in *instance) window(lines []string, h int) []string {
+	if h <= 0 {
+		return nil
+	}
+	in.scroll = min(in.scroll, max(0, len(lines)-h))
+	in.scroll = max(in.scroll, 0)
+	return lines[in.scroll:min(len(lines), in.scroll+h)]
+}
+
+// editorLines is the editor slot (Task 20 fills it).
+func (in *instance) editorLines(ctx *ui.Context, th *theme.Theme, w, h int) []string {
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	return []string{th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.CodePlaceholder(), w, "…"))}
+}
+
+// resultLines is the result slot (Task 21 fills it).
+func (in *instance) resultLines(ctx *ui.Context, th *theme.Theme, w, h int) []string {
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	return []string{th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.ResultPlaceholder(), w, "…"))}
+}
+
+// viewSplit: the head line, problem | editor, the key hints.
+func (in *instance) viewSplit(ctx *ui.Context, th *theme.Theme, sp split, w, h int) []string {
+	rows := []string{in.header(ctx, th)}
+	if h < 3 {
+		return rows
+	}
+	bodyH := h - 2
+	if in.phase == phaseLoading || in.phase == phaseFailed { // no problem: the line gets the width
+		for _, l := range in.window(in.problemLines(ctx, th, w), bodyH) {
+			rows = append(rows, l)
+		}
+		for len(rows) < h-1 {
+			rows = append(rows, "")
+		}
+		return append(rows, th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.HintsWide(), w, "…")))
+	}
+	left := in.window(in.problemLines(ctx, th, sp.Left), bodyH)
+	right := in.editorLines(ctx, th, sp.Right, bodyH)
+	rule := th.S.Dim.Render("│")
+	for i := range bodyH {
+		l, r := "", ""
+		if i < len(left) {
+			l = left[i]
+		}
+		if i < len(right) {
+			r = right[i]
+		}
+		rows = append(rows, fitStyled(th, l, sp.Left)+rule+fitStyled(th, r, sp.Right))
+	}
+	return append(rows, th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.HintsWide(), w, "…")))
+}
+
+// viewTabbed: the short head, the sub-tabs, the tab's body, the key hints.
+func (in *instance) viewTabbed(ctx *ui.Context, th *theme.Theme, w, h int) []string {
+	t := ctx.T
+	head := th.S.Title.Render(hubIcon + " " + textwidth.Sanitize(t.Leetcode.Name()))
+	if in.q != nil {
+		head = th.S.Title.Render(textwidth.Sanitize(t.Leetcode.HeaderWidget(in.q.FrontendID, in.q.Difficulty)))
+	}
+	rows := []string{head}
+	if h < 2 {
+		return rows
+	}
+	var tabs strings.Builder
+	for i, name := range []string{t.Leetcode.TabProblem(), t.Leetcode.TabCode(), t.Leetcode.TabResult()} {
+		name = textwidth.Sanitize(name)
+		if i == in.tab {
+			tabs.WriteString(th.S.TabActive.Render("[" + name + "]"))
+		} else {
+			tabs.WriteString(th.S.Tab.Render(" " + name + " "))
+		}
+	}
+	rows = append(rows, tabs.String())
+	bodyH := h - 3
+	if bodyH < 1 {
+		return rows
+	}
+	var body []string
+	switch in.tab {
+	case tabProblem:
+		body = in.window(in.problemLines(ctx, th, w), bodyH)
+	case tabCode:
+		body = in.editorLines(ctx, th, w, bodyH)
+	default:
+		body = in.resultLines(ctx, th, w, bodyH)
+	}
+	for i := range bodyH {
+		l := ""
+		if i < len(body) {
+			l = body[i]
+		}
+		rows = append(rows, l)
+	}
+	return append(rows, th.S.Dim.Render(textwidth.Truncate(t.Leetcode.HintsWidget(), w, "…")))
+}
+
+// viewTiny: the status line and the keys, or the paged problem.
+func (in *instance) viewTiny(ctx *ui.Context, th *theme.Theme, w, h int) []string {
+	t := ctx.T
+	if in.reading {
+		lines := in.problemLines(ctx, th, w)
+		per := max(1, h-1)
+		pages := max(1, (len(lines)+per-1)/per)
+		in.page = min(in.page, pages-1)
+		rows := slicePage(lines, in.page*per, per)
+		for len(rows) < per {
+			rows = append(rows, "")
+		}
+		return append(rows, th.S.Dim.Render(textwidth.Truncate(t.Leetcode.ReadingFooter(in.page+1, pages), w, "…")))
+	}
+	var rows []string
+	switch in.phase {
+	case phaseLoading, phaseFailed:
+		rows = append(rows, in.problemLines(ctx, th, w)...)
+	default:
+		me := knownMe(ctx)
+		solved, streak := t.Leetcode.Unsolved(), 0
+		if me != nil {
+			streak = me.Current
+			if solvedOn(me, in.date) {
+				solved = t.Leetcode.Solved()
+			}
+		}
+		rows = append(rows, th.S.Title.Render(textwidth.Truncate(textwidth.Sanitize(t.Leetcode.TinyStatus(in.q.FrontendID, in.q.Difficulty, solved, streak)), w, "…")))
+		if in.phase == phasePremium {
+			rows = append(rows, th.S.Warning.Render(textwidth.Truncate(t.Leetcode.PremiumLocked(), w, "…")))
+		}
+	}
+	for _, s := range []string{t.Leetcode.TinyRead(), t.Leetcode.TinyEdit(), t.Leetcode.TinyActions()} {
+		rows = append(rows, th.S.Dim.Render(textwidth.Truncate(s, w, "…")))
+	}
+	return rows
+}
+
+// slicePage is lines[from : from+n] (clamped).
+func slicePage(lines []string, from, n int) []string {
+	if from >= len(lines) {
+		return nil
+	}
+	return append([]string(nil), lines[from:min(len(lines), from+n)]...)
 }

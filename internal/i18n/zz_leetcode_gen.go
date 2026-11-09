@@ -36,6 +36,14 @@ var areaLeetcode = area{
 				En: {Other: "When on, friends can see that you are solving a problem"},
 			},
 		},
+		"blocked": {
+			desc:       "LeetCode 가 Cloudflare 확인 화면을 돌려줄 때(자동 재시도 안 함). o = 브라우저 키",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "LeetCode 가 지금 이 요청을 막고 있어요 · o 브라우저에서 제출"},
+				En: {Other: "LeetCode is blocking this request right now · o submit in browser"},
+			},
+		},
 		"cmd_board": {
 			desc: "명령 팔레트 항목: 지금 방의 오늘의 문제 순위 보기",
 			text: map[Locale]Forms{
@@ -62,6 +70,13 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "오늘의 문제 설정"},
 				En: {Other: "Daily problem settings"},
+			},
+		},
+		"code_placeholder": {
+			desc: "편집기 자리가 아직 비었을 때. e = 편집기 열기 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "e 편집기 열기"},
+				En: {Other: "e open the editor"},
 			},
 		},
 		"daily_disabled": {
@@ -121,6 +136,36 @@ var areaLeetcode = area{
 				En: {Other: "Daily LC"},
 			},
 		},
+		"header": {
+			desc:   "문제 보기 머리 줄. id = 문제 번호, difficulty = Easy/Medium/Hard(번역하지 않음), date = 문제의 UTC 날짜 YYYY-MM-DD, countdown = 다음 문제(UTC 자정)까지 남은 시간 H:MM. (UTC) 는 그대로 둔다",
+			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}, {Name: "date", Type: "string"}, {Name: "countdown", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧩 {id} · {difficulty} ── {date} (UTC) · 다음 문제까지 {countdown}"},
+				En: {Other: "🧩 {id} · {difficulty} ── {date} (UTC) · next in {countdown}"},
+			},
+		},
+		"header_widget": {
+			desc:   "위젯 모드 문제 보기 머리 줄(짧게). id = 문제 번호, difficulty = Easy/Medium/Hard",
+			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧩 {id} {difficulty}"},
+				En: {Other: "🧩 {id} {difficulty}"},
+			},
+		},
+		"hints_wide": {
+			desc: "문제 보기(표준·지휘소·컴팩트) 맨 아래 키 안내. 키 이름 e r s o l c 는 번역하지 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "e 편집기 · r 실행 · s 제출 · o 브라우저 · l 언어 · c 카드"},
+				En: {Other: "e editor · r run · s submit · o browser · l language · c card"},
+			},
+		},
+		"hints_widget": {
+			desc: "위젯 모드 문제 보기 맨 아래 키 안내(하위 탭 문제/코드/결과 이동과 키)",
+			text: map[Locale]Forms{
+				Ko: {Other: "← → 문제/코드/결과 · e 편집 · r 실행 · s 제출"},
+				En: {Other: "← → problem/code/result · e edit · r run · s submit"},
+			},
+		},
 		"hub_not_loaded": {
 			desc: "도구 허브 오늘의 문제 줄의 상태: 오늘 문제를 아직 받지 않았을 때(허브는 LeetCode 에 묻지 않는다)",
 			max:  40,
@@ -143,6 +188,34 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{id} · {difficulty}"},
 				En: {Other: "{id} · {difficulty}"},
+			},
+		},
+		"image_link": {
+			desc: "문제 본문 속 그림 자리(그림은 그리지 않고 링크만). o = 브라우저에서 문제 열기 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "[그림] o 열기"},
+				En: {Other: "[image] o open"},
+			},
+		},
+		"link_copied": {
+			desc: "토스트: 브라우저를 열지 못해 문제 링크를 클립보드에 복사했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "브라우저를 열지 못해 링크를 복사했어요"},
+				En: {Other: "Couldn't open a browser; link copied"},
+			},
+		},
+		"load_failed": {
+			desc: "문제를 받지 못했을 때(네트워크·예상 밖 응답). o = 브라우저 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "문제를 받지 못했어요 · o 브라우저에서 열기"},
+				En: {Other: "Couldn't fetch the problem · o open in browser"},
+			},
+		},
+		"loading": {
+			desc: "오늘의 문제를 LeetCode(또는 캐시)에서 받는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "문제를 받는 중…"},
+				En: {Other: "Fetching the problem…"},
 			},
 		},
 		"name": {
@@ -183,6 +256,35 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "제출"},
 				En: {Other: "Submit"},
+			},
+		},
+		"premium_locked": {
+			desc: "프리미엄(유료) 문제라 본문을 받지 않았을 때 본문 자리 문구. o = 브라우저에서 열기 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "🔒 프리미엄 · o 브라우저에서 열기"},
+				En: {Other: "🔒 Premium · o open in browser"},
+			},
+		},
+		"rate_limited": {
+			desc: "LeetCode 가 요청이 너무 많다(429)고 할 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "LeetCode 요청이 너무 잦아요 · 잠시 뒤 다시 열어 주세요"},
+				En: {Other: "Too many LeetCode requests · open it again in a moment"},
+			},
+		},
+		"reading_footer": {
+			desc:   "초소형 모드 문제 읽기(쪽 넘김) 맨 아래 키 안내. page = 지금 쪽, pages = 전체 쪽 수",
+			params: []Param{{Name: "page", Type: "int"}, {Name: "pages", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{page}/{pages} · ↑↓ 넘기기 · esc 돌아가기"},
+				En: {Other: "{page}/{pages} · ↑↓ page · esc back"},
+			},
+		},
+		"result_placeholder": {
+			desc: "결과 자리가 아직 비었을 때(실행·제출 전). r 실행, s 제출 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "r 실행 · s 제출 결과가 여기 나와요"},
+				En: {Other: "Results of r run · s submit show here"},
 			},
 		},
 		"save_failed": {
@@ -264,6 +366,67 @@ var areaLeetcode = area{
 				En: {Other: "solved"},
 			},
 		},
+		"tab_code": {
+			desc: "위젯 모드 하위 탭 이름: 풀이 코드 편집기",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "코드"},
+				En: {Other: "Code"},
+			},
+		},
+		"tab_problem": {
+			desc: "위젯 모드 하위 탭 이름: 문제 본문",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "문제"},
+				En: {Other: "Problem"},
+			},
+		},
+		"tab_result": {
+			desc: "위젯 모드 하위 탭 이름: 실행·제출 결과",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "결과"},
+				En: {Other: "Result"},
+			},
+		},
+		"tags": {
+			desc:   "문제 보기 태그 줄. tags = LeetCode 태그 이름들을 ' · ' 로 이은 것(번역하지 않음)",
+			params: []Param{{Name: "tags", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "태그 {tags}"},
+				En: {Other: "Tags {tags}"},
+			},
+		},
+		"tiny_actions": {
+			desc: "초소형 모드 키 안내: 실행·제출·카드",
+			text: map[Locale]Forms{
+				Ko: {Other: "r 실행 · s 제출 · c 카드"},
+				En: {Other: "r run · s submit · c card"},
+			},
+		},
+		"tiny_edit": {
+			desc: "초소형 모드 키 안내: E 로 화면 전환 편집기(전체 화면)",
+			text: map[Locale]Forms{
+				Ko: {Other: "E 편집(전체 화면)"},
+				En: {Other: "E edit (full screen)"},
+			},
+		},
+		"tiny_read": {
+			desc: "초소형 모드 키 안내: enter 로 문제 본문 읽기",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 문제 읽기"},
+				En: {Other: "enter read problem"},
+			},
+		},
+		"tiny_status": {
+			desc:   "초소형 모드 문제 줄. id = 문제 번호, difficulty = Easy/Medium/Hard, solved = unsolved·solved 문구, streak = 연속 풀이 일수",
+			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}, {Name: "solved", Type: "string"}, {Name: "streak", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧩 {id} {difficulty} · {solved} · 🔥{streak}"},
+				En: {Other: "🧩 {id} {difficulty} · {solved} · 🔥{streak}"},
+			},
+		},
 		"unsolved": {
 			desc: "허브·초소형 줄: 오늘 문제를 아직 안 풀었음",
 			max:  12,
@@ -290,6 +453,11 @@ func (a_ LeetcodeT) AutoStatusDesc() string {
 	return a_.t.render(&areaLeetcode, "auto_status_desc", false, 0)
 }
 
+// Blocked: LeetCode 가 Cloudflare 확인 화면을 돌려줄 때(자동 재시도 안 함). o = 브라우저 키
+func (a_ LeetcodeT) Blocked() string {
+	return a_.t.render(&areaLeetcode, "blocked", false, 0)
+}
+
 // CmdBoard: 명령 팔레트 항목: 지금 방의 오늘의 문제 순위 보기
 func (a_ LeetcodeT) CmdBoard() string {
 	return a_.t.render(&areaLeetcode, "cmd_board", false, 0)
@@ -308,6 +476,11 @@ func (a_ LeetcodeT) CmdOpen() string {
 // CmdSettings: 명령 팔레트 항목: 오늘의 문제 설정(언어·풀이 폴더·상태 메시지·#daily)
 func (a_ LeetcodeT) CmdSettings() string {
 	return a_.t.render(&areaLeetcode, "cmd_settings", false, 0)
+}
+
+// CodePlaceholder: 편집기 자리가 아직 비었을 때. e = 편집기 열기 키
+func (a_ LeetcodeT) CodePlaceholder() string {
+	return a_.t.render(&areaLeetcode, "code_placeholder", false, 0)
 }
 
 // DailyDisabled: 토스트: 방의 #daily 를 껐을 때. space = 방 이름
@@ -345,6 +518,26 @@ func (a_ LeetcodeT) FirstRunTitle() string {
 	return a_.t.render(&areaLeetcode, "first_run_title", false, 0)
 }
 
+// Header: 문제 보기 머리 줄. id = 문제 번호, difficulty = Easy/Medium/Hard(번역하지 않음), date = 문제의 UTC 날짜 YYYY-MM-DD, countdown = 다음 문제(UTC 자정)까지 남은 시간 H:MM. (UTC) 는 그대로 둔다
+func (a_ LeetcodeT) Header(id string, difficulty string, date string, countdown string) string {
+	return a_.t.render(&areaLeetcode, "header", false, 0, "id", id, "difficulty", difficulty, "date", date, "countdown", countdown)
+}
+
+// HeaderWidget: 위젯 모드 문제 보기 머리 줄(짧게). id = 문제 번호, difficulty = Easy/Medium/Hard
+func (a_ LeetcodeT) HeaderWidget(id string, difficulty string) string {
+	return a_.t.render(&areaLeetcode, "header_widget", false, 0, "id", id, "difficulty", difficulty)
+}
+
+// HintsWide: 문제 보기(표준·지휘소·컴팩트) 맨 아래 키 안내. 키 이름 e r s o l c 는 번역하지 않음
+func (a_ LeetcodeT) HintsWide() string {
+	return a_.t.render(&areaLeetcode, "hints_wide", false, 0)
+}
+
+// HintsWidget: 위젯 모드 문제 보기 맨 아래 키 안내(하위 탭 문제/코드/결과 이동과 키)
+func (a_ LeetcodeT) HintsWidget() string {
+	return a_.t.render(&areaLeetcode, "hints_widget", false, 0)
+}
+
 // HubNotLoaded: 도구 허브 오늘의 문제 줄의 상태: 오늘 문제를 아직 받지 않았을 때(허브는 LeetCode 에 묻지 않는다)
 func (a_ LeetcodeT) HubNotLoaded() string {
 	return a_.t.render(&areaLeetcode, "hub_not_loaded", false, 0)
@@ -358,6 +551,26 @@ func (a_ LeetcodeT) HubStatus(id string, difficulty string, solved string, strea
 // HubStatusShort: 도구 허브 오늘의 문제 줄의 상태: 문제는 알지만 연속 풀이를 아직 모를 때(서버에 묻기 전). id = 문제 번호, difficulty = Easy/Medium/Hard
 func (a_ LeetcodeT) HubStatusShort(id string, difficulty string) string {
 	return a_.t.render(&areaLeetcode, "hub_status_short", false, 0, "id", id, "difficulty", difficulty)
+}
+
+// ImageLink: 문제 본문 속 그림 자리(그림은 그리지 않고 링크만). o = 브라우저에서 문제 열기 키
+func (a_ LeetcodeT) ImageLink() string {
+	return a_.t.render(&areaLeetcode, "image_link", false, 0)
+}
+
+// LinkCopied: 토스트: 브라우저를 열지 못해 문제 링크를 클립보드에 복사했을 때
+func (a_ LeetcodeT) LinkCopied() string {
+	return a_.t.render(&areaLeetcode, "link_copied", false, 0)
+}
+
+// LoadFailed: 문제를 받지 못했을 때(네트워크·예상 밖 응답). o = 브라우저 키
+func (a_ LeetcodeT) LoadFailed() string {
+	return a_.t.render(&areaLeetcode, "load_failed", false, 0)
+}
+
+// Loading: 오늘의 문제를 LeetCode(또는 캐시)에서 받는 중
+func (a_ LeetcodeT) Loading() string {
+	return a_.t.render(&areaLeetcode, "loading", false, 0)
 }
 
 // Name: 도구 이름(허브·탭·팔레트·설정 도구 로그인 줄): LeetCode 오늘의 문제 도구
@@ -383,6 +596,26 @@ func (a_ LeetcodeT) PrefixRun() string {
 // PrefixSubmit: ctrl+\ 접두키 도움말: s = 지금 풀이 파일을 LeetCode 에 제출
 func (a_ LeetcodeT) PrefixSubmit() string {
 	return a_.t.render(&areaLeetcode, "prefix_submit", false, 0)
+}
+
+// PremiumLocked: 프리미엄(유료) 문제라 본문을 받지 않았을 때 본문 자리 문구. o = 브라우저에서 열기 키
+func (a_ LeetcodeT) PremiumLocked() string {
+	return a_.t.render(&areaLeetcode, "premium_locked", false, 0)
+}
+
+// RateLimited: LeetCode 가 요청이 너무 많다(429)고 할 때
+func (a_ LeetcodeT) RateLimited() string {
+	return a_.t.render(&areaLeetcode, "rate_limited", false, 0)
+}
+
+// ReadingFooter: 초소형 모드 문제 읽기(쪽 넘김) 맨 아래 키 안내. page = 지금 쪽, pages = 전체 쪽 수
+func (a_ LeetcodeT) ReadingFooter(page int, pages int) string {
+	return a_.t.render(&areaLeetcode, "reading_footer", false, 0, "page", strconv.Itoa(page), "pages", strconv.Itoa(pages))
+}
+
+// ResultPlaceholder: 결과 자리가 아직 비었을 때(실행·제출 전). r 실행, s 제출 키
+func (a_ LeetcodeT) ResultPlaceholder() string {
+	return a_.t.render(&areaLeetcode, "result_placeholder", false, 0)
 }
 
 // SaveFailed: 토스트: config.toml 에 설정을 저장하지 못했을 때(이번 실행에는 바뀐 값이 쓰임)
@@ -433,6 +666,46 @@ func (a_ LeetcodeT) SettingsTitle() string {
 // Solved: 허브·초소형 줄: 오늘 문제를 풀었음(통과)
 func (a_ LeetcodeT) Solved() string {
 	return a_.t.render(&areaLeetcode, "solved", false, 0)
+}
+
+// TabCode: 위젯 모드 하위 탭 이름: 풀이 코드 편집기
+func (a_ LeetcodeT) TabCode() string {
+	return a_.t.render(&areaLeetcode, "tab_code", false, 0)
+}
+
+// TabProblem: 위젯 모드 하위 탭 이름: 문제 본문
+func (a_ LeetcodeT) TabProblem() string {
+	return a_.t.render(&areaLeetcode, "tab_problem", false, 0)
+}
+
+// TabResult: 위젯 모드 하위 탭 이름: 실행·제출 결과
+func (a_ LeetcodeT) TabResult() string {
+	return a_.t.render(&areaLeetcode, "tab_result", false, 0)
+}
+
+// Tags: 문제 보기 태그 줄. tags = LeetCode 태그 이름들을 ' · ' 로 이은 것(번역하지 않음)
+func (a_ LeetcodeT) Tags(tags string) string {
+	return a_.t.render(&areaLeetcode, "tags", false, 0, "tags", tags)
+}
+
+// TinyActions: 초소형 모드 키 안내: 실행·제출·카드
+func (a_ LeetcodeT) TinyActions() string {
+	return a_.t.render(&areaLeetcode, "tiny_actions", false, 0)
+}
+
+// TinyEdit: 초소형 모드 키 안내: E 로 화면 전환 편집기(전체 화면)
+func (a_ LeetcodeT) TinyEdit() string {
+	return a_.t.render(&areaLeetcode, "tiny_edit", false, 0)
+}
+
+// TinyRead: 초소형 모드 키 안내: enter 로 문제 본문 읽기
+func (a_ LeetcodeT) TinyRead() string {
+	return a_.t.render(&areaLeetcode, "tiny_read", false, 0)
+}
+
+// TinyStatus: 초소형 모드 문제 줄. id = 문제 번호, difficulty = Easy/Medium/Hard, solved = unsolved·solved 문구, streak = 연속 풀이 일수
+func (a_ LeetcodeT) TinyStatus(id string, difficulty string, solved string, streak int) string {
+	return a_.t.render(&areaLeetcode, "tiny_status", false, 0, "id", id, "difficulty", difficulty, "solved", solved, "streak", strconv.Itoa(streak))
 }
 
 // Unsolved: 허브·초소형 줄: 오늘 문제를 아직 안 풀었음
