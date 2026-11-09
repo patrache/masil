@@ -277,11 +277,31 @@ func (in *instance) loaded(ctx *ui.Context, l *loaded) tea.Cmd {
 		return nil
 	}
 	status := in.startStatus(ctx)
+	cmd = tea.Batch(cmd, in.ensureFile(ctx))
 	if in.target != "" {
 		return tea.Batch(cmd, status)
 	}
 	rememberDay(ctx, in.date, in.q, true)
 	return tea.Batch(cmd, report(ctx, in.date, in.q), status)
+}
+
+// ensureFile makes the solution file as the problem opens (Task 20), with
+// LeetCode's starting code, so an outside editor can open it before e; a
+// file already there is left alone. A failure is told when e, E, r or s
+// need the file.
+func (in *instance) ensureFile(ctx *ui.Context) tea.Cmd {
+	if !in.canEdit() {
+		return nil
+	}
+	path, err := leetcode.SolutionPath(solutionDir(ctx), in.date, in.q.FrontendID, in.q.Slug, currentLang(ctx))
+	if err != nil {
+		return nil
+	}
+	snippet := in.q.Snippets[currentLang(ctx).Slug]
+	return func() tea.Msg {
+		_, _ = leetcode.EnsureSolutionFile(path, snippet)
+		return nil
+	}
 }
 
 // problemChanged forgets what belonged to the problem shown so far (today's

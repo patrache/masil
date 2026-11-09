@@ -356,3 +356,15 @@ func TestInstanceStatusPane(t *testing.T) {
 		t.Fatalf("status with nvim in a pane = %q", s)
 	}
 }
+
+// Task 20: the solution file is made when the problem opens (an outside
+// editor can open it before e is pressed).
+func TestSolutionFileOnOpen(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	h := uitest.New(t)
+	openToday(t, h)
+	if got := readFile(t, solutionPath(e)); got != snippet1606 {
+		t.Fatalf("solution file at open = %q", got)
+	}
+}
