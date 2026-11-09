@@ -52,8 +52,19 @@
 
 ## 미룬 것 (오너·다음 wave 확인)
 
-- A8.3 안 읽은 수를 허브 화면에서도 보일지(지금은 도구 인스턴스가 앞에 있을 때만, 허브 골든 무변화).
-- A7.5 "`[keys] termhost.escape` 를 masil 전역 키와 겹치게 바꾸면 경고" 는 하지 않았다(계획 Task 16 단계에 없음).
 - 오너 확인 목록 1번(`ctrl+\` 실기 표: 한국어 자판 ₩, macOS Terminal·iTerm2·Ghostty, Windows Terminal, GNOME Terminal) — 사람이 실기기로 확인할 일. 자동 시험은 `ctrl+\`·`ctrl+4`·0x1c 세 표기만 본다.
-- `internal/ui/e2e` 의 `-race` 시간 초과(위 Task 16a 줄).
+- `internal/ui/e2e` 의 `-race` 시간 초과(아래 리뷰 반영의 시간 비교 줄).
 - 시험은 macOS 에서만 실제로 돌았다(Linux·Windows 는 vet 만).
+
+## 리뷰 반영 (P0 review)
+
+- 내 판단: pane 방식의 끝 감시는 `Launch` 가 패널을 만들 때 바로 시작한다(`(*Pane).watchExit`). 도구가 `Launched.View` 를 자기 컴포넌트 안에 두고 `Init` 을 부르지 않아도 `ExitedMsg` 가 온다. `Init` 은 그대로 두되 두 번째 감시를 만들지 않는다(`New` 로 직접 만든 패널은 지금처럼 `Init` 에서 시작). 위 Task 16a 의 "Init 해야 온다" 줄은 이것으로 바뀌었다.
+- 내 판단: `Options.OnExit` 는 pane 방식 전용으로 문서에 못박았다(exec·window 에는 msg 를 받을 패널이 없어 ctx 와 함께 부를 곳이 없다). 모든 방식에서 할 일은 방송되는 `ExitedMsg` 를 받아서 한다. 계획·계약 문서는 고치지 않았다(계약에는 `OnExit` 이 없다).
+- 내 판단: 패널의 `View` 는 이제 읽기만 한다 — 크기는 `Resize` 에서만, 포커스 보고는 `Update` 에서만 보낸다. 포커스는 `ui.FocusChangedMsg` 의 `RouteKey` 가 자기 도구 인스턴스 경로(`tool/<InstanceID>/<ToolID>`)인지로 정한다(처음 값은 참). 숨겨지면(`ctrl+\ t` 등) 프로그램에 포커스 아웃이 가고, 숨은 동안 터미널 blur/focus 가 와도 포커스 인을 보내지 않는다. 칸이 여럿인 도구(P2 작업공간)를 위해 `(*Pane).SetCellFocus(bool)` 를 더했다(계획 목록 밖, 더하기만).
+- 내 판단: 초소형의 공유 표시는 패널 첫 줄이 아니라 탭 줄의 `도` 칸 점(`●`, `ui.Badge{Dot}`)으로 옮겼다(A7.7 "초소형은 탭 줄에"). 패널 `Title` 이 초소형·공유 중일 때 `Badge{Dot: true}` 를 돌려주고, 앱 `tabbar.go` 가 열린 도구 인스턴스 중 하나라도 그러면 `도` 칸에 점을 단다. 그래서 공유를 켜고 꺼도 프로그램 크기는 그대로다. 초소형에서 첫 줄 제목은 프로그램이 끝난 뒤(`끝남 · 종료 코드 n`)에만 쓴다. `TestPaneGolden` 골든은 바뀌지 않았다.
+- 내 판단: 화면에 그리는 프로그램 이름(`input_hint`·`exit_confirm`·끌 때 목록)을 `textwidth.Sanitize` 로 거른다.
+- 내 판단: `TestFeaturesOnShellUnchanged` 는 두 번 그릴 때 모두 `installStubTools` 로 다섯 도구와 도구 경로를 등록한다(실제 바이너리처럼). 제품 코드는 바꾸지 않았고 시험은 그대로 통과했다.
+- 내 판단: A7.5 "masil 전역 키와 겹치게 바꾸면 경고" — `keymap.Load` 가 `termhost.escape` 와 전역 키(`app.quit`·`palette.open`·`search.global`·`notifications.open`·`window.prefix`·`focus.next`·`focus.prev`·`tools.toggle`, 곧 포커스 컴포넌트보다 먼저 판단하는 키)가 같은 키를 나누면 오류를 하나 내고, 바꾼 쪽(`termhost.escape` 먼저)을 기본값으로 되돌린다. 앱은 기존대로 시작 토스트 "키 설정 일부를 무시했어요" 를 띄운다. 경고만 하고 겹친 채로 두지 않은 것은, 겹치면 공유 중 즉시 끊기 접두키와 전역 키가 서로를 먹기 때문이다.
+- 내 판단: A8.3 안 읽은 수는 표준 모드에서 도구 표면이 앞에 있고 도구 인스턴스가 하나라도 열려 있으면 허브가 앞에 있어도 보인다(허브만 있고 도구가 없으면 0.1.2 상태줄 그대로). 그래서 Task 19 의 0.1.3 골든 `internal/ui/tools/testdata/TestHubGolden/120x40/{hub_open,open_menu}.golden` 두 개의 상태줄이 바뀌어 `-args -update` 로 다시 만들었다(상태줄 한 줄씩, `💬 안 읽음 3 · ` 이 더해짐). 0.1.2 골든 변화는 없다.
+- 내 판단: `MASIL_PANE` 은 `Run` 만 읽는다(`optionsFromEnv` → `Options.NestedPane`). 시험 하네스는 환경 변수를 읽지 않고 `uitest.WithNestedPane()` 으로만 켠다. `MASIL_PANE=1 go test -count=1 ./internal/ui/app/` 통과를 확인했다.
+- `-race` 의 `internal/ui/e2e` 시간 비교: 기준 커밋 58376da 와 이 배치의 리뷰 전 끝(3fb9f05)을 `git archive` 로 임시 폴더에 풀어 `go test -race -count=1 -timeout 30m ./internal/ui/e2e` 를 같은 때 나란히 돌렸다. 둘 다 30분 제한에 걸려 실패했고, 멈춘 곳도 같다(`TestSweepHeights/home` 이 1분 9~10초째 돌던 중). 걸린 시간도 같다(real 1812.16초 / 1811.61초, user 1528.34초 / 1529.21초). 데이터 경합 보고는 둘 다 0건. 그래서 이 시간 초과는 기준 커밋부터 있던 것이고 이 배치가 만든 느려짐이 아니다. `-race` 없이 e2e 는 통과한다(162초).
