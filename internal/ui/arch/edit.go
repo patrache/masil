@@ -35,10 +35,49 @@ func (m *canvasModel) commit(ctx *ui.Context, ch []archdoc.Change) tea.Cmd {
 		return ui.Toast(ctx.T.Archcanvas.ReadOnlyCopy(), ui.ToastInfo)
 	}
 	before := m.sink.Objects()
+	if overLimit(before, ch) {
+		// the read-back would cap the list and drop whichever object sorts
+		// last — often an existing one — so the edit is refused instead
+		return ui.Toast(ctx.T.Archcanvas.LimitReached(), ui.ToastInfo)
+	}
 	cmd := m.sink.Apply(ch)
 	m.undo.Record(before, ch)
 	m.rebuild(ctx)
 	return tea.Batch(cmd, m.settleLater(ctx))
+}
+
+// overLimit reports whether applying ch to before leaves more nodes, edges or
+// boxes than the design limits allow and more of that type than before (an
+// edit that adds). It counts keys only, without copying the objects.
+func overLimit(before archdoc.Objects, ch []archdoc.Change) bool {
+	n := map[string]int{}
+	for k := range before {
+		n[archdoc.ObjType(k)]++
+	}
+	added := map[string]int{}
+	present := func(k string) bool { _, ok := before[k]; return ok }
+	gone, made := map[string]bool{}, map[string]bool{}
+	for _, c := range ch {
+		exists := (present(c.Obj) && !gone[c.Obj]) || made[c.Obj]
+		switch c.Kind {
+		case archdoc.ChangePut, archdoc.ChangeRestore:
+			if !exists {
+				made[c.Obj], gone[c.Obj] = true, false
+				added[archdoc.ObjType(c.Obj)]++
+			}
+		case archdoc.ChangeDel:
+			if exists {
+				gone[c.Obj], made[c.Obj] = true, false
+				added[archdoc.ObjType(c.Obj)]--
+			}
+		}
+	}
+	for typ, limit := range map[string]int{"node": archdoc.MaxNodes, "edge": archdoc.MaxEdges, "box": archdoc.MaxBoxes} {
+		if added[typ] > 0 && n[typ]+added[typ] > limit {
+			return true
+		}
+	}
+	return false
 }
 
 // replay applies undo or redo changes (not recorded again).

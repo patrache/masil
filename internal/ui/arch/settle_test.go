@@ -1,10 +1,14 @@
 package arch
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/archdoc"
 	"github.com/patrache/masil/internal/archdraw"
@@ -81,4 +85,94 @@ func TestCloseWritesPendingEdits(t *testing.T) {
 	if len(d.Nodes) != n+1 {
 		t.Errorf("after closing: the file has %d nodes, want %d", len(d.Nodes), n+1)
 	}
+}
+
+// TestEditsStopAtTheLimits: a design at its node, edge or box limit refuses
+// one more (a toast) instead of letting the read-back cap drop an existing
+// object — here z299 and its edge, which sort after the new n_<ulid> ids.
+func TestEditsStopAtTheLimits(t *testing.T) {
+	h := newHarness(t)
+	ctx := h.Context()
+	full := func() *archdoc.Design {
+		d := archdoc.New("full")
+		for i := range archdoc.MaxNodes {
+			n := archdoc.Defaults(archdoc.KindAPI)
+			n.ID, n.Pos = fmt.Sprintf("z%03d", i), [2]int{(i % 20) * 16, (i / 20) * 6}
+			d.Nodes = append(d.Nodes, n)
+		}
+		e := archdoc.DefaultEdge()
+		e.ID, e.From, e.To = "z_edge", "z000", "z299"
+		d.Edges = append(d.Edges, e)
+		return d
+	}
+	open := func(d *archdoc.Design) *canvasModel {
+		c := newCanvas(ctx, toolRoute("arch:new:full", nil)).(*canvasModel)
+		c.setSink(ctx, &localSink{instance: "arch:new:full", objs: d.ToObjects()})
+		return c
+	}
+	limit := func(what string, cmd tea.Cmd) {
+		t.Helper()
+		if got := toastOf(cmd); got != ctx.T.Archcanvas.LimitReached() {
+			t.Errorf("%s: toast %q, want the limit toast", what, got)
+		}
+	}
+	stored := func(c *canvasModel) *archdoc.Design {
+		d, _ := archdoc.FromObjects(c.sink.Objects(), nil)
+		return d
+	}
+
+	c := open(full())
+	limit("a 301st node", c.addPart(ctx, paletteItem{node: archdoc.KindDBPrimary}))
+	c.sel = ""
+	limit("a 301st node dropped", c.addPartAt(ctx, paletteItem{node: archdoc.KindDBPrimary}, 0, 200))
+	if d := stored(c); len(d.Nodes) != archdoc.MaxNodes || findNode(d, "z299") == nil || len(d.Edges) != 1 {
+		t.Errorf("after adds at the node limit: %d nodes, z299 kept %v, %d edges", len(d.Nodes), findNode(d, "z299") != nil, len(d.Edges))
+	}
+
+	d := full()
+	for i := 1; len(d.Edges) < archdoc.MaxEdges; i++ {
+		e := archdoc.DefaultEdge()
+		e.ID, e.From, e.To = fmt.Sprintf("y%04d", i), fmt.Sprintf("z%03d", i%300), fmt.Sprintf("z%03d", (i/300+i+1)%300)
+		if e.From != e.To {
+			d.Edges = append(d.Edges, e)
+		}
+	}
+	c = open(d)
+	limit("a 1001st edge", c.connect(ctx, "z010", "z200"))
+	if got := stored(c); len(got.Edges) != archdoc.MaxEdges || !slices.ContainsFunc(got.Edges, func(e archdoc.Edge) bool { return e.ID == "z_edge" }) {
+		t.Errorf("after connect at the edge limit: %d edges", len(got.Edges))
+	}
+
+	d = archdoc.New("boxes")
+	n := archdoc.Defaults(archdoc.KindAPI)
+	n.ID, n.Pos = "z_node", [2]int{0, 0}
+	d.Nodes = append(d.Nodes, n)
+	for i := range archdoc.MaxBoxes {
+		d.Boxes = append(d.Boxes, archdoc.Box{ID: fmt.Sprintf("zb%03d", i), Kind: archdoc.BoxRegion, Rect: [4]int{100 + i*20, 0, 18, 8}})
+	}
+	c = open(d)
+	limit("a 101st box by g", c.wrap(ctx, []string{"z_node"}, archdoc.BoxRegion))
+	c.sel = ""
+	limit("a 101st box", c.addPart(ctx, paletteItem{box: archdoc.BoxRegion}))
+	if got := stored(c); len(got.Boxes) != archdoc.MaxBoxes || findBox(got, "zb099") == nil || findNode(got, "z_node").Parent != "" {
+		t.Errorf("after wraps at the box limit: %d boxes", len(got.Boxes))
+	}
+}
+
+// toastOf runs cmd (and a batch's cmds) and returns the first toast's text.
+func toastOf(cmd tea.Cmd) string {
+	if cmd == nil {
+		return ""
+	}
+	switch msg := cmd().(type) {
+	case ui.ToastMsg:
+		return msg.Text
+	case tea.BatchMsg:
+		for _, c := range msg {
+			if s := toastOf(c); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }

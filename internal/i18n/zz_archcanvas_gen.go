@@ -531,6 +531,13 @@ var areaArchcanvas = area{
 				En: {Other: "queue"},
 			},
 		},
+		"limit_reached": {
+			desc: "설계가 부품·연결·상자 개수 한도에 닿아 더 넣지 못할 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "더 넣을 수 없어요 · 부품 300개, 연결 1,000개, 상자 100개까지"},
+				En: {Other: "Limit reached · up to 300 parts, 1,000 connections and 100 boxes"},
+			},
+		},
 		"list_empty": {
 			desc: "목록 보기: 노드가 없을 때",
 			text: map[Locale]Forms{
@@ -1343,6 +1350,11 @@ func (a_ ArchcanvasT) LimitPool() string {
 // LimitQueue: 병목 자원 이름: queue
 func (a_ ArchcanvasT) LimitQueue() string {
 	return a_.t.render(&areaArchcanvas, "limit_queue", false, 0)
+}
+
+// LimitReached: 설계가 부품·연결·상자 개수 한도에 닿아 더 넣지 못할 때 토스트
+func (a_ ArchcanvasT) LimitReached() string {
+	return a_.t.render(&areaArchcanvas, "limit_reached", false, 0)
 }
 
 // ListEmpty: 목록 보기: 노드가 없을 때

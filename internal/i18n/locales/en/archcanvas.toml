@@ -218,6 +218,9 @@ other = "connection pool"
 [limit_queue]
 other = "queue"
 
+[limit_reached]
+other = "Limit reached · up to 300 parts, 1,000 connections and 100 boxes"
+
 [list_empty]
 other = "No nodes · press a to add"
 
