@@ -3,10 +3,571 @@
 
 package i18n
 
+import "strconv"
+
 // WorkspaceT holds the "workspace" area messages (locales/*/workspace.toml).
 type WorkspaceT struct{ t *T }
 
 var areaWorkspace = area{
 	name: "workspace",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"band_private": {
+			desc:   "상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)",
+			params: []Param{{Name: "folder", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🔒 나만 보기 · {folder}"},
+				En: {Other: "🔒 Only me · {folder}"},
+			},
+		},
+		"code_cannot_open": {
+			desc: "코드 칸: 열 수 없는 파일(차단·무시·찾을 수 없음 등)을 골랐을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 파일은 열 수 없어요"},
+				En: {Other: "This file cannot be opened"},
+			},
+		},
+		"code_cannot_open_binary": {
+			desc: "코드 칸: 바이너리 파일(앞 8 KiB 에 NUL 이 있거나 UTF-8 이 아님)이라 열지 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "바이너리 파일은 열지 않아요"},
+				En: {Other: "Binary files are not opened"},
+			},
+		},
+		"code_cannot_open_large": {
+			desc: "코드 칸: 2 MiB 넘는 파일이라 열지 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "2 MiB 넘는 파일은 열지 않아요"},
+				En: {Other: "Files over 2 MiB are not opened"},
+			},
+		},
+		"code_deleted_on_disk": {
+			desc: "코드 칸 머리: 열어 둔 파일이 디스크에서 지워짐(저장하면 다시 만들어짐)",
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크에서 지워짐"},
+				En: {Other: "Deleted on disk"},
+			},
+		},
+		"code_empty_hint": {
+			desc: "코드 칸: 아직 연 파일이 없을 때 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "트리에서 파일을 골라 enter"},
+				En: {Other: "Pick a file in the tree and press enter"},
+			},
+		},
+		"code_readonly_large": {
+			desc: "코드 칸 머리: 512 KiB 넘는 파일이라 읽기 전용으로 열림",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 전용 · 512 KiB 넘는 파일"},
+				En: {Other: "Read-only · over 512 KiB"},
+			},
+		},
+		"code_readonly_mixed_eol": {
+			desc: "코드 칸 머리: 줄 끝(LF·CRLF)이 섞인 파일이라 읽기 전용으로 열림",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 전용 · 줄 끝이 섞인 파일"},
+				En: {Other: "Read-only · mixed line endings"},
+			},
+		},
+		"code_unsaved": {
+			desc: "코드 칸 머리: 디스크에 저장하지 않은 편집이 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "● 저장 안 됨"},
+				En: {Other: "● Unsaved"},
+			},
+		},
+		"disk_merged": {
+			desc:       "코드 칸 알림: 다른 프로그램이 파일을 바꿔서 저장 안 된 편집과 합쳤을 때(무엇을 할 수 있는지)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크에서 바뀐 내용을 합쳤어요 · u 되돌리기 · d 디스크 버전으로"},
+				En: {Other: "Merged changes from disk · u undo · d use the disk version"},
+			},
+		},
+		"dlg_hint": {
+			desc: "작업공간 대화상자 바닥 줄 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "↑↓ 고르기 · enter 확인 · esc 닫기"},
+				En: {Other: "↑↓ choose · enter confirm · esc close"},
+			},
+		},
+		"hub_name": {
+			desc: "도구 허브·탭·팔레트에 보이는 도구 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간"},
+				En: {Other: "Workspace"},
+			},
+		},
+		"hub_status_idle": {
+			desc:   "도구 허브 상태: 열린 폴더가 없을 때. n = 초대받은 공유 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "폴더 열기 · 초대 {n}"},
+				En: {Other: "Open a folder · {n} invites"},
+			},
+		},
+		"hub_status_private": {
+			desc:   "도구 허브 상태: 혼자 쓰는 중. folder = 폴더 이름(번역하지 않음), n = 터미널 수",
+			params: []Param{{Name: "folder", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{folder} · 🔒 나만 보기 · 터미널 {n}"},
+				En: {Other: "{folder} · 🔒 Only me · {n} terminals"},
+			},
+		},
+		"hub_status_sharing": {
+			desc:   "도구 허브 상태: 공유 중. folder = 폴더 이름, n = 들어온 사람 수",
+			params: []Param{{Name: "folder", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{folder} · 🔴 공유 중 {n}명"},
+				En: {Other: "{folder} · 🔴 Sharing with {n}"},
+			},
+		},
+		"newterm_custom": {
+			desc: "새 터미널 목록의 마지막 줄: 실행할 명령을 직접 입력",
+			text: map[Locale]Forms{
+				Ko: {Other: "명령 직접 입력"},
+				En: {Other: "Type a command"},
+			},
+		},
+		"newterm_title": {
+			desc: "새 터미널 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 터미널"},
+				En: {Other: "New terminal"},
+			},
+		},
+		"open_failed": {
+			desc: "토스트: 고른 폴더를 열지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "폴더를 열 수 없어요"},
+				En: {Other: "Could not open the folder"},
+			},
+		},
+		"path_prompt": {
+			desc: "폴더 고르기 화면: 경로를 직접 입력하는 칸의 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "경로 입력"},
+				En: {Other: "Type a path"},
+			},
+		},
+		"pick_folder_title": {
+			desc: "폴더 고르기 화면 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "폴더 열기"},
+				En: {Other: "Open a folder"},
+			},
+		},
+		"prefix_help_code": {
+			desc: "패널 도움말: 접두키 다음 2 — 코드 칸으로",
+			text: map[Locale]Forms{
+				Ko: {Other: "코드 칸으로"},
+				En: {Other: "to the code cell"},
+			},
+		},
+		"prefix_help_exec": {
+			desc: "패널 도움말: 접두키 다음 e — 터미널 프로그램을 전체 화면(화면 전환)으로 실행",
+			text: map[Locale]Forms{
+				Ko: {Other: "전체 화면으로 실행"},
+				En: {Other: "run full screen"},
+			},
+		},
+		"prefix_help_follow": {
+			desc: "패널 도움말: 접두키 다음 f — 남의 터미널 화면에서 커서 따라가기 다시 켜기",
+			text: map[Locale]Forms{
+				Ko: {Other: "커서 따라가기"},
+				En: {Other: "follow the cursor"},
+			},
+		},
+		"prefix_help_new_term": {
+			desc: "패널 도움말: 접두키 다음 n — 새 터미널",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 터미널"},
+				En: {Other: "new terminal"},
+			},
+		},
+		"prefix_help_people": {
+			desc: "패널 도움말: 접두키 다음 4 — 사람 목록으로",
+			text: map[Locale]Forms{
+				Ko: {Other: "사람 목록으로"},
+				En: {Other: "to the people list"},
+			},
+		},
+		"prefix_help_share": {
+			desc: "패널 도움말: 접두키 다음 S — 공유 시작",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 시작"},
+				En: {Other: "start sharing"},
+			},
+		},
+		"prefix_help_term": {
+			desc: "패널 도움말: 접두키 다음 3 — 터미널 칸으로",
+			text: map[Locale]Forms{
+				Ko: {Other: "터미널 칸으로"},
+				En: {Other: "to the terminal cell"},
+			},
+		},
+		"prefix_help_tree": {
+			desc: "패널 도움말: 접두키 다음 1 — 트리 칸으로",
+			text: map[Locale]Forms{
+				Ko: {Other: "트리 칸으로"},
+				En: {Other: "to the tree cell"},
+			},
+		},
+		"recent_folders": {
+			desc: "폴더 고르기 화면: 최근 연 폴더 목록 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "최근 폴더"},
+				En: {Other: "Recent folders"},
+			},
+		},
+		"recent_none": {
+			desc: "폴더 고르기 화면: 최근 연 폴더가 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 연 폴더가 없어요"},
+				En: {Other: "No folders opened yet"},
+			},
+		},
+		"recovery_available": {
+			desc: "대화상자 제목: 지난번에 저장하지 못한 편집이 복구 일지에 남아 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "복구할 내용이 있어요"},
+				En: {Other: "There is unsaved work to recover"},
+			},
+		},
+		"recovery_body": {
+			desc:       "복구 대화상자 본문: 무엇이 남아 있는지. n = 파일 수",
+			params:     []Param{{Name: "n", Type: "int"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "masil 이 끝나기 전에 저장하지 못한 편집이 파일 {n}개에 남아 있어요. 복구하면 그 내용이 편집으로 들어가고, 저장해야 디스크에 써져요."},
+				En: {Other: "Edits to {n} files were not saved before masil stopped. Recovering puts them back as edits; they reach the disk when you save."},
+			},
+		},
+		"recovery_discard": {
+			desc: "복구 대화상자 단추: 남은 내용을 버림",
+			text: map[Locale]Forms{
+				Ko: {Other: "버리기"},
+				En: {Other: "Discard"},
+			},
+		},
+		"recovery_restore": {
+			desc: "복구 대화상자 단추: 남은 내용을 편집으로 되살림",
+			text: map[Locale]Forms{
+				Ko: {Other: "복구"},
+				En: {Other: "Recover"},
+			},
+		},
+		"save_failed": {
+			desc: "토스트: 파일을 저장하지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장하지 못했어요"},
+				En: {Other: "Could not save"},
+			},
+		},
+		"saved": {
+			desc:   "토스트: 파일을 저장했을 때. file = 파일 이름(번역하지 않음)",
+			params: []Param{{Name: "file", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{file} 저장했어요"},
+				En: {Other: "Saved {file}"},
+			},
+		},
+		"subtab_code": {
+			desc: "위젯 하위 탭: 코드 칸",
+			max:  4,
+			text: map[Locale]Forms{
+				Ko: {Other: "코드"},
+				En: {Other: "Code"},
+			},
+		},
+		"subtab_people": {
+			desc:   "위젯 하위 탭: 사람 목록. n = 들어온 사람 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    9,
+			text: map[Locale]Forms{
+				Ko: {Other: "사람({n})"},
+				En: {Other: "Who({n})"},
+			},
+		},
+		"subtab_term": {
+			desc: "위젯 하위 탭: 터미널 칸",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "터미널"},
+				En: {Other: "Term"},
+			},
+		},
+		"subtab_tree": {
+			desc: "위젯 하위 탭: 파일 트리 칸",
+			max:  4,
+			text: map[Locale]Forms{
+				Ko: {Other: "트리"},
+				En: {Other: "Tree"},
+			},
+		},
+		"term_empty_hint": {
+			desc: "터미널 칸: 아직 터미널이 없을 때(n 키로 새 터미널)",
+			text: map[Locale]Forms{
+				Ko: {Other: "n 새 터미널"},
+				En: {Other: "n new terminal"},
+			},
+		},
+		"term_title_unsaved": {
+			desc:   "터미널 칸 제목 끝: 저장 안 된 문서 수(프로그램은 디스크만 읽음). n = 문서 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "저장 안 됨 {n}"},
+				En: {Other: "{n} unsaved"},
+			},
+		},
+		"tree_more_entries": {
+			desc:   "트리: 한 폴더에서 5,000개 넘게 있어 줄인 나머지 수. n = 나머지 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "…외 {n}개"},
+				En: {Other: "…{n} more"},
+			},
+		},
+		"tree_secret_hidden": {
+			desc:   "트리: 차단 목록에 걸린 비밀 파일(참가자에게 안 보임). name = 파일 이름(번역하지 않음)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🔒 {name} (공유 안 됨)"},
+				En: {Other: "🔒 {name} (not shared)"},
+			},
+		},
+		"windows_no_terminal": {
+			desc:       "터미널 칸 안내: Windows 에서는 내장 터미널이 아직 안 됨. key = 전체 화면 실행 키(번역하지 않음)",
+			params:     []Param{{Name: "key", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "Windows에서는 masil 안 터미널이 아직 안 돼요. {key}로 전체 화면 실행"},
+				En: {Other: "Terminals inside masil do not work on Windows yet. Press {key} to run full screen"},
+			},
+		},
+	},
+}
+
+// BandPrivate: 상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)
+func (a_ WorkspaceT) BandPrivate(folder string) string {
+	return a_.t.render(&areaWorkspace, "band_private", false, 0, "folder", folder)
+}
+
+// CodeCannotOpen: 코드 칸: 열 수 없는 파일(차단·무시·찾을 수 없음 등)을 골랐을 때
+func (a_ WorkspaceT) CodeCannotOpen() string {
+	return a_.t.render(&areaWorkspace, "code_cannot_open", false, 0)
+}
+
+// CodeCannotOpenBinary: 코드 칸: 바이너리 파일(앞 8 KiB 에 NUL 이 있거나 UTF-8 이 아님)이라 열지 않음
+func (a_ WorkspaceT) CodeCannotOpenBinary() string {
+	return a_.t.render(&areaWorkspace, "code_cannot_open_binary", false, 0)
+}
+
+// CodeCannotOpenLarge: 코드 칸: 2 MiB 넘는 파일이라 열지 않음
+func (a_ WorkspaceT) CodeCannotOpenLarge() string {
+	return a_.t.render(&areaWorkspace, "code_cannot_open_large", false, 0)
+}
+
+// CodeDeletedOnDisk: 코드 칸 머리: 열어 둔 파일이 디스크에서 지워짐(저장하면 다시 만들어짐)
+func (a_ WorkspaceT) CodeDeletedOnDisk() string {
+	return a_.t.render(&areaWorkspace, "code_deleted_on_disk", false, 0)
+}
+
+// CodeEmptyHint: 코드 칸: 아직 연 파일이 없을 때 안내
+func (a_ WorkspaceT) CodeEmptyHint() string {
+	return a_.t.render(&areaWorkspace, "code_empty_hint", false, 0)
+}
+
+// CodeReadonlyLarge: 코드 칸 머리: 512 KiB 넘는 파일이라 읽기 전용으로 열림
+func (a_ WorkspaceT) CodeReadonlyLarge() string {
+	return a_.t.render(&areaWorkspace, "code_readonly_large", false, 0)
+}
+
+// CodeReadonlyMixedEol: 코드 칸 머리: 줄 끝(LF·CRLF)이 섞인 파일이라 읽기 전용으로 열림
+func (a_ WorkspaceT) CodeReadonlyMixedEol() string {
+	return a_.t.render(&areaWorkspace, "code_readonly_mixed_eol", false, 0)
+}
+
+// CodeUnsaved: 코드 칸 머리: 디스크에 저장하지 않은 편집이 있음
+func (a_ WorkspaceT) CodeUnsaved() string {
+	return a_.t.render(&areaWorkspace, "code_unsaved", false, 0)
+}
+
+// DiskMerged: 코드 칸 알림: 다른 프로그램이 파일을 바꿔서 저장 안 된 편집과 합쳤을 때(무엇을 할 수 있는지)
+func (a_ WorkspaceT) DiskMerged() string {
+	return a_.t.render(&areaWorkspace, "disk_merged", false, 0)
+}
+
+// DlgHint: 작업공간 대화상자 바닥 줄 키 안내
+func (a_ WorkspaceT) DlgHint() string {
+	return a_.t.render(&areaWorkspace, "dlg_hint", false, 0)
+}
+
+// HubName: 도구 허브·탭·팔레트에 보이는 도구 이름
+func (a_ WorkspaceT) HubName() string {
+	return a_.t.render(&areaWorkspace, "hub_name", false, 0)
+}
+
+// HubStatusIdle: 도구 허브 상태: 열린 폴더가 없을 때. n = 초대받은 공유 수
+func (a_ WorkspaceT) HubStatusIdle(n int) string {
+	return a_.t.render(&areaWorkspace, "hub_status_idle", false, 0, "n", strconv.Itoa(n))
+}
+
+// HubStatusPrivate: 도구 허브 상태: 혼자 쓰는 중. folder = 폴더 이름(번역하지 않음), n = 터미널 수
+func (a_ WorkspaceT) HubStatusPrivate(folder string, n int) string {
+	return a_.t.render(&areaWorkspace, "hub_status_private", false, 0, "folder", folder, "n", strconv.Itoa(n))
+}
+
+// HubStatusSharing: 도구 허브 상태: 공유 중. folder = 폴더 이름, n = 들어온 사람 수
+func (a_ WorkspaceT) HubStatusSharing(folder string, n int) string {
+	return a_.t.render(&areaWorkspace, "hub_status_sharing", false, 0, "folder", folder, "n", strconv.Itoa(n))
+}
+
+// NewtermCustom: 새 터미널 목록의 마지막 줄: 실행할 명령을 직접 입력
+func (a_ WorkspaceT) NewtermCustom() string {
+	return a_.t.render(&areaWorkspace, "newterm_custom", false, 0)
+}
+
+// NewtermTitle: 새 터미널 대화상자 제목
+func (a_ WorkspaceT) NewtermTitle() string {
+	return a_.t.render(&areaWorkspace, "newterm_title", false, 0)
+}
+
+// OpenFailed: 토스트: 고른 폴더를 열지 못했을 때
+func (a_ WorkspaceT) OpenFailed() string {
+	return a_.t.render(&areaWorkspace, "open_failed", false, 0)
+}
+
+// PathPrompt: 폴더 고르기 화면: 경로를 직접 입력하는 칸의 이름
+func (a_ WorkspaceT) PathPrompt() string {
+	return a_.t.render(&areaWorkspace, "path_prompt", false, 0)
+}
+
+// PickFolderTitle: 폴더 고르기 화면 제목
+func (a_ WorkspaceT) PickFolderTitle() string {
+	return a_.t.render(&areaWorkspace, "pick_folder_title", false, 0)
+}
+
+// PrefixHelpCode: 패널 도움말: 접두키 다음 2 — 코드 칸으로
+func (a_ WorkspaceT) PrefixHelpCode() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_code", false, 0)
+}
+
+// PrefixHelpExec: 패널 도움말: 접두키 다음 e — 터미널 프로그램을 전체 화면(화면 전환)으로 실행
+func (a_ WorkspaceT) PrefixHelpExec() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_exec", false, 0)
+}
+
+// PrefixHelpFollow: 패널 도움말: 접두키 다음 f — 남의 터미널 화면에서 커서 따라가기 다시 켜기
+func (a_ WorkspaceT) PrefixHelpFollow() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_follow", false, 0)
+}
+
+// PrefixHelpNewTerm: 패널 도움말: 접두키 다음 n — 새 터미널
+func (a_ WorkspaceT) PrefixHelpNewTerm() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_new_term", false, 0)
+}
+
+// PrefixHelpPeople: 패널 도움말: 접두키 다음 4 — 사람 목록으로
+func (a_ WorkspaceT) PrefixHelpPeople() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_people", false, 0)
+}
+
+// PrefixHelpShare: 패널 도움말: 접두키 다음 S — 공유 시작
+func (a_ WorkspaceT) PrefixHelpShare() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_share", false, 0)
+}
+
+// PrefixHelpTerm: 패널 도움말: 접두키 다음 3 — 터미널 칸으로
+func (a_ WorkspaceT) PrefixHelpTerm() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_term", false, 0)
+}
+
+// PrefixHelpTree: 패널 도움말: 접두키 다음 1 — 트리 칸으로
+func (a_ WorkspaceT) PrefixHelpTree() string {
+	return a_.t.render(&areaWorkspace, "prefix_help_tree", false, 0)
+}
+
+// RecentFolders: 폴더 고르기 화면: 최근 연 폴더 목록 제목
+func (a_ WorkspaceT) RecentFolders() string {
+	return a_.t.render(&areaWorkspace, "recent_folders", false, 0)
+}
+
+// RecentNone: 폴더 고르기 화면: 최근 연 폴더가 없을 때
+func (a_ WorkspaceT) RecentNone() string {
+	return a_.t.render(&areaWorkspace, "recent_none", false, 0)
+}
+
+// RecoveryAvailable: 대화상자 제목: 지난번에 저장하지 못한 편집이 복구 일지에 남아 있음
+func (a_ WorkspaceT) RecoveryAvailable() string {
+	return a_.t.render(&areaWorkspace, "recovery_available", false, 0)
+}
+
+// RecoveryBody: 복구 대화상자 본문: 무엇이 남아 있는지. n = 파일 수
+func (a_ WorkspaceT) RecoveryBody(n int) string {
+	return a_.t.render(&areaWorkspace, "recovery_body", false, 0, "n", strconv.Itoa(n))
+}
+
+// RecoveryDiscard: 복구 대화상자 단추: 남은 내용을 버림
+func (a_ WorkspaceT) RecoveryDiscard() string {
+	return a_.t.render(&areaWorkspace, "recovery_discard", false, 0)
+}
+
+// RecoveryRestore: 복구 대화상자 단추: 남은 내용을 편집으로 되살림
+func (a_ WorkspaceT) RecoveryRestore() string {
+	return a_.t.render(&areaWorkspace, "recovery_restore", false, 0)
+}
+
+// SaveFailed: 토스트: 파일을 저장하지 못했을 때
+func (a_ WorkspaceT) SaveFailed() string {
+	return a_.t.render(&areaWorkspace, "save_failed", false, 0)
+}
+
+// Saved: 토스트: 파일을 저장했을 때. file = 파일 이름(번역하지 않음)
+func (a_ WorkspaceT) Saved(file string) string {
+	return a_.t.render(&areaWorkspace, "saved", false, 0, "file", file)
+}
+
+// SubtabCode: 위젯 하위 탭: 코드 칸
+func (a_ WorkspaceT) SubtabCode() string {
+	return a_.t.render(&areaWorkspace, "subtab_code", false, 0)
+}
+
+// SubtabPeople: 위젯 하위 탭: 사람 목록. n = 들어온 사람 수
+func (a_ WorkspaceT) SubtabPeople(n int) string {
+	return a_.t.render(&areaWorkspace, "subtab_people", false, 0, "n", strconv.Itoa(n))
+}
+
+// SubtabTerm: 위젯 하위 탭: 터미널 칸
+func (a_ WorkspaceT) SubtabTerm() string {
+	return a_.t.render(&areaWorkspace, "subtab_term", false, 0)
+}
+
+// SubtabTree: 위젯 하위 탭: 파일 트리 칸
+func (a_ WorkspaceT) SubtabTree() string {
+	return a_.t.render(&areaWorkspace, "subtab_tree", false, 0)
+}
+
+// TermEmptyHint: 터미널 칸: 아직 터미널이 없을 때(n 키로 새 터미널)
+func (a_ WorkspaceT) TermEmptyHint() string {
+	return a_.t.render(&areaWorkspace, "term_empty_hint", false, 0)
+}
+
+// TermTitleUnsaved: 터미널 칸 제목 끝: 저장 안 된 문서 수(프로그램은 디스크만 읽음). n = 문서 수
+func (a_ WorkspaceT) TermTitleUnsaved(n int) string {
+	return a_.t.render(&areaWorkspace, "term_title_unsaved", false, 0, "n", strconv.Itoa(n))
+}
+
+// TreeMoreEntries: 트리: 한 폴더에서 5,000개 넘게 있어 줄인 나머지 수. n = 나머지 수
+func (a_ WorkspaceT) TreeMoreEntries(n int) string {
+	return a_.t.render(&areaWorkspace, "tree_more_entries", false, 0, "n", strconv.Itoa(n))
+}
+
+// TreeSecretHidden: 트리: 차단 목록에 걸린 비밀 파일(참가자에게 안 보임). name = 파일 이름(번역하지 않음)
+func (a_ WorkspaceT) TreeSecretHidden(name string) string {
+	return a_.t.render(&areaWorkspace, "tree_secret_hidden", false, 0, "name", name)
+}
+
+// WindowsNoTerminal: 터미널 칸 안내: Windows 에서는 내장 터미널이 아직 안 됨. key = 전체 화면 실행 키(번역하지 않음)
+func (a_ WorkspaceT) WindowsNoTerminal(key string) string {
+	return a_.t.render(&areaWorkspace, "windows_no_terminal", false, 0, "key", key)
 }

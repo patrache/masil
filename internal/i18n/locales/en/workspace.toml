@@ -1,0 +1,134 @@
+[band_private]
+other = "🔒 Only me · {folder}"
+
+[code_cannot_open]
+other = "This file cannot be opened"
+
+[code_cannot_open_binary]
+other = "Binary files are not opened"
+
+[code_cannot_open_large]
+other = "Files over 2 MiB are not opened"
+
+[code_deleted_on_disk]
+other = "Deleted on disk"
+
+[code_empty_hint]
+other = "Pick a file in the tree and press enter"
+
+[code_readonly_large]
+other = "Read-only · over 512 KiB"
+
+[code_readonly_mixed_eol]
+other = "Read-only · mixed line endings"
+
+[code_unsaved]
+other = "● Unsaved"
+
+[disk_merged]
+other = "Merged changes from disk · u undo · d use the disk version"
+
+[dlg_hint]
+other = "↑↓ choose · enter confirm · esc close"
+
+[hub_name]
+other = "Workspace"
+
+[hub_status_idle]
+other = "Open a folder · {n} invites"
+
+[hub_status_private]
+other = "{folder} · 🔒 Only me · {n} terminals"
+
+[hub_status_sharing]
+other = "{folder} · 🔴 Sharing with {n}"
+
+[newterm_custom]
+other = "Type a command"
+
+[newterm_title]
+other = "New terminal"
+
+[open_failed]
+other = "Could not open the folder"
+
+[path_prompt]
+other = "Type a path"
+
+[pick_folder_title]
+other = "Open a folder"
+
+[prefix_help_code]
+other = "to the code cell"
+
+[prefix_help_exec]
+other = "run full screen"
+
+[prefix_help_follow]
+other = "follow the cursor"
+
+[prefix_help_new_term]
+other = "new terminal"
+
+[prefix_help_people]
+other = "to the people list"
+
+[prefix_help_share]
+other = "start sharing"
+
+[prefix_help_term]
+other = "to the terminal cell"
+
+[prefix_help_tree]
+other = "to the tree cell"
+
+[recent_folders]
+other = "Recent folders"
+
+[recent_none]
+other = "No folders opened yet"
+
+[recovery_available]
+other = "There is unsaved work to recover"
+
+[recovery_body]
+other = "Edits to {n} files were not saved before masil stopped. Recovering puts them back as edits; they reach the disk when you save."
+
+[recovery_discard]
+other = "Discard"
+
+[recovery_restore]
+other = "Recover"
+
+[save_failed]
+other = "Could not save"
+
+[saved]
+other = "Saved {file}"
+
+[subtab_code]
+other = "Code"
+
+[subtab_people]
+other = "Who({n})"
+
+[subtab_term]
+other = "Term"
+
+[subtab_tree]
+other = "Tree"
+
+[term_empty_hint]
+other = "n new terminal"
+
+[term_title_unsaved]
+other = "{n} unsaved"
+
+[tree_more_entries]
+other = "…{n} more"
+
+[tree_secret_hidden]
+other = "🔒 {name} (not shared)"
+
+[windows_no_terminal]
+other = "Terminals inside masil do not work on Windows yet. Press {key} to run full screen"
