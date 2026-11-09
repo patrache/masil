@@ -378,17 +378,27 @@ func (n *notifications) build(ctx *ui.Context) []api.Notification {
 
 // sync re-reads the window and the unread conversations into the List (the
 // rows are cheap, so every sync redraws: read flags and names change in place).
-// A list at the top stays at the top, so a new notification shows.
+// A list at the top stays at the top, so a new notification shows; a
+// selection on the top row stays on the top row (the page's thread rows land
+// above the Store's conversations, and enter after ctrl+n opens the newest).
+// A selection the user moved down, or a view scrolled off the top, is kept.
 func (n *notifications) sync(ctx *ui.Context) {
 	items := n.build(ctx)
 	convs := buildConvs(ctx, items)
 	rows := joinRows(ctx, convs, items)
 	a := n.list.Anchor()
 	atTop := len(n.rows) == 0 || a.ItemID == "" || (a.ItemID == n.rows[0].id() && a.LineOffset == 0)
+	wasFirst := len(n.rows) == 0
+	if sel, ok := n.list.Selected(); ok && len(n.rows) > 0 {
+		wasFirst = sel.id() == n.rows[0].id()
+	}
 	n.items, n.convs, n.rows = items, convs, rows
 	n.list.SetItems(rows)
 	if atTop && len(rows) > 0 {
 		n.list.Restore(widgets.ScrollAnchor{ItemID: rows[0].id()})
+	}
+	if atTop && wasFirst && len(rows) > 0 {
+		n.list.Select(rows[0].id())
 	}
 }
 

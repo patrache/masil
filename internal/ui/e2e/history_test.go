@@ -187,10 +187,9 @@ func TestHistoryThreadOfAnotherChannelBackToDM(t *testing.T) {
 			openDM(h)
 			h.Press("ctrl+n")
 			mustMain(t, h, "ctrl+n", notifKey)
-			// The thread_reply is the 안 읽은 대화 section's thread row, its first row
-			// (the selection may rest on #일반 below it, kept while the rows arrived).
+			// The thread_reply is the 안 읽은 대화 section's thread row, its first row:
+			// the selection stays on the top row while the page's rows arrive.
 			mustContain(t, h.Screen(), "스레드 · #개발")
-			h.Press("k")
 			h.Press("enter")
 			mustMain(t, h, "enter", thread)
 			h.Press("ctrl+o")

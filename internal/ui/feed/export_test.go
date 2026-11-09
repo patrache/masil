@@ -128,3 +128,15 @@ func NotifConvPreview(c ui.Component, id string) (string, bool) {
 	}
 	return "", false
 }
+
+// NotifSelectedRow is the selected 알림함 row's ID ("" = none).
+func NotifSelectedRow(c ui.Component) string {
+	n, ok := c.(*notifications)
+	if !ok {
+		return ""
+	}
+	if r, ok := n.list.Selected(); ok {
+		return r.id()
+	}
+	return ""
+}

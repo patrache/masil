@@ -476,3 +476,56 @@ func TestInboxThreadRowSkipsQuietChannels(t *testing.T) {
 		})
 	}
 }
+
+// The selection rests on the top row while the rows arrive: the thread row
+// built from the notification page lands above the Store-derived #일반, and
+// enter right after ctrl+n opens the newest conversation. A cursor the user
+// moved stays where it is.
+func TestInboxSelectionStaysOnTopWhileRowsArrive(t *testing.T) {
+	devRoot := fixtures.Messages(fixtures.ChDev)[0].ID
+	reply := api.Notification{ID: sid(80), Type: "thread_reply", Actor: ptr(userOf("minji")),
+		Subject: api.NotificationSubject{Type: "message", ID: devThreadReply3}, Preview: "넵 2시에 할게요",
+		Context: api.NotificationContext{ChannelID: ptr(fixtures.ChDev), MessageID: ptr(devThreadReply3),
+			ThreadRootID: ptr(devRoot), SpaceID: ptr(fixtures.SpaceNova)}, CreatedAt: at(0)}
+	h := uitest.New(t, notifOptsWith(convSrv(t, []api.Notification{reply}), false, nil)...) // #일반 unread too
+	h.Resize(120, 40)
+	h.Screen()
+	ids := rowIDs(h)
+	if len(ids) < 2 || ids[0] != "conv:thread:"+devRoot {
+		t.Fatalf("rows = %v, want the #개발 thread row first", ids)
+	}
+	if got := NotifSelectedRow(notifInstance(h)); got != ids[0] {
+		t.Fatalf("selected %q after the page arrived, want the top row %q", got, ids[0])
+	}
+	// a moved cursor is kept when the rows change
+	if !SelectNotifRow(notifInstance(h), ids[1]) {
+		t.Fatalf("no row %s", ids[1])
+	}
+	n := api.Notification{
+		ID: discoverNewID(5), Type: "post_reply", Actor: ptr(userOf("junho")),
+		Subject: api.NotificationSubject{Type: "post", ID: myPost().ID}, Preview: "저도 갈래요",
+		Context: api.NotificationContext{PostID: ptr(myPost().ID)}, CreatedAt: at(0),
+	}
+	h.Event("notification.created", map[string]any{"notification": n, "unread_count": 3})
+	h.Screen()
+	if got := NotifSelectedRow(notifInstance(h)); got != ids[1] {
+		t.Fatalf("selected %q after a live notification, want the user's %q", got, ids[1])
+	}
+}
+
+// The top-row selection rule never undoes a wheel scroll: the selection stays
+// on the top row while the view scrolls, and the next sync must not reveal it.
+func TestInboxWheelScrollSurvivesSync(t *testing.T) {
+	h := uitest.New(t, notifOpts(t, false, nil)...)
+	h.Resize(120, 14)
+	before := h.Screen()
+	h.Wheel(60, 8, 3)
+	scrolled := h.Screen()
+	if scrolled == before {
+		t.Fatalf("wheel did not scroll:\n%s", scrolled)
+	}
+	h.Event("read_state.updated", map[string]any{"state": api.UnreadState{ChannelID: fixtures.ChChat}})
+	if got := h.Screen(); got != scrolled {
+		t.Fatalf("a sync undid the wheel scroll:\n%s\nwant\n%s", got, scrolled)
+	}
+}
