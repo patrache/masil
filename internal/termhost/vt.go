@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"image/color"
 	"net/url"
+	"path"
 	"strings"
 	"sync/atomic"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -326,12 +329,23 @@ func (v *vtScreen) stop() {
 }
 
 // parseCwd turns an OSC 7 payload ("file://host/path", percent-encoded)
-// into a local path; anything that is not a file URL with an absolute path
-// gives ok == false.
+// into a local path; anything that is not a file URL with an absolute, clean
+// path gives ok == false. The path comes from child output, so one that
+// decodes to invalid UTF-8, a control character (C0, DEL, C1) or a bidi
+// control is refused: it would otherwise reach the screen or a command line.
 func parseCwd(raw string) (string, bool) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "file" || !strings.HasPrefix(u.Path, "/") {
 		return "", false
 	}
-	return u.Path, true
+	p := u.Path
+	if !utf8.ValidString(p) || path.Clean(p) != p {
+		return "", false
+	}
+	for _, r := range p {
+		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) {
+			return "", false
+		}
+	}
+	return p, true
 }
