@@ -3,8 +3,12 @@ package wire
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
+
+	"github.com/patrache/masil/internal/workspace/ot"
 )
 
 func TestHeaderRoundTrip(t *testing.T) {
@@ -189,5 +193,24 @@ func TestTermPayload(t *testing.T) {
 	}
 	if _, _, err := SplitTerm(nil); !errors.Is(err, ErrLength) {
 		t.Fatalf("empty: %v", err)
+	}
+}
+
+func TestDocOpJSON(t *testing.T) {
+	m := DocOp{Doc: "d1", ClientOpID: "2-7", BaseSeq: 41, Ops: ot.Insert(1, "한", 3)}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{"doc":"d1","client_op_id":"2-7","base_seq":41,"ops":[1,"한",2]}` {
+		t.Fatalf("%s", b)
+	}
+	var back DocOp
+	if err := json.Unmarshal(b, &back); err != nil || !reflect.DeepEqual(back, m) {
+		t.Fatalf("%+v %v", back, err)
+	}
+	bc, _ := json.Marshal(DocBcast{Doc: "d1", Seq: 42, Author: AuthorDisk, Ops: ot.Noop(3)})
+	if string(bc) != `{"doc":"d1","seq":42,"author":-1,"ops":[3]}` {
+		t.Fatalf("%s", bc)
 	}
 }

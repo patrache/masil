@@ -1,8 +1,9 @@
 package wire
 
 import (
-	"encoding/json"
 	"time"
+
+	"github.com/patrache/masil/internal/workspace/ot"
 )
 
 // Inner messages: the JSON bodies of frames after opening (or of plaintext
@@ -147,12 +148,12 @@ type DocState struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// DocOp.Ops is an ot.Op in ot.js JSON form (docs/contract/workspace.md 7).
+// DocOp.Ops travels in ot.js JSON form (docs/contract/workspace.md 7).
 type DocOp struct {
-	Doc        string          `json:"doc"`
-	ClientOpID string          `json:"client_op_id"`
-	BaseSeq    int64           `json:"base_seq"`
-	Ops        json.RawMessage `json:"ops"`
+	Doc        string `json:"doc"`
+	ClientOpID string `json:"client_op_id"`
+	BaseSeq    int64  `json:"base_seq"`
+	Ops        ot.Op  `json:"ops"`
 }
 
 type DocAck struct {
@@ -171,10 +172,10 @@ type DocReject struct {
 const AuthorDisk = -1
 
 type DocBcast struct {
-	Doc    string          `json:"doc"`
-	Seq    int64           `json:"seq"`
-	Author int             `json:"author"`
-	Ops    json.RawMessage `json:"ops"`
+	Doc    string `json:"doc"`
+	Seq    int64  `json:"seq"`
+	Author int    `json:"author"`
+	Ops    ot.Op  `json:"ops"`
 }
 
 type DocSave struct {
