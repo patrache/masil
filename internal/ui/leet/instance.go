@@ -81,6 +81,7 @@ var (
 	_ ui.Cursorer      = (*instance)(nil)
 	_ ui.StatusTexter  = (*instance)(nil)
 	_ ui.Closer        = (*instance)(nil)
+	_ ui.ToolStatuser  = (*instance)(nil)
 )
 
 func newInstance(_ *ui.Context, r ui.Route) ui.Component {
@@ -346,8 +347,32 @@ func (in *instance) CloseTool(ctx *ui.Context) tea.Cmd {
 	return tea.Batch(in.dropEditor(), in.restoreStatus(ctx))
 }
 
+// Title is the tool and the problem's number ("오늘의 문제 · 1606") once the
+// problem is known, so two open problems are told apart (A8.2, A8.3).
 func (in *instance) Title(ctx *ui.Context) (string, ui.Badge) {
-	return ctx.T.Leetcode.Name(), ui.Badge{}
+	if in.q == nil {
+		return ctx.T.Leetcode.Name(), ui.Badge{}
+	}
+	return textwidth.Sanitize(ctx.T.Leetcode.InstanceTitle(in.q.FrontendID)), ui.Badge{}
+}
+
+// ToolStatus is the hub's open-list status: a run or submit under way, else
+// the editor the solution is open in ("" = none yet).
+func (in *instance) ToolStatus(ctx *ui.Context) string {
+	t := ctx.T.Leetcode
+	switch {
+	case in.judge.busy() && in.judge.kind == kindSubmit:
+		return t.Submitting()
+	case in.judge.busy():
+		return t.Running()
+	}
+	switch in.ed.(type) {
+	case *paneEditor:
+		return t.StatusPane()
+	case *goEditor:
+		return t.StatusGoeditor()
+	}
+	return ""
 }
 
 func (in *instance) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {

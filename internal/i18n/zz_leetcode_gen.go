@@ -447,6 +447,15 @@ var areaLeetcode = area{
 				En: {Other: "[image] o open"},
 			},
 		},
+		"instance_title": {
+			desc:   "문제를 연 도구 칸의 제목(탭·허브 열린 목록·위젯 맥락 줄). 도구 이름 + 문제 번호. id = 문제 번호",
+			params: []Param{{Name: "id", Type: "string"}},
+			max:    24,
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제 · {id}"},
+				En: {Other: "Daily LC · {id}"},
+			},
+		},
 		"judge_failed": {
 			desc: "실행·제출 요청이 실패했을 때(차단·속도 제한·로그인 만료 외)",
 			text: map[Locale]Forms{
@@ -882,6 +891,22 @@ var areaLeetcode = area{
 				En: {Other: "enter show · esc cancel"},
 			},
 		},
+		"status_goeditor": {
+			desc: "허브 열린 목록의 상태: masil 안 편집기(goeditor)로 풀이를 편집하는 중",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "masil 편집기"},
+				En: {Other: "masil editor"},
+			},
+		},
+		"status_pane": {
+			desc: "허브 열린 목록의 상태: 패널 안 nvim 으로 풀이를 편집하는 중. nvim 은 프로그램 이름(번역하지 않음)",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "패널 nvim"},
+				En: {Other: "nvim in a pane"},
+			},
+		},
 		"submit_failed": {
 			desc:   "제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수",
 			params: []Param{{Name: "status", Type: "string"}, {Name: "correct", Type: "int"}, {Name: "total", Type: "int"}},
@@ -1261,6 +1286,11 @@ func (a_ LeetcodeT) ImageLink() string {
 	return a_.t.render(&areaLeetcode, "image_link", false, 0)
 }
 
+// InstanceTitle: 문제를 연 도구 칸의 제목(탭·허브 열린 목록·위젯 맥락 줄). 도구 이름 + 문제 번호. id = 문제 번호
+func (a_ LeetcodeT) InstanceTitle(id string) string {
+	return a_.t.render(&areaLeetcode, "instance_title", false, 0, "id", id)
+}
+
 // JudgeFailed: 실행·제출 요청이 실패했을 때(차단·속도 제한·로그인 만료 외)
 func (a_ LeetcodeT) JudgeFailed() string {
 	return a_.t.render(&areaLeetcode, "judge_failed", false, 0)
@@ -1549,6 +1579,16 @@ func (a_ LeetcodeT) SpoilerConfirm() string {
 // SpoilerKeys: 풀이 카드 스포일러 확인 줄 아래 키 안내
 func (a_ LeetcodeT) SpoilerKeys() string {
 	return a_.t.render(&areaLeetcode, "spoiler_keys", false, 0)
+}
+
+// StatusGoeditor: 허브 열린 목록의 상태: masil 안 편집기(goeditor)로 풀이를 편집하는 중
+func (a_ LeetcodeT) StatusGoeditor() string {
+	return a_.t.render(&areaLeetcode, "status_goeditor", false, 0)
+}
+
+// StatusPane: 허브 열린 목록의 상태: 패널 안 nvim 으로 풀이를 편집하는 중. nvim 은 프로그램 이름(번역하지 않음)
+func (a_ LeetcodeT) StatusPane() string {
+	return a_.t.render(&areaLeetcode, "status_pane", false, 0)
 }
 
 // SubmitFailed: 제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수

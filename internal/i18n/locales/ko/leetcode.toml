@@ -272,6 +272,12 @@ other = "{id} · {difficulty}"
 desc = "문제 본문 속 그림 자리(그림은 그리지 않고 링크만). o = 브라우저에서 문제 열기 키"
 other = "[그림] o 열기"
 
+[instance_title]
+desc = "문제를 연 도구 칸의 제목(탭·허브 열린 목록·위젯 맥락 줄). 도구 이름 + 문제 번호. id = 문제 번호"
+params = { id = "string" }
+max = 24
+other = "오늘의 문제 · {id}"
+
 [judge_failed]
 desc = "실행·제출 요청이 실패했을 때(차단·속도 제한·로그인 만료 외)"
 other = "보내지 못했어요 · 잠시 뒤 다시 해 주세요"
@@ -536,6 +542,16 @@ other = "아직 안 풀었어요. 그래도 볼까요?"
 [spoiler_keys]
 desc = "풀이 카드 스포일러 확인 줄 아래 키 안내"
 other = "enter 보기 · esc 그만두기"
+
+[status_goeditor]
+desc = "허브 열린 목록의 상태: masil 안 편집기(goeditor)로 풀이를 편집하는 중"
+max = 20
+other = "masil 편집기"
+
+[status_pane]
+desc = "허브 열린 목록의 상태: 패널 안 nvim 으로 풀이를 편집하는 중. nvim 은 프로그램 이름(번역하지 않음)"
+max = 20
+other = "패널 nvim"
 
 [submit_failed]
 desc = "제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수"

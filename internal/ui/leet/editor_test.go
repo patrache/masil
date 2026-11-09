@@ -314,3 +314,45 @@ func TestEditorGoeditorGolden(t *testing.T) {
 		h.Golden("leet_editor_goeditor")
 	})
 }
+
+// The hub's open list and the widget's context line tell problems apart:
+// the title carries the problem's number, the status how it is edited.
+func TestInstanceTitleAndStatus(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	withNvim(t, false)
+	h := uitest.New(t)
+	signIn(t, e, h)
+	openToday(t, h)
+	in := todayInstance(t, h)
+	if title, _ := in.(ui.Titled).Title(h.Context()); title != "오늘의 문제 · 1606" {
+		t.Fatalf("title = %q", title)
+	}
+	st, ok := in.(ui.ToolStatuser)
+	if !ok {
+		t.Fatal("no ToolStatus")
+	}
+	if s := st.ToolStatus(h.Context()); s != "" {
+		t.Fatalf("status before editing = %q", s)
+	}
+	h.Press("e")
+	if s := st.ToolStatus(h.Context()); s != "masil 편집기" {
+		t.Fatalf("status with goeditor = %q", s)
+	}
+	h.Press("esc", "r")
+	if s := st.ToolStatus(h.Context()); s != "실행 중…" {
+		t.Fatalf("status while running = %q", s)
+	}
+}
+
+func TestInstanceStatusPane(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	withNvim(t, true)
+	h := uitest.New(t)
+	openToday(t, h)
+	h.Press("e")
+	if s := todayInstance(t, h).(ui.ToolStatuser).ToolStatus(h.Context()); s != "패널 nvim" {
+		t.Fatalf("status with nvim in a pane = %q", s)
+	}
+}

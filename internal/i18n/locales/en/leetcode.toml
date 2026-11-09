@@ -166,6 +166,9 @@ other = "{id} · {difficulty}"
 [image_link]
 other = "[image] o open"
 
+[instance_title]
+other = "Daily LC · {id}"
+
 [judge_failed]
 other = "Couldn't send it · try again in a moment"
 
@@ -339,6 +342,12 @@ other = "You haven't solved it yet. Show anyway?"
 
 [spoiler_keys]
 other = "enter show · esc cancel"
+
+[status_goeditor]
+other = "masil editor"
+
+[status_pane]
+other = "nvim in a pane"
 
 [submit_failed]
 other = "✗ {status} · {correct}/{total} · failing input…"
