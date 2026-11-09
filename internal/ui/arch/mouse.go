@@ -37,8 +37,12 @@ type gesture struct {
 // wheel step in screen rows.
 const wheelRows = 3
 
-// cancelGesture drops the drag without changing anything.
-func (m *canvasModel) cancelGesture() { m.gest = nil }
+// cancelGesture drops the drag without changing anything, and takes back its
+// shared ghost (room documents): the release that follows finds no gesture.
+func (m *canvasModel) cancelGesture() {
+	m.gest = nil
+	m.clearDragPresence()
+}
 
 // ClearDrag is the app cutting the gesture short (an overlay, a layout change).
 func (m *canvasModel) ClearDrag() { m.cancelGesture() }
@@ -138,7 +142,7 @@ func (m *canvasModel) paletteAt(ctx *ui.Context, p ui.Point) (paletteItem, bool)
 
 // press is a left press: select what is under it and start its gesture.
 func (m *canvasModel) press(ctx *ui.Context, p ui.Point) tea.Cmd {
-	m.gest = nil
+	m.cancelGesture()
 	if it, ok := m.paletteAt(ctx, p); ok {
 		if m.mode == modePick {
 			m.endPick()
@@ -371,7 +375,7 @@ func (m *canvasModel) addPartAt(ctx *ui.Context, it paletteItem, x, y int) tea.C
 // (someone else deleted it).
 func (m *canvasModel) gestureGone() {
 	if g := m.gest; g != nil && g.id != "" && g.kind != gesturePan && !m.exists(g.id) {
-		m.gest = nil
+		m.cancelGesture()
 	}
 	if m.menu != nil && !m.exists(m.menu.target) {
 		m.menu = nil

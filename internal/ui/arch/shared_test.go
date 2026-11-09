@@ -14,6 +14,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/archdoc"
+	"github.com/patrache/masil/internal/archdraw"
 	"github.com/patrache/masil/internal/collab"
 	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/ui"
@@ -358,6 +359,48 @@ func TestDragSendsPresenceThenOneOp(t *testing.T) {
 	got := hub.Ops("D1")[ops:]
 	if len(got) != 1 || got[0].ID != key || got[0].Field != "pos" {
 		t.Errorf("ops after the drop %+v, want one pos set on %s", got, key)
+	}
+}
+
+// A drag the app cuts short (an overlay, focus leaving, a lock) clears its
+// shared ghost: the release that follows finds no gesture, so it cannot.
+func TestDragCancelClearsPresence(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		cancel func(h *uitest.Harness, c *canvasModel)
+	}{
+		{"ClearDrag", func(_ *uitest.Harness, c *canvasModel) { c.ClearDrag() }},
+		{"focus", func(h *uitest.Harness, _ *canvasModel) { h.Send(ui.FocusChangedMsg{}) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hub := collabtest.New(t)
+			sharedFixture(t, hub, api.Doc{})
+			h, c, _ := docHarness(t, hub)
+			detail(t, h, c)
+			n := visibleNode(t, c)
+			b := peer(t, h, hub, "D1")
+			samGhost := func() *archdraw.Ghost {
+				for _, p := range b.Peers() {
+					if p.User == fixtures.UserSam {
+						return peerGhost(p)
+					}
+				}
+				return nil
+			}
+			x, y := worldScr(t, h, c, n.Pos[0], n.Pos[1])
+			h.Send(tea.MouseClickMsg{X: x + 2, Y: y + 1, Button: tea.MouseLeft})
+			for i := 1; i <= 3; i++ {
+				h.Advance(150 * time.Millisecond)
+				h.Send(tea.MouseMotionMsg{X: x + 2 + i, Y: y + 1 + i, Button: tea.MouseLeft})
+			}
+			waitUntil(t, h, "sam's ghost at hana", func() bool { return samGhost() != nil })
+			tc.cancel(h, c)
+			h.Send(tea.MouseReleaseMsg{X: x + 5, Y: y + 4, Button: tea.MouseLeft})
+			if c.dragShared {
+				t.Error("the drag presence is still shared after the gesture was cut short")
+			}
+			waitUntil(t, h, "sam's ghost gone at hana", func() bool { return samGhost() == nil })
+		})
 	}
 }
 

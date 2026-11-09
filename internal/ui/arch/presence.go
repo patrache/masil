@@ -56,14 +56,11 @@ func (m *canvasModel) sendDrag(ctx *ui.Context, ghost *archdraw.Ghost) {
 	if !sh.live() || ctx == nil || ctx.Now == nil {
 		return
 	}
-	now := ctx.Now()
 	if ghost == nil {
-		if m.dragShared {
-			m.dragShared = false
-			sh.s.SetPresence(collab.Presence{Dragging: json.RawMessage("null")})
-		}
+		m.clearDragPresence()
 		return
 	}
+	now := ctx.Now()
 	if m.dragShared && now.Sub(m.dragSentAt) < dragEvery {
 		return
 	}
@@ -74,6 +71,18 @@ func (m *canvasModel) sendDrag(ctx *ui.Context, ghost *archdraw.Ghost) {
 	m.dragShared, m.dragSentAt = true, now
 	sh.presenceSent++
 	sh.s.SetPresence(collab.Presence{Dragging: b})
+}
+
+// clearDragPresence ends a shared drag at once (Dragging = null); it needs no
+// clock, so any path that drops the gesture can call it.
+func (m *canvasModel) clearDragPresence() {
+	if !m.dragShared {
+		return
+	}
+	m.dragShared = false
+	if sh := m.shared(); sh.live() {
+		sh.s.SetPresence(collab.Presence{Dragging: json.RawMessage("null")})
+	}
 }
 
 // remoteMarks are the other people's selections and drags for the canvas.
