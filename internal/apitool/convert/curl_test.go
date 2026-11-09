@@ -191,8 +191,14 @@ func TestCurlRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%v\n%s", err, out)
 			}
-			// Exports hide typed-in credentials (C3.10 layer 4).
+			// Exports hide typed-in credentials (C3.10 layer 4): only the
+			// -u and -b cases come back masked; every other case is the
+			// same request.
 			want := apitool.RedactRequest(orig, nil)
+			credential := c.name == "12 -u" || c.name == "18 -b"
+			if masked := !reflect.DeepEqual(noID(want), noID(*orig)); masked != credential {
+				t.Fatalf("masked = %v, want %v: %+v", masked, credential, noID(want))
+			}
 			if !reflect.DeepEqual(noID(*back), noID(want)) {
 				t.Fatalf("out %s\ngot  %+v\nwant %+v", out, noID(*back), noID(want))
 			}
