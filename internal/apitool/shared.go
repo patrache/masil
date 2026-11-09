@@ -458,7 +458,7 @@ func CollectionFromDoc(s collab.Snapshot) (*Collection, error) {
 		f := fieldReader(o.Fields)
 		r := &Request{
 			ID: id, Name: f.str("name"), Method: f.str("method"), URL: f.str("url"),
-			Body: Body{Kind: BodyKind(f.str("body_kind")), Text: f.str("body"), ContentType: f.str("content_type")},
+			Body: Body{Kind: docBodyKind(f.str("body_kind")), Text: f.str("body"), ContentType: f.str("content_type")},
 		}
 		f.into("auth", &r.Auth)
 		f.into("settings", &r.Settings)
@@ -1087,4 +1087,14 @@ func (s *LocalStore) RemoveShared(docID string) error {
 		}
 	}
 	return nil
+}
+
+// docBodyKind is a document's body kind; one the server's enum does not
+// know (an old or forged document) reads as no body.
+func docBodyKind(s string) BodyKind {
+	switch k := BodyKind(s); k {
+	case "", BodyNone, BodyJSON, BodyURLEncoded, BodyMultipart, BodyRaw:
+		return k
+	}
+	return BodyNone
 }

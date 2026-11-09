@@ -278,8 +278,10 @@ func (t *KVTable) insert(s string) {
 	t.pos += len(r)
 }
 
-// maskSecret shows only the last 4 characters of a long secret value.
+// maskSecret shows only the last 4 characters of a long secret value,
+// sanitized (an extracted secret is the server's text).
 func maskSecret(v string) string {
+	v = textwidth.Sanitize(v)
 	if v == "" {
 		return ""
 	}
