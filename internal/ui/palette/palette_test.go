@@ -203,6 +203,28 @@ func TestEmptyQueryListsCommands(t *testing.T) {
 	}
 }
 
+// TestCommandBadgeEveryQuery: a command's Badge (the 알림함's unread count) is drawn
+// both when a query finds it and in the empty query's command list (release v0.1.2:
+// the empty-query listing built its items without the badge).
+func TestCommandBadgeEveryQuery(t *testing.T) {
+	t.Cleanup(palette.SnapshotForTest())
+	t.Cleanup(palette.ResetRecentForTest())
+	ctx := uitest.New(t).Context()
+	palette.Register(palette.Command{ID: "t.badged", Title: "시험 배지", Group: "이동",
+		Badge: func(*ui.Context) ui.Badge { return ui.Badge{Count: 3} }})
+	for _, q := range []string{"", "시험 배지"} {
+		i := slices.IndexFunc(palette.ItemsForTest(ctx, q), func(it palette.Item) bool {
+			return it.Command != nil && it.Command.ID == "t.badged"
+		})
+		if i < 0 {
+			t.Fatalf("query %q: t.badged not listed", q)
+		}
+		if it := palette.ItemsForTest(ctx, q)[i]; it.Badge.Count != 3 {
+			t.Errorf("query %q: t.badged badge = %+v, want Count 3", q, it.Badge)
+		}
+	}
+}
+
 // subseq: the runes of q appear in s in order (case-insensitive) — a fuzzy title match.
 func subseq(s, q string) bool {
 	rs := []rune(strings.ToLower(s))

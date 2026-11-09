@@ -267,7 +267,7 @@ var groupRank = map[string]int{groupGo: 0, groupCommand: 1, groupSetting: 2}
 func commandItems(ctx *ui.Context) []Item {
 	var out []Item
 	for _, c := range availableCommands(ctx) {
-		out = append(out, Item{Kind: ItemCommand, Title: c.Title, Command: &c})
+		out = append(out, commandItem(ctx, c, 0))
 	}
 	rank := func(it Item) int {
 		if r, ok := groupRank[groupOf(it)]; ok {
@@ -571,7 +571,17 @@ func (commandSource) Items(ctx *ui.Context, q string) []Item {
 		if !ok {
 			continue
 		}
-		out = append(out, Item{Kind: ItemCommand, Title: c.Title, Command: &c, Score: s})
+		out = append(out, commandItem(ctx, c, s))
 	}
 	return out
+}
+
+// commandItem is c's palette item with its Badge (the 알림함's unread count) drawn,
+// for a query's match and the empty query's command list alike.
+func commandItem(ctx *ui.Context, c Command, score int) Item {
+	it := Item{Kind: ItemCommand, Title: c.Title, Command: &c, Score: score}
+	if c.Badge != nil && ctx != nil {
+		it.Badge = c.Badge(ctx)
+	}
+	return it
 }

@@ -301,6 +301,22 @@ func TestInboxBadgeInPaletteAndTabs(t *testing.T) {
 	t.Fatalf("palette shows no 알림함:\n%s", h.Screen())
 }
 
+// The empty query's command list (palette discovery) draws the 알림함 badge too.
+func TestInboxBadgeInEmptyPalette(t *testing.T) {
+	h := uitest.New(t, notifOptsWith(convSrv(t, fixtures.Notifications()), false, nil)...)
+	h.Resize(120, 40)
+	h.Press("ctrl+k")
+	for _, ln := range strings.Split(h.Screen(), "\n") {
+		if strings.Contains(ln, "알림함") && strings.Contains(ln, "ctrl+n") {
+			if !strings.Contains(ln, "ctrl+n  3 ") {
+				t.Fatalf("empty palette 알림함 row lacks the badge: %q", ln)
+			}
+			return
+		}
+	}
+	t.Fatalf("empty palette shows no 알림함:\n%s", h.Screen())
+}
+
 // threadReplyID is notificationsAll's unread thread_reply (in #개발).
 func threadReplyID(t *testing.T) string {
 	t.Helper()
