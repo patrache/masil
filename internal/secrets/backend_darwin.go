@@ -3,9 +3,11 @@ package secrets
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -22,22 +24,88 @@ func defaultOS() OSBackend { return keychain{} }
 // written through the interactive mode's standard input, never as an argument
 // (arguments are visible to every user in ps). Reading prints the value on the
 // tool's standard output.
+//
+// Layout (A9.2, like the Credential Manager's chunks [빌더 재량]): the item
+// holds secEncoded + base64(value) — `security -w` prints a value with a byte
+// outside printable ASCII as hex, and base64 keeps any value on one quoted
+// line. The interactive mode cuts a line at ~4 KiB and runs the rest as another
+// command, so a command line is never longer than secMaxLine: a longer value
+// goes into items "<account>#0" … of service "<service>.chunk" and the head
+// item holds secChunked + the piece count.
 type keychain struct{}
+
+const (
+	secMaxLine   = 4000 // the real tool cuts at ~4096 (probed with read-only commands)
+	secMaxChunks = 64
+	secEncoded   = "masil:b64:"
+	secChunked   = "masil:chunks:"
+)
 
 func (keychain) Name() Backend { return BackendKeychain }
 
-func (keychain) Set(ctx context.Context, service, account, value string) error {
-	for _, s := range []string{service, account, value} {
+func secChunkService(service string) string { return service + ".chunk" }
+
+func secChunkAccount(account string, i int) string { return account + "#" + strconv.Itoa(i) }
+
+// secAddLine is the interactive-mode command that stores raw (already safe:
+// base64 or the chunk marker) under service/account.
+func secAddLine(service, account, raw string) string {
+	return "add-generic-password -U -s " + secArg(service) + " -a " + secQuote(account) + " -w " + secQuote(raw) + "\n"
+}
+
+func (k keychain) Set(ctx context.Context, service, account, value string) error {
+	for _, s := range []string{service, account} {
 		if strings.ContainsAny(s, "\n\r\x00") {
-			return errors.New("secrets: keychain: a line break or NUL cannot be stored")
+			return errors.New("secrets: keychain: a line break or NUL cannot be in a name")
 		}
 	}
-	line := "add-generic-password -U -s " + secArg(service) + " -a " + secQuote(account) + " -w " + secQuote(value) + "\n"
+	enc := secEncoded + base64.StdEncoding.EncodeToString([]byte(value))
+	if line := secAddLine(service, account, enc); len(line) <= secMaxLine {
+		old, err := k.chunks(ctx, service, account)
+		if err != nil {
+			return err
+		}
+		if err := k.add(ctx, line); err != nil {
+			return err
+		}
+		k.dropChunks(ctx, service, account, 0, old)
+		return nil
+	}
+	room := secMaxLine - len(secAddLine(secChunkService(service), secChunkAccount(account, secMaxChunks), ""))
+	if room < 512 {
+		return errors.New("secrets: keychain: the name is too long")
+	}
+	n := (len(enc) + room - 1) / room
+	if n > secMaxChunks {
+		return fmt.Errorf("secrets: keychain: value too large (%d bytes)", len(value))
+	}
+	old, err := k.chunks(ctx, service, account)
+	if err != nil {
+		return err
+	}
+	// Pieces first, then the head: a reader never follows a head to missing pieces.
+	for i := range n {
+		piece := enc[i*room : min(len(enc), (i+1)*room)]
+		if err := k.add(ctx, secAddLine(secChunkService(service), secChunkAccount(account, i), piece)); err != nil {
+			return err
+		}
+	}
+	if err := k.add(ctx, secAddLine(service, account, secChunked+strconv.Itoa(n))); err != nil {
+		return err
+	}
+	k.dropChunks(ctx, service, account, n, old)
+	return nil
+}
+
+// add runs one interactive-mode command (one line, one process: the exit code
+// is that command's).
+func (keychain) add(ctx context.Context, line string) error {
 	_, err := runSecurity(ctx, strings.NewReader(line), "-i")
 	return err
 }
 
-func (keychain) Get(ctx context.Context, service, account string) (string, error) {
+// raw is the item's stored text.
+func (keychain) raw(ctx context.Context, service, account string) (string, error) {
 	out, err := runSecurity(ctx, nil, "find-generic-password", "-s", service, "-a", account, "-w")
 	if err != nil {
 		return "", err
@@ -45,8 +113,87 @@ func (keychain) Get(ctx context.Context, service, account string) (string, error
 	return strings.TrimSuffix(string(out), "\n"), nil
 }
 
-func (keychain) Delete(ctx context.Context, service, account string) error {
-	_, err := runSecurity(ctx, nil, "delete-generic-password", "-s", service, "-a", account)
+// chunks is the piece count of the head item (0 = a single item or none).
+func (k keychain) chunks(ctx context.Context, service, account string) (int, error) {
+	head, err := k.raw(ctx, service, account)
+	if errors.Is(err, ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	n, ok := secChunkCount(head)
+	if !ok {
+		return 0, nil
+	}
+	return n, nil
+}
+
+func secChunkCount(head string) (int, bool) {
+	s, ok := strings.CutPrefix(head, secChunked)
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 || n > secMaxChunks {
+		return 0, false
+	}
+	return n, true
+}
+
+// dropChunks deletes pieces from..to-1 (left over from a longer old value).
+func (keychain) dropChunks(ctx context.Context, service, account string, from, to int) {
+	for i := from; i < to; i++ {
+		_, _ = runSecurity(ctx, nil, "delete-generic-password", "-s", secChunkService(service), "-a", secChunkAccount(account, i))
+	}
+}
+
+func (k keychain) Get(ctx context.Context, service, account string) (string, error) {
+	head, err := k.raw(ctx, service, account)
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(head, secChunked) {
+		n, ok := secChunkCount(head)
+		if !ok {
+			return "", errors.New("secrets: keychain: broken chunked value")
+		}
+		var b strings.Builder
+		for i := range n {
+			piece, err := k.raw(ctx, secChunkService(service), secChunkAccount(account, i))
+			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					return "", errors.New("secrets: keychain: a piece is missing")
+				}
+				return "", err
+			}
+			b.WriteString(piece)
+		}
+		head = b.String()
+	}
+	enc, ok := strings.CutPrefix(head, secEncoded)
+	if !ok {
+		return head, nil // a plain item (not written by this layout)
+	}
+	v, err := base64.StdEncoding.DecodeString(enc)
+	if err != nil {
+		return "", errors.New("secrets: keychain: broken encoded value")
+	}
+	return string(v), nil
+}
+
+func (k keychain) Delete(ctx context.Context, service, account string) error {
+	n, err := k.chunks(ctx, service, account)
+	if err != nil {
+		return err
+	}
+	for i := range n {
+		_, err := runSecurity(ctx, nil, "delete-generic-password", "-s", secChunkService(service), "-a", secChunkAccount(account, i))
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+	}
+	_, err = runSecurity(ctx, nil, "delete-generic-password", "-s", service, "-a", account)
 	return err
 }
 
