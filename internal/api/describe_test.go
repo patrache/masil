@@ -151,3 +151,33 @@ func TestErrorStringSanitized(t *testing.T) {
 		t.Errorf("plain Error() = %q", got)
 	}
 }
+
+func TestExplainFields(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want api.Explanation
+	}{
+		{nil, api.Explanation{}},
+		{errors.New("x"), api.Explanation{}},
+		{apiErr("not_found", ""), api.Explanation{Code: "not_found"}},
+		{apiErr("invalid_request", `{"fields":{"name":"too_long","body":"required"}}`), api.Explanation{Code: "invalid_request", Field: "body", Reason: "required"}},
+		{apiErr("invalid_request", ""), api.Explanation{Code: "invalid_request"}},
+		{apiErr("limit_exceeded", `{"what":"group_dm_members","limit":10}`), api.Explanation{Code: "limit_exceeded", Limit: "10"}},
+		{apiErr("upgrade_required", `{"min_client_version":"0.2.0"}`), api.Explanation{Code: "upgrade_required", MinVersion: "0.2.0"}},
+		{&api.Error{Status: 429, Code: "rate_limited", RetryAfter: 11200 * time.Millisecond}, api.Explanation{Code: "rate_limited", RetryAfterSec: 12}},
+		{&url.Error{Op: "Get", URL: "https://h", Err: errors.New("refused")}, api.Explanation{Code: "network"}},
+		{fmt.Errorf("api: %w", context.Canceled), api.Explanation{Code: "canceled"}},
+	} {
+		if got := api.Explain(tc.err); got != tc.want {
+			t.Errorf("Explain(%v) = %+v, want %+v", tc.err, got, tc.want)
+		}
+	}
+	// Server strings come sanitized and capped.
+	x := api.Explain(apiErr("teapot\x1b[2J‮", `{"fields":{"x":"y"}}`))
+	if x.Code != "teapot[2J" && hasEscape(x.Code) {
+		t.Errorf("Explain code = %q: carries an escape", x.Code)
+	}
+	if hasEscape(x.Code) {
+		t.Errorf("Explain code = %q: carries an escape", x.Code)
+	}
+}
