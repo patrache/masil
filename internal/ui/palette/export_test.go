@@ -1,13 +1,5 @@
 package palette
 
-import "github.com/patrache/masil/internal/ui"
-
-// ItemsForTest returns the ranked items for query (built-in and registered sources,
-// no people-search results), before grouping.
-func ItemsForTest(ctx *ui.Context, query string) []Item {
-	return collect(ctx, query, nil, "")
-}
-
 // RememberForTest records it as a route chosen in the palette (recent list).
 func RememberForTest(it Item) {
 	remember(it)
