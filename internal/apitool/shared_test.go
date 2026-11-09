@@ -423,7 +423,7 @@ func TestGateHoldsLiteralAuth(t *testing.T) {
 // ~24k folders; every change rebuilds the collection on the UI goroutine).
 // A folder in a cycle or under a missing one goes to the root.
 func TestCollectionFromDocFolderChain(t *testing.T) {
-	const n = 10_000
+	const n = MaxSharedFolders - 4 // with the four below: at the folder cap
 	objs := []collab.Object{{ID: "col", Type: ObjCol, Fields: map[string]json.RawMessage{"name": mustRaw("deep")}}}
 	for i := range n {
 		p := ""
@@ -448,7 +448,12 @@ func TestCollectionFromDocFolderChain(t *testing.T) {
 		top = append(top, it.Folder.ID)
 	}
 	slices.Sort(top)
-	if !slices.Equal(top, []string{"c1", "c2", "f0", "lost", "under"}) {
+	want := []string{"c1", "c2", "lost", "under"}
+	for i := 0; i < n; i += MaxSharedFolderDepth { // past the depth cap a chain restarts at the root
+		want = append(want, "f"+strconv.Itoa(i))
+	}
+	slices.Sort(want)
+	if !slices.Equal(top, want) {
 		t.Fatalf("root folders = %v", top)
 	}
 	depth := 0
@@ -458,7 +463,7 @@ func TestCollectionFromDocFolderChain(t *testing.T) {
 		}
 		f = f.Items[0].Folder
 	}
-	if depth != n-1 {
+	if depth != MaxSharedFolderDepth-1 {
 		t.Fatalf("chain depth = %d", depth)
 	}
 }
