@@ -163,12 +163,17 @@ func TestStatusUnreadBehindTools(t *testing.T) {
 	if s := status(h); !strings.Contains(s, "💬 안 읽음 "+strconv.Itoa(unread+1)) {
 		t.Fatalf("status after a message = %q", s)
 	}
-	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}}) // the hub in front: its own status line
-	if s := status(h); strings.Contains(s, "💬") {
-		t.Fatalf("status on the hub = %q", s)
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}}) // the hub in front, a tool open: still behind
+	if s := status(h); !strings.Contains(s, "💬 안 읽음 "+strconv.Itoa(unread+1)) {
+		t.Fatalf("status on the hub with a tool open = %q", s)
 	}
 	h.Press("ctrl+t") // back to the chat: the count goes
 	if s := status(h); strings.Contains(s, "💬") {
 		t.Fatalf("status on the chat = %q", s)
+	}
+	h2 := uitest.New(t) // the hub alone (no tool open): no count
+	h2.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}})
+	if s := status(h2); strings.Contains(s, "💬") {
+		t.Fatalf("status on the hub without a tool = %q", s)
 	}
 }

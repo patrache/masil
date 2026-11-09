@@ -188,13 +188,14 @@ func (m *Model) rightItems() []statusItem {
 }
 
 // unreadBehindTools is the chat's unread count while the standard mode shows
-// an open tool in its place (0 otherwise: there the chat, its tabs or its
-// column stay in view; the hub keeps the 0.1.3 hub status line).
+// the tool surface (an open tool or the hub, once a tool is open) in its
+// place (0 otherwise: there the chat, its tabs or its column stay in view;
+// the hub alone, with no tool open, keeps the 0.1.2 status line).
 func (m *Model) unreadBehindTools() int {
 	if m.lay.Mode != layout.ModeStandard || m.nav.Front != FrontTools {
 		return 0
 	}
-	if r, ok := m.nav.activeTool(); !ok || r.Kind != ui.RouteTool {
+	if !slices.ContainsFunc(m.nav.Tools, func(r ui.Route) bool { return r.Kind == ui.RouteTool }) {
 		return 0
 	}
 	n, _ := m.ctx.Store.TotalUnread()
