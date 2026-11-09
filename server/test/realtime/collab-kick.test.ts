@@ -1,8 +1,9 @@
 // api.md 5.24 / collab.md 4.1: open document sockets follow membership, sessions and roles — kicked{reason} + 4100 on
 // leave / kick / ban / space delete / doc delete, 4001 / 4003 on session revocation, and the lock check sees a new role
 // without a reconnect.
+import { env } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
-import { api, connectDoc, login, makeAdmin, makeDoc, makeSpace, signup, type DocClient } from "../helpers";
+import { api, connectDoc, login, makeAdmin, makeDoc, makeSpace, signup, type DocClient, type TestUser } from "../helpers";
 
 async function room() {
   const owner = await signup();
@@ -143,5 +144,87 @@ describe("sessions and roles", () => {
     expect((await op(m, [{ op: "set", id: "n1", field: "x", value: 1 }])).code).toBe("locked");
     expect((await api(owner.token).post(`/v1/spaces/${space.id}/transfer`, { user: `@${member.handle}` })).status).toBe(200);
     await expect.poll(async () => (await op(m, [{ op: "set", id: "n1", field: "x", value: 2 }])).t, { timeout: 3000 }).toBe("ack");
+  });
+});
+
+// The Worker's X-Masil-Doc-Auth is built from a D1 read made before the upgrade reaches the hub. A lock, role,
+// membership or session change can commit (and its RPC reach the hub, finding no socket) in between. The hub then
+// sees a stale header: these tests hand it one directly, as that late upgrade would.
+async function sessionIdOf(u: TestUser): Promise<string> {
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.token)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const row = await env.DB.prepare("SELECT id FROM sessions WHERE token_hash = ?1").bind(hash).first<{ id: string }>();
+  if (!row) throw new Error("no session for token");
+  return row.id;
+}
+
+async function lateUpgrade(u: TestUser, sessionId: string, docId: string, role: string, locked: boolean): Promise<Response> {
+  const header = JSON.stringify({ userId: u.user.id, sessionId, role, docId, docType: "arch", locked });
+  return env.COLLAB_HUB.getByName(`doc:${docId}`).fetch(`http://do/v1/docs/${docId}/ws`, { headers: { Upgrade: "websocket", "X-Masil-Doc-Auth": header } });
+}
+
+/** hello on a raw accepted socket, then one op: the server's answer frame (ack / reject). */
+async function opOnRaw(res: Response): Promise<any> {
+  const ws = res.webSocket!;
+  const frames: any[] = [];
+  const got = new Promise<any>((resolve) =>
+    ws.addEventListener("message", (e) => {
+      const f = JSON.parse(e.data as string);
+      frames.push(f);
+      if (f.t === "ack" || f.t === "reject") resolve(f);
+    }),
+  );
+  ws.accept();
+  ws.send(JSON.stringify({ t: "hello", since: null }));
+  ws.send(JSON.stringify({ t: "op", client_op_id: `late${++opNo}`, base_seq: 0, ops: [{ op: "set", id: "n1", field: "x", value: 9 }] }));
+  return got;
+}
+
+describe("a late upgrade with a stale X-Masil-Doc-Auth", () => {
+  it("lock committed first: the stale locked=false does not unlock the hub; the member's op is refused", async () => {
+    const { owner, member, doc } = await room();
+    const sid = await sessionIdOf(member);
+    expect((await api(owner.token).patch(`/v1/docs/${doc.id}`, { locked: true })).status).toBe(200);
+    const res = await lateUpgrade(member, sid, doc.id, "member", false);
+    expect(res.status).toBe(101);
+    expect((await opOnRaw(res)).code).toBe("locked");
+  });
+
+  it("unlock committed first: the stale locked=true does not re-lock the hub", async () => {
+    const { owner, member, doc } = await room();
+    const sid = await sessionIdOf(member);
+    expect((await api(owner.token).patch(`/v1/docs/${doc.id}`, { locked: true })).status).toBe(200);
+    expect((await api(owner.token).patch(`/v1/docs/${doc.id}`, { locked: false })).status).toBe(200);
+    const res = await lateUpgrade(member, sid, doc.id, "member", true);
+    expect((await opOnRaw(res)).t).toBe("ack");
+  });
+
+  it("demotion committed first: the stale role admin does not edit a locked doc", async () => {
+    const { owner, member, space, doc } = await room();
+    const sid = await sessionIdOf(member);
+    expect((await api(owner.token).patch(`/v1/spaces/${space.id}/members/@${member.handle}`, { role: "admin" })).status).toBe(200);
+    const open = await connectDoc(member.token, doc.id);
+    expect((await api(owner.token).patch(`/v1/docs/${doc.id}`, { locked: true })).status).toBe(200);
+    expect((await api(owner.token).patch(`/v1/spaces/${space.id}/members/@${member.handle}`, { role: "member" })).status).toBe(200);
+    // the setRole RPC has reached the hub (it runs in the background): the open socket is a member now
+    await expect.poll(async () => (await op(open, [{ op: "set", id: "n1", field: "x", value: 1 }])).code, { timeout: 3000 }).toBe("locked");
+    const res = await lateUpgrade(member, sid, doc.id, "admin", true);
+    expect((await opOnRaw(res)).code).toBe("locked");
+  });
+
+  it("removal committed (and kick found no socket): the stale upgrade is refused with 404", async () => {
+    const { owner, member, space, doc } = await room();
+    const sid = await sessionIdOf(member);
+    expect((await api(owner.token).del(`/v1/spaces/${space.id}/members/@${member.handle}`)).status).toBe(204);
+    const res = await lateUpgrade(member, sid, doc.id, "member", false);
+    expect(res.status).toBe(404);
+    expect(res.webSocket).toBeNull();
+  });
+
+  it("session revoked first: the stale upgrade is refused with 401", async () => {
+    const { member, doc } = await room();
+    const sid = await sessionIdOf(member);
+    expect((await api(member.token).post("/v1/auth/logout")).status).toBe(204);
+    const res = await lateUpgrade(member, sid, doc.id, "member", false);
+    expect(res.status).toBe(401);
   });
 });

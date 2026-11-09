@@ -61,9 +61,9 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 ## 2. 연결
 
 - `GET /v1/docs/{doc_id}/ws`, `Upgrade: websocket`, `Authorization: Bearer <token>`(쿼리 금지, events.md 0.1 과 같음), `Accept-Language`(api.md 0.1). 리미터 `RL_WS`.
-- Worker 가 `requireAuth` → `RL_WS` → 방 멤버 확인을 한 뒤 `X-Masil-Doc-Auth`(사용자 id·역할; 클라이언트가 보낸 같은 헤더는 지운다)를 붙여 `COLLAB_HUB.getByName("doc:" + doc_id)` 로 넘긴다. DO 는 그 헤더만 믿는다.
+- Worker 가 `requireAuth` → `RL_WS` → 방 멤버 확인을 한 뒤 `X-Masil-Doc-Auth`(사용자 id·역할; 클라이언트가 보낸 같은 헤더는 지운다)를 붙여 `COLLAB_HUB.getByName("doc:" + doc_id)` 로 넘긴다. DO 는 누가 붙는지를 그 헤더로만 안다(잠금·역할·멤버십은 업그레이드 때 D1 을 다시 읽어 정한다 — 3.4).
 - 방 멤버가 아니거나, 방이 삭제됐거나(`spaces.deleted_at`, 소프트 삭제 — CASCADE 가 일어나지 않는다), 문서가 없거나 지워졌으면 업그레이드 전에 `404`(존재를 숨김, api.md 5.24).
-- 서버는 WebSocket Hibernation 을 쓴다. 연결 첨부는 `{ userId, sessionId, role }`(`role` = `"creator"|"admin"|"member"`, 접속 때 Worker 가 정한 값; 바뀌면 4.1 의 `setRole` 이 고친다). presence 는 메모리에만 있고 저장하지 않는다(다시 붙으면 없다).
+- 서버는 WebSocket Hibernation 을 쓴다. 연결 첨부는 `{ userId, sessionId, role }`(`role` = `"creator"|"admin"|"member"`, 접속 때 DO 가 D1 을 다시 읽어 정한 값(3.4); 바뀌면 4.1 의 `setRole` 이 고친다). presence 는 메모리에만 있고 저장하지 않는다(다시 붙으면 없다).
 
 ---
 
@@ -120,6 +120,7 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 - 압축(alarm): 스냅숏 뒤 op 가 1,000개를 넘으면 지금 상태를 스냅숏으로 쓰고 그 순번까지의 op 를 지운다. D1 `head_seq`·`updated_at` 반영은 op 뒤 30초 묶음.
 - `closeAll(reason)` 뒤에는 그 문서 소켓 업그레이드를 DO 도 `404` 로 거절한다(Worker 의 D1 확인과 겹치는 경합을 막는다).
 - `hello` 는 연결마다 **처음 한 번만** 답한다. 이미 답한 소켓의 `hello` 는 조용히 버린다(30바이트 프레임 하나로 문서 전체 스냅숏을 거듭 받아 내는 것을 막는다). 따라잡기가 다시 필요하면 다시 연결한다.
+- 업그레이드 때 DO 는 소켓을 먼저 받아 둔 뒤(이때부터 4.1 의 `kick`·`setRole`·`revokeSession`·`setLocked` 가 그 소켓을 본다) D1 을 한 번 더 읽는다. 헤더의 값은 Worker 가 그보다 앞서 읽은 것이라, 그 사이 커밋된 잠금·역할·멤버십·세션 변경과 그 RPC(아직 소켓이 없어 아무것도 못 한)를 놓칠 수 있기 때문이다. 방 멤버가 아니거나 방·문서가 지워졌으면 `404`, 세션이 폐기·만료됐으면 `401`, 그 읽기 동안 소켓이 이미 닫혔으면 `404`, 읽기 자체가 실패하면 `503` 으로 거절한다(클라이언트는 백오프 재접속). 통과하면 잠금 표시와 첨부 `role` 을 이 읽기 값으로 정한다 — 단 읽는 동안 `setLocked`·(그 사용자의) `setRole` 이 들어왔으면 그 RPC 가 정한 값이 더 새것이므로 그대로 둔다. 헤더의 `locked`·`role` 은 이 값으로 바뀐다(헤더에서 믿는 것은 사용자·세션·문서 id 와 종류).
 
 ---
 

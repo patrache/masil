@@ -109,6 +109,9 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
   private presence = new Map<string, Presence>();
   /** the alarm time this object last saw / set (null = unknown: ask storage) */
   private alarmAt: number | null = null;
+  /** bumped by setLocked / setRole (per user): fetch keeps what an RPC set while it was reading D1 */
+  private lockGen = 0;
+  private roleGen = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -200,7 +203,14 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
     });
   }
 
-  /** collab.md 2: the upgrade, from routes/docs.ts only. */
+  /**
+   * collab.md 2 / 3.4: the upgrade, from routes/docs.ts only. The header's lock, role and membership come from a D1
+   * read the Worker made before this request arrived; a lock / role / membership / session change can commit in
+   * between and its RPC (setLocked, setRole, kick, revokeSession) find no socket yet. So the socket is accepted first
+   * (from here every such RPC sees it), then D1 is read again: no longer a member of a live space, or the doc gone ->
+   * 404; the session revoked -> 401; otherwise the lock and role come from this read, unless an RPC arrived during it
+   * (that RPC is newer, keep what it set).
+   */
   async fetch(request: Request): Promise<Response> {
     const auth = parseDocAuth(request.headers.get("X-Masil-Doc-Auth"));
     if (auth === null) return new Response("missing doc auth", { status: 401 });
@@ -208,7 +218,6 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
     if (this.getMeta("closed") !== null) return new Response("not found", { status: 404 }); // doc / space deleted (closeAll)
     if (this.getMeta("doc_id") === null) this.setMeta("doc_id", auth.docId);
     if (this.getMeta("doc_type") === null) this.setMeta("doc_type", auth.docType);
-    this.setMeta("locked", auth.locked ? 1 : 0); // D1 is the truth; setLocked keeps it current between connections
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     const c: DocConn = {
@@ -226,6 +235,39 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
     };
     this.ctx.acceptWebSocket(server, [`u:${auth.userId}`, `s:${auth.sessionId}`]);
     server.serializeAttachment(c);
+    const lockGen = this.lockGen;
+    const roleGen = this.roleGen.get(auth.userId) ?? 0;
+    const refuse = (status: number, why: string): Response => {
+      this.closeWs(server, CollabClose.normal, why);
+      return new Response(why, { status });
+    };
+    type Check = { locked: number; created_by: string; space_role: string | null; session_ok: number };
+    let row: Check | null;
+    try {
+      row = await this.env.DB.prepare(
+        `SELECT d.locked, d.created_by,
+                (SELECT m.role FROM space_members m JOIN spaces sp ON sp.id = m.space_id AND sp.deleted_at IS NULL
+                  WHERE m.space_id = d.space_id AND m.user_id = ?2) AS space_role,
+                EXISTS (SELECT 1 FROM sessions s
+                         WHERE s.id = ?3 AND s.user_id = ?2 AND s.revoked_at IS NULL AND s.expires_at > ?4) AS session_ok
+           FROM collab_docs d WHERE d.id = ?1 AND d.deleted_at IS NULL`,
+      )
+        .bind(auth.docId, auth.userId, auth.sessionId, Date.now())
+        .first<Check>();
+    } catch (e) {
+      console.error({ msg: "CollabHub: connect check failed", doc_id: auth.docId, err: errFields(e) });
+      return refuse(503, "try again");
+    }
+    if (row === null || row.space_role === null) return refuse(404, "not found");
+    if (row.session_ok !== 1) return refuse(401, "session revoked");
+    // kicked / revoked / closeAll while D1 was read: the socket is already closed
+    const cur = this.conn(server);
+    if (server.readyState !== WebSocket.OPEN || cur === null || this.getMeta("closed") !== null) return refuse(404, "not found");
+    if (this.lockGen === lockGen) this.setMeta("locked", row.locked === 1 ? 1 : 0);
+    if ((this.roleGen.get(auth.userId) ?? 0) === roleGen) {
+      cur.role = row.created_by === auth.userId ? "creator" : row.space_role === "owner" || row.space_role === "admin" ? "admin" : "member";
+      server.serializeAttachment(cur);
+    }
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -604,6 +646,7 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
   }
 
   async setLocked(locked: boolean): Promise<void> {
+    this.lockGen++;
     this.setMeta("locked", locked ? 1 : 0);
   }
 
@@ -622,6 +665,7 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
 
   /** The user's new space role on their open sockets (the doc's creator stays "creator"); the next op sees it. */
   async setRole(userId: string, role: "admin" | "member"): Promise<void> {
+    this.roleGen.set(userId, (this.roleGen.get(userId) ?? 0) + 1);
     for (const ws of this.liveSockets(`u:${userId}`)) {
       const c = this.conn(ws);
       if (c === null || c.role === "creator" || c.role === role) continue;
