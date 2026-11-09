@@ -731,9 +731,11 @@ func (ex *pmExporter) request(orig *apitool.Request) pxItem {
 		b := &pxBody{Mode: "formdata", FormData: []pxKV{}}
 		for _, f := range r.Body.Form {
 			if f.File != "" || f.FileName != "" {
-				src := f.File
+				// the file name only: a local path would tell my user name
+				// and folders to whoever gets the export
+				src := f.FileName
 				if src == "" {
-					src = f.FileName
+					src = path.Base(strings.ReplaceAll(f.File, `\`, "/"))
 				}
 				b.FormData = append(b.FormData, pxKV{Key: f.Key, Type: "file", Src: src, Disabled: f.Off})
 				continue
