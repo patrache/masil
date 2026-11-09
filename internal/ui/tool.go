@@ -108,6 +108,9 @@ func ToolByID(id string) (ToolSpec, bool) {
 
 // OpenTool shows instance instanceID of tool toolID on the tool surface
 // (NavigateMsg{RouteTool}): an instance already open is shown again, not rebuilt.
+// An instance id names one instance on the whole surface (CloseTool takes only
+// the id): one already open under another tool is refused, so tools start
+// their ids with "<toolID>:" (e.g. "git:"+repo).
 func OpenTool(toolID, instanceID string, query map[string]string) tea.Cmd {
 	r := Route{Kind: RouteTool, ID: instanceID, Arg: toolID, Query: maps.Clone(query)}
 	return func() tea.Msg { return NavigateMsg{Route: r} }

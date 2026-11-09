@@ -406,6 +406,29 @@ func TestCloseToolCmd(t *testing.T) {
 	h.Check()
 }
 
+// TestCloseToolSharedInstanceID: an instance id names one instance on the
+// whole surface (CloseTool carries only the id), so a second tool's instance
+// with an id already open is refused, and CloseTool never closes another
+// tool's instance.
+func TestCloseToolSharedInstanceID(t *testing.T) {
+	installStubTools(t, "all")
+	h := uitest.New(t)
+	openTool(h, ui.ToolArch, "x")
+	openTool(h, ui.ToolGit, "x")
+	n := h.Model.Nav()
+	if len(n.Tools) != 1 || n.Tools[0].Arg != ui.ToolArch {
+		t.Fatalf("tools = %v, want only arch:x (git:x refused — the id is taken)", n.Tools)
+	}
+	if strings.Contains(h.Screen(), "6개까지") {
+		t.Errorf("a refused duplicate id shows the limit toast:\n%s", h.Screen())
+	}
+	a := h.Model.Instance(toolRoute(ui.ToolArch, "x").Key()).(*stubTool)
+	h.Send(ui.CloseTool("x")())
+	if a.closed != 1 || len(h.Model.Nav().Tools) != 0 {
+		t.Errorf("CloseTool(x): arch closed %d, tools %v", a.closed, h.Model.Nav().Tools)
+	}
+}
+
 func TestToolSurfaceLimit(t *testing.T) {
 	installStubTools(t, "all")
 	h := uitest.New(t)

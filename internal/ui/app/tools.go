@@ -112,6 +112,15 @@ func (n NavState) instances() int {
 	return c
 }
 
+// idTaken reports whether r's instance id is already open under another tool.
+// An instance id names one instance on the whole surface (ui.CloseTool carries
+// only the id), so such an r is refused.
+func (n NavState) idTaken(r ui.Route) bool {
+	return slices.ContainsFunc(n.Tools, func(o ui.Route) bool {
+		return o.Kind == ui.RouteTool && o.ID == r.ID && o.Arg != r.Arg
+	})
+}
+
 // toolIndex is the index of the entry with key k, or -1.
 func (n NavState) toolIndex(k string) int {
 	return slices.IndexFunc(n.Tools, func(r ui.Route) bool { return r.Key() == k })
@@ -127,7 +136,7 @@ func (c NavState) openTool(r ui.Route, mode layout.Mode) (NavState, FocusIntent)
 	switch {
 	case i >= 0:
 		c.Tools[i] = r
-	case r.Kind == ui.RouteTool && c.instances() >= maxTools-1:
+	case r.Kind == ui.RouteTool && (c.instances() >= maxTools-1 || c.idTaken(r)):
 		return c, FocusIntent{}
 	case r.Kind == ui.RouteTools:
 		c.Tools = append([]ui.Route{r}, c.Tools...)
@@ -267,10 +276,15 @@ func toolRouteOK(r ui.Route) bool {
 }
 
 // navigateTool is applyNavigate for a tool-surface route: dropped while its
-// tool is off; refused with a toast when the surface is full.
+// tool is off or its instance id is open under another tool (idTaken);
+// refused with a toast when the surface is full.
 func (m *Model) navigateTool(msg ui.NavigateMsg) tea.Cmd {
 	r := msg.Route
 	if !toolRouteOK(r) {
+		return nil
+	}
+	if r.Kind == ui.RouteTool && m.nav.idTaken(r) {
+		slog.Warn("tool surface: instance id already open under another tool", "tool", r.Arg, "id", r.ID)
 		return nil
 	}
 	isNew := m.nav.toolIndex(r.Key()) < 0
@@ -396,7 +410,8 @@ func (m *Model) openTools() []ui.OpenToolInfo {
 }
 
 // closeTool is ui.CloseTool: the instance's Closer runs, then it leaves the
-// surface and the instance cache. An unknown id is ignored.
+// surface and the instance cache. An unknown id is ignored. Instance ids are
+// unique on the surface (idTaken), so the id names one instance.
 func (m *Model) closeTool(instanceID string) tea.Cmd {
 	i := slices.IndexFunc(m.nav.Tools, func(r ui.Route) bool { return r.Kind == ui.RouteTool && r.ID == instanceID })
 	if i < 0 {
