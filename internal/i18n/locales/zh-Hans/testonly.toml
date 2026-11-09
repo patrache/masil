@@ -1,0 +1,8 @@
+[greet]
+other = "{name}，你好"
+
+[members]
+other = "{n} 位成员"
+
+[move_to]
+other = "已移到 {place}"

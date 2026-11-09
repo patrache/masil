@@ -1,0 +1,11 @@
+[lang_name_en]
+desc = "언어 목록의 영어 이름 — 모든 언어에서 그 언어 자신의 이름"
+other = "English"
+
+[lang_name_ko]
+desc = "언어 목록의 한국어 이름 — 모든 언어에서 그 언어 자신의 이름"
+other = "한국어"
+
+[lang_name_zh]
+desc = "언어 목록의 간체 중국어 이름 — 모든 언어에서 그 언어 자신의 이름"
+other = "简体中文"
