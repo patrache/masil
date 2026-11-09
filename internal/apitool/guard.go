@@ -149,7 +149,10 @@ func IsPrivateAddr(a netip.Addr) bool {
 	return false
 }
 
-// IsPrivateHostname: localhost, *.localhost, *.local, or a private IP literal.
+// IsPrivateHostname: localhost, *.localhost, *.local, a private IP literal,
+// or a non-canonical IPv4 form ("2130706433", "127.1", "0x7f.1", "0177.0.0.1"):
+// a proxy or the OS resolver may read it as any address (inet_aton), so it
+// is never taken for a public name.
 func IsPrivateHostname(h string) bool {
 	h = normHost(h)
 	if h == "localhost" || strings.HasSuffix(h, ".localhost") || strings.HasSuffix(h, ".local") {
@@ -158,7 +161,30 @@ func IsPrivateHostname(h string) bool {
 	if a, err := netip.ParseAddr(h); err == nil {
 		return IsPrivateAddr(a)
 	}
-	return false
+	return numericLastLabel(h)
+}
+
+// numericLastLabel: the last dot label is a decimal or 0x-hex number, which
+// makes the host an IPv4 address to URL parsers and inet_aton (a public DNS
+// name never ends in a number).
+func numericLastLabel(h string) bool {
+	last := h[strings.LastIndexByte(h, '.')+1:]
+	digits := "0123456789"
+	if len(last) >= 2 && last[0] == '0' && (last[1] == 'x' || last[1] == 'X') {
+		last, digits = last[2:], "0123456789abcdefABCDEF"
+		if last == "" {
+			return true
+		}
+	}
+	if last == "" {
+		return false
+	}
+	for i := 0; i < len(last); i++ {
+		if !strings.ContainsRune(digits, rune(last[i])) {
+			return false
+		}
+	}
+	return true
 }
 
 // guard is the per-send state of the target checks.
