@@ -89,6 +89,9 @@ func (t *KVTable) Rows() []apitool.KV {
 	return slices.Clone(t.rows)
 }
 
+// SetTitles sets the column titles (drawn in the table's language).
+func (t *KVTable) SetTitles(key, value string) { t.cols.Key, t.cols.Value = key, value }
+
 // SetSecretNames marks the rows whose key is secret (Secretable tables).
 func (t *KVTable) SetSecretNames(f func(name string) bool) { t.secret = f }
 

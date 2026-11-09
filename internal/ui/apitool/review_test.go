@@ -12,7 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/patrache/masil/internal/apitool"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/ui/uitest"
 )
@@ -350,6 +353,22 @@ func TestStaleSpillFilesRemovedOnOpen(t *testing.T) {
 	for _, p := range []string{fresh, other} {
 		if _, err := os.Stat(p); err != nil {
 			t.Fatalf("%s was removed: %v", p, err)
+		}
+	}
+}
+
+// The editor tables' column titles come from the catalog (x-pseudo marks
+// every catalog text with ⟦⟧).
+func TestEditorColumnTitlesCatalogued(t *testing.T) {
+	h := openAPI(t, uitest.WithLocale(i18n.Pseudo))
+	tl := seedRequests(h, nil, &apitool.Request{ID: "x", Name: "x", Method: "GET", URL: "https://example.com/x",
+		Headers: []apitool.KV{{ID: "h", Key: "Accept", Value: "application/json"}}})
+	for _, tab := range []string{"1", "2", "4", "5"} {
+		h.Press(tab)
+		lines := tl.ed.view(h.Context(), tl, 90, 8, false)
+		hdr := ansi.Strip(lines[2]) // the URL line, the tab line, the column titles
+		if strings.Count(hdr, "⟦") < 2 || strings.Contains(hdr, "header") || strings.Contains(hdr, "value") || strings.Contains(hdr, "key") {
+			t.Fatalf("tab %s column titles are not catalogued: %q", tab, hdr)
 		}
 	}
 }

@@ -139,6 +139,70 @@ var areaApitest = area{
 				En: {Other: "API test: send"},
 			},
 		},
+		"col_check": {
+			desc: "검사 표의 둘째 열 제목(연산과 기대값, 예: eq 201)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "검사"},
+				En: {Other: "check"},
+			},
+		},
+		"col_field": {
+			desc: "form 본문 표의 첫째 열 제목(필드 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "필드"},
+				En: {Other: "field"},
+			},
+		},
+		"col_from": {
+			desc: "추출 표의 둘째 열 제목(어디서 꺼낼지, 예: json $.token)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "가져올 곳"},
+				En: {Other: "from"},
+			},
+		},
+		"col_header": {
+			desc: "헤더 표의 첫째 열 제목(헤더 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "헤더"},
+				En: {Other: "header"},
+			},
+		},
+		"col_key": {
+			desc: "쿼리 표의 첫째 열 제목(매개변수 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "키"},
+				En: {Other: "key"},
+			},
+		},
+		"col_target": {
+			desc: "검사 표의 첫째 열 제목(status·json·header 등)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "대상"},
+				En: {Other: "target"},
+			},
+		},
+		"col_value": {
+			desc: "쿼리·헤더·form 표의 둘째 열 제목",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "값"},
+				En: {Other: "value"},
+			},
+		},
+		"col_var": {
+			desc: "추출 표의 첫째 열 제목(값을 넣을 변수 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "변수"},
+				En: {Other: "variable"},
+			},
+		},
 		"default_collection": {
 			desc: "새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)",
 			max:  16,
@@ -1417,6 +1481,46 @@ func (a_ ApitestT) CmdRunner() string {
 // CmdSend: 명령 팔레트: 지금 요청 보내기
 func (a_ ApitestT) CmdSend() string {
 	return a_.t.render(&areaApitest, "cmd_send", false, 0)
+}
+
+// ColCheck: 검사 표의 둘째 열 제목(연산과 기대값, 예: eq 201)
+func (a_ ApitestT) ColCheck() string {
+	return a_.t.render(&areaApitest, "col_check", false, 0)
+}
+
+// ColField: form 본문 표의 첫째 열 제목(필드 이름)
+func (a_ ApitestT) ColField() string {
+	return a_.t.render(&areaApitest, "col_field", false, 0)
+}
+
+// ColFrom: 추출 표의 둘째 열 제목(어디서 꺼낼지, 예: json $.token)
+func (a_ ApitestT) ColFrom() string {
+	return a_.t.render(&areaApitest, "col_from", false, 0)
+}
+
+// ColHeader: 헤더 표의 첫째 열 제목(헤더 이름)
+func (a_ ApitestT) ColHeader() string {
+	return a_.t.render(&areaApitest, "col_header", false, 0)
+}
+
+// ColKey: 쿼리 표의 첫째 열 제목(매개변수 이름)
+func (a_ ApitestT) ColKey() string {
+	return a_.t.render(&areaApitest, "col_key", false, 0)
+}
+
+// ColTarget: 검사 표의 첫째 열 제목(status·json·header 등)
+func (a_ ApitestT) ColTarget() string {
+	return a_.t.render(&areaApitest, "col_target", false, 0)
+}
+
+// ColValue: 쿼리·헤더·form 표의 둘째 열 제목
+func (a_ ApitestT) ColValue() string {
+	return a_.t.render(&areaApitest, "col_value", false, 0)
+}
+
+// ColVar: 추출 표의 첫째 열 제목(값을 넣을 변수 이름)
+func (a_ ApitestT) ColVar() string {
+	return a_.t.render(&areaApitest, "col_var", false, 0)
 }
 
 // DefaultCollection: 새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)

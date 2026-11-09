@@ -79,6 +79,46 @@ other = "API 시험: 실행기"
 desc = "명령 팔레트: 지금 요청 보내기"
 other = "API 시험: 보내기"
 
+[col_check]
+desc = "검사 표의 둘째 열 제목(연산과 기대값, 예: eq 201)"
+max = 12
+other = "검사"
+
+[col_field]
+desc = "form 본문 표의 첫째 열 제목(필드 이름)"
+max = 12
+other = "필드"
+
+[col_from]
+desc = "추출 표의 둘째 열 제목(어디서 꺼낼지, 예: json $.token)"
+max = 12
+other = "가져올 곳"
+
+[col_header]
+desc = "헤더 표의 첫째 열 제목(헤더 이름)"
+max = 12
+other = "헤더"
+
+[col_key]
+desc = "쿼리 표의 첫째 열 제목(매개변수 이름)"
+max = 12
+other = "키"
+
+[col_target]
+desc = "검사 표의 첫째 열 제목(status·json·header 등)"
+max = 12
+other = "대상"
+
+[col_value]
+desc = "쿼리·헤더·form 표의 둘째 열 제목"
+max = 12
+other = "값"
+
+[col_var]
+desc = "추출 표의 첫째 열 제목(값을 넣을 변수 이름)"
+max = 12
+other = "변수"
+
 [default_collection]
 desc = "새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)"
 max = 16

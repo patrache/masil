@@ -51,6 +51,30 @@ other = "API test: runner"
 [cmd_send]
 other = "API test: send"
 
+[col_check]
+other = "check"
+
+[col_field]
+other = "field"
+
+[col_from]
+other = "from"
+
+[col_header]
+other = "header"
+
+[col_key]
+other = "key"
+
+[col_target]
+other = "target"
+
+[col_value]
+other = "value"
+
+[col_var]
+other = "variable"
+
 [default_collection]
 other = "My requests"
 

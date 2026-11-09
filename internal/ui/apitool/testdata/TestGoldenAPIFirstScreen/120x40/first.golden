@@ -1,7 +1,7 @@
 ╔═ API 시험 · 깃허브 API · staging ════════════════════════════════════════════════════════════════════════════════════╗
 ║▾ 내 컬렉션 (로컬)        │GET   {{base_url}}/user                                                          [보내기 ⏎]║
 ║  ▾ 깃허브 API            │쿼리 0 · 헤더 3 · 본문 없음 · 검사 4 · 추출 0 · 설정                                       ║
-║      GET  내 정보       ✓│   header                value                                                             ║
+║      GET  내 정보       ✓│   헤더                  값                                                                ║
 ║    ▸ 저장소              │ ✓ Authorization         Bearer {{token}}                                                  ║
 ║                          │ ✓ Accept                application/vnd.github+json                                       ║
 ║                          │ ✓ X-GitHub-Api-Version  2022-11-28                                                        ║

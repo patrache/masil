@@ -54,12 +54,13 @@ type editor struct {
 
 func newEditor() *editor {
 	return &editor{
-		tab:      tabHeaders,
-		query:    NewKVTable(KVCols{Key: "key", Value: "value"}),
-		headers:  NewKVTable(KVCols{Key: "header", Value: "value"}),
-		asserts:  NewKVTable(KVCols{Key: "target", Value: "check"}),
-		extracts: NewKVTable(KVCols{Key: "var", Value: "from"}),
-		form:     NewKVTable(KVCols{Key: "field", Value: "value"}),
+		tab: tabHeaders,
+		// column titles are set from the catalog when drawn (titles)
+		query:    NewKVTable(KVCols{}),
+		headers:  NewKVTable(KVCols{}),
+		asserts:  NewKVTable(KVCols{}),
+		extracts: NewKVTable(KVCols{}),
+		form:     NewKVTable(KVCols{}),
 		body:     newTextArea(""),
 	}
 }
@@ -216,6 +217,16 @@ func (e *editor) view(ctx *ui.Context, t *Tool, w, h int, focused bool) []string
 	return textwidth.Fit(append(band, out...), w, h)
 }
 
+// titles sets the tables' column titles in the shown language.
+func (e *editor) titles(ctx *ui.Context) {
+	a := ctx.T.Apitest
+	e.query.SetTitles(a.ColKey(), a.ColValue())
+	e.headers.SetTitles(a.ColHeader(), a.ColValue())
+	e.asserts.SetTitles(a.ColTarget(), a.ColCheck())
+	e.extracts.SetTitles(a.ColVar(), a.ColFrom())
+	e.form.SetTitles(a.ColField(), a.ColValue())
+}
+
 // rows are the URL line, the tab line and the tab in w x h.
 func (e *editor) rows(ctx *ui.Context, t *Tool, w, h int, focused bool) []string {
 	out := []string{e.urlLine(ctx, t, w)}
@@ -226,6 +237,7 @@ func (e *editor) rows(ctx *ui.Context, t *Tool, w, h int, focused bool) []string
 	bodyH := max(h-2, 0)
 	inTab := focused && !e.onURL && e.url == nil
 	if tb := e.table(); tb != nil {
+		e.titles(ctx)
 		out = append(out, tb.View(ctx, w, bodyH, inTab)...)
 		if c := tb.Cursor(); c != nil && inTab {
 			e.curX, e.curY, e.hasCur = c.X, c.Y+2, true
