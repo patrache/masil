@@ -1,3 +1,6 @@
+[downgraded]
+other = "Could not open as {mode} here, so it opened full screen"
+
 [enter_hint]
 other = "type in the pane"
 
@@ -63,6 +66,9 @@ other = "Extended keys like shift+enter do not reach a pane · for a Claude Code
 
 [kbd_nvim]
 other = "In nvim terminal mode, press {key} ctrl+n as {key} {key} ctrl+n"
+
+[pane_limit]
+other = "Up to {max} panes at a time · close one or open it full screen"
 
 [prefix_hint]
 other = "{key} then: esc leave · z zoom · x end · p palette · ? help"

@@ -11,6 +11,14 @@ type TermpaneT struct{ t *T }
 var areaTermpane = area{
 	name: "termpane",
 	keys: map[string]*entry{
+		"downgraded": {
+			desc:   "토스트: 고른(또는 설정한) 여는 방식을 이 환경에서 못 써서 화면 전환(exec)으로 열었을 때. mode = 여는 방식 이름(tools.mode_pane·mode_window 문구)",
+			params: []Param{{Name: "mode", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{mode|으로/로} 열 수 없어 화면 전환으로 열었어요"},
+				En: {Other: "Could not open as {mode} here, so it opened full screen"},
+			},
+		},
 		"enter_hint": {
 			desc: "상태줄 키 설명: 패널에서 나온 뒤 enter 로 다시 패널에 입력하기",
 			text: map[Locale]Forms{
@@ -172,6 +180,14 @@ var areaTermpane = area{
 				En: {Other: "In nvim terminal mode, press {key} ctrl+n as {key} {key} ctrl+n"},
 			},
 		},
+		"pane_limit": {
+			desc:   "토스트: 살아 있는 패널이 상한(모든 도구 합계)이라 새 패널을 못 열 때. max = 상한",
+			params: []Param{{Name: "max", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "패널은 동시에 {max}개까지예요 · 하나를 닫거나 화면 전환으로 여세요"},
+				En: {Other: "Up to {max} panes at a time · close one or open it full screen"},
+			},
+		},
 		"prefix_hint": {
 			desc:   "상태줄: 접두키를 누른 뒤 2초 동안 다음 키를 기다릴 때. key = 접두키(ctrl+\\ 등)",
 			params: []Param{{Name: "key", Type: "string"}},
@@ -197,6 +213,11 @@ var areaTermpane = area{
 			},
 		},
 	},
+}
+
+// Downgraded: 토스트: 고른(또는 설정한) 여는 방식을 이 환경에서 못 써서 화면 전환(exec)으로 열었을 때. mode = 여는 방식 이름(tools.mode_pane·mode_window 문구)
+func (a_ TermpaneT) Downgraded(mode string) string {
+	return a_.t.render(&areaTermpane, "downgraded", false, 0, "mode", mode)
 }
 
 // EnterHint: 상태줄 키 설명: 패널에서 나온 뒤 enter 로 다시 패널에 입력하기
@@ -307,6 +328,11 @@ func (a_ TermpaneT) KbdLimits() string {
 // KbdNvim: 패널 도움말·안내 한 줄(A7.5): nvim 터미널 모드 나가기 키를 패널에서 누르는 법. key = 접두키(ctrl+\ 등)
 func (a_ TermpaneT) KbdNvim(key string) string {
 	return a_.t.render(&areaTermpane, "kbd_nvim", false, 0, "key", key)
+}
+
+// PaneLimit: 토스트: 살아 있는 패널이 상한(모든 도구 합계)이라 새 패널을 못 열 때. max = 상한
+func (a_ TermpaneT) PaneLimit(max int) string {
+	return a_.t.render(&areaTermpane, "pane_limit", false, 0, "max", strconv.Itoa(max))
 }
 
 // PrefixHint: 상태줄: 접두키를 누른 뒤 2초 동안 다음 키를 기다릴 때. key = 접두키(ctrl+\ 등)
