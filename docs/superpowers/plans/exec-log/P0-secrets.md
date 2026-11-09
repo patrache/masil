@@ -40,3 +40,15 @@
 - 내 판단: `AssertNoLeak` 이 헤더를 보도록 `apitest.Recorded` 에 `Header http.Header` 를 더했다(Files 밖, 칸 하나 + 기록 한 줄, masil 토큰은 가림). 값은 날것·URL 쿼리/경로 이스케이프·JSON 이스케이프 꼴까지 찾고, 보고에는 요청 번호와 자리만 적는다(값·경로를 되풀이하지 않음). WebSocket 프레임은 apitest 가 기록하지 않아 보지 않는다.
 - 내 판단: `TestImportGraph` 는 `go list -deps` 대신 `go list -json <패키지>` 의 `Deps`(전이)·`Imports`(직접)를 읽는다. 도구 접두사 표 `toolPackagePrefixes` 는 각 줄기가 한 줄씩 더한다. 시험이 정말 잡는지 `internal/api` 에 `secrets` 를 import 하는 임시 파일로 실패를 확인하고 지웠다.
 - 내 판단: 새 문구는 모두 `tools.toml`(ko·en)에. `consent_question`·`backend_file` 은 `no_truncate`+`legal`, `logins_forget_body`·`logout_wipe` 는 `no_truncate`. zh-Hans 는 비움(경고만).
+
+## 리뷰 반영 (P0 review)
+
+- macOS 키체인 줄 길이: 이 세션에서 실제 `/usr/bin/security -i` 에 읽기 전용 `find-generic-password`(없는 서비스)만 넣어 확인했다 — 줄이 4,050바이트쯤이면 한 명령, 4,130바이트쯤이면 뒷부분이 `unknown command` 로 따로 돈다. 키체인 항목은 만들지 않았다.
+- 내 판단: 키체인 값은 `masil:b64:` + base64 로 저장한다(`security -w` 가 ASCII 밖 바이트가 든 값을 16진수로 찍기 때문, go-keyring 과 같은 이유). 그래서 줄바꿈·CR·NUL 이 든 값도 이제 한 줄로 안전하게 저장된다(이름에 든 것은 여전히 거절). 실제 키체인에 비ASCII 값을 써서 16진수 출력을 직접 확인하지는 않았다(오너 키체인에 항목을 만들어야 해서) — 시험은 진짜 도구처럼 16진수로 찍는 에뮬레이터로 한다. 접두사가 없는 항목은 그대로 돌려준다.
+- 내 판단: 긴 값은 거절하지 않고 Windows 처럼 나눈다. 명령 한 줄은 4,000바이트를 넘지 않고, 넘으면 서비스 `masil.chunk` 의 `<account>#0…` 조각 + 머리 항목(`masil:chunks:<개수>`), 최대 64조각. 조각을 먼저, 머리를 나중에 쓴다. 조각용 서비스를 따로 둔 것은 값 이름에 `#0` 이 든 진짜 항목과 겹치지 않게. Set 은 남은 옛 조각을 지우려고 머리를 먼저 한 번 읽는다(`security` 한 번 더). 64조각을 넘는 값은 `security` 를 부르지 않고 `ErrUnavailable` 이 아닌 오류로 거절한다(키체인을 내려 두지 않음). 한 명령 = 한 프로세스(종료 코드가 그 명령의 것이 되게).
+- 내 판단: 시험용 키체인 에뮬레이터는 시험 바이너리 자신이다(`init` 에서 환경변수 `MASIL_FAKE_KEYCHAIN` 을 보면 security 처럼 돎). 4,095바이트에서 줄을 끊고 남은 부분을 따로 실행하고, ASCII 밖 값은 16진수로 찍는다 — 둘 다 진짜 도구의 동작.
+- 내 판단: ctx 가 끝난 뒤의 실패는 `ErrUnavailable` 이 아니라 ctx 의 오류다(`ctxErr`, store.go). `runSecurity` 와 Secret Service 어댑터가 그렇게 돌려주고, Store 도 OS 호출 뒤 한 번 더 걸러 어느 어댑터든 취소로 OS 를 내려 두거나 동의를 묻지 않는다. Windows Cred*W 는 ctx 를 쓰지 않는 동기 호출이라 어댑터는 그대로 두고 Store 쪽 거름으로 충분하다고 봤다.
+- 내 판단: 로그아웃 지우기는 POST /v1/auth/logout **앞에** 자기 ctx(30초, `wipeTimeout`)로 돈다. 시험에서 요청 시간을 줄이려고 `logoutTimeout` 을 상수에서 변수로 바꾸고 `SetLogoutTimeoutForTest` 를 export_test.go 에 더했다. `secrettest` 의 가짜 OS 저장소도 끝난 ctx 로 부르면 ctx 오류를 내게 했다(진짜 저장소처럼).
+- 미룸: 리뷰가 함께 제안한 "지우기 실패를 토스트로 보이기" 는 하지 않았다. 로그아웃 뒤 로그인 화면에 띄울 새 문구(카탈로그 키)와 화면 동작이 필요해 설계서 A9.4(실패는 로그만으로 읽힘) 밖이다. 원인(바닥난 ctx)은 고쳤다.
+- 내 판단: A9.5 의 WebSocket 프레임은 `secrettest.AssertNoLeakFrames(tb, frames [][]byte, values...)` 로 본다. apitest 는 소켓을 기록하지 않으므로 시험의 가짜 소켓이 모은 보낸 프레임을 넘긴다. 이 갈래에는 프레임을 모으는 공용 가짜가 없어 그쪽은 고치지 않았다.
+- 내 판단: 이 batch 가 늘린 겉모양(`Recorded.Header`, `ConfirmCheck`, `SecretScope`·`SecretKey` 와 키 규칙, `app.Options.Secrets`, `Store.Fallback`, 설정 `도구 로그인` 묶음·`RegisterToolLogin`, 로그아웃 선택지, ctx 오류 규칙, `AssertNoLeakFrames`)을 계약 `client-architecture.md`(4.3.3·5.3.2·5.4·5.7·5.8·10.2)와 P0 계획의 "Interfaces 요약 — 비밀값" 줄에 적었다. P1·P4 계획 파일은 그 줄기 소유라 고치지 않았다 — 두 계획 모두 P0 Interfaces 를 출처로 삼는다.

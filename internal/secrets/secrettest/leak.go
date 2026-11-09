@@ -18,31 +18,12 @@ import (
 // a request srv recorded — method, path, query, header names and values, body —
 // or in any file under logDir ("" = no log check), raw or URL/JSON-escaped
 // (v0.1.3 A9.5). Reports name the place and the value's index, never the value.
+// apitest does not record WebSocket frames: check those with AssertNoLeakFrames.
 func AssertNoLeak(tb testing.TB, srv *apitest.Server, logDir string, values ...string) {
 	tb.Helper()
-	type needle struct {
-		i     int
-		forms []string
-	}
-	var needles []needle
-	for i, v := range values {
-		if v != "" {
-			needles = append(needles, needle{i, encodings(v)})
-		}
-	}
-	if len(needles) == 0 {
+	check := checker(tb, values)
+	if check == nil {
 		return
-	}
-	check := func(where, hay string) {
-		tb.Helper()
-		for _, n := range needles {
-			for _, f := range n.forms {
-				if strings.Contains(hay, f) {
-					tb.Errorf("secrettest: value #%d leaked in %s", n.i, where)
-					break
-				}
-			}
-		}
 	}
 	if srv != nil {
 		for ri, r := range srv.Requests() {
@@ -79,6 +60,50 @@ func AssertNoLeak(tb testing.TB, srv *apitest.Server, logDir string, values ...s
 			check("log file "+rel, string(b))
 			return nil
 		})
+	}
+}
+
+// AssertNoLeakFrames fails tb when any of values appears in a WebSocket frame
+// the client sent (realtime, room documents — collected by the test's fake
+// socket), raw or URL/JSON-escaped (v0.1.3 A9.5 "WebSocket 프레임"). Reports
+// name the frame's index and the value's index, never the value.
+func AssertNoLeakFrames(tb testing.TB, frames [][]byte, values ...string) {
+	tb.Helper()
+	check := checker(tb, values)
+	if check == nil {
+		return
+	}
+	for i, f := range frames {
+		check("frame "+strconv.Itoa(i), string(f))
+	}
+}
+
+// checker returns a func reporting every value found in hay (nil = no
+// non-empty value to look for).
+func checker(tb testing.TB, values []string) func(where, hay string) {
+	type needle struct {
+		i     int
+		forms []string
+	}
+	var needles []needle
+	for i, v := range values {
+		if v != "" {
+			needles = append(needles, needle{i, encodings(v)})
+		}
+	}
+	if len(needles) == 0 {
+		return nil
+	}
+	return func(where, hay string) {
+		tb.Helper()
+		for _, n := range needles {
+			for _, f := range n.forms {
+				if strings.Contains(hay, f) {
+					tb.Errorf("secrettest: value #%d leaked in %s", n.i, where)
+					break
+				}
+			}
+		}
 	}
 }
 

@@ -98,3 +98,33 @@ func TestAssertNoLeakCatches(t *testing.T) {
 		}
 	})
 }
+
+// TestAssertNoLeakFrames: WebSocket frames (realtime, room documents) are
+// checked too (A9.5) — raw and JSON-escaped; reports name the frame index only.
+func TestAssertNoLeakFrames(t *testing.T) {
+	frames := [][]byte{
+		[]byte(`{"type":"typing","channel_id":"C1"}`),
+		[]byte(`{"type":"doc.update","text":"a<` + leaked + `"}`),
+	}
+	ft := &fakeTB{}
+	secrettest.AssertNoLeakFrames(ft, frames, "unused", leaked)
+	if len(ft.errs) != 1 || !strings.Contains(ft.errs[0], "frame 1") || !strings.Contains(ft.errs[0], "value #1") {
+		t.Fatalf("errs = %q, want one report naming frame 1 and value #1", ft.errs)
+	}
+	for _, e := range ft.errs {
+		if strings.Contains(e, leaked) {
+			t.Fatalf("the report repeats the value: %q", e)
+		}
+	}
+	quoted := `he said "` + leaked + `"`
+	ft = &fakeTB{}
+	secrettest.AssertNoLeakFrames(ft, [][]byte{[]byte(`{"t":"he said \"` + leaked + `\""}`)}, quoted)
+	if len(ft.errs) != 1 {
+		t.Fatalf("a JSON-escaped value in a frame was missed: %q", ft.errs)
+	}
+	ft = &fakeTB{}
+	secrettest.AssertNoLeakFrames(ft, frames[:1], leaked)
+	if len(ft.errs) != 0 {
+		t.Fatalf("clean frames reported: %q", ft.errs)
+	}
+}
