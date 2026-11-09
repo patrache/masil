@@ -13,11 +13,14 @@ import { checkLimit, limit } from "../lib/ratelimit";
 import { isReportableDate, isValidDate, LeetDailyFacts, zCode, zFrontendId, zLang, zSlug } from "../lib/leet";
 import { validateCard } from "../lib/cards/index";
 import { isoOrNull, now } from "../lib/time";
-import { vJson, zId } from "../lib/validate";
+import { vJson, vQuery, zId } from "../lib/validate";
 import { createTextChannel } from "../services/channels";
 import {
   dailySpacesOf,
   deleteSolve,
+  friendsBoard,
+  leetMe,
+  spaceBoard,
   ensureDailyRoots,
   loadDaily,
   reportDailyFacts,
@@ -219,4 +222,28 @@ leetRoutes.delete("/leet/solves/:date", requireAuth, limit("RL_SOCIAL"), async (
   if (!isValidDate(date)) throw err.invalid({ date: "invalid" });
   await deleteSolve(rt(c), me, date);
   return c.body(null, 204);
+});
+
+/** My streaks (current, best), my records of the last 30 UTC days (newest first) and my #daily spaces. */
+leetRoutes.get("/leet/me", requireAuth, async (c) => {
+  return c.json(await leetMe(c.env.DB, getAuth(c).userId));
+});
+
+const BoardQuery = z.object({ period: z.enum(["week", "month", "all"]).optional() });
+
+/**
+ * Members only (non-member 404). The space's board for `period` (default week): who left solve cards in its #daily
+ * (current, unsuspended members), solved days and current streak (spaceBoard). 200 { period, items }.
+ */
+leetRoutes.get("/spaces/:space_id/leet/board", requireAuth, vQuery(BoardQuery), async (c) => {
+  const me = getAuth(c).userId;
+  const spaceId = idParam(c, "space_id", "space");
+  await requireSpaceRole(c.env.DB, spaceId, me, "member");
+  const period = c.req.valid("query").period ?? "week";
+  return c.json({ period, items: await spaceBoard(c.env.DB, spaceId, period) });
+});
+
+/** Me + friends who share (leet_share_with_friends): streaks only. 200 { items }. */
+leetRoutes.get("/leet/friends/board", requireAuth, async (c) => {
+  return c.json({ items: await friendsBoard(c.env.DB, getAuth(c).userId) });
 });

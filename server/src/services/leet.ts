@@ -3,7 +3,7 @@
 import type { Runtime } from "../env";
 import { all, first, jsonList, stmt } from "../lib/db";
 import { ApiError } from "../lib/errors";
-import { type LeetDailyCard, type LeetDailyFactsInput, type LeetSolveCard, leetLink, utcDate } from "../lib/leet";
+import { computeStreak, type LeetDailyCard, type LeetDailyFactsInput, type LeetSolveCard, leetLink, utcDate } from "../lib/leet";
 import { loadUserSummaries } from "../lib/serialize";
 import { iso, now } from "../lib/time";
 import type { UserSummary } from "../types/api";
@@ -390,4 +390,136 @@ export async function deleteSolve(rt: Runtime, me: string, date: string): Promis
   );
   await stmt(db, "DELETE FROM leet_solves WHERE user_id = ?1 AND date = ?2", me, date).run();
   for (const c of cards) await deleteMessage(rt, c.id, me);
+}
+
+// ---------------------------------------------------------------------------
+// streaks and boards (P1 Task 5)
+
+/** api.md 5.25: GET /v1/leet/me lists this many UTC days back (today included). */
+export const RECENT_DAYS = 30;
+
+/** Counted days (utcDate(passed_at) = date) per user, one query for any number of users. */
+async function filledDatesOf(db: D1Database, userIds: readonly string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>(userIds.map((u) => [u, []]));
+  if (userIds.length === 0) return out;
+  const rows = await all<{ user_id: string; date: string }>(
+    db,
+    `SELECT user_id, date FROM leet_solves
+      WHERE user_id IN (SELECT value FROM json_each(?1))
+        AND strftime('%Y-%m-%d', passed_at / 1000, 'unixepoch') = date`,
+    jsonList(userIds),
+  );
+  for (const r of rows) out.get(r.user_id)?.push(r.date);
+  return out;
+}
+
+export interface LeetMe {
+  current: number;
+  best: number;
+  recent: LeetSolve[];
+  daily_spaces: DailySpace[];
+}
+
+export async function leetMe(db: D1Database, me: string): Promise<LeetMe> {
+  const t = now();
+  const today = utcDate(t);
+  const from = utcDate(t - (RECENT_DAYS - 1) * 86_400_000);
+  const [filled, recent, spaces] = await Promise.all([
+    filledDatesOf(db, [me]),
+    all<LeetSolveRow>(db, "SELECT * FROM leet_solves WHERE user_id = ?1 AND date >= ?2 AND date <= ?3 ORDER BY date DESC", me, from, today),
+    dailySpacesOf(db, me),
+  ]);
+  const { current, best } = computeStreak(filled.get(me) ?? [], today);
+  return { current, best, recent: recent.map(serializeLeetSolve), daily_spaces: spaces };
+}
+
+export type BoardPeriod = "week" | "month" | "all";
+
+/** First UTC day of the period that contains `nowMs`: ISO week (Monday) / calendar month / null for all. */
+export function periodStart(period: BoardPeriod, nowMs: number): string | null {
+  if (period === "all") return null;
+  const d = new Date(nowMs);
+  if (period === "month") return `${utcDate(nowMs).slice(0, 7)}-01`;
+  const sinceMonday = (d.getUTCDay() + 6) % 7;
+  return utcDate(nowMs - sinceMonday * 86_400_000);
+}
+
+export interface LeetBoardEntry {
+  user: UserSummary;
+  solved: number;
+  streak: number;
+}
+
+/**
+ * The space's board: current members, not suspended now, with live leet.solve cards of their own in the space's #daily
+ * channel whose data.date is in the period. solved = distinct card days; streak = the member's current streak over
+ * all their records. Order: solved desc, streak desc, handle asc. No #daily channel -> [].
+ */
+export async function spaceBoard(db: D1Database, spaceId: string, period: BoardPeriod): Promise<LeetBoardEntry[]> {
+  const t = now();
+  const since = periodStart(period, t);
+  const rows = await all<{ user_id: string; solved: number }>(
+    db,
+    `SELECT m.author_id AS user_id, COUNT(DISTINCT json_extract(m.card_json, '$.data.date')) AS solved
+       FROM leet_space_settings ls
+       JOIN channels c ON c.id = ls.channel_id AND c.space_id = ls.space_id AND c.deleted_at IS NULL
+       JOIN messages m ON m.channel_id = c.id AND m.deleted_at IS NULL AND m.thread_root_id IS NOT NULL
+                      AND m.card_json IS NOT NULL AND json_extract(m.card_json, '$.type') = 'leet.solve'
+       JOIN space_members sm ON sm.space_id = ls.space_id AND sm.user_id = m.author_id
+       JOIN users u ON u.id = m.author_id
+      WHERE ls.space_id = ?1
+        AND (?2 IS NULL OR json_extract(m.card_json, '$.data.date') >= ?2)
+        AND NOT (u.suspended_at IS NOT NULL AND (u.suspended_until IS NULL OR u.suspended_until > ?3))
+      GROUP BY m.author_id`,
+    spaceId,
+    since,
+    t,
+  );
+  const ids = rows.map((r) => r.user_id);
+  const [users, filled] = await Promise.all([loadUserSummaries(db, ids), filledDatesOf(db, ids)]);
+  const today = utcDate(t);
+  const items: LeetBoardEntry[] = [];
+  for (const r of rows) {
+    const user = users.get(r.user_id);
+    if (!user) continue;
+    items.push({ user, solved: r.solved, streak: computeStreak(filled.get(r.user_id) ?? [], today).current });
+  }
+  return items.sort((a, b) => b.solved - a.solved || b.streak - a.streak || (a.user.handle < b.user.handle ? -1 : a.user.handle > b.user.handle ? 1 : 0));
+}
+
+export interface LeetFriendStreak {
+  user: UserSummary;
+  current: number;
+  best: number;
+}
+
+/**
+ * Me plus my friends whose leet_share_with_friends is on (a missing settings row reads as on) and who are not suspended
+ * now. Streaks only. Order: current desc, best desc, handle asc.
+ */
+export async function friendsBoard(db: D1Database, me: string): Promise<LeetFriendStreak[]> {
+  const t = now();
+  const rows = await all<{ id: string }>(
+    db,
+    `SELECT f.id FROM (
+        SELECT user_b AS id FROM friendships WHERE user_a = ?1
+        UNION SELECT user_a AS id FROM friendships WHERE user_b = ?1) f
+       JOIN users u ON u.id = f.id
+       LEFT JOIN user_settings us ON us.user_id = f.id
+      WHERE COALESCE(us.leet_share_with_friends, 1) = 1
+        AND NOT (u.suspended_at IS NOT NULL AND (u.suspended_until IS NULL OR u.suspended_until > ?2))`,
+    me,
+    t,
+  );
+  const ids = [me, ...rows.map((r) => r.id).filter((id) => id !== me)];
+  const [users, filled] = await Promise.all([loadUserSummaries(db, ids, {}), filledDatesOf(db, ids)]);
+  const today = utcDate(t);
+  const items: LeetFriendStreak[] = [];
+  for (const id of ids) {
+    const user = users.get(id);
+    if (!user) continue;
+    const { current, best } = computeStreak(filled.get(id) ?? [], today);
+    items.push({ user, current, best });
+  }
+  return items.sort((a, b) => b.current - a.current || b.best - a.best || (a.user.handle < b.user.handle ? -1 : a.user.handle > b.user.handle ? 1 : 0));
 }
