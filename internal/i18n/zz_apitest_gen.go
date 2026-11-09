@@ -905,6 +905,15 @@ var areaApitest = area{
 				En: {Other: "Run {i}/{n} ✓{ok} ✕{fail}"},
 			},
 		},
+		"run_resp_not_kept": {
+			desc:   "실행기 진행 표에서 응답을 남기지 않은 실패 줄에 enter 를 눌렀을 때 토스트(n = 응답을 남기는 실패 줄 수)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    36,
+			text: map[Locale]Forms{
+				Ko: {Other: "실패 줄 응답은 앞 {n}개만 남겨요"},
+				En: {Other: "Response not kept (first {n} only)"},
+			},
+		},
 		"run_running_hint": {
 			desc: "실행 중 진행 표 아래 키 안내",
 			text: map[Locale]Forms{
@@ -1876,6 +1885,11 @@ func (a_ ApitestT) RunProgress(i int, n int, ok int, fail int) string {
 // RunProgressShort: 초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)
 func (a_ ApitestT) RunProgressShort(i int, n int, ok int, fail int) string {
 	return a_.t.render(&areaApitest, "run_progress_short", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
+}
+
+// RunRespNotKept: 실행기 진행 표에서 응답을 남기지 않은 실패 줄에 enter 를 눌렀을 때 토스트(n = 응답을 남기는 실패 줄 수)
+func (a_ ApitestT) RunRespNotKept(n int) string {
+	return a_.t.render(&areaApitest, "run_resp_not_kept", false, 0, "n", strconv.Itoa(n))
 }
 
 // RunRunningHint: 실행 중 진행 표 아래 키 안내

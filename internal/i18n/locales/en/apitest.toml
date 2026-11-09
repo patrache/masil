@@ -344,6 +344,9 @@ other = "Run {i}/{n} · passed {ok} · failed {fail}"
 [run_progress_short]
 other = "Run {i}/{n} ✓{ok} ✕{fail}"
 
+[run_resp_not_kept]
+other = "Response not kept (first {n} only)"
+
 [run_running_hint]
 other = "esc stop the run"
 

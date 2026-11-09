@@ -37,7 +37,26 @@ type runRow struct {
 	passed, total int
 	failed        bool
 	reason        string
-	resp          *apitool.Response
+	st            *respState // a failed line's response, indexed in the run job (nil = not kept)
+}
+
+// kept reports whether the line kept its response.
+func (r runRow) kept() bool { return r.st != nil }
+
+// A run keeps the responses of its first runKeep failed lines only, and
+// runKeepBytes of their bodies at most (1,000 iterations of a failing 2MB
+// response must not stay in memory); later failed lines keep their status
+// and reason.
+const (
+	runKeep      = 6
+	runKeepBytes = 20 << 20
+)
+
+// runItem is a runner event handed to the UI goroutine with its response
+// already indexed.
+type runItem struct {
+	ev apitool.RunEvent
+	st *respState
 }
 
 // runState is the last run of the tool.
@@ -52,7 +71,7 @@ type runState struct {
 	tiny  bool                        // started from the tiny view (its second line shows it)
 	reqs  map[string]*apitool.Request // the snapshot's requests (to open a failed line)
 	runMu sync.Mutex
-	queue []apitool.RunEvent // events the job goroutine handed over
+	queue []runItem // events the job goroutine handed over
 }
 
 // pendingRun is a prepared run (a shared one waits for its host list answer).
@@ -219,9 +238,18 @@ func (t *Tool) launch(ctx *ui.Context, pr *pendingRun, privOK map[string]bool) (
 			slog.Warn("api: spill dir", "err", err)
 		}
 		var sum *apitool.RunSummary
+		kept, keptBytes := 0, 0
 		for ev := range runner.Start(c, snap, o) {
+			it := runItem{ev: ev}
+			if r := ev.Response; ev.Failed && r != nil && kept < runKeep && keptBytes+len(r.Body) <= runKeepBytes {
+				// BuildTree of a big body takes a while: here, not in Update.
+				it.st = newRespState(reqOr(snap.Collection.Requests[ev.RequestID]), r)
+				kept++
+				keptBytes += len(r.Body)
+			}
+			it.ev.Response = nil // only the indexed state is kept
 			st.runMu.Lock()
-			st.queue = append(st.queue, ev)
+			st.queue = append(st.queue, it)
 			st.runMu.Unlock()
 			if ev.Done {
 				sum = ev.Summary
@@ -251,14 +279,15 @@ func (st *runState) drain() {
 	evs := st.queue
 	st.queue = nil
 	st.runMu.Unlock()
-	for _, ev := range evs {
+	for _, it := range evs {
+		ev := it.ev
 		if ev.Done {
 			continue
 		}
 		st.rows = append(st.rows, runRow{
 			iter: ev.Iter, reqID: ev.RequestID, name: ev.Name, method: methodOf(reqOr(st.reqs[ev.RequestID])),
 			status: ev.Status, took: ev.Time, passed: ev.Passed, total: ev.Total,
-			failed: ev.Failed, reason: ev.Reason, resp: ev.Response,
+			failed: ev.Failed, reason: ev.Reason, st: it.st,
 		})
 		if ev.Failed {
 			st.fail++
@@ -285,24 +314,21 @@ func (st *runState) firstFailed() int {
 	return -1
 }
 
-// openRunRow shows a run line's request with its response (a failed line
-// keeps its response).
+// openRunRow shows a failed run line's request with its response (indexed
+// in the run job; a line past runKeep says its response was not kept).
 func (t *Tool) openRunRow(ctx *ui.Context, r runRow) tea.Cmd {
 	st := t.run
 	if st == nil {
 		return nil
 	}
+	if !r.kept() {
+		return ui.Toast(ctx.T.Apitest.RunRespNotKept(runKeep), ui.ToastInfo)
+	}
 	t.selectRequest(st.col, r.reqID)
 	if t.req == nil || t.req.ID != r.reqID {
 		return nil
 	}
-	if r.resp != nil {
-		req := st.reqs[r.reqID]
-		if req == nil {
-			req = t.req
-		}
-		t.applyResponse(t.respKey(), newRespState(req, r.resp))
-	}
+	t.applyResponse(t.respKey(), r.st)
 	t.focus = paneResponse
 	t.tree.follow(ctx, t)
 	t.save(ctx)

@@ -1,6 +1,7 @@
 package apitool
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/patrache/masil/internal/apitool"
 )
@@ -100,5 +102,77 @@ func TestFormFileFieldStaysFile(t *testing.T) {
 	defer fs.mu.Unlock()
 	if fs.files["doc"] != "FILE-BODY" || fs.files["up"] != "FILE-BODY" || strings.Contains(fs.texts["doc"]+fs.texts["up"], "@") {
 		t.Fatalf("files = %v, texts = %v", fs.files, fs.texts)
+	}
+}
+
+// bigJSON is about n bytes of minified JSON (one line).
+func bigJSON(n int) []byte {
+	var b strings.Builder
+	b.WriteString(`{"items":[`)
+	for i := 0; b.Len() < n; i++ {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		fmt.Fprintf(&b, `{"id":%d,"name":"item-%d","ok":true}`, i, i)
+	}
+	b.WriteString(`]}`)
+	return []byte(b.String())
+}
+
+// A failed runner line with a big JSON response is indexed in the run job:
+// ⏎ on it does no tree building on the UI goroutine.
+func TestRunnerFailRowBigResponseIndexedInJob(t *testing.T) {
+	body := bigJSON(8_000_000)
+	srv, _ := hitServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	})
+	h := openAPI(t)
+	tl := seedRequests(h, nil, &apitool.Request{ID: "big", Name: "big", Method: "GET", URL: srv.URL + "/big",
+		Asserts: []apitool.Assertion{{ID: "s", Target: "status", Op: "eq", Value: "201"}}})
+	h.Press("r", "enter")
+	waitRun(t, h, tl)
+	if r := tl.run.rows[tl.run.sel]; !r.failed {
+		t.Fatalf("the selection is not on the failed row: %+v", r)
+	}
+	start := time.Now()
+	h.Press("enter")
+	if d := time.Since(start); d > 200*time.Millisecond {
+		t.Fatalf("opening the failed line took %v on the UI goroutine", d)
+	}
+	if s := tl.rv.current(); s == nil || s.tree == nil || tl.focus != paneResponse {
+		t.Fatalf("the failed response is not shown as a tree: %+v", s)
+	}
+}
+
+// A long run keeps the responses of the first runKeep failed lines only;
+// a later failed line's ⏎ says its response was not kept.
+func TestRunnerKeepsFewFailedResponses(t *testing.T) {
+	srv, _ := hitServer(t, created)
+	h := openAPI(t)
+	tl := seedRequests(h, nil, runRequests(srv)...)
+	h.Press("r", "j", "backspace")
+	h.Type("10")
+	h.Press("enter")
+	waitRun(t, h, tl)
+	kept, last := 0, -1
+	for i, r := range tl.run.rows {
+		if r.kept() {
+			kept++
+		}
+		if r.failed {
+			last = i
+		}
+	}
+	if tl.run.fail != 10 || kept != runKeep {
+		t.Fatalf("failed = %d, kept responses = %d, want 10 and %d", tl.run.fail, kept, runKeep)
+	}
+	tl.run.sel = last
+	h.Press("enter")
+	if s := h.Screen(); !strings.Contains(s, ko.RunRespNotKept(runKeep)) {
+		t.Fatalf("no 'not kept' notice:\n%s", s)
+	}
+	if tl.req != nil && tl.req.ID == "bad" && tl.focus == paneResponse {
+		t.Fatalf("a not-kept line opened a response")
 	}
 }

@@ -554,6 +554,12 @@ params = { i = "int", n = "int", ok = "int", fail = "int" }
 max = 24
 other = "실행 {i}/{n} ✓{ok} ✕{fail}"
 
+[run_resp_not_kept]
+desc = "실행기 진행 표에서 응답을 남기지 않은 실패 줄에 enter 를 눌렀을 때 토스트(n = 응답을 남기는 실패 줄 수)"
+params = { n = "int" }
+max = 36
+other = "실패 줄 응답은 앞 {n}개만 남겨요"
+
 [run_running_hint]
 desc = "실행 중 진행 표 아래 키 안내"
 other = "esc 실행 멈춤"
