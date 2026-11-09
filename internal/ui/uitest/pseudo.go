@@ -146,20 +146,24 @@ func PseudoAllow(h *Harness) []string {
 
 // AssertPseudoWrapped fails (tb.Errorf, naming region and the words) when text
 // shows letters outside ⟦⟧ that allow does not cover. A wrap runs from ⟦ to
-// ⟧; one cut short (no ⟧) ends at "…" (truncated), or runs on to the next
-// line(s) until its ⟧ (wrapped) — a border cell (box drawing) pauses it for
-// the rest of that line. A ⟧ with no ⟦ before it on its line closes a wrap
-// begun on an earlier line: it covers back to the line's last border cell.
+// ⟧; one cut short (no ⟧) ends at "…" (truncated), at a border cell (box
+// drawing) or at the end of its line — it never covers a later line. The one
+// exception is a wrap wrapped onto the next line: when a line ends with a
+// wrap still open, the first ⟧ with no ⟦ before it on the very next line
+// covers back to that line's last border cell before it.
 // Left over, digits, punctuation, symbols, borders, spaces and single letters
-// pass; a run of two or more letters (any script) passes only as an allow
-// entry or a word of one (word-exact: allow "sam" does not cover "sammy").
+// pass; a run of two or more letters (any script) passes only as part of a
+// whole allow entry (word-exact: allow "sam" does not cover "sammy"), or as
+// one of two or more consecutive words of a multi-word entry (a message body
+// cut by wrapping or truncation) — never one word of such an entry alone.
 func AssertPseudoWrapped(tb testing.TB, region, text string, allow []string) {
 	tb.Helper()
-	words := map[string]bool{}
+	pairs := map[[2]string]bool{}
 	var phrases []string
 	for _, a := range allow {
-		for _, w := range letterRuns(a) {
-			words[w] = true
+		ws := letterRuns(a)
+		for i := 1; i < len(ws); i++ {
+			pairs[[2]string{ws[i-1], ws[i]}] = true
 		}
 		if a != "" {
 			phrases = append(phrases, a)
@@ -169,14 +173,19 @@ func AssertPseudoWrapped(tb testing.TB, region, text string, allow []string) {
 	var bad []string
 	open := false
 	for _, line := range strings.Split(text, "\n") {
-		line = maskPseudo(line, &open)
+		line, open = maskPseudo(line, open)
 		for _, p := range phrases {
 			line = removeWord(line, p)
 		}
-		for _, w := range letterRuns(line) {
-			if utf8.RuneCountInString(w) >= 2 && !words[w] {
-				bad = append(bad, w)
+		runs := letterRuns(line)
+		for i, w := range runs {
+			if utf8.RuneCountInString(w) < 2 {
+				continue
 			}
+			if (i > 0 && pairs[[2]string{runs[i-1], w}]) || (i+1 < len(runs) && pairs[[2]string{w, runs[i+1]}]) {
+				continue
+			}
+			bad = append(bad, w)
 		}
 	}
 	if len(bad) > 0 {
@@ -188,42 +197,36 @@ func isBorder(r rune) bool { return r >= 0x2500 && r <= 0x257F }
 
 func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsMark(r) }
 
-// maskPseudo blanks the wrapped parts of one line (see AssertPseudoWrapped);
-// *open carries a wrap that goes on past the line (it resumes after the next
-// line's leading spaces and borders).
-func maskPseudo(line string, open *bool) string {
+// maskPseudo blanks the wrapped parts of one line (see AssertPseudoWrapped).
+// prevOpen: the line above ended with a wrap still open; open: this one does.
+func maskPseudo(line string, prevOpen bool) (_ string, open bool) {
 	rs := []rune(line)
-	in, carry := *open, false
-	lead := true // still in the line's leading spaces and borders
+	in := false
 	lastBorder := -1
 	for i, r := range rs {
 		if isBorder(r) {
 			lastBorder = i
-			if in && !lead { // paused for the rest of the line
-				in, carry = false, true
+			if in { // cut at the border
+				in, open = false, true
 			}
 			continue
-		}
-		if r != ' ' {
-			lead = false
 		}
 		switch {
 		case in:
 			rs[i] = ' '
 			if r == '⟧' || r == '…' { // closed, or truncated
-				in, carry = false, false
+				in = false
 			}
 		case r == '⟦':
-			rs[i], in = ' ', true
-		case r == '⟧': // closes a wrap begun on an earlier line
+			rs[i], in, open, prevOpen = ' ', true, false, false
+		case r == '⟧' && prevOpen: // closes the wrap the line above left open
 			for j := lastBorder + 1; j <= i; j++ {
 				rs[j] = ' '
 			}
-			carry = false
+			prevOpen = false
 		}
 	}
-	*open = in || carry
-	return string(rs)
+	return string(rs), open || in
 }
 
 // letterRuns are s's maximal runs of letters (marks included).

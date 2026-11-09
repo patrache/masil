@@ -38,6 +38,18 @@ func TestAssertPseudoWrapped(t *testing.T) {
 		{"English left over", "⟦Ŝéñð⟧ Send", nil, "Send"},
 		{"allow is word-exact", "sammy", []string{"sam"}, "sammy"},
 		{"allow with punctuation", "#개발 ctrl+k", []string{"#개발", "ctrl+k"}, ""},
+		// An unclosed wrap ends at its line's end or border: it never hides
+		// the lines below it (P5 review).
+		{"unclosed wrap stops at the border", "│ ⟦Ŝéñð ẃîţĥ │\n│ 보내기 │\n│ 취소 │\n│ ⟦x⟧ │", nil, "보내기"},
+		{"unclosed wrap stops at the line end", "⟦Ŝéñð\n보내기 ⟦Ŝ⟧", nil, "보내기"},
+		{"stray close without an open line above", "⟦Ŝ⟧\n보내기 ẃîţĥ⟧", nil, "보내기"},
+		// A multi-word allow entry (a message body) covers itself and runs of
+		// two or more of its words (wrapped, truncated), never one word alone.
+		{"body word alone", "⟦Ŝéñð⟧ 오늘", []string{"오늘 배포 몇 시에 해요?"}, "오늘"},
+		{"body last word alone", "해요 ⟦Ŝéñð⟧", []string{"오늘 배포 몇 시에 해요?"}, "해요"},
+		{"body wrapped over lines", "│ 오늘 배포 몇 │\n│ 시에 해요? │", []string{"오늘 배포 몇 시에 해요?"}, ""},
+		{"body truncated", "오늘 배포 몇 시…", []string{"오늘 배포 몇 시에 해요?"}, ""},
+		{"one-word entry", "⟦Ŝéñð⟧ 일반 · #일반", []string{"일반", "#일반"}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := &errTB{TB: t}
@@ -69,6 +81,15 @@ func TestPseudoAllowHasFixtures(t *testing.T) {
 	for _, want := range []string{"민지", "#개발", "노바 개발방", "ctrl+k", "enter", "esc", "/poll", "/shrug", "masil"} {
 		if !slices.Contains(allow, want) {
 			t.Errorf("PseudoAllow lacks %q", want)
+		}
+	}
+	// UI words that only show up inside fixture bodies are not allowed alone
+	// (P5 review): a hard-coded "새 메시지" header must still fail.
+	for _, text := range []string{"채널", "새 메시지", "오늘", "해요"} {
+		rec := &errTB{TB: t}
+		uitest.AssertPseudoWrapped(rec, "r", text, allow)
+		if len(rec.errs) == 0 {
+			t.Errorf("%q passed with PseudoAllow, want a failure", text)
 		}
 	}
 }
