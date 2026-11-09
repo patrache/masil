@@ -7,6 +7,8 @@
 // Task 13: `watch` frames (TopicHub join/leave, topic events only to sockets watching them).
 // Task 14: revokeSessions (session.revoked then 4001/4003).
 // Task 27: `typing` frames (write access check, 2s per-connection dedupe, volatile fan-out to the channel minus me).
+// v0.1.3 P0 Task 8: each connection keeps its Accept-Language (X-Masil-Lang, memory only); alert / focus.ended frames
+// are stored once (template + Korean fallback) and their title / body re-rendered per connection when sent.
 import { DurableObject } from "cloudflare:workers";
 import type { AuthContext, Runtime } from "../env";
 import { isSuspendedNow } from "../lib/auth";
@@ -14,6 +16,8 @@ import { all } from "../lib/db";
 import { newId, isId } from "../lib/ids";
 import { getChannelAccess } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
+import { localizeAlert } from "../lib/alerts";
+import { langOf, renderAlert, type AlertTemplate, type Lang } from "../lib/i18n";
 import { actorVisibility, hiddenActors, type ActorVisibility } from "../lib/notify";
 import { loadPresenceItems, suspendedPresenceItem } from "../lib/serialize";
 import { iso } from "../lib/time";
@@ -36,6 +40,7 @@ export interface ConnAttachment {
   topics: string[]; // watched topics (<= 50)
   typingAt: Record<string, number>; // channelId(+":"+threadRootId) -> last forwarded ms (<= 20 keys)
   win: { start: number; count: number }; // frame rate window
+  lang?: Lang; // v0.1.3: the upgrade's Accept-Language (api.md 0.1); missing (sockets from before) = "ko"
 }
 
 /** One event handed to a UserHub (server-architecture.md 3.2). */
@@ -195,6 +200,33 @@ function replayFrame(type: string, frame: string, vis: ActorVisibility): string 
   }
   const id = actorIdOf(type === "alert" ? f.data?.alert : f.data?.notification);
   return id !== null && vis.hidden.has(id) ? null : frame;
+}
+
+/**
+ * A logged frame as this connection sees it (events.md 4.7 v0.1.3): alert / focus.ended items re-rendered in `lang`
+ * from their template. Stored frames carry the Korean fallback, so "ko" (and anything without a template) is the frame.
+ */
+export function localizeFrame(type: string, frame: string, lang: Lang): string {
+  if (lang === "ko" || (type !== "alert" && type !== "focus.ended")) return frame;
+  let f: { data?: { alert?: Alert; summary?: { items?: unknown } } };
+  try {
+    f = JSON.parse(frame) as typeof f;
+  } catch {
+    return frame;
+  }
+  if (f === null || typeof f !== "object") return frame;
+  if (type === "alert") {
+    const alert = f.data?.alert;
+    if (alert === undefined || alert === null || typeof alert !== "object") return frame;
+    const out = localizeAlert(alert, lang);
+    if (out === alert) return frame;
+    f.data!.alert = out;
+    return JSON.stringify(f);
+  }
+  const summary = f.data?.summary;
+  if (summary === undefined || summary === null || !Array.isArray(summary.items)) return frame;
+  summary.items = (summary.items as Alert[]).map((it) => (it !== null && typeof it === "object" ? localizeAlert(it, lang) : it));
+  return JSON.stringify(f);
 }
 
 const KNOWN_CLIENT_TYPES: ReadonlySet<string> = new Set(["resume", "ack", "typing", "idle", "watch"]);
@@ -435,6 +467,7 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       topics: [],
       typingAt: {},
       win: { start: t, count: 0 },
+      lang: langOf(request.headers.get("X-Masil-Lang")),
     };
     this.ctx.acceptWebSocket(server, [`mode:${mode}`, `dev:${deviceId}`, `sess:${auth.sessionId}`]);
     server.serializeAttachment(a);
@@ -534,12 +567,19 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
       .map((ws) => ({ ws, a: this.att(ws) }))
       .filter((x): x is { ws: WebSocket; a: ConnAttachment } => x.a !== null && x.a.ready);
     for (const { ev, frame } of out) {
+      const byLang = new Map<Lang, string>(); // per-language rendering of this frame, made once per language
       for (const { ws, a } of targets) {
         if (a.mode === "notify" && !NOTIFY_ALLOWED_TYPES.has(ev.type)) continue;
         if (ev.topic !== undefined && !a.topics.includes(ev.topic)) continue;
         if (ev.onlyDevice !== undefined && a.deviceId !== ev.onlyDevice) continue;
+        const lang = a.lang ?? "ko";
+        let sent = byLang.get(lang);
+        if (sent === undefined) {
+          sent = localizeFrame(ev.type, frame, lang);
+          byLang.set(lang, sent);
+        }
         try {
-          ws.send(frame);
+          ws.send(sent);
         } catch {
           // closing socket — ignore
         }
@@ -854,8 +894,9 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     let replayed = 0;
     for (const row of this.sql.exec<{ type: string; frame: string }>("SELECT type, frame FROM events WHERE seq > ? ORDER BY seq", base)) {
       if (a.mode === "notify" && !NOTIFY_ALLOWED_TYPES.has(row.type as ServerEventType)) continue;
-      const out = replayFrame(row.type, row.frame, vis);
-      if (out === null) continue;
+      const kept = replayFrame(row.type, row.frame, vis);
+      if (kept === null) continue;
+      const out = localizeFrame(row.type, kept, a.lang ?? "ko");
       try {
         ws.send(out);
         replayed++;
@@ -1286,16 +1327,22 @@ export class UserHub extends DurableObject<Cloudflare.Env> {
     const plan = this.planPresence();
     const t = this.now();
     const c = summary.counts;
+    const template: AlertTemplate = {
+      id: "focus.summary",
+      params: { mention: c.mention, dm: c.dm, thread_reply: c.thread_reply, invite: c.invite, friend_request: c.friend_request, other: c.other },
+    };
+    const text = renderAlert(template, "ko", "");
     const alert: Alert = {
       id: newId(),
       kind: "focus_summary",
-      title: `집중 모드 끝 — 멘션 ${c.mention}, DM ${c.dm}`,
-      body: `스레드 답글 ${c.thread_reply} · 초대 ${c.invite} · 친구 요청 ${c.friend_request} · 기타 ${c.other}`,
+      title: text.title,
+      body: text.body,
       actor: null,
       target: { type: "user", id: userId, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
       created_at: iso(t),
       suppressed: false,
       suppressed_reason: null,
+      template,
     };
     await this.deliver({
       userId,

@@ -61,9 +61,9 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 ## 2. 연결
 
 - `GET /v1/docs/{doc_id}/ws`, `Upgrade: websocket`, `Authorization: Bearer <token>`(쿼리 금지, events.md 0.1 과 같음), `Accept-Language`(api.md 0.1). 리미터 `RL_WS`.
-- Worker 가 `requireAuth` → `RL_WS` → 방 멤버 확인을 한 뒤 `X-Masil-Doc-Auth`(사용자 id·역할; 클라이언트가 보낸 같은 헤더는 지운다)를 붙여 `COLLAB_HUB.getByName("doc:" + doc_id)` 로 넘긴다. DO 는 그 헤더만 믿는다.
+- Worker 가 `requireAuth` → `RL_WS` → 방 멤버 확인을 한 뒤 `X-Masil-Doc-Auth`(사용자 id·역할; 클라이언트가 보낸 같은 헤더는 지운다)를 붙여 `COLLAB_HUB.getByName("doc:" + doc_id)` 로 넘긴다. DO 는 누가 붙는지를 그 헤더로만 안다(잠금·역할·멤버십은 업그레이드 때 D1 을 다시 읽어 정한다 — 3.4).
 - 방 멤버가 아니거나, 방이 삭제됐거나(`spaces.deleted_at`, 소프트 삭제 — CASCADE 가 일어나지 않는다), 문서가 없거나 지워졌으면 업그레이드 전에 `404`(존재를 숨김, api.md 5.24).
-- 서버는 WebSocket Hibernation 을 쓴다. 연결 첨부는 `{ userId, sessionId, role }`(`role` = `"creator"|"admin"|"member"`, 접속 때 Worker 가 정한 값; 바뀌면 4.1 의 `setRole` 이 고친다). presence 는 메모리에만 있고 저장하지 않는다(다시 붙으면 없다).
+- 서버는 WebSocket Hibernation 을 쓴다. 연결 첨부는 `{ userId, sessionId, role }`(`role` = `"creator"|"admin"|"member"`, 접속 때 DO 가 D1 을 다시 읽어 정한 값(3.4); 바뀌면 4.1 의 `setRole` 이 고친다). presence 는 메모리에만 있고 저장하지 않는다(다시 붙으면 없다).
 
 ---
 
@@ -101,10 +101,26 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 ### 3.3 검사 순서 (op 프레임마다, 원자적)
 
 1. 공통: 프레임 모양, `client_op_id` 모양(3.1), `ops` 1..200, 각 op 의 모양(알려진 `op` 다섯 중 `reset` 이외, 필수 필드, 이름 규칙 1.2), 잠금(문서가 잠겨 있고(`locked`) 보낸 사람의 첨부 `role` 이 `creator`·`admin` 이 아니면 `reject locked` — 잠기지 않은 문서는 방 멤버 누구나 편집), 속도(4장).
-2. 문서 종류의 `validateOp(op, state)` 를 op 마다(첫 거절에서 멈추고 그 `{code, detail}` 로 `reject`).
+2. 문서 종류의 `validateOp(op, state)` 를 op 마다(첫 거절에서 멈추고 그 `{code, detail}` 로 `reject`). `state` 는 **같은 프레임의 앞 op 들을 적용한 상태**다(검사와 적용을 op 마다 번갈아 한다 — 같은 프레임의 `put node` 뒤 `put edge` 는 그 node 를 본다). 어느 단계에서든 거절하면 프레임 전체를 되돌린다.
 3. 적용한 뒤 한도: `maxDocBytes`(→ `too_large`), `maxObjects`(삭제 안 된 것, → `limit_exceeded`, `detail` 은 `limit_<type>`), `maxFieldBytes`(→ `too_large`). 넘으면 되돌리고 거절.
 
 모르는 `op` 값·`reset` 은 1단계에서 `reject invalid`. 거절된 프레임은 순번·상태·`client_op_id` 기록을 남기지 않는다.
+
+### 3.4 서버가 정한 세부 (P0 Task 27)
+
+3.1–3.3 이 열어 둔 곳을 서버(`server/src/do/collab-hub.ts`·`collab-protocol.ts`)는 이렇게 채운다. Go 클라이언트(Task 30)도 같은 동작을 가정한다.
+
+- `hello{since}` 의 `since` 가 서버의 지금 `seq` 보다 크면(서버가 모르는 순번) `snapshot` 을 보낸다. `since` 가 정수가 아니면 `null` 로 본다.
+- 서버는 `hello` 를 받은 소켓에만 `op`·`presence` 를 보낸다(붙자마자 `hello` 를 보내는 3.1 순서 그대로면 놓치는 것이 없다).
+- `client_op_id` 가 없거나 모양(3.1)이 틀린 `op` 프레임은 답할 곳이 없으므로 **조용히 버린다**(순번·상태 변화 없음). `base_seq` 가 0 이상 정수가 아니면 `reject invalid`.
+- 속도(4장)는 모양 검사보다 먼저 센다 — 거절될 프레임도 초당 20에 든다. 멱등 재전송(같은 `client_op_id`)은 잠금·종류 검사보다 앞서 처음 `seq` 로 `ack` 한다.
+- 바이너리 프레임 → close `1003`. JSON 이 아니거나 모르는 `t` 는 버린다.
+- `presence` 는 연결마다 마지막 값에 고친 것만 합쳐 `{cursor, selection, dragging}` 전체를 보낸다. 받는 쪽은 **다른 사용자**의 소켓(보낸 사람의 다른 소켓은 빼고)이다. `selection` 은 문자열(64자 이하) 200개 이하 — 어기면 그 프레임을 버린다. 새로 붙은 소켓에 지난 presence 를 다시 보내지 않는다.
+- `init(docType, snapshot)`(POST `snapshot`): 모양·이름 규칙(1.2)·`id` 중복 → 거절 `invalid`, 문서 종류의 `validateOp` 를 `{op:"reset", snapshot}` 하나로 불러 거절하면 `invalid`, 5장 한도를 넘으면 `too_long`. REST 는 `400 fields.snapshot` 에 그 값을 싣는다. 객체가 하나라도 있으면 그 상태가 순번 1(`head_seq` 1), 비어 있으면 0. `snapshot.seq` 는 무시한다.
+- 압축(alarm): 스냅숏 뒤 op 가 1,000개를 넘으면 지금 상태를 스냅숏으로 쓰고 그 순번까지의 op 를 지운다. D1 `head_seq`·`updated_at` 반영은 op 뒤 30초 묶음.
+- `closeAll(reason)` 뒤에는 그 문서 소켓 업그레이드를 DO 도 `404` 로 거절한다(Worker 의 D1 확인과 겹치는 경합을 막는다).
+- `hello` 는 연결마다 **처음 한 번만** 답한다. 이미 답한 소켓의 `hello` 는 조용히 버린다(30바이트 프레임 하나로 문서 전체 스냅숏을 거듭 받아 내는 것을 막는다). 따라잡기가 다시 필요하면 다시 연결한다.
+- 업그레이드 때 DO 는 소켓을 먼저 받아 둔 뒤(이때부터 4.1 의 `kick`·`setRole`·`revokeSession`·`setLocked` 가 그 소켓을 본다) D1 을 한 번 더 읽는다. 헤더의 값은 Worker 가 그보다 앞서 읽은 것이라, 그 사이 커밋된 잠금·역할·멤버십·세션 변경과 그 RPC(아직 소켓이 없어 아무것도 못 한)를 놓칠 수 있기 때문이다. 방 멤버가 아니거나 방·문서가 지워졌으면 `404`, 세션이 폐기·만료됐으면 `401`, 그 읽기 동안 소켓이 이미 닫혔으면 `404`, 읽기 자체가 실패하면 `503` 으로 거절한다(클라이언트는 백오프 재접속). 통과하면 잠금 표시와 첨부 `role` 을 이 읽기 값으로 정한다 — 단 읽는 동안 `setLocked`·(그 사용자의) `setRole` 이 들어왔으면 그 RPC 가 정한 값이 더 새것이므로 그대로 둔다. 헤더의 `locked`·`role` 은 이 값으로 바뀐다(헤더에서 믿는 것은 사용자·세션·문서 id 와 종류).
 
 ---
 
@@ -142,10 +158,19 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 | `closeAll(reason)` | 방 삭제(`space_deleted`, 그 방 문서마다)·문서 삭제(`doc_deleted`) | 모든 소켓에 `kicked{reason}` 뒤 4100 |
 | `revokeSession(userId, sessionIds \| "all", code)` | `services/users.ts` `revokeSessions`(로그아웃·세션 끊기·비밀번호 변경 = 4001, 계정 정지 = 4003) — 그 사용자가 멤버인 방들의 삭제 안 된 문서마다 | 첨부 `sessionId` 가 맞는 소켓(`"all"` = 그 사용자 전부)을 `code` 로 닫는다. `kicked` 프레임은 보내지 않는다 |
 | `setRole(userId, role)` | 방 역할 바뀜(멤버 역할 변경·소유권 이전 — `space.member_updated` 를 내는 경로, 그 방 문서마다) | 그 사용자 소켓들의 첨부 `role` 을 고친다(`creator` 는 그대로 둔다). 다음 op 부터 3.3 잠금 검사가 새 값을 본다 |
-| `setLocked(locked)`·`init(snapshot)`·`head()` | 문서 REST(api.md 5.24) | 잠금 표시·처음 상태·지금 순번 |
+| `setLocked(locked)` | 문서 REST `PATCH {locked}`(api.md 5.24) | 잠금 표시 |
+| `init(docType, snapshot) → {seq} \| {error: "invalid" \| "too_long"}` | 문서 REST `POST …/docs {snapshot}` | 처음 상태(3.4). 거절이면 REST 가 `400 fields.snapshot` |
+| `head() → number` | 문서 REST | 지금 순번 |
 
 - 세션 만료(폐기 없이 시간이 지남)는 열린 소켓을 닫지 않는다 — 세션은 쓰는 동안 늘어나고(`last_used_at`), 다음 연결의 `requireAuth` 가 막는다.
 - RPC 가 실패해도 D1 이 진실이다: 다음 연결은 Worker 의 세션·멤버 확인에서 막힌다. 실패는 기록만 한다(`revokeSessions` 의 UserHub 호출과 같음).
+
+### 4.2 버전·복원 (P0 Task 28)
+
+- 버전 본문(정규형 스냅숏)은 DO `versions` 표에, 메타는 D1 `collab_versions` 에 같은 `no` 로 둔다. 둘 다 CollabHub 가 쓴다: `createVersion`(이름 버전)·`restoreVersion`(되돌리기) RPC 와 alarm(자동 버전·보관 정리). `no` 는 DO 의 카운터라 겹치지 않고, D1 쓰기가 실패하면 본문도 지우고 `last_version_seq`·`last_auto_at` 을 남은 버전에 맞춰 되돌린 뒤 실패를 돌려준다(그래서 실패한 버전은 "마지막 버전" 으로 치지 않고, 자동 버전은 다음 alarm 이 다시 한다. 건너뛴 `no` 는 다시 쓰지 않는다). 정리는 D1 행을 먼저 지운다.
+- 복원: 그 버전 본문으로 `[{op:"reset", snapshot}]` 프레임 하나(순번 하나, `author` = 요청한 사용자, `client_op_id` 없음)를 3.3 의 2·3단계(`validateOp`·한도)에 통과시켜 적용하고 `hello` 를 보낸 모든 소켓(요청한 사람의 소켓 포함)에 `op` 로 보낸 뒤, 결과 상태를 되돌리기 버전으로 남긴다. 잠금·권한 검사는 Worker(REST)가 한다.
+- 자동 버전의 시각 판정은 DO 의 시계로 한다: `last_op_at`(마지막 op 시각), `last_version_seq`(어떤 종류든 마지막 버전의 순번), `last_auto_at`. alarm 은 D1 반영(첫 미반영 op + 30초)·다음 자동 버전·가장 오래된 기록 버전의 30일 만료 가운데 가장 이른 때로 맞추고, 울릴 때마다 다시 맞춘다.
+- 이름 버전·되돌리기 버전도 "마지막 버전" 이다 — 그 뒤 순번이 없으면 자동 버전을 만들지 않는다.
 
 ---
 

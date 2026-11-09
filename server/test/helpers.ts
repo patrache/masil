@@ -1,7 +1,7 @@
 // Shared test helpers (server-architecture.md 7.2).
 import { env, SELF } from "cloudflare:test";
 import { newId } from "../src/lib/ids";
-import type { Me, PollInput, Post, SpaceDetail, Upload } from "../src/types/api";
+import type { Doc, Me, PollInput, Post, SpaceDetail, Upload } from "../src/types/api";
 
 export const BASE = "http://masil.test" as const;
 
@@ -174,12 +174,18 @@ export interface WsClient {
 /** Opens /v1/ws via fetch with Upgrade header, accepts, waits for hello, sends resume, waits for ready. */
 export async function connectWs(
   token: string,
-  opts: { mode?: "full" | "notify"; deviceId?: string; resume?: { epoch: string | null; last_seq: number | null } } = {},
+  opts: {
+    mode?: "full" | "notify";
+    deviceId?: string;
+    resume?: { epoch: string | null; last_seq: number | null };
+    /** extra upgrade request headers (e.g. Accept-Language, v0.1.3) */
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<WsClient> {
   const mode = opts.mode ?? "full";
   const deviceId = opts.deviceId ?? newId();
   const res = await api(token).raw(`/v1/ws?mode=${mode}&device_id=${encodeURIComponent(deviceId)}`, {
-    headers: { Upgrade: "websocket" },
+    headers: { ...opts.headers, Upgrade: "websocket" },
   });
   const ws = res.webSocket;
   if (res.status !== 101 || !ws) throw new Error(`ws upgrade failed: ${res.status} ${await res.text()}`);
@@ -271,6 +277,99 @@ export async function makeSpace(owner: TestUser, members: TestUser[] = []): Prom
   const detail = await api(owner.token).get<{ space: SpaceDetail }>(`/v1/spaces/${spaceId}`);
   if (detail.status !== 200) throw new Error(`space get failed: ${detail.status} ${JSON.stringify(detail.body)}`);
   return { space: detail.body.space, generalChannelId: detail.body.space.default_channel_id };
+}
+
+// ---- room documents (v0.1.3, api.md 5.24) ----
+
+let docSeq = 0;
+
+/** POST /v1/spaces/{spaceId}/docs as `owner` (a member of that space); throws unless 201. */
+export async function makeDoc(owner: TestUser, spaceId: string, type: "arch" | "apicol" = "arch", snapshot?: unknown): Promise<Doc> {
+  const body: Record<string, unknown> = { type, title: `문서 ${++docSeq}` };
+  if (snapshot !== undefined) body.snapshot = snapshot;
+  const r = await api(owner.token).post<{ doc: Doc }>(`/v1/spaces/${spaceId}/docs`, body);
+  if (r.status !== 201) throw new Error(`doc create failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return r.body.doc;
+}
+
+export interface DocClient {
+  ws: WebSocket;
+  /** every frame received so far (parsed), in order */
+  frames: any[];
+  /** the hello the server answered with (after the `hello{since}` connectDoc sent) */
+  hello: any;
+  send(frame: object | string): void;
+  /** the first not-yet-returned frame with this `t` (matching `pred`), already received or arriving within `timeoutMs` */
+  next(t: string, pred?: (f: any) => boolean, timeoutMs?: number): Promise<any>;
+  /** resolves with the close code once the server closes the socket */
+  closed: Promise<{ code: number; reason: string }>;
+  close(code?: number): void;
+}
+
+/**
+ * Opens GET /v1/docs/{docId}/ws (collab.md 2), sends `hello{since}` (default null) and waits for the server's hello.
+ * `since: "skip"` sends no hello (the caller drives the handshake; `hello` is then null). Throws unless 101.
+ */
+export async function connectDoc(
+  token: string,
+  docId: string,
+  opts: { since?: number | null | "skip"; headers?: Record<string, string> } = {},
+): Promise<DocClient> {
+  const res = await api(token).raw(`/v1/docs/${docId}/ws`, { headers: { ...opts.headers, Upgrade: "websocket" } });
+  const ws = res.webSocket;
+  if (res.status !== 101 || !ws) throw new Error(`doc ws upgrade failed: ${res.status} ${await res.text()}`);
+  const frames: any[] = [];
+  const taken = new Set<number>();
+  const waiters = new Set<() => void>();
+  let onClose: (v: { code: number; reason: string }) => void = () => {};
+  const closed = new Promise<{ code: number; reason: string }>((resolve) => (onClose = resolve));
+  ws.addEventListener("message", (e) => {
+    if (typeof e.data !== "string") return;
+    frames.push(JSON.parse(e.data));
+    for (const w of [...waiters]) w();
+  });
+  ws.addEventListener("close", (e) => onClose({ code: e.code, reason: e.reason }));
+  ws.accept();
+  const next = (t: string, pred: (f: any) => boolean = () => true, timeoutMs = 3000): Promise<any> =>
+    new Promise((resolve, reject) => {
+      const check = (): boolean => {
+        const i = frames.findIndex((f, idx) => !taken.has(idx) && f.t === t && pred(f));
+        if (i < 0) return false;
+        taken.add(i);
+        resolve(frames[i]);
+        return true;
+      };
+      if (check()) return;
+      const waiter = () => {
+        if (check()) {
+          waiters.delete(waiter);
+          clearTimeout(timer);
+        }
+      };
+      const timer = setTimeout(() => {
+        waiters.delete(waiter);
+        reject(new Error(`timed out waiting for ${t}; got [${frames.map((f) => f.t).join(", ")}]`));
+      }, timeoutMs);
+      waiters.add(waiter);
+    });
+  const client: DocClient = {
+    ws,
+    frames,
+    hello: null,
+    send(frame) {
+      ws.send(typeof frame === "string" ? frame : JSON.stringify(frame));
+    },
+    next,
+    closed,
+    close(code = 1000) {
+      ws.close(code);
+    },
+  };
+  if (opts.since !== "skip") {
+    client.send({ t: "hello", since: opts.since ?? null });
+    client.hello = await next("hello");
+  }
+  return client;
 }
 
 // ---- SNS fixtures (plan 02 Task 1; every later SNS test uses these) ----

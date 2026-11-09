@@ -3,6 +3,7 @@
 // Plan 02 Task 4: top-level posts (media, hashtags, mentions, poll, nonce idempotency) and deletion.
 // Plan 02 Task 5: the reply / quote target (step 3 of createPost): validation, counters, notifications, events.
 import type { Runtime } from "../env";
+import { alertSpec } from "../lib/alerts";
 import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { newId } from "../lib/ids";
@@ -303,12 +304,7 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
       preview: snippet,
       context: { post_id: row.id },
       dedupeKey: `${isReply ? "post_reply" : "post_quote"}:${row.id}`,
-      alert: {
-        kind: "social",
-        title: isReply ? `${name}님의 답글` : `${name}님이 글을 인용했어요`,
-        body: snippet,
-        target: postTarget(row.id),
-      },
+      alert: alertSpec("social", { id: isReply ? "post.reply" : "post.quote", params: { actor: name } }, postTarget(row.id), snippet),
     });
   }
   for (const uid of mentionIds) {
@@ -321,7 +317,7 @@ export async function createPost(rt: Runtime, input: CreatePostInput): Promise<{
       preview: snippet,
       context: { post_id: row.id },
       dedupeKey: `post_mention:${row.id}:${uid}`,
-      alert: { kind: "mention", title: `${name}님이 글에서 멘션했어요`, body: snippet, target: postTarget(row.id) },
+      alert: alertSpec("mention", { id: "post.mention", params: { actor: name } }, postTarget(row.id), snippet),
     });
   }
   if (inputs.length > 0) await scheduleNotifications(rt, "post notifications", () => notifyMany(rt, inputs));
@@ -431,12 +427,7 @@ function reactionNotification(post: PostRow, actor: UserRow, type: "post_like" |
     preview: snippet,
     context: { post_id: post.id },
     dedupeKey: `${type}:${post.id}:${actor.id}`,
-    alert: {
-      kind: "social",
-      title: type === "post_like" ? `${actor.display_name}님이 글을 좋아해요` : `${actor.display_name}님이 글을 리포스트했어요`,
-      body: snippet,
-      target: postTarget(post.id),
-    },
+    alert: alertSpec("social", { id: type === "post_like" ? "post.like" : "post.repost", params: { actor: actor.display_name } }, postTarget(post.id), snippet),
   };
 }
 

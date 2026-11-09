@@ -8,7 +8,9 @@
 import type { Runtime } from "../env";
 import type { Alert, AlertKind, Message, Notification, NotificationType } from "../types/api";
 import type { ChannelRow, NotificationRow, UserSettingsRow } from "../types/rows";
+import { type AlertSpec, alertSpec } from "./alerts";
 import { all, batch, first, jsonList, stmt } from "./db";
+import { type AlertTemplate, clipCodePoints, renderAlert } from "./i18n";
 import { newId } from "./ids";
 import type { OutboundEvent } from "../do/user-hub";
 import { deliverPerUser } from "./realtime";
@@ -24,28 +26,18 @@ export interface NotifyInput {
   preview?: string;
   context?: Partial<Notification["context"]>;
   dedupeKey?: string;
-  alert?: { kind: AlertKind; title: string; body: string; target: Alert["target"] } | null; // null = no desktop alert
+  alert?: AlertSpec | null; // null = no desktop alert (lib/alerts.ts alertSpec — the only way to build one)
 }
 
 export interface AlertItem {
   userId: string;
-  kind: AlertKind;
   actorId: string | null;
-  title: string;
-  body: string;
-  target: Alert["target"];
+  alert: AlertSpec;
   channelId?: string;
 }
 
-const TITLE_MAX = 80;
 const BODY_MAX = 200;
 const PREVIEW_MAX = 100;
-
-/** Cut to at most n code points. */
-function clip(s: string, n: number): string {
-  const cps = [...s];
-  return cps.length <= n ? s : cps.slice(0, n).join("");
-}
 
 type Pair = [string, string];
 
@@ -221,21 +213,23 @@ async function unreadCounts(db: D1Database, userIds: string[]): Promise<Map<stri
   return new Map(rows.map((r) => [r.user_id, r.n]));
 }
 
-function buildAlert(
-  a: { kind: AlertKind; title: string; body: string; target: Alert["target"] },
-  actor: Alert["actor"],
-  createdAt: number,
-): Alert {
+/**
+ * The stored alert: template + its Korean fallback text (header-less 0.1.2 clients see exactly the 0.1.2 strings).
+ * UserHub re-renders title / body per connection language when it sends the frame (events.md 4.7 v0.1.3).
+ */
+function buildAlert(a: AlertSpec, actor: Alert["actor"], createdAt: number): Alert {
+  const text = renderAlert(a.template, "ko", a.body);
   return {
     id: newId(),
     kind: a.kind,
-    title: clip(a.title, TITLE_MAX),
-    body: clip(a.body, BODY_MAX),
+    title: text.title,
+    body: text.body,
     actor,
     target: a.target,
     created_at: iso(createdAt),
     suppressed: false, // UserHub fills focus/dnd
     suppressed_reason: null,
+    template: a.template,
   };
 }
 
@@ -274,7 +268,7 @@ export async function notifyMany(rt: Runtime, inputs: NotifyInput[]): Promise<vo
   // One statement per row (9 params each), all in one batch: never a multi-row VALUES past the bind limit.
   const t = now();
   const rows: NotificationRow[] = keep.map((inp) => {
-    const extra: NotificationExtra = { preview: clip(inp.preview ?? "", PREVIEW_MAX), context: inp.context ?? {} };
+    const extra: NotificationExtra = { preview: clipCodePoints(inp.preview ?? "", PREVIEW_MAX), context: inp.context ?? {} };
     return {
       id: newId(t),
       user_id: inp.userId,
@@ -345,7 +339,7 @@ export async function sendAlerts(rt: Runtime, items: AlertItem[]): Promise<void>
   const blockedIdx = new Set(withActor.filter((_, j) => blocked.has(j)).map((w) => w.idx));
   const keep = candidates.filter((_, idx) => !blockedIdx.has(idx));
   if (keep.length === 0) return;
-  const allowed = await alertAllowed(db, keep);
+  const allowed = await alertAllowed(db, keep.map((k) => ({ userId: k.userId, kind: k.alert.kind, channelId: k.channelId })));
   const send = keep.filter((_, i) => allowed[i]);
   if (send.length === 0) return;
   const actors = await loadUserSummaries(db, send.flatMap((s) => (s.actorId === null ? [] : [s.actorId])));
@@ -353,7 +347,7 @@ export async function sendAlerts(rt: Runtime, items: AlertItem[]): Promise<void>
   const byUser = new Map<string, Outbound[]>();
   for (const s of send) {
     const actor = s.actorId === null ? null : (actors.get(s.actorId) ?? null);
-    push(byUser, s.userId, { type: "alert", data: { alert: buildAlert(s, actor, t) } });
+    push(byUser, s.userId, { type: "alert", data: { alert: buildAlert(s.alert, actor, t) } });
   }
   await publishPerRecipient(rt, byUser);
 }
@@ -385,7 +379,7 @@ async function channelReadersAmong(db: D1Database, channel: ChannelRow, userIds:
 }
 
 interface MessageAlertParts {
-  title: string;
+  template: AlertTemplate;
   body: string;
   preview: string;
   target: Alert["target"];
@@ -395,18 +389,19 @@ interface MessageAlertParts {
 }
 
 /**
- * Alert title / body / target for a message (plan 01 Task 24): text "<name> · <space> #<channel>", dm "<name>",
- * group_dm "<name> · <group name or 3 member names>"; body = plainSnippet(body, 200) (a poll uses its question).
+ * Alert template / body / target for a message (plan 01 Task 24): text message.channel "<name> · <space> #<channel>",
+ * dm message.dm "<name>", group_dm message.group "<name> · <group name or 3 member names>" (message.dm when that is
+ * empty); body = plainSnippet(body, 200) (a poll uses its question).
  */
 async function messageAlertParts(db: D1Database, message: Message, channel: ChannelRow): Promise<MessageAlertParts> {
   const authorId = message.author.id;
   const name = message.author.display_name;
   const text = message.kind === "poll" ? (message.poll?.question ?? "") : message.body;
-  let title = name;
+  let template: AlertTemplate = { id: "message.dm", params: { actor: name } };
   let convMembers: string[] = [];
   if (channel.kind === "text") {
     const space = channel.space_id === null ? null : await first<{ name: string }>(db, "SELECT name FROM spaces WHERE id = ?1", channel.space_id);
-    title = `${name} · ${space?.name ?? ""} #${channel.name ?? ""}`;
+    template = { id: "message.channel", params: { actor: name, space: space?.name ?? "", channel: channel.name ?? "" } };
   } else {
     const rows = await all<{ user_id: string }>(db, "SELECT user_id FROM channel_members WHERE channel_id = ?1 ORDER BY joined_at, user_id", channel.id);
     convMembers = rows.map((r) => r.user_id).filter((u) => u !== authorId);
@@ -417,12 +412,12 @@ async function messageAlertParts(db: D1Database, message: Message, channel: Chan
         const users = await loadUserSummaries(db, shown);
         group = shown.flatMap((u) => (users.has(u) ? [users.get(u)!.display_name] : [])).join(", ");
       }
-      title = group === "" ? name : `${name} · ${group}`;
+      if (group !== "") template = { id: "message.group", params: { actor: name, group } };
     }
   }
   const spaceId = channel.kind === "text" ? channel.space_id : null;
   return {
-    title,
+    template,
     body: plainSnippet(text, BODY_MAX),
     preview: plainSnippet(text, PREVIEW_MAX),
     target: {
@@ -448,7 +443,7 @@ function mentionInput(message: Message, parts: MessageAlertParts, userId: string
     preview: parts.preview,
     context: parts.context,
     dedupeKey: `message_mention:${message.id}:${userId}`,
-    alert: withAlert ? { kind: "mention", title: parts.title, body: parts.body, target: parts.target } : null,
+    alert: withAlert ? alertSpec("mention", parts.template, parts.target, parts.body) : null,
   };
 }
 
@@ -502,13 +497,13 @@ export async function fanoutMessageNotifications(rt: Runtime, message: Message, 
       preview: parts.preview,
       context: parts.context,
       dedupeKey: `thread_reply:${message.id}:${u}`,
-      alert: dmTo.has(u) ? null : { kind: "thread_reply", title: parts.title, body: parts.body, target: parts.target },
+      alert: dmTo.has(u) ? null : alertSpec("thread_reply", parts.template, parts.target, parts.body),
     });
   }
   const alerts: AlertItem[] = [
     ...[...dmTo].map((u) => ({ userId: u, kind: "dm" as const })),
     ...channelTo.map((u) => ({ userId: u, kind: "channel_message" as const })),
-  ].map((a) => ({ ...a, actorId: authorId, title: parts.title, body: parts.body, target: parts.target, channelId: channel.id }));
+  ].map((a) => ({ userId: a.userId, actorId: authorId, alert: alertSpec(a.kind, parts.template, parts.target, parts.body), channelId: channel.id }));
 
   await Promise.all([notifyMany(rt, inbox), sendAlerts(rt, alerts)]);
 }

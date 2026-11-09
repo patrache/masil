@@ -662,7 +662,7 @@ interface AdminAction {
 | `api.result` | 1 | 사용자(P4) | P4 |
 | `api.run` | 1 | 사용자(P4) | P4 |
 
-- **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
+- **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. `template.params` 는 그 id 에 선언된 인자를 모두 싣지만, 언어별 문구는 그 가운데 일부만 써도 된다(세 언어 문구가 쓰는 인자의 합집합 = 선언 — 예 `doc.comment_mention` 의 ko 제목은 `{space}` 를 쓰지 않는다). 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
 - **문서 대상 (`target.type:"doc"`)**: 모양 `{ type: "doc", id: <doc_id>, space_id, doc_type: "arch" | "apicol", channel_id: null, message_id: null, thread_root_id: null, post_id: null }`. 클라이언트는 `doc_type` 으로 어느 도구가 열지 고른다(CA 5.3.6 `RegisterAlertTarget` 의 `"doc:<doc_type>"` 키). 0.1.2 클라이언트는 모르는 대상의 alert 를 OS 알림으로만 보이고 이동하지 않는다.
 
 ### 2.1 본문 문법 (메시지·글 공통)
@@ -1531,6 +1531,7 @@ interface DocComment {
   - 이름 버전은 영구, 문서당 100개(101번째 `422`).
   - 자동 버전과 되돌리기 버전은 **기록 버전**으로 함께 다룬다: 30일 보관, 문서당 합쳐 최근 200개(넘으면 가장 오래된 기록 버전부터 지운다 — 이름 버전은 지우지 않는다). 되돌리기 버전은 이름 버전 100개 한도에 세지 않는다.
   - 버전 본문은 버전마다 정규형 스냅숏 전체(차이 저장 안 함, DO `versions` 표). 위 상한으로 문서당 버전 본문은 최대 300 × `maxDocBytes` 다.
+- 버전 경로의 `{no}` 가 양의 정수가 아니면 없는 버전과 같이 `404`. 복원 응답의 `doc.head_seq` 는 그 `reset` 의 순번이다(D1 반영을 기다리지 않는다). 자동 버전의 `created_at` 은 서버(DO alarm)가 만든 시각이라 편집이 멈춘 때보다 늦을 수 있다.
 - 6장 표의 행은 이 경로들을 만드는 P0 Task 26·28·29 가 그 코드와 같은 커밋에서 더한다.
 
 ## 6. 엔드포인트 요약표
@@ -1625,6 +1626,12 @@ interface DocComment {
 | POST | /v1/admin/users/{user}/suspend, /unsuspend | admin | |
 | GET | /v1/admin/users, /v1/admin/actions | admin | |
 | GET | /v1/ws | ✓ | RL_WS |
+| GET/POST | /v1/spaces/{space_id}/docs | ✓ | RL_DOC(POST) |
+| GET/PATCH/DELETE | /v1/docs/{doc_id} | ✓ | RL_DOC(PATCH/DELETE) |
+| GET/POST | /v1/docs/{doc_id}/versions | ✓ | RL_DOC(POST) |
+| GET | /v1/docs/{doc_id}/versions/{no} | ✓ | |
+| POST | /v1/docs/{doc_id}/versions/{no}/restore | ✓ | RL_DOC |
+| GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

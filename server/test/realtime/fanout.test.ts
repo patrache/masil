@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import type { Runtime } from "../../src/env";
 import { deliverToUsers, publishEvent, publishEvents, resolveOnlineAudience } from "../../src/lib/realtime";
 import { newId } from "../../src/lib/ids";
+import { alertSpec } from "../../src/lib/alerts";
 import { notify, notifyMany, sendAlerts } from "../../src/lib/notify";
 import type { Alert } from "../../src/types/api";
 import { connectWs, makeSpace, signup, uniqueHandle } from "../helpers";
@@ -142,6 +143,7 @@ function fakeAlert(): Alert {
     created_at: new Date().toISOString(),
     suppressed: false,
     suppressed_reason: null,
+    template: null,
   };
 }
 
@@ -319,7 +321,7 @@ describe("notify", () => {
       type: "friend_request",
       actorId: a.user.id,
       subject: { type: "friend_request", id: newId() },
-      alert: { kind: "friend_request", title: "t", body: "b", target: target("user", a.user.id) },
+      alert: alertSpec("friend_request", { id: "social.friend_request", params: { actor: "t" } }, target("user", a.user.id)),
     });
     const n = await cb.next("notification.created");
     expect(n.data.unread_count).toBe(1);
@@ -337,7 +339,7 @@ describe("notify", () => {
       actorId: a.user.id,
       subject: { type: "user" as const, id: a.user.id },
       dedupeKey: `follow:${a.user.id}`,
-      alert: { kind: "social" as const, title: "t", body: "", target: target("user", a.user.id) },
+      alert: alertSpec("social", { id: "social.follow", params: { actor: "t" } }, target("user", a.user.id)),
     };
     await notify(rtFor(env), inp);
     await notify(rtFor(env), inp);
@@ -400,7 +402,7 @@ describe("notify", () => {
         type: "friend_request" as const,
         actorId: actor.user.id,
         subject: { type: "friend_request" as const, id: newId() },
-        alert: { kind: "friend_request" as const, title: "t", body: "b", target: target("user", actor.user.id) },
+        alert: alertSpec("friend_request", { id: "social.friend_request", params: { actor: "t" } }, target("user", actor.user.id)),
       })),
     );
     expect(pending).toHaveLength(1); // a single schedule()
@@ -417,17 +419,17 @@ describe("notify", () => {
     const ch = await dmSql(a, b);
     const cb = await connectWs(b.token);
     await env.DB.prepare("INSERT INTO channel_prefs VALUES (?1, ?2, 'all', 1, 0)").bind(b.user.id, ch).run();
-    await sendAlerts(rtFor(env), [{ userId: b.user.id, kind: "dm", actorId: a.user.id, title: "a", body: "hi", target: target("message", newId()), channelId: ch }]);
+    await sendAlerts(rtFor(env), [{ userId: b.user.id, actorId: a.user.id, alert: alertSpec("dm", { id: "message.dm", params: { actor: "a" } }, target("message", newId()), "hi"), channelId: ch }]);
     await settle();
     expect(cb.frames.some((f) => f.type === "alert")).toBe(false);
     // notify:'none' (not muted) also suppresses
     await env.DB.prepare("UPDATE channel_prefs SET muted=0, notify='none' WHERE user_id=?1 AND channel_id=?2").bind(b.user.id, ch).run();
-    await sendAlerts(rtFor(env), [{ userId: b.user.id, kind: "dm", actorId: a.user.id, title: "a", body: "hi", target: target("message", newId()), channelId: ch }]);
+    await sendAlerts(rtFor(env), [{ userId: b.user.id, actorId: a.user.id, alert: alertSpec("dm", { id: "message.dm", params: { actor: "a" } }, target("message", newId()), "hi"), channelId: ch }]);
     await settle();
     expect(cb.frames.some((f) => f.type === "alert")).toBe(false);
     // no prefs row -> dm default 'all': delivered, clipped to 80/200 code points
     await env.DB.prepare("DELETE FROM channel_prefs WHERE user_id=?1 AND channel_id=?2").bind(b.user.id, ch).run();
-    await sendAlerts(rtFor(env), [{ userId: b.user.id, kind: "dm", actorId: a.user.id, title: "가".repeat(90), body: "나".repeat(250), target: target("message", newId()), channelId: ch }]);
+    await sendAlerts(rtFor(env), [{ userId: b.user.id, actorId: a.user.id, alert: alertSpec("dm", { id: "message.dm", params: { actor: "가".repeat(90) } }, target("message", newId()), "나".repeat(250)), channelId: ch }]);
     const al = (await cb.next("alert")).data.alert;
     expect(al).toMatchObject({ kind: "dm", actor: { id: a.user.id }, suppressed: false, suppressed_reason: null });
     expect([...al.title]).toHaveLength(80);

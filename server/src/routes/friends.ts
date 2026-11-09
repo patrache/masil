@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
+import { alertSpec } from "../lib/alerts";
 import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, decodeCursor, encodeCursor, first, parseLimit } from "../lib/db";
 import { err } from "../lib/errors";
@@ -171,12 +172,11 @@ friendRoutes.post("/friends/requests", requireAuth, limit("RL_SOCIAL"), vJson(Re
       subject: { type: "friend_request", id: row.id },
       preview: "",
       dedupeKey: `friend_request:${row.id}`,
-      alert: {
-        kind: "friend_request",
-        title: `${name}님의 친구 요청`,
-        body: "",
-        target: { type: "user", id: me, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
-      },
+      alert: alertSpec(
+        "friend_request",
+        { id: "social.friend_request", params: { actor: name } },
+        { type: "user", id: me, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
+      ),
     }),
   ]);
   return c.json({ request, friend: null }, 201);
