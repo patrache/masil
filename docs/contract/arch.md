@@ -151,3 +151,21 @@
 6. 없는 상자를 가리키는 노드 `parent`, 없는 노드·자기 자신을 가리키는 `params.failover_to` 는 `""`(`dangling_ref`).
 7. 끝점이 없는 연결, 대상이 없거나 종류가 맞지 않는 장애는 뺀다(경로 = 객체 키, `dangling_ref`). 그 뒤 연결 1,000·장애 50 초과분을 ID 순 뒤에서 버린다.
 8. 결과는 늘 1.3 검증을 통과한다(`TestFromObjectsAlwaysValid`). 단 1MB 정규 인코딩 한도(1.2)는 보장하지 않는다 — 내보내기·카드 사본은 `Encode` 크기를 따로 본다(`Store.Save` 처럼).
+
+### 2.4 서버 검증 (`server/src/lib/collab/arch.ts`, P3 Task 21)
+
+CollabHub 는 op 프레임마다 op 하나씩 이 검사를 거친 뒤 적용한다(collab.md 3.3 — 하나라도 거절되면 프레임 전체를 버리고 보낸 사람에게만 `reject`). 거절 `code` 는 P0 의 닫힌 집합(`invalid`·`limit_exceeded`) 안이고, 이유는 `detail` 이다. 필드 표·범위는 2.1·1.4 와 같고 TS 상수 하나(`FIELDS`)가 서버 쪽 사본이다.
+
+| `detail` | `code` | 언제 |
+|---|---|---|
+| `arch_bad_object` | `invalid` | 객체 키가 `^(meta\|[nbef]:[A-Za-z0-9_-]{1,62})$` 밖, 또는 `put` 의 `type` 이 키 접두사와 다름(`meta`→`meta`, `n:`→`node`, `b:`→`box`, `e:`→`edge`, `f:`→`fault`). `set` 은 이미 있는 객체의 `type` 이 접두사와 달라도 이것 |
+| `arch_bad_field` | `invalid` | 그 객체 종류에 없는 필드 이름(2.1 표 밖) |
+| `arch_bad_value` | `invalid` | 1.4 의 JSON 타입·정수·범위·열거값 밖, 64바이트 문자열 초과, `label` 40·`title` 80 그래핌 초과, `label`·`title` 의 1.3 금지 문자, 짝 없는 서로게이트. `null` 은 받는다(필드를 비움 = 2.3 의 기본값) |
+| `arch_cycle` | `invalid` | 상자 `parent` 를 바꾸면(`put`·`set`) 그 상자가 자기 조상이 됨 |
+| `arch_depth` | `invalid` | 상자 `parent` 를 바꾸면 그 상자가 3단보다 깊어짐(위쪽 사슬만 본다 — 아래 상자까지 깊어지는 경우는 2.3 5단계가 고친다) |
+| `arch_limit` | `limit_exceeded` | 새 객체 `put`(또는 지운 객체 `undel`)이 살아 있는 노드 300·연결 1,000·상자 100·장애 50·`meta` 1 을 넘김. 적용 뒤 한도 검사(P0, `detail:"limit_<type>"`)도 같은 `maxObjects` 로 따로 돈다 |
+
+- `reset`(새 문서의 첫 스냅숏, 버전 복원)은 스냅숏 전체를 같은 규칙으로 본다(지운 객체는 개수에 안 셈). 새 문서의 스냅숏이 거절되면 `POST /v1/spaces/{id}/docs` 는 400 `fields.snapshot`.
+- 가리키는 대상이 없는 참조(`parent`·`from`·`to`·`target`·`params.failover_to`)와 상자 종류 규칙(`parent_kind`)은 거절하지 않는다 — 동시 삭제로 늘 생길 수 있고 2.3 이 모든 클라이언트에서 같게 고친다.
+- `maxDocBytes` 1,048,576 · `maxFieldBytes` 16,384 는 P0 검사 그대로(`too_large`).
+
