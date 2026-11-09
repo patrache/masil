@@ -41,7 +41,13 @@ const MAX_BODY_BYTES = 65_536;
 const BODY_KINDS = new Set(["", "none", "json", "urlencoded", "multipart", "raw"]);
 const LISTS = new Set(["query", "header", "form", "assert", "extract"]);
 const AUTH_KEYS = new Set(["kind", "user", "pass", "token", "name", "value", "in"]);
-const SETTINGS: Record<string, "number" | "boolean"> = { timeout_ms: "number", no_follow: "boolean", max_redirects: "number", insecure: "boolean" };
+// Maps, not object literals: a client-chosen name ("toString", "valueOf") must never find an Object.prototype member.
+const SETTINGS = new Map<string, "number" | "boolean">([
+  ["timeout_ms", "number"],
+  ["no_follow", "boolean"],
+  ["max_redirects", "number"],
+  ["insecure", "boolean"],
+]);
 const EXTRA_KEYS = new Set(["file_name", "op", "path", "from"]);
 const VAR_KEYS = new Set(["id", "name", "value", "secret"]);
 
@@ -87,7 +93,7 @@ function checkValue(kind: FieldKind, v: Json): RejectReason | null {
     case "settings":
       if (!isObj(v)) return INVALID;
       for (const [k, x] of Object.entries(v)) {
-        const want = SETTINGS[k];
+        const want = SETTINGS.get(k);
         if (want === undefined || (want === "number" ? !isNum(x) : typeof x !== "boolean")) return INVALID;
       }
       return null;
@@ -103,15 +109,17 @@ function checkValue(kind: FieldKind, v: Json): RejectReason | null {
       }
       return null;
     }
+    default:
+      return INVALID;
   }
 }
 
 /** Every field of a would-be object: known, of the right shape, the body within its size. */
 function checkFields(type: string, fields: Record<string, Json>): RejectReason | null {
-  const table = APICOL_FIELDS[type];
+  const table = Object.hasOwn(APICOL_FIELDS, type) ? APICOL_FIELDS[type] : undefined;
   if (table === undefined) return INVALID;
   for (const [k, v] of Object.entries(fields)) {
-    const kind = table[k];
+    const kind = Object.hasOwn(table, k) ? table[k] : undefined;
     if (kind === undefined) return INVALID;
     const r = checkValue(kind, v);
     if (r !== null) return r;
