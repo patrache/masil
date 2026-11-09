@@ -2,14 +2,17 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/features"
 	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/toolstate"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -257,9 +260,13 @@ func (m *Model) navigateTool(msg ui.NavigateMsg) tea.Cmd {
 	if !toolRouteOK(r) {
 		return nil
 	}
+	isNew := m.nav.toolIndex(r.Key()) < 0
 	n, intent := m.nav.navigate(msg, m.lay.Mode, m.isDM)
 	if n.toolIndex(r.Key()) < 0 {
 		return m.toasts.push(m.ctx, ui.ToastMsg{Text: m.ctx.T.Tools.LimitToast(maxTools), Kind: ui.ToastInfo})
+	}
+	if isNew {
+		n = m.rememberedZoom(n, r)
 	}
 	if r.Anchor != "" {
 		m.cache.rejump = r.Key()
@@ -308,12 +315,71 @@ func (m *Model) toggleTools() tea.Cmd {
 	return m.applyTools(m.nav.toggleTools(m.lay.Mode))
 }
 
-// zoomTool is tools.zoom on the active tool (no-op while the surface is not in front).
+// zoomTool is tools.zoom on the active tool (no-op while the surface is not in
+// front). A tool instance's new wide view is remembered for its tool in
+// tools-state.json (rememberedZoom); the hub's is not.
 func (m *Model) zoomTool() tea.Cmd {
 	if m.nav.Front != FrontTools {
 		return nil
 	}
-	return m.applyTools(m.nav.toggleZoom(), FocusIntent{})
+	n := m.nav.toggleZoom()
+	if r, ok := n.activeTool(); ok && r.Kind == ui.RouteTool {
+		c := m.ctx.ToolState.Common(r.Arg)
+		z := n.zoomed()
+		c.Zoomed = &z
+		if err := m.ctx.ToolState.SetCommon(r.Arg, c); err != nil {
+			slog.Warn("tools-state.json: zoom not saved", "tool", r.Arg, "err", err)
+		}
+	}
+	return m.applyTools(n, FocusIntent{})
+}
+
+// rememberedZoom starts a newly opened tool instance r with its tool's
+// remembered wide view (tools-state.json), when there is one; otherwise the
+// instance keeps its ToolSpec.WideDefault.
+func (m *Model) rememberedZoom(n NavState, r ui.Route) NavState {
+	if r.Kind != ui.RouteTool {
+		return n
+	}
+	z := m.ctx.ToolState.Common(r.Arg).Zoomed
+	if z == nil {
+		return n
+	}
+	if _, set := n.ToolZoom[r.Key()]; set {
+		return n
+	}
+	n.ToolZoom = maps.Clone(n.ToolZoom)
+	if n.ToolZoom == nil {
+		n.ToolZoom = map[string]bool{}
+	}
+	n.ToolZoom[r.Key()] = *z
+	return n
+}
+
+// initTools sets the tool fields of m.ctx (New): ToolState from paths'
+// tools-state.json (an in-memory file when paths has none) and OpenTools.
+func (m *Model) initTools(paths config.Paths) {
+	m.ctx.ToolState = toolstate.Load(paths)
+	m.ctx.OpenTools = m.openTools
+}
+
+// openTools is ui.Context.OpenTools: the open tool instances (the hub left
+// out), in surface order.
+func (m *Model) openTools() []ui.OpenToolInfo {
+	var out []ui.OpenToolInfo
+	for i, r := range m.nav.Tools {
+		if r.Kind != ui.RouteTool {
+			continue
+		}
+		info := ui.OpenToolInfo{Route: r, Title: m.toolEntryTitle(r), Active: i == m.nav.ToolActive && m.nav.Front == FrontTools}
+		if in := m.cache.lookup(r.Key()); in != nil {
+			if s, ok := in.comp.(ui.ToolStatuser); ok {
+				info.Status = textwidth.Sanitize(s.ToolStatus(m.ctx))
+			}
+		}
+		out = append(out, info)
+	}
+	return out
 }
 
 // closeTool is ui.CloseTool: the instance's Closer runs, then it leaves the
@@ -398,6 +464,12 @@ func (m *Model) toolContext() string {
 	if !ok {
 		return ""
 	}
+	return m.toolEntryTitle(r)
+}
+
+// toolEntryTitle is a tool-surface entry's title: its Titled title with the
+// tool's icon, else toolTitle — sanitized.
+func (m *Model) toolEntryTitle(r ui.Route) string {
 	title := m.toolTitle(r)
 	if in := m.cache.lookup(r.Key()); in != nil {
 		if t, ok := in.comp.(ui.Titled); ok {

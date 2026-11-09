@@ -225,6 +225,7 @@ func New(o Options) *Model {
 		Lang:   res.Effective,
 	}
 	m.ctx.Keys.Localize(m.ctx.T) // help descriptions in the shown language
+	m.initTools(o.Paths)         // ctx.ToolState (never nil), ctx.OpenTools
 	m.ctx.Clipboard = o.Clipboard
 	if m.ctx.Clipboard == nil {
 		m.ctx.Clipboard = clipboard.System()

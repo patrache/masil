@@ -14,6 +14,8 @@ type Paths struct {
 	Config, Credentials, DeviceID, State, DaemonState string
 	AlertsShown, AlertsShownLock, TUILock, DaemonLock string
 	LogDir                                            string
+	ToolsState                                        string // tools-state.json: device-only tool memory (v0.1.3 A8.5)
+	SecretsDir                                        string // secrets/: the tool-secret file fallback (v0.1.3 A9, 0700)
 }
 
 // ResolvePaths uses MASIL_CONFIG_DIR / ~/.config/masil, MASIL_CACHE_DIR / UserCacheDir.
@@ -48,6 +50,8 @@ func ResolvePaths() (Paths, error) {
 		TUILock:         filepath.Join(dir, "tui.lock"),
 		DaemonLock:      filepath.Join(dir, "daemon.lock"),
 		LogDir:          filepath.Join(dir, "logs"),
+		ToolsState:      filepath.Join(dir, "tools-state.json"),
+		SecretsDir:      filepath.Join(dir, "secrets"),
 	}, nil
 }
 

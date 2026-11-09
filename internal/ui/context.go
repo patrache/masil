@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
+	"github.com/patrache/masil/internal/toolstate"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 )
@@ -40,6 +41,14 @@ type Context struct {
 	T *i18n.T
 	// Lang is the effective (shown) language; 0.1.3 = ko.
 	Lang i18n.Locale
+	// ToolState is tools-state.json (v0.1.3 A8.5): the tools' device-only
+	// memory. A tool reads and writes only its own section (the tool id). Never
+	// nil in the app (toolstate.Load at start; the harness: an empty file in
+	// its temp folder); a bare Context's nil File reads empty.
+	ToolState *toolstate.File
+	// OpenTools lists the tool instances open on the tool surface (the hub
+	// excluded), in surface order; set by the app (nil = none).
+	OpenTools func() []OpenToolInfo
 }
 
 // Realtime is the UI-facing subset of realtime.Client.

@@ -77,6 +77,9 @@ func runSlash(ctx *ui.Context, cc *chatComposer, raw string, cmd *slash.Command)
 		return ui.RunCommand("focus.start", rawArgs(raw))
 	case slash.Invite:
 		return cc.invite(ctx, cmd)
+	case slash.Tools: // the tool hub (ui/tools registers tools.hub; chat never imports it)
+		cc.c.Reset()
+		return ui.RunCommand("tools.hub", "")
 	}
 	return nil
 }

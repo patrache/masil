@@ -4,6 +4,24 @@
 desc = "도움말 화면의 묶음 머리: 도구 표면 키"
 other = "도구"
 
+[hub_close]
+desc = "허브 첫 줄 오른쪽 끝: 도구 표면을 닫는 키(ctrl+t 등, 키맵에서)"
+params = { key = "string" }
+other = "{key} 닫기"
+
+[hub_empty]
+desc = "허브에 켜진 도구가 하나도 없을 때"
+other = "아직 쓸 수 있는 도구가 없어요"
+
+[hub_footer]
+desc = "허브 바닥 줄 키 안내(range = 숫자 범위, 예: 1–5)"
+params = { range = "string" }
+other = "enter 열기 · m 여는 방식 고르기 · x 닫기 · {range} 바로"
+
+[hub_open_header]
+desc = "허브의 열린 도구 인스턴스 목록 머리(앞뒤에 ── 가 붙음)"
+other = "열려 있음"
+
 [key_toggle]
 desc = "도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기"
 other = "도구 ↔ 채팅"
@@ -16,6 +34,55 @@ other = "도구 넓게 보기"
 desc = "도구 표면에 더 열 수 없을 때의 토스트(허브 포함 개수)"
 params = { max = "int" }
 other = "도구는 {max}개까지 열 수 있어요 · 허브에서 하나를 닫아 주세요"
+
+[menu_footer]
+desc = "여는 방식 메뉴의 바닥 줄 키 안내"
+other = "enter 고르기 · esc 취소"
+
+[menu_title]
+desc = "허브의 여는 방식 메뉴 머리(tool = 아이콘과 도구 이름, 앞뒤에 ── 가 붙음)"
+params = { tool = "string" }
+other = "여는 방식 · {tool}"
+
+[mode_auto]
+desc = "여는 방식 메뉴: 알아서 고르기(설정·환경에 따라)"
+other = "자동"
+
+[mode_exec]
+desc = "여는 방식 메뉴: 터미널을 그 프로그램에 넘겨줌(끝나면 돌아옴)"
+other = "화면 전환"
+
+[mode_pane]
+desc = "여는 방식 메뉴: masil 안 패널에서"
+other = "패널"
+
+[mode_window]
+desc = "여는 방식 메뉴: tmux 팝업 창"
+other = "외부 창"
+
+[palette_hub]
+desc = "명령 팔레트: 도구 허브 열기"
+other = "도구 허브"
+
+[palette_next]
+desc = "명령 팔레트: 열린 다음 도구로"
+other = "다음 도구"
+
+[palette_prev]
+desc = "명령 팔레트: 열린 이전 도구로"
+other = "이전 도구"
+
+[palette_toggle]
+desc = "명령 팔레트: 도구 표면과 채팅 사이 오가기"
+other = "도구 ↔ 채팅"
+
+[palette_zoom]
+desc = "명령 팔레트: 활성 도구의 넓게 보기 켜고 끄기"
+other = "도구 넓게 보기"
+
+[slash_desc]
+desc = "입력창 /tools 자동 완성·도움말 설명"
+other = "도구 허브를 열어요"
 
 [tab_label]
 desc = "컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)"

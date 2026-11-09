@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/textwidth"
@@ -499,5 +500,70 @@ func TestInitialToolRoute(t *testing.T) {
 	h2 := uitest.New(t, uitest.WithRoute(toolRoute(ui.ToolGit, "g1"))) // git is off
 	if n := h2.Model.Nav(); n.Front != app.FrontTab || len(n.Tools) != 0 {
 		t.Errorf("flag off: start nav = %+v, want the chat", n)
+	}
+}
+
+// ---- P0 Task 19: tools-state.json ----
+
+func TestContextToolStateNeverNil(t *testing.T) {
+	h := uitest.New(t)
+	ctx := h.Context()
+	if ctx.ToolState == nil {
+		t.Fatal("harness ctx.ToolState is nil")
+	}
+	type leet struct {
+		Lang string `json:"lang"`
+	}
+	if err := ctx.ToolState.SetSection(ui.ToolLeet, leet{Lang: "go"}); err != nil {
+		t.Fatalf("SetSection: %v", err)
+	}
+	// A new app over the same folder reads it back.
+	m := app.New(app.Options{Paths: ctx.Paths, Config: config.Defaults(), DisableRealtime: true})
+	var got leet
+	if !m.Context().ToolState.Section(ui.ToolLeet, &got) || got.Lang != "go" {
+		t.Fatalf("new app over the same folder: Section = %+v", got)
+	}
+	// No paths at all (a bare app): still a usable, in-memory file.
+	bare := app.New(app.Options{Config: config.Defaults(), DisableRealtime: true})
+	if bare.Context().ToolState == nil {
+		t.Fatal("app without paths: ToolState is nil")
+	}
+	if err := bare.Context().ToolState.SetSection(ui.ToolGit, leet{}); err != nil {
+		t.Fatalf("app without paths: SetSection: %v", err)
+	}
+}
+
+func TestZoomRememberedInToolState(t *testing.T) {
+	installStubTools(t, "all")
+	h := uitest.New(t) // 120x40 standard
+	openTool(h, ui.ToolGit, "g1")
+	if c := h.Context().ToolState.Common(ui.ToolGit); c.Zoomed != nil {
+		t.Fatalf("before tools.zoom: git zoomed = %v, want unset", *c.Zoomed)
+	}
+	h.Press("ctrl+w", "z")
+	if c := h.Context().ToolState.Common(ui.ToolGit); c.Zoomed == nil || !*c.Zoomed {
+		t.Fatalf("after tools.zoom: git common = %+v, want zoomed", c)
+	}
+	// A new git instance starts with the remembered wide view (git's default is normal).
+	openTool(h, ui.ToolGit, "g2")
+	if w := paneW(h, layout.SlotMain); w != 120 {
+		t.Fatalf("new git instance: Main = %d, want 120 (remembered wide view)", w)
+	}
+	// Another tool keeps its own default.
+	openTool(h, ui.ToolLeet, "l1")
+	if w := paneW(h, layout.SlotMain); w != 94 {
+		t.Fatalf("leet: Main = %d, want 94", w)
+	}
+	// The hub itself is never remembered.
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}})
+	h.Press("ctrl+w", "z")
+	if c := h.Context().ToolState.Common(""); c.Zoomed != nil {
+		t.Fatal("hub zoom written to tools-state.json")
+	}
+	// A new harness over a fresh folder starts from the defaults.
+	h2 := uitest.New(t)
+	h2.Send(ui.OpenTool(ui.ToolGit, "g9", nil)())
+	if w := paneW(h2, layout.SlotMain); w != 94 {
+		t.Fatalf("fresh folder git: Main = %d, want 94", w)
 	}
 }

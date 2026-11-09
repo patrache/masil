@@ -127,6 +127,18 @@ func CloseTool(instanceID string) tea.Cmd {
 // closed from the hub (x) or by CloseTool.
 type Closer interface{ CloseTool(ctx *Context) tea.Cmd }
 
+// ToolStatuser is an optional tool-instance capability: its status in the hub's
+// open list (A8.2, e.g. "패널 · 실행 중" — how it is open and what it is doing).
+type ToolStatuser interface{ ToolStatus(ctx *Context) string }
+
+// OpenToolInfo is one open tool instance (Context.OpenTools).
+type OpenToolInfo struct {
+	Route  Route  // its RouteTool route
+	Title  string // its tab title with the tool's icon (sanitized)
+	Status string // ToolStatuser.ToolStatus ("" when it has none)
+	Active bool   // it is the tool surface's active entry and the surface is in front
+}
+
 // ToolSwitchedMsg is broadcast when the tool surface's active instance, or its
 // wide view, changes while the surface is in front.
 type ToolSwitchedMsg struct {

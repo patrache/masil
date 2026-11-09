@@ -1,6 +1,18 @@
 [help_group]
 other = "Tools"
 
+[hub_close]
+other = "{key} close"
+
+[hub_empty]
+other = "No tools available yet"
+
+[hub_footer]
+other = "enter open · m open with… · x close · {range} jump"
+
+[hub_open_header]
+other = "Open"
+
 [key_toggle]
 other = "Tools ↔ chat"
 
@@ -9,6 +21,42 @@ other = "Wide tool view"
 
 [limit_toast]
 other = "Up to {max} tools can be open · close one in the hub"
+
+[menu_footer]
+other = "enter choose · esc cancel"
+
+[menu_title]
+other = "Open with · {tool}"
+
+[mode_auto]
+other = "Auto"
+
+[mode_exec]
+other = "Full screen"
+
+[mode_pane]
+other = "Pane"
+
+[mode_window]
+other = "Window"
+
+[palette_hub]
+other = "Tool hub"
+
+[palette_next]
+other = "Next tool"
+
+[palette_prev]
+other = "Previous tool"
+
+[palette_toggle]
+other = "Tools ↔ chat"
+
+[palette_zoom]
+other = "Wide tool view"
+
+[slash_desc]
+other = "Open the tool hub"
 
 [tab_label]
 other = "Tools"
