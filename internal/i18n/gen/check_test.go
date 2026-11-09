@@ -114,6 +114,12 @@ func TestCheckRejects(t *testing.T) {
 		{"method name collision", map[string]string{
 			"ko/tools.toml": "[a]\ndesc=\"d\"\nother=\"가\"\nshort=\"가\"\n[a_short]\ndesc=\"d\"\nother=\"나\"\n",
 		}, "name collision"},
+		{"param go name collision", map[string]string{
+			"ko/tools.toml": "[c]\ndesc=\"d\"\nparams={ a__b = \"string\", a_b = \"string\" }\nother=\"{a__b}{a_b}\"\n",
+		}, "param name collision: a__b and a_b are both Go argument aB"},
+		{"param trailing underscore collision", map[string]string{
+			"ko/tools.toml": "[c]\ndesc=\"d\"\nparams={ a = \"string\", a_ = \"string\" }\nother=\"{a}{a_}\"\n",
+		}, "param name collision"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

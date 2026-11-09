@@ -66,12 +66,20 @@ func checkKey(k *Key, fail func(*Key, string, ...any)) {
 		fail(k, "missing desc (translator context)")
 	}
 	declared := map[string]string{}
+	goArgs := map[string]string{} // Go argument name -> param (argName folds "_")
 	for _, p := range k.Params {
 		switch {
 		case !paramRe.MatchString(p.Name):
 			fail(k, "bad param name %q", p.Name)
 		case p.Type != "int" && p.Type != "string":
 			fail(k, "bad param type %q for %s (want int or string)", p.Type, p.Name)
+		}
+		if paramRe.MatchString(p.Name) {
+			n := argName(p.Name)
+			if prev, dup := goArgs[n]; dup {
+				fail(k, "param name collision: %s and %s are both Go argument %s", prev, p.Name, n)
+			}
+			goArgs[n] = p.Name
 		}
 		declared[p.Name] = p.Type
 	}
