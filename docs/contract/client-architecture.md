@@ -528,6 +528,29 @@ func ToolConfigSection(toolID string) string           // "git" -> "lazygit", �
 ```
 - 접근자는 모두 도구 **ID** 를 받고 안에서 `ToolConfigSection` 으로 절을 찾는다(`[tools.git]` 절은 읽지 않는다). 각 도구의 나머지 키 구조체(P1 `LeetToolConfig`·`LazygitToolConfig`, P4 `[tools.api]`)는 그 도구 소유.
 
+**P1 도구 키** (P1 Task 14 — `internal/config/tools_leetgit.go`, 읽기는 `cfg.ToolSection`):
+
+```toml
+[tools.lazygit]
+path = ""                  # lazygit 실행 파일. "" => PATH 의 lazygit. 앞의 ~ 는 홈 폴더
+repo = ""                  # 열 저장소. "" => masil 을 켠 폴더의 저장소, 아니면 고르기 화면. 저장소가 아니면 다음 단계로
+theme_overlay = true       # 패널 방식에서만 masil 테마 색 덧씌움(색 4개). false => 덧씌우지 않음
+
+[tools.leet]
+lang = ""                  # LeetCode 언어 slug(golang, python3 …). "" => 기기 기억, 없으면 기본
+dir = ""                   # 풀이 폴더. "" => ~/masil/leetcode
+auto_status = false        # 풀면 상태 메시지에 자동 표시
+```
+
+```go
+type LeetToolConfig struct{ Open, Lang, Dir string; AutoStatus bool }            // toml: open lang dir auto_status
+type LazygitToolConfig struct{ Open, Path, Repo string; ThemeOverlay *bool }      // toml: open path repo theme_overlay
+func DefaultLeetToolConfig() LeetToolConfig       // {Open: "auto"}
+func DefaultLazygitToolConfig() LazygitToolConfig // {Open: "auto"}
+func (c LazygitToolConfig) OverlayOn() bool       // nil => true
+// lg := config.DefaultLazygitToolConfig(); err := cfg.ToolSection("git", &lg)
+```
+
 ### 3.4 `credentials.json`
 
 ```json
