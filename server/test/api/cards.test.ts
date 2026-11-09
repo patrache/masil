@@ -6,7 +6,10 @@ import * as z from "zod";
 import type { Runtime } from "../../src/env";
 import { CARD_DATA_MAX, CARD_TYPES, mergeCards } from "../../src/lib/cards/index";
 import { createCardMessage, updateCardMessage } from "../../src/services/messages";
+import { archCardsLoose } from "../arch-test-helpers";
 import { api, connectWs, makeSpace, signup } from "../helpers";
+
+archCardsLoose();
 
 const rtFor = (): Runtime => ({ env, waitUntil: () => {} });
 const nonce = () => crypto.randomUUID();

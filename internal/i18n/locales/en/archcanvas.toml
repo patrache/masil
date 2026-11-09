@@ -11,6 +11,54 @@ other = "region"
 [box_vpc]
 other = "VPC"
 
+[card_body_design]
+other = "📐 {title} · {n} nodes · p99 {p99}ms · ~${usd}/mo (estimate)"
+
+[card_body_sim]
+other = "📐 {title} simulation · p99 {p99}ms · errors {err}% · ~${usd}/mo (estimate)"
+
+[card_bottleneck]
+other = "Bottleneck {target} · {limit} {util}%"
+
+[card_challenge]
+other = "Challenge {date} · {scenario} · {score} pts"
+
+[card_copy_failed]
+other = "Couldn't load the card's design"
+
+[card_design_title]
+other = "📐 {title}"
+
+[card_nodes]
+other = "{n} nodes"
+
+[card_open_copy_hint]
+other = "⏎ open the copy"
+
+[card_open_hint]
+other = "⏎ open"
+
+[card_replay_diff]
+other = "✕ The numbers differ now · p99 {p99}ms · errors {err}% · {cost}"
+
+[card_replay_hint]
+other = "r replay"
+
+[card_replay_none]
+other = "This card carries no design copy to replay"
+
+[card_replay_same]
+other = "✓ Same numbers again · p99 {p99}ms · errors {err}% · {cost}"
+
+[card_sim_summary]
+other = "{rps} rps · reads {read}% · p50 {p50}ms · p99 {p99}ms · errors {err}%"
+
+[card_sim_title]
+other = "📐 {title} simulation"
+
+[card_too_big]
+other = "Share it in a room instead"
+
 [check_az_outside_vpc]
 other = "{targets}: AZ outside a VPC"
 
@@ -893,6 +941,36 @@ other = "Saved"
 
 [save_unsaved]
 other = "Not saved"
+
+[send_confirm_hint]
+other = "⏎ send · esc back"
+
+[send_done]
+other = "Card sent to {channel}"
+
+[send_failed]
+other = "Couldn't send the card"
+
+[send_hint]
+other = "↑↓ pick · s card type · ⏎ preview · esc close"
+
+[send_kind_design]
+other = "Design card"
+
+[send_kind_sim]
+other = "Simulation card"
+
+[send_no_channels]
+other = "No conversations to send to"
+
+[send_pick]
+other = "Send to"
+
+[send_preview]
+other = "This goes to {channel}"
+
+[send_title]
+other = "Send a design card"
 
 [share_already]
 other = "This design is already in a space"

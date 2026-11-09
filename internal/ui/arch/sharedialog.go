@@ -168,31 +168,36 @@ const docTitleMax = 80
 // docTitle is the room document's title: the design's (NFC via cleanText),
 // cut to docTitleMax code points on a grapheme boundary with "…".
 func (d *shareDialog) docTitle() string {
-	t := cleanText(d.title)
-	if utf8.RuneCountInString(t) > docTitleMax {
-		var b strings.Builder
-		n := 0
-		for rest := t; rest != ""; {
-			g, _ := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
-			if g == "" {
-				_, w := utf8.DecodeRuneInString(rest)
-				g = rest[:w]
-			}
-			gn := utf8.RuneCountInString(g)
-			if n+gn > docTitleMax-1 { // room for "…"
-				break
-			}
-			b.WriteString(g)
-			n += gn
-			rest = rest[len(g):]
-		}
-		t = strings.TrimSpace(b.String())
-		if t != "" {
-			t += "…"
-		}
+	if t := cutCodePoints(cleanText(d.title), docTitleMax); t != "" {
+		return t
 	}
-	if t == "" {
-		t = "arch"
+	return "arch"
+}
+
+// cutCodePoints cuts t to max code points on a grapheme boundary, ending
+// with "…" when it was cut.
+func cutCodePoints(t string, max int) string {
+	if utf8.RuneCountInString(t) <= max {
+		return t
+	}
+	var b strings.Builder
+	n := 0
+	for rest := t; rest != ""; {
+		g, _ := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+		if g == "" {
+			_, w := utf8.DecodeRuneInString(rest)
+			g = rest[:w]
+		}
+		gn := utf8.RuneCountInString(g)
+		if n+gn > max-1 { // room for "…"
+			break
+		}
+		b.WriteString(g)
+		n += gn
+		rest = rest[len(g):]
+	}
+	if t = strings.TrimSpace(b.String()); t != "" {
+		t += "…"
 	}
 	return t
 }

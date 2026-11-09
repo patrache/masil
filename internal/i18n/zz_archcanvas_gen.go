@@ -32,6 +32,132 @@ var areaArchcanvas = area{
 				En: {Other: "VPC"},
 			},
 		},
+		"card_body_design": {
+			desc:       "설계 카드의 대체 문구(0.1.2 클라이언트가 보는 body). title = 설계 제목, n = 노드 수, p99 = ms, usd = 천 단위 쉼표 달러",
+			params:     []Param{{Name: "title", Type: "string"}, {Name: "n", Type: "int"}, {Name: "p99", Type: "int"}, {Name: "usd", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} · 노드 {n} · p99 {p99}ms · 약 ${usd}/월(추정)"},
+				En: {Other: "📐 {title} · {n} nodes · p99 {p99}ms · ~${usd}/mo (estimate)"},
+			},
+		},
+		"card_body_sim": {
+			desc:       "시뮬 결과 카드의 대체 문구(body). err = 에러율 % 소수 한 자리",
+			params:     []Param{{Name: "title", Type: "string"}, {Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "usd", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} 시뮬 · p99 {p99}ms · 에러 {err}% · 약 ${usd}/월(추정)"},
+				En: {Other: "📐 {title} simulation · p99 {p99}ms · errors {err}% · ~${usd}/mo (estimate)"},
+			},
+		},
+		"card_bottleneck": {
+			desc:   "시뮬 카드: 병목. target = 부품 이름, limit = 자원 이름, util = 사용률 %",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "병목 {target} · {limit} {util}%"},
+				En: {Other: "Bottleneck {target} · {limit} {util}%"},
+			},
+		},
+		"card_challenge": {
+			desc:   "시뮬 카드: 일일 도전 결과. date = YYYY-MM-DD, scenario = 시나리오 이름",
+			params: []Param{{Name: "date", Type: "string"}, {Name: "scenario", Type: "string"}, {Name: "score", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "도전 {date} · {scenario} · {score}점"},
+				En: {Other: "Challenge {date} · {scenario} · {score} pts"},
+			},
+		},
+		"card_copy_failed": {
+			desc: "카드의 설계 사본을 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드의 설계를 불러오지 못했어요"},
+				En: {Other: "Couldn't load the card's design"},
+			},
+		},
+		"card_design_title": {
+			desc:   "채팅 설계 카드의 첫 줄",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title}"},
+				En: {Other: "📐 {title}"},
+			},
+		},
+		"card_nodes": {
+			desc:   "설계 카드 요약: 노드 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 {n}"},
+				En: {Other: "{n} nodes"},
+			},
+		},
+		"card_open_copy_hint": {
+			desc: "카드 안내: enter 로 카드에 든 사본을 연다",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 사본으로 열기"},
+				En: {Other: "⏎ open the copy"},
+			},
+		},
+		"card_open_hint": {
+			desc: "카드 안내: enter 로 방 문서를 연다",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 열기"},
+				En: {Other: "⏎ open"},
+			},
+		},
+		"card_replay_diff": {
+			desc:       "다시 돌려 보기: 카드와 다른 숫자(지금 엔진의 값)",
+			params:     []Param{{Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "cost", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "✕ 다시 돌린 숫자가 달라요 · p99 {p99}ms · 에러 {err}% · {cost}"},
+				En: {Other: "✕ The numbers differ now · p99 {p99}ms · errors {err}% · {cost}"},
+			},
+		},
+		"card_replay_hint": {
+			desc: "시뮬 카드 안내: r 로 같은 설계를 다시 돌려 숫자를 맞춰 본다",
+			text: map[Locale]Forms{
+				Ko: {Other: "r 다시 돌려 보기"},
+				En: {Other: "r replay"},
+			},
+		},
+		"card_replay_none": {
+			desc: "다시 돌려 보기: 카드에 설계 사본이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드에 설계 사본이 없어 다시 돌릴 수 없어요"},
+				En: {Other: "This card carries no design copy to replay"},
+			},
+		},
+		"card_replay_same": {
+			desc:       "다시 돌려 보기: 카드와 같은 숫자. cost = cost_short",
+			params:     []Param{{Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "cost", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "✓ 다시 돌려도 같아요 · p99 {p99}ms · 에러 {err}% · {cost}"},
+				En: {Other: "✓ Same numbers again · p99 {p99}ms · errors {err}% · {cost}"},
+			},
+		},
+		"card_sim_summary": {
+			desc:   "시뮬 카드 요약 줄. rps = 초당 요청, read = 읽기 비율 %, p50·p99 = ms, err = 에러율 %",
+			params: []Param{{Name: "rps", Type: "string"}, {Name: "read", Type: "string"}, {Name: "p50", Type: "int"}, {Name: "p99", Type: "int"}, {Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{rps} rps · 읽기 {read}% · p50 {p50}ms · p99 {p99}ms · 에러 {err}%"},
+				En: {Other: "{rps} rps · reads {read}% · p50 {p50}ms · p99 {p99}ms · errors {err}%"},
+			},
+		},
+		"card_sim_title": {
+			desc:   "채팅 시뮬 결과 카드의 첫 줄",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} 시뮬"},
+				En: {Other: "📐 {title} simulation"},
+			},
+		},
+		"card_too_big": {
+			desc: "사본을 담은 카드가 16KB 를 넘을 때(보내지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올려 공유하세요"},
+				En: {Other: "Share it in a room instead"},
+			},
+		},
 		"check_az_outside_vpc": {
 			desc:   "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것",
 			params: []Param{{Name: "targets", Type: "string"}},
@@ -2169,6 +2295,78 @@ var areaArchcanvas = area{
 				En: {Other: "Not saved"},
 			},
 		},
+		"send_confirm_hint": {
+			desc: "카드 보내기 미리보기 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 보내기 · esc 뒤로"},
+				En: {Other: "⏎ send · esc back"},
+			},
+		},
+		"send_done": {
+			desc:   "카드를 보냈을 때 토스트. channel = 대화 이름",
+			params: []Param{{Name: "channel", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{channel} 에 카드를 보냈어요"},
+				En: {Other: "Card sent to {channel}"},
+			},
+		},
+		"send_failed": {
+			desc: "카드 보내기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보내지 못했어요"},
+				En: {Other: "Couldn't send the card"},
+			},
+		},
+		"send_hint": {
+			desc: "카드 보내기 첫 단계 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "↑↓ 고르기 · s 카드 종류 · ⏎ 미리보기 · esc 닫기"},
+				En: {Other: "↑↓ pick · s card type · ⏎ preview · esc close"},
+			},
+		},
+		"send_kind_design": {
+			desc: "카드 종류: 설계",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 카드"},
+				En: {Other: "Design card"},
+			},
+		},
+		"send_kind_sim": {
+			desc: "카드 종류: 시뮬 결과",
+			text: map[Locale]Forms{
+				Ko: {Other: "시뮬 결과 카드"},
+				En: {Other: "Simulation card"},
+			},
+		},
+		"send_no_channels": {
+			desc: "카드 보내기: 보낼 대화가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "보낼 대화가 없어요"},
+				En: {Other: "No conversations to send to"},
+			},
+		},
+		"send_pick": {
+			desc: "카드 보내기: 대화 고르기 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "보낼 대화"},
+				En: {Other: "Send to"},
+			},
+		},
+		"send_preview": {
+			desc:   "카드 보내기: 미리보기 머리. channel = 대화 이름",
+			params: []Param{{Name: "channel", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{channel} 에 이렇게 올라가요"},
+				En: {Other: "This goes to {channel}"},
+			},
+		},
+		"send_title": {
+			desc: "카드 보내기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 카드 보내기"},
+				En: {Other: "Send a design card"},
+			},
+		},
 		"share_already": {
 			desc: "이미 방에 있는 설계에서 방에 올리기를 고를 때",
 			text: map[Locale]Forms{
@@ -2722,6 +2920,86 @@ func (a_ ArchcanvasT) BoxRegion() string {
 // BoxVpc: 상자 종류 이름: vpc
 func (a_ ArchcanvasT) BoxVpc() string {
 	return a_.t.render(&areaArchcanvas, "box_vpc", false, 0)
+}
+
+// CardBodyDesign: 설계 카드의 대체 문구(0.1.2 클라이언트가 보는 body). title = 설계 제목, n = 노드 수, p99 = ms, usd = 천 단위 쉼표 달러
+func (a_ ArchcanvasT) CardBodyDesign(title string, n int, p99 int, usd string) string {
+	return a_.t.render(&areaArchcanvas, "card_body_design", false, 0, "title", title, "n", strconv.Itoa(n), "p99", strconv.Itoa(p99), "usd", usd)
+}
+
+// CardBodySim: 시뮬 결과 카드의 대체 문구(body). err = 에러율 % 소수 한 자리
+func (a_ ArchcanvasT) CardBodySim(title string, p99 int, err string, usd string) string {
+	return a_.t.render(&areaArchcanvas, "card_body_sim", false, 0, "title", title, "p99", strconv.Itoa(p99), "err", err, "usd", usd)
+}
+
+// CardBottleneck: 시뮬 카드: 병목. target = 부품 이름, limit = 자원 이름, util = 사용률 %
+func (a_ ArchcanvasT) CardBottleneck(target string, limit string, util string) string {
+	return a_.t.render(&areaArchcanvas, "card_bottleneck", false, 0, "target", target, "limit", limit, "util", util)
+}
+
+// CardChallenge: 시뮬 카드: 일일 도전 결과. date = YYYY-MM-DD, scenario = 시나리오 이름
+func (a_ ArchcanvasT) CardChallenge(date string, scenario string, score int) string {
+	return a_.t.render(&areaArchcanvas, "card_challenge", false, 0, "date", date, "scenario", scenario, "score", strconv.Itoa(score))
+}
+
+// CardCopyFailed: 카드의 설계 사본을 불러오지 못함
+func (a_ ArchcanvasT) CardCopyFailed() string {
+	return a_.t.render(&areaArchcanvas, "card_copy_failed", false, 0)
+}
+
+// CardDesignTitle: 채팅 설계 카드의 첫 줄
+func (a_ ArchcanvasT) CardDesignTitle(title string) string {
+	return a_.t.render(&areaArchcanvas, "card_design_title", false, 0, "title", title)
+}
+
+// CardNodes: 설계 카드 요약: 노드 수
+func (a_ ArchcanvasT) CardNodes(n int) string {
+	return a_.t.render(&areaArchcanvas, "card_nodes", false, 0, "n", strconv.Itoa(n))
+}
+
+// CardOpenCopyHint: 카드 안내: enter 로 카드에 든 사본을 연다
+func (a_ ArchcanvasT) CardOpenCopyHint() string {
+	return a_.t.render(&areaArchcanvas, "card_open_copy_hint", false, 0)
+}
+
+// CardOpenHint: 카드 안내: enter 로 방 문서를 연다
+func (a_ ArchcanvasT) CardOpenHint() string {
+	return a_.t.render(&areaArchcanvas, "card_open_hint", false, 0)
+}
+
+// CardReplayDiff: 다시 돌려 보기: 카드와 다른 숫자(지금 엔진의 값)
+func (a_ ArchcanvasT) CardReplayDiff(p99 int, err string, cost string) string {
+	return a_.t.render(&areaArchcanvas, "card_replay_diff", false, 0, "p99", strconv.Itoa(p99), "err", err, "cost", cost)
+}
+
+// CardReplayHint: 시뮬 카드 안내: r 로 같은 설계를 다시 돌려 숫자를 맞춰 본다
+func (a_ ArchcanvasT) CardReplayHint() string {
+	return a_.t.render(&areaArchcanvas, "card_replay_hint", false, 0)
+}
+
+// CardReplayNone: 다시 돌려 보기: 카드에 설계 사본이 없을 때
+func (a_ ArchcanvasT) CardReplayNone() string {
+	return a_.t.render(&areaArchcanvas, "card_replay_none", false, 0)
+}
+
+// CardReplaySame: 다시 돌려 보기: 카드와 같은 숫자. cost = cost_short
+func (a_ ArchcanvasT) CardReplaySame(p99 int, err string, cost string) string {
+	return a_.t.render(&areaArchcanvas, "card_replay_same", false, 0, "p99", strconv.Itoa(p99), "err", err, "cost", cost)
+}
+
+// CardSimSummary: 시뮬 카드 요약 줄. rps = 초당 요청, read = 읽기 비율 %, p50·p99 = ms, err = 에러율 %
+func (a_ ArchcanvasT) CardSimSummary(rps string, read string, p50 int, p99 int, err string) string {
+	return a_.t.render(&areaArchcanvas, "card_sim_summary", false, 0, "rps", rps, "read", read, "p50", strconv.Itoa(p50), "p99", strconv.Itoa(p99), "err", err)
+}
+
+// CardSimTitle: 채팅 시뮬 결과 카드의 첫 줄
+func (a_ ArchcanvasT) CardSimTitle(title string) string {
+	return a_.t.render(&areaArchcanvas, "card_sim_title", false, 0, "title", title)
+}
+
+// CardTooBig: 사본을 담은 카드가 16KB 를 넘을 때(보내지 않음)
+func (a_ ArchcanvasT) CardTooBig() string {
+	return a_.t.render(&areaArchcanvas, "card_too_big", false, 0)
 }
 
 // CheckAzOutsideVpc: 설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 ", " 로 이은 것
@@ -4192,6 +4470,56 @@ func (a_ ArchcanvasT) SaveSaved() string {
 // SaveUnsaved: 머리 줄 저장 상태: 파일 이름이 없는 새 설계
 func (a_ ArchcanvasT) SaveUnsaved() string {
 	return a_.t.render(&areaArchcanvas, "save_unsaved", false, 0)
+}
+
+// SendConfirmHint: 카드 보내기 미리보기 키 안내
+func (a_ ArchcanvasT) SendConfirmHint() string {
+	return a_.t.render(&areaArchcanvas, "send_confirm_hint", false, 0)
+}
+
+// SendDone: 카드를 보냈을 때 토스트. channel = 대화 이름
+func (a_ ArchcanvasT) SendDone(channel string) string {
+	return a_.t.render(&areaArchcanvas, "send_done", false, 0, "channel", channel)
+}
+
+// SendFailed: 카드 보내기 실패
+func (a_ ArchcanvasT) SendFailed() string {
+	return a_.t.render(&areaArchcanvas, "send_failed", false, 0)
+}
+
+// SendHint: 카드 보내기 첫 단계 키 안내
+func (a_ ArchcanvasT) SendHint() string {
+	return a_.t.render(&areaArchcanvas, "send_hint", false, 0)
+}
+
+// SendKindDesign: 카드 종류: 설계
+func (a_ ArchcanvasT) SendKindDesign() string {
+	return a_.t.render(&areaArchcanvas, "send_kind_design", false, 0)
+}
+
+// SendKindSim: 카드 종류: 시뮬 결과
+func (a_ ArchcanvasT) SendKindSim() string {
+	return a_.t.render(&areaArchcanvas, "send_kind_sim", false, 0)
+}
+
+// SendNoChannels: 카드 보내기: 보낼 대화가 없음
+func (a_ ArchcanvasT) SendNoChannels() string {
+	return a_.t.render(&areaArchcanvas, "send_no_channels", false, 0)
+}
+
+// SendPick: 카드 보내기: 대화 고르기 머리
+func (a_ ArchcanvasT) SendPick() string {
+	return a_.t.render(&areaArchcanvas, "send_pick", false, 0)
+}
+
+// SendPreview: 카드 보내기: 미리보기 머리. channel = 대화 이름
+func (a_ ArchcanvasT) SendPreview(channel string) string {
+	return a_.t.render(&areaArchcanvas, "send_preview", false, 0, "channel", channel)
+}
+
+// SendTitle: 카드 보내기 대화상자 제목
+func (a_ ArchcanvasT) SendTitle() string {
+	return a_.t.render(&areaArchcanvas, "send_title", false, 0)
 }
 
 // ShareAlready: 이미 방에 있는 설계에서 방에 올리기를 고를 때

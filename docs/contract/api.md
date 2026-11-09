@@ -657,8 +657,8 @@ interface AdminAction {
 |---|---|---|---|
 | `leet.daily` | 1 | 서버만(P1) | P1 |
 | `leet.solve` | 1 | 서버만(P1) | P1 |
-| `arch.design` | 1 | 사용자(P3) | P3 |
-| `arch.sim` | 1 | 사용자(P3) | P3 |
+| `arch.design` | 1 | 사용자(P3) | 설계 요약 + 미니 그림 + (개인 설계면) 설계 JSON 사본 — `docs/contract/arch.md` 3.1 |
+| `arch.sim` | 1 | 사용자(P3) | 시뮬 결과 숫자 + 시드 + 병목·도전 + (개인 설계면) 사본 — `docs/contract/arch.md` 3.2 |
 | `api.result` | 1 | 사용자(P4) | P4 |
 | `api.run` | 1 | 사용자(P4) | P4 |
 

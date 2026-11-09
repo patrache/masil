@@ -75,6 +75,7 @@ type canvasModel struct {
 	dragShared bool
 	dragSentAt time.Time
 	shareDlg   *shareDialog
+	sendDlg    *sendDialog     // the open arch.send_card dialog (senddialog.go)
 	verDlg     *versionsDialog // the open versions dialog (versions.go)
 
 	cmt commentsState // a room document's comments (comments.go)
@@ -157,16 +158,17 @@ func (m *canvasModel) initSink(ctx *ui.Context) tea.Cmd {
 			return tea.Batch(cmd, m.openComments(ctx)) // a mention alert
 		}
 		return tea.Batch(cmd, m.loadComments(ctx, q[queryDoc]))
-	default:
-		// a new design; card copies (msg) arrive with P3 Task 26 and start
-		// empty until then
-		ro := q[queryMsg] != ""
-		objs := archdoc.New("").ToObjects()
-		if ro {
-			m.setSink(ctx, &copySink{objs: objs})
-		} else {
-			m.setSink(ctx, &localSink{instance: m.route.ID, objs: objs, timers: ctx.Timers})
+	case q[queryMsg] != "":
+		// a chat card's copy: at hand when the card opened it, else (a
+		// restart) loaded from the message
+		if d := getCopy(q[queryMsg]); d != nil {
+			m.setSink(ctx, &copySink{objs: d.ToObjects()})
+			return nil
 		}
+		m.setSink(ctx, &copySink{objs: archdoc.New("").ToObjects()})
+		return fetchCopy(ctx, m.route.ID, q[queryMsg])
+	default:
+		m.setSink(ctx, &localSink{instance: m.route.ID, objs: archdoc.New("").ToObjects(), timers: ctx.Timers})
 	}
 	return nil
 }
@@ -304,6 +306,14 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if msg.instance == m.route.ID {
 			return m.runCommand(ctx, msg.id)
 		}
+	case cardCopyMsg:
+		if _, ok := m.sink.(*copySink); ok && msg.instance == m.route.ID {
+			if msg.d == nil {
+				m.setSink(ctx, &copySink{objs: archdoc.New("").ToObjects(), reason: roBroken})
+				return ui.Toast(ctx.T.Archcanvas.CardCopyFailed(), ui.ToastError)
+			}
+			m.setSink(ctx, &copySink{objs: msg.d.ToObjects()})
+		}
 	case collabEventMsg:
 		if msg.instance == m.route.ID {
 			return m.onCollab(ctx, msg.E)
@@ -393,6 +403,14 @@ func (m *canvasModel) runCommand(ctx *ui.Context, id string) tea.Cmd {
 		return ui.OpenOverlay(m.verDlg)
 	case "arch.save_copy":
 		return m.saveCopy(ctx)
+	case "arch.send_card":
+		if m.design == nil {
+			return nil
+		}
+		m.cancelGesture()
+		m.menu = nil
+		m.sendDlg = m.newSendDialog(ctx)
+		return ui.OpenOverlay(m.sendDlg)
 	case "arch.export":
 		if m.design == nil {
 			return nil

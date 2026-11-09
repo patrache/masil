@@ -184,3 +184,33 @@ CollabHub 는 op 프레임마다 op 하나씩 이 검사를 거친 뒤 적용한
 - 가리키는 노드·연결·상자가 지금 설계에 없으면(지움·동시 삭제) 댓글은 남고 "삭제된 노드에 단 댓글" 묶음에 보인다.
 - 답글은 첫 댓글의 `anchor` 를 그대로 싣고 `root_id` 로 묶는다. 해결은 첫 댓글에 `PATCH {resolved}`.
 - 캔버스의 `✎n`(설계서의 `💬n` — archdraw 골든이 이미 `✎` 로 고정, 1칸이라 작은 노드에도 들어감)은 해결 안 된 묶음에서 지우지 않은 댓글 수(노드 앵커만 — 연결·상자·빈 자리 댓글은 패널에만 보인다).
+
+## 3. 채팅 카드 데이터 (`arch.design`·`arch.sim`, P3 Task 26)
+
+`kind:"card"` 메시지(api.md 2 카드 규칙)의 `card.data`. 둘 다 `v` 1, 사용자가 보내고(`serverOnly: false`), 서버 검사기는 `server/src/lib/cards/arch.ts`(zod `strictObject` — 모르는 키는 `invalid`). `JSON.stringify(data)` 16,384바이트 초과 → `fields.card.data = "too_long"`, 모양 오류 → `"invalid"`, 모르는 `v` → `fields.card.v = "invalid"`(P0 공통 검사). 서버는 그리지도, 엔진을 돌리지도 않는다.
+
+### 3.1 공통 필드
+
+| 필드 | 모양 | 뜻 |
+|---|---|---|
+| `title` | 문자열 1..80 코드 포인트, 1.3 금지 문자·짝 없는 서로게이트 없음 | 설계 제목(클라이언트가 그래핌 경계에서 자르고 `…`) |
+| `space_id` | ID \| `null` | 방 문서의 방 |
+| `doc_id` | ID \| `null` | 방 문서 — `space_id` 와 함께만 |
+| `version_no` | 정수 ≥ 1 \| `null` | 그 문서의 버전 번호(모르면 `null`) |
+| `cost_usd_month` | 정수 ≥ 0 | 월 비용 추정(달러) |
+| `price_asof` | `YYYY-MM` | 가격표 기준 연월 |
+| `engine_version` | 정수 ≥ 1 | 숫자를 만든 엔진(`archsim.EngineVersion`) |
+| `design` | 설계 JSON v1(1장, `schema_version: 1` 만 서버가 봄) \| `null` | 사본 — `doc_id` 가 `null` 일 때만. 개인 설계 카드는 늘 사본을 싣는다(받는 사람이 열 길이 그것뿐) |
+
+### 3.2 type 별 필드
+
+- `arch.design`: `node_count` 정수 0..300, `mini` 문자열 배열 ≤ 8(각 ≤ 60칸, 1.3 금지 문자 없음 — `archexport.Mini`; 서버의 칸 계산은 동아시아 넓은 글자·이모지 범위만 2칸으로 보는 근사).
+- `arch.sim`: `seed` uint64 10진 문자열(`^(0|[1-9][0-9]{0,19})$`, ≤ 2^64−1), `max_rps`(분석의 클라이언트 초당 요청), `read_permille` 0..1000(첫 클라이언트의 읽기 비율), `p50_ms`·`p99_ms`, `error_permille` 0..1000 — 모두 정수 ≥ 0. `bottleneck` `{ target_label: 1..80, limit: cpu|iops|nic|pool|ext_limit|queue|link, util_permille ≥ 0 }` \| `null`. `challenge` `{ date: YYYY-MM-DD, scenario: ^[a-z0-9_-]{1,64}$, score ≥ 0 }` \| `null`(일일 도전, Task 28).
+
+### 3.3 클라이언트
+
+- `body`(대체 문구, 보낸 사람의 언어): `📐 <제목> · 노드 <n> · p99 <x>ms · 약 $<1,234>/월(추정)`, sim 은 `📐 <제목> 시뮬 · p99 <x>ms · 에러 <y.y>% · 약 $<1,234>/월(추정)`. 렌더러가 없는 클라이언트(0.1.2, 도구 꺼짐 아님 — 렌더러는 늘 등록)는 이것만 본다.
+- 그리기: 받은 데이터를 다시 검사한다(위 범위 + `v == 1`). 하나라도 어긋나면 `body` 를 그린다. 문자열은 `Sanitize`, 미니 그림은 8줄·60칸으로 다시 자른다. 비용 줄은 자르지 않고 줄바꿈한다(`cost_short`). `engine_version` 이 지금 엔진과 다르면 `engine_mismatch` 를 덧붙인다. 위젯·초소형은 제목 한 줄.
+- `enter`: 도구 꺼짐 → 스레드. `doc_id` 가 있고 그 방이 내 Store 에 있음 → `arch:doc:<id>`. 아니면 사본이 있음 → `arch:msg:<message_id>`(읽기 전용 사본, `copySink`; 재시작 뒤엔 `GET /v1/messages/{id}` 로 다시 읽음). 둘 다 아님 → 스레드.
+- `r`(`arch.sim`): 사본을 카드의 시드로 다시 분석해 `p50`·`p99`·에러·비용·`max_rps` 가 모두 같으면 `✓`, 아니면 `✕` 와 지금 숫자. 사본이 없으면 안내만.
+- 보내기(`arch.send_card`): text·dm·group_dm 대화(최근 순) → 올라갈 카드 그대로 미리보기 → `POST /v1/channels/{id}/messages {kind:"card"}`. 사본까지 16KB 를 넘으면 보내지 않고 `card_too_big`("방에 올려 공유하세요").
