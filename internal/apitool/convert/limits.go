@@ -188,48 +188,124 @@ func decodeValue(dec *json.Decoder, depth int) (any, error) {
 }
 
 // encodeJSON writes a decoded value back as JSON, keys in their order,
-// indented by two spaces when indent is set; HTML is not escaped.
+// indented by two spaces when indent is set (json.Indent's layout); HTML is
+// not escaped.
 func encodeJSON(v any, indent bool) string {
-	var b bytes.Buffer
-	writeJSON(&b, v)
-	if !indent {
-		return b.String()
-	}
-	var out bytes.Buffer
-	if err := json.Indent(&out, b.Bytes(), "", "  "); err != nil {
-		return b.String()
-	}
-	return out.String()
+	s, _ := encodeCapped(v, indent, -1)
+	return s
 }
 
-func writeJSON(b *bytes.Buffer, v any) {
+// encodeCapped is encodeJSON that never holds more than max bytes (max < 0 =
+// no cap): past it, it stops and returns ErrTooLarge. Indenting multiplies a
+// deeply nested value, so the cap applies while writing, not after.
+func encodeCapped(v any, indent bool, max int) (string, error) {
+	c := &capBuf{max: max}
+	writeJSON(c, v, indent, 0)
+	if c.err != nil {
+		return "", fmt.Errorf("%w (output over %d bytes)", ErrTooLarge, max)
+	}
+	return c.b.String(), nil
+}
+
+// capBuf is a buffer refusing to grow past max bytes (max < 0 = no cap);
+// the first refusal sticks in err.
+type capBuf struct {
+	b   bytes.Buffer
+	max int
+	err error
+}
+
+func (c *capBuf) fits(n int) bool {
+	if c.err == nil && c.max >= 0 && c.b.Len()+n > c.max {
+		c.err = ErrTooLarge
+	}
+	return c.err == nil
+}
+
+func (c *capBuf) Write(p []byte) (int, error) {
+	if !c.fits(len(p)) {
+		return 0, c.err
+	}
+	return c.b.Write(p)
+}
+
+func (c *capBuf) str(s string) {
+	if c.fits(len(s)) {
+		c.b.WriteString(s)
+	}
+}
+
+const spaces = "                                                                "
+
+// newline starts a line indented depth levels (two spaces each).
+func (c *capBuf) newline(depth int) {
+	c.str("\n")
+	for n := 2 * depth; n > 0 && c.err == nil; n -= len(spaces) {
+		c.str(spaces[:min(n, len(spaces))])
+	}
+}
+
+func writeJSON(c *capBuf, v any, indent bool, depth int) {
+	if c.err != nil {
+		return
+	}
 	switch t := v.(type) {
 	case *object:
-		b.WriteByte('{')
+		c.str("{")
 		for i, k := range t.keys {
-			if i > 0 {
-				b.WriteByte(',')
+			if c.err != nil {
+				return
 			}
-			writeJSON(b, k)
-			b.WriteByte(':')
-			writeJSON(b, t.vals[k])
+			if i > 0 {
+				c.str(",")
+			}
+			if indent {
+				c.newline(depth + 1)
+			}
+			writeJSON(c, k, indent, depth+1)
+			c.str(":")
+			if indent {
+				c.str(" ")
+			}
+			writeJSON(c, t.vals[k], indent, depth+1)
 		}
-		b.WriteByte('}')
+		if indent && len(t.keys) > 0 {
+			c.newline(depth)
+		}
+		c.str("}")
 	case []any:
-		b.WriteByte('[')
+		c.str("[")
 		for i, e := range t {
-			if i > 0 {
-				b.WriteByte(',')
+			if c.err != nil {
+				return
 			}
-			writeJSON(b, e)
+			if i > 0 {
+				c.str(",")
+			}
+			if indent {
+				c.newline(depth + 1)
+			}
+			writeJSON(c, e, indent, depth+1)
 		}
-		b.WriteByte(']')
+		if indent && len(t) > 0 {
+			c.newline(depth)
+		}
+		c.str("]")
 	case json.Number:
-		b.WriteString(t.String())
+		c.str(t.String())
 	default:
-		enc := json.NewEncoder(b)
+		// a string is at least its length plus quotes: refuse before the
+		// encoder builds it
+		if s, ok := t.(string); ok && !c.fits(len(s)+2) {
+			return
+		}
+		var e bytes.Buffer
+		enc := json.NewEncoder(&e)
 		enc.SetEscapeHTML(false)
-		_ = enc.Encode(t)
-		b.Truncate(b.Len() - 1) // Encode's newline
+		if enc.Encode(t) != nil {
+			return
+		}
+		b := bytes.TrimSuffix(e.Bytes(), []byte("\n"))
+		_, _ = c.Write(b)
 	}
 }

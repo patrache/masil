@@ -50,6 +50,17 @@ func (im *oaImporter) charge(n int) bool {
 
 func (im *oaImporter) over() bool { return im.out > MaxImportOutput }
 
+// encode is encodeJSON within what is left of the output budget; past it
+// the import is over budget (run stops with ErrTooLarge) and "" is returned.
+func (im *oaImporter) encode(v any, indent bool) string {
+	s, err := encodeCapped(v, indent, max(MaxImportOutput-im.out, 0))
+	if err != nil {
+		im.out = MaxImportOutput + 1
+		return ""
+	}
+	return s
+}
+
 // validPath: a path key appended to {{base_url}} must stay a path ("@x" or
 // "x.com/…" would change the host, '\\' is read as '/' by some clients).
 func validPath(p string) bool {
@@ -393,10 +404,10 @@ func (im *oaImporter) example(o *object) string {
 	if !ok || v == nil {
 		return ""
 	}
-	return scalarText(v)
+	return im.scalarText(v)
 }
 
-func scalarText(v any) string {
+func (im *oaImporter) scalarText(v any) string {
 	switch t := v.(type) {
 	case string:
 		return t
@@ -410,7 +421,7 @@ func scalarText(v any) string {
 	case nil:
 		return ""
 	}
-	return encodeJSON(v, false)
+	return im.encode(v, false)
 }
 
 // body picks the request body: a JSON media type (example or "{}"), a
@@ -431,7 +442,7 @@ func (im *oaImporter) body(content *object) apitool.Body {
 	if k, m := pick(isJSON); k != "" {
 		text := "{}"
 		if v, ok := im.exampleOf(m); ok {
-			text = encodeJSON(v, true)
+			text = im.encode(v, true)
 		}
 		b := apitool.Body{Kind: apitool.BodyJSON, Text: text}
 		if !strings.EqualFold(k, "application/json") {
@@ -449,7 +460,7 @@ func (im *oaImporter) body(content *object) apitool.Body {
 	m := obj(im.resolve(content.vals[k]))
 	text := ""
 	if v, ok := im.exampleOf(m); ok {
-		text = scalarText(v)
+		text = im.scalarText(v)
 	}
 	return apitool.Body{Kind: apitool.BodyRaw, Text: text, ContentType: k}
 }
