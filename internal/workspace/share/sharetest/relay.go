@@ -4,9 +4,9 @@
 //
 // A Send routes at once (levels as they are then) and queues the
 // deliveries; Pump hands every queued frame to its connection's Recv. Close
-// codes take effect at once. Not carried over: the per-connection rate
-// limits (rule 6), the 2-minute owner grace alarm (rule 7; call End) and the
-// 30-second attention gap — the relay has no clock.
+// codes take effect at once. The per-connection rate limits (rule 6) read the
+// relay's clock (time.Now, or SetClock). Not carried over: the 2-minute owner
+// grace alarm (rule 7; call End) and the 30-second attention gap.
 package sharetest
 
 import (
@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 
@@ -32,6 +33,15 @@ const inboxSize = 4096
 
 // cacheCap is the keyframe cache cap (8 MiB, as the hub).
 const cacheCap = 8 << 20
+
+// Rule 6 limits, as the hub's WORKSPACE_HUB_LIMITS.
+const (
+	termInputPerSec  = 50
+	docOpPerSec      = 30
+	propPerMin       = 10
+	ownerBytesPerSec = 2 << 20
+	overSeconds      = 3 // consecutive seconds over a limit before 4008
+)
 
 // ErrDropped is the Err of a connection cut by Drop (no close code, like a
 // network loss).
@@ -53,6 +63,7 @@ type Relay struct {
 	cacheOn   bool
 	ended     bool
 	attention int
+	now       func() time.Time
 }
 
 type delivery struct {
@@ -67,7 +78,18 @@ func NewRelay(shareID, ownerID string, members map[uint8]string) *Relay {
 		m[s] = u
 	}
 	return &Relay{shareID: shareID, ownerID: ownerID, members: m,
-		levels: map[uint8]wire.Level{}, verified: map[uint8]bool{}, conns: map[uint8]*conn{}}
+		levels: map[uint8]wire.Level{}, verified: map[uint8]bool{}, conns: map[uint8]*conn{}, now: time.Now}
+}
+
+// SetClock replaces the clock the rate limits read (rule 6); nil restores
+// time.Now. Each Send reads it once, as the hub reads its clock per frame.
+func (r *Relay) SetClock(now func() time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if now == nil {
+		now = time.Now
+	}
+	r.now = now
 }
 
 // Dial is the DialFunc of userID: the owner gets seat 0, a member their
@@ -270,6 +292,13 @@ func (r *Relay) receive(c *conn, frame []byte) {
 		r.closeConn(c, websocket.CloseError{Code: websocket.StatusCode(share.CloseProtocol), Reason: "bad frame"})
 		return
 	}
+	switch r.withinLimits(c, h.Kind, len(frame)) {
+	case limitDrop:
+		return
+	case limitClose:
+		r.closeConn(c, websocket.CloseError{Code: websocket.StatusCode(share.CloseRateLimited), Reason: "rate_limited"})
+		return
+	}
 	if !h.Kind.Valid() {
 		return
 	}
@@ -305,6 +334,80 @@ func (r *Relay) fromOwner(h wire.Header, frame []byte) {
 			r.deliver(c, wire.SeatOwner, frame)
 		}
 	}
+}
+
+type limitResult int
+
+const (
+	limitOK limitResult = iota
+	limitDrop
+	limitClose
+)
+
+// rate is one connection's rule 6 counters.
+type rate struct {
+	sec, min                int64
+	termInput, docOp, bytes int
+	prop                    int
+	overSec                 int64
+	overRun                 int
+	started                 bool
+}
+
+// withinLimits is rule 6 for one frame of c (1-second windows; prop_submit
+// per minute): over a limit the frame is dropped, and the third second in a
+// row with a drop closes 4008 (a second with no drop starts the count again).
+func (r *Relay) withinLimits(c *conn, kind wire.Kind, size int) limitResult {
+	ms := r.now().UnixMilli()
+	sec, min := floorDiv(ms, 1000), floorDiv(ms, 60_000) // as the hub's Math.floor
+	rt := &c.rate
+	if !rt.started {
+		*rt = rate{sec: sec, min: min, overSec: sec - 2, started: true} // overSec: no over second yet
+	}
+	if rt.sec != sec {
+		rt.sec, rt.termInput, rt.docOp, rt.bytes = sec, 0, 0, 0
+	}
+	if rt.min != min {
+		rt.min, rt.prop = min, 0
+	}
+	over := false
+	switch {
+	case c.seat == wire.SeatOwner:
+		rt.bytes += size
+		over = rt.bytes > ownerBytesPerSec
+	case kind == wire.KindTermInput:
+		rt.termInput++
+		over = rt.termInput > termInputPerSec
+	case kind == wire.KindDocOp:
+		rt.docOp++
+		over = rt.docOp > docOpPerSec
+	case kind == wire.KindPropSubmit:
+		rt.prop++
+		over = rt.prop > propPerMin
+	}
+	if !over {
+		return limitOK
+	}
+	if rt.overSec != sec {
+		if rt.overSec == sec-1 {
+			rt.overRun++
+		} else {
+			rt.overRun = 1
+		}
+		rt.overSec = sec
+	}
+	if rt.overRun >= overSeconds {
+		return limitClose
+	}
+	return limitDrop
+}
+
+func floorDiv(a, b int64) int64 {
+	q := a / b
+	if (a%b != 0) && ((a < 0) != (b < 0)) {
+		q--
+	}
+	return q
 }
 
 // cacheFrame is rule 4: a term_key with FlagGroupStart starts the group,
@@ -446,6 +549,7 @@ type conn struct {
 	recv chan []byte
 	done chan struct{}
 	err  error // set once, under r.mu
+	rate rate  // rule 6 counters, under r.mu
 }
 
 // end closes the conn with err (r.mu held).

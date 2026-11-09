@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/workspace/share"
@@ -254,6 +256,96 @@ func TestRelayRoutingMirrorsServer(t *testing.T) {
 		rm2 := newRoom(t)
 		rm2.r.End()
 		closedWith(t, rm2.bob, share.CloseEnded)
+	})
+}
+
+// Rule 6, the same cases as the server's "WorkspaceHub: limits and alerts":
+// per-connection 1-second windows (term_input 50, doc_op 30, owner 2 MiB),
+// prop_submit 10 per minute, over-limit frames dropped, the third second in a
+// row with a drop closes 4008 (a calm second starts the count again).
+func TestRelayRateLimitsMirrorServer(t *testing.T) {
+	burst := func(c share.Conn, n int, kind wire.Kind, from uint8, payload string) {
+		for i := 0; i < n; i++ {
+			c.Send(frame(kind, 0, from, 0, payload))
+		}
+	}
+	count := func(got []string, kind string) int {
+		n := 0
+		for _, f := range got {
+			if strings.HasPrefix(f, kind+":") {
+				n++
+			}
+		}
+		return n
+	}
+	newClocked := func(t *testing.T) (room, *time.Time) {
+		rm := newRoom(t)
+		now := time.Unix(1_000_000_000, 0)
+		rm.r.SetClock(func() time.Time { return now })
+		return rm, &now
+	}
+	t.Run("participant input: 50 per second, 4008 after 3 seconds over", func(t *testing.T) {
+		rm, now := newClocked(t)
+		rm.r.SetLevels(map[uint8]wire.Level{1: wire.LevelKeyboard}, nil)
+		burst(rm.hana, 51, wire.KindTermInput, 1, "a")
+		*now = now.Add(time.Second)
+		burst(rm.hana, 51, wire.KindTermInput, 1, "b")
+		rm.r.Pump()
+		if n := count(drain(t, rm.owner), "term_input"); n != 100 {
+			t.Fatalf("owner got %d term_input, want 100", n)
+		}
+		*now = now.Add(time.Second)
+		burst(rm.hana, 51, wire.KindTermInput, 1, "c")
+		closedWith(t, rm.hana, share.CloseRateLimited)
+		rm.r.Pump()
+		got := drain(t, rm.owner)
+		if count(got, "term_input") != 50 || got[len(got)-1] != `srv_peer:{"seat":1,"user_id":"U_HANA","state":"left"}` {
+			t.Fatalf("owner after 4008 = %q", got)
+		}
+	})
+	t.Run("an over second followed by a calm one starts the count again", func(t *testing.T) {
+		rm, now := newClocked(t)
+		rm.r.SetLevels(map[uint8]wire.Level{1: wire.LevelEditor}, nil)
+		for _, n := range []int{31, 31, 1, 31} {
+			burst(rm.hana, n, wire.KindDocOp, 1, "op")
+			*now = now.Add(time.Second)
+		}
+		rm.r.Pump()
+		if n := count(drain(t, rm.owner), "doc_op"); n != 30+30+1+30 {
+			t.Fatalf("owner got %d doc_op, want 91", n)
+		}
+		if !rm.r.Connected(1) {
+			t.Fatal("a calm second did not reset the count")
+		}
+	})
+	t.Run("prop_submit: 10 per minute", func(t *testing.T) {
+		rm, now := newClocked(t)
+		rm.r.SetLevels(map[uint8]wire.Level{1: wire.LevelPrompter}, nil)
+		burst(rm.hana, 11, wire.KindPropSubmit, 1, "p")
+		*now = now.Add(time.Minute)
+		burst(rm.hana, 1, wire.KindPropSubmit, 1, "p")
+		rm.r.Pump()
+		if n := count(drain(t, rm.owner), "prop_submit"); n != 11 {
+			t.Fatalf("owner got %d prop_submit, want 10 + 1", n)
+		}
+	})
+	t.Run("owner: 2 MiB per second, 4008 after 3 seconds over", func(t *testing.T) {
+		rm, now := newClocked(t)
+		rm.r.SetLevels(map[uint8]wire.Level{1: wire.LevelViewer}, nil)
+		big := strings.Repeat("x", 200<<10)
+		for sec := 0; sec < 3; sec++ {
+			for i := 0; i < 11; i++ { // 11 x ~200 KiB > 2 MiB
+				rm.owner.Send(frame(wire.KindTermOut, 0, 0, wire.SeatAll, big))
+			}
+			if sec < 2 {
+				*now = now.Add(time.Second)
+			}
+		}
+		closedWith(t, rm.owner, share.CloseRateLimited)
+		rm.r.Pump()
+		if n := count(drain(t, rm.hana), "term_out"); n != 3*10 {
+			t.Fatalf("hana got %d term_out, want 30", n)
+		}
 	})
 }
 
