@@ -216,3 +216,28 @@ func TestUserStatus(t *testing.T) {
 		t.Fatal("WithCreds did not add the cookies")
 	}
 }
+
+// A Django login redirect carries text/html and an empty body: it is an
+// expired sign-in, not a block page (A10.5 — the login dialog reopens).
+func TestLoginRedirectIsAuthExpired(t *testing.T) {
+	for _, c := range []struct {
+		location string
+		want     error
+	}{
+		{"/accounts/login/?next=/problems/two-sum/submit/", leetcode.ErrAuthExpired},
+		{"/somewhere/else/", leetcode.ErrUnexpected},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Location", c.location)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusFound)
+		}))
+		cl := leetcode.New(leetcode.Options{BaseURL: srv.URL, Creds: testCreds()})
+		q := &leetcode.Question{QuestionID: "1", FrontendID: "1", Slug: "two-sum"}
+		_, err := cl.Submit(t.Context(), q, "golang", "x")
+		if !errors.Is(err, c.want) || errors.Is(err, leetcode.ErrBlocked) {
+			t.Errorf("302 -> %s: err = %v, want %v", c.location, err, c.want)
+		}
+		srv.Close()
+	}
+}

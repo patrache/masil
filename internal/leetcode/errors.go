@@ -28,6 +28,14 @@ var (
 
 // classify maps an HTTP answer to an error class (nil = a usable 2xx body).
 func classify(resp *http.Response, body []byte) error {
+	// a redirect first: Django's login redirect is text/html with an empty
+	// body, and it means the sign-in expired, not a block page
+	if code := resp.StatusCode; code >= 300 && code < 400 {
+		if strings.Contains(resp.Header.Get("Location"), "/accounts/login") {
+			return fmt.Errorf("%w: redirect to sign-in", ErrAuthExpired)
+		}
+		return fmt.Errorf("%w: redirect (status %d)", ErrUnexpected, code)
+	}
 	trimmed := bytes.TrimSpace(body)
 	if isHTML(resp.Header.Get("Content-Type")) || bytes.HasPrefix(trimmed, []byte("<")) {
 		return fmt.Errorf("%w: html page (status %d)", ErrBlocked, resp.StatusCode)
@@ -37,11 +45,6 @@ func classify(resp *http.Response, body []byte) error {
 		return fmt.Errorf("%w: status %d", ErrRateLimited, code)
 	case code == http.StatusUnauthorized || code == http.StatusForbidden:
 		return fmt.Errorf("%w: status %d", ErrAuthExpired, code)
-	case code >= 300 && code < 400:
-		if strings.Contains(resp.Header.Get("Location"), "/accounts/login") {
-			return fmt.Errorf("%w: redirect to sign-in", ErrAuthExpired)
-		}
-		return fmt.Errorf("%w: redirect (status %d)", ErrUnexpected, code)
 	case code < 200 || code >= 300:
 		return fmt.Errorf("%w: status %d", ErrUnexpected, code)
 	case len(trimmed) == 0:
