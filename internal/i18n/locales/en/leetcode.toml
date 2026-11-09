@@ -19,6 +19,66 @@ other = "When on, friends can see that you are solving a problem"
 [blocked]
 other = "LeetCode is blocking this request right now · o submit in browser"
 
+[board_all]
+other = "All"
+
+[board_empty]
+other = "No one has solved yet"
+
+[board_failed]
+other = "Couldn't load the ranking"
+
+[board_footer]
+other = "←/→ tabs · esc close"
+
+[board_friend_row]
+other = "{rank}. {name} · 🔥{current} · best {best}d"
+
+[board_friends]
+other = "Friends"
+
+[board_loading]
+other = "Loading the ranking…"
+
+[board_month]
+other = "Month"
+
+[board_row]
+other = "{rank}. {name} · {solved}d · 🔥{streak}"
+
+[board_title]
+other = "🧩 Ranking {space}"
+
+[board_week]
+other = "Week"
+
+[card_code_hide]
+other = "▾ Hide code"
+
+[card_code_show]
+other = "▸ Show code (spoiler)"
+
+[card_daily_head]
+other = "🧩 Daily problem · {date} · first opened by {author}"
+
+[card_daily_keys]
+other = "enter solve · t thread ({n} solves)"
+
+[card_daily_line]
+other = "🧩 {id} {difficulty} · {n} solves"
+
+[card_daily_problem]
+other = "{id} {title} · {difficulty}"
+
+[card_mismatch]
+other = "⚠ Differs from the daily problem I got"
+
+[card_solve_head]
+other = "✅ {author} · {lang}"
+
+[card_solve_head_pct]
+other = "✅ {author} · {lang} · top {pct}%"
+
 [check_timeout]
 other = "No result came back · try again in a moment"
 
@@ -273,6 +333,12 @@ other = "solved"
 
 [solving_status]
 other = "solving {id}"
+
+[spoiler_confirm]
+other = "You haven't solved it yet. Show anyway?"
+
+[spoiler_keys]
+other = "enter show · esc cancel"
 
 [submit_failed]
 other = "✗ {status} · {correct}/{total} · failing input…"

@@ -67,6 +67,159 @@ var areaLeetcode = area{
 				En: {Other: "LeetCode is blocking this request right now · o submit in browser"},
 			},
 		},
+		"board_all": {
+			desc: "순위 탭: 전체 기간",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "전체"},
+				En: {Other: "All"},
+			},
+		},
+		"board_empty": {
+			desc: "순위에 아무도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 푼 사람이 없어요"},
+				En: {Other: "No one has solved yet"},
+			},
+		},
+		"board_failed": {
+			desc: "순위를 못 불러왔을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "순위를 불러오지 못했어요"},
+				En: {Other: "Couldn't load the ranking"},
+			},
+		},
+		"board_footer": {
+			desc: "순위 오버레이 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "←/→ 탭 · esc 닫기"},
+				En: {Other: "←/→ tabs · esc close"},
+			},
+		},
+		"board_friend_row": {
+			desc:   "친구 순위 줄. rank = 순위, name = 이름, current = 지금 연속 일수, best = 최고 연속 일수",
+			params: []Param{{Name: "rank", Type: "int"}, {Name: "name", Type: "string"}, {Name: "current", Type: "int"}, {Name: "best", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{rank}. {name} · 🔥{current} · 최고 {best}일"},
+				En: {Other: "{rank}. {name} · 🔥{current} · best {best}d"},
+			},
+		},
+		"board_friends": {
+			desc: "순위 탭: 친구들의 연속 풀이",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "친구"},
+				En: {Other: "Friends"},
+			},
+		},
+		"board_loading": {
+			desc: "순위를 불러오는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "순위를 불러오는 중…"},
+				En: {Other: "Loading the ranking…"},
+			},
+		},
+		"board_month": {
+			desc: "순위 탭: 이번 달",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "이번 달"},
+				En: {Other: "Month"},
+			},
+		},
+		"board_row": {
+			desc:   "방 순위 줄. rank = 순위, name = 이름, solved = 기간 안에 푼 날 수, streak = 지금 연속 일수",
+			params: []Param{{Name: "rank", Type: "int"}, {Name: "name", Type: "string"}, {Name: "solved", Type: "int"}, {Name: "streak", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{rank}. {name} · {solved}일 · 🔥{streak}"},
+				En: {Other: "{rank}. {name} · {solved}d · 🔥{streak}"},
+			},
+		},
+		"board_title": {
+			desc:   "순위 오버레이 제목. space = 방 이름(없으면 빈 문자열)",
+			params: []Param{{Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧩 순위 {space}"},
+				En: {Other: "🧩 Ranking {space}"},
+			},
+		},
+		"board_week": {
+			desc: "순위 탭: 이번 주",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "이번 주"},
+				En: {Other: "Week"},
+			},
+		},
+		"card_code_hide": {
+			desc: "풀이 카드: 펼친 코드 접기 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "▾ 코드 접기"},
+				En: {Other: "▾ Hide code"},
+			},
+		},
+		"card_code_show": {
+			desc: "풀이 카드: 접힌 코드 펼치기 줄(스포일러)",
+			text: map[Locale]Forms{
+				Ko: {Other: "▸ 코드 보기(스포일러)"},
+				En: {Other: "▸ Show code (spoiler)"},
+			},
+		},
+		"card_daily_head": {
+			desc:   "#daily 루트 카드 첫 줄. date = YYYY-MM-DD(UTC), author = 처음 문제를 알린 사람 이름",
+			params: []Param{{Name: "date", Type: "string"}, {Name: "author", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧩 오늘의 문제 · {date} · 처음 연 사람 {author}"},
+				En: {Other: "🧩 Daily problem · {date} · first opened by {author}"},
+			},
+		},
+		"card_daily_keys": {
+			desc:   "#daily 루트 카드 키 안내. n = 스레드의 풀이(답글) 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 풀기 · t 스레드 (풀이 {n})"},
+				En: {Other: "enter solve · t thread ({n} solves)"},
+			},
+		},
+		"card_daily_line": {
+			desc:   "#daily 루트 카드 한 줄(위젯·초소형). id = 문제 번호, difficulty = Easy/Medium/Hard, n = 풀이 수",
+			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧩 {id} {difficulty} · 풀이 {n}"},
+				En: {Other: "🧩 {id} {difficulty} · {n} solves"},
+			},
+		},
+		"card_daily_problem": {
+			desc:   "#daily 루트 카드 문제 줄. id = 문제 번호, title = LeetCode 제목(번역하지 않음), difficulty = Easy/Medium/Hard(번역하지 않음)",
+			params: []Param{{Name: "id", Type: "string"}, {Name: "title", Type: "string"}, {Name: "difficulty", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{id} {title} · {difficulty}"},
+				En: {Other: "{id} {title} · {difficulty}"},
+			},
+		},
+		"card_mismatch": {
+			desc: "#daily 카드의 문제가 이 PC 가 받은 그날 문제와 다를 때 경고",
+			text: map[Locale]Forms{
+				Ko: {Other: "⚠ 내가 받은 오늘의 문제와 달라요"},
+				En: {Other: "⚠ Differs from the daily problem I got"},
+			},
+		},
+		"card_solve_head": {
+			desc:   "풀이 카드 첫 줄(상위 % 없음). author = 푼 사람, lang = 언어 이름",
+			params: []Param{{Name: "author", Type: "string"}, {Name: "lang", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✅ {author} · {lang}"},
+				En: {Other: "✅ {author} · {lang}"},
+			},
+		},
+		"card_solve_head_pct": {
+			desc:   "풀이 카드 첫 줄. author = 푼 사람, lang = 언어 이름, pct = 실행 시간 상위 %(정수)",
+			params: []Param{{Name: "author", Type: "string"}, {Name: "lang", Type: "string"}, {Name: "pct", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✅ {author} · {lang} · 상위 {pct}%"},
+				En: {Other: "✅ {author} · {lang} · top {pct}%"},
+			},
+		},
 		"check_timeout": {
 			desc: "실행·제출 결과를 60초 동안 받지 못했을 때",
 			text: map[Locale]Forms{
@@ -709,6 +862,20 @@ var areaLeetcode = area{
 				En: {Other: "solving {id}"},
 			},
 		},
+		"spoiler_confirm": {
+			desc: "그날 문제를 아직 안 푼 사람이 남의 코드를 펼칠 때 확인 본문",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 안 풀었어요. 그래도 볼까요?"},
+				En: {Other: "You haven't solved it yet. Show anyway?"},
+			},
+		},
+		"spoiler_keys": {
+			desc: "풀이 카드 스포일러 확인 줄 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 보기 · esc 그만두기"},
+				En: {Other: "enter show · esc cancel"},
+			},
+		},
 		"submit_failed": {
 			desc:   "제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수",
 			params: []Param{{Name: "status", Type: "string"}, {Name: "correct", Type: "int"}, {Name: "total", Type: "int"}},
@@ -837,6 +1004,106 @@ func (a_ LeetcodeT) AutoStatusDesc() string {
 // Blocked: LeetCode 가 Cloudflare 확인 화면을 돌려줄 때(자동 재시도 안 함). o = 브라우저 키
 func (a_ LeetcodeT) Blocked() string {
 	return a_.t.render(&areaLeetcode, "blocked", false, 0)
+}
+
+// BoardAll: 순위 탭: 전체 기간
+func (a_ LeetcodeT) BoardAll() string {
+	return a_.t.render(&areaLeetcode, "board_all", false, 0)
+}
+
+// BoardEmpty: 순위에 아무도 없을 때
+func (a_ LeetcodeT) BoardEmpty() string {
+	return a_.t.render(&areaLeetcode, "board_empty", false, 0)
+}
+
+// BoardFailed: 순위를 못 불러왔을 때
+func (a_ LeetcodeT) BoardFailed() string {
+	return a_.t.render(&areaLeetcode, "board_failed", false, 0)
+}
+
+// BoardFooter: 순위 오버레이 키 안내
+func (a_ LeetcodeT) BoardFooter() string {
+	return a_.t.render(&areaLeetcode, "board_footer", false, 0)
+}
+
+// BoardFriendRow: 친구 순위 줄. rank = 순위, name = 이름, current = 지금 연속 일수, best = 최고 연속 일수
+func (a_ LeetcodeT) BoardFriendRow(rank int, name string, current int, best int) string {
+	return a_.t.render(&areaLeetcode, "board_friend_row", false, 0, "rank", strconv.Itoa(rank), "name", name, "current", strconv.Itoa(current), "best", strconv.Itoa(best))
+}
+
+// BoardFriends: 순위 탭: 친구들의 연속 풀이
+func (a_ LeetcodeT) BoardFriends() string {
+	return a_.t.render(&areaLeetcode, "board_friends", false, 0)
+}
+
+// BoardLoading: 순위를 불러오는 중
+func (a_ LeetcodeT) BoardLoading() string {
+	return a_.t.render(&areaLeetcode, "board_loading", false, 0)
+}
+
+// BoardMonth: 순위 탭: 이번 달
+func (a_ LeetcodeT) BoardMonth() string {
+	return a_.t.render(&areaLeetcode, "board_month", false, 0)
+}
+
+// BoardRow: 방 순위 줄. rank = 순위, name = 이름, solved = 기간 안에 푼 날 수, streak = 지금 연속 일수
+func (a_ LeetcodeT) BoardRow(rank int, name string, solved int, streak int) string {
+	return a_.t.render(&areaLeetcode, "board_row", false, 0, "rank", strconv.Itoa(rank), "name", name, "solved", strconv.Itoa(solved), "streak", strconv.Itoa(streak))
+}
+
+// BoardTitle: 순위 오버레이 제목. space = 방 이름(없으면 빈 문자열)
+func (a_ LeetcodeT) BoardTitle(space string) string {
+	return a_.t.render(&areaLeetcode, "board_title", false, 0, "space", space)
+}
+
+// BoardWeek: 순위 탭: 이번 주
+func (a_ LeetcodeT) BoardWeek() string {
+	return a_.t.render(&areaLeetcode, "board_week", false, 0)
+}
+
+// CardCodeHide: 풀이 카드: 펼친 코드 접기 줄
+func (a_ LeetcodeT) CardCodeHide() string {
+	return a_.t.render(&areaLeetcode, "card_code_hide", false, 0)
+}
+
+// CardCodeShow: 풀이 카드: 접힌 코드 펼치기 줄(스포일러)
+func (a_ LeetcodeT) CardCodeShow() string {
+	return a_.t.render(&areaLeetcode, "card_code_show", false, 0)
+}
+
+// CardDailyHead: #daily 루트 카드 첫 줄. date = YYYY-MM-DD(UTC), author = 처음 문제를 알린 사람 이름
+func (a_ LeetcodeT) CardDailyHead(date string, author string) string {
+	return a_.t.render(&areaLeetcode, "card_daily_head", false, 0, "date", date, "author", author)
+}
+
+// CardDailyKeys: #daily 루트 카드 키 안내. n = 스레드의 풀이(답글) 수
+func (a_ LeetcodeT) CardDailyKeys(n int) string {
+	return a_.t.render(&areaLeetcode, "card_daily_keys", false, 0, "n", strconv.Itoa(n))
+}
+
+// CardDailyLine: #daily 루트 카드 한 줄(위젯·초소형). id = 문제 번호, difficulty = Easy/Medium/Hard, n = 풀이 수
+func (a_ LeetcodeT) CardDailyLine(id string, difficulty string, n int) string {
+	return a_.t.render(&areaLeetcode, "card_daily_line", false, 0, "id", id, "difficulty", difficulty, "n", strconv.Itoa(n))
+}
+
+// CardDailyProblem: #daily 루트 카드 문제 줄. id = 문제 번호, title = LeetCode 제목(번역하지 않음), difficulty = Easy/Medium/Hard(번역하지 않음)
+func (a_ LeetcodeT) CardDailyProblem(id string, title string, difficulty string) string {
+	return a_.t.render(&areaLeetcode, "card_daily_problem", false, 0, "id", id, "title", title, "difficulty", difficulty)
+}
+
+// CardMismatch: #daily 카드의 문제가 이 PC 가 받은 그날 문제와 다를 때 경고
+func (a_ LeetcodeT) CardMismatch() string {
+	return a_.t.render(&areaLeetcode, "card_mismatch", false, 0)
+}
+
+// CardSolveHead: 풀이 카드 첫 줄(상위 % 없음). author = 푼 사람, lang = 언어 이름
+func (a_ LeetcodeT) CardSolveHead(author string, lang string) string {
+	return a_.t.render(&areaLeetcode, "card_solve_head", false, 0, "author", author, "lang", lang)
+}
+
+// CardSolveHeadPct: 풀이 카드 첫 줄. author = 푼 사람, lang = 언어 이름, pct = 실행 시간 상위 %(정수)
+func (a_ LeetcodeT) CardSolveHeadPct(author string, lang string, pct int) string {
+	return a_.t.render(&areaLeetcode, "card_solve_head_pct", false, 0, "author", author, "lang", lang, "pct", strconv.Itoa(pct))
 }
 
 // CheckTimeout: 실행·제출 결과를 60초 동안 받지 못했을 때
@@ -1262,6 +1529,16 @@ func (a_ LeetcodeT) Solved() string {
 // SolvingStatus: 상태 메시지 자동 표시(설정에서 켰을 때): 친구에게 보이는 내 상태. id = 문제 번호
 func (a_ LeetcodeT) SolvingStatus(id string) string {
 	return a_.t.render(&areaLeetcode, "solving_status", false, 0, "id", id)
+}
+
+// SpoilerConfirm: 그날 문제를 아직 안 푼 사람이 남의 코드를 펼칠 때 확인 본문
+func (a_ LeetcodeT) SpoilerConfirm() string {
+	return a_.t.render(&areaLeetcode, "spoiler_confirm", false, 0)
+}
+
+// SpoilerKeys: 풀이 카드 스포일러 확인 줄 아래 키 안내
+func (a_ LeetcodeT) SpoilerKeys() string {
+	return a_.t.render(&areaLeetcode, "spoiler_keys", false, 0)
 }
 
 // SubmitFailed: 제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수

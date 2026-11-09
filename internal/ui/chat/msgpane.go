@@ -297,6 +297,7 @@ func (p *msgPane) cardKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 	if cr, ok := ui.MessageCard(r.Msg); ok {
 		if cr.Key != nil {
 			if handled, cmd := cr.Key(ctx, r.Msg, msg); handled {
+				p.repaint() // the card may draw differently now (a spoiler unfolded)
 				return true, cmd
 			}
 		}
