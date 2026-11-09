@@ -45,6 +45,7 @@ type editor struct {
 	setRow   int        // the selected settings row
 	setEdit  *lineInput // a settings number being edited
 	req      *apitool.Request
+	files    map[string]bool // form row ids that are file fields
 	lastW    int
 	curX     int
 	curY     int
@@ -73,6 +74,16 @@ func (e *editor) load(r *apitool.Request) {
 	e.headers.SetRows(r.Headers)
 	e.asserts.SetRows(assertRows(r.Asserts))
 	e.extracts.SetRows(extractRows(r.Extracts))
+	e.files = map[string]bool{}
+	for i := range r.Body.Form {
+		f := &r.Body.Form[i]
+		if f.ID == "" {
+			f.ID = newID() // only rows added in the table are id-less
+		}
+		if f.File != "" {
+			e.files[f.ID] = true
+		}
+	}
 	e.form.SetRows(formRows(r.Body.Form))
 	e.body = newTextArea(r.Body.Text)
 }
@@ -121,7 +132,7 @@ func (e *editor) store() {
 		r.Body.Text = e.body.text()
 	}
 	if r.Body.Kind == apitool.BodyURLEncoded || r.Body.Kind == apitool.BodyMultipart {
-		r.Body.Form = parseFormRows(e.form.Rows(), r.Body.Form)
+		r.Body.Form = parseFormRows(e.form.Rows(), r.Body.Form, e.files)
 	}
 }
 
@@ -348,15 +359,20 @@ func formRows(fs []apitool.FormField) []apitool.KV {
 	return out
 }
 
-// parseFormRows maps the rows back; "@path" is a file field.
-func parseFormRows(rows []apitool.KV, old []apitool.FormField) []apitool.FormField {
+// parseFormRows maps the rows back. Whether a row is a file field is kept
+// by row id (files), never read from the text: "@path" names a file only in
+// a file row (its path may be edited) or in a row the user added in the
+// table (no id yet). A loaded text value starting with "@" — an imported or
+// shared collection's — stays text, so it can never upload a file of this
+// computer.
+func parseFormRows(rows []apitool.KV, old []apitool.FormField, files map[string]bool) []apitool.FormField {
 	var out []apitool.FormField
 	for _, r := range rows {
 		f := apitool.FormField{KV: r}
 		if i := slices.IndexFunc(old, func(o apitool.FormField) bool { return o.ID != "" && o.ID == r.ID }); i >= 0 {
 			f.FileName = old[i].FileName
 		}
-		if p, ok := strings.CutPrefix(r.Value, "@"); ok {
+		if p, ok := strings.CutPrefix(r.Value, "@"); ok && (r.ID == "" || files[r.ID]) {
 			f.File, f.Value = p, ""
 		}
 		out = append(out, f)
