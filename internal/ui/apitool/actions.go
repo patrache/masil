@@ -43,10 +43,12 @@ type pendingSecret struct {
 	f      apitool.Finding
 }
 
-// pendingPut is a secret value waiting to go into the vault.
+// pendingPut is a secret value waiting to go into the vault; quiet ones
+// (extracted from a response on every send) are stored without a toast.
 type pendingPut struct {
 	key, name string
 	val       secrets.Secret
+	quiet     bool
 }
 
 // secretPutMsg reports a vault write of tool t: consent = the OS store is
@@ -180,8 +182,18 @@ func (t *Tool) sent(ctx *ui.Context, key string, st *respState, vals map[string]
 		cmds = append(cmds, ui.Toast(ctx.T.Apitest.RedirectBlocked(textwidth.Sanitize(rb.Var), textwidth.Sanitize(rb.To)), ui.ToastInfo))
 	}
 	if len(vals) > 0 {
+		// A secret variable's value goes to the vault off the UI goroutine
+		// (the OS store may block or need consent); plain ones are stored here.
 		sc := t.scope(ctx)
-		changed, err := apitool.ApplyExtracts(vals, sc)
+		plain := map[string]string{}
+		for name, v := range vals {
+			if key, _, secret := sc.SecretSlot(name); secret {
+				t.pendingPuts = append(t.pendingPuts, pendingPut{key: key, name: name, val: secrets.New(v), quiet: true})
+			} else {
+				plain[name] = v
+			}
+		}
+		changed, err := apitool.ApplyExtracts(plain, sc)
 		if err != nil {
 			slog.Warn("api: extracts", "err", err)
 		}
@@ -189,6 +201,7 @@ func (t *Tool) sent(ctx *ui.Context, key string, st *respState, vals map[string]
 			t.globals = sc.Globals
 			t.saveVars()
 		}
+		cmds = append(cmds, t.flushPuts(ctx))
 	}
 	return tea.Batch(cmds...)
 }
@@ -492,7 +505,14 @@ func (t *Tool) onSecretPut(ctx *ui.Context, m secretPutMsg) tea.Cmd {
 	case m.err != nil:
 		return ui.Toast(a.SaveFailed(errText(m.err)), ui.ToastError)
 	case len(m.done) > 0:
-		last := m.done[len(m.done)-1]
+		i := len(m.done) - 1
+		for i >= 0 && m.done[i].quiet {
+			i--
+		}
+		if i < 0 {
+			return t.loadMasks(ctx)
+		}
+		last := m.done[i]
 		where := ""
 		if v := t.vault(ctx); v != nil {
 			where = secretsui.BackendLabel(ctx.T, v.Where(last.key))

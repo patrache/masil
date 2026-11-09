@@ -262,3 +262,31 @@ func TestSaveBodyAsksBeforeOverwrite(t *testing.T) {
 	waitWhole(t, h, ko.BodySaved(old))
 	assertFile(t, old, `{"new":1}`)
 }
+
+// An extracted value of a secret variable goes to the vault off the UI
+// goroutine; a missing OS store asks for consent instead of losing it.
+func TestSecretExtractAsksConsent(t *testing.T) {
+	srv, _ := hitServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"tok-from-login-0042"}`))
+	})
+	store := secrettest.NewStore(t, false)
+	h := openAPI(t, uitest.WithSecrets(store))
+	env := &apitool.Env{Name: "dev", Vars: []apitool.Var{{Name: "token", Secret: true, AllowedHosts: []string{"127.0.0.1"}}}}
+	tl := seedRequests(h, env, &apitool.Request{ID: "login", Name: "login", Method: "POST", URL: srv.URL + "/login",
+		Extracts: []apitool.Extract{{ID: "x", Var: "token", From: "json", Path: "$.access_token"}}})
+	h.Press("enter")
+	for i := 0; i < 400 && tl.running(jobSend); i++ {
+		h.Advance(50 * time.Millisecond)
+		time.Sleep(2 * time.Millisecond)
+	}
+	if len(tl.pendingPuts) != 1 || overlayText(h) == "" {
+		t.Fatalf("the extracted secret is not waiting for consent (%d pending):\n%s", len(tl.pendingPuts), h.Screen())
+	}
+	h.Press("enter") // the consent default (this run only)
+	key, _, _ := tl.scope(h.Context()).SecretSlot("token")
+	v, err := tl.vault(h.Context()).Get(key)
+	if err != nil || v.Reveal() != "tok-from-login-0042" {
+		t.Fatalf("the extracted token was lost: %v", err)
+	}
+}
