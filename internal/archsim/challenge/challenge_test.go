@@ -218,3 +218,124 @@ func TestApplyRestoresScenario(t *testing.T) {
 		t.Errorf("nil design: %v", err)
 	}
 }
+
+// clientsOnly keeps only s's clients (no edges, boxes or faults).
+func clientsOnly(s Scenario) *archdoc.Design {
+	d := s.Design()
+	d.Nodes = slices.DeleteFunc(d.Nodes, func(n archdoc.Node) bool { return n.Kind != archdoc.KindClient })
+	for i := range d.Nodes {
+		d.Nodes[i].Parent = ""
+	}
+	d.Edges, d.Boxes, d.Faults = nil, nil, nil
+	return d
+}
+
+// TestApplyNeedsRoutedClients: a client whose traffic ends at the client (no
+// edge, or edges that carry only part of it) is not a run — the engine would
+// serve that traffic for free, at p99 0 and no cost.
+func TestApplyNeedsRoutedClients(t *testing.T) {
+	for _, s := range Scenarios() {
+		s.Faults = nil // (fault targets have their own test)
+		if _, err := Apply(clientsOnly(s), s); !errors.Is(err, ErrUnrouted) {
+			t.Errorf("%s: clients only: %v", s.ID, err)
+		}
+		// a client edge that carries a thousandth of the reads
+		d := s.Design()
+		for i, e := range d.Edges {
+			if slices.ContainsFunc(s.Start.Nodes, func(n archdoc.Node) bool { return n.ID == e.From && n.Kind == archdoc.KindClient }) {
+				d.Edges[i].ReadPermille = 1
+			}
+		}
+		if _, err := Apply(d, s); !errors.Is(err, ErrUnrouted) {
+			t.Errorf("%s: a thin client edge: %v", s.ID, err)
+		}
+		// a lone pass-through node in front of nothing (the engine serves
+		// whatever a load balancer, CDN or queue does not send on), or two of
+		// them in a loop (the engine drops a loop's closing edge)
+		for _, kind := range []archdoc.NodeKind{archdoc.KindLB, archdoc.KindCDN, archdoc.KindQueue} {
+			for _, loop := range []bool{false, true} {
+				d := clientsOnly(s)
+				for _, id := range []string{"x", "y"} {
+					x := archdoc.Defaults(kind)
+					x.ID, x.Label = id, id
+					d.Nodes = append(d.Nodes, x)
+				}
+				edge := func(id, from, to string) archdoc.Edge {
+					return archdoc.Edge{ID: id, From: from, To: to, Protocol: archdoc.ProtoHTTP1, LatencyMicros: -1, ReadPermille: 1000, WritePermille: 1000}
+				}
+				for _, n := range d.Nodes {
+					if n.Kind == archdoc.KindClient {
+						d.Edges = append(d.Edges, edge("e_"+n.ID, n.ID, "x"))
+					}
+				}
+				if loop {
+					d.Edges = append(d.Edges, edge("xy", "x", "y"), edge("yx", "y", "x"))
+				}
+				if is := d.Validate(); len(is) > 0 {
+					t.Fatalf("%s: test design invalid: %v", s.ID, is)
+				}
+				d.Faults = nil
+				if _, err := Apply(d, s); !errors.Is(err, ErrUnrouted) {
+					t.Errorf("%s: client → %s (loop %v): %v", s.ID, kind, loop, err)
+				}
+			}
+		}
+		// the start design routes everything
+		if _, err := Apply(s.Design(), s); err != nil {
+			t.Errorf("%s: start design: %v", s.ID, err)
+		}
+	}
+}
+
+// TestApplyNeedsFaultTargets: deleting what a scheduled fault hits is not a
+// way past the fault, and the run design (the card's copy) stays valid.
+func TestApplyNeedsFaultTargets(t *testing.T) {
+	n := 0
+	for _, s := range Scenarios() {
+		for _, f := range s.Faults {
+			d := s.Design()
+			d.Nodes = slices.DeleteFunc(d.Nodes, func(x archdoc.Node) bool { return x.ID == f.Target })
+			d.Edges = slices.DeleteFunc(d.Edges, func(e archdoc.Edge) bool {
+				return e.ID == f.Target || e.From == f.Target || e.To == f.Target
+			})
+			if slices.ContainsFunc(d.Boxes, func(b archdoc.Box) bool { return b.ID == f.Target }) {
+				d.Boxes = slices.DeleteFunc(d.Boxes, func(b archdoc.Box) bool { return b.ID == f.Target || b.Parent == f.Target })
+				for i := range d.Nodes {
+					if !slices.ContainsFunc(d.Boxes, func(b archdoc.Box) bool { return b.ID == d.Nodes[i].Parent }) {
+						d.Nodes[i].Parent = ""
+					}
+				}
+			}
+			d.Faults = nil
+			if is := d.Validate(); len(is) > 0 {
+				t.Fatalf("%s/%s: test design invalid: %v", s.ID, f.ID, is)
+			}
+			run, err := Apply(d, s)
+			// (deleting the target may cut a client's path too: either refusal)
+			if !errors.Is(err, ErrFaultTargetMissing) && !errors.Is(err, ErrUnrouted) {
+				t.Errorf("%s: fault %s target %s deleted: %v", s.ID, f.ID, f.Target, err)
+			}
+			if err == nil {
+				if b, err := run.Encode(); err != nil {
+					t.Errorf("%s: encode: %v", s.ID, err)
+				} else if _, err := archdoc.Decode(b); err != nil {
+					t.Errorf("%s: the run design does not decode: %v", s.ID, err)
+				}
+			}
+			n++
+		}
+	}
+	if n == 0 {
+		t.Fatal("no scenario has a fault")
+	}
+}
+
+// TestScenariosHaveFaults: a scenario is seed + traffic + scheduled faults +
+// goals + start design (spec C2.12) — every one schedules a fault.
+func TestScenariosHaveFaults(t *testing.T) {
+	for _, s := range Scenarios() {
+		if len(s.Faults) == 0 {
+			t.Errorf("%s: no scheduled fault", s.ID)
+		}
+	}
+}

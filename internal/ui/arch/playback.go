@@ -88,9 +88,9 @@ func (m *canvasModel) startRun(ctx *ui.Context) tea.Cmd {
 	if d == nil {
 		return nil
 	}
-	d, ok := m.challengeRun(d)
-	if !ok {
-		return ui.Toast(ctx.T.Archcanvas.ChallengeClientMissing(), ui.ToastInfo)
+	d, refused := m.challengeRun(ctx, d)
+	if d == nil {
+		return refused
 	}
 	c, cancel := context.WithCancel(context.Background())
 	m.pb = playback{speed: m.pb.speed, computing: true, cancel: cancel}

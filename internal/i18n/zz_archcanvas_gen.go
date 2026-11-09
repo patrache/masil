@@ -250,6 +250,13 @@ var areaArchcanvas = area{
 				En: {Other: "Primary DB down"},
 			},
 		},
+		"challenge_fault_target_missing": {
+			desc: "일일 도전: 시나리오의 예약 장애가 노리는 노드·연결·영역을 지워 시간 실행·점수를 할 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "도전의 예약 장애가 노리는 대상을 지우면 점수를 매길 수 없어요 — 되살려 주세요"},
+				En: {Other: "Deleting what the challenge's scheduled fault hits leaves nothing to score — bring it back"},
+			},
+		},
 		"challenge_flash_sale_title": {
 			desc: "일일 도전 시나리오 이름: flash_sale",
 			max:  24,
@@ -329,6 +336,13 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "느린 결제"},
 				En: {Other: "Slow payments"},
+			},
+		},
+		"challenge_unrouted": {
+			desc: "일일 도전: 클라이언트 트래픽 일부가 LB·CDN·큐·클라이언트에서 멈춰(나가는 연결 비율 합이 모자라거나 고리) 시간 실행·점수를 할 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "도전의 트래픽이 서버까지 가지 않아요 — 클라이언트·LB·CDN·큐에서 나가는 연결이 요청을 모두 넘기게 이어 주세요"},
+				En: {Other: "The challenge's traffic doesn't reach a server — connect each client, LB, CDN and queue so its edges pass on every request"},
 			},
 		},
 		"check_az_outside_vpc": {
@@ -3242,6 +3256,11 @@ func (a_ ArchcanvasT) ChallengeDbFailoverTitle() string {
 	return a_.t.render(&areaArchcanvas, "challenge_db_failover_title", false, 0)
 }
 
+// ChallengeFaultTargetMissing: 일일 도전: 시나리오의 예약 장애가 노리는 노드·연결·영역을 지워 시간 실행·점수를 할 수 없을 때
+func (a_ ArchcanvasT) ChallengeFaultTargetMissing() string {
+	return a_.t.render(&areaArchcanvas, "challenge_fault_target_missing", false, 0)
+}
+
 // ChallengeFlashSaleTitle: 일일 도전 시나리오 이름: flash_sale
 func (a_ ArchcanvasT) ChallengeFlashSaleTitle() string {
 	return a_.t.render(&areaArchcanvas, "challenge_flash_sale_title", false, 0)
@@ -3290,6 +3309,11 @@ func (a_ ArchcanvasT) ChallengeSearchRevampTitle() string {
 // ChallengeSlowPaymentsTitle: 일일 도전 시나리오 이름: slow_payments
 func (a_ ArchcanvasT) ChallengeSlowPaymentsTitle() string {
 	return a_.t.render(&areaArchcanvas, "challenge_slow_payments_title", false, 0)
+}
+
+// ChallengeUnrouted: 일일 도전: 클라이언트 트래픽 일부가 LB·CDN·큐·클라이언트에서 멈춰(나가는 연결 비율 합이 모자라거나 고리) 시간 실행·점수를 할 수 없을 때
+func (a_ ArchcanvasT) ChallengeUnrouted() string {
+	return a_.t.render(&areaArchcanvas, "challenge_unrouted", false, 0)
 }
 
 // CheckAzOutsideVpc: 설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 ", " 로 이은 것

@@ -182,6 +182,40 @@ func TestChallengeNeedsClients(t *testing.T) {
 	}
 }
 
+// TestChallengeRefusals: a design whose traffic stops short of a server, or
+// that lost a scheduled fault's target, is not run nor scored — each with
+// its own toast.
+func TestChallengeRefusals(t *testing.T) {
+	s, ok := challenge.ByID("budget_squeeze")
+	if !ok || len(s.Faults) == 0 || s.Faults[0].Target != "replica" {
+		t.Fatalf("budget_squeeze: %v %+v", ok, s.Faults)
+	}
+	s.Start.DurationS = 60
+	old := scenarioOf
+	scenarioOf = func(time.Time) challenge.Scenario { return s }
+	t.Cleanup(func() { scenarioOf = old })
+	for _, tc := range []struct {
+		del  string
+		want func(i18n.ArchcanvasT) string
+	}{
+		{"lb", i18n.ArchcanvasT.ChallengeUnrouted},                // members → lb is the only way in
+		{"replica", i18n.ArchcanvasT.ChallengeFaultTargetMissing}, // the fault's target
+	} {
+		h := newHarness(t)
+		h.Resize(120, 40)
+		c := openToday(t, h, s)
+		c.sel = tc.del
+		h.Press("d")
+		h.Press("space")
+		if c.pb.tl != nil || c.pb.computing || c.chal.out != nil {
+			t.Errorf("deleted %s: the design ran", tc.del)
+		}
+		if scr := h.Screen(); !shown(scr, tc.want(h.Context().T.Archcanvas)) {
+			t.Errorf("deleted %s: no toast:\n%s", tc.del, scr)
+		}
+	}
+}
+
 // sentAsCard is the card of a send the harness's server got.
 func sentAsCard(t *testing.T, s sentCard) api.Card {
 	t.Helper()

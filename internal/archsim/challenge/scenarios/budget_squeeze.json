@@ -16,6 +16,8 @@
    {"id": "e3", "from": "api", "to": "db", "read_permille": 500, "write_permille": 1000},
    {"id": "e4", "from": "api", "to": "replica", "read_permille": 500, "write_permille": 0}
   ],
-  "faults": []
+  "faults": [
+   {"id": "f1", "at_s": 60, "kind": "latency", "target": "replica", "add_ms": 400, "dur_s": 20}
+  ]
  }
 }

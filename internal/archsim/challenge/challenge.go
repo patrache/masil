@@ -36,6 +36,16 @@ type Scenario struct {
 // part of the challenge).
 var ErrClientMissing = errors.New("challenge: a scenario client is missing")
 
+// ErrUnrouted: some of a scenario client's traffic stops at a node that does
+// not serve requests itself — a client, load balancer, CDN or queue whose
+// outgoing edges do not carry all of it, or that only loops back. The engine
+// counts traffic that ends there as served, at no latency or cost.
+var ErrUnrouted = errors.New("challenge: a scenario client's traffic does not reach a server")
+
+// ErrFaultTargetMissing: the design lost what a scheduled fault hits (the
+// fault is part of the challenge, and the run design must stay valid).
+var ErrFaultTargetMissing = errors.New("challenge: a scheduled fault's target is missing")
+
 //go:embed scenarios/*.json
 var files embed.FS
 
@@ -132,7 +142,11 @@ func clone(d *archdoc.Design) *archdoc.Design {
 
 // Apply is d as the challenge runs it: the scenario's seed, duration and
 // faults, and the scenario clients' traffic (by node id). Everything else is
-// the player's. d is not changed.
+// the player's. d is not changed. Every scenario client must still be there
+// (ErrClientMissing) and send all of its reads and writes on to non-client
+// nodes (ErrUnrouted), and every fault target must still be there
+// (ErrFaultTargetMissing) — so the run design is valid and no part of the
+// challenge is dodged by deleting it.
 func Apply(d *archdoc.Design, s Scenario) (*archdoc.Design, error) {
 	if d == nil {
 		return nil, ErrClientMissing
@@ -153,7 +167,130 @@ func Apply(d *archdoc.Design, s Scenario) (*archdoc.Design, error) {
 			out.Nodes[i].Traffic = &tr
 		}
 	}
+	if !routed(out, s) {
+		return nil, ErrUnrouted
+	}
+	for _, is := range out.Validate() {
+		if strings.HasPrefix(is.Path, "faults[") && strings.HasSuffix(is.Path, ".target") {
+			return nil, ErrFaultTargetMissing
+		}
+	}
 	return out, nil
+}
+
+// forwards reports a kind that only passes requests on: whatever it does not
+// send on ends there, which the engine counts as served.
+func forwards(k archdoc.NodeKind) bool {
+	switch k {
+	case archdoc.KindClient, archdoc.KindLB, archdoc.KindCDN, archdoc.KindQueue:
+		return true
+	}
+	return false
+}
+
+// share is an edge's permille for reads (c = 0) or writes (c = 1).
+func share(e archdoc.Edge, c int) int {
+	if c == 0 {
+		return max(e.ReadPermille, 0)
+	}
+	return max(e.WritePermille, 0)
+}
+
+// routed reports whether every scenario client's traffic reaches nodes that
+// serve it: each forwarding node (forwards) that gets reads or writes from a
+// scenario client sends at least 1000‰ of that class on, and none of them
+// sits on a loop of such edges (the engine drops a loop's closing edge, so
+// its share would end at a forwarding node).
+func routed(d *archdoc.Design, s Scenario) bool {
+	kind := make(map[string]archdoc.NodeKind, len(d.Nodes))
+	for _, n := range d.Nodes {
+		kind[n.ID] = n.Kind
+	}
+	out := map[string][]archdoc.Edge{}
+	for _, e := range d.Edges {
+		if _, ok := kind[e.To]; ok {
+			out[e.From] = append(out[e.From], e)
+		}
+	}
+	// gets[id][c]: node id receives class c from a scenario client
+	gets := map[string]*[2]bool{}
+	var todo []string
+	for _, sc := range s.Start.Nodes {
+		if sc.Kind != archdoc.KindClient {
+			continue
+		}
+		read := 1000
+		if sc.Traffic != nil {
+			read = min(max(sc.Traffic.ReadPermille, 0), 1000)
+		}
+		gets[sc.ID] = &[2]bool{read > 0, read < 1000}
+		todo = append(todo, sc.ID)
+	}
+	for len(todo) > 0 {
+		u := todo[len(todo)-1]
+		todo = todo[:len(todo)-1]
+		for _, e := range out[u] {
+			for c := range 2 {
+				if !gets[u][c] || share(e, c) == 0 {
+					continue
+				}
+				g := gets[e.To]
+				if g == nil {
+					g = &[2]bool{}
+					gets[e.To] = g
+				}
+				if !g[c] {
+					g[c] = true
+					todo = append(todo, e.To)
+				}
+			}
+		}
+	}
+	for id, g := range gets {
+		if !forwards(kind[id]) {
+			continue
+		}
+		for c := range 2 {
+			if !g[c] {
+				continue
+			}
+			sum := 0
+			for _, e := range out[id] {
+				sum += share(e, c)
+			}
+			if sum < 1000 {
+				return false
+			}
+		}
+		if loops(id, out, gets) {
+			return false
+		}
+	}
+	return true
+}
+
+// loops reports whether id reaches itself over edges that carry traffic
+// between nodes a scenario client reaches.
+func loops(id string, out map[string][]archdoc.Edge, gets map[string]*[2]bool) bool {
+	seen := map[string]bool{}
+	todo := []string{id}
+	for len(todo) > 0 {
+		u := todo[len(todo)-1]
+		todo = todo[:len(todo)-1]
+		for _, e := range out[u] {
+			if gets[e.To] == nil || share(e, 0)+share(e, 1) == 0 {
+				continue
+			}
+			if e.To == id {
+				return true
+			}
+			if !seen[e.To] {
+				seen[e.To] = true
+				todo = append(todo, e.To)
+			}
+		}
+	}
+	return false
 }
 
 // Outcome is a run's result against a scenario.

@@ -17,6 +17,8 @@
    {"id": "e4", "from": "worker", "to": "db", "read_permille": 1000, "write_permille": 1000},
    {"id": "e5", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 0}
   ],
-  "faults": []
+  "faults": [
+   {"id": "f1", "at_s": 50, "kind": "instances_off", "target": "worker", "count": 1, "dur_s": 30}
+  ]
  }
 }

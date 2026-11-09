@@ -95,6 +95,9 @@ other = "Concert presale"
 [challenge_db_failover_title]
 other = "Primary DB down"
 
+[challenge_fault_target_missing]
+other = "Deleting what the challenge's scheduled fault hits leaves nothing to score — bring it back"
+
 [challenge_flash_sale_title]
 other = "Flash sale"
 
@@ -124,6 +127,9 @@ other = "Search revamp"
 
 [challenge_slow_payments_title]
 other = "Slow payments"
+
+[challenge_unrouted]
+other = "The challenge's traffic doesn't reach a server — connect each client, LB, CDN and queue so its edges pass on every request"
 
 [check_az_outside_vpc]
 other = "{targets}: AZ outside a VPC"

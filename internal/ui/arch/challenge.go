@@ -1,6 +1,7 @@
 package arch
 
 import (
+	"errors"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -14,10 +15,12 @@ import (
 )
 
 // The daily challenge (P3 Task 28, spec C2.12) is a palette command of its
-// own (arch.challenge — not a hub row, and not one screen with LeetCode's
-// daily problem, JX12): it opens today's scenario (UTC day) as a new,
-// unsaved design. A timed run is scored against the scenario; the score goes
-// out on an arch.sim card. No leaderboard.
+// own, arch.challenge, never one screen with LeetCode's daily problem (JX12).
+// Spec C2.12 opens it from the hub, but P0's hub has no tool hook P3 may add
+// to, so for now the palette is the only way in (exec-log P3). It opens
+// today's scenario (UTC day) as a new, unsaved design. A timed run is scored
+// against the scenario; the score goes out on an arch.sim card. No
+// leaderboard.
 
 // Challenge instance query keys and id prefix.
 const (
@@ -85,17 +88,27 @@ func (m *canvasModel) initChallenge(ctx *ui.Context) tea.Cmd {
 }
 
 // challengeRun is the design a challenge run uses: the scenario's seed,
-// faults and client traffic over my design (ok false: a client is gone).
-func (m *canvasModel) challengeRun(d *archdoc.Design) (*archdoc.Design, bool) {
+// faults and client traffic over my design. A design the challenge cannot
+// score (a client gone, traffic that stops short of a server, a fault's
+// target gone) comes back nil with the toast that says why.
+func (m *canvasModel) challengeRun(ctx *ui.Context, d *archdoc.Design) (*archdoc.Design, tea.Cmd) {
 	if m.chal == nil {
-		return d, true
+		return d, nil
 	}
 	run, err := challenge.Apply(d, m.chal.s)
 	if err != nil {
-		return nil, false
+		a := ctx.T.Archcanvas
+		msg := a.ChallengeClientMissing()
+		switch {
+		case errors.Is(err, challenge.ErrUnrouted):
+			msg = a.ChallengeUnrouted()
+		case errors.Is(err, challenge.ErrFaultTargetMissing):
+			msg = a.ChallengeFaultTargetMissing()
+		}
+		return nil, ui.Toast(msg, ui.ToastInfo)
 	}
 	m.chal.ran, m.chal.out = nil, nil
-	return run, true
+	return run, nil
 }
 
 // challengeScored scores a finished run of design run.
