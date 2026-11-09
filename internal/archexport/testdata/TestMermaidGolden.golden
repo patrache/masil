@@ -1,0 +1,35 @@
+%% 자동 생성된 그림 · masil
+%% %% {init:  {"theme":"dark"}}%%
+%% two lines
+flowchart LR
+    subgraph b3["서울 리전"]
+        subgraph b4["본 VPC"]
+            subgraph b1["가용 영역 A"]
+                n1["결제 API"]
+                n3["세션 캐시"]
+                n9[("주 DB")]
+            end
+            subgraph b2["가용 영역 B"]
+                n2["결제 API"]
+                n6[/"작업 큐"/]
+                n10[("읽기 복제본")]
+            end
+            n7["부하 분산기"]
+            n11["주문 검색"]
+        end
+    end
+    n4["CDN"]
+    n5["영수증 저장소"]
+    n8["PG사"]
+    n12["사용자"]
+    n12 -->|"HTTP/1.1"| n4
+    n4 -->|"HTTP/2 · 2ms"| n7
+    n7 -->|"HTTP/1.1"| n1
+    n7 -->|"HTTP/1.1"| n2
+    n1 -->|"TCP"| n3
+    n1 -->|"TCP · 0.2ms"| n9
+    n2 -->|"TCP · 1.5ms"| n10
+    n2 -.->|"async"| n6
+    n6 -->|"HTTP/1.1"| n5
+    n1 -->|"gRPC"| n11
+    n2 -->|"HTTP/1.1"| n8
