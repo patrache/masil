@@ -244,3 +244,39 @@ func TestRateLimitedWaitsTenSecondsPremium(t *testing.T) {
 		t.Fatalf("interpret requests = %d, want 2 after 10s", n)
 	}
 }
+
+// When today's problem rolls over at UTC midnight, the editor on yesterday's
+// file is closed: r never sends another file than the one being edited.
+func TestRolloverDropsEditor(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	h := uitest.New(t)
+	signIn(t, e, h)
+	h.Advance(21*time.Hour + 54*time.Minute + 30*time.Second) // 23:59:30Z
+	openToday(t, h)
+	h.Press("e", "i")
+	h.Type("// MINE")
+	h.Press("esc", ":", "w", "enter")
+	e.lc.SetDailyDate("2026-11-06")
+	h.Advance(time.Minute)
+	if s := h.Screen(); !strings.Contains(s, "2026-11-06 (UTC)") {
+		t.Fatalf("not rolled over:\n%s", s)
+	}
+	if s := h.Screen(); strings.Contains(s, "// MINE") {
+		t.Fatalf("yesterday's file still in the editor after the rollover:\n%s", s)
+	}
+	h.Press("r")
+	reqs := sent(e, "interpret_solution")
+	if len(reqs) != 1 {
+		t.Fatalf("interpret requests = %d:\n%s", len(reqs), h.Screen())
+	}
+	var body struct {
+		TypedCode string `json:"typed_code"`
+	}
+	if err := json.Unmarshal([]byte(reqs[0].Body), &body); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(body.TypedCode, "MINE") {
+		t.Fatalf("sent yesterday's code for today's problem")
+	}
+}

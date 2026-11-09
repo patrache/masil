@@ -258,8 +258,12 @@ func (in *instance) submitRequested(ctx *ui.Context) tea.Cmd {
 
 // loaded takes a load's outcome.
 func (in *instance) loaded(ctx *ui.Context, l *loaded) tea.Cmd {
+	var cmd tea.Cmd // the old problem's editor, closed
 	switch {
 	case l.q != nil && (l.err == nil || errors.Is(l.err, leetcode.ErrPremiumOnly)):
+		if in.q != nil && (in.date != l.date || in.q.Slug != l.q.Slug) {
+			cmd = in.problemChanged()
+		}
 		in.q, in.date, in.err = l.q, l.date, nil
 		in.scroll, in.page = 0, 0
 		if l.q.IsPaidOnly || l.err != nil {
@@ -274,10 +278,25 @@ func (in *instance) loaded(ctx *ui.Context, l *loaded) tea.Cmd {
 	}
 	status := in.startStatus(ctx)
 	if in.target != "" {
-		return status
+		return tea.Batch(cmd, status)
 	}
 	rememberDay(ctx, in.date, in.q, true)
-	return tea.Batch(report(ctx, in.date, in.q), status)
+	return tea.Batch(cmd, report(ctx, in.date, in.q), status)
+}
+
+// problemChanged forgets what belonged to the problem shown so far (today's
+// problem rolled over at UTC midnight): its editor (r / s would send the new
+// problem's file while the old one is on screen), its finished result and
+// its Accepted card. A run or submit still under way keeps its own problem.
+func (in *instance) problemChanged() tea.Cmd {
+	if !in.judge.busy() {
+		in.judge = nil
+	}
+	in.accepted, in.pending, in.waitUntil = nil, kindNone, time.Time{}
+	if in.ed == nil {
+		return nil
+	}
+	return in.dropEditor()
 }
 
 func (in *instance) Resize(ctx *ui.Context, size ui.Size) {
