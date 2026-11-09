@@ -15,6 +15,7 @@ const (
 	SlotTabs          SlotID = "tabs"          // 컴팩트·위젯·초소형 상단 탭 (core)
 	SlotContext       SlotID = "context"       // 위젯 탭 아래 "#개발 · 노바 개발방 ▾" (core, 내용은 경로 제목)
 	SlotStatus        SlotID = "status"        // 하단 상태줄 (core)
+	SlotTool          SlotID = "tool"          // 지휘소 도구 표면: 피드 열 + 오른쪽 열 자리 (A8.3)
 )
 
 // Rect is a screen rectangle.
@@ -41,6 +42,14 @@ type Pane struct {
 type State struct {
 	ThreadOpen  bool // the active tab has an open thread (NavState.Tabs[Active].Thread != nil)
 	FeedSwapped bool // standard: NavState.Front == FrontFeed (feed surface shown in Main)
+	// ToolOpen: the tool surface is in front. Only the command layout changes:
+	// SlotTool replaces the feed and right columns (the chat column stays).
+	// Other modes show the tool in Main.
+	ToolOpen bool
+	// Zoomed: the active tool's wide view (tools.zoom). Command: SlotTool also
+	// covers the chat column (no Main). Standard: Main covers the sidebar.
+	// Compact, widget and tiny are unchanged (Main is already full width).
+	Zoomed bool
 }
 
 // Layout is the computed geometry.
@@ -94,7 +103,16 @@ func Compute(mode Mode, cols, rows int, st State) Layout {
 		x += rail
 		add(SlotSidebar, x, 0, side, b, true)
 		x += side
+		if st.Zoomed {
+			add(SlotTool, x, 0, chat+feed+right, b, true)
+			break
+		}
 		add(SlotMain, x, 0, chat, b, true)
+		if st.ToolOpen {
+			x += chat
+			add(SlotTool, x, 0, feed+right, b, true)
+			break
+		}
 		x += chat
 		add(SlotFeed, x, 0, feed, b, true)
 		x += feed
@@ -107,6 +125,9 @@ func Compute(mode Mode, cols, rows int, st State) Layout {
 		add(SlotNotifications, x, top, right, b-top, true)
 	case ModeStandard:
 		side := min(clamp(w*22/100, 24, 32), w)
+		if st.Zoomed {
+			side = 0
+		}
 		main := w - side
 		add(SlotSidebar, 0, 0, side, b, true)
 		top := max(10, b*60/100)

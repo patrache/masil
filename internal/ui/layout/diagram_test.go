@@ -22,6 +22,7 @@ var slotLetter = map[layout.SlotID]byte{
 	layout.SlotTabs:          'T',
 	layout.SlotContext:       'c',
 	layout.SlotStatus:        'S',
+	layout.SlotTool:          'o',
 }
 
 // diagram renders a layout as one letter per cell ('?' = uncovered, '!' = covered twice).
@@ -62,6 +63,27 @@ func TestDiagramGolden(t *testing.T) {
 	for _, sz := range sizes {
 		t.Run(fmt.Sprintf("%dx%d", sz.W, sz.H), func(t *testing.T) {
 			l := layout.Compute(layout.Auto(sz.W, sz.H, bp), sz.W, sz.H, layout.State{})
+			out := diagram(l)
+			if strings.ContainsAny(out[strings.Index(out, "\n"):], "?!") {
+				t.Fatalf("layout does not tile the screen:\n%s", out)
+			}
+			golden.RequireEqual(t, out)
+		})
+	}
+	// Tool surface geometry (P0 Task 17): open and zoomed.
+	for _, c := range []struct {
+		name string
+		w, h int
+		st   layout.State
+	}{
+		{"tool_open_200x60", 200, 60, layout.State{ToolOpen: true}},
+		{"tool_zoomed_200x60", 200, 60, layout.State{ToolOpen: true, Zoomed: true}},
+		{"tool_open_120x40", 120, 40, layout.State{ToolOpen: true}},
+		{"tool_zoomed_120x40", 120, 40, layout.State{ToolOpen: true, Zoomed: true}},
+		{"tool_zoomed_80x24", 80, 24, layout.State{ToolOpen: true, Zoomed: true}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			l := layout.Compute(layout.Auto(c.w, c.h, bp), c.w, c.h, c.st)
 			out := diagram(l)
 			if strings.ContainsAny(out[strings.Index(out, "\n"):], "?!") {
 				t.Fatalf("layout does not tile the screen:\n%s", out)
