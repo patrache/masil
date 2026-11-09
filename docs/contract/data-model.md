@@ -1,6 +1,6 @@
 # masil 데이터 모델 계약 (D1 · R2 · 보존 정책)
 
-> **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: 마이그레이션 번호 예약(2장), `messages.card_json`(3.12), `collab_docs`·`collab_versions`·`collab_comments`(3.13). P1(`leet_*`, `0006`)·P2(`workspace_*`, `0007`)는 자기 표 절을 더한다.
+> **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: 마이그레이션 번호 예약(2장), `messages.card_json`(3.12), `collab_docs`·`collab_versions`·`collab_comments`(3.13). P1(`leet_*`, `0006` — 3.14)·P2(`workspace_*`, `0007`)는 자기 표 절을 더한다.
 
 - 상태: 확정 계약 v1 (2026-11-05). 상위 출처: `docs/superpowers/specs/2026-11-05-masil-design.md`.
 - 짝 문서: `api.md`(REST), `events.md`(WebSocket), `server-architecture.md`(서버 코드 구조).
@@ -62,7 +62,7 @@
   - `0002_search.sql` — 4장의 FTS5 가상 테이블·트리거
   - `0003_focus_started_at.sql` — 3.9 `user_presence.focus_started_at` 열 추가(집중 시작 시각)
   - 이후 변경은 `0004_...` 부터 **추가만** 한다. 적용된 마이그레이션 파일은 고치지 않는다.
-  - **v0.1.3 번호 예약** (계획 색인 2장): `0004_cards.sql`(P0 — 3.12 `messages.card_json`), `0005_collab.sql`(P0 — 3.13 `collab_*`), `0006_leet.sql`(P1), `0007_workspace.sql`(P2). 그 뒤 번호가 필요하면 `0008` 부터 머지 순서대로, 먼저 이 목록과 색인을 고친다.
+  - **v0.1.3 번호 예약** (계획 색인 2장): `0004_cards.sql`(P0 — 3.12 `messages.card_json`), `0005_collab.sql`(P0 — 3.13 `collab_*`), `0006_leet.sql`(P1 — 3.14 `leet_*` + `user_settings.leet_share_with_friends`), `0007_workspace.sql`(P2). 그 뒤 번호가 필요하면 `0008` 부터 머지 순서대로, 먼저 이 목록과 색인을 고친다.
 - 로컬 적용: `npx wrangler d1 migrations apply DB --local`. 테스트는 `readD1Migrations()` + `applyD1Migrations()` 로 같은 파일을 적용(`server-architecture.md` 7장).
 - 원격 적용은 **오너 건별 승인 후**에만.
 - 전역 운영자 지정(최초 1회, 오너가 직접): `UPDATE users SET role = 'admin' WHERE handle = '<handle>';` — 운영자 승격 API는 두지 않는다.
@@ -645,6 +645,7 @@ CREATE INDEX idx_admin_actions_created ON admin_actions(id);
 | 신고·운영자 | reports, admin_actions, users.role / suspended_* |
 | 채팅 카드 (v0.1.3) | messages.card_json (3.12) |
 | 방 문서·버전·댓글 (v0.1.3) | collab_docs, collab_versions, collab_comments (3.13) + CollabHub DO SQLite |
+| LeetCode 오늘의 문제 (v0.1.3) | leet_daily, leet_space_settings, leet_daily_roots, leet_solves, user_settings.leet_share_with_friends (3.14) |
 
 ### 3.12 채팅 카드 — `0004_cards.sql` (v0.1.3)
 
@@ -702,6 +703,60 @@ CREATE INDEX idx_collab_comments_doc ON collab_comments(doc_id, created_at);
 - 문서 **내용**(편집 기록·최신 스냅숏·버전 스냅숏 본문·잠금/삭제 표시)은 D1 이 아니라 문서마다 `CollabHub` DO 의 SQLite 에 있다: `ops(seq INTEGER PRIMARY KEY, author TEXT, ts INTEGER, client_op_id TEXT UNIQUE, ops TEXT)`, `snapshot(id INTEGER PRIMARY KEY CHECK(id=1), seq, body)`, `versions(no INTEGER PRIMARY KEY, seq, body)`, `meta(k PRIMARY KEY, v)`. 접속자 커서·선택(presence)은 메모리에만. 형식은 `docs/contract/collab.md`.
 - 문서 삭제는 소프트(`deleted_at`). 방 삭제도 소프트(`spaces.deleted_at`, api.md 5.7)라 `ON DELETE CASCADE` 는 실행되지 않고 문서 행은 `deleted_at IS NULL` 로 남는다. 그래서 삭제된 방의 문서는 모든 문서 경로(REST·`/ws`)가 `spaces.deleted_at` 을 보고 `404` 로 숨기고(api.md 5.24), 열린 소켓은 방 삭제 batch 커밋 뒤 `kickFromSpaceDocs(…, "space_deleted")` 로 닫는다(collab.md 4.1). `ON DELETE CASCADE` 는 행을 실제로 지울 때(운영자 정리 등)만 작동한다. 기록 버전(자동·되돌리기)의 보관 정리(30일·문서당 200개, api.md 5.24)는 DO alarm 이 하고 D1 `collab_versions` 행도 함께 지운다.
 - R2 는 쓰지 않는다(JC2 — 문서 한도가 작아 DO SQLite 로 충분).
+
+### 3.14 LeetCode 오늘의 문제 — `0006_leet.sql` (v0.1.3, P1 · 설계서 A10.3)
+
+```sql
+CREATE TABLE leet_daily (
+  date              TEXT PRIMARY KEY,                       -- UTC YYYY-MM-DD
+  frontend_id       TEXT NOT NULL,                          -- ^[0-9]{1,6}$
+  slug              TEXT NOT NULL,                          -- ^[a-z0-9-]{1,100}$
+  title             TEXT NOT NULL,                          -- 1..200
+  difficulty        TEXT NOT NULL CHECK (difficulty IN ('Easy','Medium','Hard')),
+  tags_json         TEXT NOT NULL DEFAULT '[]',             -- JSON string array, <= 20 x 1..50
+  is_paid_only      INTEGER NOT NULL CHECK (is_paid_only IN (0,1)),
+  first_reporter_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  first_reported_at INTEGER NOT NULL,
+  mismatch_count    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE leet_space_settings (
+  space_id   TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+  enabled    INTEGER NOT NULL CHECK (enabled IN (0,1)),
+  channel_id TEXT REFERENCES channels(id),
+  enabled_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  enabled_at INTEGER,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE leet_daily_roots (
+  channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  date       TEXT NOT NULL,
+  message_id TEXT REFERENCES messages(id),                  -- NULL = a request claimed the day and is creating the root
+  claimed_at INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, date)
+);
+
+CREATE TABLE leet_solves (
+  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date               TEXT NOT NULL,                         -- the problem's UTC day
+  slug               TEXT NOT NULL,
+  lang               TEXT NOT NULL,
+  passed_at          INTEGER NOT NULL,                      -- server time of the first record (kept on re-PUT)
+  runtime_percentile REAL,
+  submission_id      TEXT,
+  PRIMARY KEY (user_id, date)
+);
+CREATE INDEX idx_leet_solves_date ON leet_solves(date);
+
+ALTER TABLE user_settings ADD COLUMN leet_share_with_friends INTEGER NOT NULL DEFAULT 1 CHECK (leet_share_with_friends IN (0,1));
+```
+
+- **문제 본문·HTML·코드 스니펫·예제는 어떤 표에도 없다.** 서버는 LeetCode 를 부르지 않는다(fetch·Cron 없음). 저장하는 것은 사실 정보(`leet_daily`)와 풀이 기록(`leet_solves`)뿐이고, 사용자가 고른 공유 코드만 풀이 카드의 `messages.card_json`(3.12, `data.code.text`)에 들어간다. LeetCode 가 사실 정보 저장도 문제 삼으면 `leet_daily` 하나만 비우면 된다.
+- `leet_daily` 는 처음 보고한 값을 지킨다. 같은 날 다른 값의 보고는 `mismatch_count` 만 올린다(운영자 `PUT /v1/admin/leet/daily/{date}` 만 덮어쓴다).
+- `leet_daily_roots` 는 채널·날짜마다 #daily 루트를 하나로 묶는 경합 장치다: `INSERT OR IGNORE`(`message_id` NULL)로 먼저 차지한 요청만 루트 카드를 만들고 `message_id` 를 채운다. 만들다 실패하면 그 NULL 행을 지운다. NULL 로 30초 넘게 남은 행은 다음 요청이 `claimed_at` 비교로 넘겨받는다(api.md 5.25).
+- `leet_solves.passed_at` 은 첫 기록의 서버 시각을 그대로 둔다. 연속 풀이는 `utcDate(passed_at) = date` 인 날만 채운다(유예 없음, 설계서 JA26).
+- 삭제(1.4 와의 관계): `leet_*` 는 메시지가 아니라 관계·기록 표라 **실제 삭제**한다 — `DELETE /v1/leet/solves/{date}` 는 `leet_solves` 행을 지우고 풀이 카드 메시지는 1.4 의 소프트 삭제를 따른다. 방이 지워져도(소프트) `leet_space_settings` 는 남지만 방이 살아 있는 동안만 읽힌다. 채널을 지우면(소프트) 그 방의 #daily 는 꺼진 것과 같이 취급되고 루트를 만들지 않는다.
 
 ## 4. 검색 — `0002_search.sql` (FTS5)
 

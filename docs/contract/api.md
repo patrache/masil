@@ -655,8 +655,8 @@ interface AdminAction {
 
 | type | v | 만드는 쪽 | data (줄기가 채움) |
 |---|---|---|---|
-| `leet.daily` | 1 | 서버만(P1) | P1 |
-| `leet.solve` | 1 | 서버만(P1) | P1 |
+| `leet.daily` | 1 | 서버만(P1) | `{ date: "YYYY-MM-DD", frontend_id: /^[0-9]{1,6}$/, slug: /^[a-z0-9-]{1,100}$/, title: 1..200, difficulty: "Easy"\|"Medium"\|"Hard", tags: string(1..50)[] (≤20), is_paid_only: boolean }` — 엄격(다른 키 거절, 본문·HTML 없음). `body` = `https://leetcode.com/problems/<slug>/` 한 줄. 수정 불가·리액션 가능·스레드 루트 (5.25) |
+| `leet.solve` | 1 | 서버만(P1) | `{ date, frontend_id, slug, lang: 1..32, runtime_percentile: number(0..100) \| null, code: { lang: 1..32, text: 1..4000 } \| null, spoiler: true }` — 엄격. `body` = 링크 한 줄(코드는 `data` 에만 — 0.1.2 클라이언트에는 안 보임). 그날 #daily 루트의 스레드 답글로만 (5.25) |
 | `arch.design` | 1 | 사용자(P3) | P3 |
 | `arch.sim` | 1 | 사용자(P3) | P3 |
 | `api.result` | 1 | 사용자(P4) | P4 |
