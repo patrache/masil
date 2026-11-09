@@ -104,6 +104,7 @@ func (h *Host) setLevelLocked(seat uint8, level wire.Level) error {
 		return nil
 	}
 	h.changeLevel(mb, level, "owner")
+	h.rekeyIfDue()
 	return nil
 }
 
@@ -113,6 +114,9 @@ func (h *Host) changeLevel(mb *member, level wire.Level, by string) {
 	mb.level = level
 	if level != wire.LevelKeyboard {
 		mb.kbUntil = time.Time{}
+	}
+	if from == wire.LevelKeyboard && level != wire.LevelKeyboard {
+		h.rekeyDue = true // keyboard taken back (spec B9)
 	}
 	h.record(audit.EvLevel, int(mb.seat), mb.user, map[string]any{"from": from.String(), "to": level.String(), "by": by})
 	if level == wire.LevelNone {
@@ -202,6 +206,9 @@ func (h *Host) demote(mb *member, reason string) {
 		return
 	}
 	mb.level, mb.kbUntil = wire.LevelEditor, time.Time{}
+	if reason != DemoteRekey {
+		h.rekeyDue = true // keyboard taken back (spec B9)
+	}
 	h.record(audit.EvKeyboardExpire, int(mb.seat), mb.user, map[string]any{"reason": reason})
 	h.emit(EventKeyboardEnded{Seat: mb.seat, Reason: reason})
 	h.sendLevels()

@@ -14,6 +14,14 @@ func HostBroadcast(h *Host, kind wire.Kind, pt []byte) error {
 	return err
 }
 
+// SetNeedsRekey replaces the broadcast-counter check (the counter cannot
+// reach RekeyAfter in a test); it returns the restore function.
+func SetNeedsRekey(f func(*wscrypto.Sealer) bool) func() {
+	old := needsRekey
+	needsRekey = f
+	return func() { needsRekey = old }
+}
+
 // GuestSessionKey is a copy of the guest's current K_s.
 func GuestSessionKey(g *Guest) wscrypto.SessionKey {
 	g.mu.Lock()

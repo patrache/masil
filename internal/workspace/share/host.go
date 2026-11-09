@@ -102,6 +102,7 @@ type Host struct {
 
 	lastOwner time.Time // last owner activity (OwnerActivity, owner actions)
 	paused    bool      // keyboard input paused for owner idleness
+	rekeyDue  bool      // keyboard taken back: a new K_s goes out
 
 	terms    map[uint8]*sharedTerm
 	tapMu    sync.Mutex   // terminal output buffers (sharedTerm.buf…)
@@ -861,6 +862,7 @@ func (h *Host) tickMore(now time.Time) {
 	h.tickLadder(now)
 	h.tickDocs(now)
 	h.tickTerms(now)
+	h.rekeyIfDue()
 }
 
 // Hooks later parts of the engine fill in.

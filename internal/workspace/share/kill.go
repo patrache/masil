@@ -42,7 +42,7 @@ func (h *Host) kickLocked(seat uint8) error {
 	h.reasm.Reset(seat)
 	h.memberRemoved(mb)
 	h.record(audit.EvKick, int(seat), mb.user, nil)
-	if err := h.rekeyLocked(); err != nil {
+	if err := h.rekeyLocked(true); err != nil {
 		return err
 	}
 	_ = h.sendPlain(wire.KindCtlKick, wire.SeatOwner, wire.SeatServer, wire.CtlKick{Seat: seat})
@@ -61,9 +61,9 @@ func (h *Host) kickLocked(seat uint8) error {
 }
 
 // rekeyLocked makes K_s epoch+1, sends it to every remaining member (O2P)
-// and switches the broadcast sealer right after those frames. Keyboard
-// holders drop to editor (spec B8.4).
-func (h *Host) rekeyLocked() error {
+// and switches the broadcast sealer right after those frames. With
+// demoteKeyboard (a removal) keyboard holders drop to editor (spec B8.4).
+func (h *Host) rekeyLocked(demoteKeyboard bool) error {
 	next, err := wscrypto.NewSessionKey(h.sess.Epoch + 1)
 	if err != nil {
 		return err
@@ -80,10 +80,31 @@ func (h *Host) rekeyLocked() error {
 	h.bseal = wscrypto.NewSealer(next.Key, wscrypto.DirBroadcast)
 	h.outMu.Unlock()
 	clear(old.Key[:])
-	for _, s := range h.seatsLocked() {
-		h.demote(h.members[s], DemoteRekey)
+	h.rekeyDue = false
+	if demoteKeyboard {
+		for _, s := range h.seatsLocked() {
+			h.demote(h.members[s], DemoteRekey)
+		}
 	}
 	return nil
+}
+
+// rekeyIfDue rekeys after the keyboard was taken back (spec B9) or when the
+// broadcast counter reached RekeyAfter, once the owner is connected (a
+// rekey sent while away would reach nobody; members away get the current
+// key in the resume grant). Keyboard holders keep the keyboard: the
+// participants stay the same.
+func (h *Host) rekeyIfDue() {
+	if h.over || h.killed.Load() || h.curConn() == nil {
+		return
+	}
+	h.outMu.Lock()
+	s := h.bseal
+	h.outMu.Unlock()
+	if !h.rekeyDue && (s == nil || !needsRekey(s)) {
+		return
+	}
+	_ = h.rekeyLocked(false)
 }
 
 // Kill is the kill switch. It does not wait for anything: participant input
