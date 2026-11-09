@@ -258,7 +258,7 @@ func TestUnmarshalMatchesBuilder(t *testing.T) {
 				items = append(items, -n)
 				b.delete(n)
 			default:
-				s := []string{"", "x", "한", "yz"}[r.Intn(4)]
+				s := []string{"", "x", "é", "yz"}[r.Intn(4)]
 				items = append(items, s)
 				b.insert(s)
 			}
