@@ -52,3 +52,7 @@
 - 내 판단: 문서 소켓 정리(`kickFromSpaceDocs`·`closeDocSessions`·`setDocRole`)는 모두 정리 batch 커밋 뒤 `rt.waitUntil` 로 돌린다(collab.md 4.1). 실패는 기록만.
 - 내 판단: `closeDocSessions` 는 그 사용자가 멤버인 방(삭제된 방 포함)의 삭제 안 된 문서마다 부른다 — 삭제된 방의 문서 소켓은 이미 닫혀 있어 해가 없다.
 - 내 판단: `revokeSessions` 의 대상 목록은 UserHub 에 넘기는 것과 같은 값(`"all"` 또는 실제로 폐기한 세션 id)을 문서 쪽에도 넘긴다.
+
+## 마무리 확인에서 드러난 것 — Go `TestEndpointLimitersMatchContractTable`
+
+- 내 판단: `go test ./...` 에서 `internal/api` 의 `TestEndpointLimitersMatchContractTable` 이 실패한다. api.md 6장의 새 `RL_DOC` 행 5개(POST spaces/*/docs, PATCH·DELETE docs/*, POST docs/*/versions, POST docs/*/versions/*/restore)를 시험하는 Go 엔드포인트 case 가 아직 없어서다. 계획은 행을 경로를 만드는 Task 와 같은 커밋에 더하라고 하고(서버 `contract-limiters` 시험이 그것을 강제), Go 쪽 문서 메서드와 harness case 는 P0 Task 30(`internal/api/ep_docs.go`, 다른 batch 몫)이 만든다. 이 batch 는 서버만 맡으므로 Go 파일은 고치지 않았다. Task 30 이 들어오면 풀린다. 그 전에 이 브랜치를 먼저 합치면 dev 에서 Go 시험이 잠시 깨지므로, 통합 순서(Task 30 과 함께 합치기)는 오너·통합 담당이 정한다. 다른 Go 패키지 38개는 통과.
