@@ -184,6 +184,7 @@ var areaLeetcode = area{
 		"card_daily_line": {
 			desc:   "#daily 루트 카드 한 줄(위젯·초소형). id = 문제 번호, difficulty = Easy/Medium/Hard, n = 풀이 수",
 			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}, {Name: "n", Type: "int"}},
+			max:    40,
 			text: map[Locale]Forms{
 				Ko: {Other: "🧩 {id} {difficulty} · 풀이 {n}"},
 				En: {Other: "🧩 {id} {difficulty} · {n} solves"},
@@ -391,6 +392,7 @@ var areaLeetcode = area{
 		"header_widget": {
 			desc:   "위젯 모드 문제 보기 머리 줄(짧게). id = 문제 번호, difficulty = Easy/Medium/Hard",
 			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}},
+			max:    24,
 			text: map[Locale]Forms{
 				Ko: {Other: "🧩 {id} {difficulty}"},
 				En: {Other: "🧩 {id} {difficulty}"},
@@ -398,6 +400,7 @@ var areaLeetcode = area{
 		},
 		"hints_wide": {
 			desc: "문제 보기(표준·지휘소·컴팩트) 맨 아래 키 안내. 키 이름 e r s o l c 는 번역하지 않음",
+			max:  64,
 			text: map[Locale]Forms{
 				Ko: {Other: "e 편집기 · r 실행 · s 제출 · o 브라우저 · l 언어 · c 카드"},
 				En: {Other: "e editor · r run · s submit · o browser · l language · c card"},
@@ -405,6 +408,7 @@ var areaLeetcode = area{
 		},
 		"hints_widget": {
 			desc: "위젯 모드 문제 보기 맨 아래 키 안내(하위 탭 문제/코드/결과 이동과 키)",
+			max:  56,
 			text: map[Locale]Forms{
 				Ko: {Other: "← → 문제/코드/결과 · e 편집 · r 실행 · s 제출"},
 				En: {Other: "← → problem/code/result · e edit · r run · s submit"},
@@ -421,6 +425,7 @@ var areaLeetcode = area{
 		"hub_status": {
 			desc:   "도구 허브 오늘의 문제 줄의 상태. id = 문제 번호, difficulty = Easy/Medium/Hard(번역하지 않음), solved = unsolved·solved 문구, streak = 연속 풀이 일수",
 			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}, {Name: "solved", Type: "string"}, {Name: "streak", Type: "int"}},
+			max:    40,
 			text: map[Locale]Forms{
 				Ko: {Other: "{id} · {difficulty} · {solved} · 🔥 {streak}일"},
 				En: {Other: "{id} · {difficulty} · {solved} · 🔥 {streak}d"},
@@ -429,6 +434,7 @@ var areaLeetcode = area{
 		"hub_status_short": {
 			desc:   "도구 허브 오늘의 문제 줄의 상태: 문제는 알지만 연속 풀이를 아직 모를 때(서버에 묻기 전). id = 문제 번호, difficulty = Easy/Medium/Hard",
 			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}},
+			max:    40,
 			text: map[Locale]Forms{
 				Ko: {Other: "{id} · {difficulty}"},
 				En: {Other: "{id} · {difficulty}"},
@@ -925,6 +931,7 @@ var areaLeetcode = area{
 		},
 		"tiny_actions": {
 			desc: "초소형 모드 키 안내: 실행·제출·카드",
+			max:  30,
 			text: map[Locale]Forms{
 				Ko: {Other: "r 실행 · s 제출 · c 카드"},
 				En: {Other: "r run · s submit · c card"},
@@ -932,6 +939,7 @@ var areaLeetcode = area{
 		},
 		"tiny_edit": {
 			desc: "초소형 모드 키 안내: E 로 화면 전환 편집기(전체 화면)",
+			max:  30,
 			text: map[Locale]Forms{
 				Ko: {Other: "E 편집(전체 화면)"},
 				En: {Other: "E edit (full screen)"},
@@ -939,6 +947,7 @@ var areaLeetcode = area{
 		},
 		"tiny_read": {
 			desc: "초소형 모드 키 안내: enter 로 문제 본문 읽기",
+			max:  30,
 			text: map[Locale]Forms{
 				Ko: {Other: "enter 문제 읽기"},
 				En: {Other: "enter read problem"},
@@ -947,6 +956,7 @@ var areaLeetcode = area{
 		"tiny_status": {
 			desc:   "초소형 모드 문제 줄. id = 문제 번호, difficulty = Easy/Medium/Hard, solved = unsolved·solved 문구, streak = 연속 풀이 일수",
 			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}, {Name: "solved", Type: "string"}, {Name: "streak", Type: "int"}},
+			max:    40,
 			text: map[Locale]Forms{
 				Ko: {Other: "🧩 {id} {difficulty} · {solved} · 🔥{streak}"},
 				En: {Other: "🧩 {id} {difficulty} · {solved} · 🔥{streak}"},
