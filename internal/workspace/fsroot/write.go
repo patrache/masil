@@ -72,11 +72,14 @@ func (r *Root) diskState(real string) (Fingerprint, fs.FileMode, error) {
 	if fi.IsDir() {
 		return Fingerprint{}, 0, errIsDir
 	}
-	data, err := r.root.ReadFile(osPath(real))
+	fp, fi, err := r.fingerprintOf(real, fi)
+	if errors.Is(err, errNotRegular) {
+		return Fingerprint{}, 0, ErrNotText
+	}
 	if err != nil {
 		return Fingerprint{}, 0, err
 	}
-	return Fingerprint{Size: int64(len(data)), ModTime: fi.ModTime(), Sum: sha256.Sum256(data)}, fi.Mode(), nil
+	return fp, fi.Mode(), nil
 }
 
 func encodeText(text string, eol EOL, hasBOM bool) []byte {

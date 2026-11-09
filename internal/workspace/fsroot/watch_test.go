@@ -1,6 +1,8 @@
 package fsroot
 
 import (
+	"crypto/sha256"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -65,5 +67,46 @@ func TestWatcherReportsRealChangesOnly(t *testing.T) {
 	_ = os.WriteFile(p, []byte("four\n"), 0o644)
 	if got := w.Poll(); got != nil {
 		t.Errorf("untracked file reported: %v", got)
+	}
+}
+
+// A tracked file that grows past MaxView is reported as changed without
+// being read whole, and WriteText refuses it as changed on disk.
+func TestWatcherLargeGrowthNotRead(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.log", "start\n")
+	r := openRoot(t, dir)
+	_, info, err := r.ReadText("app.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := NewWatcher(r)
+	w.Track("app.log", info.FP)
+	big := make([]byte, MaxView+1)
+	for i := range big {
+		big[i] = 'a'
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app.log"), big, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Poll(); len(got) != 1 || got[0].Rel != "app.log" || got[0].Deleted {
+		t.Errorf("Poll after growth = %v", got)
+	}
+	if _, err := r.WriteText("app.log", "x", info); !errors.Is(err, ErrChangedOnDisk) {
+		t.Errorf("WriteText over a grown file err = %v, want ErrChangedOnDisk", err)
+	}
+	w.mu.Lock()
+	fp := w.files["app.log"]
+	w.mu.Unlock()
+	if fp.Sum == sha256.Sum256(big) {
+		t.Errorf("Poll hashed the whole file above MaxView")
+	}
+	// Grows again with the same size but a new mtime: still a change.
+	later := time.Now().Add(3 * time.Second)
+	if err := os.Chtimes(filepath.Join(dir, "app.log"), later, later); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.Poll(); len(got) != 1 {
+		t.Errorf("Poll after mtime change of a large file = %v", got)
 	}
 }

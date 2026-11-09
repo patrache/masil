@@ -3,7 +3,9 @@ package fsroot
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
+	"io"
 	"io/fs"
 	"time"
 	"unicode/utf8"
@@ -75,7 +77,68 @@ var (
 	ErrNotText       = errors.New("fsroot: not a text file")
 	ErrChangedOnDisk = errors.New("fsroot: changed on disk")
 	errIsDir         = errors.New("fsroot: is a folder")
+	errNotRegular    = errors.New("fsroot: not a regular file")
 )
+
+// readRegular reads real, refusing anything that is not a regular file
+// (a FIFO open would block, a device never ends) and reading at most
+// MaxView+1 bytes so a file growing during the read cannot get past the
+// limit. fi is the Stat of the opened file.
+func (r *Root) readRegular(real string) ([]byte, fs.FileInfo, error) {
+	pre, err := r.root.Stat(osPath(real))
+	if err != nil {
+		return nil, nil, err
+	}
+	if !pre.Mode().IsRegular() {
+		return nil, pre, errNotRegular
+	}
+	f, err := r.root.Open(osPath(real))
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fi, errNotRegular
+	}
+	data, err := io.ReadAll(io.LimitReader(f, MaxView+1))
+	if err != nil {
+		return nil, fi, err
+	}
+	return data, fi, nil
+}
+
+// fingerprintOf fingerprints a regular file. Above MaxView (by Stat or by
+// what the bounded read got) the content is not hashed: Sum is a marker
+// derived from size and mtime, so any size or mtime change is a content
+// change and memory use stays bounded by MaxView.
+func (r *Root) fingerprintOf(real string, fi fs.FileInfo) (Fingerprint, fs.FileInfo, error) {
+	if !fi.Mode().IsRegular() {
+		return Fingerprint{}, fi, errNotRegular
+	}
+	if fi.Size() > MaxView {
+		return largeFingerprint(fi), fi, nil
+	}
+	data, fi, err := r.readRegular(real)
+	if err != nil {
+		return Fingerprint{}, fi, err
+	}
+	if len(data) > MaxView {
+		return largeFingerprint(fi), fi, nil
+	}
+	return Fingerprint{Size: int64(len(data)), ModTime: fi.ModTime(), Sum: sha256.Sum256(data)}, fi, nil
+}
+
+func largeFingerprint(fi fs.FileInfo) Fingerprint {
+	var b [len("masil-large") + 16]byte
+	n := copy(b[:], "masil-large")
+	binary.BigEndian.PutUint64(b[n:], uint64(fi.Size()))
+	binary.BigEndian.PutUint64(b[n+8:], uint64(fi.ModTime().UnixNano()))
+	return Fingerprint{Size: fi.Size(), ModTime: fi.ModTime(), Sum: sha256.Sum256(b[:])}
+}
 
 // ReadText reads and classifies a file. Above MaxView it is not read
 // (KindTooLarge + ErrNotText); a NUL in the first 8 KiB or invalid UTF-8 is
@@ -95,11 +158,19 @@ func (r *Root) ReadText(rel string) (string, FileInfo, error) {
 	if fi.IsDir() {
 		return "", info, errIsDir
 	}
+	if !fi.Mode().IsRegular() {
+		info.Kind = KindBinary
+		return "", info, ErrNotText
+	}
 	if fi.Size() > MaxView {
 		info.Kind = KindTooLarge
 		return "", info, ErrNotText
 	}
-	data, err := r.root.ReadFile(osPath(real))
+	data, fi, err := r.readRegular(real)
+	if errors.Is(err, errNotRegular) {
+		info.Kind = KindBinary
+		return "", info, ErrNotText
+	}
 	if err != nil {
 		return "", info, err
 	}

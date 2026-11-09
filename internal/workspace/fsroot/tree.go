@@ -8,8 +8,9 @@ import (
 // MaxDirEntries caps one folder listing.
 const MaxDirEntries = 5000
 
-// Entry is one listed child. Denied covers deny-list names and links whose
-// real target is denied or outside the folder; Ignored covers ignore rules and
+// Entry is one listed child. Denied covers deny-list names, special files
+// (FIFO, device, socket) and links whose real target is denied, special or
+// outside the folder; Ignored covers ignore rules and
 // the rule files themselves (both kinds are hidden from peers).
 type Entry struct {
 	Name    string
@@ -68,6 +69,9 @@ func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err
 				}
 				if fi, serr := r.root.Stat(osPath(target)); serr == nil {
 					e.Dir, e.Size = fi.IsDir(), sizeOf(fi)
+					if special(fi) {
+						e.Denied = true
+					}
 				}
 				if target != child && target != realChild {
 					qRels, qDirs, qIdx = append(qRels, target), append(qDirs, e.Dir), append(qIdx, len(all))
@@ -75,6 +79,9 @@ func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err
 			}
 		} else if fi, ierr := de.Info(); ierr == nil {
 			e.Size = sizeOf(fi)
+			if special(fi) {
+				e.Denied = true
+			}
 		}
 		if isRuleFile(child) {
 			e.Ignored = true
@@ -116,6 +123,11 @@ func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err
 	}
 	return out, more, nil
 }
+
+// special reports FIFOs, devices and sockets: never opened (a FIFO open
+// blocks), so they are marked Denied (owner sees the lock, peers do not see
+// them).
+func special(fi fs.FileInfo) bool { return !fi.IsDir() && !fi.Mode().IsRegular() }
 
 func sizeOf(fi fs.FileInfo) int64 {
 	if fi.IsDir() {

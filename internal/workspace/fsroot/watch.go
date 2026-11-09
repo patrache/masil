@@ -1,7 +1,6 @@
 package fsroot
 
 import (
-	"crypto/sha256"
 	"errors"
 	"io/fs"
 	"sort"
@@ -17,6 +16,7 @@ type Change struct {
 // Watcher notices outside changes to tracked files by polling (the engine
 // calls Poll every 0.5 s). A size or mtime difference triggers a re-hash, and
 // only a different hash is reported, so rewriting the same bytes is quiet.
+// Files above MaxView are not read: any size or mtime change is a change.
 type Watcher struct {
 	r     *Root
 	mu    sync.Mutex
@@ -79,15 +79,20 @@ func (w *Watcher) current(rel string, old Fingerprint) (Fingerprint, bool) {
 	if errors.Is(err, fs.ErrNotExist) {
 		return Fingerprint{}, true
 	}
-	if err != nil || fi.IsDir() {
+	// A folder or a special file (FIFO, device, socket) is no longer an
+	// editable file: reported like a deletion, never opened.
+	if err != nil || fi.IsDir() || !fi.Mode().IsRegular() {
 		return Fingerprint{}, err == nil
 	}
 	if !old.IsZero() && fi.Size() == old.Size && fi.ModTime().Equal(old.ModTime) {
 		return old, true
 	}
-	data, err := w.r.root.ReadFile(osPath(real))
+	fp, _, err := w.r.fingerprintOf(real, fi)
+	if errors.Is(err, errNotRegular) {
+		return Fingerprint{}, true
+	}
 	if err != nil {
 		return Fingerprint{}, false
 	}
-	return Fingerprint{Size: int64(len(data)), ModTime: fi.ModTime(), Sum: sha256.Sum256(data)}, true
+	return fp, true
 }
