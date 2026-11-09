@@ -1534,6 +1534,26 @@ interface DocComment {
 - 버전 경로의 `{no}` 가 양의 정수가 아니면 없는 버전과 같이 `404`. 복원 응답의 `doc.head_seq` 는 그 `reset` 의 순번이다(D1 반영을 기다리지 않는다). 자동 버전의 `created_at` 은 서버(DO alarm)가 만든 시각이라 편집이 멈춘 때보다 늦을 수 있다.
 - 6장 표의 행은 이 경로들을 만드는 P0 Task 26·28·29 가 그 코드와 같은 커밋에서 더한다.
 
+### 5.25 LeetCode 오늘의 문제 (v0.1.3, P1 — v0.1.3 설계서 A10.3)
+
+서버는 LeetCode 를 **부르지 않는다**(fetch·Cron 없음). 각 클라이언트가 받은 오늘의 문제 사실 정보를 보고하고, 서버는 사실 정보(`leet_daily`)와 풀이 기록(`leet_solves`)만 둔다 — 문제 본문·HTML·코드 스니펫·예제는 어떤 표에도 없다(data-model.md 3.14). 하루 기준은 UTC 자정. #daily 루트(`leet.daily`)와 풀이 카드(`leet.solve`)는 서버만 만드는 카드(2장 카드 표)이며 기존 `message.created`·`message.updated`·`message.deleted`·`thread.updated` 로 퍼진다(새 이벤트·새 alert 없음). 카드 `body` 와 클라이언트가 그리는 링크는 언제나 `https://leetcode.com/problems/<slug>/` — `slug` 는 `^[a-z0-9-]{1,100}$`, `frontend_id` 는 `^[0-9]{1,6}$`, `date` 는 `YYYY-MM-DD`(실제 달력 날짜).
+
+```ts
+interface LeetSpaceSettings {
+  space_id: ID;
+  enabled: boolean;
+  channel_id: ID | null;             // the #daily channel (kept when turned off)
+  enabled_by: ID | null;
+  enabled_at: Timestamp | null;
+}
+```
+
+| 경로 | 요청 | 응답·부수효과 |
+|---|---|---|
+| `PUT /v1/spaces/{space_id}/leet` | `{ enabled: boolean, channel_id?: ID }` | `200 { settings: LeetSpaceSettings }`. owner·admin 만(비멤버 `404`, 멤버 `403 forbidden`). 켜기: `channel_id` 가 있으면 그 방의 살아 있는 **공개** 텍스트 채널(아니면 `404`), 없으면 전에 쓰던 채널(살아 있고 공개일 때) → 그 방의 공개 채널 `daily` → 없으면 5.9 와 같은 규칙으로 `daily` 를 만든다(`channel.created` + `channel_created` system 메시지, 이름 충돌 `409`·채널 수 `422` 도 같음). 같은 채널로 다시 켜면 `enabled_by`·`enabled_at` 은 그대로. 끄기: 채널은 지우지 않고 `channel_id` 를 기억한다 · `RL_SOCIAL` |
+
+- 이 절의 #daily 는 "그 방의 `leet_space_settings.enabled = 1` 이고 `channel_id` 채널이 살아 있음" 이다. 채널이 지워진 방은 꺼진 것과 같이 취급한다.
+
 ## 6. 엔드포인트 요약표
 
 | 메서드 | 경로 | 인증 | 추가 리미터 |
@@ -1582,6 +1602,7 @@ interface DocComment {
 | GET/POST | /v1/spaces/{space_id}/invites | ✓ | RL_SOCIAL(POST) |
 | POST | /v1/spaces/{space_id}/direct-invites | ✓ | RL_SOCIAL |
 | GET/POST | /v1/spaces/{space_id}/channels | ✓ | |
+| PUT | /v1/spaces/{space_id}/leet | ✓ | RL_SOCIAL |
 | GET/DELETE | /v1/invites/{code} | ✓ | |
 | POST | /v1/invites/{code}/accept | ✓ | |
 | POST | /v1/direct-invites/{id}/accept, /decline | ✓ | |
