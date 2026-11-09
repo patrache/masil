@@ -195,7 +195,7 @@ type guard struct {
 	target string // the request's own host (PrivateOK covers this one only)
 
 	mu      sync.Mutex
-	proxies map[string]bool // proxy host names in use (not the target)
+	proxies map[string]bool // proxy "host:port" in use (not the target)
 	block   *RedirectBlock
 }
 
@@ -255,9 +255,26 @@ func (g *guard) proxy(req *http.Request) (*url.URL, error) {
 		}
 	}
 	g.mu.Lock()
-	g.proxies[normHost(u.Hostname())] = true
+	g.proxies[proxyAddr(u)] = true
 	g.mu.Unlock()
 	return u, nil
+}
+
+// proxyAddr is the "host:port" net/http dials for the proxy u (the scheme's
+// default port when u has none).
+func proxyAddr(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		switch strings.ToLower(u.Scheme) {
+		case "https":
+			port = "443"
+		case "socks5", "socks5h":
+			port = "1080"
+		default:
+			port = "80"
+		}
+	}
+	return net.JoinHostPort(normHost(u.Hostname()), port)
 }
 
 // resolve looks host up with Sender.Resolver, else the system resolver.
@@ -277,7 +294,7 @@ func (g *guard) dial(ctx context.Context, network, addr string) (net.Conn, error
 		return nil, err
 	}
 	g.mu.Lock()
-	viaProxy := g.proxies[normHost(host)]
+	viaProxy := g.proxies[net.JoinHostPort(normHost(host), port)]
 	g.mu.Unlock()
 	check := g.checks(host) && !viaProxy
 	d := &net.Dialer{}

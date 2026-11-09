@@ -5,11 +5,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Non-canonical IPv4 literals (inet_aton forms) that a proxy or the OS
@@ -72,5 +75,47 @@ func TestRedirectHTTPSToHTTPStopsWithSecret(t *testing.T) {
 	resp, err = send(t, s, &Request{Method: "GET", URL: srv.URL + "/start"}, sc)
 	if err != nil || resp.Status != 200 || resp.RedirectBlocked != nil || plainHits.Load() != 1 {
 		t.Fatalf("no secret: %v %+v hits=%d", err, resp, plainHits.Load())
+	}
+}
+
+// The dial-time exemption for the proxy covers the exact proxy host:port
+// only, not another port on the proxy's host name.
+func TestViaProxyKeyedByHostPort(t *testing.T) {
+	proxy, _ := countServer(t, nil)
+	pu, _ := url.Parse(proxy.URL)
+	old := proxyFromEnv
+	proxyFromEnv = func(r *http.Request) (*url.URL, error) {
+		if r.URL.Hostname() == "a.example" {
+			return url.Parse("http://proxy.corp:" + pu.Port())
+		}
+		return nil, nil
+	}
+	t.Cleanup(func() { proxyFromEnv = old })
+	s := newSender(t)
+	s.Resolver = func(ctx context.Context, host string) ([]netip.Addr, error) {
+		switch host {
+		case "proxy.corp":
+			return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+		case "a.example":
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		}
+		return nil, errors.New("no such host")
+	}
+	g := newGuard(s, &Prepared{URL: "http://a.example/", Foreign: true, LastBy: "hana"})
+	req, _ := http.NewRequest("GET", "http://a.example/", nil)
+	if _, err := g.proxy(req); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	c, err := g.dial(ctx, "tcp", net.JoinHostPort("proxy.corp", pu.Port()))
+	if err != nil {
+		t.Fatalf("dial proxy: %v", err)
+	}
+	c.Close()
+	_, err = g.dial(ctx, "tcp", "proxy.corp:8080")
+	var pe *PrivateTargetError
+	if !errors.As(err, &pe) || pe.Host != "proxy.corp" {
+		t.Fatalf("dial proxy.corp:8080 err = %v, want PrivateTargetError", err)
 	}
 }
