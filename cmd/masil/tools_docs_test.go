@@ -26,4 +26,14 @@ func TestFormulaCaveatsMentionLazygit(t *testing.T) {
 	if !strings.Contains(caveats, "brew install lazygit") {
 		t.Errorf("masil.rb.tmpl: caveats do not mention brew install lazygit:\n%s", caveats)
 	}
+	// Both lines of the plan's form (P1 Task 17), whatever the caveats around
+	// them become (P5 Task 21 makes them English + Korean).
+	for _, line := range []string{
+		"To use the lazygit tool: brew install lazygit",
+		"lazygit 도구를 쓰려면: brew install lazygit",
+	} {
+		if !strings.Contains(caveats, line) {
+			t.Errorf("masil.rb.tmpl: caveats lack %q:\n%s", line, caveats)
+		}
+	}
 }
