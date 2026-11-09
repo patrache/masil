@@ -429,8 +429,15 @@ func (m *canvasModel) Resize(ctx *ui.Context, size ui.Size) {
 	m.layout()
 }
 
-// layout recomputes the regions and the viewport size.
+// layout recomputes the regions and the viewport size. With a node selected
+// the viewport keeps its middle (a mode switch keeps what I was looking at);
+// otherwise it keeps its top-left corner.
 func (m *canvasModel) layout() {
+	keep := m.placed && m.sel != "" && m.vp.W > 0 && m.vp.H > 0
+	var cx, cy int
+	if keep {
+		cx, cy = m.vp.ToWorld(m.vp.W/2, m.vp.H/2)
+	}
 	m.regs = computeRegions(m.layMode, m.size.W, m.size.H, m.drawer)
 	m.vp.W, m.vp.H = m.regs.Canvas.W, m.regs.Canvas.H
 	m.showComments()
@@ -439,6 +446,11 @@ func (m *canvasModel) layout() {
 		if m.layMode == layout.ModeWidget || m.regs.Canvas.W < listBelow {
 			m.vp.Zoom = archdraw.ZoomNormal
 		}
+	}
+	if keep && m.vp.W > 0 && m.vp.H > 0 {
+		nx, ny := m.vp.ToWorld(m.vp.W/2, m.vp.H/2)
+		m.vp.X += cx - nx
+		m.vp.Y += cy - ny
 	}
 }
 
