@@ -1,0 +1,156 @@
+package archsim
+
+import (
+	"math"
+	"testing"
+)
+
+func TestSplitMixKnownSequence(t *testing.T) {
+	r := newRNG(0)
+	if got := r.u64(); got != 0xe220a8397b1dcdaf {
+		t.Fatalf("first = %#x", got)
+	}
+	if got := r.u64(); got != 0x6e789e6aa1b965f4 {
+		t.Fatalf("second = %#x", got)
+	}
+	for i := 0; i < 1000; i++ {
+		if f := r.f64(); f < 0 || f >= 1 {
+			t.Fatalf("f64 = %v", f)
+		}
+	}
+	// split streams differ from each other and from the parent, and do not advance it.
+	p := newRNG(42)
+	a, b := p.split(1), p.split(2)
+	if a.u64() == b.u64() {
+		t.Fatal("split streams collide")
+	}
+	if q := newRNG(42); p.u64() != q.u64() {
+		t.Fatal("split advanced the parent")
+	}
+	if p.exp(0) != math.Inf(1) || newRNG(3).exp(-1) != math.Inf(1) {
+		t.Fatal("exp with rate <= 0 must be +Inf")
+	}
+}
+
+func ulpDiff(a, b float64) uint64 {
+	ia, ib := math.Float64bits(a), math.Float64bits(b)
+	if ia > ib {
+		return ia - ib
+	}
+	return ib - ia
+}
+
+func TestDetLogClose(t *testing.T) {
+	if detLog(1) != 0 {
+		t.Fatalf("detLog(1) = %v", detLog(1))
+	}
+	r := newRNG(1)
+	for i := 0; i < 10_000; i++ {
+		x := r.f64() * 1e6
+		if x == 0 {
+			continue
+		}
+		if d := ulpDiff(detLog(x), math.Log(x)); d > 2 {
+			t.Fatalf("detLog(%v) = %v, math.Log = %v (%d ulp)", x, detLog(x), math.Log(x), d)
+		}
+	}
+	for _, x := range []float64{1e-300, 0.5, 2, math.E, 1e300} {
+		if d := ulpDiff(detLog(x), math.Log(x)); d > 2 {
+			t.Fatalf("detLog(%v) %d ulp off", x, d)
+		}
+	}
+	// Subnormal input: amd64's assembly math.Log answers -709.08…; detLog is exact
+	// on every architecture.
+	if got := detLog(math.SmallestNonzeroFloat64); got != -744.4400719213812 {
+		t.Fatalf("detLog(min subnormal) = %v", got)
+	}
+	if !math.IsInf(detLog(0), -1) || !math.IsNaN(detLog(-1)) || !math.IsInf(detLog(math.Inf(1)), 1) {
+		t.Fatal("special cases")
+	}
+}
+
+func TestErlangCKnown(t *testing.T) {
+	if got := erlangC(1, 0.5); math.Abs(got-0.5) > 1e-12 {
+		t.Fatalf("erlangC(1, 0.5) = %v", got)
+	}
+	if got := erlangC(2, 1); math.Abs(got-1.0/3) > 1e-12 {
+		t.Fatalf("erlangC(2, 1) = %v", got)
+	}
+	if got := erlangC(500, 450); !(got > 0 && got < 1) {
+		t.Fatalf("erlangC(500, 450) = %v", got)
+	}
+	if got := erlangC(100_000, 99_000); !(got >= 0 && got < 1) || math.IsNaN(got) {
+		t.Fatalf("erlangC(100000, 99000) = %v", got)
+	}
+	// Degenerate: no servers or overload means everyone waits; no load means nobody does.
+	for _, tc := range []struct {
+		c    int
+		a    float64
+		want float64
+	}{{0, 1, 1}, {-3, 1, 1}, {2, 2, 1}, {2, 5, 1}, {3, 0, 0}, {3, -1, 0}} {
+		if got := erlangC(tc.c, tc.a); got != tc.want {
+			t.Fatalf("erlangC(%d, %v) = %v, want %v", tc.c, tc.a, got, tc.want)
+		}
+	}
+}
+
+func sampleMeanWait(st station, n int, seed uint64) float64 {
+	r := newRNG(seed)
+	sum := 0.0
+	for i := 0; i < n; i++ {
+		w, _ := st.sample(r)
+		sum += w
+	}
+	return sum / float64(n)
+}
+
+func TestMM1MeanWait(t *testing.T) {
+	st := station{c: 1, mu: 100, lambda: 80}
+	if math.Abs(st.rho()-0.8) > 1e-12 || math.Abs(st.meanWait()-0.04) > 1e-12 {
+		t.Fatalf("rho %v meanWait %v", st.rho(), st.meanWait())
+	}
+	if got := sampleMeanWait(st, 200_000, 1); math.Abs(got/0.04-1) > 0.01 {
+		t.Fatalf("sample mean %v vs 0.04", got)
+	}
+	// Service times have mean 1/μ.
+	r := newRNG(1)
+	sum := 0.0
+	for i := 0; i < 200_000; i++ {
+		_, s := st.sample(r)
+		sum += s
+	}
+	if mean := sum / 200_000; math.Abs(mean/0.01-1) > 0.01 {
+		t.Fatalf("service mean %v", mean)
+	}
+}
+
+func TestMMcMeanWait(t *testing.T) {
+	st := station{c: 4, mu: 100, lambda: 320}
+	want := st.meanWait()
+	if !(want > 0) {
+		t.Fatalf("meanWait = %v", want)
+	}
+	if got := sampleMeanWait(st, 200_000, 1); math.Abs(got/want-1) > 0.01 {
+		t.Fatalf("sample mean %v vs %v", got, want)
+	}
+}
+
+func TestStationDegenerate(t *testing.T) {
+	r := newRNG(9)
+	for _, st := range []station{{0, 100, 10}, {2, 0, 10}, {2, 100, 0}, {0, 0, 0}, {2, 100, 500}, {-1, -5, -3}} {
+		rho, mw := st.rho(), st.meanWait()
+		w, s := st.sample(r)
+		for _, v := range []float64{rho, mw, w, s} {
+			if math.IsNaN(v) || v < 0 {
+				t.Fatalf("%+v: rho %v wait %v sample %v %v", st, rho, mw, w, s)
+			}
+		}
+	}
+	// Every sample draws the same amount of randomness, so streams stay aligned.
+	a, b := newRNG(5), newRNG(5)
+	station{c: 1, mu: 100, lambda: 0}.sample(a)
+	station{c: 1, mu: 100, lambda: 99}.sample(b)
+	if a.u64() != b.u64() {
+		t.Fatal("sample consumed a varying number of draws")
+	}
+}
