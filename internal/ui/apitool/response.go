@@ -767,20 +767,15 @@ func (t *Tool) saveBody(ctx *ui.Context, key, path string, overwrite bool) tea.C
 	return cmd
 }
 
-// copyPrivate copies file src to path (0600, see createPrivate).
+// copyPrivate copies file src to path (0600, see fillPrivate).
 func copyPrivate(path, src string, overwrite bool) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	f, err := createPrivate(path, overwrite)
-	if err != nil {
+	return fillPrivate(path, overwrite, func(w io.Writer) error {
+		_, err := io.Copy(w, in)
 		return err
-	}
-	if _, err := io.Copy(f, in); err != nil {
-		f.Close()
-		return err
-	}
-	return f.Close()
+	})
 }

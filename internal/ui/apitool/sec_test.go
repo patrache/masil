@@ -1,6 +1,11 @@
 package apitool
 
 import (
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -65,4 +70,37 @@ func TestHostileEnvScreenSanitized(t *testing.T) {
 	s := &envScreen{t: tl}
 	s.Resize(h.Context(), ui.Size{W: 80, H: 20})
 	noControls(t, "the environments screen", s.View(h.Context(), true))
+}
+
+// Replacing a saved file (after the overwrite question) replaces the path
+// itself: a symlink there is not followed to the file it points at.
+func TestSaveOverwriteDoesNotFollowSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "rc")
+	if err := os.WriteFile(target, []byte("mine"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "body.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	if err := writePrivate(link, []byte("server"), false); !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("a new save onto a symlink = %v, want exists", err)
+	}
+	if err := writePrivate(link, []byte("server"), true); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(target); string(b) != "mine" {
+		t.Fatalf("the symlink's target was written: %q", b)
+	}
+	fi, err := os.Lstat(link)
+	if err != nil || fi.Mode()&fs.ModeSymlink != 0 || !fi.Mode().IsRegular() {
+		t.Fatalf("the saved path is not a plain file: %v %v", fi, err)
+	}
+	if b, _ := os.ReadFile(link); string(b) != "server" {
+		t.Fatalf("saved = %q", b)
+	}
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %v", fi.Mode().Perm())
+	}
 }
