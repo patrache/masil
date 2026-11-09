@@ -317,6 +317,3 @@ func ValuesForTest(s *Store) map[string]string {
 	maps.Copy(out, s.session)
 	return out
 }
-
-// defaultOS is this platform's OS store (nil = none).
-func defaultOS() OSBackend { return nil }
