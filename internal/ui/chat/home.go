@@ -25,7 +25,7 @@ func init() {
 type homeKind int
 
 const (
-	homeEntry  homeKind = iota // 받은 방 초대 N, 친구 요청 N, 피드 보기, 친구 목록
+	homeEntry  homeKind = iota // 받은 방 초대 N, 친구 요청 N, 피드 보기, 친구 목록, ＋ 방 만들기, 초대 코드로 방 참여
 	homeLabel                  // "─ DM", "─ 접속 중인 친구" (not selectable)
 	homeDM                     // a visible DM / group DM
 	homeFriend                 // an online or away friend
@@ -37,6 +37,8 @@ const (
 	homeRequestsID   = "requests"
 	homeFeedID       = "feed"
 	homeFriendsID    = "friends"
+	homeSpaceNewID   = "space.create"
+	homeSpaceJoinID  = "space.join"
 	homeDMPrefix     = "dm:"
 	homeFriendPrefix = "friend:"
 )
@@ -46,20 +48,24 @@ const (
 	homeTitle       = "홈"
 	homeDMLabel     = "─ DM"
 	homeOnlineLabel = "─ 접속 중인 친구"
-	homeEmptyTitle  = "아직 대화가 없어요"
+	homeSpaceNew    = "＋ 방 만들기"
+	homeSpaceJoin   = "초대 코드로 방 참여"
+	homeEmptyTitle  = "아직 대화가 없어요" // only without a Store: a bootstrapped home always has rows
 	textNotLoaded   = "불러오는 중…"
 	textOffline     = "서버에 연결할 수 없어요"
 	textReconnect   = "다시 연결 중"
-	homeEmptyHint   = "ctrl+k 로 친구를 찾거나 + 로 방을 만들어 보세요"
+	homeEmptyHint   = "ctrl+k 로 명령을 찾아 보세요"
 )
 
 // homeItem is one home row (rebuilt from the Store on every View; every row is
 // exactly one line). Label and Detail are sanitized display text; Route is what
-// enter / a second click opens (zero for labels).
+// enter / a second click opens, else Overlay, a registered overlay id (both zero
+// for labels).
 type homeItem struct {
 	ID, Label, Detail string
 	Badge             ui.Badge
 	Route             ui.Route
+	Overlay           string
 
 	kind     homeKind
 	ch       *api.Channel       // homeDM
@@ -75,7 +81,7 @@ type homeSaved struct {
 }
 
 // homeView is RouteHome: the entry points (received invites, friend requests,
-// feed, friends), the visible DMs and the online friends.
+// feed, friends, new space, join by code), the visible DMs and the online friends.
 type homeView struct {
 	list    *widgets.List[homeItem]
 	items   []homeItem // last sync
@@ -102,9 +108,11 @@ func newHome(ctx *ui.Context, _ ui.Route) ui.Component {
 }
 
 // homeItems builds the rows: (when any) 받은 방 초대 N and 친구 요청 N, then 피드
-// 보기, 친구 목록, "─ DM" + visibleDMs (a blocked peer's 1:1 DM leaves at once),
-// "─ 접속 중인 친구" + online / away friends (blocked users never). Empty (nil)
-// when there is nothing to talk about: no DM, friend, invite or request.
+// 보기, 친구 목록, ＋ 방 만들기 and 초대 코드로 방 참여 (the space.create /
+// space.join dialogs), "─ DM" + visibleDMs (a blocked peer's 1:1 DM leaves at
+// once), "─ 접속 중인 친구" + online / away friends (blocked users never). The
+// entry rows are there for a brand-new user too. nil without a Store, and before
+// the first bootstrap while there is nothing to talk about (notLoaded says so).
 func homeItems(ctx *ui.Context) []homeItem {
 	if ctx == nil || ctx.Store == nil {
 		return nil
@@ -121,7 +129,9 @@ func homeItems(ctx *ui.Context) []homeItem {
 	}
 	nInv, nReq := len(s.DirectInvites), len(s.FriendReqIn)
 	if len(dms) == 0 && !anyFriend && nInv == 0 && nReq == 0 {
-		return nil
+		if _, _, ok := notLoaded(ctx); ok {
+			return nil
+		}
 	}
 
 	var items []homeItem
@@ -136,6 +146,8 @@ func homeItems(ctx *ui.Context) []homeItem {
 	items = append(items,
 		homeItem{ID: homeFeedID, Label: "피드 보기", Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}},
 		homeItem{ID: homeFriendsID, Label: "친구 목록", Route: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsList}},
+		homeItem{ID: homeSpaceNewID, Label: homeSpaceNew, Overlay: overlaySpaceCreate},
+		homeItem{ID: homeSpaceJoinID, Label: homeSpaceJoin, Overlay: overlaySpaceJoin},
 	)
 	if len(dms) > 0 {
 		items = append(items, homeItem{ID: "label:dms", Label: homeDMLabel, kind: homeLabel})
@@ -467,10 +479,14 @@ func (v *homeView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 	return nil
 }
 
-// open navigates to a row's route.
+// open navigates to a row's route, or opens its registered dialog (the same one
+// the palette's space.create / space.join open).
 func (v *homeView) open(_ *ui.Context, it homeItem) tea.Cmd {
-	if it.Route.Kind == "" {
-		return nil
+	switch {
+	case it.Route.Kind != "":
+		return ui.Navigate(it.Route)
+	case it.Overlay != "":
+		return ui.OpenRegisteredOverlay(it.Overlay, "")
 	}
-	return ui.Navigate(it.Route)
+	return nil
 }

@@ -30,7 +30,7 @@ func TestHomeAndSidebarBeforeBootstrap(t *testing.T) {
 				seed := func(s *store.Store) { s.Sync.Err = c.err }
 				h := open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(seed))
 				s := h.Screen()
-				for _, bad := range []string{homeEmptyTitle, "로 방을 만들어", "방이 없어요"} {
+				for _, bad := range []string{homeEmptyTitle, "로 방을 만들어", "방이 없어요", "＋ 방 만들기"} {
 					if strings.Contains(s, bad) {
 						t.Fatalf("not bootstrapped yet, but the screen shows %q:\n%s", bad, s)
 					}
@@ -54,11 +54,12 @@ func TestHomeAndSidebarBeforeBootstrap(t *testing.T) {
 	}
 }
 
-// After a successful bootstrap with nothing in it the empty states show.
+// After a successful bootstrap with nothing in it the home offers its entry rows
+// (방 만들기 / 초대 코드로 방 참여 among them) and the sidebar its empty notice.
 func TestHomeEmptyAfterBootstrap(t *testing.T) {
 	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome},
 		uitest.WithSeed(func(s *store.Store) { s.Sync.Bootstrapped = true }))
-	mustContain(t, paneText(t, h, layout.SlotMain), homeEmptyTitle)
+	mustContainInOrder(t, paneText(t, h, layout.SlotMain), "피드 보기", "친구 목록", "＋ 방 만들기", "초대 코드로 방 참여")
 	side := strings.Join(strings.Fields(paneText(t, h, layout.SlotSidebar)), " ")
 	if !strings.Contains(side, "방이 없어요 · + 로 만들기") {
 		t.Fatalf("bootstrapped sidebar must offer +:\n%s", side)
