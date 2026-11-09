@@ -18,8 +18,9 @@ import (
 )
 
 // Realtime bridge (CA 5.3.4 step 5, CA 5.4 start order, idle, watch): the realtime
-// client runs on its own goroutine and reaches the UI only through m.send
-// (tea.Program.Send) as ui.EventMsg / ui.RealtimeStateMsg. Every Store access stays on
+// client runs on its own goroutine and reaches the UI only through the delivery
+// queue (deliver.go, then tea.Program.Send) as ui.EventMsg / ui.RealtimeStateMsg;
+// a full queue drops events and queues resyncNeededMsg instead. Every Store access stays on
 // the Update goroutine.
 
 // Bridge timings (CA 5.4, CA 5.3.2 timers).
@@ -82,7 +83,7 @@ func (m *Model) startRealtime() tea.Cmd {
 	}
 	m.rtGen++
 	run := &rtRun{}
-	send := m.send
+	q := m.queue() // the realtime goroutine only queues: it never waits for Update
 	c := realtime.New(realtime.Options{
 		API:      m.ctx.API,
 		DeviceID: devID,
@@ -90,12 +91,12 @@ func (m *Model) startRealtime() tea.Cmd {
 		Resume:   m.resume,
 		OnEvent: func(ev realtime.Event) {
 			if !run.stopped.Load() {
-				send(ui.EventMsg{Event: ev})
+				q.push(ui.EventMsg{Event: ev})
 			}
 		},
 		OnState: func(st realtime.State) {
 			if !run.stopped.Load() {
-				send(ui.RealtimeStateMsg{State: st})
+				q.push(ui.RealtimeStateMsg{State: st})
 			}
 		},
 		Logger: slog.Default(),

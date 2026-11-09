@@ -101,8 +101,9 @@ type Model struct {
 	upgradeRequired bool // 426 / close 4010 seen: status "✕ 업데이트 필요"
 
 	// Realtime bridge (Task 30, bridge.go).
-	send         func(tea.Msg) // tea.Program.Send (Run); nil = no realtime, hooks only set flags
-	rtDial       dialFunc      // tests: scripted socket (nil = coder/websocket)
+	send         func(tea.Msg)              // tea.Program.Send (Run); nil = no realtime, hooks only set flags
+	q            atomic.Pointer[eventQueue] // non-blocking delivery to send (deliver.go); nil until a sender exists
+	rtDial       dialFunc                   // tests: scripted socket (nil = coder/websocket)
 	rt           *realtime.Client
 	rtRun        *rtRun
 	rtCancel     context.CancelFunc
@@ -223,6 +224,7 @@ func New(o Options) *Model {
 		Loc:    loc,
 		T:      i18n.For(res.Effective),
 		Lang:   res.Effective,
+		Post:   appPoster{m},
 	}
 	m.ctx.Keys.Localize(m.ctx.T) // help descriptions in the shown language
 	m.ctx.Clipboard = o.Clipboard
@@ -376,6 +378,8 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmd, m.broadcast(msg))
 	case readyTimeoutMsg:
 		return m, m.onReadyTimeout(msg)
+	case resyncNeededMsg: // the bridge queue overflowed and dropped events
+		return m, m.startBootstrap()
 	case bootstrapDoneMsg:
 		return m, m.onBootstrapDone(msg)
 	case bootstrapRetryMsg:

@@ -40,6 +40,9 @@ type Context struct {
 	T *i18n.T
 	// Lang is the effective (shown) language; 0.1.3 = ko.
 	Lang i18n.Locale
+	// Post delivers msgs from goroutines to Update without blocking (never nil
+	// in the app; uitest records and Flushes them).
+	Post Poster
 }
 
 // Realtime is the UI-facing subset of realtime.Client.
