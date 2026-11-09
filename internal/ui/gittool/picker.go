@@ -48,6 +48,11 @@ type picker struct {
 	// Where the last View drew the path field (Cursor reads it).
 	lastInputRow int
 	lastLabel    string
+
+	// next opens the chosen repository once this picker has closed
+	// (CloseTool): the close is handled first, so the picker's place on a
+	// full tool surface is free (batched Cmds land in any order).
+	next tea.Cmd
 }
 
 var (
@@ -58,16 +63,27 @@ var (
 	_ ui.Cursorer      = (*picker)(nil)
 	_ ui.Titled        = (*picker)(nil)
 	_ ui.ToolStatuser  = (*picker)(nil)
+	_ ui.Closer        = (*picker)(nil)
 )
 
 // newPicker is the standalone picker instance (pickID): a chosen repository
-// opens its own instance and the picker closes.
+// opens its own instance and the picker closes — the close first, the open
+// from CloseTool, so a full tool surface has the picker's place for it.
 func newPicker(_ *ui.Context, r ui.Route) ui.Component {
 	query := r.Query
-	p := newPickerFor(r.ID, func(_ *ui.Context, repo string) tea.Cmd {
-		return tea.Batch(ui.CloseTool(r.ID), ui.OpenTool(toolID, instancePrefix+repo, query))
+	var p *picker
+	p = newPickerFor(r.ID, func(_ *ui.Context, repo string) tea.Cmd {
+		p.next = ui.OpenTool(toolID, instancePrefix+repo, query)
+		return ui.CloseTool(r.ID)
 	})
 	return p
+}
+
+// CloseTool hands over the open of the chosen repository (next), if any.
+func (p *picker) CloseTool(*ui.Context) tea.Cmd {
+	next := p.next
+	p.next = nil
+	return next
 }
 
 func newPickerFor(id string, onPick func(*ui.Context, string) tea.Cmd) *picker {

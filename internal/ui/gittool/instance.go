@@ -63,6 +63,7 @@ type instance struct {
 	view   *termpane.Pane // pane mode, while running
 	picker *picker
 	size   ui.Size
+	next   tea.Cmd // opens another repository once this instance has closed (CloseTool)
 }
 
 var (
@@ -143,14 +144,17 @@ func (in *instance) launch(ctx *ui.Context, req termhost.Request) tea.Cmd {
 }
 
 // pick shows the picker in place: choosing this repository again retries,
-// another one opens its own instance.
+// another one opens its own instance in this one's place — this instance
+// closes first and its CloseTool opens the other (batched Cmds land in any
+// order, and a full tool surface needs the place freed first).
 func (in *instance) pick(ctx *ui.Context) {
 	in.state, in.view = statePicking, nil
 	in.picker = newPickerFor(in.id, func(ctx *ui.Context, repo string) tea.Cmd {
 		if repo == in.repo {
 			return in.start(ctx)
 		}
-		return tea.Batch(ui.CloseTool(in.id), ui.OpenTool(toolID, instancePrefix+repo, in.query))
+		in.next = ui.OpenTool(toolID, instancePrefix+repo, in.query)
+		return ui.CloseTool(in.id)
 	})
 	if i := indexOf(loadState(ctx).Recent, in.repo); i >= 0 {
 		in.picker.sel = i
@@ -332,14 +336,16 @@ func modeName(ctx *ui.Context, m termhost.Mode) string {
 }
 
 // CloseTool ends a pane still running (a screen switch or popup ends with
-// lazygit itself).
+// lazygit itself) and opens the repository chosen in its place (next).
 func (in *instance) CloseTool(*ui.Context) tea.Cmd {
+	next := in.next
+	in.next = nil
 	if in.view != nil && in.state == stateRunning {
 		h := in.view.Handle()
 		in.view = nil
-		return func() tea.Msg { _ = h.Close(); return nil }
+		return tea.Batch(func() tea.Msg { _ = h.Close(); return nil }, next)
 	}
-	return nil
+	return next
 }
 
 func (in *instance) View(ctx *ui.Context, focused bool) string {
