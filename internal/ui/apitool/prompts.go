@@ -40,6 +40,7 @@ const (
 	dkExport     dialogKind = "export"
 	dkExportPath dialogKind = "export_path"
 	dkReport     dialogKind = "report"
+	dkSaveBody   dialogKind = "save_body"
 )
 
 // promptArgs are a registered question's arguments (JSON).
@@ -108,6 +109,10 @@ func (t *Tool) onDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 		}
 	case dkExport:
 		return t.exportChoice(ctx, m.Choice)
+	case dkSaveBody:
+		if path := strings.TrimSpace(m.Input); m.Choice == 0 && path != "" {
+			return t.saveBody(ctx, m.Data, path)
+		}
 	case dkExportPath:
 		if path := strings.TrimSpace(m.Input); m.Choice == 0 && path != "" {
 			return t.exportPostman(ctx, path)

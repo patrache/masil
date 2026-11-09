@@ -371,3 +371,86 @@ func RowText(t *i18n.T, r Row) string {
 	}
 	return b.String()
 }
+
+// nodeAt is the node shown on visible row row under folded (-1: none).
+func (t *Tree) nodeAt(folded []int32, row int) int32 {
+	isFolded := func(i int32) bool {
+		_, ok := slices.BinarySearch(folded, i)
+		return ok
+	}
+	r := 0
+	n := int32(len(t.nodes))
+	for i := t.first; i < n; {
+		nd := &t.nodes[i]
+		fold := nd.kind != 0 && isFolded(i)
+		if r < row && nd.kind != 0 && !fold && !foldedWithin(folded, i, nd.end) {
+			if size := int(nd.end - i); r+size <= row {
+				r += size
+				i = nd.end
+				continue
+			}
+		}
+		if r == row {
+			return i
+		}
+		r++
+		if fold {
+			i = nd.end
+		} else {
+			i++
+		}
+	}
+	return -1
+}
+
+// rowOf is the visible row of node i under folded (-1: inside a folded
+// container).
+func (t *Tree) rowOf(folded []int32, i int32) int {
+	r := int(i - t.first)
+	end := int32(-1)
+	for _, j := range folded {
+		if j >= i {
+			break
+		}
+		if j < end {
+			continue
+		}
+		if i < t.nodes[j].end {
+			return -1
+		}
+		r -= int(t.nodes[j].end - j - 1)
+		end = t.nodes[j].end
+	}
+	return r
+}
+
+// Find looks for q (any case) in the keys and values after (dir 1) or
+// before (dir -1) visible row from, wrapping around. A hit inside folded
+// containers unfolds them in f. It returns the hit's visible row.
+func (t *Tree) Find(f FoldState, q string, from, dir int) (int, bool) {
+	q = strings.ToLower(q)
+	n := int32(len(t.nodes))
+	count := n - t.first
+	if q == "" || count <= 0 {
+		return 0, false
+	}
+	start := t.nodeAt(t.folded(f), from)
+	if start < 0 {
+		start = t.first - 1
+		if dir < 0 {
+			start = n
+		}
+	}
+	for k := int32(1); k <= count; k++ {
+		i := t.first + ((start-t.first+int32(dir)*k)%count+count)%count
+		nd := &t.nodes[i]
+		if !strings.Contains(strings.ToLower(nd.key), q) && !strings.Contains(strings.ToLower(nd.text), q) {
+			continue
+		}
+		for p := nd.parent; p >= t.first; p = t.nodes[p].parent {
+			delete(f, t.path(p))
+		}
+		return t.rowOf(t.folded(f), i), true
+	}
+	return 0, false
+}

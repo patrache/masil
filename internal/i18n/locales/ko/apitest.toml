@@ -11,6 +11,10 @@ desc = "응답이 이미지·바이너리라 글자로 그리지 않을 때(type
 params = { type = "string", size = "string" }
 other = "바이너리 · {type} · {size} — 파일로 저장"
 
+[body_copied]
+desc = "응답 본문을 복사한 뒤 토스트"
+other = "본문을 복사했어요"
+
 [body_none]
 desc = "본문 종류: 본문 없음"
 max = 6
@@ -20,6 +24,17 @@ other = "없음"
 desc = "공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)"
 params = { name = "string" }
 other = "{name}님이 본문을 바꿨어요 · 내 내용 복구"
+
+[body_save_failed]
+desc = "응답 본문 저장 실패(err = 원인)"
+params = { err = "string" }
+other = "저장하지 못했어요 · {err}"
+
+[body_saved]
+desc = "응답 본문을 파일로 저장한 뒤 창(path = 경로, 줄여 쓰지 않음)"
+params = { path = "string" }
+no_truncate = true
+other = "{path} 에 저장했어요"
 
 [cancel]
 desc = "창의 선택지: 취소"
@@ -143,6 +158,16 @@ other = "내보내기"
 [file_changed]
 desc = "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄"
 other = "파일이 바뀌었어요 · 다시 읽기"
+
+[find_none]
+desc = "응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)"
+params = { q = "string" }
+other = "'{q}' 이(가) 없어요"
+
+[find_prompt]
+desc = "응답 본문 찾기 칸 앞 글자(/ 를 눌렀을 때)"
+max = 8
+other = "찾기 "
 
 [help_close]
 desc = "도움말 창 맨 아래: 닫는 키"
@@ -393,6 +418,15 @@ desc = "초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 
 params = { i = "int", n = "int", ok = "int", fail = "int" }
 max = 24
 other = "실행 {i}/{n} ✓{ok} ✕{fail}"
+
+[save_body_path]
+desc = "응답 본문 저장 창: 경로 칸 위 안내"
+other = "저장할 파일 경로 (이 PC 에만, 나만 읽기)"
+
+[save_body_title]
+desc = "응답 본문을 파일로 저장하는 창 제목"
+max = 30
+other = "본문 저장"
 
 [save_failed]
 desc = "개인 컬렉션 저장 실패(err = 원인)"

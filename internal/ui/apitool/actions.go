@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"os"
 	"regexp"
 	"slices"
 	"strconv"
@@ -142,7 +143,7 @@ func (t *Tool) send(ctx *ui.Context) tea.Cmd {
 	pk := privKey(sc.DocID, req.ID, fi.Seq)
 	privOK := t.privateOK[pk]
 	d := dyn(ctx)
-	sender, hist := t.sender, t.hist
+	sender, hist, spillDir := t.sender, t.hist, t.spillDir
 	t.rv.show(key)
 	_, cmd := t.startJob(ctx, jobSend, func(c context.Context) func(*ui.Context) tea.Cmd {
 		p, err := apitool.Prepare(req, colID, sc, d)
@@ -150,6 +151,9 @@ func (t *Tool) send(ctx *ui.Context) tea.Cmd {
 			return t.sendError(key, req, pk, err)
 		}
 		p.Foreign, p.LastBy, p.PrivateOK = fi.By != "", fi.By, privOK
+		if err := os.MkdirAll(spillDir, 0o700); err != nil {
+			slog.Warn("api: spill dir", "err", err)
+		}
 		resp, err := sender.Send(c, p)
 		if err != nil {
 			return t.sendError(key, req, pk, err)
@@ -278,6 +282,10 @@ func (t *Tool) allowHost(ctx *ui.Context, he *apitool.HostNotAllowedError) tea.C
 // secret-looking span offers a variable (C3.10 layer 2).
 func (t *Tool) onPaste(ctx *ui.Context, m tea.PasteMsg) tea.Cmd {
 	if mode := t.mode(ctx); mode == vmNone || mode == vmTiny {
+		return nil
+	}
+	if t.rv.find != nil {
+		t.rv.find.paste(m.Content)
 		return nil
 	}
 	e := t.ed

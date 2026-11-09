@@ -6,11 +6,20 @@ other = "Showing the first 10MB · Save to a file"
 [binary_body]
 other = "Binary · {type} · {size} — Save to a file"
 
+[body_copied]
+other = "Copied the body"
+
 [body_none]
 other = "none"
 
 [body_overwritten]
 other = "{name} changed the body · Restore mine"
+
+[body_save_failed]
+other = "Could not save · {err}"
+
+[body_saved]
+other = "Saved to {path}"
 
 [cancel]
 other = "Cancel"
@@ -89,6 +98,12 @@ other = "Export"
 
 [file_changed]
 other = "The file changed · Reload"
+
+[find_none]
+other = "No '{q}'"
+
+[find_prompt]
+other = "Find "
 
 [help_close]
 other = "esc close"
@@ -243,6 +258,12 @@ other = "Raw"
 
 [run_progress_short]
 other = "Run {i}/{n} ✓{ok} ✕{fail}"
+
+[save_body_path]
+other = "File to save to (this PC only, readable by me)"
+
+[save_body_title]
+other = "Save the body"
 
 [save_failed]
 other = "Could not save · {err}"

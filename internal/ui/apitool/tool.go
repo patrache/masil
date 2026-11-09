@@ -73,15 +73,16 @@ type Tool struct {
 	route ui.Route
 	size  ui.Size
 
-	local   *apitool.LocalStore
-	hist    *apitool.History
-	sender  *apitool.Sender
-	recent  []apitool.HistoryEntry
-	names   []string                       // personal collections, sorted
-	cols    map[string]*apitool.Collection // loaded personal collections
-	envs    []string
-	env     *apitool.Env
-	globals []apitool.Var
+	local    *apitool.LocalStore
+	hist     *apitool.History
+	sender   *apitool.Sender
+	spillDir string // big response bodies (created on the first send)
+	recent   []apitool.HistoryEntry
+	names    []string                       // personal collections, sorted
+	cols     map[string]*apitool.Collection // loaded personal collections
+	envs     []string
+	env      *apitool.Env
+	globals  []apitool.Var
 
 	colName string           // the collection of the edited request ("" = not saved yet)
 	req     *apitool.Request // the edited request (a copy), nil = none
@@ -156,7 +157,8 @@ func New(ctx *ui.Context, r ui.Route) ui.Component {
 		now = time.Now
 	}
 	t.hist = apitool.OpenHistory(filepath.Join(t.local.Dir, "history"), ho, now)
-	t.sender = apitool.NewSender(filepath.Join(ctx.Paths.Cache, "api"), slog.Default())
+	t.spillDir = filepath.Join(ctx.Paths.Cache, "api")
+	t.sender = apitool.NewSender(t.spillDir, slog.Default())
 	t.tree = newTreeView()
 	t.ed = newEditor()
 	t.rv = newRespView()
@@ -436,11 +438,11 @@ func (t *Tool) Help(ctx *ui.Context) []bkey.Binding {
 }
 
 // CapturesInput implements ui.InputCapturer: a field is being edited.
-func (t *Tool) CapturesInput() bool { return t.ed.capturing() }
+func (t *Tool) CapturesInput() bool { return t.ed.capturing() || t.rv.find != nil }
 
 // Completing implements ui.Completer: while a table cell is edited, tab moves
 // between its key and value instead of the shell's focus.
-func (t *Tool) Completing() bool { return t.ed.capturing() }
+func (t *Tool) Completing() bool { return t.ed.capturing() || t.rv.find != nil }
 
 // Cursor implements ui.Cursorer.
 func (t *Tool) Cursor() *tea.Cursor { return t.cursor }
@@ -453,6 +455,9 @@ func (t *Tool) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	}
 	if t.ed.capturing() {
 		return t.ed.handleKey(ctx, t, msg)
+	}
+	if t.rv.find != nil {
+		return t.rv.handleKey(ctx, t, msg)
 	}
 	k := msg.String()
 	switch k {

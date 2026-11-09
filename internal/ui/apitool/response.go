@@ -1,8 +1,16 @@
 package apitool
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"net/url"
 	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -73,19 +81,25 @@ type respView struct {
 	sel    int
 	h, w   int
 	cur    *tea.Cursor
+
+	th    *theme.Theme
+	find  *lineInput // the find field (/), nil when closed
+	query string     // the last search
+	hit   int        // text view: the piece of the last hit (-1 none)
+	hitAt int        // text view: the byte offset of the last hit
 }
 
 // respKeep is how many requests keep their last response in memory.
 const respKeep = 6
 
 func newRespView() *respView {
-	return &respView{states: map[string]*respState{}, folds: map[string]FoldState{}}
+	return &respView{states: map[string]*respState{}, folds: map[string]FoldState{}, hit: -1}
 }
 
 // show switches to the response of request key.
 func (v *respView) show(key string) {
 	if v.key != key {
-		v.top, v.sel = 0, 0
+		v.top, v.sel, v.hit = 0, 0, -1
 	}
 	v.key = key
 }
@@ -107,7 +121,7 @@ func (v *respView) set(key string, st *respState) {
 		delete(v.states, k)
 	}
 	if key == v.key {
-		v.top, v.sel = 0, 0
+		v.top, v.sel, v.hit = 0, 0, -1
 	}
 }
 
@@ -199,7 +213,7 @@ func statusStyle(th *theme.Theme, code int, s string) string {
 // view draws the response pane: the status line, the tab line and the tab.
 // withURL: the tabbed view's response tab (the URL line is drawn above).
 func (v *respView) view(ctx *ui.Context, t *Tool, w, h int, focused, _ bool) []string {
-	v.w, v.h, v.cur = w, h, nil
+	v.w, v.h, v.cur, v.th = w, h, nil, ctx.Theme
 	if h <= 0 {
 		return nil
 	}
@@ -212,6 +226,14 @@ func (v *respView) view(ctx *ui.Context, t *Tool, w, h int, focused, _ bool) []s
 		return textwidth.Fit([]string{dim(ctx.Theme, textwidth.Truncate(a.RespEmpty(), w, "…"))}, w, h)
 	case s.resp == nil:
 		return textwidth.Fit(textwidth.Wrap(textwidth.Sanitize(s.errText), w), w, h)
+	}
+	var findLine []string
+	if v.find != nil && h > 3 {
+		prompt := a.FindPrompt() + "/"
+		pw := textwidth.Width(prompt)
+		findLine = []string{prompt + v.find.view(max(w-pw, 1))}
+		v.cur = tea.NewCursor(pw+v.find.cursorX(max(w-pw, 1)), h-1)
+		h--
 	}
 	out := []string{statusText(ctx, s, w, w < narrowW)}
 	if h == 1 {
@@ -230,7 +252,7 @@ func (v *respView) view(ctx *ui.Context, t *Tool, w, h int, focused, _ bool) []s
 	default:
 		body = v.bodyLines(ctx, s, w, bodyH, focused)
 	}
-	return textwidth.Fit(append(out, body...), w, h)
+	return append(textwidth.Fit(append(out, body...), w, h), findLine...)
 }
 
 // tabLine is "[본문]  헤더 12  검사 4/4  원문".
@@ -319,9 +341,12 @@ func (v *respView) textLines(s *respState, body []byte, w, h int) []string {
 			end = s.pieces[i+1]
 		}
 		piece := strings.TrimRight(string(body[s.pieces[i]:end]), "\r\n")
-		for _, l := range textwidth.Wrap(textwidth.Sanitize(piece), w) {
+		for j, l := range textwidth.Wrap(textwidth.Sanitize(piece), w) {
 			if len(out) >= h {
 				break
+			}
+			if j == 0 && i == v.hit && s.resp != nil {
+				l = selected(v.th, textwidth.PadRight(l, w))
 			}
 			out = append(out, l)
 		}
@@ -423,9 +448,26 @@ func (v *respView) rawLines(ctx *ui.Context, s *respState, w, h int) []string {
 	return textwidth.Fit(out, w, h)
 }
 
-// handleKey is the response pane's keys (tabs, scrolling).
+// handleKey is the response pane's keys: 1–4 / t tabs, j/k move, ⏎ or
+// space fold (⏎ elsewhere sends), h/l fold / unfold, / find (n/N), o text
+// ↔ tree, y copy, w save to a file.
 func (v *respView) handleKey(ctx *ui.Context, t *Tool, msg tea.KeyPressMsg) (bool, tea.Cmd) {
-	switch k := msg.String(); k {
+	k := msg.String()
+	if v.find != nil {
+		switch k {
+		case "enter":
+			v.query = v.find.text()
+			v.find = nil
+			return true, v.runFind(ctx, 1)
+		case "esc":
+			v.find = nil
+		default:
+			v.find.key(msg)
+		}
+		return true, nil
+	}
+	s := v.current()
+	switch k {
 	case "1", "2", "3", "4":
 		v.tab = respTab(k[0] - '1')
 		v.top, v.sel = 0, 0
@@ -436,12 +478,138 @@ func (v *respView) handleKey(ctx *ui.Context, t *Tool, msg tea.KeyPressMsg) (boo
 		v.move(+1)
 	case "k", "up":
 		v.move(-1)
-	case "enter":
-		return true, t.send(ctx)
+	case "enter", "space":
+		if row, ok := v.selRow(); ok && row.Foldable {
+			v.setFold(row.Path, !row.Folded)
+			return true, nil
+		}
+		if k == "enter" {
+			return true, t.send(ctx)
+		}
+	case "h", "l":
+		if row, ok := v.selRow(); ok && row.Foldable {
+			v.setFold(row.Path, k == "h")
+		}
+	case "/":
+		if s != nil && s.resp != nil && v.tab == rtBody && !s.resp.Binary {
+			v.find = newLineInput("")
+		}
+	case "n", "N":
+		d := 1
+		if k == "N" {
+			d = -1
+		}
+		return true, v.runFind(ctx, d)
+	case "o":
+		v.raw = !v.raw
+		v.top, v.sel, v.hit = 0, 0, -1
+	case "y":
+		return true, v.copyBody(ctx)
+	case "w":
+		return true, t.openSaveBody(ctx)
 	default:
 		return false, nil
 	}
 	return true, nil
+}
+
+// treeShown reports whether the body tab shows s as the JSON tree.
+func (v *respView) treeShown(s *respState) bool {
+	return s != nil && s.resp != nil && s.tree != nil && !v.raw && v.tab == rtBody
+}
+
+// selRow is the selected tree row (ok false outside the tree view).
+func (v *respView) selRow() (Row, bool) {
+	s := v.current()
+	if !v.treeShown(s) {
+		return Row{}, false
+	}
+	rows := s.tree.Window(v.fold(), v.sel, 1, 0)
+	if len(rows) == 0 {
+		return Row{}, false
+	}
+	return rows[0], true
+}
+
+// setFold folds (or unfolds) the container at path for this request.
+func (v *respView) setFold(path string, on bool) {
+	f := v.fold()
+	if on {
+		f[path] = true
+	} else {
+		delete(f, path)
+	}
+}
+
+// runFind looks for the query from the selection (tree) or the top piece
+// (text) in direction dir.
+func (v *respView) runFind(ctx *ui.Context, dir int) tea.Cmd {
+	s := v.current()
+	if v.query == "" || s == nil || s.resp == nil || s.resp.Binary {
+		return nil
+	}
+	none := ui.Toast(ctx.T.Apitest.FindNone(textwidth.Sanitize(v.query)), ui.ToastInfo)
+	if v.treeShown(s) {
+		row, ok := s.tree.Find(v.fold(), v.query, v.sel, dir)
+		if !ok {
+			return none
+		}
+		v.sel = row
+		return nil
+	}
+	body := s.resp.Body
+	if s.pieces == nil {
+		s.pieces = textPieces(body)
+	}
+	q := bytes.ToLower([]byte(v.query))
+	low := bytes.ToLower(body)
+	at := -1
+	cur := v.hitAt
+	if v.hit < 0 {
+		cur = s.pieces[min(max(v.top, 0), len(s.pieces)-1)] - 1
+	}
+	if dir > 0 {
+		if i := bytes.Index(low[cur+1:], q); i >= 0 {
+			at = cur + 1 + i
+		} else {
+			at = bytes.Index(low, q)
+		}
+	} else {
+		if cur < 0 {
+			cur = len(low)
+		}
+		if i := bytes.LastIndex(low[:min(cur, len(low))], q); i >= 0 {
+			at = i
+		} else {
+			at = bytes.LastIndex(low, q)
+		}
+	}
+	if at < 0 {
+		return none
+	}
+	p, _ := slices.BinarySearch(s.pieces, at+1)
+	v.top, v.hit, v.hitAt = max(p-1, 0), max(p-1, 0), at
+	return nil
+}
+
+// copyBody copies the body: the pretty JSON in the tree view, else as
+// received (off the UI goroutine: indenting 10MB takes a while).
+func (v *respView) copyBody(ctx *ui.Context) tea.Cmd {
+	s := v.current()
+	if s == nil || s.resp == nil || s.resp.Binary {
+		return nil
+	}
+	body, pretty, ok := s.resp.Body, v.treeShown(s), ctx.T.Apitest.BodyCopied()
+	return func() tea.Msg {
+		text := string(body)
+		if pretty {
+			var b bytes.Buffer
+			if json.Indent(&b, body, "", "  ") == nil {
+				text = b.String()
+			}
+		}
+		return ui.Copy(ctx, text, ok)()
+	}
 }
 
 // move moves the selection (tree) or scrolls (text) by d.
@@ -492,4 +660,115 @@ func (t *Tool) applyResponse(key string, st *respState) {
 	if st.resp != nil {
 		t.results[key] = st.passed() == len(st.checks) && st.resp.RedirectBlocked == nil
 	}
+}
+
+// ---- save to a file ----
+
+// quotedFilename is a quoted Content-Disposition filename taken as is (a
+// backslash is a path separator to strip, not an escape).
+var quotedFilename = regexp.MustCompile(`(?i)(?:^|;)\s*filename\s*=\s*"([^"]*)"`)
+
+// saveName is the offered file name of a body: the Content-Disposition
+// filename, else the URL's last path segment, cut at both / and \ and
+// sanitized; "response.bin" when nothing usable is left.
+func saveName(r *apitool.Response, rawURL string) string {
+	name := ""
+	if cd := r.Header.Get("Content-Disposition"); cd != "" {
+		_, params, _ := mime.ParseMediaType(cd)
+		if m := quotedFilename.FindStringSubmatch(cd); m != nil && !strings.Contains(strings.ToLower(cd), "filename*") {
+			name = m[1]
+		} else if params != nil {
+			name = params["filename"]
+		}
+	}
+	if name == "" {
+		u := rawURL
+		if p, err := url.Parse(rawURL); err == nil && p.Host != "" {
+			u = p.Path
+		} else if i := strings.IndexAny(u, "?#"); i >= 0 {
+			u = u[:i]
+		}
+		name = u
+	}
+	if i := strings.LastIndexAny(name, `/\`); i >= 0 {
+		name = name[i+1:]
+	}
+	name = strings.TrimSpace(textwidth.Sanitize(name))
+	if name == "" || name == "." || name == ".." {
+		return "response.bin"
+	}
+	return name
+}
+
+// saveDir is where a body is saved by default: ~/Downloads, else home.
+func saveDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "."
+	}
+	if st, err := os.Stat(filepath.Join(home, "Downloads")); err == nil && st.IsDir() {
+		return filepath.Join(home, "Downloads")
+	}
+	return home
+}
+
+// openSaveBody asks where to save the shown body.
+func (t *Tool) openSaveBody(ctx *ui.Context) tea.Cmd {
+	s := t.rv.current()
+	if s == nil || s.resp == nil {
+		return nil
+	}
+	a := ctx.T.Apitest
+	def := filepath.Join(saveDir(), saveName(s.resp, s.url))
+	return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkSaveBody, data: t.respKey(), title: a.SaveBodyTitle(), prefW: 72,
+		body: []string{a.SaveBodyPath()}, input: newLineInput(def)})
+}
+
+// saveBody writes the body of request key to path (0600) in a job: a
+// spilled body copies the whole spill file.
+func (t *Tool) saveBody(ctx *ui.Context, key, path string) tea.Cmd {
+	s := t.rv.states[key]
+	if s == nil || s.resp == nil {
+		return nil
+	}
+	body, spill := s.resp.Body, s.resp.Spill
+	_, cmd := t.startJob(ctx, jobFile, func(context.Context) func(*ui.Context) tea.Cmd {
+		var err error
+		if spill != "" {
+			err = copyPrivate(path, spill)
+		} else {
+			err = writePrivate(path, body)
+		}
+		return func(ctx *ui.Context) tea.Cmd {
+			a := ctx.T.Apitest
+			msg := a.BodySaved(path)
+			if err != nil {
+				msg = a.BodySaveFailed(errText(err))
+			}
+			return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkReport, title: a.SaveBodyTitle(), prefW: 72, body: []string{msg, a.ReportClose()}})
+		}
+	})
+	return cmd
+}
+
+// copyPrivate copies file src to path (0600).
+func copyPrivate(path, src string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
+		return err
+	}
+	if _, err := io.Copy(f, in); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }

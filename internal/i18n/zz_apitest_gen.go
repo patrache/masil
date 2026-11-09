@@ -26,6 +26,13 @@ var areaApitest = area{
 				En: {Other: "Binary · {type} · {size} — Save to a file"},
 			},
 		},
+		"body_copied": {
+			desc: "응답 본문을 복사한 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "본문을 복사했어요"},
+				En: {Other: "Copied the body"},
+			},
+		},
 		"body_none": {
 			desc: "본문 종류: 본문 없음",
 			max:  6,
@@ -40,6 +47,23 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{name}님이 본문을 바꿨어요 · 내 내용 복구"},
 				En: {Other: "{name} changed the body · Restore mine"},
+			},
+		},
+		"body_save_failed": {
+			desc:   "응답 본문 저장 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "저장하지 못했어요 · {err}"},
+				En: {Other: "Could not save · {err}"},
+			},
+		},
+		"body_saved": {
+			desc:       "응답 본문을 파일로 저장한 뒤 창(path = 경로, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 에 저장했어요"},
+				En: {Other: "Saved to {path}"},
 			},
 		},
 		"cancel": {
@@ -241,6 +265,22 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "파일이 바뀌었어요 · 다시 읽기"},
 				En: {Other: "The file changed · Reload"},
+			},
+		},
+		"find_none": {
+			desc:   "응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)",
+			params: []Param{{Name: "q", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{q}' 이(가) 없어요"},
+				En: {Other: "No '{q}'"},
+			},
+		},
+		"find_prompt": {
+			desc: "응답 본문 찾기 칸 앞 글자(/ 를 눌렀을 때)",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "찾기 "},
+				En: {Other: "Find "},
 			},
 		},
 		"help_close": {
@@ -646,6 +686,21 @@ var areaApitest = area{
 				En: {Other: "Run {i}/{n} ✓{ok} ✕{fail}"},
 			},
 		},
+		"save_body_path": {
+			desc: "응답 본문 저장 창: 경로 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장할 파일 경로 (이 PC 에만, 나만 읽기)"},
+				En: {Other: "File to save to (this PC only, readable by me)"},
+			},
+		},
+		"save_body_title": {
+			desc: "응답 본문을 파일로 저장하는 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "본문 저장"},
+				En: {Other: "Save the body"},
+			},
+		},
 		"save_failed": {
 			desc:   "개인 컬렉션 저장 실패(err = 원인)",
 			params: []Param{{Name: "err", Type: "string"}},
@@ -940,6 +995,11 @@ func (a_ ApitestT) BinaryBody(typeArg string, size string) string {
 	return a_.t.render(&areaApitest, "binary_body", false, 0, "type", typeArg, "size", size)
 }
 
+// BodyCopied: 응답 본문을 복사한 뒤 토스트
+func (a_ ApitestT) BodyCopied() string {
+	return a_.t.render(&areaApitest, "body_copied", false, 0)
+}
+
 // BodyNone: 본문 종류: 본문 없음
 func (a_ ApitestT) BodyNone() string {
 	return a_.t.render(&areaApitest, "body_none", false, 0)
@@ -948,6 +1008,16 @@ func (a_ ApitestT) BodyNone() string {
 // BodyOverwritten: 공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)
 func (a_ ApitestT) BodyOverwritten(name string) string {
 	return a_.t.render(&areaApitest, "body_overwritten", false, 0, "name", name)
+}
+
+// BodySaveFailed: 응답 본문 저장 실패(err = 원인)
+func (a_ ApitestT) BodySaveFailed(err string) string {
+	return a_.t.render(&areaApitest, "body_save_failed", false, 0, "err", err)
+}
+
+// BodySaved: 응답 본문을 파일로 저장한 뒤 창(path = 경로, 줄여 쓰지 않음)
+func (a_ ApitestT) BodySaved(path string) string {
+	return a_.t.render(&areaApitest, "body_saved", false, 0, "path", path)
 }
 
 // Cancel: 창의 선택지: 취소
@@ -1078,6 +1148,16 @@ func (a_ ApitestT) ExportTitle() string {
 // FileChanged: 열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄
 func (a_ ApitestT) FileChanged() string {
 	return a_.t.render(&areaApitest, "file_changed", false, 0)
+}
+
+// FindNone: 응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)
+func (a_ ApitestT) FindNone(q string) string {
+	return a_.t.render(&areaApitest, "find_none", false, 0, "q", q)
+}
+
+// FindPrompt: 응답 본문 찾기 칸 앞 글자(/ 를 눌렀을 때)
+func (a_ ApitestT) FindPrompt() string {
+	return a_.t.render(&areaApitest, "find_prompt", false, 0)
 }
 
 // HelpClose: 도움말 창 맨 아래: 닫는 키
@@ -1333,6 +1413,16 @@ func (a_ ApitestT) RespRaw() string {
 // RunProgressShort: 초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)
 func (a_ ApitestT) RunProgressShort(i int, n int, ok int, fail int) string {
 	return a_.t.render(&areaApitest, "run_progress_short", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
+}
+
+// SaveBodyPath: 응답 본문 저장 창: 경로 칸 위 안내
+func (a_ ApitestT) SaveBodyPath() string {
+	return a_.t.render(&areaApitest, "save_body_path", false, 0)
+}
+
+// SaveBodyTitle: 응답 본문을 파일로 저장하는 창 제목
+func (a_ ApitestT) SaveBodyTitle() string {
+	return a_.t.render(&areaApitest, "save_body_title", false, 0)
 }
 
 // SaveFailed: 개인 컬렉션 저장 실패(err = 원인)
