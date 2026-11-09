@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // TestedVersion is the lazygit version masil was tested with (A11.1, JA29:
@@ -40,9 +41,14 @@ type Env struct {
 
 type execRunner struct{}
 
+// waitDelay bounds how long Output waits for the output pipes after ctx ends
+// (a child the program left behind can hold them open).
+const waitDelay = 500 * time.Millisecond
+
 func (execRunner) Output(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.WaitDelay = waitDelay
 	return cmd.Output()
 }
 

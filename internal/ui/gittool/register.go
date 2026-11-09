@@ -53,7 +53,7 @@ func init() {
 		Icon:        hubIcon,
 		Name:        func(t *i18n.T) string { return t.Lazygit.Name() },
 		Status:      hubStatus,
-		Available:   func(ctx *ui.Context) bool { return probeNow(ctx).err == nil },
+		Available:   available,
 		New:         newComponent,
 		Open:        open,
 		WideDefault: false,
@@ -72,9 +72,11 @@ func init() {
 // ---- environment (tests swap it: export_test.go) ----
 
 var (
-	envMu  sync.Mutex
-	envCur = lazygit.SystemEnv()
-	probe  probeResult
+	envMu    sync.Mutex
+	envCur   = lazygit.SystemEnv()
+	probe    probeResult
+	probing  bool // a lookup is running
+	probeGen int  // bumped when the environment changes: an older lookup's answer is dropped
 )
 
 func curEnv() lazygit.Env {
@@ -89,41 +91,67 @@ type probeResult struct {
 	at      time.Time
 	bin     string
 	version string // "" = unknown
+	asked   string // the binary "--version" last ran for (its answer is kept, even "")
 	err     error  // lazygit.ErrNotInstalled
 	done    bool
 }
 
-// probeNow finds lazygit and its version, reusing the last answer for
-// probeTTL (the hub draws often; "--version" runs only when the binary
-// changed).
-func probeNow(ctx *ui.Context) probeResult {
+// probedMsg says a lookup finished (the hub redraws with it).
+type probedMsg struct{}
+
+const probedKey = "gittool.probe" // Poster.Coalesce key
+
+// cachedProbe is the last lookup for the configured path (done false while
+// there is none yet). It never runs anything itself: when the answer is
+// missing or older than probeTTL it starts a lookup off the UI goroutine
+// (the hub's Status runs inside View), which posts probedMsg when done.
+func cachedProbe(ctx *ui.Context) probeResult {
 	cfg := toolConfig(ctx)
 	now := time.Now()
 	if ctx != nil && ctx.Now != nil {
 		now = ctx.Now()
 	}
-	envMu.Lock()
-	p := probe
-	env := envCur
-	envMu.Unlock()
-	if p.done && p.cfgPath == cfg.Path && now.Sub(p.at) < probeTTL && now.Sub(p.at) >= 0 {
-		return p
+	var post ui.Poster = ui.DiscardPoster{}
+	if ctx != nil && ctx.Post != nil {
+		post = ctx.Post
 	}
-	bin, err := lazygit.Locate(env, cfg.Path)
-	next := probeResult{cfgPath: cfg.Path, at: now, bin: bin, err: err, done: true}
+	envMu.Lock()
+	defer envMu.Unlock()
+	p := probe
+	if p.done && p.cfgPath != cfg.Path {
+		p = probeResult{} // another path: not known yet
+	}
+	fresh := p.done && now.Sub(p.at) < probeTTL && now.Sub(p.at) >= 0
+	if !fresh && !probing {
+		probing = true
+		go runProbe(envCur, cfg.Path, now, probe, probeGen, post)
+	}
+	return p
+}
+
+// runProbe finds lazygit and, for a binary not asked before, its version.
+func runProbe(env lazygit.Env, cfgPath string, now time.Time, last probeResult, gen int, post ui.Poster) {
+	bin, err := lazygit.Locate(env, cfgPath)
+	next := probeResult{cfgPath: cfgPath, at: now, bin: bin, err: err, done: true}
 	if err == nil {
-		if p.done && p.bin == bin && p.version != "" {
-			next.version = p.version
+		if last.done && last.asked == bin {
+			next.version, next.asked = last.version, bin
 		} else {
 			c, cancel := context.WithTimeout(context.Background(), versionTimeout)
 			next.version, _ = lazygit.Version(c, env, bin)
+			next.asked = bin
 			cancel()
 		}
 	}
 	envMu.Lock()
-	probe = next
+	stale := gen != probeGen
+	if !stale {
+		probe, probing = next, false
+	}
 	envMu.Unlock()
-	return next
+	if !stale {
+		post.Coalesce(probedKey, probedMsg{})
+	}
 }
 
 // toolConfig is [tools.lazygit] (defaults when there is no config).
@@ -176,10 +204,21 @@ func folderName(p string) string {
 	return textwidth.Sanitize(filepath.Base(filepath.Clean(p)))
 }
 
-// hubStatus is the hub row's status (A8.2).
+// available is ToolSpec.Available: false once a lookup found no lazygit
+// (until then open's own lookup decides).
+func available(ctx *ui.Context) bool {
+	p := cachedProbe(ctx)
+	return !p.done || p.err == nil
+}
+
+// hubStatus is the hub row's status (A8.2): the last lookup's answer, empty
+// until the first one is in.
 func hubStatus(ctx *ui.Context) string {
 	t := ctx.T
-	p := probeNow(ctx)
+	p := cachedProbe(ctx)
+	if !p.done {
+		return ""
+	}
 	if p.err != nil {
 		return t.Lazygit.HubMissing()
 	}

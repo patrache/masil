@@ -1,6 +1,9 @@
 package gittool
 
 import (
+	"runtime"
+	"time"
+
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/lazygit"
 	"github.com/patrache/masil/internal/termhost"
@@ -12,11 +15,13 @@ import (
 func SetEnvForTest(e lazygit.Env) (restore func()) {
 	envMu.Lock()
 	saved := envCur
-	envCur, probe = e, probeResult{}
+	envCur, probe, probing = e, probeResult{}, false
+	probeGen++
 	envMu.Unlock()
 	return func() {
 		envMu.Lock()
-		envCur, probe = saved, probeResult{}
+		envCur, probe, probing = saved, probeResult{}, false
+		probeGen++
 		envMu.Unlock()
 	}
 }
@@ -34,4 +39,26 @@ func SetTermEnvForTest(e termhost.Env) (restore func()) {
 		return out
 	}
 	return func() { termEnv = saved }
+}
+
+// WaitProbeForTest waits until the hub's lazygit lookup has finished (Fatal
+// after 2s); the next draw shows its answer.
+func WaitProbeForTest(t interface {
+	Helper()
+	Fatal(...any)
+}) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		envMu.Lock()
+		busy := probing
+		envMu.Unlock()
+		if !busy {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("gittool: the lazygit lookup did not finish")
+		}
+		runtime.Gosched()
+	}
 }

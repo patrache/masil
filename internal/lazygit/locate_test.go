@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeRunner answers Output by "name arg arg…" keys.
@@ -99,5 +101,23 @@ func TestInstallHintPerOS(t *testing.T) {
 	}
 	if TestedVersion != "0.66.3" {
 		t.Errorf("TestedVersion = %q", TestedVersion)
+	}
+}
+
+// The context bounds the real runner even when a child keeps its output
+// open (a wrapper script that leaves a process behind).
+func TestSystemRunTimeoutBoundsOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sh")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := SystemEnv().Run.Output(ctx, "", "sh", "-c", "sleep 5; true")
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("Output returned after %v, want about the timeout", d)
+	}
+	if err == nil {
+		t.Fatal("no error after the timeout")
 	}
 }

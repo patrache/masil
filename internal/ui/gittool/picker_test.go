@@ -81,9 +81,11 @@ func setRecent(t *testing.T, h *uitest.Harness, recent ...string) {
 	}
 }
 
-// hubRow is the hub's line for lazygit.
+// hubRow is the hub's line for lazygit, once its lookup (started by the
+// first draw, off the UI goroutine) is in.
 func hubRow(t *testing.T, h *uitest.Harness) string {
 	t.Helper()
+	settle(t, h)
 	for _, l := range strings.Split(h.Screen(), "\n") {
 		if strings.Contains(l, "4 🌿 lazygit") {
 			return l
@@ -91,6 +93,14 @@ func hubRow(t *testing.T, h *uitest.Harness) string {
 	}
 	t.Fatalf("no lazygit hub row:\n%s", h.Screen())
 	return ""
+}
+
+// settle draws once (the hub starts its lazygit lookup) and waits for the
+// lookup to finish.
+func settle(t *testing.T, h *uitest.Harness) {
+	t.Helper()
+	_ = h.Screen()
+	gittool.WaitProbeForTest(t)
 }
 
 func toolIDs(h *uitest.Harness) []string {
@@ -273,7 +283,9 @@ func TestGitGolden(t *testing.T) {
 		env, _ := fakeEnv(false, "darwin")
 		setup(t, env)
 		uitest.ForEachSize(t, leetSizes, func(t *testing.T, h *uitest.Harness) {
-			h.Press("ctrl+t", "4")
+			h.Press("ctrl+t")
+			settle(t, h) // the hub row behind the dialog shows the lookup's answer
+			h.Press("4")
 			h.Golden("git_install")
 		})
 	})
