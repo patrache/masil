@@ -107,6 +107,7 @@ type Tool struct {
 	pendingPuts    []pendingPut
 	pendingHost    *apitool.HostNotAllowedError
 	pendingPrivate string
+	pendingWrite   *pendingWrite // a save to an existing path, waiting for the overwrite answer
 
 	envCur int               // the environments screen's selected row
 	masks  map[string]string // secret rows "e:<name>" -> "••••1234"

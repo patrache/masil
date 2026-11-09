@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime"
 	"net/url"
 	"os"
@@ -693,23 +695,23 @@ func saveName(r *apitool.Response, rawURL string) string {
 	if i := strings.LastIndexAny(name, `/\`); i >= 0 {
 		name = name[i+1:]
 	}
-	name = strings.TrimSpace(textwidth.Sanitize(name))
-	if name == "" || name == "." || name == ".." {
+	// Never a dotfile (".bashrc", ".profile"): the leading dots go.
+	name = strings.TrimLeft(strings.TrimSpace(textwidth.Sanitize(name)), ".")
+	if strings.TrimSpace(name) == "" {
 		return "response.bin"
 	}
 	return name
 }
 
-// saveDir is where a body is saved by default: ~/Downloads, else home.
+// saveDir is where a body is saved by default: ~/Downloads, made on the
+// first save when missing (never the bare home folder, where a server-named
+// file could replace a dotfile).
 func saveDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "."
 	}
-	if st, err := os.Stat(filepath.Join(home, "Downloads")); err == nil && st.IsDir() {
-		return filepath.Join(home, "Downloads")
-	}
-	return home
+	return filepath.Join(home, "Downloads")
 }
 
 // openSaveBody asks where to save the shown body.
@@ -725,21 +727,28 @@ func (t *Tool) openSaveBody(ctx *ui.Context) tea.Cmd {
 }
 
 // saveBody writes the body of request key to path (0600) in a job: a
-// spilled body copies the whole spill file.
-func (t *Tool) saveBody(ctx *ui.Context, key, path string) tea.Cmd {
+// spilled body copies the whole spill file. An existing file is replaced
+// only after the overwrite question (overwrite = it was answered).
+func (t *Tool) saveBody(ctx *ui.Context, key, path string, overwrite bool) tea.Cmd {
 	s := t.rv.states[key]
 	if s == nil || s.resp == nil {
 		return nil
 	}
-	body, spill := s.resp.Body, s.resp.Spill
+	body, spill, dl := s.resp.Body, s.resp.Spill, saveDir()
 	_, cmd := t.startJob(ctx, jobFile, func(context.Context) func(*ui.Context) tea.Cmd {
 		var err error
-		if spill != "" {
-			err = copyPrivate(path, spill)
-		} else {
-			err = writePrivate(path, body)
+		if filepath.Clean(filepath.Dir(path)) == filepath.Clean(dl) {
+			err = os.MkdirAll(dl, 0o700) // the default folder may not exist yet
+		}
+		if err == nil && spill != "" {
+			err = copyPrivate(path, spill, overwrite)
+		} else if err == nil {
+			err = writePrivate(path, body, overwrite)
 		}
 		return func(ctx *ui.Context) tea.Cmd {
+			if errors.Is(err, fs.ErrExist) && !overwrite {
+				return t.askOverwrite(ctx, pendingWrite{kind: dkSaveBody, key: key, path: path})
+			}
 			a := ctx.T.Apitest
 			msg := a.BodySaved(path)
 			if err != nil {
@@ -751,19 +760,15 @@ func (t *Tool) saveBody(ctx *ui.Context, key, path string) tea.Cmd {
 	return cmd
 }
 
-// copyPrivate copies file src to path (0600).
-func copyPrivate(path, src string) error {
+// copyPrivate copies file src to path (0600, see createPrivate).
+func copyPrivate(path, src string, overwrite bool) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	f, err := createPrivate(path, overwrite)
 	if err != nil {
-		return err
-	}
-	if err := f.Chmod(0o600); err != nil {
-		f.Close()
 		return err
 	}
 	if _, err := io.Copy(f, in); err != nil {

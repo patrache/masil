@@ -250,6 +250,17 @@ other = "내보내기"
 desc = "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄"
 other = "파일이 바뀌었어요 · 다시 읽기"
 
+[file_exists_body]
+desc = "응답 본문·Postman 파일을 저장할 경로에 파일이 이미 있을 때 확인 창 본문(path = 경로, 줄여 쓰지 않음)"
+params = { path = "string" }
+no_truncate = true
+other = "{path} 파일이 이미 있어요. 덮어쓸까요?"
+
+[file_exists_title]
+desc = "저장할 경로에 파일이 이미 있을 때 확인 창 제목"
+max = 30
+other = "같은 이름의 파일이 있어요"
+
 [find_none]
 desc = "응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)"
 params = { q = "string" }

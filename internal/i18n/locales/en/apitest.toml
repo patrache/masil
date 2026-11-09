@@ -157,6 +157,12 @@ other = "Export"
 [file_changed]
 other = "The file changed · Reload"
 
+[file_exists_body]
+other = "{path} already exists. Overwrite it?"
+
+[file_exists_title]
+other = "The file exists"
+
 [find_none]
 other = "No '{q}'"
 

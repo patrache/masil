@@ -415,6 +415,23 @@ var areaApitest = area{
 				En: {Other: "The file changed · Reload"},
 			},
 		},
+		"file_exists_body": {
+			desc:       "응답 본문·Postman 파일을 저장할 경로에 파일이 이미 있을 때 확인 창 본문(path = 경로, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 파일이 이미 있어요. 덮어쓸까요?"},
+				En: {Other: "{path} already exists. Overwrite it?"},
+			},
+		},
+		"file_exists_title": {
+			desc: "저장할 경로에 파일이 이미 있을 때 확인 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "같은 이름의 파일이 있어요"},
+				En: {Other: "The file exists"},
+			},
+		},
 		"find_none": {
 			desc:   "응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)",
 			params: []Param{{Name: "q", Type: "string"}},
@@ -1575,6 +1592,16 @@ func (a_ ApitestT) ExportTitle() string {
 // FileChanged: 열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄
 func (a_ ApitestT) FileChanged() string {
 	return a_.t.render(&areaApitest, "file_changed", false, 0)
+}
+
+// FileExistsBody: 응답 본문·Postman 파일을 저장할 경로에 파일이 이미 있을 때 확인 창 본문(path = 경로, 줄여 쓰지 않음)
+func (a_ ApitestT) FileExistsBody(path string) string {
+	return a_.t.render(&areaApitest, "file_exists_body", false, 0, "path", path)
+}
+
+// FileExistsTitle: 저장할 경로에 파일이 이미 있을 때 확인 창 제목
+func (a_ ApitestT) FileExistsTitle() string {
+	return a_.t.render(&areaApitest, "file_exists_title", false, 0)
 }
 
 // FindNone: 응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)

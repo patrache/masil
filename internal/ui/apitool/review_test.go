@@ -204,3 +204,61 @@ func TestURLSecretBindsPastedHost(t *testing.T) {
 		t.Fatalf("env vars = %+v", env.Vars)
 	}
 }
+
+// A server-named dotfile is not offered as is.
+func TestSaveNameNoDotfile(t *testing.T) {
+	for cd, want := range map[string]string{
+		`attachment; filename=".bashrc"`:        "bashrc",
+		`attachment; filename="../.ssh/config"`: "config",
+		`attachment; filename="..."`:            "response.bin",
+	} {
+		r := jsonResponse(`{}`)
+		r.Header.Set("Content-Disposition", cd)
+		if got := saveName(r, "https://example.com/x"); got != want {
+			t.Errorf("saveName(%q) = %q, want %q", cd, got, want)
+		}
+	}
+}
+
+// Saving a body over an existing file asks first; without ~/Downloads the
+// default path is still ~/Downloads (made on save), never the bare home.
+func TestSaveBodyAsksBeforeOverwrite(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	h := openAPI(t)
+	tl := seedRequests(h, nil, &apitool.Request{ID: "x", Method: "GET", URL: "https://example.com/x"})
+	r := jsonResponse(`{"new":1}`)
+	r.Header.Set("Content-Disposition", `attachment; filename=".bashrc"`)
+	showOn(h, tl, r)
+
+	h.Press("w", "enter") // the default path
+	def := filepath.Join(home, "Downloads", "bashrc")
+	waitWhole(t, h, ko.BodySaved(def))
+	assertFile(t, def, `{"new":1}`)
+	if _, err := os.Stat(filepath.Join(home, ".bashrc")); err == nil {
+		t.Fatalf("a dotfile was written in home")
+	}
+	h.Press("esc")
+
+	old := filepath.Join(t.TempDir(), "keep.txt")
+	if err := os.WriteFile(old, []byte("OLD"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h.Press("w", "ctrl+u")
+	h.Type(old)
+	h.Press("enter")
+	waitWhole(t, h, ko.FileExistsBody(old))
+	h.Press("down", "enter") // cancel
+	h.Advance(time.Second)
+	if b, _ := os.ReadFile(old); string(b) != "OLD" {
+		t.Fatalf("canceled overwrite changed the file: %q", b)
+	}
+	h.Press("w", "ctrl+u")
+	h.Type(old)
+	h.Press("enter")
+	waitWhole(t, h, ko.FileExistsBody(old))
+	h.Press("enter") // overwrite
+	waitWhole(t, h, ko.BodySaved(old))
+	assertFile(t, old, `{"new":1}`)
+}

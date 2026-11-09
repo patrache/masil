@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -41,7 +42,15 @@ const (
 	dkExportPath dialogKind = "export_path"
 	dkReport     dialogKind = "report"
 	dkSaveBody   dialogKind = "save_body"
+	dkFileExists dialogKind = "file_exists"
 )
+
+// pendingWrite is a save to a path that exists, waiting for the overwrite
+// answer: kind is the save (dkSaveBody or dkExportPath), key the response.
+type pendingWrite struct {
+	kind      dialogKind
+	key, path string
+}
 
 // promptArgs are a registered question's arguments (JSON).
 type promptArgs struct {
@@ -115,12 +124,22 @@ func (t *Tool) onDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 		return t.exportChoice(ctx, m.Choice)
 	case dkSaveBody:
 		if path := strings.TrimSpace(m.Input); m.Choice == 0 && path != "" {
-			return t.saveBody(ctx, m.Data, path)
+			return t.saveBody(ctx, m.Data, path, false)
 		}
 	case dkExportPath:
 		if path := strings.TrimSpace(m.Input); m.Choice == 0 && path != "" {
-			return t.exportPostman(ctx, path)
+			return t.exportPostman(ctx, path, false)
 		}
+	case dkFileExists:
+		p := t.pendingWrite
+		t.pendingWrite = nil
+		if p == nil || m.Choice != 0 {
+			return nil
+		}
+		if p.kind == dkExportPath {
+			return t.exportPostman(ctx, p.path, true)
+		}
+		return t.saveBody(ctx, p.key, p.path, true)
 	}
 	return nil
 }
@@ -421,8 +440,9 @@ func safeFileName(s string) string {
 	return s
 }
 
-// exportPostman writes the collection as a Postman v2.1 file (0600) in a job.
-func (t *Tool) exportPostman(ctx *ui.Context, path string) tea.Cmd {
+// exportPostman writes the collection as a Postman v2.1 file (0600) in a
+// job; an existing file is replaced only after the overwrite question.
+func (t *Tool) exportPostman(ctx *ui.Context, path string, overwrite bool) tea.Cmd {
 	c := t.collection(t.colName)
 	if c == nil {
 		return nil
@@ -432,8 +452,11 @@ func (t *Tool) exportPostman(ctx *ui.Context, path string) tea.Cmd {
 		return ui.Toast(ctx.T.Apitest.ExportFailed(errText(err)), ui.ToastError)
 	}
 	_, cmd := t.startJob(ctx, jobFile, func(context.Context) func(*ui.Context) tea.Cmd {
-		err := writePrivate(path, data)
+		err := writePrivate(path, data, overwrite)
 		return func(ctx *ui.Context) tea.Cmd {
+			if errors.Is(err, fs.ErrExist) && !overwrite {
+				return t.askOverwrite(ctx, pendingWrite{kind: dkExportPath, path: path})
+			}
 			a := ctx.T.Apitest
 			msg := a.ExportSaved(path)
 			if err != nil {
@@ -445,15 +468,37 @@ func (t *Tool) exportPostman(ctx *ui.Context, path string) tea.Cmd {
 	return cmd
 }
 
-// writePrivate writes data to path readable by me only (an existing file is
-// replaced and made 0600).
-func writePrivate(path string, data []byte) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+// askOverwrite asks before a save replaces an existing file.
+func (t *Tool) askOverwrite(ctx *ui.Context, p pendingWrite) tea.Cmd {
+	a := ctx.T.Apitest
+	t.pendingWrite = &p
+	return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkFileExists, title: a.FileExistsTitle(), prefW: 72,
+		body: []string{a.FileExistsBody(p.path)}, choices: []string{a.OverwriteYes(), a.Cancel()}})
+}
+
+// createPrivate opens path for writing, readable by me only: a new file, or
+// (overwrite) an existing one emptied. Without overwrite an existing path
+// fails with fs.ErrExist (the screen asks first).
+func createPrivate(path string, overwrite bool) (*os.File, error) {
+	flag := os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	if overwrite {
+		flag = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	f, err := os.OpenFile(path, flag, 0o600)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := f.Chmod(0o600); err != nil {
 		f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
+// writePrivate writes data to path readable by me only (see createPrivate).
+func writePrivate(path string, data []byte, overwrite bool) error {
+	f, err := createPrivate(path, overwrite)
+	if err != nil {
 		return err
 	}
 	if _, err := f.Write(data); err != nil {
