@@ -144,13 +144,15 @@ export async function createDoc(rt: Runtime, spaceId: string, userId: string, in
 }
 
 /**
- * PATCH /v1/docs/{doc_id}: title by any member; locked by creator / owner / admin (else 403 forbidden). A change
+ * PATCH /v1/docs/{doc_id}: title by any member (creator / owner / admin while locked); locked by creator / owner / admin (else 403 forbidden). A change
  * publishes doc.updated{deleted:false} to the space and, for `locked`, tells the CollabHub.
  */
 export async function patchDoc(rt: Runtime, docId: string, userId: string, input: { title?: string; locked?: boolean }): Promise<Doc> {
   const db = rt.env.DB;
   const { row, role } = await loadDocFor(db, docId, userId);
   if (input.locked !== undefined && !canManageDoc(role)) throw err.forbidden("forbidden", "only the creator or a space owner / admin can lock");
+  // a locked doc is edited (title included) only by its creator / owner / admin (api.md 5.24)
+  if (input.title !== undefined && row.locked === 1 && !canManageDoc(role)) throw err.forbidden("forbidden", "document is locked");
   const next: CollabDocRow = { ...row };
   if (input.title !== undefined) next.title = input.title;
   if (input.locked !== undefined) next.locked = input.locked ? 1 : 0;

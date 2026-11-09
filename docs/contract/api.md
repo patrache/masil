@@ -1514,7 +1514,7 @@ interface DocComment {
 | `GET /v1/spaces/{space_id}/docs?type=arch\|apicol&cursor&limit` | — | `200 { items: Doc[], next_cursor }` — 삭제 안 된 것, `updated_at` 최신순, `type` 생략 = 둘 다 |
 | `POST /v1/spaces/{space_id}/docs` | `{ type, title, snapshot?: Snapshot }` | `201 { doc }` + `doc.created`. `snapshot` 이 있으면 그 상태로 시작(종류별 한도 검사, collab.md) · `RL_DOC` |
 | `GET /v1/docs/{doc_id}` | — | `200 { doc }` |
-| `PATCH /v1/docs/{doc_id}` | `{ title?, locked? }` | `200 { doc }` + `doc.updated`. `locked` 는 만든 사람·owner·admin · `RL_DOC` |
+| `PATCH /v1/docs/{doc_id}` | `{ title?, locked? }` | `200 { doc }` + `doc.updated`. `locked` 는 만든 사람·owner·admin, 잠긴 문서의 `title` 도 만든 사람·owner·admin(그 밖 `403 forbidden`) · `RL_DOC` |
 | `DELETE /v1/docs/{doc_id}` | — | `204` + `doc.updated{deleted:true}`, 열린 소켓 `kicked{doc_deleted}`. 만든 사람·owner·admin · `RL_DOC` |
 | `GET /v1/docs/{doc_id}/versions` | — | `200 { items: DocVersion[] }` — 새것 먼저; 이름 버전 전부 + 남아 있는 자동·되돌리기 버전(아래 버전 규칙 — 합쳐 최대 300개라 페이지 없음) |
 | `GET /v1/docs/{doc_id}/versions/{no}` | — | `200 { version: DocVersion, snapshot: Snapshot }` — 미리보기·두 버전 차이용. 없는 `no`·보관 규칙으로 지운 자동·되돌리기 버전 → `404` |

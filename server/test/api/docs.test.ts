@@ -107,6 +107,21 @@ describe("room documents (api.md 5.24)", () => {
     expect((await api(c.token).get<any>(`/v1/spaces/${space.id}/docs`)).body.items).toEqual([]);
   });
 
+  it("a locked doc's title is renamed only by creator / owner / admin (api.md 5.24: locked = no edits by others)", async () => {
+    const [o, c, m] = await Promise.all([signup(), signup(), signup()]);
+    const { space } = await makeSpace(o, [c, m]);
+    const d = await makeDoc(c, space.id);
+    expect((await api(c.token).patch(`/v1/docs/${d.id}`, { locked: true })).status).toBe(200);
+    const tm = await api(m.token).patch<any>(`/v1/docs/${d.id}`, { title: "멤버 제목" });
+    expect(tm.status).toBe(403);
+    expect(tm.body.error.code).toBe("forbidden");
+    expect((await api(m.token).get<any>(`/v1/docs/${d.id}`)).body.doc.title).not.toBe("멤버 제목");
+    expect((await api(c.token).patch<any>(`/v1/docs/${d.id}`, { title: "만든 이 제목" })).body.doc.title).toBe("만든 이 제목");
+    expect((await api(o.token).patch<any>(`/v1/docs/${d.id}`, { title: "방장 제목" })).body.doc.title).toBe("방장 제목");
+    // unlocking and renaming in one request is still a manager-only change
+    expect((await api(m.token).patch(`/v1/docs/${d.id}`, { title: "x", locked: false })).status).toBe(403);
+  });
+
   it("a space admin may lock; a member promoted to admin may too", async () => {
     const [o, a, m] = await Promise.all([signup(), signup(), signup()]);
     const { space } = await makeSpace(o, [a, m]);
