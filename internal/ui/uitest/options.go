@@ -15,16 +15,17 @@ type Option func(*config)
 
 // config is the harness configuration built from Options.
 type config struct {
-	theme    theme.Name
-	seed     func(s *store.Store) // nil => fixtures.Seed
-	api      *apitest.Server      // nil => a fresh server with fixtures.RegisterAPI
-	route    *ui.Route
-	pin      *layout.Mode
-	unicode  *bool
-	creds    *auth.Credentials
-	credsSet bool // WithCredentials was given (nil => logged out)
-	keys     map[string][]string
-	locale   i18n.Locale // "" => i18n.Ko
+	theme      theme.Name
+	seed       func(s *store.Store) // nil => fixtures.Seed
+	api        *apitest.Server      // nil => a fresh server with fixtures.RegisterAPI
+	route      *ui.Route
+	pin        *layout.Mode
+	unicode    *bool
+	creds      *auth.Credentials
+	credsSet   bool // WithCredentials was given (nil => logged out)
+	keys       map[string][]string
+	locale     i18n.Locale // "" => i18n.Ko
+	nestedPane bool        // app.Options.NestedPane
 }
 
 // WithLocale shows the harness in l (ctx.T, ctx.Lang, Accept-Language). Like
@@ -72,4 +73,10 @@ func WithUnicodeCore(on bool) Option {
 // nil means logged out.
 func WithCredentials(cr *auth.Credentials) Option {
 	return func(c *config) { c.creds, c.credsSet = cr, true }
+}
+
+// WithNestedPane starts the app as if inside a masil pane (MASIL_PANE=1 —
+// app.Options.NestedPane). The harness never reads MASIL_PANE itself.
+func WithNestedPane() Option {
+	return func(c *config) { c.nestedPane = true }
 }

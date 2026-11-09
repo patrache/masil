@@ -94,8 +94,7 @@ func TestQuitWithoutPanesUnchanged(t *testing.T) {
 }
 
 func TestNestedPaneWarns(t *testing.T) {
-	t.Setenv("MASIL_PANE", "1")
-	h := uitest.New(t)
+	h := uitest.New(t, uitest.WithNestedPane())
 	if !screenHas(h, "패널 안에서 masil 을 켰어요") {
 		t.Fatalf("no nested warning:\n%s", h.Screen())
 	}
@@ -106,9 +105,24 @@ func TestNestedPaneWarns(t *testing.T) {
 		t.Fatal("the warning came back")
 	}
 	h.Press("j") // nothing is blocked
-	t.Setenv("MASIL_PANE", "")
 	if h2 := uitest.New(t); screenHas(h2, "패널 안에서 masil 을 켰어요") {
 		t.Fatal("warned outside a pane")
+	}
+}
+
+// Run reads MASIL_PANE; a model built without it (the test harness) does not,
+// so `go test` started inside a masil pane draws the same screens.
+func TestNestedPaneEnvOnlyThroughRun(t *testing.T) {
+	t.Setenv("MASIL_PANE", "1")
+	if h := uitest.New(t); screenHas(h, "패널 안에서 masil 을 켰어요") {
+		t.Fatal("the harness read MASIL_PANE from the process env")
+	}
+	if o := app.OptionsFromEnvForTest(app.Options{}); !o.NestedPane {
+		t.Error("Run's options ignore MASIL_PANE=1")
+	}
+	t.Setenv("MASIL_PANE", "")
+	if o := app.OptionsFromEnvForTest(app.Options{}); o.NestedPane {
+		t.Error("NestedPane without MASIL_PANE")
 	}
 }
 

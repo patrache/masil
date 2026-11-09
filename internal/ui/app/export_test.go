@@ -68,3 +68,6 @@ func SetPanesForTest(running func() []string, closeAll func(grace time.Duration)
 	runningPanes, closeAllPanes = running, closeAll
 	return func() { runningPanes, closeAllPanes = oldR, oldC }
 }
+
+// OptionsFromEnvForTest is Run's reading of the process env (MASIL_PANE).
+func OptionsFromEnvForTest(o Options) Options { return optionsFromEnv(o) }

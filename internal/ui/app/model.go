@@ -44,6 +44,7 @@ type Options struct {
 	Timers          ui.Timers        // nil => ui.RealTimers(); uitest passes its FakeClock
 	Clipboard       clipboard.Writer // nil => clipboard.System(); uitest passes a clipboard.Recorder
 	Locale          *i18n.Resolution // nil => i18n.Resolve(i18n.DetectOS() + [ui] language)
+	NestedPane      bool             // inside a masil pane (MASIL_PANE=1, read by Run only): a start warning
 }
 
 // Model implements tea.Model.

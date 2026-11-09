@@ -140,6 +140,7 @@ func New(tb testing.TB, opts ...Option) *Harness {
 		Notifier:        notify.New(rec, notify.OpenLedger(paths), slog.New(slog.DiscardHandler)),
 		Timers:          clock,
 		Clipboard:       h.Clip,
+		NestedPane:      c.nestedPane,
 	})
 	h.posts = newRecPoster()
 	h.Model.Context().Post = h.posts // recorded; Flush delivers
