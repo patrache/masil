@@ -203,12 +203,22 @@ func (in *instance) dropEditor() tea.Cmd {
 	return nil
 }
 
-// cycleLang is l: the next language (the slot then opens that file).
+// cycleLang is l: the next language (the slot then opens that file). The
+// pick is the device's memory (tools-state, A8.5); config.toml is the
+// settings' — only a [tools.leet] lang pin, which would hide the pick, is
+// taken out of it.
 func (in *instance) cycleLang(ctx *ui.Context) tea.Cmd {
 	cur := currentLang(ctx)
 	i := slices.IndexFunc(leetcode.Languages, func(l leetcode.Lang) bool { return l.Slug == cur.Slug })
 	next := leetcode.Languages[(i+1)%len(leetcode.Languages)]
-	return tea.Batch(setToolKey(ctx, "lang", next.Slug), emit(langChangedMsg{}))
+	st := loadState(ctx)
+	st.Lang = next.Slug
+	saveState(ctx, st)
+	var unpin tea.Cmd
+	if toolConfig(ctx).Lang != "" {
+		unpin = setToolKey(ctx, "lang", nil)
+	}
+	return tea.Batch(unpin, emit(langChangedMsg{}))
 }
 
 // edRect is where the editor is drawn inside the instance (ok=false: not

@@ -231,6 +231,45 @@ func TestLanguageSwitchFile(t *testing.T) {
 	if _, err := os.Stat(py); err != nil {
 		t.Fatalf("no Python file after l: %v", err)
 	}
+	// l is the device's memory (tools-state), not config.toml
+	var st struct {
+		Lang string `json:"lang"`
+	}
+	h.Context().ToolState.Section("leet", &st)
+	if st.Lang != "python3" {
+		t.Fatalf("tools-state lang = %q", st.Lang)
+	}
+	if b, err := os.ReadFile(h.Context().Paths.Config); err == nil && strings.Contains(string(b), "lang = ") {
+		t.Fatalf("l wrote config.toml:\n%s", b)
+	}
+}
+
+// With [tools.leet] lang set by hand, l still switches: it takes the pin
+// out of config.toml (keeping the rest) and remembers the pick on the device.
+func TestLanguageSwitchOverConfigPin(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	withNvim(t, false)
+	h := uitest.New(t)
+	if err := os.WriteFile(h.Context().Paths.Config, []byte("[tools.leet]\nlang = \"golang\"\nauto_status = false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := leet.ReloadConfigForTest(h.Context()); err != nil {
+		t.Fatal(err)
+	}
+	openToday(t, h)
+	h.Press("l", "e")
+	py := strings.TrimSuffix(solutionPath(e), ".go") + ".py"
+	if _, err := os.Stat(py); err != nil {
+		t.Fatalf("no Python file after l: %v", err)
+	}
+	b, err := os.ReadFile(h.Context().Paths.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "lang = ") || !strings.Contains(string(b), "auto_status = false") {
+		t.Fatalf("config.toml after l:\n%s", b)
+	}
 }
 
 func TestEditorGoeditorGolden(t *testing.T) {
