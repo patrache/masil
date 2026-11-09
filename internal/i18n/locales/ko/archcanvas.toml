@@ -1344,6 +1344,30 @@ other = "{rps} rps · 읽기 {read}% · {kb}KB"
 desc = "제목이 빈 설계의 표시 이름"
 other = "제목 없는 설계"
 
+[ver_field_add_ms]
+desc = "차이 목록의 필드 이름: add_ms (장애: 더하는 지연)"
+other = "더할 지연 ms"
+
+[ver_field_at_s]
+desc = "차이 목록의 필드 이름: at_s (장애: 시간 실행의 시각(초))"
+other = "넣는 시각 초"
+
+[ver_field_count]
+desc = "차이 목록의 필드 이름: count (장애: 끌 인스턴스 수)"
+other = "끌 대수"
+
+[ver_field_dur_s]
+desc = "차이 목록의 필드 이름: dur_s (장애: 지속 시간(초))"
+other = "지속 초"
+
+[ver_field_from]
+desc = "차이 목록의 필드 이름: from (연결: 출발 노드)"
+other = "출발"
+
+[ver_field_kind]
+desc = "차이 목록의 필드 이름: kind (노드·상자·장애의 종류)"
+other = "종류"
+
 [ver_field_parent]
 desc = "차이 목록의 필드 이름: parent"
 other = "들어 있는 상자"
@@ -1355,6 +1379,18 @@ other = "위치"
 [ver_field_rect]
 desc = "차이 목록의 필드 이름: rect"
 other = "자리·크기"
+
+[ver_field_target]
+desc = "차이 목록의 필드 이름: target (장애: 대상)"
+other = "대상"
+
+[ver_field_title]
+desc = "차이 목록의 필드 이름: title (설계 제목)"
+other = "제목"
+
+[ver_field_to]
+desc = "차이 목록의 필드 이름: to (연결: 도착 노드)"
+other = "도착"
 
 [versions_auto]
 desc = "자동 버전 한 줄. no = 버전 번호, when = 저장 시각"

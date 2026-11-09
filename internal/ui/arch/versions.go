@@ -395,9 +395,16 @@ func (d *versionsDialog) diffLines(ctx *ui.Context, a, b int, prev, cur archdoc.
 	if len(sum.Added)+len(sum.Removed)+len(sum.Changed) == 0 {
 		return append(out, formLine{s: t.VersionsDiffNone(), st: sBase, row: -1})
 	}
-	name := func(objs archdoc.Objects, key string) string {
+	var name func(objs archdoc.Objects, key string) string
+	name = func(objs archdoc.Objects, key string) string {
 		if key == "meta" {
 			return t.VersionsDiffMeta()
+		}
+		if strings.HasPrefix(key, "e:") { // a connection by its ends
+			from, to := objString(objs, key, "from"), objString(objs, key, "to")
+			if from != "" && to != "" {
+				return t.PanelEdge(name(objs, "n:"+from), name(objs, "n:"+to))
+			}
 		}
 		if l := objLabel(objs, key); l != "" {
 			return l
@@ -405,7 +412,7 @@ func (d *versionsDialog) diffLines(ctx *ui.Context, a, b int, prev, cur archdoc.
 		if l := d.labels[key]; l != "" {
 			return l
 		}
-		return key
+		return cleanText(key)
 	}
 	for _, k := range sum.Added {
 		out = append(out, formLine{s: "+ " + name(cur, k), st: sOK, row: -1})
@@ -421,9 +428,14 @@ func (d *versionsDialog) diffLines(ctx *ui.Context, a, b int, prev, cur archdoc.
 
 // objLabel is an object's label field ("" when it has none).
 func objLabel(objs archdoc.Objects, key string) string {
+	return cleanText(objString(objs, key, "label"))
+}
+
+// objString is an object's string field ("" when absent or not a string).
+func objString(objs archdoc.Objects, key, field string) string {
 	var s string
-	if raw, ok := objs[key]["label"]; ok && json.Unmarshal(raw, &s) == nil {
-		return cleanText(s)
+	if raw, ok := objs[key][field]; ok && json.Unmarshal(raw, &s) == nil {
+		return s
 	}
 	return ""
 }
@@ -439,8 +451,26 @@ func fieldLabel(t *i18n.T, field string) string {
 		return t.Archcanvas.VerFieldParent()
 	case labelField.Field:
 		return labelField.Label(t)
+	case "kind":
+		return t.Archcanvas.VerFieldKind()
+	case "title":
+		return t.Archcanvas.VerFieldTitle()
+	case "from":
+		return t.Archcanvas.VerFieldFrom()
+	case "to":
+		return t.Archcanvas.VerFieldTo()
+	case "at_s":
+		return t.Archcanvas.VerFieldAtS()
+	case "target":
+		return t.Archcanvas.VerFieldTarget()
+	case "count":
+		return t.Archcanvas.VerFieldCount()
+	case "add_ms":
+		return t.Archcanvas.VerFieldAddMs()
+	case "dur_s":
+		return t.Archcanvas.VerFieldDurS()
 	}
-	for _, defs := range [][]fieldDef{nodeFields, boxFields} {
+	for _, defs := range [][]fieldDef{nodeFields, boxFields, edgeFields, trafficFields} {
 		for _, f := range defs {
 			if f.Field == field && f.Label != nil {
 				return f.Label(t)

@@ -943,6 +943,24 @@ other = "{rps} rps · {read}% reads · {kb}KB"
 [untitled]
 other = "Untitled design"
 
+[ver_field_add_ms]
+other = "Added latency ms"
+
+[ver_field_at_s]
+other = "At (s)"
+
+[ver_field_count]
+other = "Instances off"
+
+[ver_field_dur_s]
+other = "Duration (s)"
+
+[ver_field_from]
+other = "From"
+
+[ver_field_kind]
+other = "Kind"
+
 [ver_field_parent]
 other = "Parent box"
 
@@ -951,6 +969,15 @@ other = "Position"
 
 [ver_field_rect]
 other = "Area"
+
+[ver_field_target]
+other = "Target"
+
+[ver_field_title]
+other = "Title"
+
+[ver_field_to]
+other = "To"
 
 [versions_auto]
 other = "v{no} — autosave {when}"

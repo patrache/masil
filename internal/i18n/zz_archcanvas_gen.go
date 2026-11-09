@@ -2292,6 +2292,48 @@ var areaArchcanvas = area{
 				En: {Other: "Untitled design"},
 			},
 		},
+		"ver_field_add_ms": {
+			desc: "차이 목록의 필드 이름: add_ms (장애: 더하는 지연)",
+			text: map[Locale]Forms{
+				Ko: {Other: "더할 지연 ms"},
+				En: {Other: "Added latency ms"},
+			},
+		},
+		"ver_field_at_s": {
+			desc: "차이 목록의 필드 이름: at_s (장애: 시간 실행의 시각(초))",
+			text: map[Locale]Forms{
+				Ko: {Other: "넣는 시각 초"},
+				En: {Other: "At (s)"},
+			},
+		},
+		"ver_field_count": {
+			desc: "차이 목록의 필드 이름: count (장애: 끌 인스턴스 수)",
+			text: map[Locale]Forms{
+				Ko: {Other: "끌 대수"},
+				En: {Other: "Instances off"},
+			},
+		},
+		"ver_field_dur_s": {
+			desc: "차이 목록의 필드 이름: dur_s (장애: 지속 시간(초))",
+			text: map[Locale]Forms{
+				Ko: {Other: "지속 초"},
+				En: {Other: "Duration (s)"},
+			},
+		},
+		"ver_field_from": {
+			desc: "차이 목록의 필드 이름: from (연결: 출발 노드)",
+			text: map[Locale]Forms{
+				Ko: {Other: "출발"},
+				En: {Other: "From"},
+			},
+		},
+		"ver_field_kind": {
+			desc: "차이 목록의 필드 이름: kind (노드·상자·장애의 종류)",
+			text: map[Locale]Forms{
+				Ko: {Other: "종류"},
+				En: {Other: "Kind"},
+			},
+		},
 		"ver_field_parent": {
 			desc: "차이 목록의 필드 이름: parent",
 			text: map[Locale]Forms{
@@ -2311,6 +2353,27 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "자리·크기"},
 				En: {Other: "Area"},
+			},
+		},
+		"ver_field_target": {
+			desc: "차이 목록의 필드 이름: target (장애: 대상)",
+			text: map[Locale]Forms{
+				Ko: {Other: "대상"},
+				En: {Other: "Target"},
+			},
+		},
+		"ver_field_title": {
+			desc: "차이 목록의 필드 이름: title (설계 제목)",
+			text: map[Locale]Forms{
+				Ko: {Other: "제목"},
+				En: {Other: "Title"},
+			},
+		},
+		"ver_field_to": {
+			desc: "차이 목록의 필드 이름: to (연결: 도착 노드)",
+			text: map[Locale]Forms{
+				Ko: {Other: "도착"},
+				En: {Other: "To"},
 			},
 		},
 		"versions_auto": {
@@ -4095,6 +4158,36 @@ func (a_ ArchcanvasT) Untitled() string {
 	return a_.t.render(&areaArchcanvas, "untitled", false, 0)
 }
 
+// VerFieldAddMs: 차이 목록의 필드 이름: add_ms (장애: 더하는 지연)
+func (a_ ArchcanvasT) VerFieldAddMs() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_add_ms", false, 0)
+}
+
+// VerFieldAtS: 차이 목록의 필드 이름: at_s (장애: 시간 실행의 시각(초))
+func (a_ ArchcanvasT) VerFieldAtS() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_at_s", false, 0)
+}
+
+// VerFieldCount: 차이 목록의 필드 이름: count (장애: 끌 인스턴스 수)
+func (a_ ArchcanvasT) VerFieldCount() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_count", false, 0)
+}
+
+// VerFieldDurS: 차이 목록의 필드 이름: dur_s (장애: 지속 시간(초))
+func (a_ ArchcanvasT) VerFieldDurS() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_dur_s", false, 0)
+}
+
+// VerFieldFrom: 차이 목록의 필드 이름: from (연결: 출발 노드)
+func (a_ ArchcanvasT) VerFieldFrom() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_from", false, 0)
+}
+
+// VerFieldKind: 차이 목록의 필드 이름: kind (노드·상자·장애의 종류)
+func (a_ ArchcanvasT) VerFieldKind() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_kind", false, 0)
+}
+
 // VerFieldParent: 차이 목록의 필드 이름: parent
 func (a_ ArchcanvasT) VerFieldParent() string {
 	return a_.t.render(&areaArchcanvas, "ver_field_parent", false, 0)
@@ -4108,6 +4201,21 @@ func (a_ ArchcanvasT) VerFieldPos() string {
 // VerFieldRect: 차이 목록의 필드 이름: rect
 func (a_ ArchcanvasT) VerFieldRect() string {
 	return a_.t.render(&areaArchcanvas, "ver_field_rect", false, 0)
+}
+
+// VerFieldTarget: 차이 목록의 필드 이름: target (장애: 대상)
+func (a_ ArchcanvasT) VerFieldTarget() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_target", false, 0)
+}
+
+// VerFieldTitle: 차이 목록의 필드 이름: title (설계 제목)
+func (a_ ArchcanvasT) VerFieldTitle() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_title", false, 0)
+}
+
+// VerFieldTo: 차이 목록의 필드 이름: to (연결: 도착 노드)
+func (a_ ArchcanvasT) VerFieldTo() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_to", false, 0)
 }
 
 // VersionsAuto: 자동 버전 한 줄. no = 버전 번호, when = 저장 시각

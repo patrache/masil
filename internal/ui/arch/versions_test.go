@@ -13,6 +13,7 @@ import (
 	"github.com/patrache/masil/internal/archdoc"
 	"github.com/patrache/masil/internal/collab"
 	"github.com/patrache/masil/internal/collab/collabtest"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/palette"
 	"github.com/patrache/masil/internal/ui/uitest/fixtures"
@@ -141,9 +142,12 @@ func TestVersionDiffList(t *testing.T) {
 	fields := maps.Clone(d.ToObjects()["n:"+cache.ID])
 	fields["label"] = json.RawMessage(`"검색 캐시"`)
 	fields["pos"] = json.RawMessage(`[300,40]`)
+	edge := d.Edges[0]
+	ek := "e:" + edge.ID
 	hub.Inject("D1", fixtures.UserHana, []collab.Op{
 		{Op: collab.OpPut, ID: "n:cache2", Type: "node", Fields: fields},
 		cpuOp(ka, 8),
+		{Op: collab.OpSet, ID: ek, Field: "mbps", Value: json.RawMessage(`777`)},
 	})
 	if _, err := cl.CreateDocVersion(bg, "D1", "후"); err != nil {
 		t.Fatal(err)
@@ -158,7 +162,9 @@ func TestVersionDiffList(t *testing.T) {
 	}
 	screen := h.Screen()
 	label := c.node(ka[2:]).Label
-	for _, want := range []string{"v1 → v2", "추가 1", "삭제 0", "바뀐 설정 1", "+ 검색 캐시", "~ " + label + " · CPU 코어 2 → 8"} {
+	from, to := c.node(edge.From).Label, c.node(edge.To).Label
+	edgeLine := "~ " + from + " → " + to + " · 대역폭 Mbps " + strconvItoa(edge.Mbps) + " → 777"
+	for _, want := range []string{"v1 → v2", "추가 1", "삭제 0", "바뀐 설정 2", "+ 검색 캐시", "~ " + label + " · CPU 코어 2 → 8", edgeLine} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("diff misses %q:\n%s", want, screen)
 		}
@@ -173,6 +179,39 @@ func TestVersionDiffList(t *testing.T) {
 		t.Error("d on the oldest version did not explain")
 	}
 	h.Check()
+}
+
+// Every stored field (arch.md 2.1) has a catalog name in the diff list, never
+// its raw key.
+func TestVersionDiffFieldNames(t *testing.T) {
+	all := []string{
+		// meta
+		"title", "seed", "duration_s",
+		// node
+		"kind", "label", "pos", "parent", "provider", "instance_type", "region", "cpu_cores", "memory_mib", "instances",
+		"autoscale.enabled", "autoscale.min", "autoscale.max", "autoscale.target_cpu_permille", "autoscale.warmup_s",
+		"autoscale.cooldown_s", "nic_mbps", "disk.type", "disk.size_gb", "disk.iops", "cpu_micros_per_req", "timeout_ms",
+		"retries", "queue_cap", "custom_hourly_micro_usd", "params.hit_permille", "params.working_set_mib", "params.ttl_s",
+		"params.lb_algo", "params.health_interval_s", "params.read_iops_milli", "params.write_iops_milli", "params.pool_max",
+		"params.failover_to", "params.failover_s", "params.repl_lag_ms", "params.max_rps", "params.retention_msgs",
+		"params.fixed_latency_ms", "params.error_permille", "params.index_write_permille",
+		"traffic.rps", "traffic.read_permille", "traffic.req_kb", "traffic.resp_kb", "traffic.curve", "traffic.spike_mult",
+		"traffic.spike_at_s", "traffic.spike_dur_s",
+		// box
+		"region_code", "rect",
+		// edge
+		"from", "to", "protocol", "mbps", "latency_micros", "read_permille", "write_permille",
+		// fault
+		"at_s", "target", "count", "add_ms", "dur_s",
+	}
+	for _, l := range []i18n.Locale{i18n.Ko, i18n.En} {
+		tr := i18n.For(l)
+		for _, f := range all {
+			if got := fieldLabel(tr, f); got == f || got == "" {
+				t.Errorf("%s: field %q is shown as %q", l, f, got)
+			}
+		}
+	}
 }
 
 func TestRestoreMakesNewVersion(t *testing.T) {
