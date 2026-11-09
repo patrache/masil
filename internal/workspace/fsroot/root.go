@@ -8,9 +8,11 @@ package fsroot
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // maxLinkHops bounds symlink resolution in Check (like the kernel's ELOOP).
@@ -21,9 +23,14 @@ type Root struct {
 	dir  string // absolute path as opened
 	real string // dir with symlinks evaluated (for absolute link targets)
 	root *os.Root
+
+	mu  sync.RWMutex
+	ign Ignorer
 }
 
-// Open opens dir (made absolute) as the folder root.
+// Open opens dir (made absolute) as the folder root. The ignore rules come
+// from git when the folder has a .git entry and git is installed, otherwise
+// from the built-in parser.
 func Open(dir string) (*Root, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -37,7 +44,30 @@ func Open(dir string) (*Root, error) {
 	if err != nil {
 		real = abs
 	}
-	return &Root{dir: abs, real: real, root: root}, nil
+	r := &Root{dir: abs, real: real, root: root}
+	if _, err := root.Lstat(".git"); err == nil {
+		if _, err := exec.LookPath("git"); err == nil {
+			r.ign = NewGitIgnorer(abs, nil)
+		}
+	}
+	if r.ign == nil {
+		r.ign = NewFileIgnorer(r)
+	}
+	return r, nil
+}
+
+// SetIgnorer replaces the ignore rules (nil = nothing is ignored except the
+// rule files themselves for peers).
+func (r *Root) SetIgnorer(i Ignorer) {
+	r.mu.Lock()
+	r.ign = i
+	r.mu.Unlock()
+}
+
+func (r *Root) ignorer() Ignorer {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.ign
 }
 
 // Close releases the root.
@@ -204,6 +234,33 @@ func (r *Root) insideAbs(target string) (string, bool) {
 	return "", false
 }
 
-// checkIgnored is filled in by the ignore rules (Task 8); with no ignorer
-// configured nothing is ignored.
-func (r *Root) checkIgnored(rel, clean, real string) error { return nil }
+// checkIgnored rejects rule files and paths the ignore rules hide (checked
+// on both the cleaned path and the real target of links). An ignorer error
+// fails closed.
+func (r *Root) checkIgnored(rel, clean, real string) error {
+	if isRuleFile(clean) || isRuleFile(real) {
+		return reject(rel, ReasonIgnored)
+	}
+	ig := r.ignorer()
+	if ig == nil || clean == "." {
+		return nil
+	}
+	dir := false
+	if fi, err := r.root.Stat(osPath(real)); err == nil {
+		dir = fi.IsDir()
+	}
+	rels, dirs := []string{clean}, []bool{dir}
+	if real != clean {
+		rels, dirs = append(rels, real), append(dirs, dir)
+	}
+	res, err := ig.Ignored(rels, dirs)
+	if err != nil {
+		return reject(rel, ReasonIgnored)
+	}
+	for _, v := range res {
+		if v {
+			return reject(rel, ReasonIgnored)
+		}
+	}
+	return nil
+}
