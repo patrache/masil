@@ -14,10 +14,11 @@ type tfGen struct {
 	t       *tree
 	w       hclWriter
 	used    map[string]int
-	name    map[string]string   // node or box ID → resource name
-	vpcIdx  map[string]int      // VPC box ID → 10.<i>.0.0/16
-	subnets map[string][]string // VPC box ID → AZ box IDs with a subnet
-	azVPC   map[string]string   // AZ box ID → its VPC box ID
+	name    map[string]string          // node or box ID → resource name
+	vpcIdx  map[string]int             // VPC box ID → 10.<i>.0.0/16
+	subnets map[string][]string        // VPC box ID → AZ box IDs with a subnet
+	azVPC   map[string]string          // AZ box ID → its VPC box ID
+	awsIDs  map[string]map[string]bool // AWS identifier namespace → identifiers handed out
 }
 
 func isAWSNode(n *archdoc.Node) bool {
@@ -39,7 +40,7 @@ func isAWSNode(n *archdoc.Node) bool {
 // become TODO comments.
 func Terraform(d *archdoc.Design, opt Options) []byte {
 	g := &tfGen{t: newTree(d), used: map[string]int{}, name: map[string]string{}, vpcIdx: map[string]int{},
-		subnets: map[string][]string{}, azVPC: map[string]string{}}
+		subnets: map[string][]string{}, azVPC: map[string]string{}, awsIDs: map[string]map[string]bool{}}
 	g.plan()
 	w := &g.w
 	for _, h := range headerLines(opt.Header) {
@@ -268,6 +269,25 @@ func dashed(name string, maxLen int) string {
 	return strings.TrimRight(s, "-")
 }
 
+// awsID is dashed(name, maxLen), made unique within one AWS namespace (RDS
+// identifiers, ElastiCache cluster IDs, …): cutting to the length limit can
+// drop the "_2" tfIdent added, so a taken identifier gets "-2", "-3", … kept
+// inside the limit.
+func (g *tfGen) awsID(ns, name string, maxLen int) string {
+	used := g.awsIDs[ns]
+	if used == nil {
+		used = map[string]bool{}
+		g.awsIDs[ns] = used
+	}
+	id := dashed(name, maxLen)
+	for n := 2; used[id]; n++ {
+		suffix := "-" + strconv.Itoa(n)
+		id = dashed(name, maxLen-len(suffix)) + suffix
+	}
+	used[id] = true
+	return id
+}
+
 func (g *tfGen) node(n *archdoc.Node) {
 	w := &g.w
 	switch n.Kind {
@@ -361,7 +381,7 @@ func (g *tfGen) node(n *archdoc.Node) {
 		w.close()
 	case archdoc.KindCache:
 		res("aws_elasticache_cluster")
-		w.attr("cluster_id", `"`+dashed(name, 40)+`"`)
+		w.attr("cluster_id", `"`+g.awsID("elasticache", name, 40)+`"`)
 		w.attr("engine", `"redis"`)
 		w.attr("node_type", instType)
 		w.attr("num_cache_nodes", "1")
@@ -369,7 +389,7 @@ func (g *tfGen) node(n *archdoc.Node) {
 		w.close()
 	case archdoc.KindDBPrimary:
 		res("aws_db_instance")
-		w.attr("identifier", `"`+dashed(name, 63)+`"`)
+		w.attr("identifier", `"`+g.awsID("rds", name, 63)+`"`)
 		w.attr("engine", `"postgres"`)
 		w.attr("instance_class", instType)
 		w.attr("allocated_storage", strconv.Itoa(max(n.Disk.SizeGB, 20)))
@@ -380,7 +400,7 @@ func (g *tfGen) node(n *archdoc.Node) {
 		w.close()
 	case archdoc.KindDBReplica:
 		res("aws_db_instance")
-		w.attr("identifier", `"`+dashed(name, 63)+`"`)
+		w.attr("identifier", `"`+g.awsID("rds", name, 63)+`"`)
 		if src := g.replicaSource(n); src != "" {
 			w.attr("replicate_source_db", "aws_db_instance."+src+".identifier")
 		}
@@ -393,7 +413,7 @@ func (g *tfGen) node(n *archdoc.Node) {
 		w.close()
 	case archdoc.KindQueue:
 		res("aws_sqs_queue")
-		w.attr("name", `"`+dashed(name, 80)+`"`)
+		w.attr("name", `"`+g.awsID("sqs", name, 80)+`"`)
 		g.tags(label)
 		w.close()
 	case archdoc.KindObjectStorage:
@@ -403,7 +423,7 @@ func (g *tfGen) node(n *archdoc.Node) {
 		w.close()
 	case archdoc.KindSearch:
 		res("aws_opensearch_domain")
-		w.attr("domain_name", `"`+dashed(name, 28)+`"`)
+		w.attr("domain_name", `"`+g.awsID("opensearch", name, 28)+`"`)
 		w.line("")
 		w.open("cluster_config")
 		w.attr("instance_type", instType)

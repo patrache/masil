@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/exp/golden"
+
+	"github.com/patrache/masil/internal/archdoc"
 )
 
 var tfHeader = []string{"자동 생성된 뼈대 · 실행 전 검토 필요 · masil 은 이 파일을 실행하지 않음", "${not} %{code}"}
@@ -183,5 +185,58 @@ func TestTerraformFmt(t *testing.T) {
 			formatted, _ := fix.CombinedOutput()
 			t.Fatalf("%s: terraform fmt -check: %v\n%s\nformatted:\n%s", name, err, out, formatted)
 		}
+	}
+}
+
+// AWS identifiers are cut to each service's length limit; the cut must not
+// make two resources share one (P3 review: the "_2" from tfIdent fell off).
+func TestTerraformAWSIdentifiersUnique(t *testing.T) {
+	node := func(id string, kind archdoc.NodeKind, label string) archdoc.Node {
+		n := archdoc.Defaults(kind)
+		n.ID, n.Label = id, label
+		return n
+	}
+	const search = "customer orders search domain primary"
+	const cache = "session cache for the checkout service 1"
+	d := &archdoc.Design{SchemaVersion: 1, Title: "t", Seed: 1, DurationS: 120, Nodes: []archdoc.Node{
+		node("s1", archdoc.KindSearch, search), node("s2", archdoc.KindSearch, search), node("s3", archdoc.KindSearch, search),
+		node("c1", archdoc.KindCache, cache), node("c2", archdoc.KindCache, cache),
+		node("c3", archdoc.KindCache, cache),
+		node("p1", archdoc.KindDBPrimary, cache), node("r1", archdoc.KindDBReplica, cache),
+	}}
+	if is := d.Validate(); len(is) != 0 {
+		t.Fatalf("design does not validate: %v", is)
+	}
+	limit := map[string]int{"aws_opensearch_domain": 28, "aws_elasticache_cluster": 40, "aws_db_instance": 63}
+	attr := map[string]string{"aws_opensearch_domain": "domain_name", "aws_elasticache_cluster": "cluster_id", "aws_db_instance": "identifier"}
+	shape := regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+	resRe := regexp.MustCompile(`(?m)^resource "(\w+)" "\w+" \{\n((?:  .*\n|\n)*?)\}`)
+	seen := map[string]map[string]bool{}
+	count := map[string]int{}
+	for _, m := range resRe.FindAllStringSubmatch(string(Terraform(d, Options{})), -1) {
+		typ, body := m[1], m[2]
+		a, ok := attr[typ]
+		if !ok {
+			continue
+		}
+		v := regexp.MustCompile(`(?m)^  ` + a + ` +=\s*"([^"]*)"`).FindStringSubmatch(body)
+		if v == nil {
+			t.Fatalf("%s without %s:\n%s", typ, a, body)
+		}
+		id := v[1]
+		if len(id) > limit[typ] || !shape.MatchString(id) {
+			t.Fatalf("%s %s = %q: over %d bytes or not an AWS identifier", typ, a, id, limit[typ])
+		}
+		if seen[typ] == nil {
+			seen[typ] = map[string]bool{}
+		}
+		if seen[typ][id] {
+			t.Fatalf("%s %s %q used twice", typ, a, id)
+		}
+		seen[typ][id] = true
+		count[typ]++
+	}
+	if count["aws_opensearch_domain"] != 3 || count["aws_elasticache_cluster"] != 3 || count["aws_db_instance"] != 2 {
+		t.Fatalf("resources found: %v", count)
 	}
 }
