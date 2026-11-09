@@ -2533,7 +2533,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
 | P1 LeetCode·lazygit | `leet.*`, `git.*` |
 | P2 작업공간 | `ws.*` |
-| P3 `ui/arch` | `arch.new`, `arch.open`(둘 다 `Available` = `features.On("arch")`), `arch.share`, `arch.export`, `arch.versions`, `arch.send_card`, `arch.run`(이 다섯은 플래그 + 앞에 연 arch 인스턴스가 있을 때만; 그 인스턴스에 실행을 보낸다) — 모두 `Group: GroupCommand`, `Label func(*i18n.T)` |
+| P3 `ui/arch` | `arch.new`, `arch.open`(둘 다 `Available` = `features.On("arch")`), `arch.share`, `arch.export`, `arch.send_card`, `arch.run`, `arch.save_copy`(이 다섯은 플래그 + 앞에 연 arch 인스턴스가 있을 때만; 그 인스턴스에 실행을 보낸다. `arch.save_copy` = 방 문서를 개인 설계 사본으로 저장, 개인 설계에서는 안내만), `arch.versions`(플래그 + 앞의 arch 인스턴스가 방 문서(`doc` 쿼리)일 때만) — 모두 `Group: GroupCommand`, `Label func(*i18n.T)` |
 | P4 API 시험 | `api.*` |
 
 - 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).
