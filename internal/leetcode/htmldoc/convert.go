@@ -102,7 +102,14 @@ type conv struct {
 	scriptBuf          strings.Builder // text inside <sup>/<sub>
 	cells              []int           // per open <tr>: cells seen
 
-	cur []Inline // the block being built
+	// The block being built: its finished runs (cur), then the open run of
+	// kind runKind (run). Joining text onto a builder keeps Convert linear
+	// when tags that change nothing split many short runs of one style.
+	cur      []Inline
+	run      strings.Builder
+	runKind  InlineKind
+	hasText  bool // the block has text (cur or run)
+	endSpace bool // the last text added ends with a space
 }
 
 // voids never take a closing tag.
@@ -152,17 +159,26 @@ func (c *conv) add(s string, k InlineKind) {
 	if s == "" {
 		return
 	}
-	if strings.HasPrefix(s, " ") && (len(c.cur) == 0 || strings.HasSuffix(c.cur[len(c.cur)-1].Text, " ")) {
+	if strings.HasPrefix(s, " ") && (!c.hasText || c.endSpace) {
 		s = s[1:]
 		if s == "" {
 			return
 		}
 	}
-	if n := len(c.cur); n > 0 && c.cur[n-1].Kind == k {
-		c.cur[n-1].Text += s
-		return
+	if !c.hasText || c.runKind != k {
+		c.endRun()
+		c.runKind = k
 	}
-	c.cur = append(c.cur, Inline{Kind: k, Text: s})
+	c.run.WriteString(s)
+	c.hasText, c.endSpace = true, strings.HasSuffix(s, " ")
+}
+
+// endRun moves the open run to cur.
+func (c *conv) endRun() {
+	if c.run.Len() > 0 {
+		c.cur = append(c.cur, Inline{Kind: c.runKind, Text: c.run.String()})
+		c.run.Reset()
+	}
 }
 
 // collapse turns every whitespace run (incl. NBSP) into one space.
@@ -185,19 +201,27 @@ func collapse(s string) string {
 
 // flush emits the current inline block, if it has visible text.
 func (c *conv) flush() {
+	c.endRun()
 	in := c.cur
-	c.cur = nil
+	c.cur, c.hasText, c.endSpace = nil, false, false
+	// Sanitized runs of one kind join (a builder: linear however many).
 	var spans []Inline
+	var sb strings.Builder
+	kind, open := Text, false
 	for _, s := range in {
 		t := textwidth.Sanitize(s.Text)
 		if t == "" {
 			continue
 		}
-		if n := len(spans); n > 0 && spans[n-1].Kind == s.Kind {
-			spans[n-1].Text += t
-			continue
+		if open && kind != s.Kind {
+			spans = append(spans, Inline{Kind: kind, Text: sb.String()})
+			sb.Reset()
 		}
-		spans = append(spans, Inline{Kind: s.Kind, Text: t})
+		kind, open = s.Kind, true
+		sb.WriteString(t)
+	}
+	if open {
+		spans = append(spans, Inline{Kind: kind, Text: sb.String()})
 	}
 	// Trim the block's outer spaces.
 	for len(spans) > 0 {
