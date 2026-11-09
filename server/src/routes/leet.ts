@@ -10,11 +10,23 @@ import { err } from "../lib/errors";
 import { idParam } from "../lib/params";
 import { requireSpaceRole } from "../lib/permissions";
 import { checkLimit, limit } from "../lib/ratelimit";
-import { isReportableDate, LeetDailyFacts } from "../lib/leet";
+import { isReportableDate, isValidDate, LeetDailyFacts, zCode, zFrontendId, zLang, zSlug } from "../lib/leet";
+import { validateCard } from "../lib/cards/index";
 import { isoOrNull, now } from "../lib/time";
 import { vJson, zId } from "../lib/validate";
 import { createTextChannel } from "../services/channels";
-import { ensureDailyRoots, reportDailyFacts, serializeLeetDaily } from "../services/leet";
+import {
+  dailySpacesOf,
+  deleteSolve,
+  ensureDailyRoots,
+  loadDaily,
+  reportDailyFacts,
+  serializeLeetDaily,
+  serializeLeetSolve,
+  solveCardData,
+  upsertSolve,
+  upsertSolveCards,
+} from "../services/leet";
 import type { ChannelRow } from "../types/rows";
 
 export const leetRoutes = new Hono<AppEnv>();
@@ -147,4 +159,64 @@ leetRoutes.put("/leet/daily/:date", requireAuth, limit("RL_SOCIAL"), vJson(LeetD
     beforeCreate: () => checkLimit(c.env, "RL_MESSAGE", `u:${me}`),
   });
   return c.json({ daily: await serializeLeetDaily(db, stored), roots });
+});
+
+/** At most this many spaces per solve share (api.md 5.25). */
+const SHARE_SPACES_MAX = 10;
+
+const LeetSolveBody = z.strictObject({
+  status: z.literal("accepted"),
+  slug: zSlug,
+  lang: zLang,
+  frontend_id: zFrontendId,
+  runtime_percentile: z.number().min(0).max(100).nullable().optional(),
+  submission_id: z.string().regex(/^[0-9]{1,20}$/).nullable().optional(),
+  share_space_ids: z.array(zId).max(SHARE_SPACES_MAX).optional(),
+  code: zCode.nullable().optional(),
+});
+
+/**
+ * My accepted solve of `date` (today or yesterday, UTC). Checks first, writes nothing on failure: every shared space
+ * must have #daily on with me in it (else 404 space), that day's facts must be known when sharing (else 404 daily),
+ * and the card data must pass the leet.solve schema and the 16 KB cap (400 fields.card.data). Then: the record
+ * (upsertSolve — passed_at of the first record kept) and my card in each shared space's root thread
+ * (upsertSolveCards; the first root / card this request writes counts RL_MESSAGE once).
+ * 200 { solve: LeetSolve, cards: { space_id, message_id }[] }.
+ */
+leetRoutes.put("/leet/solves/:date", requireAuth, limit("RL_SOCIAL"), vJson(LeetSolveBody), async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const date = c.req.param("date");
+  if (!isReportableDate(date, now())) throw err.invalid({ date: "invalid" });
+  const b = c.req.valid("json");
+  const share = [...new Set(b.share_space_ids ?? [])];
+  const code = b.code ?? null;
+  let daily = null;
+  if (share.length > 0) {
+    const ok = await dailySpacesOf(db, me, share);
+    if (ok.length !== share.length) throw err.notFound("space");
+    daily = await loadDaily(db, date);
+    if (daily === null) throw err.notFound("daily");
+  }
+  const input = { slug: b.slug, lang: b.lang, frontend_id: b.frontend_id, runtime_percentile: b.runtime_percentile ?? null, submission_id: b.submission_id ?? null };
+  // the card as it will be written (slug stays the first record's): validated before anything is stored
+  const existing = await first<{ slug: string }>(db, "SELECT slug FROM leet_solves WHERE user_id = ?1 AND date = ?2", me, date);
+  const preview = solveCardData({ user_id: me, date, passed_at: 0, ...input, slug: existing?.slug ?? input.slug }, b.frontend_id, code);
+  if (share.length > 0) validateCard({ type: "leet.solve", v: 1, data: preview }, true);
+
+  const row = await upsertSolve(db, me, date, input);
+  const cards =
+    daily === null
+      ? []
+      : await upsertSolveCards(rt(c), me, date, daily, solveCardData(row, b.frontend_id, code), share, () => checkLimit(c.env, "RL_MESSAGE", `u:${me}`));
+  return c.json({ solve: serializeLeetSolve(row), cards });
+});
+
+/** Deletes my record of `date` (any real day) and my solve cards of that day (message.deleted). 204, also when none. */
+leetRoutes.delete("/leet/solves/:date", requireAuth, limit("RL_SOCIAL"), async (c) => {
+  const me = getAuth(c).userId;
+  const date = c.req.param("date");
+  if (!isValidDate(date)) throw err.invalid({ date: "invalid" });
+  await deleteSolve(rt(c), me, date);
+  return c.body(null, 204);
 });

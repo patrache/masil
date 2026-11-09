@@ -1552,6 +1552,8 @@ interface LeetSpaceSettings {
 |---|---|---|
 | `PUT /v1/spaces/{space_id}/leet` | `{ enabled: boolean, channel_id?: ID }` | `200 { settings: LeetSpaceSettings }`. owner·admin 만(비멤버 `404`, 멤버 `403 forbidden`). 켜기: `channel_id` 가 있으면 그 방의 살아 있는 **공개** 텍스트 채널(아니면 `404`), 없으면 전에 쓰던 채널(살아 있고 공개일 때) → 그 방의 공개 채널 `daily` → 없으면 5.9 와 같은 규칙으로 `daily` 를 만든다(`channel.created` + `channel_created` system 메시지, 이름 충돌 `409`·채널 수 `422` 도 같음). 같은 채널로 다시 켜면 `enabled_by`·`enabled_at` 은 그대로. 끄기: 채널은 지우지 않고 `channel_id` 를 기억한다 · `RL_SOCIAL` |
 | `PUT /v1/leet/daily/{date}` | `LeetDailyFacts` (엄격 — 다른 키 `400`) | `200 { daily: LeetDaily, roots: LeetDailyRoot[] }`. `date` 는 서버 기준 오늘(UTC) 또는 어제만, 아니면 `400 fields.date = "invalid"`. 그날 처음 보고면 저장(`first_reporter` = 보고자), 같은 값이면 그대로, 다른 값이면 저장값은 두고 `mismatch_count` 만 1 올린다. 같은 요청 안에서 **보고자가 속한 방 중 #daily 가 켜진 방**마다 그날 루트가 없으면 만든다: `leet.daily` 카드(작성자 = 보고자, `thread_root_id: null`, data = **저장된** 사실 정보 + `date`, `body` = 링크) + `message.created`. 채널·날짜마다 하나(동시 보고에도 하나 — data-model.md 3.14 `leet_daily_roots`). 다른 요청이 만드는 중이면 2초까지 기다리고, 그래도 없으면 `roots` 에서 뺀다. 루트 메시지가 지워졌으면 다시 만든다. `roots` = 메시지가 살아 있는 루트들 · `RL_SOCIAL`, 루트를 실제로 만들 때 요청당 한 번 `RL_MESSAGE` 도 센다 |
+| `PUT /v1/leet/solves/{date}` | `LeetSolveBody` (엄격) | `200 { solve: LeetSolve, cards: LeetSolveCardRef[] }`. `date` 는 오늘(UTC) 또는 어제(자정 직후 제출용)만, 아니면 `400 fields.date = "invalid"`. **먼저 모두 검사하고, 하나라도 틀리면 아무것도 쓰지 않는다**: `share_space_ids` 의 방마다 내가 멤버이고 #daily 가 켜져 있어야 함(아니면 `404`), 공유할 때는 그날 사실 정보가 있어야 함(`PUT /v1/leet/daily` 가 먼저 — 없으면 `404`), 카드 데이터가 `leet.solve` 스키마·16KB 를 넘지 않아야 함(`400 fields.card.data = "too_long"` 등). 그다음 `leet_solves` 기록(첫 기록의 서버 시각이 `passed_at`, 다시 PUT 하면 `lang`·`runtime_percentile`·`submission_id` 만 바뀜)과, 공유한 방마다 그날 루트(없으면 내가 만든다 — 위와 같은 규칙) 아래 **내 `leet.solve` 카드 하나**: 없으면 스레드 답글로 만들고(`message.created` + `thread.updated`), 있으면 고친다(`message.updated`, 같은 메시지). 카드 `body` = 링크, `data.code` = `{ lang, text: code }` 또는 `null`, `data.spoiler = true`. 그 루트를 다른 요청이 아직 만드는 중이면 `503 service_unavailable`(다시 시도) · `RL_SOCIAL`, 루트·카드를 실제로 쓸 때 요청당 한 번 `RL_MESSAGE` |
+| `DELETE /v1/leet/solves/{date}` | — | `204`(기록이 없어도). 내 기록을 지우고 그날 내 `leet.solve` 카드를 모두 지운다(5.10 삭제 규칙, `message.deleted` + `thread.updated`). `date` 형식이 틀리면 `400` · `RL_SOCIAL` |
 
 ```ts
 interface LeetDailyFacts {
@@ -1569,6 +1571,25 @@ interface LeetDaily extends LeetDailyFacts {
   mismatch_count: number;
 }
 interface LeetDailyRoot { space_id: ID; channel_id: ID; message_id: ID }
+interface LeetSolveBody {
+  status: "accepted";                // only accepted solves are recorded
+  slug: string;
+  lang: string;                      // 1..32 (LeetCode language slug, e.g. "golang")
+  frontend_id: string;
+  runtime_percentile?: number | null;   // 0..100
+  submission_id?: string | null;     // ^[0-9]{1,20}$
+  share_space_ids?: ID[];            // <= 10
+  code?: string | null;              // 1..4000 code points; stored in the card (plain text on the server, readable by the channel and operators)
+}
+interface LeetSolve {
+  date: string;
+  slug: string;
+  lang: string;
+  passed_at: Timestamp;              // server time of the first record
+  runtime_percentile: number | null;
+  counts_for_streak: boolean;        // utcDate(passed_at) == date (no grace day)
+}
+interface LeetSolveCardRef { space_id: ID; message_id: ID }
 ```
 
 - 루트(`leet.daily`)는 수정할 수 없고(5.10 — `400 fields.message_id = "not_allowed"`), 리액션·고정·스레드 답글은 일반 메시지와 같다.
@@ -1676,6 +1697,7 @@ interface LeetDailyRoot { space_id: ID; channel_id: ID; message_id: ID }
 | PATCH/DELETE | /v1/docs/{doc_id}/comments/{comment_id} | ✓ | RL_DOC |
 | GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
 | PUT | /v1/leet/daily/{date} | ✓ | RL_SOCIAL, RL_MESSAGE |
+| PUT/DELETE | /v1/leet/solves/{date} | ✓ | RL_SOCIAL, RL_MESSAGE(PUT) |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

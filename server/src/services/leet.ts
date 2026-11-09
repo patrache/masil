@@ -2,11 +2,12 @@
 // server never calls LeetCode and stores no problem body (data-model.md 3.14).
 import type { Runtime } from "../env";
 import { all, first, jsonList, stmt } from "../lib/db";
-import { type LeetDailyCard, type LeetDailyFactsInput, leetLink } from "../lib/leet";
+import { ApiError } from "../lib/errors";
+import { type LeetDailyCard, type LeetDailyFactsInput, type LeetSolveCard, leetLink, utcDate } from "../lib/leet";
 import { loadUserSummaries } from "../lib/serialize";
 import { iso, now } from "../lib/time";
 import type { UserSummary } from "../types/api";
-import { createCardMessage } from "./messages";
+import { createCardMessage, deleteMessage, updateCardMessage } from "./messages";
 
 /** A NULL-message claim older than this is taken over by the next request (its maker died mid-way). */
 export const ROOT_CLAIM_STALE_MS = 30_000;
@@ -235,4 +236,158 @@ export async function ensureDailyRoots(rt: Runtime, reporterId: string, date: st
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// solves (P1 Task 4)
+
+export interface LeetSolveRow {
+  user_id: string;
+  date: string;
+  slug: string;
+  lang: string;
+  passed_at: number;
+  runtime_percentile: number | null;
+  submission_id: string | null;
+}
+
+export interface LeetSolve {
+  date: string;
+  slug: string;
+  lang: string;
+  passed_at: string;
+  runtime_percentile: number | null;
+  counts_for_streak: boolean;
+}
+
+export interface LeetSolveCardRef {
+  space_id: string;
+  message_id: string;
+}
+
+/** A day is filled only by a record the server got within that UTC day (JA26). */
+export function countsForStreak(row: Pick<LeetSolveRow, "date" | "passed_at">): boolean {
+  return utcDate(row.passed_at) === row.date;
+}
+
+export function serializeLeetSolve(row: LeetSolveRow): LeetSolve {
+  return {
+    date: row.date,
+    slug: row.slug,
+    lang: row.lang,
+    passed_at: iso(row.passed_at),
+    runtime_percentile: row.runtime_percentile,
+    counts_for_streak: countsForStreak(row),
+  };
+}
+
+export interface SolveInput {
+  slug: string;
+  lang: string;
+  frontend_id: string;
+  runtime_percentile: number | null;
+  submission_id: string | null;
+}
+
+/**
+ * Upserts my record of `date`: the first record keeps its server time (passed_at) and slug; a re-PUT updates only
+ * lang, runtime_percentile and submission_id. Returns the stored row.
+ */
+export async function upsertSolve(db: D1Database, me: string, date: string, s: SolveInput): Promise<LeetSolveRow> {
+  await stmt(
+    db,
+    `INSERT INTO leet_solves (user_id, date, slug, lang, passed_at, runtime_percentile, submission_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+     ON CONFLICT (user_id, date) DO UPDATE SET lang = excluded.lang, runtime_percentile = excluded.runtime_percentile,
+       submission_id = excluded.submission_id`,
+    me,
+    date,
+    s.slug,
+    s.lang,
+    now(),
+    s.runtime_percentile,
+    s.submission_id,
+  ).run();
+  const row = await first<LeetSolveRow>(db, "SELECT * FROM leet_solves WHERE user_id = ?1 AND date = ?2", me, date);
+  if (row === null) throw new Error(`leet_solves ${me}/${date} missing after upsert`);
+  return row;
+}
+
+export function solveCardData(row: LeetSolveRow, frontendId: string, code: string | null): LeetSolveCard {
+  return {
+    date: row.date,
+    frontend_id: frontendId,
+    slug: row.slug,
+    lang: row.lang,
+    runtime_percentile: row.runtime_percentile,
+    code: code === null ? null : { lang: row.lang, text: code },
+    spoiler: true,
+  };
+}
+
+/** My live leet.solve card under `rootId`, if any. */
+function mySolveCard(db: D1Database, rootId: string, me: string): Promise<{ id: string } | null> {
+  return first<{ id: string }>(
+    db,
+    `SELECT id FROM messages
+      WHERE thread_root_id = ?1 AND author_id = ?2 AND card_json IS NOT NULL
+        AND json_extract(card_json, '$.type') = 'leet.solve' AND deleted_at IS NULL
+      ORDER BY id LIMIT 1`,
+    rootId,
+    me,
+  );
+}
+
+/**
+ * For each shared space (the caller checked they are all dailySpacesOf(me)): the day's root (ensureDailyRoots for that
+ * one space, so a missing root is made by me), then my leet.solve card under it — rewritten with updateCardMessage
+ * when it exists (message.updated), else created with createCardMessage (message.created + thread.updated).
+ * `beforeWrite` runs once before the first card or root this call writes. A root another request is still making
+ * after the wait (ensureDailyRoots gave none) -> 503 service_unavailable (retryable); cards already written stay.
+ */
+export async function upsertSolveCards(
+  rt: Runtime,
+  me: string,
+  date: string,
+  daily: LeetDailyRow,
+  card: LeetSolveCard,
+  shareSpaceIds: readonly string[],
+  beforeWrite?: () => Promise<void>,
+): Promise<LeetSolveCardRef[]> {
+  const db = rt.env.DB;
+  let counted = false;
+  const once = async () => {
+    if (counted || !beforeWrite) return;
+    counted = true;
+    await beforeWrite();
+  };
+  const out: LeetSolveCardRef[] = [];
+  const body = leetLink(card.slug);
+  for (const spaceId of shareSpaceIds) {
+    const [root] = await ensureDailyRoots(rt, me, date, daily, { spaceIds: [spaceId], beforeCreate: once });
+    // another request is still making that root (rare, <= 2 s waited): retryable
+    if (!root) throw new ApiError(503, "service_unavailable", "the day's #daily root is being created; retry");
+    const existing = await mySolveCard(db, root.message_id, me);
+    await once();
+    const input = { type: "leet.solve" as const, v: 1, data: card };
+    const m = existing
+      ? await updateCardMessage(rt, existing.id, input, body)
+      : await createCardMessage(rt, { channelId: root.channel_id, authorId: me, rootId: root.message_id, card: input, body });
+    out.push({ space_id: spaceId, message_id: m.id });
+  }
+  return out;
+}
+
+/** Deletes my record of `date` and every live leet.solve card of mine for that day (deleteMessage: message.deleted). */
+export async function deleteSolve(rt: Runtime, me: string, date: string): Promise<void> {
+  const db = rt.env.DB;
+  const cards = await all<{ id: string }>(
+    db,
+    `SELECT id FROM messages
+      WHERE author_id = ?1 AND card_json IS NOT NULL AND deleted_at IS NULL
+        AND json_extract(card_json, '$.type') = 'leet.solve' AND json_extract(card_json, '$.data.date') = ?2`,
+    me,
+    date,
+  );
+  await stmt(db, "DELETE FROM leet_solves WHERE user_id = ?1 AND date = ?2", me, date).run();
+  for (const c of cards) await deleteMessage(rt, c.id, me);
 }
