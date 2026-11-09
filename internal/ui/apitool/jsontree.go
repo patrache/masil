@@ -20,6 +20,10 @@ import (
 // line is cut; the row only ever shows its start).
 const maxSummaryBytes = 4096
 
+// maxTreeDepth is the deepest nesting BuildTree accepts; a deeper body is
+// shown as text (row paths and indents grow with depth).
+const maxTreeDepth = 512
+
 // FoldState is the folded containers by JSON path ("$.items[0]"); paths
 // survive a new response of the same shape (C3.7: the fold state is kept
 // when the same request is sent again).
@@ -56,8 +60,8 @@ type Tree struct {
 	nodes []tnode
 	first int32 // first shown node (1 under a container root)
 
-	once  sync.Once
-	paths map[string]int32 // container path -> node
+	mu       sync.Mutex
+	resolved map[string]int32 // fold path -> container node (-1: none)
 }
 
 // BuildTree parses body into a tree with one token pass. It fails on
@@ -119,6 +123,9 @@ func BuildTree(body []byte) (*Tree, error) {
 			p.n++
 		}
 		if d, ok := tok.(json.Delim); ok {
+			if len(stack) >= maxTreeDepth {
+				return nil, errors.New("apitool: JSON nested too deep for the tree")
+			}
 			n.kind = byte(d)
 			stack = append(stack, tframe{at: int32(len(t.nodes)), obj: d == '{', wantKey: d == '{'})
 			t.nodes = append(t.nodes, n)
@@ -182,24 +189,30 @@ func scalarSummary(tok json.Token) string {
 
 var identKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// path is the JSON path of node i (apitool.EvalPath syntax).
+// path is the JSON path of node i (apitool.EvalPath syntax); O(depth),
+// and depth is at most maxTreeDepth.
 func (t *Tree) path(i int32) string {
 	var parts []string
 	for j := i; j >= 0 && t.nodes[j].parent >= 0; j = t.nodes[j].parent {
-		n := &t.nodes[j]
-		switch {
-		case n.idx >= 0:
-			parts = append(parts, "["+strconv.Itoa(int(n.idx))+"]")
-		case identKey.MatchString(n.rawKey):
-			parts = append(parts, "."+n.rawKey)
-		case !strings.Contains(n.rawKey, "'"):
-			parts = append(parts, "['"+n.rawKey+"']")
-		default:
-			parts = append(parts, `["`+n.rawKey+`"]`)
-		}
+		parts = append(parts, t.step(j))
 	}
 	slices.Reverse(parts)
 	return "$" + strings.Join(parts, "")
+}
+
+// step is the path part that leads from node i's parent to it.
+func (t *Tree) step(i int32) string {
+	n := &t.nodes[i]
+	switch {
+	case n.idx >= 0:
+		return "[" + strconv.Itoa(int(n.idx)) + "]"
+	case identKey.MatchString(n.rawKey):
+		return "." + n.rawKey
+	case !strings.Contains(n.rawKey, "'"):
+		return "['" + n.rawKey + "']"
+	default:
+		return `["` + n.rawKey + `"]`
+	}
 }
 
 // folded resolves f to the sorted node indexes of folded, non-empty
@@ -208,22 +221,52 @@ func (t *Tree) folded(f FoldState) []int32 {
 	if len(f) == 0 {
 		return nil
 	}
-	t.once.Do(func() {
-		t.paths = map[string]int32{}
-		for i := range t.nodes {
-			if t.nodes[i].kind != 0 {
-				t.paths[t.path(int32(i))] = int32(i)
-			}
-		}
-	})
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.resolved == nil {
+		t.resolved = map[string]int32{}
+	}
 	var out []int32
 	for p, on := range f {
-		if i, ok := t.paths[p]; on && ok && t.nodes[i].count > 0 && i >= t.first {
+		if !on {
+			continue
+		}
+		i, ok := t.resolved[p]
+		if !ok {
+			i = t.resolve(p)
+			t.resolved[p] = i
+		}
+		if i >= t.first && t.nodes[i].count > 0 {
 			out = append(out, i)
 		}
 	}
 	slices.Sort(out)
 	return out
+}
+
+// resolve finds the container at path p by walking down from the root,
+// one step at a time among the children (-1: none). It keeps no table of
+// every path, so a wide, deep body costs no memory per container.
+func (t *Tree) resolve(p string) int32 {
+	if t.first != 1 || !strings.HasPrefix(p, "$") {
+		return -1
+	}
+	cur, rest := int32(0), p[1:]
+	for rest != "" {
+		next := int32(-1)
+		for c := cur + 1; c < t.nodes[cur].end; c = t.nodes[c].end {
+			st := t.step(c)
+			if r, ok := strings.CutPrefix(rest, st); ok && (r == "" || r[0] == '.' || r[0] == '[') {
+				next, rest = c, r
+				break
+			}
+		}
+		if next < 0 || t.nodes[next].kind == 0 {
+			return -1
+		}
+		cur = next
+	}
+	return cur
 }
 
 // foldedWithin reports whether a folded index lies in (i, end).

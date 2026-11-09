@@ -177,3 +177,30 @@ func TestJSONTreeSanitizes(t *testing.T) {
 		}
 	}
 }
+
+// A deeply nested body is not a tree (the screen shows text); the fold
+// paths are built in one pass, so a deep allowed body stays fast.
+func TestJSONTreeDepthLimit(t *testing.T) {
+	deep := strings.Repeat("[", 40000) + strings.Repeat("]", 40000)
+	if _, err := BuildTree([]byte(deep)); err == nil {
+		t.Fatal("40000-deep body built a tree")
+	}
+	ok := strings.Repeat(`{"a":`, maxTreeDepth-1) + "1" + strings.Repeat("}", maxTreeDepth-1)
+	tr, err := BuildTree([]byte(ok))
+	if err != nil {
+		t.Fatalf("depth %d: %v", maxTreeDepth-1, err)
+	}
+	start := time.Now()
+	if n := tr.Count(FoldState{"$.x": true}); n != maxTreeDepth-1 {
+		t.Fatalf("Count = %d", n)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("Count took %v", d)
+	}
+	if n := tr.Count(FoldState{"$.a.a.a": true, "$.a.ab": true, "$.a.a[0]": true}); n != 3 {
+		t.Fatalf("folded deep Count = %d, want 3", n)
+	}
+	if p := strings.Repeat(".a", 3); !strings.HasPrefix(tr.Window(nil, 2, 1, 2)[0].Path, "$"+p) {
+		t.Fatalf("path = %q", tr.Window(nil, 2, 1, 2)[0].Path)
+	}
+}
