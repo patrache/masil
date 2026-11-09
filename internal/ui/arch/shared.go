@@ -43,6 +43,8 @@ type sharedSink struct {
 	presenceSent  int                      // drag presence frames handed to the session (tests)
 	sentSel       []string                 // the selection last sent as presence
 	sentSelOK     bool
+
+	preview *versionPreview // a saved version shown instead (arch.versions; esc ends it)
 }
 
 // collabEventMsg carries a session event of canvas instance to Update
@@ -59,10 +61,17 @@ type docMetaMsg struct {
 	err      error
 }
 
-func (s *sharedSink) Objects() archdoc.Objects { return s.objs }
+func (s *sharedSink) Objects() archdoc.Objects {
+	if s.preview != nil {
+		return s.preview.objs
+	}
+	return s.objs
+}
 
 func (s *sharedSink) ReadOnly() (bool, readOnlyReason) {
 	switch {
+	case s.preview != nil:
+		return true, roPreview
 	case s.kicked:
 		return true, roKicked
 	case s.locked:
@@ -329,6 +338,8 @@ func readOnlyText(t *i18n.T, why readOnlyReason) string {
 		return t.Archcanvas.KickedNotice()
 	case roLocked:
 		return t.Archcanvas.LockedNotice()
+	case roPreview:
+		return t.Archcanvas.PreviewReadonly()
 	}
 	return t.Archcanvas.ReadOnlyCopy()
 }
@@ -337,6 +348,8 @@ func readOnlyText(t *i18n.T, why readOnlyReason) string {
 func (m *canvasModel) roomHeader(ctx *ui.Context, sh *sharedSink) string {
 	a := ctx.T.Archcanvas
 	switch {
+	case sh.preview != nil:
+		return a.PreviewHeader(sh.preview.label)
 	case sh.kicked:
 		return a.RoomKicked()
 	case sh.locked:
@@ -400,4 +413,12 @@ func saveNew(st *archdoc.Store, d *archdoc.Design, bases ...string) (string, err
 		}
 	}
 	return "", errNoName
+}
+
+// showVersion puts a saved version on the canvas (nil = back to now).
+func (m *canvasModel) showVersion(ctx *ui.Context, sh *sharedSink, p *versionPreview) tea.Cmd {
+	sh.preview = p
+	m.cancelGesture()
+	m.mode, m.menu, m.faults = modeNormal, nil, nil
+	return m.refresh(ctx)
 }

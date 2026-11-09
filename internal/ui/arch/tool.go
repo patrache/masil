@@ -121,6 +121,11 @@ func registerCommands() {
 		_, ok := openInstance(ctx, true)
 		return features.On(ui.ToolArch) && ok
 	}
+	// a room document in front (versions exist only there)
+	frontDoc := func(ctx *ui.Context) bool {
+		r, ok := openInstance(ctx, true)
+		return features.On(ui.ToolArch) && ok && r.Query[queryDoc] != ""
+	}
 	toFront := func(id string) func(*ui.Context, string) tea.Cmd {
 		return func(ctx *ui.Context, _ string) tea.Cmd {
 			r, ok := openInstance(ctx, true)
@@ -137,7 +142,7 @@ func registerCommands() {
 			Run: func(*ui.Context, string) tea.Cmd { return ui.OpenOverlay(newFilesDialog()) }},
 		{ID: "arch.share", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteShare() }, Keywords: []string{"arch", "share"}, Available: front, Run: toFront("arch.share")},
 		{ID: "arch.export", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteExport() }, Keywords: []string{"arch", "export", "mermaid", "terraform"}, Available: front, Run: toFront("arch.export")},
-		{ID: "arch.versions", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteVersions() }, Keywords: []string{"arch", "versions"}, Available: front, Run: toFront("arch.versions")},
+		{ID: "arch.versions", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteVersions() }, Keywords: []string{"arch", "versions"}, Available: frontDoc, Run: toFront("arch.versions")},
 		{ID: "arch.send_card", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteSendCard() }, Keywords: []string{"arch", "card", "send"}, Available: front, Run: toFront("arch.send_card")},
 		{ID: "arch.save_copy", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteSaveCopy() }, Keywords: []string{"arch", "copy", "save"}, Available: front, Run: toFront("arch.save_copy")},
 		{ID: "arch.run", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteRun() }, Keywords: []string{"arch", "run", "simulate"}, Available: front, Run: toFront("arch.run")},

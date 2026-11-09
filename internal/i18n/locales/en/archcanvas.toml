@@ -783,6 +783,12 @@ other = "Traffic model"
 [panel_util]
 other = "utilization {pct}%"
 
+[preview_header]
+other = "Preview {label} · read-only · esc back to now"
+
+[preview_readonly]
+other = "A version preview is read-only · esc goes back to now"
+
 [proto_async]
 other = "Async queue"
 
@@ -936,6 +942,93 @@ other = "{rps} rps · {read}% reads · {kb}KB"
 
 [untitled]
 other = "Untitled design"
+
+[ver_field_parent]
+other = "Parent box"
+
+[ver_field_pos]
+other = "Position"
+
+[ver_field_rect]
+other = "Area"
+
+[versions_auto]
+other = "v{no} — autosave {when}"
+
+[versions_diff_added]
+other = "Added {n}"
+
+[versions_diff_changed]
+other = "Changed {n}"
+
+[versions_diff_hint]
+other = "j/k scroll · esc back to the list"
+
+[versions_diff_meta]
+other = "Design settings"
+
+[versions_diff_none]
+other = "No changes"
+
+[versions_diff_oldest]
+other = "This is the oldest version · nothing before it to compare"
+
+[versions_diff_removed]
+other = "Removed {n}"
+
+[versions_diff_title]
+other = "v{a} → v{b} changes"
+
+[versions_empty]
+other = "No versions yet · n saves this state with a name"
+
+[versions_failed]
+other = "Could not do that · try again shortly"
+
+[versions_hint]
+other = "enter preview · d diff with previous · r restore · n save with a name · esc close"
+
+[versions_limit]
+other = "Up to 100 named versions"
+
+[versions_loading]
+other = "Loading versions…"
+
+[versions_meta]
+other = "{who} · {when}"
+
+[versions_name_hint]
+other = "enter save · esc cancel"
+
+[versions_name_prompt]
+other = "Version name"
+
+[versions_named]
+other = "v{no} — {name}"
+
+[versions_personal]
+other = "Personal designs have no versions · use a shared design"
+
+[versions_restore_body]
+other = "Makes a new version with this content · the history stays"
+
+[versions_restore_title]
+other = "Restore v{no}?"
+
+[versions_restore_yes]
+other = "Restore"
+
+[versions_restored]
+other = "v{no} — restored v{from}"
+
+[versions_restored_toast]
+other = "Restored v{from} · new version v{no}"
+
+[versions_saved]
+other = "Saved as v{no}"
+
+[versions_title]
+other = "Versions"
 
 [view_canvas]
 other = "Canvas"

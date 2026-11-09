@@ -76,6 +76,7 @@ type canvasModel struct {
 	dragShared bool
 	dragSentAt time.Time
 	shareDlg   *shareDialog
+	verDlg     *versionsDialog // the open versions dialog (versions.go)
 }
 
 var (
@@ -299,6 +300,10 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if msg.instance == m.route.ID {
 			return m.onCollab(ctx, msg.E)
 		}
+	case versionPreviewMsg:
+		if sh := m.shared(); sh != nil && msg.instance == m.route.ID {
+			return m.showVersion(ctx, sh, &versionPreview{label: msg.label, objs: msg.objs})
+		}
 	case docMetaMsg:
 		if sh := m.shared(); sh != nil && msg.instance == m.route.ID && msg.err == nil && msg.doc != nil {
 			m.setMeta(ctx, sh, msg.doc)
@@ -369,6 +374,15 @@ func (m *canvasModel) runCommand(ctx *ui.Context, id string) tea.Cmd {
 		m.menu = nil
 		m.shareDlg = m.newShareDialog(ctx)
 		return ui.OpenOverlay(m.shareDlg)
+	case "arch.versions":
+		sh := m.shared()
+		if sh == nil {
+			return ui.Toast(ctx.T.Archcanvas.VersionsPersonal(), ui.ToastInfo)
+		}
+		m.cancelGesture()
+		m.menu = nil
+		m.verDlg = m.newVersionsDialog(sh)
+		return ui.OpenOverlay(m.verDlg)
 	case "arch.save_copy":
 		return m.saveCopy(ctx)
 	case "arch.export":

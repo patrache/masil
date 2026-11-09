@@ -1901,6 +1901,21 @@ var areaArchcanvas = area{
 				En: {Other: "utilization {pct}%"},
 			},
 		},
+		"preview_header": {
+			desc:   "버전 미리보기 중 위 줄. label = 버전 줄(v3 — 리뷰용)",
+			params: []Param{{Name: "label", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{label} 미리보기 · 읽기 전용 · esc 현재로"},
+				En: {Other: "Preview {label} · read-only · esc back to now"},
+			},
+		},
+		"preview_readonly": {
+			desc: "미리보기에서 편집 키를 눌렀을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 미리보기는 읽기 전용이에요 · esc 로 현재로 돌아가요"},
+				En: {Other: "A version preview is read-only · esc goes back to now"},
+			},
+		},
 		"proto_async": {
 			desc: "연결 프로토콜: 비동기 큐",
 			text: map[Locale]Forms{
@@ -2275,6 +2290,220 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "제목 없는 설계"},
 				En: {Other: "Untitled design"},
+			},
+		},
+		"ver_field_parent": {
+			desc: "차이 목록의 필드 이름: parent",
+			text: map[Locale]Forms{
+				Ko: {Other: "들어 있는 상자"},
+				En: {Other: "Parent box"},
+			},
+		},
+		"ver_field_pos": {
+			desc: "차이 목록의 필드 이름: pos",
+			text: map[Locale]Forms{
+				Ko: {Other: "위치"},
+				En: {Other: "Position"},
+			},
+		},
+		"ver_field_rect": {
+			desc: "차이 목록의 필드 이름: rect",
+			text: map[Locale]Forms{
+				Ko: {Other: "자리·크기"},
+				En: {Other: "Area"},
+			},
+		},
+		"versions_auto": {
+			desc:   "자동 버전 한 줄. no = 버전 번호, when = 저장 시각",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "when", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} — 자동 저장 {when}"},
+				En: {Other: "v{no} — autosave {when}"},
+			},
+		},
+		"versions_diff_added": {
+			desc:   "차이 요약: 더한 객체 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "추가 {n}"},
+				En: {Other: "Added {n}"},
+			},
+		},
+		"versions_diff_changed": {
+			desc:   "차이 요약: 바뀐 설정 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "바뀐 설정 {n}"},
+				En: {Other: "Changed {n}"},
+			},
+		},
+		"versions_diff_hint": {
+			desc: "차이 목록 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "j/k 넘기기 · esc 목록으로"},
+				En: {Other: "j/k scroll · esc back to the list"},
+			},
+		},
+		"versions_diff_meta": {
+			desc: "차이 목록: 설계 정보(제목·트래픽 등) 객체",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 정보"},
+				En: {Other: "Design settings"},
+			},
+		},
+		"versions_diff_none": {
+			desc: "두 버전이 같을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "차이가 없어요"},
+				En: {Other: "No changes"},
+			},
+		},
+		"versions_diff_oldest": {
+			desc: "가장 오래된 버전에서 d 를 눌렀을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "가장 오래된 버전이라 비교할 앞 버전이 없어요"},
+				En: {Other: "This is the oldest version · nothing before it to compare"},
+			},
+		},
+		"versions_diff_removed": {
+			desc:   "차이 요약: 지운 객체 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제 {n}"},
+				En: {Other: "Removed {n}"},
+			},
+		},
+		"versions_diff_title": {
+			desc:   "차이 목록 머리. a = 앞 버전, b = 고른 버전",
+			params: []Param{{Name: "a", Type: "int"}, {Name: "b", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{a} → v{b} 차이"},
+				En: {Other: "v{a} → v{b} changes"},
+			},
+		},
+		"versions_empty": {
+			desc: "저장된 버전이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장된 버전이 없어요 · n 으로 지금 상태를 이름 붙여 저장해요"},
+				En: {Other: "No versions yet · n saves this state with a name"},
+			},
+		},
+		"versions_failed": {
+			desc: "버전 작업이 실패했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 작업을 하지 못했어요 · 잠시 뒤 다시 해 주세요"},
+				En: {Other: "Could not do that · try again shortly"},
+			},
+		},
+		"versions_hint": {
+			desc: "버전 목록 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 미리보기 · d 앞 버전과 차이 · r 되돌리기 · n 이름 붙여 저장 · esc 닫기"},
+				En: {Other: "enter preview · d diff with previous · r restore · n save with a name · esc close"},
+			},
+		},
+		"versions_limit": {
+			desc: "이름 붙인 버전이 한도(100)에 찼을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름 붙인 버전은 100개까지예요"},
+				En: {Other: "Up to 100 named versions"},
+			},
+		},
+		"versions_loading": {
+			desc: "버전 목록을 불러오는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전을 불러오는 중…"},
+				En: {Other: "Loading versions…"},
+			},
+		},
+		"versions_meta": {
+			desc:   "버전 줄의 뒤쪽(만든 사람·시각). who = 이름, when = 시각",
+			params: []Param{{Name: "who", Type: "string"}, {Name: "when", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{who} · {when}"},
+				En: {Other: "{who} · {when}"},
+			},
+		},
+		"versions_name_hint": {
+			desc: "이름 붙여 저장 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 저장 · esc 취소"},
+				En: {Other: "enter save · esc cancel"},
+			},
+		},
+		"versions_name_prompt": {
+			desc: "이름 붙여 저장: 입력 칸 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 이름"},
+				En: {Other: "Version name"},
+			},
+		},
+		"versions_named": {
+			desc:   "이름 붙인 버전 한 줄. no = 버전 번호, name = 이름",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} — {name}"},
+				En: {Other: "v{no} — {name}"},
+			},
+		},
+		"versions_personal": {
+			desc: "개인 설계에서 버전 명령을 부를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "개인 설계에는 버전 기록이 없어요 · 방에 올린 설계에서 써 주세요"},
+				En: {Other: "Personal designs have no versions · use a shared design"},
+			},
+		},
+		"versions_restore_body": {
+			desc: "되돌리기 확인 본문",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 버전의 내용으로 새 버전을 만들어요 · 이전 기록은 그대로 남아요"},
+				En: {Other: "Makes a new version with this content · the history stays"},
+			},
+		},
+		"versions_restore_title": {
+			desc:   "되돌리기 확인 제목. no = 버전 번호",
+			params: []Param{{Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} 버전으로 되돌릴까요?"},
+				En: {Other: "Restore v{no}?"},
+			},
+		},
+		"versions_restore_yes": {
+			desc: "되돌리기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "되돌리기"},
+				En: {Other: "Restore"},
+			},
+		},
+		"versions_restored": {
+			desc:   "되돌리기로 생긴 버전 한 줄. no = 버전 번호, from = 되돌린 버전",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "from", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} — v{from} 버전으로 되돌림"},
+				En: {Other: "v{no} — restored v{from}"},
+			},
+		},
+		"versions_restored_toast": {
+			desc:   "되돌린 뒤 알림. from = 되돌린 버전, no = 새 버전",
+			params: []Param{{Name: "from", Type: "int"}, {Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{from} 버전으로 되돌렸어요 · 새 버전 v{no}"},
+				En: {Other: "Restored v{from} · new version v{no}"},
+			},
+		},
+		"versions_saved": {
+			desc:   "이름 붙여 저장한 뒤 알림. no = 새 버전 번호",
+			params: []Param{{Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} 버전으로 저장했어요"},
+				En: {Other: "Saved as v{no}"},
+			},
+		},
+		"versions_title": {
+			desc: "버전 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전"},
+				En: {Other: "Versions"},
 			},
 		},
 		"view_canvas": {
@@ -3601,6 +3830,16 @@ func (a_ ArchcanvasT) PanelUtil(pct int) string {
 	return a_.t.render(&areaArchcanvas, "panel_util", false, 0, "pct", strconv.Itoa(pct))
 }
 
+// PreviewHeader: 버전 미리보기 중 위 줄. label = 버전 줄(v3 — 리뷰용)
+func (a_ ArchcanvasT) PreviewHeader(label string) string {
+	return a_.t.render(&areaArchcanvas, "preview_header", false, 0, "label", label)
+}
+
+// PreviewReadonly: 미리보기에서 편집 키를 눌렀을 때
+func (a_ ArchcanvasT) PreviewReadonly() string {
+	return a_.t.render(&areaArchcanvas, "preview_readonly", false, 0)
+}
+
 // ProtoAsync: 연결 프로토콜: 비동기 큐
 func (a_ ArchcanvasT) ProtoAsync() string {
 	return a_.t.render(&areaArchcanvas, "proto_async", false, 0)
@@ -3854,6 +4093,151 @@ func (a_ ArchcanvasT) TrafficSummary(rps string, read int, kb int) string {
 // Untitled: 제목이 빈 설계의 표시 이름
 func (a_ ArchcanvasT) Untitled() string {
 	return a_.t.render(&areaArchcanvas, "untitled", false, 0)
+}
+
+// VerFieldParent: 차이 목록의 필드 이름: parent
+func (a_ ArchcanvasT) VerFieldParent() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_parent", false, 0)
+}
+
+// VerFieldPos: 차이 목록의 필드 이름: pos
+func (a_ ArchcanvasT) VerFieldPos() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_pos", false, 0)
+}
+
+// VerFieldRect: 차이 목록의 필드 이름: rect
+func (a_ ArchcanvasT) VerFieldRect() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_rect", false, 0)
+}
+
+// VersionsAuto: 자동 버전 한 줄. no = 버전 번호, when = 저장 시각
+func (a_ ArchcanvasT) VersionsAuto(no int, when string) string {
+	return a_.t.render(&areaArchcanvas, "versions_auto", false, 0, "no", strconv.Itoa(no), "when", when)
+}
+
+// VersionsDiffAdded: 차이 요약: 더한 객체 수
+func (a_ ArchcanvasT) VersionsDiffAdded(n int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_added", false, 0, "n", strconv.Itoa(n))
+}
+
+// VersionsDiffChanged: 차이 요약: 바뀐 설정 수
+func (a_ ArchcanvasT) VersionsDiffChanged(n int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_changed", false, 0, "n", strconv.Itoa(n))
+}
+
+// VersionsDiffHint: 차이 목록 키 안내
+func (a_ ArchcanvasT) VersionsDiffHint() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_hint", false, 0)
+}
+
+// VersionsDiffMeta: 차이 목록: 설계 정보(제목·트래픽 등) 객체
+func (a_ ArchcanvasT) VersionsDiffMeta() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_meta", false, 0)
+}
+
+// VersionsDiffNone: 두 버전이 같을 때
+func (a_ ArchcanvasT) VersionsDiffNone() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_none", false, 0)
+}
+
+// VersionsDiffOldest: 가장 오래된 버전에서 d 를 눌렀을 때
+func (a_ ArchcanvasT) VersionsDiffOldest() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_oldest", false, 0)
+}
+
+// VersionsDiffRemoved: 차이 요약: 지운 객체 수
+func (a_ ArchcanvasT) VersionsDiffRemoved(n int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_removed", false, 0, "n", strconv.Itoa(n))
+}
+
+// VersionsDiffTitle: 차이 목록 머리. a = 앞 버전, b = 고른 버전
+func (a_ ArchcanvasT) VersionsDiffTitle(a int, b int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_title", false, 0, "a", strconv.Itoa(a), "b", strconv.Itoa(b))
+}
+
+// VersionsEmpty: 저장된 버전이 없을 때
+func (a_ ArchcanvasT) VersionsEmpty() string {
+	return a_.t.render(&areaArchcanvas, "versions_empty", false, 0)
+}
+
+// VersionsFailed: 버전 작업이 실패했을 때
+func (a_ ArchcanvasT) VersionsFailed() string {
+	return a_.t.render(&areaArchcanvas, "versions_failed", false, 0)
+}
+
+// VersionsHint: 버전 목록 키 안내
+func (a_ ArchcanvasT) VersionsHint() string {
+	return a_.t.render(&areaArchcanvas, "versions_hint", false, 0)
+}
+
+// VersionsLimit: 이름 붙인 버전이 한도(100)에 찼을 때
+func (a_ ArchcanvasT) VersionsLimit() string {
+	return a_.t.render(&areaArchcanvas, "versions_limit", false, 0)
+}
+
+// VersionsLoading: 버전 목록을 불러오는 중
+func (a_ ArchcanvasT) VersionsLoading() string {
+	return a_.t.render(&areaArchcanvas, "versions_loading", false, 0)
+}
+
+// VersionsMeta: 버전 줄의 뒤쪽(만든 사람·시각). who = 이름, when = 시각
+func (a_ ArchcanvasT) VersionsMeta(who string, when string) string {
+	return a_.t.render(&areaArchcanvas, "versions_meta", false, 0, "who", who, "when", when)
+}
+
+// VersionsNameHint: 이름 붙여 저장 키 안내
+func (a_ ArchcanvasT) VersionsNameHint() string {
+	return a_.t.render(&areaArchcanvas, "versions_name_hint", false, 0)
+}
+
+// VersionsNamePrompt: 이름 붙여 저장: 입력 칸 머리
+func (a_ ArchcanvasT) VersionsNamePrompt() string {
+	return a_.t.render(&areaArchcanvas, "versions_name_prompt", false, 0)
+}
+
+// VersionsNamed: 이름 붙인 버전 한 줄. no = 버전 번호, name = 이름
+func (a_ ArchcanvasT) VersionsNamed(no int, name string) string {
+	return a_.t.render(&areaArchcanvas, "versions_named", false, 0, "no", strconv.Itoa(no), "name", name)
+}
+
+// VersionsPersonal: 개인 설계에서 버전 명령을 부를 때
+func (a_ ArchcanvasT) VersionsPersonal() string {
+	return a_.t.render(&areaArchcanvas, "versions_personal", false, 0)
+}
+
+// VersionsRestoreBody: 되돌리기 확인 본문
+func (a_ ArchcanvasT) VersionsRestoreBody() string {
+	return a_.t.render(&areaArchcanvas, "versions_restore_body", false, 0)
+}
+
+// VersionsRestoreTitle: 되돌리기 확인 제목. no = 버전 번호
+func (a_ ArchcanvasT) VersionsRestoreTitle(no int) string {
+	return a_.t.render(&areaArchcanvas, "versions_restore_title", false, 0, "no", strconv.Itoa(no))
+}
+
+// VersionsRestoreYes: 되돌리기 확인 버튼
+func (a_ ArchcanvasT) VersionsRestoreYes() string {
+	return a_.t.render(&areaArchcanvas, "versions_restore_yes", false, 0)
+}
+
+// VersionsRestored: 되돌리기로 생긴 버전 한 줄. no = 버전 번호, from = 되돌린 버전
+func (a_ ArchcanvasT) VersionsRestored(no int, from int) string {
+	return a_.t.render(&areaArchcanvas, "versions_restored", false, 0, "no", strconv.Itoa(no), "from", strconv.Itoa(from))
+}
+
+// VersionsRestoredToast: 되돌린 뒤 알림. from = 되돌린 버전, no = 새 버전
+func (a_ ArchcanvasT) VersionsRestoredToast(from int, no int) string {
+	return a_.t.render(&areaArchcanvas, "versions_restored_toast", false, 0, "from", strconv.Itoa(from), "no", strconv.Itoa(no))
+}
+
+// VersionsSaved: 이름 붙여 저장한 뒤 알림. no = 새 버전 번호
+func (a_ ArchcanvasT) VersionsSaved(no int) string {
+	return a_.t.render(&areaArchcanvas, "versions_saved", false, 0, "no", strconv.Itoa(no))
+}
+
+// VersionsTitle: 버전 대화상자 제목
+func (a_ ArchcanvasT) VersionsTitle() string {
+	return a_.t.render(&areaArchcanvas, "versions_title", false, 0)
 }
 
 // ViewCanvas: 보기 이름: 캔버스

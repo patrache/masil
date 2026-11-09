@@ -80,6 +80,9 @@ func (m *canvasModel) handleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.C
 		return false, nil
 	}
 	s := k.String()
+	if sh := m.shared(); sh != nil && sh.preview != nil && s == "esc" && m.mode == modeNormal && m.menu == nil && m.faults == nil {
+		return true, m.showVersion(ctx, sh, nil) // the preview ends: back to now
+	}
 	if m.regs.View == viewSummary {
 		return m.tinyKey(ctx, s)
 	}
