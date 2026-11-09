@@ -1551,7 +1551,27 @@ interface LeetSpaceSettings {
 | 경로 | 요청 | 응답·부수효과 |
 |---|---|---|
 | `PUT /v1/spaces/{space_id}/leet` | `{ enabled: boolean, channel_id?: ID }` | `200 { settings: LeetSpaceSettings }`. owner·admin 만(비멤버 `404`, 멤버 `403 forbidden`). 켜기: `channel_id` 가 있으면 그 방의 살아 있는 **공개** 텍스트 채널(아니면 `404`), 없으면 전에 쓰던 채널(살아 있고 공개일 때) → 그 방의 공개 채널 `daily` → 없으면 5.9 와 같은 규칙으로 `daily` 를 만든다(`channel.created` + `channel_created` system 메시지, 이름 충돌 `409`·채널 수 `422` 도 같음). 같은 채널로 다시 켜면 `enabled_by`·`enabled_at` 은 그대로. 끄기: 채널은 지우지 않고 `channel_id` 를 기억한다 · `RL_SOCIAL` |
+| `PUT /v1/leet/daily/{date}` | `LeetDailyFacts` (엄격 — 다른 키 `400`) | `200 { daily: LeetDaily, roots: LeetDailyRoot[] }`. `date` 는 서버 기준 오늘(UTC) 또는 어제만, 아니면 `400 fields.date = "invalid"`. 그날 처음 보고면 저장(`first_reporter` = 보고자), 같은 값이면 그대로, 다른 값이면 저장값은 두고 `mismatch_count` 만 1 올린다. 같은 요청 안에서 **보고자가 속한 방 중 #daily 가 켜진 방**마다 그날 루트가 없으면 만든다: `leet.daily` 카드(작성자 = 보고자, `thread_root_id: null`, data = **저장된** 사실 정보 + `date`, `body` = 링크) + `message.created`. 채널·날짜마다 하나(동시 보고에도 하나 — data-model.md 3.14 `leet_daily_roots`). 다른 요청이 만드는 중이면 2초까지 기다리고, 그래도 없으면 `roots` 에서 뺀다. 루트 메시지가 지워졌으면 다시 만든다. `roots` = 메시지가 살아 있는 루트들 · `RL_SOCIAL`, 루트를 실제로 만들 때 요청당 한 번 `RL_MESSAGE` 도 센다 |
 
+```ts
+interface LeetDailyFacts {
+  frontend_id: string;               // ^[0-9]{1,6}$
+  slug: string;                      // ^[a-z0-9-]{1,100}$
+  title: string;                     // 1..200 (NFC + trim)
+  difficulty: "Easy" | "Medium" | "Hard";
+  tags: string[];                    // <= 20, each 1..50
+  is_paid_only: boolean;
+}
+interface LeetDaily extends LeetDailyFacts {
+  date: string;                      // YYYY-MM-DD (UTC)
+  first_reporter: UserSummary | null;
+  first_reported_at: Timestamp;
+  mismatch_count: number;
+}
+interface LeetDailyRoot { space_id: ID; channel_id: ID; message_id: ID }
+```
+
+- 루트(`leet.daily`)는 수정할 수 없고(5.10 — `400 fields.message_id = "not_allowed"`), 리액션·고정·스레드 답글은 일반 메시지와 같다.
 - 이 절의 #daily 는 "그 방의 `leet_space_settings.enabled = 1` 이고 `channel_id` 채널이 살아 있음" 이다. 채널이 지워진 방은 꺼진 것과 같이 취급한다.
 
 ## 6. 엔드포인트 요약표
@@ -1655,6 +1675,7 @@ interface LeetSpaceSettings {
 | GET/POST | /v1/docs/{doc_id}/comments | ✓ | RL_DOC(POST) |
 | PATCH/DELETE | /v1/docs/{doc_id}/comments/{comment_id} | ✓ | RL_DOC |
 | GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
+| PUT | /v1/leet/daily/{date} | ✓ | RL_SOCIAL, RL_MESSAGE |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

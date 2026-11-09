@@ -9,10 +9,12 @@ import { first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { idParam } from "../lib/params";
 import { requireSpaceRole } from "../lib/permissions";
-import { limit } from "../lib/ratelimit";
+import { checkLimit, limit } from "../lib/ratelimit";
+import { isReportableDate, LeetDailyFacts } from "../lib/leet";
 import { isoOrNull, now } from "../lib/time";
 import { vJson, zId } from "../lib/validate";
 import { createTextChannel } from "../services/channels";
+import { ensureDailyRoots, reportDailyFacts, serializeLeetDaily } from "../services/leet";
 import type { ChannelRow } from "../types/rows";
 
 export const leetRoutes = new Hono<AppEnv>();
@@ -126,4 +128,23 @@ leetRoutes.put("/spaces/:space_id/leet", requireAuth, limit("RL_SOCIAL"), vJson(
   }
   const row = await first<LeetSpaceSettingsRow>(db, "SELECT * FROM leet_space_settings WHERE space_id = ?1", spaceId);
   return c.json({ settings: serializeLeetSpaceSettings(spaceId, row) });
+});
+
+/**
+ * A client reports the facts it fetched for `date` (today or yesterday, UTC; else 400 fields.date "invalid"). The first
+ * report is stored, the same again is kept, a different one counts a mismatch (reportDailyFacts). Then the #daily root
+ * of that day is made in every space of the reporter that has #daily on (ensureDailyRoots — one per channel per day,
+ * from the stored facts); the first root this request creates also counts RL_MESSAGE once.
+ * 200 { daily: LeetDaily, roots: LeetDailyRoot[] }.
+ */
+leetRoutes.put("/leet/daily/:date", requireAuth, limit("RL_SOCIAL"), vJson(LeetDailyFacts), async (c) => {
+  const me = getAuth(c).userId;
+  const db = c.env.DB;
+  const date = c.req.param("date");
+  if (!isReportableDate(date, now())) throw err.invalid({ date: "invalid" });
+  const stored = await reportDailyFacts(db, me, date, c.req.valid("json"));
+  const roots = await ensureDailyRoots(rt(c), me, date, stored, {
+    beforeCreate: () => checkLimit(c.env, "RL_MESSAGE", `u:${me}`),
+  });
+  return c.json({ daily: await serializeLeetDaily(db, stored), roots });
 });
