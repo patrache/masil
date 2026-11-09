@@ -4,7 +4,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { utcDate } from "../../src/lib/leet";
-import { api, connectWs, makeSpace, signup, type TestUser } from "../helpers";
+import { api, connectWs, inOneRateWindow, makeSpace, signup, type TestUser } from "../helpers";
 
 const DAY = 86_400_000;
 const today = () => utcDate(Date.now());
@@ -186,5 +186,40 @@ describe("PUT /v1/leet/solves/{date}", () => {
     // nothing left: still 204; a bad date 400
     expect((await api(a.token).del(`/v1/leet/solves/${today()}`)).status).toBe(204);
     expect((await api(a.token).del(`/v1/leet/solves/2026-02-30`)).status).toBe(400);
+  });
+
+  // review: the RL_MESSAGE check runs before anything is stored (api.md 5.25 "checks first, writes nothing")
+  it("RL_MESSAGE used up: 429 and no record, no card", async () => {
+    await inOneRateWindow(10, async () => {
+      const [o, a] = await Promise.all([signup(), signup()]);
+      const { spaceId, channelId } = await dailySpace(o, [a]);
+      await reportBoth(o);
+      for (let i = 0; i < 20; i++) await env.RL_MESSAGE.limit({ key: `u:${a.user.id}` });
+      const r = await putSolve(a, solveBody({ share_space_ids: [spaceId] }));
+      expect(r.status).toBe(429);
+      expect(r.body.error.details.limiter).toBe("RL_MESSAGE");
+      const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM leet_solves WHERE user_id = ?1").bind(a.user.id).first<any>();
+      expect(rows.n).toBe(0);
+      expect(await threadCards(o.token, await rootOf(o.token, channelId, today()))).toHaveLength(0);
+    });
+  });
+
+  // review: a card in a space I can no longer read (kicked) is still mine to delete; one card never stops the others
+  it("DELETE after I was kicked from one shared space: 204, record and every card gone", async () => {
+    const [o, a] = await Promise.all([signup(), signup()]);
+    const s1 = await dailySpace(o, [a]);
+    const s2 = await dailySpace(o, [a]);
+    await reportBoth(o);
+    const r = await putSolve(a, solveBody({ share_space_ids: [s1.spaceId, s2.spaceId] }));
+    expect(r.body.cards).toHaveLength(2);
+    expect((await api(o.token).del(`/v1/spaces/${s1.spaceId}/members/${a.user.id}`)).status).toBe(204);
+    const d = await api(a.token).del<any>(`/v1/leet/solves/${today()}`);
+    expect(d.status).toBe(204);
+    const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM leet_solves WHERE user_id = ?1").bind(a.user.id).first<any>();
+    expect(rows.n).toBe(0);
+    for (const card of r.body.cards) {
+      const m = await env.DB.prepare("SELECT deleted_at FROM messages WHERE id = ?1").bind(card.message_id).first<any>();
+      expect(m.deleted_at).not.toBeNull();
+    }
   });
 });

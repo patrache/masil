@@ -363,11 +363,11 @@ function mySolveCard(db: D1Database, rootId: string, me: string): Promise<{ id: 
 }
 
 /**
- * For each shared space (the caller checked they are all dailySpacesOf(me)): the day's root (ensureDailyRoots for that
- * one space, so a missing root is made by me), then my leet.solve card under it — rewritten with updateCardMessage
- * when it exists (message.updated), else created with createCardMessage (message.created + thread.updated).
- * `beforeWrite` runs once before the first card or root this call writes. A root another request is still making
- * after the wait (ensureDailyRoots gave none) -> 503 service_unavailable (retryable); cards already written stay.
+ * For each shared space (the caller checked they are all dailySpacesOf(me), and counted RL_MESSAGE once): the day's
+ * root (ensureDailyRoots for that one space, so a missing root is made by me), then my leet.solve card under it —
+ * rewritten with updateCardMessage when it exists (message.updated), else created with createCardMessage
+ * (message.created + thread.updated). A root another request is still making after the wait (ensureDailyRoots gave
+ * none) -> 503 service_unavailable (retryable); the record and cards already written stay (a retry is idempotent).
  */
 export async function upsertSolveCards(
   rt: Runtime,
@@ -376,23 +376,15 @@ export async function upsertSolveCards(
   daily: LeetDailyRow,
   card: LeetSolveCard,
   shareSpaceIds: readonly string[],
-  beforeWrite?: () => Promise<void>,
 ): Promise<LeetSolveCardRef[]> {
   const db = rt.env.DB;
-  let counted = false;
-  const once = async () => {
-    if (counted || !beforeWrite) return;
-    counted = true;
-    await beforeWrite();
-  };
   const out: LeetSolveCardRef[] = [];
   const body = leetLink(card.slug);
   for (const spaceId of shareSpaceIds) {
-    const [root] = await ensureDailyRoots(rt, me, date, daily, { spaceIds: [spaceId], beforeCreate: once });
+    const [root] = await ensureDailyRoots(rt, me, date, daily, { spaceIds: [spaceId] });
     // another request is still making that root (rare, <= 2 s waited): retryable
     if (!root) throw new ApiError(503, "service_unavailable", "the day's #daily root is being created; retry");
     const existing = await mySolveCard(db, root.message_id, me);
-    await once();
     const input = { type: "leet.solve" as const, v: 1, data: card };
     const m = existing
       ? await updateCardMessage(rt, existing.id, input, body)
@@ -402,7 +394,13 @@ export async function upsertSolveCards(
   return out;
 }
 
-/** Deletes my record of `date` and every live leet.solve card of mine for that day (deleteMessage: message.deleted). */
+/**
+ * Deletes every live leet.solve card of mine for `date` (deleteMessage: message.deleted + thread.updated), then my
+ * record. The query's author_id = me is the author check, so each card is deleted with asAdmin (no channel-read
+ * check): a card in a space I have left or was kicked from, or whose channel is gone, is still removed. One card's
+ * failure does not stop the others (a card already gone — 404 — is fine); on any other failure the record stays and
+ * the error is rethrown, so a retry finds what is left.
+ */
 export async function deleteSolve(rt: Runtime, me: string, date: string): Promise<void> {
   const db = rt.env.DB;
   const cards = await all<{ id: string }>(
@@ -413,8 +411,16 @@ export async function deleteSolve(rt: Runtime, me: string, date: string): Promis
     me,
     date,
   );
+  let failure: unknown = null;
+  for (const c of cards) {
+    try {
+      await deleteMessage(rt, c.id, me, { asAdmin: true });
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) failure ??= e;
+    }
+  }
+  if (failure !== null) throw failure;
   await stmt(db, "DELETE FROM leet_solves WHERE user_id = ?1 AND date = ?2", me, date).run();
-  for (const c of cards) await deleteMessage(rt, c.id, me);
 }
 
 // ---------------------------------------------------------------------------

@@ -181,9 +181,10 @@ const LeetSolveBody = z.strictObject({
 /**
  * My accepted solve of `date` (today or yesterday, UTC). Checks first, writes nothing on failure: every shared space
  * must have #daily on with me in it (else 404 space), that day's facts must be known when sharing (else 404 daily),
- * and the card data must pass the leet.solve schema and the 16 KB cap (400 fields.card.data). Then: the record
- * (upsertSolve — passed_at of the first record kept) and my card in each shared space's root thread
- * (upsertSolveCards; the first root / card this request writes counts RL_MESSAGE once).
+ * the card data must pass the leet.solve schema and the 16 KB cap (400 fields.card.data), and a share counts
+ * RL_MESSAGE once (429). Then: the record (upsertSolve — passed_at of the first record kept) and my card in each
+ * shared space's root thread (upsertSolveCards; a root still being made by another request -> 503 after the record
+ * and earlier cards are written — a retry is idempotent).
  * 200 { solve: LeetSolve, cards: { space_id, message_id }[] }.
  */
 leetRoutes.put("/leet/solves/:date", requireAuth, limit("RL_SOCIAL"), vJson(LeetSolveBody), async (c) => {
@@ -205,13 +206,14 @@ leetRoutes.put("/leet/solves/:date", requireAuth, limit("RL_SOCIAL"), vJson(Leet
   // the card as it will be written (slug stays the first record's): validated before anything is stored
   const existing = await first<{ slug: string }>(db, "SELECT slug FROM leet_solves WHERE user_id = ?1 AND date = ?2", me, date);
   const preview = solveCardData({ user_id: me, date, passed_at: 0, ...input, slug: existing?.slug ?? input.slug }, b.frontend_id, code);
-  if (share.length > 0) validateCard({ type: "leet.solve", v: 1, data: preview }, true);
+  if (share.length > 0) {
+    validateCard({ type: "leet.solve", v: 1, data: preview }, true);
+    // a share always writes a card (and maybe a root): count RL_MESSAGE once, before anything is stored
+    await checkLimit(c.env, "RL_MESSAGE", `u:${me}`);
+  }
 
   const row = await upsertSolve(db, me, date, input);
-  const cards =
-    daily === null
-      ? []
-      : await upsertSolveCards(rt(c), me, date, daily, solveCardData(row, b.frontend_id, code), share, () => checkLimit(c.env, "RL_MESSAGE", `u:${me}`));
+  const cards = daily === null ? [] : await upsertSolveCards(rt(c), me, date, daily, solveCardData(row, b.frontend_id, code), share);
   return c.json({ solve: serializeLeetSolve(row), cards });
 });
 
