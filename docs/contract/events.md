@@ -1,5 +1,7 @@
 # masil WebSocket 실시간 계약 v1
 
+> **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: 연결 요청 `Accept-Language`(`api.md` 0.1)와 연결별 alert 대체 문구(4.7 `alert.template`), 방 문서 이벤트 4.10. 프레임 형식·한도·종료 코드는 바꾸지 않는다. P2 는 `workspace_share.*` 이벤트·alert 종류를 자기 절로 더한다.
+
 - 상태: 확정 계약 v1 (2026-11-05). 상위 출처: 설계서 `docs/superpowers/specs/2026-11-05-masil-design.md`.
 - 짝 문서: `api.md`(REST·객체 스키마), `data-model.md`, `server-architecture.md`(DO 구현).
 - 객체 타입(`Message`, `Channel`, `Post`, `Alert` …)은 **`api.md` 2장의 정의를 그대로** 쓴다. 이벤트 안의 객체는 REST 응답과 같은 직렬화 함수로 만든다.
@@ -305,6 +307,9 @@ client                                   server (UserHub)
 - `muted=true` 채널, `notify:"none"` 채널, 차단한 사용자가 행위자인 경우 alert 를 만들지 않는다.
 - 집중 모드 중: `suppressed:true, suppressed_reason:"focus"`(요약에 누적). 수동 `dnd` 중: `suppressed:true, suppressed_reason:"dnd"`(누적 안 함). suppressed alert 는 OS 알림을 띄우지 않지만 TUI 는 알림 패널에 조용히 보일 수 있다.
 - `alert.id` 는 모든 연결·기기에 같은 값. 같은 `id` 는 한 번만 띄운다(재전송 대비).
+- **v0.1.3 — `alert.template` (i18n 설계서 7.3, `api.md` 2장 `AlertTemplate`)**: 새 서버의 alert 는 `template: { id, params }` 를 함께 보낸다(`id` 목록·인자 = `docs/contract/i18n/alert-templates.json`). `title`·`body` 는 그 **연결**의 `Accept-Language`(`GET /v1/ws` 요청 헤더, 없거나 셋 밖이면 `ko`)로 서버가 렌더한 대체 문구다 — 서버는 alert 를 `template` + ko 대체 문구로 한 번 저장하고(로그·집중 요약 누적), **프레임을 보낼 때마다**(재전송·`resume` 포함) 연결의 언어로 다시 렌더한다. 그래서 한 사용자의 두 연결(ko·en)이 같은 `alert.id` 를 각자 언어로 받는다. `template` 이 없는 옛 기록은 저장된 문구 그대로(`template: null`). 언어는 연결 메모리에만 있고 저장하지 않는다.
+- 클라이언트는 아는 `template.id` 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 0.1.2 클라이언트는 `template` 을 무시하고 `title`/`body`(ko)를 그대로 쓴다 — 0.1.2 와 같은 글자.
+- 문서 댓글 멘션(v0.1.3)은 `kind:"mention"`, `template.id = "doc.comment_mention"`, `target.type = "doc"`(`doc_type` 포함)이다. 알림함 행(`notification.created`)은 만들지 않는다.
 
 예:
 ```json
@@ -344,6 +349,18 @@ client                                   server (UserHub)
 | type | 청중 | 기록 | 모드 | data |
 |---|---|---|---|---|
 | `device.tui_state` | 같은 `device_id` 의 notify 연결 | 휘발 | N | `{ device_id: string, tui_connected: boolean }` — 그 기기의 full 연결 수가 0↔1 이상으로 바뀔 때 |
+
+### 4.10 방 문서 (v0.1.3, 청중: `space:<space_id>`, 기록, F)
+
+방 문서(`api.md` 5.24)의 목록·댓글 배지 갱신용. 문서 **내용**(op)은 이 소켓이 아니라 문서 소켓 `GET /v1/docs/{doc_id}/ws`(`docs/contract/collab.md`)로만 흐른다.
+
+| type | data |
+|---|---|
+| `doc.created` | `{ doc: Doc }` |
+| `doc.updated` | `{ doc: Doc, deleted: boolean }` — 제목·잠금 바꾸기, 삭제(`deleted:true`, `doc` 은 삭제 직전 값). 편집으로 `head_seq`·`updated_at` 이 바뀔 때는 보내지 않는다(목록은 열 때 REST 로) |
+| `doc.comment_created` | `{ doc_id: ID, comment: DocComment }` |
+
+- 클라이언트는 모르는 문서 종류(`doc.type`)의 이벤트를 무시한다. 0.1.2 클라이언트는 모르는 `type` 을 무시한다(8장).
 
 ## 5. 클라이언트 → 서버 프레임
 
@@ -463,7 +480,8 @@ notify 모드에서 `typing/idle/watch` → `reply{not_allowed_in_mode}`.
 `presence.snapshot, presence.updated, presence.self, focus.started, focus.ended,`
 `notification.created, notifications.read, alert,`
 `timeline.item_created, post.deleted, post.stats, post.reply_created, story.created, story.deleted,`
-`device.tui_state`
+`device.tui_state,`
+`doc.created, doc.updated, doc.comment_created` (v0.1.3, 4.10)
 
 클라이언트는 모르는 `type` 을 무시한다(서버가 나중에 추가해도 깨지지 않게).
 

@@ -1,0 +1,658 @@
+[
+  {
+    "name": "different_fields_both_survive",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "label": "api"
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "mem",
+            "value": 16
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 8,
+            "label": "api",
+            "mem": 16
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "same_field_later_seq_wins",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 4
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 4
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "set_after_del_is_dropped",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "del",
+            "id": "n1"
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "set_after_undel_applies",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "undel",
+            "id": "n1"
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 8
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "put_on_deleted_object_is_ignored",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "put",
+            "id": "n1",
+            "type": "node",
+            "fields": {
+              "cpu": 8,
+              "label": "new"
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "put_creates_object",
+    "start": {
+      "seq": 0,
+      "objects": []
+    },
+    "batches": [
+      {
+        "seq": 1,
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "node",
+            "fields": {
+              "label": "db"
+            }
+          },
+          {
+            "op": "put",
+            "id": "e1",
+            "type": "edge",
+            "fields": {
+              "from": "n2",
+              "to": "n1"
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "e1",
+          "type": "edge",
+          "fields": {
+            "from": "n2",
+            "to": "n1"
+          }
+        },
+        {
+          "id": "n2",
+          "type": "node",
+          "fields": {
+            "label": "db"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "put_on_existing_merges_fields_keeps_type",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2,
+            "label": "api"
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "put",
+            "id": "n1",
+            "type": "edge",
+            "fields": {
+              "cpu": 8
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 8,
+            "label": "api"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "reset_replaces_everything",
+    "start": {
+      "seq": 4,
+      "objects": [
+        {
+          "id": "a",
+          "type": "node",
+          "fields": {
+            "x": 1
+          }
+        },
+        {
+          "id": "b",
+          "type": "node",
+          "fields": {
+            "x": 2
+          },
+          "deleted": true
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 5,
+        "ops": [
+          {
+            "op": "reset",
+            "snapshot": {
+              "seq": 2,
+              "objects": [
+                {
+                  "id": "c",
+                  "type": "edge",
+                  "fields": {
+                    "y": 3
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 5,
+      "objects": [
+        {
+          "id": "c",
+          "type": "edge",
+          "fields": {
+            "y": 3
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "unknown_op_is_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          },
+          {
+            "op": "move",
+            "id": "n1"
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "missing_object_ops_are_noops",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "zz",
+            "field": "cpu",
+            "value": 8
+          },
+          {
+            "op": "del",
+            "id": "zz"
+          },
+          {
+            "op": "undel",
+            "id": "zz"
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "last_op_in_batch_wins",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 4
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 6
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "del_then_undel_keeps_fields",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2,
+            "label": "api"
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "del",
+            "id": "n1"
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "undel",
+            "id": "n1"
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2,
+            "label": "api"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "json_values_kept_verbatim",
+    "start": {
+      "seq": 0,
+      "objects": [
+        {
+          "id": "r1",
+          "type": "request",
+          "fields": {}
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 1,
+        "ops": [
+          {
+            "op": "set",
+            "id": "r1",
+            "field": "headers",
+            "value": [
+              {
+                "k": "Accept",
+                "v": "*/*"
+              }
+            ]
+          },
+          {
+            "op": "set",
+            "id": "r1",
+            "field": "body",
+            "value": null
+          },
+          {
+            "op": "set",
+            "id": "r1",
+            "field": "meta",
+            "value": {
+              "ok": true,
+              "n": 1.5
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "r1",
+          "type": "request",
+          "fields": {
+            "body": null,
+            "headers": [
+              {
+                "k": "Accept",
+                "v": "*/*"
+              }
+            ],
+            "meta": {
+              "n": 1.5,
+              "ok": true
+            }
+          }
+        }
+      ]
+    }
+  }
+]

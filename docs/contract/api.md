@@ -3,6 +3,7 @@
 - 상태: 확정 계약 v1 (2026-11-05). 상위 출처: `docs/superpowers/specs/2026-11-05-masil-design.md` (충돌 시 설계서 우선).
 - 짝 문서: `events.md`(WebSocket), `data-model.md`(D1·R2), `server-architecture.md`(서버 코드 구조).
 - 이 문서가 서버(`server/`)와 Go 클라이언트(`internal/api`)의 **단일 출처**다. 필드 이름·타입·오류 코드를 바꾸려면 이 문서를 먼저 고친다.
+- **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: `Accept-Language`(0.1), 리미터 `RL_DOC`·`RL_SHARE`·`RL_SHARE_WS`(0.7), `Message.kind:"card"`·`Message.card`(2장·5.10·5.11), `Alert.template`·`Alert.target.type:"doc"`(2장), 방 문서 REST(5.24). 모두 더하기만이고 0.1.2 클라이언트는 같은 서버에서 그대로 동작한다. 도구 줄기(P1~P4)의 엔드포인트·타입은 각 줄기가 자기 절·행을 더한다(계획 색인 2장). 6장 표의 새 행은 그 경로를 만드는 Task 와 같은 커밋에서 더한다(`contract-limiters` 시험이 코드와 대조).
 - 표기: 객체 스키마는 TypeScript 표기. `ID` = ULID 문자열, `Timestamp` = RFC 3339 UTC 밀리초 문자열(`"2026-11-05T02:03:04.567Z"`). `?` 가 붙은 필드는 요청에서 생략 가능. 응답 필드는 **항상 존재**하며 값이 없으면 `null`(빈 배열은 `[]`).
 
 ---
@@ -17,6 +18,7 @@
 - 클라이언트는 모든 요청에 `User-Agent: masil/<semver> (<os>; <arch>)` 를 보낸다(예: `masil/0.1.0 (darwin; arm64)`).
 - 응답 헤더 `X-Request-Id: <ULID>` — 오류 보고용.
 - 응답 본문의 알 수 없는 필드는 클라이언트가 무시한다(추가는 하위 호환). 요청의 알 수 없는 필드는 서버가 무시한다.
+- **v0.1.3 — 언어 (i18n 설계서 7.3)**: 클라이언트는 모든 REST 요청과 WebSocket 연결 요청(`GET /v1/ws` — 데몬 notify 연결 포함, `GET /v1/docs/{doc_id}/ws`)에 `Accept-Language: <ko|en|zh-Hans>`(지금 실효 언어 하나, 0.1.3 클라이언트는 `ko`)를 보낸다. 서버는 값이 정확히 `ko`·`en`·`zh-Hans` 중 하나가 아니면(`en-US`·`zh`·빈 값·헤더 없음 포함) `ko` 로 본다. 서버는 이 값을 **저장하지 않는다** — 그 요청 처리 중, 또는 그 소켓 연결의 메모리 안에서만 쓴다. 쓰는 곳은 사용자용 대체 문구(`Alert.title`/`body`, 2장)뿐이다. 언어를 바꾸면 다음 요청부터 새 값, 소켓은 다음 재접속부터.
 
 ### 0.2 사용자 참조 `{user}`
 
@@ -104,7 +106,7 @@
 | 500 | `internal_error` | 서버 오류 |
 | 503 | `service_unavailable` | 일시 장애. 재시도 가능 |
 
-`limit_exceeded.details.what` 값: `group_dm_members, post_media, reactions_per_message, pins_per_channel, channels_per_space, owned_spaces, pending_friend_requests, pending_uploads, active_stories, watch_topics, poll_options, space_members, search_scope`.
+`limit_exceeded.details.what` 값: `group_dm_members, post_media, reactions_per_message, pins_per_channel, channels_per_space, owned_spaces, pending_friend_requests, pending_uploads, active_stories, watch_topics, poll_options, space_members, search_scope`. v0.1.3 더하기: `named_versions`(방 문서 이름 버전, 문서당 100, 5.24).
 
 ### 0.6 페이지네이션 (커서)
 
@@ -132,6 +134,11 @@
 | `RL_SEARCH` | 30회 / 60초 | `u:<user_id>` | `/v1/search/*`, `/v1/users/search`, `/v1/hashtags/search` |
 | `RL_WS` | 30회 / 60초 | `u:<user_id>` | `GET /v1/ws` 연결 시도 |
 | `RL_API` | 600회 / 60초 | `u:<user_id>` | 인증된 모든 요청(위 전용 리미터와 **추가로**) |
+| `RL_DOC` (v0.1.3) | 30회 / 60초 | `u:<user_id>` | 방 문서·버전·댓글 **쓰기**(5.24 의 POST·PATCH·DELETE). 바인딩 namespace 7111 |
+| `RL_SHARE` (v0.1.3) | 10회 / 60초 | `u:<user_id>` | P2 작업공간 공유 만들기·초대 더하기(경로·행은 P2). 바인딩 namespace 7113 |
+| `RL_SHARE_WS` (v0.1.3) | 30회 / 60초 | `u:<user_id>` | P2 작업공간 공유 `/ws` 연결 시도(경로·행은 P2). 바인딩 namespace 7112 |
+
+- v0.1.3: 방 문서 소켓 `GET /v1/docs/{doc_id}/ws` 의 업그레이드는 기존 `RL_WS` 를 쓴다(새 리미터 없음). 세 새 바인딩은 `server/wrangler.jsonc`·`server/src/lib/ratelimit.ts` 에 P0 Task 26 이 한꺼번에 만든다(다른 줄기는 이 파일들을 고치지 않는다). Workers Rate Limiting 의 period 는 10 또는 60초뿐이라, 설계서의 "공유 만들기 60분 10회" 같은 긴 창은 리미터가 아니라 D1 로 센다(그 설명 한 줄은 P2 가 더한다).
 
 ---
 
@@ -448,8 +455,8 @@ interface Message {
   id: ID;
   channel_id: ID;
   author: UserSummary;
-  kind: "text" | "me" | "roll" | "poll" | "system";
-  body: string;                      // raw markdown subset; "" if deleted; roll: the expression; poll: ""
+  kind: "text" | "me" | "roll" | "poll" | "system" | "card";   // "card": v0.1.3 (C1.2)
+  body: string;                      // raw markdown subset; "" if deleted; roll: the expression; poll: ""; card: required human-readable fallback summary (1..4000)
   mentions: MentionRef[];
   mention_here: boolean;
   thread_root_id: ID | null;         // set => this is a thread reply
@@ -459,10 +466,22 @@ interface Message {
   poll: Poll | null;
   roll: RollResult | null;
   system: SystemEvent | null;
+  card: Card | null;                 // v0.1.3: set iff kind == "card"
   client_nonce: string | null;
   created_at: Timestamp;
   edited_at: Timestamp | null;
   deleted: boolean;                  // tombstone (only returned when it has thread replies)
+}
+
+// v0.1.3 (C1.2): one message kind for every tool card; the type inside tells them apart.
+type CardType =
+  | "leet.daily" | "leet.solve"      // server-only: created by the P1 LeetCode endpoints, rejected from normal sends
+  | "arch.design" | "arch.sim"      // user-sent (P3)
+  | "api.result" | "api.run";       // user-sent (P4)
+interface Card {
+  type: CardType;
+  v: number;                         // schema version of that type (integer >= 1)
+  data: Record<string, unknown>;     // per-type schema (each tool's plan adds its rows below); JSON.stringify(data) <= 16,384 bytes
 }
 
 type QuotedPost =
@@ -548,17 +567,26 @@ interface Alert {                    // desktop-notification candidate (events.m
   body: string;                      // <= 200 code points, plain text (markdown stripped)
   actor: UserSummary | null;
   target: {
-    type: "channel" | "message" | "post" | "space" | "user" | "notification";
+    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc";   // "doc": v0.1.3
     id: ID;
     channel_id: ID | null;
     message_id: ID | null;
     thread_root_id: ID | null;
     post_id: ID | null;
     space_id: ID | null;
+    doc_type?: "arch" | "apicol";    // v0.1.3: present only when type == "doc"
   };
   created_at: Timestamp;
   suppressed: boolean;               // true during focus/dnd: do not pop an OS notification
   suppressed_reason: "focus" | "dnd" | null;
+  template: AlertTemplate | null;    // v0.1.3: null = alert stored by an older server (fallback text only)
+}
+
+// v0.1.3 (i18n 7.3): what the alert says, as data. The client renders it from its catalog;
+// title/body above stay as the fallback text rendered in the connection's / request's Accept-Language (0.1).
+interface AlertTemplate {
+  id: string;                                  // a key of docs/contract/i18n/alert-templates.json "templates"
+  params: Record<string, string | number>;     // exactly the names listed for that id there
 }
 
 interface FocusSummary {
@@ -620,6 +648,22 @@ interface AdminAction {
   created_at: Timestamp;
 }
 ```
+
+**v0.1.3 규칙 — 카드·alert 템플릿·문서 대상**
+
+- **카드 (`kind:"card"`, v0.1.3 설계서 C1.2)**: 메시지 종류는 `"card"` 하나만 더한다. 0.1.2 이하 클라이언트는 모르는 kind 의 `body` 를 일반 본문으로 그리므로 `body` 는 사람이 읽을 요약 한두 줄(필수, 1..4000; `leet.*` 는 링크 한 줄만 — 스포일러 방지, P1)이다. 서버는 type 별 스키마(`server/src/lib/cards/<도구>.ts`)와 길이만 검사한다. 카드 메시지는 수정할 수 없다(5.10). 검색 색인은 `body` 를 쓴다. type 별 `data` 스키마 표는 각 도구 줄기가 이 절에 행으로 더한다:
+
+| type | v | 만드는 쪽 | data (줄기가 채움) |
+|---|---|---|---|
+| `leet.daily` | 1 | 서버만(P1) | P1 |
+| `leet.solve` | 1 | 서버만(P1) | P1 |
+| `arch.design` | 1 | 사용자(P3) | P3 |
+| `arch.sim` | 1 | 사용자(P3) | P3 |
+| `api.result` | 1 | 사용자(P4) | P4 |
+| `api.run` | 1 | 사용자(P4) | P4 |
+
+- **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
+- **문서 대상 (`target.type:"doc"`)**: 모양 `{ type: "doc", id: <doc_id>, space_id, doc_type: "arch" | "apicol", channel_id: null, message_id: null, thread_root_id: null, post_id: null }`. 클라이언트는 `doc_type` 으로 어느 도구가 열지 고른다(CA 5.3.6 `RegisterAlertTarget` 의 `"doc:<doc_type>"` 키). 0.1.2 클라이언트는 모르는 대상의 alert 를 OS 알림으로만 보이고 이동하지 않는다.
 
 ### 2.1 본문 문법 (메시지·글 공통)
 
@@ -1109,7 +1153,8 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 ```json
 { "client_nonce": "01JC9X...", "kind": "text", "body": "@minji 점심 먹고 ㄱㄱ" }
 ```
-  - `kind?`: `"text"`(기본) | `"me"`(`/me` 동작 메시지) | `"roll"`(`body` = 주사위 식) | `"poll"`(`body` 무시, `poll: PollInput` 필수).
+  - `kind?`: `"text"`(기본) | `"me"`(`/me` 동작 메시지) | `"roll"`(`body` = 주사위 식) | `"poll"`(`body` 무시, `poll: PollInput` 필수) | `"card"`(v0.1.3, `card: { type, v, data }` 와 `body`(대체 요약) 필수).
+  - **카드 오류 (v0.1.3)**: `card` 없는 `kind:"card"` → `fields.card = "required"`; 모르는 type → `fields.card.type = "invalid"`; 서버만 만드는 type(`leet.daily`·`leet.solve`) → `fields.card.type = "not_allowed"`; 그 type 이 모르는 `v` → `fields.card.v = "invalid"`; 스키마에 안 맞는 data → `fields.card.data = "invalid"`; `JSON.stringify(data)` 16,384바이트 초과 → `fields.card.data = "too_long"`; `body` 없음 → `fields.body = "required"`(모두 `400 invalid_request`). 리미터는 그대로 `RL_MESSAGE`.
   - `/shrug` 는 클라이언트가 본문 끝에 `¯\_(ツ)_/¯` 를 붙여 `text` 로 보낸다.
 - `201 { "message": Message }` (중복 nonce → `200` 기존 메시지)
 - 부수효과(한 batch): 메시지 삽입, `channels.last_message_*`(**조건부**: `WHERE last_message_id IS NULL OR last_message_id < ?새ID` — 동시 전송 때 뒤로 가지 않게), `message_mentions`(2.1 해석 규칙을 통과한 명시적 멘션 + `@here` 확장 대상), 내 `channel_reads` 를 이 메시지로 전진(역시 더 클 때만), 투표 생성.
@@ -1121,6 +1166,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `PATCH /v1/messages/{message_id}`
 - 작성자, `kind` text/me, `RL_MESSAGE`. 요청: `{ "body": string }` — 멘션 재해석(2.1 규칙 그대로, 새로 추가된 멘션만 알림. `@here` 는 다시 확장하지 않는다).
+- v0.1.3: 카드 메시지(`kind:"card"`)는 수정할 수 없다 → `400 invalid_request`, `details.fields.message_id = "not_allowed"`(아무것도 쓰지 않음). 서버만 만드는 카드의 내용 고치기는 서버 내부 경로(P1)만 하고 `message.updated` 를 보낸다.
 - `200 { "message": Message }` · 이벤트: `message.updated`
 
 #### `DELETE /v1/messages/{message_id}`
@@ -1137,7 +1183,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 루트가 `kind:"system"` 이면(D7) `items: []`, `has_more_before`/`has_more_after` 모두 `false` — v0.1.1 이전에 저장된 답글도 돌려주지 않는다.
 
 #### `POST /v1/messages/{message_id}/thread`
-- 쓰기 권한, `RL_MESSAGE`. 요청: `{ "client_nonce": string, "kind"?: "text"|"me"|"roll", "body": string }` (투표 불가)
+- 쓰기 권한, `RL_MESSAGE`. 요청: `{ "client_nonce": string, "kind"?: "text"|"me"|"roll"|"card", "body": string, "card"?: Card }` (투표 불가; `card` 는 v0.1.3 — 5.10 의 카드 규칙·오류 그대로)
 - `201 { "message": Message }` (중복 nonce `200`)
 - 부수효과: 루트 `reply_count+1`, `last_reply_at`, `thread_participants` upsert(첫 답글이면 루트 작성자도 추가).
 - 이벤트: `message.created`(채널 청중, `thread_root_id` 설정됨) + `thread.updated`(채널 청중). 알림 `thread_reply` + alert `thread_reply` → 루트 작성자와 이전 참여자(작성자 본인 제외). dm·group_dm 에서는 알림 행은 `thread_reply` 이되 alert 는 `dm` 하나(사람당 alert 1개: `dm` > `mention` > `thread_reply` > `channel_message`). 멘션 처리 동일.
@@ -1417,6 +1463,70 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 프로토콜 전체는 `events.md`.
 
 ---
+
+### 5.24 방 문서 (v0.1.3, CollabHub — v0.1.3 설계서 C1)
+
+방(Space)에 속한 공유 문서. 종류 `type` 은 `"arch"`(P3 아키텍처 설계)·`"apicol"`(P4 API 컬렉션) 둘. 내용(객체 묶음)은 문서마다 Durable Object `CollabHub`(이름 `doc:<doc_id>`, `server-architecture.md` 3.1)에 있고 실시간 편집은 별도 소켓 `GET /v1/docs/{doc_id}/ws`(프레임·한도·종료 코드는 `docs/contract/collab.md`)로 한다. 기존 실시간 소켓(`/v1/ws`)의 계약(프레임 8KB, 10초 30프레임)은 바꾸지 않는다 — 목록·댓글 배지 갱신용 이벤트 셋만 그쪽으로 간다(events.md 4.10).
+
+```ts
+interface Doc {
+  id: ID;
+  space_id: ID;
+  type: "arch" | "apicol";
+  title: string;                     // 1..80
+  created_by: UserSummary;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  head_seq: number;                  // last sequenced op (collab.md); 0 = empty
+  locked: boolean;
+}
+interface DocVersion {
+  no: number;                        // 1.. per doc
+  seq: number;                       // head_seq the version captured
+  name: string | null;               // 1..60 for named versions; null for auto and restore versions
+  auto: boolean;                     // true = automatic version
+  restored_from: number | null;      // set on the version a restore created
+  created_by: UserSummary | null;    // null for auto versions
+  created_at: Timestamp;
+}
+interface DocComment {
+  id: ID;
+  doc_id: ID;
+  anchor: string;                    // object id (or the tool's anchor syntax), 1..128
+  author: UserSummary;
+  body: string;                      // 1..2000; "" when deleted
+  root_id: ID | null;                // reply => the root comment
+  resolved_at: Timestamp | null;
+  created_at: Timestamp;
+  deleted: boolean;
+}
+// Snapshot: collab.md "Snapshot" ({ seq, objects: [...] })
+```
+
+**권한**: 방 멤버는 읽기·편집·댓글. 방 멤버가 아니면 모든 문서 경로가 `404`(3.5 와 같음, 존재를 숨김). 삭제·잠금 바꾸기는 만든 사람과 그 방 owner·admin(그 밖 멤버 → `403 forbidden`). 잠긴 문서는 만든 사람·owner·admin 만 편집·복원(그 밖 멤버의 op 는 소켓에서 `reject{code:"locked"}`, 복원 REST 는 `403 forbidden`).
+
+**탈퇴·강퇴·방 삭제·문서 삭제**: 기존 정리 batch 가 커밋된 뒤 서버가 그 방의 열린 문서 소켓에 `kicked{reason: "left"|"kicked"|"banned"|"space_deleted"|"doc_deleted"}` 를 보내고 4100 으로 닫는다(collab.md). 강퇴된 사람이 열어 둔 소켓으로 계속 보는 일이 없다.
+
+| 경로 | 요청 | 응답·부수효과 |
+|---|---|---|
+| `GET /v1/spaces/{space_id}/docs?type=arch\|apicol&cursor&limit` | — | `200 { items: Doc[], next_cursor }` — 삭제 안 된 것, `updated_at` 최신순, `type` 생략 = 둘 다 |
+| `POST /v1/spaces/{space_id}/docs` | `{ type, title, snapshot?: Snapshot }` | `201 { doc }` + `doc.created`. `snapshot` 이 있으면 그 상태로 시작(종류별 한도 검사, collab.md) · `RL_DOC` |
+| `GET /v1/docs/{doc_id}` | — | `200 { doc }` |
+| `PATCH /v1/docs/{doc_id}` | `{ title?, locked? }` | `200 { doc }` + `doc.updated`. `locked` 는 만든 사람·owner·admin · `RL_DOC` |
+| `DELETE /v1/docs/{doc_id}` | — | `204` + `doc.updated{deleted:true}`, 열린 소켓 `kicked{doc_deleted}`. 만든 사람·owner·admin · `RL_DOC` |
+| `GET /v1/docs/{doc_id}/versions` | — | `200 { items: DocVersion[] }` — 새것 먼저; 이름 버전·되돌리기 버전 전부 + 30일 안의 자동 버전 |
+| `GET /v1/docs/{doc_id}/versions/{no}` | — | `200 { version: DocVersion, snapshot: Snapshot }` — 미리보기·두 버전 차이용. 없는 `no`·30일 지나 지운 자동 버전 → `404` |
+| `POST /v1/docs/{doc_id}/versions` | `{ name }` (1..60) | `201 { version }` — 지금 `head_seq` 의 이름 버전(`auto:false`). 이름 버전 101번째 → `422 limit_exceeded {what:"named_versions", limit:100}` · `RL_DOC` |
+| `POST /v1/docs/{doc_id}/versions/{no}/restore` | — | `200 { doc, version }` — 그 버전 스냅숏으로 되돌리고 접속자 모두에게 `op{ops:[{op:"reset", …}]}`. 기록은 지우지 않는다: 되돌린 상태를 **새 버전**(`auto:false`, `name:null`, `restored_from: no`, 이름 버전 100개 한도에 세지 않음)으로 만들어 돌려준다 · `RL_DOC` |
+| `GET /v1/docs/{doc_id}/comments?cursor&limit` | — | `200 { items: DocComment[], next_cursor }` — `created_at` 오래된 것부터 |
+| `POST /v1/docs/{doc_id}/comments` | `{ anchor, body, root_id? }` | `201 { comment }` + `doc.comment_created`. 본문의 `@handle`(그 방 멤버, 차단 관계 제외)마다 alert `kind:"mention"`, `template {id:"doc.comment_mention", params:{actor, doc, space}}`, `body` = 댓글 앞부분, `target {type:"doc", id, space_id, doc_type}`. 알림함 행은 만들지 않는다 · `RL_DOC` |
+| `PATCH /v1/docs/{doc_id}/comments/{comment_id}` | `{ body?, resolved? }` | `200 { comment }`. `body` 는 작성자만(그 밖 `403 forbidden`), `resolved` 는 방 멤버 누구나 · `RL_DOC` |
+| `DELETE /v1/docs/{doc_id}/comments/{comment_id}` | — | `204`. 작성자·owner·admin · `RL_DOC` |
+| `GET /v1/docs/{doc_id}/ws` | WebSocket 업그레이드 | `docs/contract/collab.md`. 인증·멤버 확인 뒤 CollabHub 로 · `RL_WS` |
+
+- 검증 오류: `title` 1..80(`fields.title = "too_long"|"required"`), 버전 `name` 1..60, 댓글 `body` 1..2000, `anchor` 1..128, `type` 이 둘 중 하나가 아니면 `fields.type = "invalid"`, `root_id` 가 같은 문서의 댓글이 아니면 `fields.root_id = "invalid"`.
+- **버전 규칙 (C2.11)**: 자동 버전 — 마지막 버전 뒤 op 가 있고 (편집이 멈춘 지 5분) 또는 (마지막 버전 뒤 op 200개)이면 서버가 `auto:true` 버전을 만든다(DO alarm). 자동 버전은 30일 보관 뒤 지우고, 이름 버전·되돌리기 버전은 영구. 이름 버전은 문서당 100개.
+- 6장 표의 행은 이 경로들을 만드는 P0 Task 26·28·29 가 그 코드와 같은 커밋에서 더한다.
 
 ## 6. 엔드포인트 요약표
 

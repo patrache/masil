@@ -1,5 +1,7 @@
 # masil 데이터 모델 계약 (D1 · R2 · 보존 정책)
 
+> **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: 마이그레이션 번호 예약(2장), `messages.card_json`(3.12), `collab_docs`·`collab_versions`·`collab_comments`(3.13). P1(`leet_*`, `0006`)·P2(`workspace_*`, `0007`)는 자기 표 절을 더한다.
+
 - 상태: 확정 계약 v1 (2026-11-05). 상위 출처: `docs/superpowers/specs/2026-11-05-masil-design.md`.
 - 짝 문서: `api.md`(REST), `events.md`(WebSocket), `server-architecture.md`(서버 코드 구조).
 - 이 문서의 SQL은 **그대로** `server/migrations/0001_init.sql`, `0002_search.sql`, 그리고 이후 추가 마이그레이션(`0003_...`, 해당 표 바로 아래에 따로 적음)에 옮긴다. 테이블·컬럼 이름을 바꾸려면 이 문서를 먼저 고친다.
@@ -60,6 +62,7 @@
   - `0002_search.sql` — 4장의 FTS5 가상 테이블·트리거
   - `0003_focus_started_at.sql` — 3.9 `user_presence.focus_started_at` 열 추가(집중 시작 시각)
   - 이후 변경은 `0004_...` 부터 **추가만** 한다. 적용된 마이그레이션 파일은 고치지 않는다.
+  - **v0.1.3 번호 예약** (계획 색인 2장): `0004_cards.sql`(P0 — 3.12 `messages.card_json`), `0005_collab.sql`(P0 — 3.13 `collab_*`), `0006_leet.sql`(P1), `0007_workspace.sql`(P2). 그 뒤 번호가 필요하면 `0008` 부터 머지 순서대로, 먼저 이 목록과 색인을 고친다.
 - 로컬 적용: `npx wrangler d1 migrations apply DB --local`. 테스트는 `readD1Migrations()` + `applyD1Migrations()` 로 같은 파일을 적용(`server-architecture.md` 7장).
 - 원격 적용은 **오너 건별 승인 후**에만.
 - 전역 운영자 지정(최초 1회, 오너가 직접): `UPDATE users SET role = 'admin' WHERE handle = '<handle>';` — 운영자 승격 API는 두지 않는다.
@@ -640,6 +643,65 @@ CREATE INDEX idx_admin_actions_created ON admin_actions(id);
 | 상태 메시지 | users.status_* |
 | 접속 상태·집중 모드 | user_presence (+ UserHub DO) |
 | 신고·운영자 | reports, admin_actions, users.role / suspended_* |
+| 채팅 카드 (v0.1.3) | messages.card_json (3.12) |
+| 방 문서·버전·댓글 (v0.1.3) | collab_docs, collab_versions, collab_comments (3.13) + CollabHub DO SQLite |
+
+### 3.12 채팅 카드 — `0004_cards.sql` (v0.1.3)
+
+```sql
+ALTER TABLE messages ADD COLUMN card_json TEXT;   -- JSON {type, v, data} (api.md 2장 Card); NULL = not a card
+```
+
+- DB 의 `kind` 는 `'text'` 로 둔다. 응답 직렬화는 `card_json` 이 있으면 `kind:"card"`, `card = JSON.parse(card_json)`, 없으면 `card: null`. 기존 `kind` CHECK 제약에 `'card'` 를 넣으려고 **테이블을 다시 만들지 않는다** — SQLite 의 테이블 재생성은 `ON DELETE CASCADE` 로 이어진 자식 행(리액션·멘션·고정·스레드 참여자)을 지운다.
+- 검색 색인(`messages_fts`)은 `body`(대체 요약)를 그대로 쓴다. 카드 `data` 는 색인하지 않는다.
+- 카드 메시지 삭제는 기존 메시지 삭제 규칙(1.4) 그대로이며 `card_json` 도 비운다(`NULL`).
+
+### 3.13 방 문서 — `0005_collab.sql` (v0.1.3, v0.1.3 설계서 C1.4)
+
+```sql
+CREATE TABLE collab_docs (
+  id          TEXT PRIMARY KEY,
+  space_id    TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL CHECK (type IN ('arch','apicol')),
+  title       TEXT NOT NULL,                              -- 1..80
+  created_by  TEXT NOT NULL REFERENCES users(id),
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,                           -- last edit reflected by the DO (batched, <= 30s late)
+  head_seq    INTEGER NOT NULL DEFAULT 0,                 -- mirrored from the CollabHub DO
+  locked      INTEGER NOT NULL DEFAULT 0 CHECK (locked IN (0,1)),
+  deleted_at  INTEGER
+);
+CREATE INDEX idx_collab_docs_space ON collab_docs(space_id, type, updated_at) WHERE deleted_at IS NULL;
+
+CREATE TABLE collab_versions (                            -- metadata; the snapshot body lives in the DO
+  doc_id        TEXT NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+  no            INTEGER NOT NULL,                         -- 1.. per doc
+  seq           INTEGER NOT NULL,
+  name          TEXT,                                     -- 1..60 for named versions; NULL for auto / restore versions
+  auto          INTEGER NOT NULL DEFAULT 0 CHECK (auto IN (0,1)),
+  restored_from INTEGER,                                  -- version no a restore copied
+  created_by    TEXT REFERENCES users(id),                -- NULL for auto versions
+  created_at    INTEGER NOT NULL,
+  PRIMARY KEY (doc_id, no)
+);
+
+CREATE TABLE collab_comments (
+  id          TEXT PRIMARY KEY,
+  doc_id      TEXT NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+  anchor      TEXT NOT NULL,                              -- 1..128
+  author_id   TEXT NOT NULL REFERENCES users(id),
+  body        TEXT NOT NULL,                              -- 1..2000; '' when deleted
+  root_id     TEXT REFERENCES collab_comments(id),
+  resolved_at INTEGER,
+  created_at  INTEGER NOT NULL,
+  deleted     INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0,1))
+);
+CREATE INDEX idx_collab_comments_doc ON collab_comments(doc_id, created_at);
+```
+
+- 문서 **내용**(편집 기록·최신 스냅숏·버전 스냅숏 본문·잠금/삭제 표시)은 D1 이 아니라 문서마다 `CollabHub` DO 의 SQLite 에 있다: `ops(seq INTEGER PRIMARY KEY, author TEXT, ts INTEGER, client_op_id TEXT UNIQUE, ops TEXT)`, `snapshot(id INTEGER PRIMARY KEY CHECK(id=1), seq, body)`, `versions(no INTEGER PRIMARY KEY, seq, body)`, `meta(k PRIMARY KEY, v)`. 접속자 커서·선택(presence)은 메모리에만. 형식은 `docs/contract/collab.md`.
+- 문서 삭제는 소프트(`deleted_at`). 방 삭제는 `ON DELETE CASCADE` 를 따른다(기존 방 삭제 규칙 1.4 와 같은 시점). 30일 지난 자동 버전 정리는 DO alarm 이 하고 D1 `collab_versions` 행도 함께 지운다.
+- R2 는 쓰지 않는다(JC2 — 문서 한도가 작아 DO SQLite 로 충분).
 
 ## 4. 검색 — `0002_search.sql` (FTS5)
 

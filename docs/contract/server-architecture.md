@@ -126,7 +126,19 @@ server/
 - "클라이언트당 소켓 1개로 모든 방·DM 이벤트"(설계서 5.2) → 소켓은 방이 아니라 **사용자** 단위 DO 에 붙어야 한다(한 소켓이 여러 DO 에 붙을 수 없으므로).
 - 방이 수백 명이어도 무리 없는 팬아웃 → 발행 시 D1 로 **TUI(full 연결)가 떠 있는 수신자만** 골라(`user_presence.online_until > now`) 그들의 UserHub 에만 RPC. 오프라인 사용자, 그리고 **데몬(notify 연결)만 떠 있는 사용자**의 DO 는 메시지·리액션·입력 중·SNS 이벤트로 깨우지 않는다(데몬은 OS 자동 시작으로 늘 떠 있으므로, 이를 온라인으로 치면 사실상 전원이 대상이 되어 아래 계산이 무너진다). 데몬만 떠 있는 사용자는 alert·알림함·집중 모드 이벤트만 `notify_online_until` 로 받는다(`events.md` 6.2). 500명 방에 TUI 를 켠 사람이 200명이면 메시지 1건 = D1 쿼리 1회 + DO RPC 200회(50개씩 병렬) + 그중 alert 대상(멘션·`notify:"all"`)에게 가는 alert RPC. Workers Paid 의 호출당 subrequest 한도는 기본 10,000 이고 `waitUntil` 은 응답 후 30초까지 이어지므로 충분하다.
 - 피드 카운터처럼 "보고 있는 사람"이 청중인 것은 **토픽 DO(TopicHub)** 가 시청자 목록을 들고 있다.
-- DO 클래스는 둘뿐이다. 전역 단일 DO 는 없다(병목 금지).
+- (v0.1.2 까지) DO 클래스는 둘뿐이다. 전역 단일 DO 는 없다(병목 금지).
+- **v0.1.3 [JX15, 오너 승인 사항]: DO 클래스는 넷** — 전역 단일 DO 가 없다는 규칙은 그대로.
+
+| 클래스 | 이름(키) | 맡는 것 | 바인딩 |
+|---|---|---|---|
+| `UserHub` | 사용자 ID | 그 사용자의 소켓·이벤트 로그·접속 상태(3.2) | 기존 |
+| `TopicHub` | `post:<id>` 등 | 토픽 시청자(3.3) | 기존 |
+| `CollabHub` (v0.1.3) | `doc:<doc_id>` | 방 문서 하나의 편집 순번·필드 LWW 병합·스냅숏·버전·presence, 문서 소켓(`GET /v1/docs/{doc_id}/ws`, `docs/contract/collab.md`). SQLite 저장, WebSocket Hibernation. alarm 은 기록 압축·자동 버전·만료 정리·D1 `head_seq` 반영에만 | `COLLAB_HUB` |
+| `WorkspaceHub` (v0.1.3) | 공유 ID | P2 작업공간 공유의 **암호문 중계**(서버는 내용을 볼 수 없음 — `docs/contract/workspace.md`, P2). P0 는 501 자리만 만든다 | `WORKSPACE_HUB` |
+
+- 평문을 저장·병합하는 DO(`CollabHub`)와 내용을 못 봐야 하는 DO(`WorkspaceHub`)를 한 클래스에 두지 않는다 — "서버는 작업공간을 못 본다"는 약속을 코드 구조로 지키기 위해(v0.1.3 설계서 C1.1).
+- `server/wrangler.jsonc` 의 DO 마이그레이션 태그 `v2` 가 `new_sqlite_classes: ["CollabHub", "WorkspaceHub"]` 를 더한다(P0 Task 26). 새 DO 클래스·태그의 원격 적용·배포는 오너 건별 승인이다.
+- Worker → CollabHub: `requireAuth` → `limit("RL_WS")` → 방 멤버 확인 → 클라이언트가 보낸 `X-Masil-Doc-Auth` 를 지우고 서버가 만든 값으로 `COLLAB_HUB.getByName("doc:" + id)` 에 업그레이드를 넘긴다. RPC: `init(snapshot)`, `kick(userId, reason)`, `closeAll(reason)`, `setLocked(locked)`, `head()`.
 
 ```
             ┌──────────── Worker (Hono) ────────────┐
