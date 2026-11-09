@@ -48,6 +48,7 @@ func TestGoldenOwner(t *testing.T) {
 	uitest.ForEachSize(t, sizes, func(t *testing.T, h *uitest.Harness) {
 		r := ownerScene(t, h, fake, func(name string) { h.Golden(name) })
 		h.Golden("sharing_band")
+		h.Screen() // a real frame (Golden ends with Frame renders: see overlayAbove)
 		h.Press("ctrl+\\", "4")
 		h.Golden("people")
 		r.s.dlg = newKeyboardDialog(r.s, h.Context(), r.s.peer(h.Context(), 1, minjiUser.ID))

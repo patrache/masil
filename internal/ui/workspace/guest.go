@@ -686,7 +686,9 @@ func (s *Surface) guestShowPeers(rel string) {
 func (s *Surface) guestKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	g := s.guest
 	if g.phase == guestOver {
-		return true, ui.CloseTool(s.id) // any key closes the notice
+		// any key closes the notice and shows the tool hub (either order of
+		// the two msgs ends there)
+		return true, tea.Batch(ui.Navigate(ui.Route{Kind: ui.RouteTools}), ui.CloseTool(s.id))
 	}
 	if s.plan.Tiny || g.phase != guestIn {
 		if r := s.prefix.Key(ctx, msg); r.Action != termpane.PrefixNone {

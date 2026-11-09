@@ -53,13 +53,19 @@ type Surface struct {
 	zoomed   bool // the tool surface's wide view
 	cellZoom bool // ctrl+\ z: the focused cell over the whole body
 	appFocus bool
-	size     ui.Size
-	mode     layout.Mode
-	plan     Plan
-	prefix   *termpane.Prefix
-	pumping  bool
-	hooks    *hooks.Receiver
-	closed   bool
+	// drawn counts the frames that drew the surface; cursorAt is drawn as of
+	// the shell's last Cursor call or key. The shell asks the focused
+	// component's cursor after drawing every frame unless an overlay is open
+	// (CA 5.3.7: then the overlay's), and gives it keys only without one, so
+	// drawn > cursorAt = a shell overlay is above (overlayAbove).
+	drawn, cursorAt uint64
+	size            ui.Size
+	mode            layout.Mode
+	plan            Plan
+	prefix          *termpane.Prefix
+	pumping         bool
+	hooks           *hooks.Receiver
+	closed          bool
 }
 
 var (
@@ -305,6 +311,7 @@ func (s *Surface) CapturesInput() bool {
 
 // HandleKey implements ui.KeyHandler.
 func (s *Surface) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	s.cursorAt = s.drawn // a key reached me: no overlay is above
 	if s.picker != nil {
 		cmd := s.picker.handleKey(ctx, msg)
 		if s.picker.closed {
@@ -438,6 +445,7 @@ func (s *Surface) moveFocus(ctx *ui.Context, dir string) tea.Cmd {
 
 // View implements ui.Component: exactly size.H lines of size.W cells.
 func (s *Surface) View(ctx *ui.Context, focused bool) string {
+	s.drawn++
 	w, h := s.size.W, s.size.H
 	if w <= 0 || h <= 0 {
 		return ""
@@ -524,6 +532,7 @@ func drawBlocks(blocks []block, w, h int) []string {
 
 // Cursor implements ui.Cursorer.
 func (s *Surface) Cursor() *tea.Cursor {
+	s.cursorAt = s.drawn
 	switch {
 	case s.picker != nil:
 		return s.picker.cursor
