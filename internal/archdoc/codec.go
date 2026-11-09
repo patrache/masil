@@ -410,7 +410,7 @@ func Decode(data []byte) (*Design, error) {
 	for i := range is { // meta paths have no leading object
 		is[i].Path = strings.TrimPrefix(is[i].Path, ".")
 	}
-	d.Nodes = decodeList(root, "nodes", &is, func(o *obj, path string) Node {
+	d.Nodes = decodeList(root, "nodes", MaxNodes, IssueTooManyNodes, &is, func(o *obj, path string) Node {
 		var n Node
 		if raw, _, ok := o.get("kind"); ok {
 			var k string
@@ -426,17 +426,17 @@ func Decode(data []byte) (*Design, error) {
 		decodeInto(&n, o, nodeFields, path, &is)
 		return n
 	})
-	d.Boxes = decodeList(root, "boxes", &is, func(o *obj, path string) Box {
+	d.Boxes = decodeList(root, "boxes", MaxBoxes, IssueTooManyBoxes, &is, func(o *obj, path string) Box {
 		b := defaultBox()
 		decodeInto(&b, o, boxFields, path, &is)
 		return b
 	})
-	d.Edges = decodeList(root, "edges", &is, func(o *obj, path string) Edge {
+	d.Edges = decodeList(root, "edges", MaxEdges, IssueTooManyEdges, &is, func(o *obj, path string) Edge {
 		e := DefaultEdge()
 		decodeInto(&e, o, edgeFields, path, &is)
 		return e
 	})
-	d.Faults = decodeList(root, "faults", &is, func(o *obj, path string) Fault {
+	d.Faults = decodeList(root, "faults", MaxFaults, IssueTooManyFaults, &is, func(o *obj, path string) Fault {
 		var f Fault
 		decodeInto(&f, o, faultFields, path, &is)
 		return f
@@ -465,7 +465,10 @@ func idOf[T identified](v *T) *string {
 	return nil
 }
 
-func decodeList[T identified](root *obj, key string, is *[]Issue, one func(o *obj, path string) T) []T {
+// decodeList decodes one list. A list longer than limit is rejected with code
+// before any item is read, so a small hostile file cannot make Decode build
+// hundreds of thousands of objects and issues.
+func decodeList[T identified](root *obj, key string, limit int, code IssueCode, is *[]Issue, one func(o *obj, path string) T) []T {
 	raw, _, ok := root.get(key)
 	if !ok {
 		return nil
@@ -473,6 +476,10 @@ func decodeList[T identified](root *obj, key string, is *[]Issue, one func(o *ob
 	var items []json.RawMessage
 	if bytes.TrimSpace(raw)[0] != '[' || json.Unmarshal(raw, &items) != nil {
 		*is = append(*is, Issue{Path: key, Code: IssueRange})
+		return nil
+	}
+	if len(items) > limit {
+		*is = append(*is, Issue{Path: key, Code: code})
 		return nil
 	}
 	var out []T

@@ -23,8 +23,9 @@
 1. 1MB(1,048,576바이트) 초과 → `too_large`. JSON 객체 하나가 아니거나 뒤에 다른 값이 있음 → `syntax`.
 2. `schema_version` 이 1 이 아니면 → `schema_version`(다른 검사는 하지 않는다).
 3. 모르는 필드는 무시한다(뒤 버전이 더할 수 있게). 빠진 필드는 그 객체의 기본값(노드는 `kind` 의 기본값 `archdoc.Defaults`, 연결은 `DefaultEdge`, `traffic` 은 `DefaultTraffic`, `duration_s` 는 300)을 쓴다. `null` 은 빠진 것과 같다.
-4. 타입이 틀리거나 정수가 아니거나 int64 를 넘는 값 → 그 경로에 `range`.
-5. 그 뒤 검증(1.3). 문제가 하나라도 있으면 설계 전체를 거부한다(`*InvalidError{Issues}`, `errors.Is(err, ErrInvalid)`).
+4. 목록(`nodes`·`boxes`·`edges`·`faults`)이 1.3 한도보다 길면 그 목록의 항목은 하나도 읽지 않고 `too_many_*` 하나만 낸다(작은 파일이 수십만 개 객체·이슈를 만들지 못하게).
+5. 타입이 틀리거나 정수가 아니거나 int64 를 넘는 값 → 그 경로에 `range`.
+6. 그 뒤 검증(1.3). 문제가 하나라도 있으면 설계 전체를 거부한다(`*InvalidError{Issues}`, `errors.Is(err, ErrInvalid)`).
 
 ### 1.3 검증 (`(*Design).Validate`) — 이슈 코드
 

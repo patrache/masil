@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -214,6 +215,30 @@ func TestDecodeLimits(t *testing.T) {
 		_, err := Decode(big)
 		if !hasIssue(issuesOf(t, err), "", IssueTooLarge) {
 			t.Fatal("want too_large")
+		}
+	})
+	t.Run("hostile_list", func(t *testing.T) {
+		// ~350k empty items in 1 MB must not be decoded one by one (P3 review).
+		for _, c := range []struct {
+			key  string
+			code IssueCode
+		}{{"nodes", IssueTooManyNodes}, {"boxes", IssueTooManyBoxes}, {"edges", IssueTooManyEdges}, {"faults", IssueTooManyFaults}} {
+			head := `{"schema_version":1,"` + c.key + `":[`
+			n := (MaxBytes - len(head) - 3) / 3
+			data := append([]byte(head), bytes.Repeat([]byte("{},"), n)...)
+			data = append(data, "{}]}"...)
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			_, err := Decode(data)
+			runtime.ReadMemStats(&after)
+			is := issuesOf(t, err)
+			if !hasIssue(is, c.key, c.code) || len(is) > 4 {
+				t.Fatalf("%s: %d issues, first %v", c.key, len(is), is[:min(len(is), 3)])
+			}
+			if alloc := after.TotalAlloc - before.TotalAlloc; alloc > 64<<20 {
+				t.Fatalf("%s: Decode allocated %d MB for a 1 MB input", c.key, alloc>>20)
+			}
 		}
 	})
 	t.Run("schema_version", func(t *testing.T) {
