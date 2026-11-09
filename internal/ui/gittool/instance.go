@@ -386,7 +386,7 @@ func (in *instance) View(ctx *ui.Context, focused bool) string {
 	for len(out) < h {
 		out = append(out, th.S.Base.Render(strings.Repeat(" ", w)))
 	}
-	return strings.Join(out, "\n")
+	return strings.Join(textwidth.Fit(out, w, h), "\n")
 }
 
 // padStyled pads a rendered line to w cells with base-styled spaces.
