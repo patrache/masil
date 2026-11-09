@@ -69,12 +69,23 @@ func urlHost(raw string) string {
 }
 
 // CheckSecretHosts checks, before any connection, that every secret p uses
-// may go to p's host (exact host name, case and port ignored).
+// may go to p's host (exact host name, case and port ignored). A Host header
+// row names a virtual host on that server, so it must be allowed too.
 func CheckSecretHosts(p *Prepared) error {
-	host := urlHost(p.URL)
-	for _, v := range p.Used {
-		if v.Secret && !hostAllowed(host, v.AllowedHosts) {
-			return &HostNotAllowedError{Var: v.Name, Host: host}
+	return checkHosts(p.Used, urlHost(p.URL), p.Header.Get("Host"))
+}
+
+// checkHosts: every secret in used may go to each non-empty host.
+func checkHosts(used []Value, hosts ...string) error {
+	for _, h := range hosts {
+		h = normHost(h)
+		if h == "" {
+			continue
+		}
+		for _, v := range used {
+			if v.Secret && !hostAllowed(h, v.AllowedHosts) {
+				return &HostNotAllowedError{Var: v.Name, Host: h}
+			}
 		}
 	}
 	return nil
@@ -265,16 +276,16 @@ func (g *guard) dial(ctx context.Context, network, addr string) (net.Conn, error
 }
 
 // redirect stops a redirect to a host outside the allowed hosts shared by
-// every secret the request uses (net/http would keep X-Api-Key and the query).
+// every secret the request uses (net/http would keep X-Api-Key and the query),
+// also when a relative redirect keeps a Host override (req.Host).
 func (g *guard) redirect(req *http.Request) error {
 	host := normHost(req.URL.Hostname())
-	for _, v := range g.p.Used {
-		if v.Secret && !hostAllowed(host, v.AllowedHosts) {
-			g.mu.Lock()
-			g.block = &RedirectBlock{To: host, Var: v.Name}
-			g.mu.Unlock()
-			return http.ErrUseLastResponse
-		}
+	var he *HostNotAllowedError
+	if err := checkHosts(g.p.Used, host, req.Host); errors.As(err, &he) {
+		g.mu.Lock()
+		g.block = &RedirectBlock{To: he.Host, Var: he.Var}
+		g.mu.Unlock()
+		return http.ErrUseLastResponse
 	}
 	return g.preflight(host)
 }

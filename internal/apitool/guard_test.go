@@ -278,3 +278,40 @@ func TestIsPrivate(t *testing.T) {
 		}
 	}
 }
+
+func TestSecretWithHostOverrideBlocked(t *testing.T) {
+	srv, hits := countServer(t, nil)
+	s := newSender(t)
+	sc := secretScope(t, srv.URL, "127.0.0.1")
+	r := &Request{Method: "GET", URL: "{{base_url}}/x", Headers: []KV{{Key: "Host", Value: "Attacker.Example:443"}, {Key: "X-Api-Key", Value: "{{key}}"}}}
+	_, err := send(t, s, r, sc)
+	var he *HostNotAllowedError
+	if !errors.As(err, &he) || he.Var != "key" || he.Host != "attacker.example" {
+		t.Fatalf("err = %v, want HostNotAllowedError{key, attacker.example}", err)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("server got %d requests", hits.Load())
+	}
+	// an override naming an allowed host goes
+	r.Headers[0].Value = "127.0.0.1"
+	if resp, err := send(t, s, r, sc); err != nil || resp.Status != 200 || hits.Load() != 1 {
+		t.Fatalf("allowed override: %v hits=%d", err, hits.Load())
+	}
+	// no secret: the override is not checked
+	r.Headers = []KV{{Key: "Host", Value: "attacker.example"}}
+	if resp, err := send(t, s, r, sc); err != nil || resp.Status != 200 {
+		t.Fatalf("no secret: %v", err)
+	}
+}
+
+func TestRedirectKeepsHostOverrideChecked(t *testing.T) {
+	g := &guard{p: &Prepared{Used: []Value{{Name: "key", Secret: true, AllowedHosts: []string{"127.0.0.1"}}}}, proxies: map[string]bool{}}
+	req, _ := http.NewRequest("GET", "http://127.0.0.1:1/next", nil)
+	req.Host = "attacker.example"
+	if err := g.redirect(req); err != http.ErrUseLastResponse {
+		t.Fatalf("redirect err = %v, want ErrUseLastResponse", err)
+	}
+	if b := g.redirectBlock(); b == nil || b.To != "attacker.example" || b.Var != "key" {
+		t.Fatalf("block = %+v", b)
+	}
+}
