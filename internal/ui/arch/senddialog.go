@@ -219,7 +219,7 @@ func (d *sendDialog) HandleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.Cm
 func (d *sendDialog) build(ctx *ui.Context) error {
 	var err error
 	if d.sim {
-		d.card, d.body, err = simCard(ctx.T, d.design, d.result, d.ref)
+		d.card, d.body, err = simCard(ctx.T, d.design, d.result, d.ref, nil)
 	} else {
 		d.card, d.body, err = designCard(ctx.T, d.design, d.result, d.ref)
 	}

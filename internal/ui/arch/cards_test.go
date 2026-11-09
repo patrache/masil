@@ -16,6 +16,7 @@ import (
 	"github.com/patrache/masil/internal/archsim"
 	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
@@ -225,7 +226,7 @@ func TestSimCardReplayMatches(t *testing.T) {
 	ctx := h.Context()
 	d := loadFixture(t, "pay_v3")
 	res := archsim.Analyze(d, archsim.Options{})
-	card, body, err := simCard(ctx.T, d, res, cardRef{})
+	card, body, err := simCard(ctx.T, d, res, cardRef{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +428,9 @@ func TestRoomCardNeverCarriesCopy(t *testing.T) {
 	for _, sim := range []bool{false, true} {
 		mk := designCard
 		if sim {
-			mk = simCard
+			mk = func(t *i18n.T, d *archdoc.Design, r *archsim.Result, ref cardRef) (api.Card, string, error) {
+				return simCard(t, d, r, ref, nil)
+			}
 		}
 		if _, _, err := mk(ctx.T, d, res, cardRef{room: true, docID: "D1"}); err != errNoRoomRef {
 			t.Errorf("sim=%v: a room card without its space: err = %v", sim, err)
@@ -566,4 +569,33 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// TestSimCardChallenge: simCard carries a daily challenge result (Task 28
+// fills it) and the card draws it.
+func TestSimCardChallenge(t *testing.T) {
+	h := newHarness(t)
+	ctx := h.Context()
+	d := loadFixture(t, "pay_v3")
+	res := archsim.Analyze(d, archsim.Options{})
+	ch := &cardChallenge{Date: "2026-11-09", Scenario: "sugang", Score: 4200}
+	card, body, err := simCard(ctx.T, d, res, cardRef{}, ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var data simCardData
+	if err := json.Unmarshal(card.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if data.Challenge == nil || *data.Challenge != *ch {
+		t.Fatalf("challenge = %+v", data.Challenge)
+	}
+	cr, _ := ui.CardFor(ui.CardArchSim)
+	m := cardMessage("01JDCHL0000000000000000001", card, body)
+	if lines := ansi.Strip(strings.Join(cr.Lines(ctx, &m, 100), "\n")); !strings.Contains(lines, "도전 2026-11-09 · sugang · 4200점") {
+		t.Errorf("the challenge is not drawn:\n%s", lines)
+	}
+	if card, _, _ := simCard(ctx.T, d, res, cardRef{}, nil); !strings.Contains(string(card.Data), `"challenge":null`) {
+		t.Errorf("no challenge: %s", card.Data)
+	}
 }

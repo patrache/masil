@@ -201,8 +201,9 @@ func designCard(t *i18n.T, d *archdoc.Design, r *archsim.Result, ref cardRef) (a
 	return c, body, nil
 }
 
-// simCard is the arch.sim card of d's run r (same seed, same numbers anywhere).
-func simCard(t *i18n.T, d *archdoc.Design, r *archsim.Result, ref cardRef) (api.Card, string, error) {
+// simCard is the arch.sim card of d's run r (same seed, same numbers
+// anywhere); ch is a daily challenge result (nil = none, Task 28).
+func simCard(t *i18n.T, d *archdoc.Design, r *archsim.Result, ref cardRef, ch *cardChallenge) (api.Card, string, error) {
 	cp, err := designCopy(d, ref)
 	if err != nil {
 		return api.Card{}, "", err
@@ -214,7 +215,7 @@ func simCard(t *i18n.T, d *archdoc.Design, r *archsim.Result, ref cardRef) (api.
 		Seed: strconv.FormatUint(d.Seed, 10), EngineVersion: archsim.EngineVersion,
 		MaxRPS: max(r.RPS, 0), ReadPermille: readPermille(d),
 		P50Ms: max(r.P50Ms, 0), P99Ms: max(r.P99Ms, 0), ErrorPermille: min(max(r.ErrorPermille, 0), 1000),
-		CostUSDMonth: max(r.Cost.TotalUSDMonth, 0), PriceAsOf: asOfOf(r), Design: cp,
+		CostUSDMonth: max(r.Cost.TotalUSDMonth, 0), PriceAsOf: asOfOf(r), Challenge: ch, Design: cp,
 	}
 	if b := r.Bottleneck; b != nil {
 		data.Bottleneck = &cardBottleneck{TargetLabel: targetLabel(d, b.Target), Limit: b.Limit, UtilPermille: max(b.UtilPermille, 0)}
