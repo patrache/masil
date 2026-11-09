@@ -2,6 +2,7 @@ package archsim
 
 import (
 	"math"
+	"strconv"
 	"testing"
 )
 
@@ -152,5 +153,30 @@ func TestStationDegenerate(t *testing.T) {
 	station{c: 1, mu: 100, lambda: 99}.sample(b)
 	if a.u64() != b.u64() {
 		t.Fatal("sample consumed a varying number of draws")
+	}
+}
+
+// TestSplitStreamsDoNotOverlap: a child stream must not be a shifted copy of
+// its parent or of a sibling, which a raw state XOR gives whenever the seed and
+// stream·golden share no set bits (seed 0, small seeds — P3 review).
+func TestSplitStreamsDoNotOverlap(t *testing.T) {
+	const n, streams = 256, 64
+	for _, seed := range []uint64{0, 1, 2, 42, 1 << 52, ^uint64(0)} {
+		seen := map[uint64]string{}
+		p := newRNG(seed)
+		for range n {
+			seen[p.u64()] = "parent"
+		}
+		parent := newRNG(seed)
+		for k := uint64(0); k <= streams; k++ {
+			c := parent.split(k)
+			for i := range n {
+				v := c.u64()
+				if who, ok := seen[v]; ok {
+					t.Fatalf("seed %d: split(%d) output %d repeats a value of %s", seed, k, i, who)
+				}
+				seen[v] = "split(" + strconv.FormatUint(k, 10) + ")"
+			}
+		}
 	}
 }

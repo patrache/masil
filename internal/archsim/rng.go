@@ -20,7 +20,11 @@ func newRNG(seed uint64) *rng { return &rng{s: seed} }
 
 func (r *rng) u64() uint64 {
 	r.s += golden
-	z := r.s
+	return mix64(r.s)
+}
+
+// mix64 is the SplitMix64 output function (a bijection on uint64).
+func mix64(z uint64) uint64 {
 	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
 	z = (z ^ (z >> 27)) * 0x94d049bb133111eb
 	return z ^ (z >> 31)
@@ -46,7 +50,10 @@ func (r *rng) exp(rate float64) float64 {
 }
 
 // split returns an independent stream (per node, per frame) without advancing
-// r: state ^ stream·golden.
+// r. The child state goes through the mixer: a raw state ^ stream·golden equals
+// state + stream·golden whenever the two share no set bits (seed 0, small
+// seeds), which makes the child the parent's own sequence shifted by stream
+// steps (P3 review). Every stream, 0 included, differs from the parent.
 func (r *rng) split(stream uint64) *rng {
-	return &rng{s: r.s ^ stream*golden}
+	return &rng{s: mix64(r.s ^ mix64(stream*golden+golden))}
 }
