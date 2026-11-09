@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -288,7 +289,20 @@ func (o *Op) UnmarshalJSON(data []byte) error {
 	if items == nil && !bytes.Equal(bytes.TrimSpace(data), []byte("[]")) {
 		return fmt.Errorf("ot: operation must be an array")
 	}
+	// Between two retains the canonical form is one insert (all inserted
+	// text, in order) followed by one delete (the sum), exactly what the
+	// builder produces. The run is gathered in a strings.Builder and flushed
+	// once: merging with Insert += s would copy the growing text on every
+	// element (quadratic within one frame; v0.1.3 security (a)).
 	var b builder
+	var ins strings.Builder
+	del := 0
+	flush := func() {
+		b.insert(ins.String())
+		b.delete(del)
+		ins.Reset()
+		del = 0
+	}
 	for _, it := range items {
 		it = bytes.TrimSpace(it)
 		if len(it) == 0 {
@@ -299,19 +313,25 @@ func (o *Op) UnmarshalJSON(data []byte) error {
 			if err := json.Unmarshal(it, &s); err != nil {
 				return fmt.Errorf("ot: %w", err)
 			}
-			b.insert(s)
+			ins.WriteString(s)
 			continue
 		}
 		n, err := strconv.Atoi(string(it))
 		if err != nil || n > MaxLen || n < -MaxLen {
 			return fmt.Errorf("%w: %s", ErrInvalid, it)
 		}
-		if n >= 0 {
+		switch {
+		case n > 0:
+			flush()
 			b.retain(n)
-		} else {
-			b.delete(-n)
+		case n < 0:
+			if del > MaxLen {
+				return fmt.Errorf("%w: delete run too long", ErrInvalid)
+			}
+			del -= n
 		}
 	}
+	flush()
 	*o = b.op
 	return nil
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"math/rand"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -199,4 +201,75 @@ func TestOverflowingCountsRejected(t *testing.T) {
 			t.Fatalf("direct submit: %v", err)
 		}
 	}()
+}
+
+// v0.1.3 security (a): a frame of many one-rune inserts (optionally split by
+// deletes) must decode in linear memory; merging with string += copied the
+// growing insert on every element (quadratic within one frame).
+func TestUnmarshalInsertMergeLinear(t *testing.T) {
+	const n = 60000
+	for _, sep := range []string{"", `,-1`} {
+		var sb strings.Builder
+		sb.WriteByte('[')
+		for i := range n {
+			if i > 0 {
+				sb.WriteByte(',')
+			}
+			sb.WriteString(`"a"`)
+			sb.WriteString(sep)
+		}
+		sb.WriteByte(']')
+		data := []byte(sb.String())
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+		var got Op
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Fatal(err)
+		}
+		runtime.ReadMemStats(&after)
+		if alloc := after.TotalAlloc - before.TotalAlloc; alloc > 64<<20 {
+			t.Fatalf("sep %q: decoding a %d-byte frame allocated %d bytes", sep, len(data), alloc)
+		}
+		want := Op{{Insert: strings.Repeat("a", n)}}
+		if sep != "" {
+			want = append(want, Component{Delete: n})
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("sep %q: wrong normalization (len %d)", sep, len(got))
+		}
+	}
+}
+
+// The decoder's normalization must match the builder's canonical form.
+func TestUnmarshalMatchesBuilder(t *testing.T) {
+	r := rand.New(rand.NewSource(7))
+	for range 2000 {
+		var b builder
+		items := []any{}
+		for range r.Intn(12) {
+			switch r.Intn(3) {
+			case 0:
+				n := r.Intn(3)
+				items = append(items, n)
+				b.retain(n)
+			case 1:
+				n := r.Intn(3)
+				items = append(items, -n)
+				b.delete(n)
+			default:
+				s := []string{"", "x", "한", "yz"}[r.Intn(4)]
+				items = append(items, s)
+				b.insert(s)
+			}
+		}
+		data, _ := json.Marshal(items)
+		var got Op
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, b.op) {
+			t.Fatalf("%s: got %#v want %#v", data, got, b.op)
+		}
+	}
 }
