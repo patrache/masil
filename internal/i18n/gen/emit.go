@@ -182,8 +182,8 @@ func gofmt(name string, src []byte) ([]byte, error) {
 	return out, nil
 }
 
-// formatTOML rewrites one source file: header comments kept, keys sorted,
-// fields in a fixed order.
+// formatTOML rewrites one source file: header comments kept, keys sorted
+// (each with the comment lines right above it), fields in a fixed order.
 func formatTOML(f *File) []byte {
 	var b strings.Builder
 	b.WriteString(f.Header)
@@ -192,6 +192,7 @@ func formatTOML(f *File) []byte {
 			b.WriteString("\n")
 		}
 		r := f.Entries[key]
+		b.WriteString(f.Notes[key])
 		fmt.Fprintf(&b, "[%s]\n", key)
 		line := func(field, v string) { fmt.Fprintf(&b, "%s = %s\n", field, v) }
 		if r.has["desc"] {

@@ -289,3 +289,52 @@ func TestFormatTOMLSortsAndKeepsHeader(t *testing.T) {
 		t.Fatalf("formatTOML =\n%s\nwant\n%s", got, want)
 	}
 }
+
+// Comment lines right above a [key] are that key's translator note: the -fmt
+// rewrite keeps them and moves them with the key when it sorts.
+func TestFormatTOMLKeepsKeyComments(t *testing.T) {
+	dir := writeLocales(t, map[string]string{
+		"ko/tools.toml": "# header line\n\n# zeta note\n[zeta]\nother=\"z\"\ndesc=\"마지막\"\n\n# keep 'Send' short — button\n#   second line\n[alpha]\ndesc=\"처음\"\nother=\"#1 가 # 아님\"\n",
+	})
+	c, errs := load(dir)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	got := string(formatTOML(c.Areas[0].files["ko"]))
+	want := "# header line\n\n# keep 'Send' short — button\n#   second line\n[alpha]\ndesc = \"처음\"\nother = \"#1 가 # 아님\"\n\n# zeta note\n[zeta]\ndesc = \"마지막\"\nother = \"z\"\n"
+	if got != want {
+		t.Fatalf("formatTOML =\n%s\nwant\n%s", got, want)
+	}
+	// Formatting the output again changes nothing.
+	again := writeLocales(t, map[string]string{"ko/tools.toml": got})
+	c2, errs := load(again)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if got2 := string(formatTOML(c2.Areas[0].files["ko"])); got2 != got {
+		t.Fatalf("second format =\n%s\nwant\n%s", got2, got)
+	}
+}
+
+// Comments the rewrite cannot keep are load errors, never dropped silently.
+func TestLoadRejectsUnkeptComments(t *testing.T) {
+	for name, c := range map[string]struct{ body, want string }{
+		"inside a table":   {"[a]\n# note\ndesc=\"d\"\nother=\"가\"\n", "ko/tools.toml:2: comment inside [a]"},
+		"trailing":         {"[a]\ndesc=\"d\"\nother=\"가\" # note\n", "ko/tools.toml:3: comment after a value"},
+		"after table name": {"[a] # note\ndesc=\"d\"\nother=\"가\"\n", "ko/tools.toml:1: comment after a value"},
+		"detached":         {"[a]\ndesc=\"d\"\nother=\"가\"\n\n# note\n\n[b]\ndesc=\"d\"\nother=\"나\"\n", "ko/tools.toml:5: comment inside [a]"},
+		"at end":           {"[a]\ndesc=\"d\"\nother=\"가\"\n# note\n", "ko/tools.toml:4: comment inside [a]"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, _ := problems(t, writeLocales(t, map[string]string{"ko/tools.toml": c.body}))
+			if !strings.Contains(got, c.want) {
+				t.Fatalf("problems = %q, want %q", got, c.want)
+			}
+		})
+	}
+	// # inside strings (basic, literal, multi-line) is not a comment.
+	ok := "[a]\ndesc='#d'\nother=\"가 \\\"#\\\" 나\"\nshort=\"\"\"\n# 줄\n\"\"\"\n"
+	if got, _ := problems(t, writeLocales(t, map[string]string{"ko/tools.toml": ok})); strings.Contains(got, "comment") {
+		t.Fatalf("string # taken as a comment: %s", got)
+	}
+}

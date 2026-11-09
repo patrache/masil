@@ -41,7 +41,8 @@ type Area struct {
 // File is one parsed locales/<lang>/<area>.toml.
 type File struct {
 	Lang, Area string
-	Header     string // leading comment lines, kept by formatTOML
+	Header     string            // leading comment block, kept by formatTOML
+	Notes      map[string]string // comment lines right above [key], kept with the key
 	Entries    map[string]*Raw
 }
 
@@ -153,8 +154,17 @@ func parseFile(path, lang, area string) (*File, []error) {
 	if err != nil {
 		return nil, []error{fmt.Errorf("%s: %v", where, err)}
 	}
-	f := &File{Lang: lang, Area: area, Header: header(string(data)), Entries: map[string]*Raw{}}
+	f := &File{Lang: lang, Area: area, Entries: map[string]*Raw{}}
 	var errs []error
+	var lost []lostComment
+	f.Header, f.Notes, lost = comments(string(data))
+	for _, l := range lost {
+		if l.table == "" {
+			errs = append(errs, fmt.Errorf("%s:%d: comment after a value is dropped by go generate — put it on its own line right above [key], or in desc", where, l.line))
+		} else {
+			errs = append(errs, fmt.Errorf("%s:%d: comment inside [%s] is dropped by go generate — put it right above a [key] line, or in desc", where, l.line, l.table))
+		}
+	}
 	bad := func(key, format string, args ...any) {
 		errs = append(errs, fmt.Errorf("%s.%s (%s): %s", area, key, lang, fmt.Sprintf(format, args...)))
 	}
@@ -240,21 +250,123 @@ func boolean(v any) (bool, bool) {
 	return b, !ok
 }
 
-// header returns the comment block before the first table.
-func header(src string) string {
-	var b strings.Builder
-	for _, line := range strings.SplitAfter(src, "\n") {
-		t := strings.TrimSpace(line)
-		if t != "" && !strings.HasPrefix(t, "#") {
-			break
+// lostComment is a comment the -fmt rewrite cannot keep: inside a table
+// (table set) or after a value on the same line (table "").
+type lostComment struct {
+	line  int
+	table string
+}
+
+// comments splits a file's comments into the header (the comment block before
+// the first table; it ends with a blank line), notes (comment lines right
+// above a [key], no blank line between) and the ones a rewrite would drop.
+// Only file-level layout is read here; toml.Decode has already checked syntax.
+func comments(src string) (header string, notes map[string]string, lost []lostComment) {
+	notes = map[string]string{}
+	var head, pending []string
+	pendingLine := 0
+	table, ml := "", ""
+	flush := func() { // pending comments not right above a [key]
+		if len(pending) > 0 {
+			if table == "" {
+				head = append(head, pending...)
+			} else {
+				lost = append(lost, lostComment{pendingLine, table})
+			}
 		}
-		b.WriteString(line)
+		pending = nil
 	}
-	h := strings.TrimRight(b.String(), "\n")
-	if strings.TrimSpace(h) == "" {
-		return ""
+	for i, line := range strings.Split(src, "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		n := i + 1
+		inString := ml != ""
+		code, at := scanLine(line, &ml)
+		switch {
+		case !inString && !code && at < 0: // blank
+			flush()
+			if table == "" {
+				head = append(head, "")
+			}
+		case !inString && !code: // whole-line comment
+			if len(pending) == 0 {
+				pendingLine = n
+			}
+			pending = append(pending, strings.TrimRight(line, " \t"))
+		default:
+			c := line
+			if at >= 0 {
+				c = line[:at]
+				lost = append(lost, lostComment{n, ""})
+			}
+			if t := strings.TrimSpace(c); !inString && strings.HasPrefix(t, "[") && !strings.HasPrefix(t, "[[") {
+				key := strings.TrimSpace(strings.Trim(t, "[]"))
+				if len(pending) > 0 {
+					notes[key] = strings.Join(pending, "\n") + "\n"
+				}
+				pending = nil
+				table = key
+				continue
+			}
+			flush()
+		}
 	}
-	return h + "\n"
+	flush()
+	h := strings.TrimRight(strings.Join(head, "\n"), "\n")
+	if strings.TrimSpace(h) != "" {
+		header = h + "\n"
+	}
+	return header, notes, lost
+}
+
+// scanLine reports whether line holds TOML (code) and where a # comment
+// starts (-1 = none), skipping # inside strings. ml carries an open
+// multi-line string (its triple-quote delimiter) across lines.
+func scanLine(line string, ml *string) (code bool, at int) {
+	for i := 0; i < len(line); {
+		if *ml != "" {
+			code = true
+			switch {
+			case *ml == `"""` && line[i] == '\\':
+				i += 2
+			case strings.HasPrefix(line[i:], *ml):
+				i += 3
+				for k := 0; k < 2 && i < len(line) && line[i] == (*ml)[0]; k++ {
+					i++ // up to two quotes may end the content
+				}
+				*ml = ""
+			default:
+				i++
+			}
+			continue
+		}
+		switch c := line[i]; c {
+		case ' ', '\t':
+			i++
+		case '#':
+			return code, i
+		case '"', '\'':
+			code = true
+			if q := strings.Repeat(string(c), 3); strings.HasPrefix(line[i:], q) {
+				*ml = q
+				i += 3
+				continue
+			}
+			for i++; i < len(line); i++ {
+				if c == '"' && line[i] == '\\' {
+					i++
+					continue
+				}
+				if line[i] == c {
+					i++
+					break
+				}
+			}
+		default:
+			code = true
+			i++
+		}
+	}
+	return code, -1
 }
 
 func sortedKeys[V any](m map[string]V) []string {
