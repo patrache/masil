@@ -1,5 +1,6 @@
 // api.md section 2 object schemas, field-for-field. These are the return types of lib/serialize.ts.
 // Response fields always exist (null when absent, [] for empty lists).
+import type { Card } from "../lib/cards/index";
 import type { AlertTemplate } from "../lib/i18n";
 
 export type ID = string; // ULID
@@ -289,8 +290,8 @@ export interface Message {
   id: ID;
   channel_id: ID;
   author: UserSummary;
-  kind: "text" | "me" | "roll" | "poll" | "system";
-  body: string;
+  kind: "text" | "me" | "roll" | "poll" | "system" | "card"; // "card": v0.1.3 (C1.2)
+  body: string; // card: the required human-readable fallback summary
   mentions: MentionRef[];
   mention_here: boolean;
   thread_root_id: ID | null;
@@ -300,6 +301,7 @@ export interface Message {
   poll: Poll | null;
   roll: RollResult | null;
   system: SystemEvent | null;
+  card: Card | null; // v0.1.3: set iff kind == "card"
   client_nonce: string | null;
   created_at: Timestamp;
   edited_at: Timestamp | null;
@@ -428,6 +430,8 @@ export interface Alert {
 
 /** v0.1.3: what an alert says, as data (docs/contract/i18n/alert-templates.json). title/body are fallback text. */
 export type { AlertTemplate } from "../lib/i18n";
+/** v0.1.3 (C1.2): Message.card. */
+export type { Card, CardType } from "../lib/cards/index";
 
 export interface FocusSummary {
   started_at: Timestamp;

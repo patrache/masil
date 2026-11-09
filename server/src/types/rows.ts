@@ -206,6 +206,7 @@ export interface MessageRow {
   edited_at: number | null;
   deleted_at: number | null;
   deleted_by: string | null;
+  card_json: string | null; // v0.1.3 0004_cards: JSON Card; set => served as kind "card" (data-model.md 3.12)
 }
 
 /** `thread_participants` */

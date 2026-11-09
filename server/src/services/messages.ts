@@ -1,7 +1,9 @@
 // Message services (server-architecture.md 4.14 messages.ts). Task 20: createMessage (top-level) and
 // postSystemMessage. Task 24: mention / @here resolution (api.md 2.1), notification fan-out, editMessage, deleteMessage.
 // Task 25: thread replies (threadRootId, api.md 5.11). Each write is one db.batch, then publish (server-architecture.md 3.5).
+// v0.1.3 P0 Task 24: kind "card" (stored as kind 'text' + card_json), createCardMessage / updateCardMessage.
 import type { Runtime } from "../env";
+import { type CardInput, validateCard } from "../lib/cards/index";
 import { all, batch, first, jsonList, stmt } from "../lib/db";
 import { err } from "../lib/errors";
 import { newId } from "../lib/ids";
@@ -22,11 +24,16 @@ export const MESSAGE_BODY_MAX = 4000;
 export interface CreateMessageInput {
   channelId: string;
   authorId: string;
-  kind: "text" | "me" | "roll" | "poll";
+  kind: "text" | "me" | "roll" | "poll" | "card";
   body: string;
-  clientNonce: string;
+  /** null only on server-made messages (createCardMessage): no idempotency lookup */
+  clientNonce: string | null;
   threadRootId?: string | null;
   poll?: PollInput;
+  /** kind "card": the request's card, validated here (lib/cards validateCard) */
+  card?: unknown;
+  /** true on server-only paths: server-only card types are allowed */
+  serverPath?: boolean;
 }
 
 /**
@@ -161,13 +168,14 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
   const db = rt.env.DB;
   const rootId = input.threadRootId ?? null;
 
-  const existing = await findByNonce(db, input.authorId, input.clientNonce);
+  const existing = input.clientNonce === null ? null : await findByNonce(db, input.authorId, input.clientNonce);
   if (existing !== null) {
     const [message] = await serializeMessages(db, input.authorId, [existing]);
     return { message: message!, created: false };
   }
 
   if (rootId !== null && input.kind === "poll") throw err.invalid({ kind: "not_allowed" });
+  const card = input.kind === "card" ? validateCard(input.card, input.serverPath === true) : null;
   const { body, roll } = prepareMessageBody(input.kind, input.body, input.poll);
   const [channel, root] = await Promise.all([
     loadChannel(db, input.channelId),
@@ -187,7 +195,7 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
     id,
     channel_id: input.channelId,
     author_id: input.authorId,
-    kind: input.kind,
+    kind: input.kind === "card" ? "text" : input.kind, // data-model.md 3.12: the DB kind of a card is 'text'
     body,
     meta: roll === null ? null : JSON.stringify(roll),
     thread_root_id: rootId,
@@ -200,6 +208,7 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
     edited_at: null,
     deleted_at: null,
     deleted_by: null,
+    card_json: card === null ? null : JSON.stringify(card),
   };
 
   const stmts: D1PreparedStatement[] = [];
@@ -208,8 +217,8 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
   stmts.push(
     stmt(
       db,
-      `INSERT INTO messages (id, channel_id, author_id, kind, body, meta, thread_root_id, mention_here, poll_id, client_nonce, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
+      `INSERT INTO messages (id, channel_id, author_id, kind, body, meta, thread_root_id, mention_here, poll_id, client_nonce, created_at, card_json)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
       row.id,
       row.channel_id,
       row.author_id,
@@ -221,6 +230,7 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
       row.poll_id,
       row.client_nonce,
       row.created_at,
+      row.card_json,
     ),
   );
   if (root === null) {
@@ -267,7 +277,7 @@ export async function createMessage(rt: Runtime, input: CreateMessageInput): Pro
     await batch(db, stmts);
   } catch (e) {
     // a concurrent request with the same nonce won the insert: the whole batch rolled back, return the winner
-    if (!isUniqueViolation(e)) throw e;
+    if (!isUniqueViolation(e) || input.clientNonce === null) throw e;
     const winner = await findByNonce(db, input.authorId, input.clientNonce);
     if (winner === null) throw e;
     const [message] = await serializeMessages(db, input.authorId, [winner]);
@@ -324,6 +334,7 @@ export async function postSystemMessage(rt: Runtime, channelId: string, actorId:
     edited_at: null,
     deleted_at: null,
     deleted_by: null,
+    card_json: null,
   };
   await batch(db, [
     stmt(
@@ -340,6 +351,58 @@ export async function postSystemMessage(rt: Runtime, channelId: string, actorId:
   ]);
   const [message] = await serializeMessages(db, null, [row]);
   if (message) await publishEvent(rt, { channel: channelId }, "message.created", { message });
+}
+
+// ---------------------------------------------------------------------------
+// server-made cards (v0.1.3 C1.2, api.md 5.10): P1's LeetCode endpoints create / rewrite leet.* cards
+
+/**
+ * A card message made by the server (no client_nonce): `card` may be a server-only type; same rules as a send
+ * otherwise (body 1..4000, mentions, events, notifications). `rootId` = a live top-level message of the channel or
+ * null. Throws (400 invalid_request) on a card that fails its type's schema. The caller checked the author may write.
+ */
+export async function createCardMessage(
+  rt: Runtime,
+  input: { channelId: string; authorId: string; rootId: string | null; card: CardInput; body: string },
+): Promise<Message> {
+  const { message } = await createMessage(rt, {
+    channelId: input.channelId,
+    authorId: input.authorId,
+    kind: "card",
+    body: input.body,
+    clientNonce: null,
+    threadRootId: input.rootId,
+    card: input.card,
+    serverPath: true,
+  });
+  return message;
+}
+
+/**
+ * Server-only rewrite of a card message (P1 solve card rewrite, an operator fixing #daily): same type, a schema-valid
+ * card, card_json (and body when given) replaced, message.updated to the channel. edited_at and mentions are left as
+ * they are. Throws on a non-card / deleted message, a different type, or data that fails the schema. The ordinary
+ * PATCH still refuses cards.
+ */
+export async function updateCardMessage(rt: Runtime, messageId: string, card: CardInput, body?: string): Promise<Message> {
+  const db = rt.env.DB;
+  const row = await loadLiveMessage(db, messageId);
+  if (row.card_json === null) throw err.invalid({ message_id: "not_allowed" });
+  const current = JSON.parse(row.card_json) as { type?: unknown };
+  const next = validateCard(card, true);
+  if (next.type !== current.type) throw err.invalid({ "card.type": "invalid" });
+  const nextBody = body === undefined ? row.body : prepareMessageBody("card", body).body;
+  const cardJson = JSON.stringify(next);
+  const res = await db
+    .prepare("UPDATE messages SET card_json = ?2, body = ?3 WHERE id = ?1 AND deleted_at IS NULL")
+    .bind(messageId, cardJson, nextBody)
+    .run();
+  if (res.meta.changes === 0) throw err.notFound("message");
+  const updated: MessageRow = { ...row, card_json: cardJson, body: nextBody };
+  const [message] = await serializeMessages(db, null, [updated]);
+  if (!message) throw err.notFound("message");
+  await publishEvent(rt, { channel: row.channel_id }, "message.updated", { message });
+  return message;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +424,8 @@ export async function editMessage(rt: Runtime, messageId: string, actorId: strin
   const db = rt.env.DB;
   const row = await loadLiveMessage(db, messageId);
   const access = await requireChannelRead(db, row.channel_id, actorId);
+  // v0.1.3: card messages are never edited (api.md 5.10) — nothing is written
+  if (row.card_json !== null) throw err.invalid({ message_id: "not_allowed" });
   if (row.author_id !== actorId) throw err.forbidden("forbidden", "only the author can edit this message");
   if (row.kind !== "text" && row.kind !== "me") throw err.forbidden("forbidden", "this message kind cannot be edited");
   if (!access.canWrite) {
@@ -427,7 +492,7 @@ export async function deleteMessage(rt: Runtime, messageId: string, actorId: str
   }
   const t = now();
   const stmts: D1PreparedStatement[] = [
-    stmt(db, "UPDATE messages SET deleted_at = ?2, deleted_by = ?3, body = '' WHERE id = ?1 AND deleted_at IS NULL", messageId, t, actorId),
+    stmt(db, "UPDATE messages SET deleted_at = ?2, deleted_by = ?3, body = '', card_json = NULL WHERE id = ?1 AND deleted_at IS NULL", messageId, t, actorId),
   ];
   if (row.thread_root_id !== null) {
     // only when this batch did the soft delete (a concurrent delete must not decrement twice)
