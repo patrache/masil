@@ -36,8 +36,9 @@ func (e *PrivateTargetError) Error() string {
 // RedirectBlock records a redirect not followed because the next host is not
 // allowed for the secret Var; the 3xx response is returned as is.
 type RedirectBlock struct {
-	To  string // host name
-	Var string
+	To       string // host name
+	Var      string
+	Insecure bool // an https request using a secret redirected to plain http
 }
 
 // normHost lower-cases a host, drops a port, brackets and a final dot.
@@ -321,9 +322,16 @@ func (g *guard) dial(ctx context.Context, network, addr string) (net.Conn, error
 
 // redirect stops a redirect to a host outside the allowed hosts shared by
 // every secret the request uses (net/http would keep X-Api-Key and the query),
-// also when a relative redirect keeps a Host override (req.Host).
+// also when a relative redirect keeps a Host override (req.Host), and an
+// https -> http redirect while a secret is in use (same host too).
 func (g *guard) redirect(req *http.Request) error {
 	host := normHost(req.URL.Hostname())
+	if v, ok := firstSecret(g.p.Used); ok && downgrade(req) {
+		g.mu.Lock()
+		g.block = &RedirectBlock{To: host, Var: v.Name, Insecure: true}
+		g.mu.Unlock()
+		return http.ErrUseLastResponse
+	}
 	var he *HostNotAllowedError
 	if err := checkHosts(g.p.Used, host, req.Host); errors.As(err, &he) {
 		g.mu.Lock()
@@ -332,6 +340,24 @@ func (g *guard) redirect(req *http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	return g.preflight(host)
+}
+
+// downgrade: req follows a redirect from an https request to plain http
+// (net/http would resend X-Api-Key and the query in the clear).
+func downgrade(req *http.Request) bool {
+	if req.Response == nil || req.Response.Request == nil || req.Response.Request.URL == nil {
+		return false
+	}
+	return strings.EqualFold(req.Response.Request.URL.Scheme, "https") && !strings.EqualFold(req.URL.Scheme, "https")
+}
+
+func firstSecret(used []Value) (Value, bool) {
+	for _, v := range used {
+		if v.Secret {
+			return v, true
+		}
+	}
+	return Value{}, false
 }
 
 func (g *guard) redirectBlock() *RedirectBlock {
