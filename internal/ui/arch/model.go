@@ -54,7 +54,6 @@ type canvasModel struct {
 	pickBoxes      bool            // g: box kinds only
 	pickOpened     bool            // the palette drawer was pulled out for the pick
 	find           string          // /: the query typed so far
-	speedX         int             // < >: the timed run's speed
 
 	// the fault menu and the timed run (faults.go, playback.go); runGen
 	// counts design changes so an old run's result is dropped

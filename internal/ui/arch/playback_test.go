@@ -126,8 +126,8 @@ func TestPlaybackFollowsFrames(t *testing.T) {
 		t.Errorf("api not drawn down after the AZ went off: %+v", b)
 	}
 	h.Press(">", ">")
-	if c.speedX != 4 || !strings.Contains(h.Screen(), "×4") {
-		t.Errorf("speed %d after > >:\n%s", c.speedX, h.Screen())
+	if c.pb.speed != 4 || !strings.Contains(h.Screen(), "×4") {
+		t.Errorf("speed %d after > >:\n%s", c.pb.speed, h.Screen())
 	}
 	// pause, then step back a second with ←
 	h.Press("space")
@@ -140,7 +140,7 @@ func TestPlaybackFollowsFrames(t *testing.T) {
 
 func TestEditCancelsRun(t *testing.T) {
 	h, c := faultHarness(t, faultDesign())
-	h.Press("space")
+	h.Press("space", ">")
 	old, gen := c.pb.tl, c.runGen
 	if old == nil {
 		t.Fatal("no timeline")
@@ -159,6 +159,9 @@ func TestEditCancelsRun(t *testing.T) {
 	}
 	if findNode(designOf(t, c), "api").Instances != 4 {
 		t.Error("the edit was lost")
+	}
+	if c.pb.speed != 2 {
+		t.Errorf("the picked speed did not outlive the edit: ×%d", c.pb.speed)
 	}
 }
 

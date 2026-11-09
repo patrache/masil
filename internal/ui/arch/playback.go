@@ -17,11 +17,13 @@ import (
 )
 
 // playback is the timed run on screen (P3 Task 19): the run is computed in
-// the background (archsim.RunTimed), then its frames play at speedX (one
-// frame = one simulated second). pos is the frame shown.
+// the background (archsim.RunTimed), then its frames play at speed (one
+// frame = one simulated second; < > picks it, 0 = ×1, and it outlives the
+// run: a new run keeps it). pos is the frame shown.
 type playback struct {
 	tl        *archsim.Timeline
 	pos       int
+	speed     int
 	running   bool // playing
 	computing bool // RunTimed is working
 	acc       int  // tenths of a frame played since the last frame
@@ -47,7 +49,7 @@ type playTickMsg struct {
 const playTick = 100 * time.Millisecond
 
 // speedOf is the playback speed (×1 until < > picked one).
-func (m *canvasModel) speedOf() int { return max(m.speedX, 1) }
+func (m *canvasModel) speedOf() int { return max(m.pb.speed, 1) }
 
 // designChanged drops the run of the old design: a run in flight is
 // cancelled and its result ignored (the generation moved on).
@@ -56,7 +58,7 @@ func (m *canvasModel) designChanged() {
 	if m.pb.cancel != nil {
 		m.pb.cancel()
 	}
-	m.pb = playback{}
+	m.pb = playback{speed: m.pb.speed}
 }
 
 // toggleRun is space (and arch.run): start the run, then pause and play.
@@ -85,7 +87,7 @@ func (m *canvasModel) startRun(ctx *ui.Context) tea.Cmd {
 		return nil
 	}
 	c, cancel := context.WithCancel(context.Background())
-	m.pb = playback{computing: true, cancel: cancel}
+	m.pb = playback{speed: m.pb.speed, computing: true, cancel: cancel}
 	inst, gen := m.route.ID, m.runGen
 	return func() tea.Msg {
 		tl, err := archsim.RunTimed(c, d, archsim.TimedOptions{})
@@ -107,7 +109,7 @@ func (m *canvasModel) runDone(ctx *ui.Context, msg timedDoneMsg) tea.Cmd {
 	}
 	m.pb.computing, m.pb.cancel = false, nil
 	if msg.err != nil || msg.tl == nil || len(msg.tl.Frames) == 0 {
-		m.pb = playback{}
+		m.pb = playback{speed: m.pb.speed}
 		if errors.Is(msg.err, context.Canceled) {
 			return nil
 		}

@@ -602,7 +602,7 @@ func (m *canvasModel) zoom(in bool) {
 var speeds = []int{1, 2, 4, 8, 16}
 
 func (m *canvasModel) speed(up bool) tea.Cmd {
-	i := slices.Index(speeds, m.speedX)
+	i := slices.Index(speeds, m.pb.speed)
 	if i < 0 {
 		i = 0
 	}
@@ -611,6 +611,6 @@ func (m *canvasModel) speed(up bool) tea.Cmd {
 	} else {
 		i = max(i-1, 0)
 	}
-	m.speedX = speeds[i]
+	m.pb.speed = speeds[i]
 	return nil
 }
