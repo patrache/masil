@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/patrache/masil/internal/secrets"
 )
 
 func TestSensitiveHeaderNames(t *testing.T) {
@@ -51,5 +53,24 @@ func TestRedactSecretValueAnywhere(t *testing.T) {
 	}
 	if RedactHeader(nil, sec) != nil {
 		t.Error("nil header")
+	}
+}
+
+// TestRedactSecretInExpandedPath: a secret with '/', ';' or ',' plus a
+// character to escape is written by url.URL with its path rules — neither
+// QueryEscape nor PathEscape gives that form.
+func TestRedactSecretInExpandedPath(t *testing.T) {
+	for _, v := range []string{"a/b c", "x;y z", "abc/défg", "p,q r", "plain"} {
+		sc := &Scope{Env: &Env{ID: "e1", Vars: []Var{{Name: "k", Secret: true, AllowedHosts: []string{"h.test"}}}}, Vault: testVault(t)}
+		if err := sc.Vault.Put(SecretKey("", "e1", "k"), secrets.New(v)); err != nil {
+			t.Fatal(err)
+		}
+		p, err := Prepare(&Request{Method: "GET", URL: "https://h.test/v1/{{k}}/x?q={{k}}"}, "", sc, fixedDyn())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := RedactString(p.URL, []string{v}); got != "https://h.test/v1/•••/x?q=•••" {
+			t.Errorf("%q: URL %q redacted to %q", v, p.URL, got)
+		}
 	}
 }

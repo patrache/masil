@@ -59,8 +59,8 @@ func RedactHeader(h http.Header, secretValues []string) http.Header {
 }
 
 // RedactString replaces every occurrence of each non-empty secret value in s
-// (also its URL query and path encodings) with Mask, longest first, in one
-// pass so overlapping values are fully hidden.
+// (also its URL query and path encodings, as url.URL writes a path too) with
+// Mask, longest first, in one pass so overlapping values are fully hidden.
 func RedactString(s string, secretValues []string) string {
 	return newRedactor(secretValues).replace(s)
 }
@@ -76,6 +76,7 @@ func newRedactor(secretValues []string) redactor {
 		set[v] = true
 		set[url.QueryEscape(v)] = true
 		set[url.PathEscape(v)] = true
+		set[(&url.URL{Path: v}).EscapedPath()] = true // url.URL keeps '/', ';', ','
 	}
 	if len(set) == 0 {
 		return redactor{}
