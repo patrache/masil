@@ -318,3 +318,42 @@ func TestCardsFlagOff(t *testing.T) {
 		t.Fatal("flag off opened the tool")
 	}
 }
+
+// A10.3: when the root card's problem differs from mine, enter opens mine
+// (today's: the today instance) and not the card's slug.
+func TestMismatchEnterOpensMine(t *testing.T) {
+	setup(t)
+	h := dailyHarness(t, uitest.Size{W: 120, H: 40}, dailyRoot("two-sum"))
+	if err := leetcode.OpenCache(h.Context().Paths.Cache).PutDaily("2026-11-05", q1606()); err != nil {
+		t.Fatal(err)
+	}
+	showChannel(h)
+	selectLast(h)
+	h.Press("enter")
+	if leetInstance(h, "leet:2026-11-05/two-sum") != nil {
+		t.Fatalf("enter opened the card's problem, not mine:\n%s", h.Screen())
+	}
+	if leetInstance(h, "leet:today") == nil {
+		t.Fatalf("enter did not open my problem of the day:\n%s", h.Screen())
+	}
+}
+
+// A past day: mine is opened by its own slug.
+func TestMismatchEnterOpensMinePastDay(t *testing.T) {
+	setup(t)
+	root := dailyRoot("two-sum")
+	var data map[string]any
+	_ = json.Unmarshal(root.Card.Data, &data)
+	data["date"] = "2026-11-04"
+	root.Card.Data, _ = json.Marshal(data)
+	h := dailyHarness(t, uitest.Size{W: 120, H: 40}, root)
+	if err := leetcode.OpenCache(h.Context().Paths.Cache).PutDaily("2026-11-04", q1606()); err != nil {
+		t.Fatal(err)
+	}
+	showChannel(h)
+	selectLast(h)
+	h.Press("enter")
+	if leetInstance(h, "leet:2026-11-04/"+slug1606) == nil {
+		t.Fatalf("enter did not open my problem of that day:\n%s", h.Screen())
+	}
+}

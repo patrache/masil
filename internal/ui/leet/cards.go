@@ -146,7 +146,15 @@ func dailyKey(ctx *ui.Context, m *api.Message, k tea.KeyPressMsg) (bool, tea.Cmd
 	}
 	switch {
 	case ctx.Keys.Matches(k, keymap.ListOpen):
-		target := d.Date + "/" + d.Slug
+		slug := d.Slug
+		if mine := mySlugOn(ctx, d.Date); mine != "" && mine != d.Slug && leetcode.ValidSlug(mine) {
+			// A10.3: the card differs from what I got — open mine
+			if d.Date == leetcode.UTCDate(nowFunc(ctx)()) {
+				return true, ui.OpenTool(toolID, todayInstance, nil)
+			}
+			slug = mine
+		}
+		target := d.Date + "/" + slug
 		return true, ui.OpenTool(toolID, instancePrefix+target, map[string]string{queryTarget: target})
 	case k.String() == "b":
 		return boardKey(ctx, m)
