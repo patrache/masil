@@ -1015,8 +1015,11 @@ func devID(t testing.TB, h *uitest.Harness) string {
 func channelOf(t testing.TB, h *uitest.Harness) *channelView {
 	t.Helper()
 	nav := h.Nav()
-	if nav.Active >= 0 && nav.Active < len(nav.Tabs) {
-		st := nav.Tabs[nav.Active].Stack
+	if nav.InDM || (nav.Active >= 0 && nav.Active < len(nav.Tabs)) {
+		st := nav.DM.Stack // the chat surface: the DM surface when InDM (CA 5.3.3)
+		if !nav.InDM {
+			st = nav.Tabs[nav.Active].Stack
+		}
 		for i := len(st) - 1; i >= 0; i-- {
 			if st[i].Kind != ui.RouteChannel {
 				continue
@@ -1026,7 +1029,7 @@ func channelOf(t testing.TB, h *uitest.Harness) *channelView {
 			}
 		}
 	}
-	t.Fatalf("no channel view in the active tab: %+v", nav)
+	t.Fatalf("no channel view on the chat surface: %+v", nav)
 	return nil
 }
 

@@ -39,6 +39,8 @@ type composeSurface struct {
 	selected func(t testing.TB, h *uitest.Harness) string
 	// readOnly marks the conversation read-only in a seed.
 	readOnly func(s *store.Store)
+	// oneRow: the conversation has a single message (no selection to move).
+	oneRow bool
 }
 
 func composeSurfaces() []composeSurface {
@@ -54,6 +56,24 @@ func composeSurfaces() []composeSurface {
 				bootstrappedSeed(s)
 				s.Channels[fixtures.ChDev].ReadOnly = true
 			},
+		},
+		{
+			name: "dm", // on the DM surface (CA 5.3.3)
+			open: func(t *testing.T, opts ...uitest.Option) *uitest.Harness {
+				h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, append([]uitest.Option{uitest.WithSeed(bootstrappedSeed)}, opts...)...)
+				h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteChannel, ID: fixtures.DMMinji}})
+				if !h.Nav().InDM {
+					t.Fatalf("precondition: the DM is on the DM surface: %+v", h.Nav())
+				}
+				return h
+			},
+			composer: func(t testing.TB, h *uitest.Harness) *chatComposer { return channelOf(t, h).composer },
+			selected: selectedID,
+			readOnly: func(s *store.Store) {
+				bootstrappedSeed(s)
+				s.Channels[fixtures.DMMinji].ReadOnly = true
+			},
+			oneRow: true,
 		},
 		{
 			name: "thread",
@@ -131,7 +151,7 @@ func TestASCIIKeepsShortcutsWhileUnfocused(t *testing.T) {
 			if cc.focused() || cc.c.Value() != "" {
 				t.Fatalf("j never composes (focused %v, %q)", cc.focused(), cc.c.Value())
 			}
-			if sf.selected(t, h) == up {
+			if !sf.oneRow && sf.selected(t, h) == up {
 				t.Fatal("j still moves the selection")
 			}
 			h.Send(tea.KeyPressMsg{Code: 'ㅁ', Text: "", Mod: tea.ModCtrl})
@@ -173,7 +193,7 @@ func TestHangulReboundKeyKeepsAction(t *testing.T) {
 			if cc.focused() || cc.c.Value() != "" {
 				t.Fatalf("a bound key never composes (focused %v, %q)", cc.focused(), cc.c.Value())
 			}
-			if sf.selected(t, h) == up {
+			if !sf.oneRow && sf.selected(t, h) == up {
 				t.Fatal("the rebound list.down still moves the selection")
 			}
 			h.Send(hangulKey("ㅗ"))

@@ -23,11 +23,14 @@ import (
 
 const groupLunch = "01JB0000000000000000000GD1" // a group DM the tests add
 
-// tabTop is where a chat route landed: the active tab's open thread, else the
-// top of its stack.
+// tabTop is where a chat route landed: the chat surface's (the DM surface when
+// InDM, else the active tab's) open thread, else the top of its stack.
 func tabTop(h *uitest.Harness) ui.Route {
 	nav := h.Nav()
 	tab := nav.Tabs[nav.Active]
+	if nav.InDM { // DMs open on the DM surface (CA 5.3.3)
+		tab = nav.DM
+	}
 	if tab.Thread != nil {
 		return *tab.Thread
 	}
@@ -188,16 +191,17 @@ func TestInboxConversationEnterJumps(t *testing.T) {
 		row   string
 		setup func(s *store.Store)
 		want  ui.Route
+		dm    bool     // lands on the DM surface (CA 5.3.3), not in a tab
 		read  []string // notification ids enter marks read
 	}{
 		{name: "channel", row: "conv:" + fixtures.ChGeneral,
 			want: ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChGeneral, Anchor: fixtures.Messages(fixtures.ChGeneral)[0].ID, Query: jump}},
 		{name: "dm", row: "conv:" + fixtures.DMMinji,
 			setup: func(s *store.Store) { setUnread(s, fixtures.DMMinji, 1, 0, fixtures.Messages(fixtures.DMMinji)[0].ID) },
-			want:  ui.Route{Kind: ui.RouteChannel, ID: fixtures.DMMinji, Anchor: fixtures.Messages(fixtures.DMMinji)[0].ID, Query: jump}},
+			want:  ui.Route{Kind: ui.RouteChannel, ID: fixtures.DMMinji, Anchor: fixtures.Messages(fixtures.DMMinji)[0].ID, Query: jump}, dm: true},
 		{name: "group never read", row: "conv:" + groupLunch,
 			setup: func(s *store.Store) { addGroup(s, at(0)); setUnread(s, groupLunch, 2, 0, "") },
-			want:  ui.Route{Kind: ui.RouteChannel, ID: groupLunch}},
+			want:  ui.Route{Kind: ui.RouteChannel, ID: groupLunch}, dm: true},
 		{name: "thread", row: "conv:thread:" + devRoot,
 			want: ui.Route{Kind: ui.RouteThread, ID: devRoot, Arg: fixtures.ChDev, Anchor: older.Subject.ID},
 			read: []string{newer.ID, older.ID}},
@@ -216,6 +220,9 @@ func TestInboxConversationEnterJumps(t *testing.T) {
 			h.Press("enter")
 			if got := tabTop(h); !reflect.DeepEqual(got, c.want) {
 				t.Fatalf("enter opened %+v, want %+v", got, c.want)
+			}
+			if got := h.Nav().InDM; got != c.dm {
+				t.Fatalf("enter: InDM = %v, want %v (DMs open on the DM surface)", got, c.dm)
 			}
 			reqs := reqsTo(h, "POST", "/v1/notifications/read")
 			if len(c.read) == 0 {
