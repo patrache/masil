@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -185,5 +186,52 @@ func TestRenderBudget(t *testing.T) {
 	}
 	if m := median(ds); m > 8*time.Millisecond {
 		t.Errorf("median drag frame %v > 8ms", m)
+	}
+}
+
+// farDesign is 300 valid nodes, half at x=-99000 and half at x=99000, with
+// 1,000 edges across, and one huge box: every edge and the box cross the screen
+// at x≈0 while almost none of their cells are on it.
+func farDesign() *archdoc.Design {
+	d := archdoc.New("far")
+	for i := range 300 {
+		n := archdoc.Defaults(archdoc.KindAPI)
+		n.ID = fmt.Sprintf("n%03d", i)
+		x := -99000
+		if i%2 == 1 {
+			x = 99000
+		}
+		n.Pos = [2]int{x, (i / 2) * 6}
+		d.Nodes = append(d.Nodes, n)
+	}
+	for i := range 1000 {
+		a := (i * 2) % 300
+		b := (i*2+1+(i/150)*2)%300 | 1
+		d.Edges = append(d.Edges, archdoc.Edge{ID: fmt.Sprintf("e%04d", i), From: d.Nodes[a].ID, To: d.Nodes[b].ID, Protocol: archdoc.ProtoHTTP1, LatencyMicros: -1})
+	}
+	d.Boxes = []archdoc.Box{{ID: "huge", Kind: archdoc.BoxRegion, Label: "r", Rect: [4]int{-99990, -50000, 99990, 99990}}}
+	return d
+}
+
+func TestFarEdgesCheap(t *testing.T) {
+	d := farDesign()
+	if issues := d.Validate(); len(issues) != 0 {
+		t.Fatalf("fixture invalid: %v", issues)
+	}
+	sc := Build(d)
+	for _, z := range Zooms() {
+		v := Viewport{X: -60, Y: 0, W: 120, H: 40, Zoom: z}
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		g := sc.Render(v, Overlay{Ghost: &Ghost{ID: "huge", X: -99960, Y: -50000}, ConnectFrom: "n000", ConnectTo: [2]int{0, 5}})
+		sc.HitTest(v, 60, 3)
+		runtime.ReadMemStats(&after)
+		checkGrid(t, g)
+		if s := strings.Join(g.Plain(), "\n"); !strings.Contains(s, "━") {
+			t.Errorf("zoom %d: the crossing edges are not drawn:\n%s", z, s)
+		}
+		if mb := (after.TotalAlloc - before.TotalAlloc) >> 20; mb > 64 {
+			t.Errorf("zoom %d: one frame and one hit test allocated %d MB", z, mb)
+		}
 	}
 }

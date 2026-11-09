@@ -300,8 +300,9 @@ func drawBox(g *Grid, r rect, label string, st Style, dashed bool) {
 	if dashed {
 		h, vv = dH, dV
 	}
+	// loops run over the grid's part only: a huge box costs the screen size
 	if r.h == 1 { // flattened at a small zoom: the label line only
-		for x := r.x; x < r.x+r.w; x++ {
+		for x := max(r.x, 0); x < min(r.x+r.w, g.W); x++ {
 			g.set(x, r.y, h, 1, st)
 		}
 	} else {
@@ -309,11 +310,11 @@ func drawBox(g *Grid, r rect, label string, st Style, dashed bool) {
 		g.set(r.x+r.w-1, r.y, bTR, 1, st)
 		g.set(r.x, r.y+r.h-1, bBL, 1, st)
 		g.set(r.x+r.w-1, r.y+r.h-1, bBR, 1, st)
-		for x := r.x + 1; x < r.x+r.w-1; x++ {
+		for x := max(r.x+1, 0); x < min(r.x+r.w-1, g.W); x++ {
 			g.set(x, r.y, h, 1, st)
 			g.set(x, r.y+r.h-1, h, 1, st)
 		}
-		for y := r.y + 1; y < r.y+r.h-1; y++ {
+		for y := max(r.y+1, 0); y < min(r.y+r.h-1, g.H); y++ {
 			g.set(r.x, y, vv, 1, st)
 			g.set(r.x+r.w-1, y, vv, 1, st)
 		}
@@ -335,15 +336,15 @@ func labelStyle(border Style) Style {
 // drawDashed draws a dragged item's ghost outline.
 func drawDashed(g *Grid, r rect, label string, st Style) {
 	if r.h <= 1 {
-		for x := r.x; x < r.x+r.w; x++ {
+		for x := max(r.x, 0); x < min(r.x+r.w, g.W); x++ {
 			g.set(x, r.y, dH, 1, st)
 		}
 		g.text(r.x+1, r.y, textwidth.Truncate(label, max(r.w-2, 0), "…"), max(r.w-2, 0), st)
 		return
 	}
 	drawBox(g, r, label, st, true)
-	for y := r.y + 1; y < r.y+r.h-1; y++ { // a ghost hides what is under it
-		for x := r.x + 1; x < r.x+r.w-1; x++ {
+	for y := max(r.y+1, 0); y < min(r.y+r.h-1, g.H); y++ { // a ghost hides what is under it
+		for x := max(r.x+1, 0); x < min(r.x+r.w-1, g.W); x++ {
 			g.set(x, y, " ", 1, StyleNone)
 		}
 	}
@@ -489,13 +490,19 @@ func drawConnectLine(g *Grid, x0, y0, x1, y1 int) {
 		}
 		return 1
 	}
-	x := x0
-	for ; x != x1; x += step(x0, x1) {
-		g.set(x, y0, dH, 1, StyleEdgeSelected)
+	// clamp the walk to one cell around the grid: the far part draws nothing
+	clampX := func(v int) int { return min(max(v, -1), g.W) }
+	clampY := func(v int) int { return min(max(v, -1), g.H) }
+	if y0 >= 0 && y0 < g.H {
+		for x, end := clampX(x0), clampX(x1); x != end; x += step(x0, x1) {
+			g.set(x, y0, dH, 1, StyleEdgeSelected)
+		}
 	}
-	for y := y0; y != y1; y += step(y0, y1) {
-		if y != y0 {
-			g.set(x1, y, dV, 1, StyleEdgeSelected)
+	if x1 >= 0 && x1 < g.W {
+		for y, end := clampY(y0), clampY(y1); y != end; y += step(y0, y1) {
+			if y != y0 {
+				g.set(x1, y, dV, 1, StyleEdgeSelected)
+			}
 		}
 	}
 	g.set(x1, y1, glyphHandle, 1, StyleEdgeSelected)

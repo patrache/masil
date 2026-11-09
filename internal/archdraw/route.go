@@ -344,7 +344,8 @@ func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin 
 	return pts, false
 }
 
-// cells expands a route's corner points into every cell it passes.
+// cells expands a route's corner points into every cell it passes (tests
+// only: drawing and hit testing walk the segments clipped to the screen).
 func cells(pts []Point) []Point {
 	if len(pts) == 0 {
 		return nil
@@ -367,6 +368,69 @@ func cells(pts []Point) []Point {
 		}
 	}
 	return out
+}
+
+// segDir is the direction index (0 left, 1 right, 2 up, 3 down) of the
+// straight segment a→b and its length in steps; -1 for a == b or a diagonal.
+func segDir(a, b Point) (d, n int) {
+	switch {
+	case a.Y == b.Y && b.X < a.X:
+		return 0, a.X - b.X
+	case a.Y == b.Y && b.X > a.X:
+		return 1, b.X - a.X
+	case a.X == b.X && b.Y < a.Y:
+		return 2, a.Y - b.Y
+	case a.X == b.X && b.Y > a.Y:
+		return 3, b.Y - a.Y
+	}
+	return -1, 0
+}
+
+// clipSteps calls fn for every step p→p+dir of the route that touches clip:
+// the route is never expanded beyond the clip rectangle, so a far-reaching edge
+// costs its corner count, not its length.
+func clipSteps(pts []Point, clip rect, fn func(p Point, d int)) {
+	for i := 1; i < len(pts); i++ {
+		a := pts[i-1]
+		d, n := segDir(a, pts[i])
+		if d < 0 {
+			continue
+		}
+		dx, dy := dirDX[d], dirDY[d]
+		// the step index range whose cells p or p+dir lie inside clip
+		lo, hi := 0, n-1
+		if dx != 0 {
+			if a.Y < clip.y || a.Y >= clip.y+clip.h {
+				continue
+			}
+			t0, t1 := (clip.x-1-a.X)*dx, (clip.x+clip.w-a.X)*dx
+			lo, hi = max(lo, min(t0, t1)), min(hi, max(t0, t1))
+		} else {
+			if a.X < clip.x || a.X >= clip.x+clip.w {
+				continue
+			}
+			t0, t1 := (clip.y-1-a.Y)*dy, (clip.y+clip.h-a.Y)*dy
+			lo, hi = max(lo, min(t0, t1)), min(hi, max(t0, t1))
+		}
+		for t := lo; t <= hi; t++ {
+			fn(Point{a.X + t*dx, a.Y + t*dy}, d)
+		}
+	}
+}
+
+// onRoute reports whether cell (x, y) lies on the route.
+func onRoute(pts []Point, x, y int) bool {
+	if len(pts) == 1 {
+		return pts[0].X == x && pts[0].Y == y
+	}
+	for i := 1; i < len(pts); i++ {
+		a, b := pts[i-1], pts[i]
+		if (a.X == b.X && x == a.X && y >= min(a.Y, b.Y) && y <= max(a.Y, b.Y)) ||
+			(a.Y == b.Y && y == a.Y && x >= min(a.X, b.X) && x <= max(a.X, b.X)) {
+			return true
+		}
+	}
+	return false
 }
 
 // lineGlyph maps a cell's connections to a heavy line glyph.
@@ -471,21 +535,16 @@ func (s *Scene) drawEdges(g *Grid, z Zoom, ox, oy int, ov Overlay) {
 	}
 	for i, e := range es {
 		selected := ov.Selected[e.ID]
-		cs := cells(rs[i])
+		pts := rs[i]
 		a := s.nodeRect(&s.nodes[s.nodeIdx[e.From]], z)
 		b := s.nodeRect(&s.nodes[s.nodeIdx[e.To]], z)
 		_, _, out, in := ports(a, b)
-		mark(cs[0].X, cs[0].Y, dirBit[out^1], selected) // joins the source's border
-		for j := 1; j < len(cs); j++ {
-			p, c := cs[j-1], cs[j]
-			for d := range 4 {
-				if p.X+dirDX[d] == c.X && p.Y+dirDY[d] == c.Y {
-					mark(p.X, p.Y, dirBit[d], selected)
-					mark(c.X, c.Y, dirBit[d^1], selected)
-				}
-			}
-		}
-		heads = append(heads, arrow{cs[len(cs)-1], in, selected})
+		mark(pts[0].X, pts[0].Y, dirBit[out^1], selected) // joins the source's border
+		clipSteps(pts, screen, func(p Point, d int) {
+			mark(p.X, p.Y, dirBit[d], selected)
+			mark(p.X+dirDX[d], p.Y+dirDY[d], dirBit[d^1], selected)
+		})
+		heads = append(heads, arrow{pts[len(pts)-1], in, selected})
 	}
 	for i, b := range bits {
 		if b == 0 {
@@ -542,10 +601,8 @@ func (s *Scene) drawEdges(g *Grid, z Zoom, ox, oy int, ov Overlay) {
 func (s *Scene) edgeAt(z Zoom, px, py int) string {
 	es, rs := s.visibleRoutes(z, rect{px, py, 1, 1})
 	for i := range es {
-		for _, c := range cells(rs[i]) {
-			if c.X == px && c.Y == py {
-				return es[i].ID
-			}
+		if onRoute(rs[i], px, py) {
+			return es[i].ID
 		}
 	}
 	return ""
