@@ -134,6 +134,7 @@ function toSettings(user: UserRow, s: UserSettingsRow | null): Settings {
       social: (s?.notify_social ?? 0) === 1,
     },
     focus_default_min: s?.focus_default_min ?? 25,
+    leet_share_with_friends: (s?.leet_share_with_friends ?? 1) === 1,
   };
 }
 

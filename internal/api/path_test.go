@@ -225,6 +225,21 @@ var pathCalls = map[string]func(c *api.Client, v string) error{
 	},
 	"DeleteDocComment":         func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, v, "K") },
 	"DeleteDocComment/comment": func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, "D", v) },
+	"SetSpaceLeet":             func(c *api.Client, v string) error { _, err := c.SetSpaceLeet(ctx, v, true, nil); return err },
+	"ReportLeetDaily": func(c *api.Client, v string) error {
+		_, err := c.ReportLeetDaily(ctx, v, api.LeetDailyFacts{})
+		return err
+	},
+	"PutLeetSolve": func(c *api.Client, v string) error {
+		_, err := c.PutLeetSolve(ctx, v, api.LeetSolveRequest{})
+		return err
+	},
+	"DeleteLeetSolve": func(c *api.Client, v string) error { return c.DeleteLeetSolve(ctx, v) },
+	"AdminSetLeetDaily": func(c *api.Client, v string) error {
+		_, err := c.AdminSetLeetDaily(ctx, v, api.LeetDailyFacts{})
+		return err
+	},
+	"LeetSpaceBoard": func(c *api.Client, v string) error { _, err := c.LeetSpaceBoard(ctx, v, ""); return err },
 	// FetchMedia takes a server-supplied URL (Media.URL) instead of a segment.
 	"FetchMedia": func(c *api.Client, v string) error { _, err := c.FetchMedia(ctx, "/v1/media/"+v, ""); return err },
 	"FetchMedia/abs": func(c *api.Client, v string) error {

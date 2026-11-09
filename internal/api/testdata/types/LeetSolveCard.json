@@ -1,0 +1,9 @@
+{
+  "date": "2026-11-09",
+  "frontend_id": "1606",
+  "slug": "find-servers-that-handled-most-number-of-requests",
+  "lang": "golang",
+  "runtime_percentile": 12.5,
+  "code": { "lang": "golang", "text": "func busiestServers(k int, arrival []int, load []int) []int {\n\treturn nil\n}\n" },
+  "spoiler": true
+}

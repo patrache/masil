@@ -59,6 +59,7 @@ export interface Settings {
     social: boolean;
   };
   focus_default_min: number; // 1..720, default 25
+  leet_share_with_friends: boolean; // v0.1.3 P1: friends see my leet streak (friends board); default true
 }
 
 export interface Focus {

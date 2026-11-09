@@ -9,5 +9,6 @@
     "thread_reply": true,
     "social": false
   },
-  "focus_default_min": 25
+  "focus_default_min": 25,
+    "leet_share_with_friends": true
 }

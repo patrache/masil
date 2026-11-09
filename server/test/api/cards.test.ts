@@ -93,11 +93,14 @@ describe("card messages", () => {
     const [o, m] = await Promise.all([signup(), signup()]);
     const { generalChannelId: ch } = await makeSpace(o, [m]);
     const wm = await connectWs(m.token);
+    // leet.* data follows P1's schemas (lib/leet.ts)
+    const daily = (slug: string) => ({ date: "2026-11-09", frontend_id: "1", slug, title: slug, difficulty: "Easy", tags: [], is_paid_only: false });
+    const solveData = { date: "2026-11-09", frontend_id: "1", slug: "two-sum", lang: "golang", runtime_percentile: 3, code: null, spoiler: true };
     const msg = await createCardMessage(rtFor(), {
       channelId: ch,
       authorId: o.user.id,
       rootId: null,
-      card: { type: "leet.daily", v: 1, data: { slug: "two-sum" } },
+      card: { type: "leet.daily", v: 1, data: daily("two-sum") },
       body: "https://leetcode.com/problems/two-sum/",
     });
     expect(msg).toMatchObject({ kind: "card", card: { type: "leet.daily", v: 1, data: { slug: "two-sum" } }, client_nonce: null });
@@ -105,20 +108,21 @@ describe("card messages", () => {
     const reply = await api(m.token).post<any>(`/v1/messages/${msg.id}/thread`, { client_nonce: nonce(), body: "풀었다" });
     expect(reply.status).toBe(201);
     // a server-only card can also be a reply (P1 solve cards)
-    const solve = await createCardMessage(rtFor(), { channelId: ch, authorId: m.user.id, rootId: msg.id, card: { type: "leet.solve", v: 1, data: { ms: 3 } }, body: "solved" });
+    const solve = await createCardMessage(rtFor(), { channelId: ch, authorId: m.user.id, rootId: msg.id, card: { type: "leet.solve", v: 1, data: solveData }, body: "solved" });
     expect(solve.thread_root_id).toBe(msg.id);
 
-    const up = await updateCardMessage(rtFor(), msg.id, { type: "leet.daily", v: 1, data: { slug: "add-two-numbers" } }, "https://leetcode.com/problems/add-two-numbers/");
-    expect(up.card).toEqual({ type: "leet.daily", v: 1, data: { slug: "add-two-numbers" } });
+    const up = await updateCardMessage(rtFor(), msg.id, { type: "leet.daily", v: 1, data: daily("add-two-numbers") }, "https://leetcode.com/problems/add-two-numbers/");
+    expect(up.card).toEqual({ type: "leet.daily", v: 1, data: daily("add-two-numbers") });
     const ev = await wm.next("message.updated", (d: any) => d.message.id === msg.id);
     expect(ev.data.message).toMatchObject({ body: "https://leetcode.com/problems/add-two-numbers/", card: { data: { slug: "add-two-numbers" } } });
     const g = await api(m.token).get<any>(`/v1/messages/${msg.id}`);
     expect(g.body.message).toMatchObject({ body: "https://leetcode.com/problems/add-two-numbers/", card: { type: "leet.daily", data: { slug: "add-two-numbers" } } });
     // body omitted keeps the body
-    await updateCardMessage(rtFor(), msg.id, { type: "leet.daily", v: 1, data: { slug: "x" } });
+    await updateCardMessage(rtFor(), msg.id, { type: "leet.daily", v: 1, data: daily("x") });
     expect((await api(m.token).get<any>(`/v1/messages/${msg.id}`)).body.message.body).toBe("https://leetcode.com/problems/add-two-numbers/");
     // a different type, data that fails the schema, or a non-card message -> throw
-    await expect(updateCardMessage(rtFor(), msg.id, { type: "leet.solve", v: 1, data: {} })).rejects.toThrow();
+    await expect(updateCardMessage(rtFor(), msg.id, { type: "leet.solve", v: 1, data: solveData })).rejects.toThrow();
+    await expect(updateCardMessage(rtFor(), msg.id, { type: "leet.daily", v: 1, data: {} })).rejects.toThrow();
     await expect(updateCardMessage(rtFor(), msg.id, { type: "leet.daily", v: 1, data: [] as unknown })).rejects.toThrow();
     await expect(updateCardMessage(rtFor(), msg.id, { type: "leet.daily", v: 9, data: {} })).rejects.toThrow();
     await expect(updateCardMessage(rtFor(), reply.body.message.id, { type: "leet.daily", v: 1, data: {} })).rejects.toThrow();

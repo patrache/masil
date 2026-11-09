@@ -41,6 +41,7 @@ var endpointsB = []string{
 	// 5.22 admin
 	"AdminListReports", "AdminGetReport", "AdminResolveReport", "AdminRemoveContent",
 	"AdminSuspend", "AdminUnsuspend", "AdminListUsers", "AdminListActions",
+	"AdminSetLeetDaily",
 }
 
 type msgResult struct {
@@ -464,6 +465,16 @@ func endpointsBCases(t *testing.T) []epCase {
 				return c.AdminListActions(ctx, api.AdminActionQuery{TargetType: "post", TargetID: "P", PageOpts: pg})
 			},
 			wantQuery: "target_type=post&target_id=P&" + pgQuery},
+		{name: "AdminSetLeetDaily", route: "PUT /v1/admin/leet/daily/{date}", wantPath: "/v1/admin/leet/daily/2026-11-05", resp: env(t, "daily", "LeetDaily"),
+			call: func(c *api.Client) (any, error) {
+				return c.AdminSetLeetDaily(ctx, "2026-11-05", api.LeetDailyFacts{FrontendID: "1606", Slug: "two-sum", Title: "Two Sum", Difficulty: "Easy"})
+			},
+			wantBody: `{"frontend_id":"1606","slug":"two-sum","title":"Two Sum","difficulty":"Easy","tags":[],"is_paid_only":false}`,
+			check: func(t *testing.T, got any) {
+				if d := got.(*api.LeetDaily); d.Date == "" || d.Slug == "" {
+					t.Errorf("daily = %+v", d)
+				}
+			}},
 	}
 }
 

@@ -165,6 +165,7 @@ func TestEndpointLimitersMatchContractTable(t *testing.T) {
 	doc := loadContractLimiters(t)
 	cases := append(endpointsACases(t), endpointsBCases(t)...)
 	cases = append(cases, docEndpointCases(t)...)
+	cases = append(cases, leetEndpointCases(t)...)
 	covered := map[string]bool{}
 	var wrong []string
 	for _, c := range cases {
@@ -183,8 +184,11 @@ func TestEndpointLimitersMatchContractTable(t *testing.T) {
 			}
 		}
 		switch {
+		case len(want) > 1 && !contains(want, c.limiter):
+			// A row may name a second limiter the server charges only sometimes (PUT /v1/leet/daily: RL_MESSAGE
+			// when the request makes a #daily root, api.md 5.25). request.Limiter holds one: the one always charged.
+			wrong = append(wrong, c.name+": api.md 6 lists "+strings.Join(want, ",")+"; harness says "+c.limiter+", want one of them")
 		case len(want) > 1:
-			wrong = append(wrong, c.name+": api.md 6 lists several limiters "+strings.Join(want, ",")+"; request.Limiter holds one")
 		case len(want) == 0 && c.limiter != "":
 			wrong = append(wrong, c.name+": harness says "+c.limiter+", api.md 6 says none")
 		case len(want) == 1 && c.limiter != want[0]:

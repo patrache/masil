@@ -27,6 +27,8 @@ type UpdateSettingsRequest struct {
 	IsPrivate       Opt[bool]
 	Notify          *NotifySettingsPatch
 	FocusDefaultMin Opt[int]
+	// LeetShareWithFriends is the v0.1.3 friends-board switch (api.md 5.25).
+	LeetShareWithFriends Opt[bool]
 }
 type NotifySettingsPatch struct{ DM, Mention, Invite, FriendRequest, ThreadReply, Social Opt[bool] }
 type SetStatusRequest struct {
@@ -76,11 +78,12 @@ type updateSettingsBody struct {
 	IsPrivate       Opt[bool]        `json:"is_private,omitzero"`
 	Notify          *notifyPatchBody `json:"notify,omitempty"`
 	FocusDefaultMin Opt[int]         `json:"focus_default_min,omitzero"`
+	LeetShare       Opt[bool]        `json:"leet_share_with_friends,omitzero"`
 }
 
 // UpdateSettings: PATCH /v1/me/settings
 func (c *Client) UpdateSettings(ctx context.Context, r UpdateSettingsRequest) (*Settings, error) {
-	body := updateSettingsBody{DMPolicy: r.DMPolicy, IsPrivate: r.IsPrivate, FocusDefaultMin: r.FocusDefaultMin}
+	body := updateSettingsBody{DMPolicy: r.DMPolicy, IsPrivate: r.IsPrivate, FocusDefaultMin: r.FocusDefaultMin, LeetShare: r.LeetShareWithFriends}
 	if n := r.Notify; n != nil {
 		body.Notify = &notifyPatchBody{DM: n.DM, Mention: n.Mention, Invite: n.Invite,
 			FriendRequest: n.FriendRequest, ThreadReply: n.ThreadReply, Social: n.Social}

@@ -302,6 +302,24 @@ internal/
   ui/apitool/                          P4   (API 시험 도구 화면·도구/팔레트/카드 등록)
 ```
 
+P1(LeetCode 오늘의 문제·lazygit) 행:
+
+```
+cmd/masil/register_leetgit.go          P1   (blank import of internal/ui/leet, internal/ui/gittool)
+internal/
+  api/ep_leet.go, api/types_leet.go    P1   (masil 서버의 /v1/leet·#daily 엔드포인트와 타입 — 4.3.3 규칙대로 core api 안의 파일)
+  config/tools_leetgit.go              P1   ([tools.leet]·[tools.lazygit] 절의 구조체, 읽기는 cfg.ToolSection)
+  admincli/leet.go                     P1   (masil admin leet-daily set)
+  leetcode/                            P1   (LeetCode GraphQL·실행·제출·간격·캐시·쿠키 자격증명 — UI 없음)
+  leetcode/htmldoc/                    P1   (문제 HTML → 문서 블록 — UI 없음)
+  leetcode/leetcodetest/               P1   (가짜 LeetCode — 시험에서만 import)
+  lazygit/                             P1   (lazygit 찾기·버전·저장소·색 덧씌움·실행 인자 — UI 없음)
+  third_party/goeditor/                P1   (github.com/ionut-t/goeditor v0.19.0 루트 패키지 고정 사본, MIT — WithDarkBackground 만 더함)
+  ui/leet/                             P1   (도구 leet: 문제 보기·편집기 자리·로그인·실행·제출·카드 남기기·leet.* 카드 그리기·순위)
+  ui/gittool/                          P1   (도구 git: 저장소 고르기·설치 안내·lazygit 인스턴스)
+  i18n/locales/<언어>/leetcode.toml, lazygit.toml   P1
+```
+
 ### 2.2 의존 방향 (import 규칙)
 
 ```
@@ -342,6 +360,20 @@ ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keym
 - `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
 - 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
 - `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
+
+P1 도구 패키지(P1 Task 24 가 맞춘 실제 의존):
+
+```
+leetcode ─▶ config, secrets                         (UI·api·realtime·store 금지 — internal/leetcode 의 TestNoForbiddenImports)
+leetcode/htmldoc ─▶ textwidth
+lazygit ─▶ config, termhost(Mode 타입), theme        (UI·api·realtime·store 금지 — 같은 시험)
+ui/leet ─▶ ui, ui/termpane, ui/secretsui, ui/settings, ui/palette, ui/keymap, ui/layout, api, leetcode, leetcode/htmldoc, third_party/goeditor, secrets, termhost, imgrender, markup, termcaps, features, i18n, config, theme, textwidth
+ui/gittool ─▶ ui, ui/termpane, ui/palette, ui/layout, lazygit, termhost, features, i18n, config, theme, textwidth
+```
+
+- `internal/leetcode`·`internal/lazygit` 는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(`toolPackagePrefixes` 의 P1 두 줄). `internal/api` 의 leet 엔드포인트는 쿠키를 모른다 — LeetCode 쿠키는 `ui/leet` → `leetcode` → LeetCode 로만 간다.
+- `ui/leet`·`ui/gittool` 은 서로, 그리고 `ui/chat`·`ui/feed`·`ui/fun` 을 import 하지 않는다. #daily·풀이 카드는 `ui.RegisterCard`, 순위·설정은 팔레트 명령으로만 닿는다.
+- `leetcodetest` 는 시험 파일에서만 import 한다.
 
 ### 2.3 실행 순서 (병렬 작성, 단계적 실행)
 
@@ -428,6 +460,8 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 | `api/shared/<doc_id>.json` | TUI(API 시험, P4) | 공유 컬렉션(`apicol`) 오프라인 사본 — 비밀 값 없음 |
 | `api/shared/<doc_id>.mine.json` | TUI(API 시험, P4) | 그 공유 컬렉션의 "내 값"(비밀이 아닌 값)·비밀 변수의 허용 호스트·내가 비밀로 아는 이름. 비밀 값은 `secrets` 저장소에만 |
 | `api/shared/<doc_id>.lost.json` | TUI(API 시험, P4) | 동시 편집에서 덮어써진 내 본문(최근 20개) |
+| `tools-state.json` 의 P1 섹션 | `ui/leet`·`ui/gittool` | `leet` = `{"lang": "<언어 ID — l 로 마지막에 고른 것>", "first_run_done": bool, "accounts": {"<masil 서버 호스트>/<masil 사용자 ID>": {"username": "<LeetCode 사용자 이름>", "premium": bool}}}` — 쿠키 값은 여기 없다(`secrets` 만). `git` = `{"recent": ["<저장소 절대 경로>", …]}`(최근 연 저장소, 앞이 최근). 둘 다 masil 서버로 보내지 않는다 |
+| 캐시 `leetcode/`, `lazygit/` | `leetcode`·`lazygit` | `<캐시>/leetcode/{daily/<date>.json, questions/<slug>.json, fetched/<UTC 날짜>.json}`(오늘의 문제·연 문제, 0600 — 쿠키 없음), `<캐시>/lazygit/theme-<해시>.yml`(패널 lazygit 의 색만 덧씌움, 0600). 풀이 파일은 설정 폴더 밖 `[tools.leet] dir`(기본 `~/masil/leetcode/<date>-<번호>-<slug>.<확장자>`) |
 | `secrets/` | TUI | 도구 자격증명 저장소(`internal/secrets`)의 대체 자리. 폴더 0700. `tools.json`(0600) = 사용자가 "파일에 저장"에 동의한 값, `index.json`(0600) = 저장한 값 **이름**만(값 없음, `Store.List`), `.gitignore` = `*` 한 줄. 파일 형식은 `secrets` 패키지 내부(다른 패키지가 직접 읽지 않음). OS 키체인에 저장된 값은 여기 없다 |
 
 ### 3.3 `config.toml`
@@ -546,6 +580,29 @@ func ToolConfigSection(toolID string) string           // "git" -> "lazygit", �
 // Paths 에 추가: ToolsState (<Dir>/tools-state.json), SecretsDir (<Dir>/secrets)
 ```
 - 접근자는 모두 도구 **ID** 를 받고 안에서 `ToolConfigSection` 으로 절을 찾는다(`[tools.git]` 절은 읽지 않는다). 각 도구의 나머지 키 구조체(P1 `LeetToolConfig`·`LazygitToolConfig`, P4 `[tools.api]`)는 그 도구 소유.
+
+**P1 도구 키** (P1 Task 14 — `internal/config/tools_leetgit.go`, 읽기는 `cfg.ToolSection`):
+
+```toml
+[tools.lazygit]
+path = ""                  # lazygit 실행 파일. "" => PATH 의 lazygit. 앞의 ~ 는 홈 폴더
+repo = ""                  # 열 저장소. "" => masil 을 켠 폴더의 저장소, 아니면 고르기 화면. 저장소가 아니면 다음 단계로
+theme_overlay = true       # 패널 방식에서만 masil 테마 색 덧씌움(색 4개). false => 덧씌우지 않음
+
+[tools.leet]
+lang = ""                  # LeetCode 언어 slug(golang, python3 …). "" => 기기 기억, 없으면 기본
+dir = ""                   # 풀이 폴더. "" => ~/masil/leetcode
+auto_status = false        # 풀면 상태 메시지에 자동 표시
+```
+
+```go
+type LeetToolConfig struct{ Open, Lang, Dir string; AutoStatus bool }            // toml: open lang dir auto_status
+type LazygitToolConfig struct{ Open, Path, Repo string; ThemeOverlay *bool }      // toml: open path repo theme_overlay
+func DefaultLeetToolConfig() LeetToolConfig       // {Open: "auto"}
+func DefaultLazygitToolConfig() LazygitToolConfig // {Open: "auto"}
+func (c LazygitToolConfig) OverlayOn() bool       // nil => true
+// lg := config.DefaultLazygitToolConfig(); err := cfg.ToolSection("git", &lg)
+```
 
 ### 3.4 `credentials.json`
 
@@ -1128,6 +1185,43 @@ func (c *Client) UpdateDocComment(ctx context.Context, docID, commentID string, 
 func (c *Client) DeleteDocComment(ctx context.Context, docID, commentID string) error
 func (c *Client) DocSocketURL(docID string) string // ws(s)://.../v1/docs/<doc_id>/ws (internal/collab 이 AuthHeader 로 dial)
 ```
+
+LeetCode 오늘의 문제 (api.md 5.25, P1 Task 6 — `internal/api/types_leet.go`·`ep_leet.go`):
+
+```go
+const CardLeetDaily, CardLeetSolve = "leet.daily", "leet.solve"
+type LeetDailyFacts struct { FrontendID, Slug, Title, Difficulty string; Tags []string; IsPaidOnly bool } // json snake_case
+type LeetDaily struct { Date string; LeetDailyFacts; FirstReporter *UserSummary; FirstReportedAt time.Time; MismatchCount int }
+type LeetDailyRoot struct { SpaceID, ChannelID, MessageID string }
+type LeetDailyReport struct { Daily LeetDaily; Roots []LeetDailyRoot }
+type LeetSolveRequest struct { Slug, Lang, FrontendID string; RuntimePercentile *float64; SubmissionID *string; ShareSpaceIDs []string; Code *string } // status "accepted" 은 메서드가 채움
+type LeetSolve struct { Date, Slug, Lang string; PassedAt time.Time; RuntimePercentile *float64; CountsForStreak bool }
+type LeetSolveCardRef struct { SpaceID, MessageID string }
+type LeetSolveResult struct { Solve LeetSolve; Cards []LeetSolveCardRef }
+type LeetDailySpace struct { SpaceID, ChannelID string }
+type LeetMe struct { Current, Best int; Recent []LeetSolve; DailySpaces []LeetDailySpace }
+type LeetBoard struct { Period string; Items []LeetBoardEntry }
+type LeetBoardEntry struct { User UserSummary; Solved, Streak int }
+type LeetFriendsBoard struct { Items []LeetFriendStreak }
+type LeetFriendStreak struct { User UserSummary; Current, Best int }
+type LeetSpaceSettings struct { SpaceID string; Enabled bool; ChannelID, EnabledBy *string; EnabledAt *time.Time }
+type LeetDailyCard struct { Date string; LeetDailyFacts }                       // Card.Data of leet.daily v1
+type LeetSolveCard struct { Date, FrontendID, Slug, Lang string; RuntimePercentile *float64; Code *LeetSolveCode; Spoiler bool } // leet.solve v1
+type LeetSolveCode struct { Lang, Text string }
+// Settings.LeetShareWithFriends bool `json:"leet_share_with_friends"`; UpdateSettingsRequest.LeetShareWithFriends Opt[bool]
+
+func (c *Client) SetSpaceLeet(ctx context.Context, spaceID string, enabled bool, channelID *string) (*LeetSpaceSettings, error) // RL_SOCIAL
+func (c *Client) ReportLeetDaily(ctx context.Context, date string, f LeetDailyFacts) (*LeetDailyReport, error)               // RL_SOCIAL (서버는 루트를 만들 때 RL_MESSAGE 도 셈)
+func (c *Client) PutLeetSolve(ctx context.Context, date string, r LeetSolveRequest) (*LeetSolveResult, error)                // RL_SOCIAL
+func (c *Client) DeleteLeetSolve(ctx context.Context, date string) error                                                    // RL_SOCIAL
+func (c *Client) LeetMe(ctx context.Context) (*LeetMe, error)
+func (c *Client) LeetSpaceBoard(ctx context.Context, spaceID, period string) (*LeetBoard, error) // period "" = 서버 기본(week)
+func (c *Client) LeetFriendsBoard(ctx context.Context) (*LeetFriendsBoard, error)
+func (c *Client) AdminSetLeetDaily(ctx context.Context, date string, f LeetDailyFacts) (*LeetDaily, error) // admin (api.md 5.22, P1 Task 7 — masil admin leet-daily set)
+```
+
+- api.md 6장의 `PUT /v1/leet/daily/{date}` 행은 리미터가 둘(`RL_SOCIAL, RL_MESSAGE`)이다. `request.Limiter` 는 하나만 들므로 늘 세는 `RL_SOCIAL` 을 쓰고, `contract_limiters_test.go` 는 "행이 여럿이면 그중 하나" 로 대조한다.
+- `internal/api` 는 LeetCode 를 모른다 — 문제 본문·쿠키는 `internal/leetcode`(P1) 몫이고 이 메서드들은 masil 서버의 사실 정보·풀이 기록만 오간다.
 
 - `Message.Kind` 값에 `"card"` 가 더해진다. 0.1.2 이하 클라이언트는 모르는 kind 의 `body`(대체 요약)를 그대로 그린다.
 - `AlertTarget.Type` 값에 `"doc"` 가 더해진다.
@@ -2541,7 +2635,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | 등록 패키지 | 명령 id |
 |---|---|
 | core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
-| P1 LeetCode·lazygit | `leet.*`, `git.*` |
+| P1 LeetCode·lazygit | `ui/leet`: `leet.open`(오늘의 문제 열기), `leet.board`(지금 방의 순위·친구 순위 — 방 안에서만), `leet.settings`(도구 설정 창), `leet.daily.toggle`(지금 방의 #daily 켜기·끄기 — 방 owner·admin 만) — 모두 `Available` 에 `features.On(ui.ToolLeet)`. `ui/gittool`: `git.open`(저장소 고르기) — `features.On(ui.ToolGit)`. 전부 `Label func(*i18n.T)` |
 | P2 작업공간 | `ws.*` |
 | P3 아키텍처 설계 | `arch.*` |
 | P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd`(+ `n` nonce)로 인스턴스 `api:main` 에 전달(`ui.OpenTool`). 여는 대상은 Query 개인 컬렉션 `col`·`req`(이름·요청 ID), 공유 컬렉션 `doc`·`req`(인스턴스 `api:doc:<doc_id>`, P4 Task 18·20) |

@@ -118,6 +118,9 @@ type Settings struct {
 	IsPrivate       bool           `json:"is_private"`
 	Notify          NotifySettings `json:"notify"`
 	FocusDefaultMin int            `json:"focus_default_min"` // 1..720
+	// LeetShareWithFriends: friends see my leet streak on the friends board
+	// (v0.1.3 P1, api.md 5.25); default true.
+	LeetShareWithFriends bool `json:"leet_share_with_friends"`
 }
 
 // NotifySettings are the notify.* desktop alert switches.

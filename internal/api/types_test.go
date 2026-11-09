@@ -79,6 +79,17 @@ var typeSamples = map[string]func() any{
 	"AdminUserView":       func() any { return new(api.AdminUserView) },
 	"Report":              func() any { return new(api.Report) },
 	"AdminAction":         func() any { return new(api.AdminAction) },
+	// v0.1.3 P1 (api.md 5.25 LeetCode; card data of leet.daily / leet.solve).
+	"LeetDaily":         func() any { return new(api.LeetDaily) },
+	"LeetDailyReport":   func() any { return new(api.LeetDailyReport) },
+	"LeetSolve":         func() any { return new(api.LeetSolve) },
+	"LeetSolveResult":   func() any { return new(api.LeetSolveResult) },
+	"LeetMe":            func() any { return new(api.LeetMe) },
+	"LeetBoard":         func() any { return new(api.LeetBoard) },
+	"LeetFriendsBoard":  func() any { return new(api.LeetFriendsBoard) },
+	"LeetSpaceSettings": func() any { return new(api.LeetSpaceSettings) },
+	"LeetDailyCard":     func() any { return new(api.LeetDailyCard) },
+	"LeetSolveCard":     func() any { return new(api.LeetSolveCard) },
 	// Response bundles (CA 4.3.2). MediaBlob is not JSON and is excluded.
 	"AuthResult":          func() any { return new(api.AuthResult) },
 	"MetaInfo":            func() any { return new(api.MetaInfo) },

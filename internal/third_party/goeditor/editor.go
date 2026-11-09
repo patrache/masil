@@ -1,0 +1,1664 @@
+package goeditor
+
+import (
+	"context"
+	"fmt"
+	"image/color"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+	"unicode"
+
+	"charm.land/bubbles/v2/cursor"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/atotto/clipboard"
+	"github.com/ionut-t/goeditor/core"
+	"github.com/ionut-t/goeditor/highlighter"
+)
+
+// SearchOptions represents options for search operations
+type SearchOptions struct {
+	IgnoreCase bool // Case insensitive search
+	SmartCase  bool // ...unless search contains uppercase
+	Wrap       bool // Whether to wrap around the buffer
+}
+
+type Theme struct {
+	NormalModeStyle        lipgloss.Style
+	InsertModeStyle        lipgloss.Style
+	VisualModeStyle        lipgloss.Style
+	CommandModeStyle       lipgloss.Style
+	SearchModeStyle        lipgloss.Style
+	StatusLineStyle        lipgloss.Style
+	CommandLineStyle       lipgloss.Style
+	MessageStyle           lipgloss.Style
+	LineNumberStyle        lipgloss.Style
+	CurrentLineNumberStyle lipgloss.Style
+	CurrentLineStyle       lipgloss.Style
+	SelectionStyle         lipgloss.Style
+	ErrorStyle             lipgloss.Style
+	HighlightYankStyle     lipgloss.Style
+	PlaceholderStyle       lipgloss.Style
+
+	SearchHighlightStyle   lipgloss.Style
+	SearchInputPromptStyle lipgloss.Style
+	SearchInputTextStyle   lipgloss.Style
+	SearchInputCursorStyle lipgloss.Style
+
+	CompletionMenuItemStyle         lipgloss.Style
+	CompletionMenuSelectedItemStyle lipgloss.Style
+	CompletionMenuBorderStyle       lipgloss.Style
+	CompletionMenuLabelStyle        lipgloss.Style
+	CompletionMenuTypeStyle         lipgloss.Style
+}
+
+// DefaultTheme creates a theme with adaptive colors based on terminal background.
+func DefaultTheme(isDark bool) Theme {
+	// Helper closure to select the colour based on the boolean
+	lightDark := func(light, dark string) color.Color {
+		if isDark {
+			return lipgloss.Color(dark)
+		}
+		return lipgloss.Color(light)
+	}
+
+	return Theme{
+		NormalModeStyle: lipgloss.NewStyle().
+			Background(lightDark("#179299", "#94e2d5")). // Teal
+			Foreground(lightDark("#eff1f5", "#1e1e2e")).
+			Bold(true),
+
+		InsertModeStyle: lipgloss.NewStyle().
+			Background(lightDark("#1e66f5", "#89b4fa")). // Blue
+			Foreground(lightDark("#eff1f5", "#1e1e2e")).
+			Bold(true),
+
+		VisualModeStyle: lipgloss.NewStyle().
+			Background(lightDark("#8839ef", "#cba6f7")). // Mauve
+			Foreground(lightDark("#eff1f5", "#1e1e2e")).
+			Bold(true),
+
+		CommandModeStyle: lipgloss.NewStyle().
+			Background(lightDark("#fe640b", "#fab387")). // Peach
+			Foreground(lightDark("#eff1f5", "#1e1e2e")).
+			Bold(true),
+
+		SearchModeStyle: lipgloss.NewStyle().
+			Background(lightDark("#df8e1d", "#f9e2af")). // Yellow
+			Foreground(lightDark("#eff1f5", "#1e1e2e")).
+			Bold(true),
+
+		// Status and command line
+		StatusLineStyle: lipgloss.NewStyle().
+			Background(lightDark("#ccd0da", "#313244")). // Surface0
+			Foreground(lightDark("#4c4f69", "#cdd6f4")), // Text
+
+		CommandLineStyle: lipgloss.NewStyle().
+			Background(lightDark("#eff1f5", "#1e1e2e")). // Base
+			Foreground(lightDark("#4c4f69", "#cdd6f4")), // Text
+
+		// Messages and errors
+		MessageStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#40a02b", "#a6e3a1")), // Green
+
+		ErrorStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#d20f39", "#f38ba8")). // Red
+			Bold(true),
+
+		// Line numbers
+		LineNumberStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#9ca0b0", "#6c7086")). // Overlay0
+			Width(4).
+			Align(lipgloss.Right),
+
+		CurrentLineNumberStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#4c4f69", "#cdd6f4")). // Text
+			Width(4).
+			Align(lipgloss.Right).
+			Bold(true),
+
+		// Current line highlight (subtle)
+		CurrentLineStyle: lipgloss.NewStyle().
+			Background(lightDark("#e6e9ef", "#2A2B3C")), // Mantle / Surface0
+
+		// Selection highlighting
+		SelectionStyle: lipgloss.NewStyle().
+			Background(lightDark("#bcc0cc", "#45475a")), // Surface1
+
+		// Yank highlight (brief flash effect)
+		HighlightYankStyle: lipgloss.NewStyle().
+			Background(lightDark("#209fb5", "#74c7ec")). // Sapphire
+			Foreground(lightDark("#eff1f5", "#1e1e2e")).
+			Bold(true),
+
+		// Search highlighting
+		SearchHighlightStyle: lipgloss.NewStyle().
+			Background(lightDark("#df8e1d", "#f9e2af")). // Yellow
+			Foreground(lightDark("#eff1f5", "#1e1e2e")).
+			Bold(true),
+
+		SearchInputPromptStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#df8e1d", "#f9e2af")). // Yellow
+			Bold(true),
+
+		SearchInputTextStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#4c4f69", "#cdd6f4")), // Text
+
+		SearchInputCursorStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#df8e1d", "#f9e2af")), // Yellow
+
+		// Placeholder text
+		PlaceholderStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#8c8fa1", "#7f849c")). // Overlay1
+			Italic(true),
+
+		CompletionMenuItemStyle: lipgloss.NewStyle().
+			Padding(0, 1),
+
+		CompletionMenuSelectedItemStyle: lipgloss.NewStyle().
+			Background(lightDark("#bcc0cc", "#45475a")). // Surface1
+			Padding(0, 1).
+			Bold(true),
+
+		CompletionMenuBorderStyle: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lightDark("#9ca0b0", "#6c7086")). // Overlay0
+			Padding(0),
+
+		CompletionMenuLabelStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#1e66f5", "#89b4fa")). // Blue
+			Bold(true),
+
+		CompletionMenuTypeStyle: lipgloss.NewStyle().
+			Foreground(lightDark("#8839ef", "#cba6f7")), // Mauve
+	}
+}
+
+type (
+	cursorBlinkMsg         struct{}
+	cursorBlinkCanceledMsg struct{}
+	resumeBlinkCycleMsg    struct{}
+)
+
+type CursorMode int
+
+const (
+	CursorSteady CursorMode = iota
+	CursorBlink
+)
+
+const (
+	cursorBlinkInterval      = 500 * time.Millisecond
+	cursorActivityResetDelay = 250 * time.Millisecond
+)
+
+type StatusLineContext struct {
+	State  core.State
+	Cursor core.Cursor
+	Width  int
+	Theme  Theme
+}
+
+type Model struct {
+	editor   core.Editor
+	viewport viewport.Model
+
+	width  int
+	height int
+
+	showLineNumbers    bool
+	showTildeIndicator bool
+	showStatusLine     bool
+	commandLineHeight  int
+
+	theme          Theme
+	StatusLineFunc func(ctx StatusLineContext) string
+
+	err     error
+	message string
+
+	disableVimMode bool
+
+	fullVisualLayoutHeight  int  // Total number of visual lines in the entire buffer
+	cursorAbsoluteVisualRow int  // Cursor's current row index in the full visual layout
+	cursorPastFullRow       bool // Cursor after the end of a line whose last row is full: drawn at the start of the next row
+	currentVisualTopLine    int  // Top line of the current visual slice
+
+	visualLayoutCache               []VisualLineInfo                    // Cache of visual line information
+	visualLayoutCacheStartRow       int                                 // First logical line in cache (for lazy mode)
+	visualLayoutCacheStartVisualRow int                                 // First visual row in cache (offset for lazy mode)
+	visualRowAnchors                map[int]int                         // Sparse anchors: logical line -> visual row (cleared on edits)
+	lastKnownLineCount              int                                 // Track line count to detect content changes
+	cacheValidStartRow              int                                 // Start of cursor range for which cache is valid
+	cacheValidEndRow                int                                 // End of cursor range for which cache is valid
+	persistentTokenCache            map[int][]highlighter.TokenPosition // Persistent token cache across renders
+
+	clampedCursorLogicalCol      int // Clamped cursor column
+	highlightedWords             map[string]lipgloss.Style
+	compiledHighlightedWords     []highlightedWordPattern // Cached compiled patterns
+	compiledHighlightedWordsHash uint64                   // Hash of highlightedWords to detect changes
+	extraHighlightedContextLines uint16
+
+	isFocused        bool
+	placeholder      string
+	cursorMode       CursorMode
+	cursorVisible    bool
+	highlighter      *highlighter.Highlighter
+	language         string
+	highlighterTheme string
+
+	searchInput   textinput.Model
+	searchOptions core.SearchOptions
+
+	// Completion state
+	completionMenuVisible       bool
+	completions                 []core.Completion
+	completionContext           core.CompletionContext
+	selectedCompletionIdx       int
+	completionWindowStart       int // index of the first visible item in the sliding window
+	autoTriggerEnabled          bool
+	lastCompletionRequest       time.Time
+	completionDebounceTime      time.Duration
+	precomputedCompletionStyles completionStyles
+	// completionDismissedWord tracks the word prefix that was typed when the user
+	// pressed Escape to dismiss the menu. Auto-trigger is suppressed while the
+	// typed prefix still matches this value, so the menu doesn't immediately
+	// reopen on the next keystroke.
+	completionDismissedWord  string
+	completionMenuMaxVisible int
+
+	cursorBlinkCancel context.CancelFunc
+	clearMsgCancel    context.CancelFunc
+	clearYankCancel   context.CancelFunc
+}
+
+type ErrorMsg struct {
+	ID    core.ErrorId
+	Error error
+}
+
+type SaveMsg struct {
+	Path    *string
+	Content string
+}
+
+type QuitMsg struct{}
+
+// OpenMsg is sent by gx with the URL or file name to open, as written in the
+// buffer (a file name may be relative or start with ~). The editor opens
+// nothing itself; call OpenWithSystem to use the system's default handler.
+// Target is buffer text, so it can name any URL scheme or local program:
+// check it first when the buffer may hold untrusted text.
+type OpenMsg struct {
+	Target string
+}
+
+type clearMsg struct{}
+
+type commandMsg struct{}
+
+type enterSearchMode struct{ backwards bool }
+
+type exitSearchMode struct{}
+
+// yankedMsg is an internal message indicating that content has been yanked.
+// It handles the visual feedback for yanked content and dispatches the YankMsg to the consumer.
+type yankedMsg struct {
+	Content string
+}
+
+type YankMsg struct {
+	Content string
+}
+
+type clearYankMsg struct{}
+
+type PasteMsg struct {
+	Content string
+}
+
+type RenameMsg struct {
+	FileName string
+}
+
+type DeleteFileMsg struct{}
+
+type RelativeNumbersChangeMsg struct {
+	Enabled bool
+}
+
+type DeleteMsg struct {
+	Content string
+}
+
+// UndoMsg, RedoMsg and UndoLineMsg carry the edits applied to the buffer, in
+// order (see core.TextEdit).
+type UndoMsg struct {
+	Edits []core.TextEdit
+}
+
+type RedoMsg struct {
+	Edits []core.TextEdit
+}
+
+type UndoLineMsg struct {
+	Edits []core.TextEdit
+}
+
+type SearchResultsMsg struct {
+	Positions []core.Position
+}
+
+type CompletionRequestMsg struct {
+	Context core.CompletionContext
+}
+
+type CompletionResponseMsg struct {
+	Completions []core.Completion
+	Context     core.CompletionContext
+}
+
+type CompletionDebounceMsg struct {
+	TriggerChar string
+	Timestamp   time.Time
+}
+
+// mapTimeoutMsg fires when 'timeoutlen' expires for keys the editor is holding
+// to see whether they complete a longer mapping. The token identifies the run
+// of held keys, so a message that arrives after they were resolved by a further
+// keypress is discarded rather than acting on whatever is pending by then.
+type mapTimeoutMsg struct {
+	token core.MapToken
+}
+
+func (m *Model) dispatchClearMsg(duration time.Duration) tea.Cmd {
+	if m.clearMsgCancel != nil {
+		m.clearMsgCancel()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	m.clearMsgCancel = cancel
+
+	return func() tea.Msg {
+		defer cancel()
+		<-ctx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
+			return clearMsg{}
+		}
+		return nil
+	}
+}
+
+func (m *Model) dispatchClearYankMsg() tea.Cmd {
+	// Cancel any existing yank clear timer
+	if m.clearYankCancel != nil {
+		m.clearYankCancel()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	m.clearYankCancel = cancel
+
+	return func() tea.Msg {
+		defer cancel()
+		<-ctx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
+			return clearYankMsg{}
+		}
+		return nil
+	}
+}
+
+type clipboardImpl struct{}
+
+func (c *clipboardImpl) Write(text string) error {
+	return clipboard.WriteAll(text)
+}
+
+func (c *clipboardImpl) Read() (string, error) {
+	return clipboard.ReadAll()
+}
+
+// Option configures a Model.
+type Option func(*modelConfig)
+
+type modelConfig struct {
+	clipboard core.Clipboard
+	dark      *bool // masil: the background, given (nil: ask the terminal)
+}
+
+// hasDarkBackground asks the terminal for its background (masil: a seam, so a
+// test can see it is not called).
+var hasDarkBackground = func() bool { return lipgloss.HasDarkBackground(os.Stdin, os.Stderr) }
+
+// WithDarkBackground gives New the terminal's background instead of letting it
+// ask the terminal (masil patch: the query reads the terminal's input, which
+// Bubble Tea is already reading).
+func WithDarkBackground(dark bool) Option {
+	return func(c *modelConfig) {
+		c.dark = &dark
+	}
+}
+
+func New(width, height int, opts ...Option) Model {
+	cfg := &modelConfig{
+		clipboard: &clipboardImpl{},
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	texteditor := core.New(cfg.clipboard)
+	// The core counts scrolling in screen rows, so it needs to know how lines wrap.
+	texteditor.SetLineHeightFunc(lineRows)
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height))
+	searchInput := textinput.New()
+	searchInput.Prompt = "/"
+
+	var isDark bool
+	if cfg.dark != nil {
+		isDark = *cfg.dark
+	} else {
+		isDark = hasDarkBackground()
+	}
+	defaultTheme := DefaultTheme(isDark)
+
+	styles := textinput.DefaultStyles(isDark)
+	styles.Focused.Prompt = defaultTheme.SearchInputPromptStyle
+	styles.Focused.Text = defaultTheme.SearchInputTextStyle
+	styles.Blurred.Prompt = defaultTheme.SearchInputPromptStyle
+	styles.Blurred.Text = defaultTheme.SearchInputTextStyle
+	styles.Cursor.Blink = false
+	searchInput.SetStyles(styles)
+
+	searchOptions := core.SearchOptions{
+		IgnoreCase: true,
+		SmartCase:  true,
+		Backwards:  false,
+		Wrap:       true,
+	}
+
+	m := Model{
+		editor:            texteditor,
+		viewport:          vp,
+		showLineNumbers:   true,
+		showStatusLine:    true,
+		commandLineHeight: 1,
+		theme:             defaultTheme,
+		highlightedWords:  make(map[string]lipgloss.Style),
+		cursorMode:        CursorSteady,
+		cursorVisible:     true,
+		searchInput:       searchInput,
+		searchOptions:     searchOptions,
+
+		autoTriggerEnabled:          false,
+		completionDebounceTime:      300 * time.Millisecond,
+		precomputedCompletionStyles: setupCompletionStyles(defaultTheme),
+		completionMenuMaxVisible:    10,
+	}
+
+	m.SetSize(width, height)
+
+	return m
+}
+
+// WithClipboard sets a custom clipboard implementation on the editor.
+// By default the system clipboard is used via github.com/atotto/clipboard.
+// Use this to supply an OSC 52 implementation for headless/SSH environments.
+// A nil cb disables the clipboard: yank and paste return an error.
+func WithClipboard(cb core.Clipboard) Option {
+	return func(c *modelConfig) {
+		c.clipboard = cb
+	}
+}
+
+func (m *Model) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+	m.viewport.SetWidth(width)
+	viewportHeight := max(0, height-m.bottomRows())
+	m.viewport.SetHeight(viewportHeight)
+
+	lineNumWidth := 0
+	if m.showLineNumbers {
+		maxLineNum := m.editor.GetBuffer().LineCount()
+		maxWidth := len(strconv.Itoa(max(1, maxLineNum)))
+		lineNumWidth = max(4, maxWidth) + 1
+		lineNumWidth = min(lineNumWidth, 10)
+	}
+	availableWidth := m.viewport.Width() - lineNumWidth
+	if availableWidth <= 0 {
+		availableWidth = 1
+	}
+
+	state := m.editor.GetState()
+	state.ViewportWidth = m.viewport.Width()
+	state.AvailableWidth = availableWidth
+	state.ViewportHeight = viewportHeight
+	m.editor.SetState(state)
+
+	// Recalculate layout if dimensions changed and we have content
+	if !m.editor.GetBuffer().IsEmpty() {
+		m.handleContentChange()
+	}
+
+	m.updateVisualTopLine()
+	m.renderVisibleSlice()
+}
+
+// SetBytes sets the content of the core.
+func (m *Model) SetBytes(content []byte) {
+	m.editor.SetContent(content)
+	m.handleContentChange()
+	m.renderVisibleSlice()
+}
+
+// SetContent sets the content of the editor from a string.
+func (m *Model) SetContent(content string) {
+	m.SetBytes([]byte(content))
+}
+
+// WithTheme allows setting a custom theme for the core.
+func (m *Model) WithTheme(theme Theme) {
+	m.theme = theme
+
+	styles := m.searchInput.Styles()
+	styles.Focused.Prompt = theme.SearchInputPromptStyle
+	styles.Focused.Text = theme.SearchInputTextStyle
+	styles.Blurred.Prompt = theme.SearchInputPromptStyle
+	styles.Blurred.Text = theme.SearchInputTextStyle
+	m.searchInput.SetStyles(styles)
+	m.precomputedCompletionStyles = setupCompletionStyles(theme)
+}
+
+// WithSearchOptions allows setting custom search options.
+func (m *Model) WithSearchOptions(options SearchOptions) {
+	m.searchOptions = core.SearchOptions{
+		IgnoreCase: options.IgnoreCase,
+		SmartCase:  options.SmartCase,
+		Wrap:       options.Wrap,
+	}
+}
+
+// WithSearchInputCursorMode allows setting the cursor mode for the search input.
+// Default is CursorStatic.
+func (m *Model) WithSearchInputCursorMode(mode cursor.Mode) {
+	styles := m.searchInput.Styles()
+	styles.Cursor.Blink = (mode == cursor.CursorBlink)
+	m.searchInput.SetStyles(styles)
+}
+
+// SetLanguage sets the programming language for syntax highlighting.
+//
+// If the language is empty, syntax highlighting will be disabled.
+//
+// The theme parameter allows specifying a Chroma theme for the syntax highlighter.
+// For a full list of available themes, see: https://github.com/alecthomas/chroma/blob/master/styles
+func (m *Model) SetLanguage(language string, theme string) {
+	if m.language == language && m.highlighterTheme == theme {
+		return
+	}
+
+	m.language = language
+	m.highlighterTheme = theme
+	if language == "" {
+		m.highlighter = nil
+		m.persistentTokenCache = make(map[int][]highlighter.TokenPosition)
+		m.renderVisibleSlice()
+		return
+	}
+
+	m.highlighter = highlighter.New(language, theme)
+	// Clear token cache when language changes
+	m.persistentTokenCache = make(map[int][]highlighter.TokenPosition)
+
+	if language == "markdown" && m.extraHighlightedContextLines == 0 {
+		m.extraHighlightedContextLines = 100
+	}
+
+	m.renderVisibleSlice()
+}
+
+// SetExtraWordChars allows specifying additional characters to be considered part of words for cursor movement and selection.
+// By default, the editor classes characters as Vim does: letters, digits and underscores
+// are word characters, and emoji, CJK, kana and hangul are words of their own.
+// This method allows to include additional characters (e.g., hyphens, dots).
+func (m *Model) SetExtraWordChars(chars ...rune) {
+	m.editor.SetExtraWordChars(chars...)
+}
+
+// SetExtraHighlightedContextLines sets the number of extra lines to tokenise around the visible viewport.
+// This is crucial for Markdown where code blocks need context (the opening ```) to highlight correctly.
+//
+// PERFORMANCE TRADE-OFF:
+// - Higher values: Better syntax highlighting for large code blocks, but slower scrolling
+// - Lower values: Faster scrolling, but code blocks may lose highlighting when scrolling
+//
+// Recommended values:
+// - Small files (<5000 lines): 100-200 (default is 100)
+// - Large files (5000-20000 lines): 50-100
+// - Very large files (>20000 lines): 20-50
+//
+// When scrolling, if the new range overlaps with cached range, no re-tokenisation occurs (fast).
+// When scrolling beyond cached range, the entire new range gets re-tokenised (slow if value is high).
+func (m *Model) SetExtraHighlightedContextLines(lines uint16) {
+	m.extraHighlightedContextLines = lines
+}
+
+// WithSyntaxHighlighter allows setting a custom syntax highlighter.
+func (m *Model) WithSyntaxHighlighter(hl *highlighter.Highlighter) {
+	m.highlighter = hl
+	m.persistentTokenCache = make(map[int][]highlighter.TokenPosition)
+	m.renderVisibleSlice()
+}
+
+// WithCompletionAutoTrigger enables or disables auto-trigger completions.
+func (m *Model) WithCompletionAutoTrigger(enabled bool) {
+	m.autoTriggerEnabled = enabled
+}
+
+// WithCompletionDebounce sets the debounce time for auto-trigger completions.
+func (m *Model) WithCompletionDebounce(duration time.Duration) {
+	m.completionDebounceTime = duration
+}
+
+// SetCompletions sends completion results to the editor to be displayed in the completion menu.
+func (m Model) SetCompletions(completions []core.Completion, context core.CompletionContext) {
+	m.editor.DispatchSignal(
+		core.NewCompletionResponseSignal(completions, context),
+	)
+}
+
+// SetCompletionMenuMaxVisibleItems sets the maximum number of visible items in the completion menu.
+func (m *Model) SetCompletionMenuMaxVisibleItems(max int) {
+	m.completionMenuMaxVisible = max
+}
+
+// DispatchMessage allows setting a message to be displayed in the command line for a specified duration.
+func (m *Model) DispatchMessage(message string, duration time.Duration) tea.Cmd {
+	m.message = message
+	m.err = nil
+
+	return m.dispatchClearMsg(duration)
+}
+
+// DispatchError allows setting an error to be displayed in the command line for a specified duration.
+func (m *Model) DispatchError(err error, duration time.Duration) tea.Cmd {
+	m.err = err
+	m.message = ""
+
+	return m.dispatchClearMsg(duration)
+}
+
+// HideLineNumbers controls whether to show line numbers in the viewport.
+func (m *Model) HideLineNumbers(hide bool) {
+	m.showLineNumbers = !hide
+}
+
+// ShowLineNumbers controls whether to show relative line numbers in the viewport.
+// If Vim mode is disabled, this will not have any effect.
+// If line numbers are hidden, this will not have any effect.
+func (m *Model) ShowRelativeLineNumbers(show bool) {
+	if m.disableVimMode {
+		return
+	}
+
+	m.editor.ShowRelativeLineNumbers(show)
+}
+
+// ShowTildeIndicator controls whether to show the tilde indicator in the viewport.
+// If line numbers are hidden, this will not have any effect.
+func (m *Model) ShowTildeIndicator(show bool) {
+	m.showTildeIndicator = show
+}
+
+// HideStatusLine controls whether to show the status line at the bottom of the viewport.
+// A hidden status line gives its row to the editor.
+// If Vim mode is disabled, this will not have any effect.
+func (m *Model) HideStatusLine(hide bool) {
+	m.showStatusLine = !hide
+	m.applyBottomRows()
+}
+
+// SetCommandLineHeight sets how many rows the command line gets, like Vim's
+// 'cmdheight'. The default is 1. With 0 the command line shares the status
+// line's row: the status line is shown until there is something to type or
+// report (a ':' command, a search, a message or an error), which then takes
+// its place. Values above 1 are treated as 1.
+//
+// This applies to a custom StatusLineFunc too: while the command line holds
+// the row, the custom status line isn't drawn, so it never shows the command
+// or search modes.
+func (m *Model) SetCommandLineHeight(height int) {
+	m.commandLineHeight = min(max(height, 0), 1)
+	m.applyBottomRows()
+}
+
+// bottomRows is the number of rows below the viewport: the status line and
+// the command line. The command line only gets a row when command or search
+// mode can use it, and with a command line height of 0 it shares the status
+// line's row.
+func (m Model) bottomRows() int {
+	if m.disableVimMode {
+		return 0
+	}
+
+	rows := 0
+	if m.showStatusLine {
+		rows++
+	}
+
+	state := m.editor.GetState()
+	if state.WithCommandMode || state.WithSearchMode {
+		rows++
+	}
+
+	if m.commandLineHeight == 0 {
+		return min(rows, 1)
+	}
+	return rows
+}
+
+// applyBottomRows resizes the viewport after a change to which rows sit below it.
+func (m *Model) applyBottomRows() {
+	if m.viewport.Height() != max(0, m.height-m.bottomRows()) {
+		m.SetSize(m.width, m.height)
+	}
+}
+
+// GetSavedContent returns the saved content of the editor buffer
+// This content is what was last saved to disk, and may not reflect the current state of the core.
+// It is useful for operations that require the last saved state, such as saving to a file.
+func (m *Model) GetSavedContent() string {
+	return m.editor.GetBuffer().GetSavedContent()
+}
+
+// GetCurrentContent returns the current content of the editor buffer.
+// This content may not be saved yet, as it reflects the current state of the core.
+func (m *Model) GetCurrentContent() string {
+	return m.editor.GetBuffer().GetCurrentContent()
+}
+
+// HasChanges checks if the editor has unsaved changes
+func (m *Model) HasChanges() bool {
+	return m.editor.GetBuffer().IsModified()
+}
+
+// Map installs a key mapping, the programmatic equivalent of Vim's :map family.
+// Both sides use Vim key notation, so a Ctrl combination is written "<C-r>", the
+// Escape key "<Esc>", and "<Nop>" disables a key entirely.
+//
+// Pass noremap to keep the right-hand side from being re-mapped (:noremap);
+// without it the replacement is itself resolved against the mappings, so one
+// mapping can build on another.
+//
+//	m.Map(core.MapNormal, "U", "<C-r>", true) // U redoes, as in older versions
+//	m.Map(core.MapInsert, "jk", "<Esc>", true)
+//	m.Map(core.MapNormal, "Y", "y$", true)    // the RHS re-enters the parser
+func (m *Model) Map(modes core.MapMode, lhs, rhs string, noremap bool) error {
+	return m.editor.Map(modes, lhs, rhs, noremap)
+}
+
+// Unmap removes the mapping for lhs from the given modes.
+func (m *Model) Unmap(modes core.MapMode, lhs string) error {
+	return m.editor.Unmap(modes, lhs)
+}
+
+// ClearMappings removes every mapping for the given modes.
+func (m *Model) ClearMappings(modes core.MapMode) {
+	m.editor.ClearMappings(modes)
+}
+
+// Mappings returns the mappings registered for a single mode.
+func (m *Model) Mappings(mode core.MapMode) []core.Mapping {
+	return m.editor.Mappings(mode)
+}
+
+// SetMapLeader sets what <leader> expands to in mappings defined from now on.
+// It defaults to a backslash, as in Vim.
+func (m *Model) SetMapLeader(leader string) {
+	m.editor.SetMapLeader(leader)
+}
+
+// SetMapTimeoutLen sets 'timeoutlen': how long a key sequence that both
+// completes one mapping and starts a longer one waits for the next key before
+// the shorter mapping runs. It defaults to one second, as in Vim.
+func (m *Model) SetMapTimeoutLen(d time.Duration) {
+	m.editor.SetMapTimeoutLen(d)
+}
+
+// SetMapTimeout sets 'timeout'. Disabling it makes an ambiguous mapping wait
+// indefinitely for the key that resolves it instead of timing out.
+func (m *Model) SetMapTimeout(enabled bool) {
+	m.editor.SetMapTimeout(enabled)
+}
+
+// SetMoveAcrossLines sets whether h, l and the arrow keys move to the previous
+// or next line at a line boundary, like adding <,>,[,],h,l to Vim's
+// 'whichwrap'. It is off by default, matching Vim, where only <BS> and <Space>
+// cross lines. With Vim mode disabled, the arrow keys always cross lines.
+func (m *Model) SetMoveAcrossLines(enabled bool) {
+	m.editor.SetMoveAcrossLines(enabled)
+}
+
+// mapTimeoutCmd starts the 'timeoutlen' timer when the editor is holding keys
+// that a later key could still turn into a longer mapping. The core has no
+// timers of its own, so nothing else will resolve them.
+func (m Model) mapTimeoutCmd() tea.Cmd {
+	d, token, ok := m.editor.PendingMapTimeout()
+	if !ok {
+		return nil
+	}
+
+	return tea.Tick(d, func(time.Time) tea.Msg {
+		return mapTimeoutMsg{token: token}
+	})
+}
+
+// GetEditor returns the underlying editor instance
+func (m *Model) GetEditor() core.Editor {
+	return m.editor
+}
+
+// DisableVimMode allows disabling Vim mode in the core.
+// This will disable all Vim-specific features and revert to a simpler text editor mode.
+// If Vim mode is disabled, the editor will not respond to Vim keybindings.
+func (m *Model) DisableVimMode(disable bool) {
+	m.disableVimMode = disable
+	m.editor.DisableVimMode(disable)
+	m.applyBottomRows()
+}
+
+// DisableCommandMode allows disabling command mode in the core.
+// This will disable the command mode functionality, meaning the editor will not respond to command mode keybindings.
+// Once command and search mode are both disabled the command line row is given to the editor,
+// and messages and errors are shown on the status line instead. If the status line is hidden
+// too, messages and errors aren't shown at all.
+func (m *Model) DisableCommandMode(disable bool) {
+	m.editor.DisableCommandMode(disable)
+	m.applyBottomRows()
+}
+
+// DisableInsertMode allows disabling insert mode in the core.
+// This will disable the insert mode functionality, meaning the editor will not respond to insert mode keybindings
+// and will prevent text modifications.
+func (m *Model) DisableInsertMode(disable bool) {
+	m.editor.DisableInsertMode(disable)
+}
+
+// DisableVisualMode allows disabling visual mode in the core.
+// This will disable the visual mode functionality, meaning the editor will not respond to visual mode keybindings.
+func (m *Model) DisableVisualMode(disable bool) {
+	m.editor.DisableVisualMode(disable)
+}
+
+// DisableVisualLineMode allows disabling visual line mode in the core.
+// This will disable the visual line mode functionality, meaning the editor will not respond to visual line mode keybindings.
+func (m *Model) DisableVisualLineMode(disable bool) {
+	m.editor.DisableVisualLineMode(disable)
+}
+
+// DisableSearchMode allows disabling search mode in the core.
+// This will disable the search functionality, meaning the editor will not respond to '/' and '?'.
+// Once command and search mode are both disabled the command line row is given to the editor,
+// and messages and errors are shown on the status line instead. If the status line is hidden
+// too, messages and errors aren't shown at all.
+func (m *Model) DisableSearchMode(disable bool) {
+	m.editor.DisableSearchMode(disable)
+	m.applyBottomRows()
+}
+
+// SetHighlightedWords allows setting highlighted words in the core.
+// These words will be styled with the provided lipgloss styles.
+// This is useful for highlighting specific keywords or phrases in the text.
+func (m *Model) SetHighlightedWords(words map[string]lipgloss.Style) {
+	m.highlightedWords = words
+	// Invalidate the compiled patterns cache to force recompilation
+	m.compiledHighlightedWords = nil
+	m.compiledHighlightedWordsHash = 0
+}
+
+// Focus sets the editor to focused state.
+func (m *Model) Focus() {
+	m.isFocused = true
+}
+
+// Blur sets the editor to unfocused state.
+func (m *Model) Blur() {
+	m.isFocused = false
+}
+
+// IsFocused returns whether the editor is currently focused.
+func (m *Model) IsFocused() bool {
+	return m.isFocused
+}
+
+// IsNormalMode returns whether the editor is in normal mode.
+func (m *Model) IsNormalMode() bool {
+	return m.editor.IsNormalMode()
+}
+
+// IsInsertMode returns whether the editor is in insert mode.
+func (m *Model) IsInsertMode() bool {
+	return m.editor.IsInsertMode()
+}
+
+// IsVisualMode returns whether the editor is in visual mode.
+func (m *Model) IsVisualMode() bool {
+	return m.editor.IsVisualMode()
+}
+
+// IsVisualLineMode returns whether the editor is in visual line mode.
+func (m *Model) IsVisualLineMode() bool {
+	return m.editor.IsVisualLineMode()
+}
+
+// IsCommandMode returns whether the editor is in command mode.
+func (m *Model) IsCommandMode() bool {
+	return m.editor.IsCommandMode()
+}
+
+// IsSearchMode returns whether the editor is in search mode.
+func (m *Model) IsSearchMode() bool {
+	return m.editor.IsSearchMode()
+}
+
+// SetNormalMode sets the editor to normal mode.
+func (m *Model) SetNormalMode() {
+	m.editor.SetNormalMode()
+}
+
+// SetInsertMode sets the editor to insert mode.
+func (m *Model) SetInsertMode() {
+	m.editor.SetInsertMode()
+}
+
+// SetVisualMode sets the editor to visual mode.
+func (m *Model) SetVisualMode() {
+	m.editor.SetVisualMode()
+}
+
+// SetVisualLineMode sets the editor to visual line mode.
+func (m *Model) SetVisualLineMode() {
+	m.editor.SetVisualLineMode()
+}
+
+// SetCommandMode sets the editor to command mode.
+func (m *Model) SetCommandMode() {
+	m.editor.SetCommandMode()
+}
+
+// SetPlaceholder sets the placeholder text for the core.
+func (m *Model) SetPlaceholder(placeholder string) {
+	m.placeholder = placeholder
+}
+
+// IsEmpty checks if the editor buffer is empty.
+func (m *Model) IsEmpty() bool {
+	return m.editor.GetBuffer().IsEmpty()
+}
+
+// SetCursorMode sets the cursor mode for the core.
+// It can be either CursorSteady or CursorBlink.
+//
+// Warning: Enabling CursorBlink may have performance implications.
+func (m *Model) SetCursorMode(mode CursorMode) {
+	m.cursorMode = mode
+	m.cursorVisible = m.isFocused
+}
+
+// SetCursorPosition sets the cursor position in the core.
+func (m *Model) SetCursorPosition(row, col int) error {
+	if row < 0 || col < 0 {
+		return fmt.Errorf("invalid cursor position: (%d, %d)", row, col)
+	}
+
+	if m.editor.GetBuffer().IsEmpty() {
+		return fmt.Errorf("cannot set cursor position on an empty buffer")
+	}
+
+	cursor := m.editor.GetBuffer().GetCursor()
+	cursor.Position.Row = row
+	cursor.Position.Col = col
+
+	cursor.Position.Row = max(0, cursor.Position.Row)
+	cursor.Position.Col = max(0, cursor.Position.Col)
+
+	m.editor.GetBuffer().SetCursor(cursor)
+	m.scrollToCursor()
+
+	return nil
+}
+
+// SetCursorPositionEnd sets the cursor position to the end of the editor buffer.
+func (m *Model) SetCursorPositionEnd() error {
+	if m.editor.GetBuffer().IsEmpty() {
+		return fmt.Errorf("cannot set cursor position on an empty buffer")
+	}
+
+	cursor := m.editor.GetBuffer().GetCursor()
+	lastLine := m.editor.GetBuffer().LineCount() - 1
+	cursor.Position.Row = max(0, lastLine)
+	cursor.Position.Col = m.editor.GetBuffer().LineRuneCount(lastLine)
+
+	m.editor.GetBuffer().SetCursor(cursor)
+	m.scrollToCursor()
+
+	return nil
+}
+
+// scrollToCursor recalculates the layout around the cursor, scrolls it into
+// view and renders, so a programmatic cursor move shows up immediately.
+func (m *Model) scrollToCursor() {
+	m.calculateVisualMetrics()
+	m.updateVisualTopLine()
+	m.renderVisibleSlice()
+}
+
+// GetCursorPosition returns the current cursor position in the core.
+func (m Model) GetCursorPosition() core.Position {
+	return m.editor.GetBuffer().GetCursor().Position
+}
+
+func (m Model) Init() tea.Cmd {
+	return m.listenForEditorUpdate()
+}
+
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if !m.IsFocused() {
+			break
+		}
+
+		keyEvent := convertBubbleKey(msg)
+		skipNormalKeyHandling := false
+
+		// Manual completion trigger: Ctrl+Space in Insert mode
+		if keyEvent.Key == core.KeySpace && keyEvent.Modifiers&core.ModCtrl != 0 {
+			if m.editor.IsInsertMode() {
+				m.completionContext = m.editor.TriggerCompletion(core.CompletionTriggerManual, "")
+				return m, tea.Batch(cmds...)
+			}
+		}
+
+		// Completion menu navigation
+		if m.completionMenuVisible {
+			switch {
+			case keyEvent.Key == core.KeyEscape || keyEvent.IsCtrl('e'):
+				// Record the current word prefix so auto-trigger is suppressed
+				// until the user types a new character that changes the prefix.
+				m.completionDismissedWord = m.completionContext.TextBeforeCursor
+				m.completionMenuVisible = false
+				m.completions = nil
+				m.selectedCompletionIdx = 0
+				m.completionWindowStart = 0
+				skipNormalKeyHandling = true
+			case keyEvent.Key == core.KeyEnter || keyEvent.Key == core.KeyTab || keyEvent.IsCtrl('y'):
+				cmds = append(cmds, m.insertCompletion())
+				skipNormalKeyHandling = true
+			case keyEvent.Key == core.KeyUp || keyEvent.IsCtrl('p'):
+				last := len(m.completions) - 1
+				if m.selectedCompletionIdx > 0 {
+					m.selectedCompletionIdx--
+				} else {
+					// wrap to bottom
+					m.selectedCompletionIdx = last
+					m.completionWindowStart = max(0, last-m.completionMenuMaxVisible+1)
+				}
+				if m.selectedCompletionIdx < m.completionWindowStart {
+					m.completionWindowStart--
+				}
+				skipNormalKeyHandling = true
+			case keyEvent.Key == core.KeyDown || keyEvent.IsCtrl('n'):
+				if m.selectedCompletionIdx < len(m.completions)-1 {
+					m.selectedCompletionIdx++
+				} else {
+					// wrap to top
+					m.selectedCompletionIdx = 0
+					m.completionWindowStart = 0
+				}
+				if m.selectedCompletionIdx >= m.completionWindowStart+m.completionMenuMaxVisible {
+					m.completionWindowStart++
+				}
+				skipNormalKeyHandling = true
+			}
+		}
+
+		var err *core.EditorError
+		if !skipNormalKeyHandling {
+			err = m.editor.HandleKey(keyEvent)
+
+			// The key may have been held back to see whether it starts a longer
+			// mapping; if so it needs a timer to eventually settle it.
+			if cmd := m.mapTimeoutCmd(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		if err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return ErrorMsg{ID: err.ID(), Error: err}
+			})
+		}
+
+		// Auto-trigger handling — runs even when the menu is already visible so
+		// that results stay in sync with what the user is typing and the menu
+		// closes automatically when nothing matches anymore.
+		if m.autoTriggerEnabled && m.editor.IsInsertMode() && !skipNormalKeyHandling {
+			shouldTrigger := false
+
+			if keyEvent.Rune >= 32 && keyEvent.Rune < 127 {
+				// Approximate the new TextBeforeCursor to compare against the
+				// dismissed-word guard set when the user pressed Escape.
+				newPrefix := m.completionContext.TextBeforeCursor + string(keyEvent.Rune)
+				if newPrefix != m.completionDismissedWord {
+					m.completionDismissedWord = ""
+					shouldTrigger = true
+				}
+				// else: same prefix the user dismissed — skip but don't break.
+			} else if keyEvent.Key == core.KeyBackspace {
+				// Deleting always changes the prefix, so clear the dismissed guard
+				// and re-trigger so the menu updates or closes when empty.
+				m.completionDismissedWord = ""
+				shouldTrigger = true
+			}
+
+			if shouldTrigger {
+				triggerChar := string(keyEvent.Rune)
+				timestamp := time.Now()
+				m.lastCompletionRequest = timestamp
+
+				cmds = append(cmds, tea.Tick(m.completionDebounceTime, func(t time.Time) tea.Msg {
+					return CompletionDebounceMsg{
+						TriggerChar: triggerChar,
+						Timestamp:   timestamp,
+					}
+				}))
+			}
+		}
+
+		if m.editor.IsSearchMode() {
+			switch keyEvent.Key {
+			case core.KeyEscape:
+				m.editor.CancelSearch()
+				m.searchInput.SetValue("")
+			case core.KeyEnter:
+				m.editor.ExecuteSearch(m.searchInput.Value(), m.searchOptions)
+			}
+		}
+
+		/* TODO: Optimise to only tokenise changed lines if possible. */
+		m.handleContentChange()
+
+		m.cursorVisible = true
+		if m.cursorBlinkCancel != nil {
+			m.cursorBlinkCancel()
+		}
+
+		if m.cursorMode == CursorBlink {
+			cmds = append(cmds, m.restartBlinkCycleCmd())
+		}
+
+		m.updateVisualTopLine()
+
+	case commandMsg:
+		m.message = ""
+		m.err = nil
+		if m.clearMsgCancel != nil {
+			m.clearMsgCancel()
+		}
+
+	case clearMsg:
+		m.message = ""
+		m.err = nil
+		m.clearMsgCancel = nil
+
+	case yankedMsg:
+		return m, tea.Batch(
+			func() tea.Msg {
+				return YankMsg(msg)
+			},
+			m.dispatchClearYankMsg(),
+		)
+
+	case clearYankMsg:
+		m.clearYankCancel = nil
+		// A visual mode entered since the yank owns the selection now.
+		if !m.editor.IsVisualMode() && !m.editor.IsVisualLineMode() {
+			m.editor.ResetSelection()
+		}
+
+	case enterSearchMode:
+		m.searchOptions.Backwards = msg.backwards
+		if msg.backwards {
+			m.searchInput.Prompt = "?"
+		} else {
+			m.searchInput.Prompt = "/"
+		}
+		m.searchInput.Focus()
+
+		if m.clearMsgCancel != nil {
+			return m, m.dispatchClearMsg(0)
+		}
+
+	case exitSearchMode:
+		m.searchInput.Blur()
+
+	case cursorBlinkMsg:
+		if m.isFocused && m.cursorMode == CursorBlink {
+			m.cursorVisible = !m.cursorVisible
+			cmds = append(cmds, m.CursorBlink())
+		} else {
+			m.cursorVisible = m.isFocused
+		}
+
+	case resumeBlinkCycleMsg:
+		if m.isFocused && m.cursorMode == CursorBlink {
+			m.cursorVisible = true
+			cmds = append(cmds, m.CursorBlink())
+		}
+
+	case mapTimeoutMsg:
+		// Stale tokens are ignored inside the editor, so this is a no-op unless
+		// the held keys are still waiting.
+		if err := m.editor.TimeoutPendingMapping(msg.token); err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return ErrorMsg{ID: err.ID(), Error: err}
+			})
+		}
+
+	case CompletionDebounceMsg:
+		// Only trigger if this is the latest request (no newer typing)
+		if msg.Timestamp.Equal(m.lastCompletionRequest) && m.editor.IsInsertMode() {
+			m.completionContext = m.editor.TriggerCompletion(core.CompletionTriggerAuto, msg.TriggerChar)
+		}
+
+	case CompletionRequestMsg:
+		// Nothing to do here: m.completionContext is set at the TriggerCompletion
+		// call sites (CompletionDebounceMsg / manual Ctrl+Space), so RequestID is
+		// already recorded before the outer model ever sees this message.
+		// The outer model is free to return early without calling editor.Update.
+
+	case CompletionResponseMsg:
+		// Discard responses that don't match the most-recent request so that
+		// rapid typing never surfaces completions for an earlier cursor position.
+		if msg.Context.RequestID != m.completionContext.RequestID {
+			break
+		}
+		// The next request only goes out when the debounce fires, so a
+		// response can still match after the user typed, moved or left insert
+		// mode. Drop it unless the cursor and its line are what it was built from.
+		if !m.completionContextCurrent() {
+			break
+		}
+		m.completions = msg.Completions
+		m.selectedCompletionIdx = 0
+		m.completionWindowStart = 0
+		m.completionMenuVisible = len(m.completions) > 0
+	}
+
+	cmds = append(cmds, m.listenForEditorUpdate())
+
+	var viewportCmd tea.Cmd
+	m.viewport, viewportCmd = m.viewport.Update(msg)
+
+	cmds = append(cmds, viewportCmd)
+
+	if m.editor.IsSearchMode() {
+		searchInput, searchCmd := m.searchInput.Update(msg)
+		m.searchInput = searchInput
+		cmds = append(cmds, searchCmd)
+	}
+
+	// Note: calculateVisualMetrics() is called in handleContentChange() for KeyMsg events
+	// Other message types don't modify buffer content, so no recalculation needed.
+	// Rendering always uses the cached visual layout from the last calculation.
+	m.renderVisibleSlice()
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) View() string {
+	state := m.editor.GetState()
+
+	content := m.viewport.View()
+
+	// Overlay completion menu if visible
+	if m.completionMenuVisible && len(m.completions) > 0 {
+		content = m.renderWithCompletionMenu(content)
+	}
+
+	rows := m.bottomRows()
+	if rows == 0 {
+		return content
+	}
+
+	statusLine := m.getStatusLine()
+	paddingWidth := m.width - lipgloss.Width(statusLine)
+	if paddingWidth > 0 {
+		statusLine += m.theme.StatusLineStyle.Render(strings.Repeat(" ", paddingWidth))
+	}
+
+	commandLine, active := m.getCommandLine(state)
+
+	var bottom string
+	switch {
+	case rows == 2:
+		bottom = lipgloss.JoinVertical(lipgloss.Left, statusLine, commandLine)
+	case m.showStatusLine && !active:
+		// One row, shared by both: the status line holds it until the
+		// command line has something to show.
+		bottom = statusLine
+	default:
+		bottom = commandLine
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, content, bottom)
+}
+
+// getCommandLine renders the command line at full width, and reports whether
+// it has anything worth taking over a shared row for. Pending normal-mode keys
+// (a count, or an operator waiting for its motion) don't count: they're too
+// brief to be worth hiding the status line for.
+func (m Model) getCommandLine(state core.State) (string, bool) {
+	if m.editor.IsSearchMode() {
+		return m.theme.CommandLineStyle.Render(m.searchInput.View()), true
+	}
+
+	var commandLine string
+	var active bool
+	switch {
+	case m.err != nil:
+		commandLine = m.theme.ErrorStyle.
+			Background(m.theme.CommandLineStyle.GetBackground()).
+			Render(m.err.Error())
+		active = true
+	case m.message != "":
+		commandLine = m.theme.MessageStyle.
+			Background(m.theme.CommandLineStyle.GetBackground()).
+			Render(m.message)
+		active = true
+	default:
+		commandLine = m.theme.CommandLineStyle.Render(state.CommandLine)
+		active = state.Mode == core.CommandMode
+	}
+
+	paddingWidth := m.width - lipgloss.Width(commandLine)
+	if paddingWidth > 0 {
+		commandLine += m.theme.CommandLineStyle.Render(strings.Repeat(" ", paddingWidth))
+	}
+
+	return commandLine, active
+}
+
+func (m *Model) getStatusLine() string {
+	if !m.showStatusLine {
+		return ""
+	}
+
+	state := m.editor.GetState()
+	cursor := m.editor.GetBuffer().GetCursor()
+
+	if m.StatusLineFunc != nil {
+		return m.StatusLineFunc(StatusLineContext{
+			State:  state,
+			Cursor: cursor,
+			Width:  m.width,
+			Theme:  m.theme,
+		})
+	}
+
+	var statusLine string
+	switch state.Mode {
+	case core.NormalMode:
+		statusLine = m.theme.NormalModeStyle.Render(" NORMAL ")
+	case core.InsertMode:
+		statusLine = m.theme.InsertModeStyle.Render(" INSERT ")
+	case core.VisualMode:
+		statusLine = m.theme.VisualModeStyle.Render(" VISUAL ")
+	case core.VisualLineMode:
+		statusLine = m.theme.VisualModeStyle.Render(" VISUAL LINE ")
+	case core.CommandMode:
+		statusLine = m.theme.CommandModeStyle.Render(" COMMAND ")
+	case core.SearchMode:
+		statusLine = m.theme.SearchModeStyle.Render(" SEARCH ")
+	}
+
+	cursorInfo := fmt.Sprintf("%d/%d ", cursor.Position.Row+1, cursor.Position.Col+1)
+
+	width := m.width - (lipgloss.Width(cursorInfo) + lipgloss.Width(statusLine))
+	gap := strings.Repeat(" ", max(0, width))
+
+	statusLine += m.theme.StatusLineStyle.Render(
+		gap + cursorInfo,
+	)
+
+	return statusLine
+}
+
+// SetMaxHistory sets how many changes can be undone, like Vim's 'undolevels'.
+// If set to 0, no history will be kept.
+// The default value is 1000.
+// Once the limit is reached, making a change drops the oldest one.
+// Each change stores only the text it replaced, so memory grows with the
+// size of the edits rather than of the buffer.
+func (m *Model) SetMaxHistory(max uint32) {
+	m.editor.SetMaxHistory(max)
+}
+
+func (m *Model) listenForEditorUpdate() tea.Cmd {
+	return func() tea.Msg {
+		editorChan := m.editor.GetUpdateSignalChan()
+		signal := <-editorChan
+
+		switch signal := signal.(type) {
+		case core.CommandSignal:
+			return commandMsg{}
+
+		case core.ErrorSignal:
+			id, err := signal.Value()
+			return ErrorMsg{ID: id, Error: err}
+
+		case core.YankSignal:
+			content := signal.Value()
+			return yankedMsg{
+				Content: content,
+			}
+
+		case core.PasteSignal:
+			content := signal.Value()
+			return PasteMsg{Content: content}
+
+		case core.SaveSignal:
+			path, content := signal.Value()
+			return SaveMsg{Path: path, Content: content}
+
+		case core.EnterCommandModeSignal:
+			return clearMsg{}
+
+		case core.QuitSignal:
+			return QuitMsg{}
+
+		case core.OpenSignal:
+			return OpenMsg{Target: signal.Value()}
+
+		case core.RenameSignal:
+			return RenameMsg{FileName: signal.Value()}
+
+		case core.DeleteFileSignal:
+			return DeleteFileMsg{}
+
+		case core.RelativeNumbersSignal:
+			return RelativeNumbersChangeMsg{Enabled: signal.Value()}
+
+		case core.DeleteSignal:
+			return DeleteMsg{Content: signal.Value()}
+
+		case core.UndoSignal:
+			return UndoMsg{Edits: signal.Value()}
+
+		case core.RedoSignal:
+			return RedoMsg{Edits: signal.Value()}
+
+		case core.UndoLineSignal:
+			return UndoLineMsg{Edits: signal.Value()}
+
+		case core.EnterSearchModeSignal:
+			return enterSearchMode{backwards: signal.Backwards}
+
+		case core.ExitSearchModeSignal:
+			return exitSearchMode{}
+
+		case core.SearchResultsSignal:
+			return SearchResultsMsg{Positions: signal.Value()}
+
+		case core.CompletionRequestSignal:
+			return CompletionRequestMsg{Context: signal.Context()}
+
+		case core.CompletionResponseSignal:
+			completions, ctx := signal.Value()
+			return CompletionResponseMsg{Completions: completions, Context: ctx}
+		}
+
+		return nil
+	}
+}
+
+// Convert Bubbletea key to core.Key
+func convertBubbleKey(msg tea.KeyMsg) core.KeyEvent {
+	k := msg.Key()
+	result := core.KeyEvent{}
+
+	if k.Text != "" {
+		result.Rune = rune(k.Text[0])
+	}
+
+	if k.Mod&tea.ModAlt != 0 {
+		result.Modifiers |= core.ModAlt
+	}
+
+	if k.Mod&tea.ModCtrl != 0 {
+		result.Modifiers |= core.ModCtrl
+	}
+
+	switch k.Code {
+	case tea.KeyEnter:
+		result.Key = core.KeyEnter
+	case tea.KeySpace:
+		result.Key = core.KeySpace
+		result.Rune = ' '
+	case tea.KeyEscape:
+		result.Key = core.KeyEscape
+	case tea.KeyBackspace:
+		result.Key = core.KeyBackspace
+	case tea.KeyTab:
+		result.Key = core.KeyTab
+		result.Rune = '\t'
+	case tea.KeyUp:
+		result.Key = core.KeyUp
+	case tea.KeyDown:
+		result.Key = core.KeyDown
+	case tea.KeyLeft:
+		result.Key = core.KeyLeft
+	case tea.KeyRight:
+		result.Key = core.KeyRight
+	case tea.KeyHome:
+		result.Key = core.KeyHome
+	case tea.KeyEnd:
+		result.Key = core.KeyEnd
+	case tea.KeyDelete:
+		result.Key = core.KeyDelete
+	case tea.KeyPgUp:
+		result.Key = core.KeyPageUp
+	case tea.KeyPgDown:
+		result.Key = core.KeyPageDown
+	default:
+		// Ctrl+<letter> arrives with an empty Text, so Rune is still unset here.
+		// Record the letter itself rather than mapping a fixed handful of
+		// combinations onto dedicated key codes — that kept Ctrl+R (and every
+		// other combination) unrepresentable.
+		if k.Mod&tea.ModCtrl != 0 && unicode.IsLetter(rune(k.Code)) {
+			result.Rune = unicode.ToLower(rune(k.Code))
+		}
+	}
+
+	return result
+}
+
+// CursorBlink is the main command for the blinking cursor effect (toggling visibility)
+func (m *Model) CursorBlink() tea.Cmd {
+	if m.cursorMode != CursorBlink || !m.isFocused {
+		m.cursorVisible = m.isFocused
+		return nil
+	}
+
+	if m.cursorBlinkCancel != nil {
+		m.cursorBlinkCancel()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), cursorBlinkInterval)
+	m.cursorBlinkCancel = cancel
+
+	return func() tea.Msg {
+		defer cancel()
+		<-ctx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
+			return cursorBlinkMsg{}
+		}
+		return cursorBlinkCanceledMsg{}
+	}
+}
+
+// restartBlinkCycleCmd is used after user activity to delay the resumption of blinking.
+func (m *Model) restartBlinkCycleCmd() tea.Cmd {
+	if m.cursorMode != CursorBlink || !m.isFocused {
+		m.cursorVisible = m.isFocused
+		return nil
+	}
+
+	return tea.Tick(cursorActivityResetDelay, func(t time.Time) tea.Msg {
+		return resumeBlinkCycleMsg{}
+	})
+}
+
+// completionContextCurrent reports whether the editor is still in insert mode
+// with the cursor and its line as they were when m.completionContext was built.
+func (m Model) completionContextCurrent() bool {
+	if !m.editor.IsInsertMode() {
+		return false
+	}
+	buf := m.editor.GetBuffer()
+	pos := buf.GetCursor().Position
+	return pos == m.completionContext.Position &&
+		string(buf.GetLineRunes(pos.Row)) == m.completionContext.CurrentLine
+}
+
+// insertCompletion inserts the selected completion into the buffer
+func (m *Model) insertCompletion() tea.Cmd {
+	if !m.completionMenuVisible || len(m.completions) == 0 {
+		return nil
+	}
+
+	completion := m.completions[m.selectedCompletionIdx]
+
+	if err := m.editor.InsertCompletion(completion); err != nil {
+		m.completionMenuVisible = false
+		m.completions = nil
+		m.selectedCompletionIdx = 0
+		m.completionWindowStart = 0
+		return func() tea.Msg {
+			return ErrorMsg{ID: core.ErrInvalidPositionId, Error: err}
+		}
+	}
+
+	m.completionMenuVisible = false
+	m.completions = nil
+	m.selectedCompletionIdx = 0
+	m.completionWindowStart = 0
+
+	return nil
+}

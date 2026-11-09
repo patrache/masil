@@ -264,6 +264,7 @@ interface Settings {
     social: boolean;                 // likes/reposts/follows/post replies/quotes/guestbook; default false
   };
   focus_default_min: number;         // 1..720, default 25
+  leet_share_with_friends: boolean;  // v0.1.3 P1: friends see my leet streak on the friends board (5.25); default true
 }
 
 interface Focus {
@@ -655,8 +656,8 @@ interface AdminAction {
 
 | type | v | 만드는 쪽 | data (줄기가 채움) |
 |---|---|---|---|
-| `leet.daily` | 1 | 서버만(P1) | P1 |
-| `leet.solve` | 1 | 서버만(P1) | P1 |
+| `leet.daily` | 1 | 서버만(P1) | `{ date: "YYYY-MM-DD", frontend_id: /^[0-9]{1,6}$/, slug: /^[a-z0-9-]{1,100}$/, title: 1..200, difficulty: "Easy"\|"Medium"\|"Hard", tags: string(1..50)[] (≤20), is_paid_only: boolean }` — 엄격(다른 키 거절, 본문·HTML 없음). `body` = `https://leetcode.com/problems/<slug>/` 한 줄. 수정 불가·리액션 가능·스레드 루트 (5.25) |
+| `leet.solve` | 1 | 서버만(P1) | `{ date, frontend_id, slug, lang: 1..32, runtime_percentile: number(0..100) \| null, code: { lang: 1..32, text: 1..4000 } \| null, spoiler: true }` — 엄격. `body` = 링크 한 줄(코드는 `data` 에만 — 0.1.2 클라이언트에는 안 보임). 그날 #daily 루트의 스레드 답글로만 (5.25) |
 | `arch.design` | 1 | 사용자(P3) | P3 |
 | `arch.sim` | 1 | 사용자(P3) | P3 |
 | `api.result` | 1 | 사용자(P4) | 아래 `ApiResultCard` |
@@ -866,7 +867,7 @@ interface AdminAction {
 - `200 { "settings": Settings }`
 
 #### `PATCH /v1/me/settings`
-- 요청: `{ "dm_policy"?: ..., "is_private"?: boolean, "notify"?: Partial<Settings["notify"]>, "focus_default_min"?: number }`
+- 요청: `{ "dm_policy"?: ..., "is_private"?: boolean, "notify"?: Partial<Settings["notify"]>, "focus_default_min"?: number, "leet_share_with_friends"?: boolean }`
 - `200 { "settings": Settings }` · 이벤트: `settings.updated`(나의 다른 연결)
 - `is_private: true → false` 이면 3.3 의 대기 요청 일괄 승인.
 
@@ -1476,6 +1477,11 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `GET /v1/admin/actions?target_type=&target_id=&cursor=&limit=`
 - `200 { "items": AdminAction[], "next_cursor": string | null }`
 
+#### `PUT /v1/admin/leet/daily/{date}` (v0.1.3 P1)
+- 요청: `LeetDailyFacts`(5.25, 엄격 — 다른 키 `400`). `date` 는 실제 달력 날짜(오늘·어제 제한 없음), 아니면 `400 fields.date = "invalid"`.
+- 그날 사실 정보를 덮어쓴다(`first_reporter` 는 그대로, 아무도 보고하지 않은 날이면 `first_reporter: null` 로 새로 둔다). `mismatch_count = 0`. 그날 메시지가 살아 있는 #daily 루트(`leet.daily` 카드)마다 `card.data` 를 새 사실 정보 + `date` 로, `body` 를 새 링크로 바꾼다 — 이벤트 `message.updated`(지워진 루트는 그대로 둔다). `admin_actions` 에는 남기지 않는다.
+- `200 { "daily": LeetDaily }` · CLI: `masil admin leet-daily set <date> --id <frontend_id> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]`
+
 ### 5.23 WebSocket
 
 #### `GET /v1/ws`
@@ -1556,6 +1562,78 @@ interface DocComment {
 - 버전 경로의 `{no}` 가 양의 정수가 아니면 없는 버전과 같이 `404`. 복원 응답의 `doc.head_seq` 는 그 `reset` 의 순번이다(D1 반영을 기다리지 않는다). 자동 버전의 `created_at` 은 서버(DO alarm)가 만든 시각이라 편집이 멈춘 때보다 늦을 수 있다.
 - 6장 표의 행은 이 경로들을 만드는 P0 Task 26·28·29 가 그 코드와 같은 커밋에서 더한다.
 
+### 5.25 LeetCode 오늘의 문제 (v0.1.3, P1 — v0.1.3 설계서 A10.3)
+
+서버는 LeetCode 를 **부르지 않는다**(fetch·Cron 없음). 각 클라이언트가 받은 오늘의 문제 사실 정보를 보고하고, 서버는 사실 정보(`leet_daily`)와 풀이 기록(`leet_solves`)만 둔다 — 문제 본문·HTML·코드 스니펫·예제는 어떤 표에도 없다(data-model.md 3.14). 하루 기준은 UTC 자정. #daily 루트(`leet.daily`)와 풀이 카드(`leet.solve`)는 서버만 만드는 카드(2장 카드 표)이며 기존 `message.created`·`message.updated`·`message.deleted`·`thread.updated` 로 퍼진다(새 이벤트·새 alert 없음). 카드 `body` 와 클라이언트가 그리는 링크는 언제나 `https://leetcode.com/problems/<slug>/` — `slug` 는 `^[a-z0-9-]{1,100}$`, `frontend_id` 는 `^[0-9]{1,6}$`, `date` 는 `YYYY-MM-DD`(실제 달력 날짜).
+
+```ts
+interface LeetSpaceSettings {
+  space_id: ID;
+  enabled: boolean;
+  channel_id: ID | null;             // the #daily channel (kept when turned off)
+  enabled_by: ID | null;
+  enabled_at: Timestamp | null;
+}
+```
+
+| 경로 | 요청 | 응답·부수효과 |
+|---|---|---|
+| `PUT /v1/spaces/{space_id}/leet` | `{ enabled: boolean, channel_id?: ID }` | `200 { settings: LeetSpaceSettings }`. owner·admin 만(비멤버 `404`, 멤버 `403 forbidden`). 켜기: `channel_id` 가 있으면 그 방의 살아 있는 **공개** 텍스트 채널(아니면 `404`), 없으면 전에 쓰던 채널(살아 있고 공개일 때) → 그 방의 공개 채널 `daily` → 없으면 5.9 와 같은 규칙으로 `daily` 를 만든다(`channel.created` + `channel_created` system 메시지, 이름 충돌 `409`·채널 수 `422` 도 같음). 같은 채널로 다시 켜면 `enabled_by`·`enabled_at` 은 그대로. 끄기: 채널은 지우지 않고 `channel_id` 를 기억한다 · `RL_SOCIAL` |
+| `PUT /v1/leet/daily/{date}` | `LeetDailyFacts` (엄격 — 다른 키 `400`) | `200 { daily: LeetDaily, roots: LeetDailyRoot[] }`. `date` 는 서버 기준 오늘(UTC) 또는 어제만, 아니면 `400 fields.date = "invalid"`. 그날 처음 보고면 저장(`first_reporter` = 보고자), 같은 값이면 그대로, 다른 값이면 저장값은 두고 `mismatch_count` 만 1 올린다. 같은 요청 안에서 **보고자가 속한 방 중 #daily 가 켜진 방**마다 그날 루트가 없으면 만든다: `leet.daily` 카드(작성자 = 보고자, `thread_root_id: null`, data = **저장된** 사실 정보 + `date`, `body` = 링크) + `message.created`. 채널·날짜마다 하나(동시 보고에도 하나 — data-model.md 3.14 `leet_daily_roots`). 다른 요청이 만드는 중이면 2초까지 기다리고, 그래도 없으면 `roots` 에서 뺀다. 루트 메시지가 지워졌으면 다시 만든다. `roots` = 메시지가 살아 있는 루트들 · `RL_SOCIAL`, 루트를 실제로 만들 때 요청당 한 번 `RL_MESSAGE` 도 센다 |
+| `PUT /v1/leet/solves/{date}` | `LeetSolveBody` (엄격) | `200 { solve: LeetSolve, cards: LeetSolveCardRef[] }`. `date` 는 오늘(UTC) 또는 어제(자정 직후 제출용)만, 아니면 `400 fields.date = "invalid"`. **먼저 모두 검사하고, 하나라도 틀리면 아무것도 쓰지 않는다**: `share_space_ids` 의 방마다 내가 멤버이고 #daily 가 켜져 있어야 함(아니면 `404`), 공유할 때는 그날 사실 정보가 있어야 함(`PUT /v1/leet/daily` 가 먼저 — 없으면 `404`), 카드 데이터가 `leet.solve` 스키마·16KB 를 넘지 않아야 함(`400 fields.card.data = "too_long"` 등), 공유할 때는 `RL_MESSAGE` 한 번(`429`). 그다음 `leet_solves` 기록(첫 기록의 서버 시각이 `passed_at`, 다시 PUT 하면 `lang`·`runtime_percentile`·`submission_id` 만 바뀜)과, 공유한 방마다 그날 루트(없으면 내가 만든다 — 위와 같은 규칙) 아래 **내 `leet.solve` 카드 하나**: 없으면 스레드 답글로 만들고(`message.created` + `thread.updated`), 있으면 고친다(`message.updated`, 같은 메시지). 카드 `body` = 링크, `data.code` = `{ lang, text: code }` 또는 `null`, `data.spoiler = true`. 그 루트를 다른 요청이 아직 만드는 중이면(2초 기다린 뒤) `503 service_unavailable`(다시 시도) — 이 경우만 일부가 쓰인 채 끝난다: 기록과 앞선 방의 카드는 남고, 같은 요청을 다시 보내면 같은 기록·같은 카드로 이어진다(멱등) · `RL_SOCIAL`, 공유할 때 쓰기 전에 요청당 한 번 `RL_MESSAGE` |
+| `DELETE /v1/leet/solves/{date}` | — | `204`(기록이 없어도). 그날 내 `leet.solve` 카드를 모두 지우고(`message.deleted` + `thread.updated`; 내가 쓴 카드이므로 그 방을 나갔거나 내보내졌어도, 채널이 지워졌어도 지운다) 내 기록을 지운다. 카드 하나가 실패해도 나머지는 지우고, 그때는 기록을 남긴 채 오류를 돌려주어 다시 부르면 남은 것을 지운다. `date` 형식이 틀리면 `400` · `RL_SOCIAL` |
+| `GET /v1/leet/me` | — | `200 LeetMe` — 내 연속 풀이(`current`·`best`, 모든 기록 중 `counts_for_streak` 인 날만), 최근 30 UTC일(오늘 포함)의 기록 날짜 내림차순, 내가 속하고 #daily 가 켜진 방(`daily_spaces`, 가입 순) |
+| `GET /v1/spaces/{space_id}/leet/board?period=week\|month\|all` | — | `200 { period, items: LeetBoardEntry[] }`. 방 멤버만(아니면 `404`). `period` 생략 = `week`, 그 밖 값 `400 fields.period = "invalid"`. 그 방 #daily 채널에 **살아 있는 자기 `leet.solve` 카드**가 기간 안(`card.data.date` 기준; `week` = 이번 ISO 주 월요일 UTC 부터, `month` = 이번 UTC 달 1일부터)에 있는 **현재 멤버**만(카드를 남긴 것 = 동의), 지금 정지된 계정 제외(3.9). `solved` = 그 카드들의 서로 다른 날짜 수, `streak` = 그 사람의 현재 연속 풀이. 정렬 `solved` 내림 → `streak` 내림 → `handle` 오름. #daily 채널이 없으면 `items: []` |
+| `GET /v1/leet/friends/board` | — | `200 { items: LeetFriendStreak[] }` — 나 + 친구 중 `Settings.leet_share_with_friends = true` 이고 지금 정지되지 않은 사람. 연속 일수만(문제별 기록 없음). 정렬 `current` 내림 → `best` 내림 → `handle` 오름 |
+
+```ts
+interface LeetDailyFacts {
+  frontend_id: string;               // ^[0-9]{1,6}$
+  slug: string;                      // ^[a-z0-9-]{1,100}$
+  title: string;                     // 1..200 (NFC + trim)
+  difficulty: "Easy" | "Medium" | "Hard";
+  tags: string[];                    // <= 20, each 1..50
+  is_paid_only: boolean;
+}
+interface LeetDaily extends LeetDailyFacts {
+  date: string;                      // YYYY-MM-DD (UTC)
+  first_reporter: UserSummary | null;
+  first_reported_at: Timestamp;
+  mismatch_count: number;
+}
+interface LeetDailyRoot { space_id: ID; channel_id: ID; message_id: ID }
+interface LeetSolveBody {
+  status: "accepted";                // only accepted solves are recorded
+  slug: string;
+  lang: string;                      // 1..32 (LeetCode language slug, e.g. "golang")
+  frontend_id: string;
+  runtime_percentile?: number | null;   // 0..100
+  submission_id?: string | null;     // ^[0-9]{1,20}$
+  share_space_ids?: ID[];            // <= 10
+  code?: string | null;              // 1..4000 code points; stored in the card (plain text on the server, readable by the channel and operators)
+}
+interface LeetSolve {
+  date: string;
+  slug: string;
+  lang: string;
+  passed_at: Timestamp;              // server time of the first record
+  runtime_percentile: number | null;
+  counts_for_streak: boolean;        // utcDate(passed_at) == date (no grace day)
+}
+interface LeetSolveCardRef { space_id: ID; message_id: ID }
+interface LeetMe {
+  current: number;                   // run ending today, or (today still empty) yesterday; else 0
+  best: number;
+  recent: LeetSolve[];               // last 30 UTC days, newest first
+  daily_spaces: { space_id: ID; channel_id: ID }[];
+}
+interface LeetBoardEntry { user: UserSummary; solved: number; streak: number }
+interface LeetFriendStreak { user: UserSummary; current: number; best: number }
+```
+
+- 루트(`leet.daily`)는 수정할 수 없고(5.10 — `400 fields.message_id = "not_allowed"`), 리액션·고정·스레드 답글은 일반 메시지와 같다.
+- 이 절의 #daily 는 "그 방의 `leet_space_settings.enabled = 1` 이고 `channel_id` 채널이 살아 있음" 이다. 채널이 지워진 방은 꺼진 것과 같이 취급한다.
+
 ## 6. 엔드포인트 요약표
 
 | 메서드 | 경로 | 인증 | 추가 리미터 |
@@ -1604,6 +1682,7 @@ interface DocComment {
 | GET/POST | /v1/spaces/{space_id}/invites | ✓ | RL_SOCIAL(POST) |
 | POST | /v1/spaces/{space_id}/direct-invites | ✓ | RL_SOCIAL |
 | GET/POST | /v1/spaces/{space_id}/channels | ✓ | |
+| PUT | /v1/spaces/{space_id}/leet | ✓ | RL_SOCIAL |
 | GET/DELETE | /v1/invites/{code} | ✓ | |
 | POST | /v1/invites/{code}/accept | ✓ | |
 | POST | /v1/direct-invites/{id}/accept, /decline | ✓ | |
@@ -1647,6 +1726,7 @@ interface DocComment {
 | POST | /v1/admin/content/remove | admin | |
 | POST | /v1/admin/users/{user}/suspend, /unsuspend | admin | |
 | GET | /v1/admin/users, /v1/admin/actions | admin | |
+| PUT | /v1/admin/leet/daily/{date} | admin | |
 | GET | /v1/ws | ✓ | RL_WS |
 | GET/POST | /v1/spaces/{space_id}/docs | ✓ | RL_DOC(POST) |
 | GET/PATCH/DELETE | /v1/docs/{doc_id} | ✓ | RL_DOC(PATCH/DELETE) |
@@ -1656,6 +1736,11 @@ interface DocComment {
 | GET/POST | /v1/docs/{doc_id}/comments | ✓ | RL_DOC(POST) |
 | PATCH/DELETE | /v1/docs/{doc_id}/comments/{comment_id} | ✓ | RL_DOC |
 | GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
+| PUT | /v1/leet/daily/{date} | ✓ | RL_SOCIAL, RL_MESSAGE |
+| PUT/DELETE | /v1/leet/solves/{date} | ✓ | RL_SOCIAL, RL_MESSAGE(PUT) |
+| GET | /v1/leet/me | ✓ | |
+| GET | /v1/spaces/{space_id}/leet/board | ✓ | |
+| GET | /v1/leet/friends/board | ✓ | |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

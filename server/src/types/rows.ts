@@ -36,6 +36,7 @@ export interface UserSettingsRow {
   notify_thread_reply: 0 | 1;
   notify_social: 0 | 1;
   focus_default_min: number;
+  leet_share_with_friends: 0 | 1; // 0006_leet
   updated_at: number;
 }
 
