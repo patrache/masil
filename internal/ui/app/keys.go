@@ -139,8 +139,10 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 	if handled {
 		return cmd
 	}
-	// 5. input capture: printable keys never reach the soft globals
-	if capturing(comp) {
+	// 5. input capture: printable keys never reach the soft globals; a history key the
+	// component left alone (ctrl+o in a chat composer) still walks the history.
+	walk := keys.Matches(msg, keymap.NavHistoryBack) || keys.Matches(msg, keymap.NavHistoryForward)
+	if capturing(comp) && !walk {
 		return cmd
 	}
 	// 6. soft globals
@@ -155,6 +157,12 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Batch(cmd, m.switchTab(+1))
 	case keys.Matches(msg, keymap.NavBack):
 		return tea.Batch(cmd, m.goBack())
+	case keys.Matches(msg, keymap.NavHistoryBack):
+		return tea.Batch(cmd, m.walkHistory(-1))
+	case keys.Matches(msg, keymap.NavHistoryForward):
+		return tea.Batch(cmd, m.walkHistory(+1))
+	case keys.Matches(msg, keymap.ThreadChannel):
+		return tea.Batch(cmd, m.openParent())
 	case keys.Matches(msg, keymap.ListOpen):
 		return tea.Batch(cmd, m.openAlertToast())
 	}

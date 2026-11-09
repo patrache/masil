@@ -371,7 +371,8 @@ func (n NavState) toggleNotifications(mode layout.Mode) (NavState, *FocusIntent)
 
 // cycleTab is tab.next/tab.prev (delta +1/-1, wrapping). Compact and standard walk the tab
 // roots then 피드 then 알림; widget and tiny walk the fixed 채팅/피드/알림 tabs; command walks
-// Tabs only (Front is not visible there); TooSmall is a no-op. Selecting a tab marks it seen.
+// Tabs only (Front is not visible there, but becomes FrontTab: Main shows that tab, so
+// the switch is a history place and a mode change keeps it); TooSmall is a no-op. Selecting a tab marks it seen.
 func (n NavState) cycleTab(delta int, mode layout.Mode) NavState {
 	c := n.clone()
 	if delta == 0 || mode == layout.ModeTooSmall {
@@ -381,6 +382,7 @@ func (n NavState) cycleTab(delta int, mode layout.Mode) NavState {
 	switch mode {
 	case layout.ModeCommand:
 		c.Active = wrap(c.Active, len(c.Tabs))
+		c.Front = FrontTab // Main shows that tab now (the feed column stays as it was)
 		c.touch()
 	case layout.ModeWidget, layout.ModeTiny:
 		c.Front = Front(wrap(int(c.Front), 3))

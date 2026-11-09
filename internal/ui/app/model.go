@@ -53,6 +53,7 @@ type Model struct {
 	pinFell  bool         // the pin did not fit this frame (Resolve fell back to auto)
 
 	nav       NavState    // logical navigation (CA 5.3.3); projected onto the layout every frame
+	hist      history     // places Main showed (CA 5.3.3 "기록"), recorded after every Update
 	intent    FocusIntent // remembered focus intent (CA 5.3.5)
 	focus     FocusIntent // focus resolved for the current layout
 	sentFocus FocusIntent // focus of the last FocusChangedMsg broadcast
@@ -263,6 +264,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	_, cmd := m.dispatch(msg)
 	m.syncOverlays()
+	m.noteHistory()
 	// The focus slot is resolved at the end of every Update (CA 5.3.5); a change is
 	// broadcast as ui.FocusChangedMsg after this Update's relayout/projection.
 	return m, tea.Batch(pre, watch, cmd, m.syncFocus(), m.armStatusTick(), m.armIdle())

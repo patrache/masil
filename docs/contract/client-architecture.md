@@ -1778,6 +1778,16 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
 - `TargetMain`/`TargetSide` 는 **push 하는 종류**(위 표의 sns 내용·그 밖 행)의 대상만 바꾼다: `TargetMain` = 활성 탭 스택, `TargetSide` = 피드 표면 스택(예: 지휘소 피드 열 안에서 검색 결과를 이어 보기). 루트·들어 올리는 종류(`home`·`channel`·`thread`·`feed`·`notifications`·`login`)는 `Target` 을 무시한다. `Replace=true` 는 대상 스택 맨 위를 바꾼다(루트는 바꾸지 않음).
 - 같은 키의 캐시된 인스턴스를 다시 쓰는데 `Anchor`/`Query` 가 다르면 그 인스턴스에만 `ui.RouteUpdatedMsg{Route}` 를 보낸다(검색 결과 → 메시지로 점프 등). `Anchor` 가 비어 있지 않은 `NavigateMsg` 는 인스턴스가 이미 같은 `Anchor` 를 들고 있어도 다음 재배치에서 한 번 더 보낸다(rejump, v0.1.1 C1: 친구 요청 → `h`(친구 탭) → 뒤로 → 친구 요청이 다시 받은 요청 탭을 연다, 채널 화면에서 같은 메시지 링크를 두 번 열어도 다시 점프. 스레드 화면은 이미 그 Anchor 로 점프를 마쳤으면 다시 받은 같은 Anchor 를 무시한다). 크기 변경·재투영만으로는 보내지 않는다.
 - **뒤로(`BackMsg`, `esc`)** 는 포커스된 슬롯이 보이는 표면을 한 단계 되돌린다: 포커스가 `SlotThread` → 그 탭 `Thread=nil`. `SlotFeed` → `Feed` 가 2개 이상이면 pop. `SlotNotifications` → 아무것도 안 함. `SlotMain` → Main 이 보이는 것에 따라: 스레드(`attached`) → `Thread=nil` / `F` → 2개 이상이면 pop, 아니면 `Front=FrontTab` / `NotifRoute` → `Front=FrontTab` / `top` → 스택이 2개 이상이면 pop(루트는 pop 하지 않음).
+  - 뒤로는 **구조적**이다: 스레드에서 `esc` 는 어디서 그 스레드를 열었든(알림함·검색·팔레트·토스트·다른 탭) **그 스레드의 대화(채널·DM)** 로 간다. 연 곳으로 돌아가는 것은 아래 "기록"의 `nav.history_back` 이 맡는다.
+  - 스레드 답글 입력창에서 `esc` 는 비어 있든(답글을 보낸 직후 포함) 초안이 있든 **입력창만** 나간다(초안 유지, 스레드는 열린 채 메시지 목록으로 — `j`/`k`·리액션). 두 번째 `esc` 가 뒤로다. 대화로 바로 가는 키는 `c`, 연 곳으로는 `ctrl+o`.
+- **스레드 → 대화(`thread.channel`, 기본 `c`)**: 포커스된 스레드의 채널을 루트 메시지 `Anchor` 로 연다(`NavigateMsg{channel, Anchor=root}` 와 같고 그 탭 스택을 루트까지 접는다). 스레드가 Main 에 보이는 모드(스레드 창이 없는 레이아웃: 컴팩트·위젯·초소형, 좁은 표준)에서는 `Thread=nil` 로 닫고, 스레드 창이 있으면 열어 둔 채 Main 으로 포커스만 옮긴다. 스레드가 Main 에 있을 때는 제목(초소형은 "답글 N개" 구분선)이 `#개발 › 스레드 · …` 처럼 대화를 앞에 붙이고(12칸까지), 힌트는 `c #개발로` 로 보인다.
+- **기록(`nav.history_back` / `nav.history_forward`)**: 앱은 `NavState` 옆에(안이 아니다 — 모드 전환이 `NavState` 를 바꾸지 않는 불변식 유지) Main 이 보인 **장소**를 시간순으로 최대 50개 기록한다(넘치면 가장 오래된 것부터 버림, state.json 에는 저장하지 않음, 로그인·로그아웃 때 비움).
+  - 장소 = `{Front, 탭 루트, 경로}` (모드 무관): `FrontTab` → 활성 탭 루트 + (`attached` 스레드, 아니면 스택 맨 위), `FrontFeed` → 피드 스택 맨 위, `FrontNotifications` → `NotifRoute`. 비교는 키로 하고 `Anchor`/`Query` 는 무시(저장할 때 `Anchor` 를 지운다).
+  - 기록 시점: 매 `Update` 끝. 지금 장소가 현재 항목과 다르면 현재 항목 뒤(앞으로 갈 항목)를 버리고 덧붙인다. 그래서 `NavigateMsg`·`esc`·`[ ]`/`tab` 탭 전환·`f`·`ctrl+n`·탭 클릭·`c` 가 모두 항목이 되고, **오버레이(팔레트·메뉴·대화상자·도움말)·포커스 이동·모드 전환·크기 변경·Anchor 만 바뀐 재점프는 항목이 아니다**.
+  - 뒤로/앞으로: 현재 항목에서 그 방향으로 가장 가까운, **아직 있고 지금과 다른** 장소로 간다(현재 위치를 옮길 뿐 항목은 지우지 않는다). 없는 장소 = 부트스트랩 뒤 `Store.Channels` 에 없는 채널(삭제·스페이스 나감)의 루트나 스레드, 내가 차단한 사람과의 DM, `Store.Spaces` 에 없는 스페이스의 설정. 끝이면 토스트 "더 뒤로 갈 곳이 없어요" / "더 앞으로 갈 곳이 없어요"(`ToastInfo`, 초소형은 상태줄).
+  - 되살리기: `FrontNotifications` → `Front=FrontNotifications`. `FrontFeed` → 피드 루트면 `Feed=[r]`(이미 `Feed[0]` 이면 거기까지 pop), 그 밖이면 피드 스택에 push(이미 있으면 거기까지 pop). `FrontTab` → 탭 루트 활성(닫히거나 밀려난 탭이면 다시 추가, 인스턴스 캐시가 초안·스크롤을 되살림) 후 경로가 스레드면 스택을 루트까지 접고 `Thread=&r`, 루트면 스택을 루트까지 접고 `Thread=nil`, 그 밖(`search` 등)이면 그 탭 스택에 push(one-key-one-place 로 이미 있으면 거기까지 pop — 같은 탭 채널 검색 → 스레드 → 뒤로 = 검색 결과). 포커스 의도는 그 경로(지휘소·표준의 스레드는 `SlotThread`, 지휘소의 피드·알림은 그 창).
+  - 지휘소는 `Front` 가 보이지 않으므로 피드·알림 항목으로 돌아가면 그 창으로 포커스가 간다. 지휘소의 `[`/`]` 탭 전환은 `Active` 와 함께 `Front=FrontTab` 으로 둔다(Main 이 그 탭을 보이므로) — 피드 열에서 글을 연 뒤의 탭 전환도 항목이 된다.
+  - 한 번 쓰고 스스로 닫히는 화면 — sns 글쓰기(`compose`, 올리거나 버리면 `BackMsg`)·스토리 뷰어(`stories`, 끝나면 `BackMsg`) — 은 장소가 아니다(기록하지 않음). 그런 화면에서 뒤로는 그 화면을 연 곳(현재 항목)으로 간다. 나간 스페이스(부트스트랩 뒤 `Store.Spaces` 에 없음)의 설정 화면도 없는 장소다.
 - `f`(`feed.toggle`): 지휘소 → 포커스를 `SlotFeed` 로. 그 외 → `Front` 를 `FrontTab`↔`FrontFeed` 토글. `ctrl+n`(`notifications.open`): 지휘소 → 포커스를 `SlotNotifications` 로, 그 외 → `Front` 를 `FrontNotifications`↔`FrontTab` 토글.
 - 앱은 경로별 컴포넌트 인스턴스를 `Route.Key()` 로 캐시한다(최근 32개, 그 이상은 가장 오래 안 본 것부터 `Persistent` 상태만 남기고 해제 — 단 `NavState.Keys()` 에 있는 키는 해제하지 않는다). 같은 채널로 돌아오면 같은 인스턴스(초안·스크롤 유지). 한 인스턴스는 한 프레임에 한 슬롯에만 있으므로 `Resize` 크기는 늘 하나다.
 
@@ -1792,8 +1802,8 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
    3. **하드 전역**: `ctrl+c`, `ctrl+k`, `ctrl+f`, `ctrl+n`, `tab`/`shift+tab`(포커스가 입력 캡처 중이고 그 입력이 자동완성 팝업을 띄운 경우에는 컴포넌트로; 포커스 링이 창 1개인 모드에서는 창 순환 대신 탭 순환 — 5.3.5). `ctrl+w` 는 포커스가 입력 캡처 중이 **아닐 때만** 창 접두로 쓰이고, 입력 중이면 입력창의 "단어 지우기"로 간다(`esc` 로 입력을 빠져나온 뒤 `ctrl+w`).
       - **자동완성 중 `tab`(CR-A)**: 하드 전역 `tab`/`shift+tab` 판정(창 1개 모드의 `tab.next`/`tab.prev` 포함) **전에**, 포커스 컴포넌트가 `CapturesInput() && Completing()`(`ui.InputCapturer`·`ui.Completer`) 이면 그 키를 `HandleKey` 로 넘긴다. `handled=true` 면 끝(포커스·`NavState` 불변), `false` 면 원래 하드 전역으로 처리. 둘 중 하나라도 아니면(입력 캡처 아님·`Completer` 미구현·팝업 없음) 그대로 하드 전역.
    4. 포커스 컴포넌트의 `HandleKey`. `handled=true` 면 끝.
-   5. 포커스 컴포넌트가 `CapturesInput()==true` 면 여기서 끝(글자 키가 전역 단축키로 새지 않음).
-   6. **소프트 전역**: `?`, `f`, `[`, `]`, `esc`(뒤로), `g` 계열.
+   5. 포커스 컴포넌트가 `CapturesInput()==true` 면 여기서 끝(글자 키가 전역 단축키로 새지 않음). 단 `nav.history_back`/`nav.history_forward` 키는 컴포넌트가 처리하지 않았으면(`handled=false`) 계속 6단계로 간다 — 채팅 입력창은 편집 키가 아닌 기록 키(기본 `ctrl+o`)를 넘기고, `alt+←`/`alt+b`/`alt+→`/`alt+f` 는 단어 이동으로 쓴다. 다른 입력(검색 칸, sns 글쓰기 — `ctrl+o` 는 사진 첨부)은 지금처럼 모두 처리한다.
+   6. **소프트 전역**: `?`, `f`, `[`, `]`, `esc`(뒤로), `ctrl+o`·`alt+←`·`alt+b`(이전 위치), `alt+→`·`alt+f`(다음 위치), `c`(포커스된 경로가 스레드일 때만: 대화로), `g` 계열.
 3. 마우스 → `layout.At(x,y)` 의 창: 클릭이면 그 창으로 포커스 이동 후 `HandleMouse(local)`, 휠은 포커스와 무관하게 포인터 아래 창으로. 오버레이가 열려 있으면 오버레이가 먼저(바깥 클릭 = 닫기).
 4. `tea.PasteMsg` → 오버레이가 열려 있으면 **맨 위 오버레이**(`Update`), 아니면 포커스 컴포넌트(`Update`). 오버레이가 열려 있는 동안 아래 창으로는 절대 가지 않는다.
 5. `realtime.EventMsg`(앱 브리지가 감싼 것) → `Store.Apply(ev)` → **모든 살아 있는 컴포넌트에 방송** → 알림 처리(`alert` 이면 notify, 9장) → `rt.MarkProcessed(seq)`.
@@ -1928,7 +1938,7 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 
 상태줄(`SlotStatus`, 1줄): `[모드 pill] 힌트 ··· 오른쪽: 집중 남은 시간(🎯 18:20) · 429 쿨다운 · 📌(고정) · 연결 상태(● 온라인 / ◐ 자리비움 / ⊘ 방해금지 / ◌ 연결 중… / ✕ 오프라인)`. 폭이 모자라면 오른쪽 항목을 연결 상태만 남기고 힌트를 자른다.
 
-힌트 **[결정]** — 모드별 기본 힌트(시안 `layouts.html` 문구 그대로)를 먼저 쓰고(단 포커스 컴포넌트가 `ui.ThreadHider` 이고 `HidesThread(ctx)==true` 인 동안은 그중 스레드 항목 — 지휘소·표준 `t 스레드`, 컴팩트 `enter 스레드` — 을 뺀다: v0.1.1 D7, 선택한 줄이 스레드를 열 수 없는 시스템 메시지), 포커스 컴포넌트가 `Helper` 면 그 바인딩 중 기본 힌트와 키가 겹치지 않는 것을 ` · ` 로 이어 붙인다(전체 항목 최대 5개, 폭 넘치면 뒤부터 자름). 포커스 컴포넌트가 `CapturesInput()==true` 인 동안은 기본 힌트 대신 `enter 보내기 · shift+enter 줄바꿈 · esc 나가기`. 오버레이가 열려 있으면 그 오버레이의 `Helper`(없으면 `esc 닫기`).
+힌트 **[결정]** — 모드별 기본 힌트(시안 `layouts.html` 문구 그대로)를 먼저 쓰고(단 포커스 컴포넌트가 `ui.ThreadHider` 이고 `HidesThread(ctx)==true` 인 동안은 그중 스레드 항목 — 지휘소·표준 `t 스레드`, 컴팩트 `enter 스레드` — 을 뺀다: v0.1.1 D7, 선택한 줄이 스레드를 열 수 없는 시스템 메시지), 포커스 컴포넌트가 `Helper` 면 그 바인딩 중 기본 힌트와 키가 겹치지 않는 것을 ` · ` 로 이어 붙인다(전체 항목 최대 5개, 폭 넘치면 뒤부터 자름). 포커스 컴포넌트가 `CapturesInput()==true` 인 동안은 기본 힌트 대신 `enter 보내기 · shift+enter 줄바꿈 · esc 나가기`. 오버레이가 열려 있으면 그 오버레이의 `Helper`(없으면 `esc 닫기`). 위젯·초소형은 그 뒤에 **이전 위치 힌트**(`ctrl+o 이전 위치`, 5.5)를 붙인다: 기록에 돌아갈 곳이 있고 오버레이가 없고 입력 캡처 중이 아닐 때만, 최대 5개에 세지 않고, 잘리지 않는다 — 자리가 모자라면 기본 힌트 뒤의 컴포넌트 힌트를 뒤부터 밀어내고, 기본 힌트와도 안 들어가면 가장 먼저 빠진다(오른쪽 항목 줄이기·힌트 자르기보다 먼저).
 
 | 모드 | 기본 힌트 |
 |---|---|
@@ -1936,7 +1946,7 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 | 표준 | `f 피드 · t 스레드 · ctrl+k` |
 | 컴팩트 | `[ ] 탭 이동 · enter 스레드` |
 | 위젯 | `tab 탭` |
-| 초소형 | (없음 — `[초소형] ●` 만) |
+| 초소형 | (없음 — `[초소형] ●` 만, 돌아갈 곳이 있으면 `[초소형] ctrl+o 이전 위치 ●`) |
 
 탭(`SlotTabs`):
 - 컴팩트: `NavState.Tabs` 의 각 루트(`#개발`, `#일반 3`, `민지 ●`) 다음에 고정 `피드`·`알림 2` 두 칸(시안 순서). 현재 탭(`Front==FrontTab` 이면 `Tabs[Active]`, 아니면 `피드`/`알림`)은 `TabActive`, 고정 두 칸은 비활성일 때 `dim`. `[`/`]`·`tab`/`shift+tab` 이 이 순서로 순환, 클릭 이동, 넘치면 현재 탭이 보이도록 가로 스크롤 + 양 끝 `‹ ›`.
@@ -1972,6 +1982,8 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 | `feed.toggle` | `f` | 소프트 |
 | `tab.prev` / `tab.next` | `[` / `]` | 소프트 |
 | `nav.back` | `esc` | 소프트 |
+| `nav.history_back` | `ctrl+o`, `alt+←`, `alt+b` — 이전 위치(5.3.3 기록). `ctrl+o` 는 어느 터미널이나 같은 바이트이고 입력창 편집 키가 아니어서 채팅 입력 중에도 된다. `alt+←` 는 iTerm2·kitty·Ghostty·WezTerm 의 option/alt+←(CSI 1;3D), `alt+b` 는 macOS Terminal.app 의 option+←(ESC b). 도움말 표기 `ctrl+o/alt+←`, 위젯·초소형 상태줄은 첫 키만(`ctrl+o 이전 위치`) | 소프트(입력 캡처 중에도 컴포넌트가 넘기면) |
+| `nav.history_forward` | `alt+→`, `alt+f` — 다음 위치. 입력 중에는 단어 이동이라 동작하지 않는다 | 소프트(위와 같음) |
 | `list.up` / `list.down` | `k`,`↑` / `j`,`↓` | 목록 |
 | `list.top` / `list.bottom` | `g g`,`home` / `G`,`end` | 목록 |
 | `list.pageup` / `list.pagedown` | `ctrl+u`,`pgup` / `ctrl+d`,`pgdown` | 목록 |
@@ -1990,6 +2002,7 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 | `msg.copy` | `y` (`tea.SetClipboard`) | 메시지 선택 |
 | `msg.actions` | `m` (동작 메뉴) | 메시지 선택 |
 | `channel.search` | `/` | 대화 |
+| `thread.channel` | `c` — 스레드에서 그 대화(채널·DM)로, 루트 메시지 선택(5.3.3). 힌트는 `c #개발로` | 스레드 |
 | `post.like` | `l` | 글 선택 |
 | `post.repost` | `b` | 글 선택 |
 | `post.quote` | `q` | 글 선택 |
@@ -2001,6 +2014,8 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 - 같은 키가 여러 범위에 있으면 좁은 범위가 이긴다: 입력 > 메시지/글 선택 > 목록 > 소프트 전역. 예: 입력창 포커스의 `enter` = `compose.send`, 메시지 선택 중 `enter` = `msg.thread`, 채널 목록의 `enter` = `list.open`.
 - 투표 메시지의 투표는 `msg.actions`(`m`) 메뉴 또는 투표 칸 클릭으로 한다(`enter` 는 늘 스레드).
 - 대화(채널·스레드)의 입력창이 포커스 밖일 때, ctrl/alt 수식 없이 비ASCII 글자(한글 음절·호환 자모·자모 등 IME 입력)가 담긴 키가 오고 어떤 Action 에도 묶여 있지 않으면(`Keymap.Bound` 거짓) `compose.focus` 없이 곧바로 입력창을 포커스하고 그 글자를 그대로 넣는다 — 한글 자판으로 바로 쓰기 시작할 수 있게. 읽기 전용·사라진 대화는 예외(아무 일 없음), ASCII 키는 계속 단축키다.
+
+- 위젯·초소형 상태줄은 돌아갈 곳이 있고(기록) 오버레이가 없고 입력 캡처 중이 아닐 때 `nav.history_back` 의 첫 키를 `ctrl+o 이전 위치` 로 보인다. 이 힌트는 잘리지 않는다: 모드 기본 힌트(위젯 `tab 탭`) 뒤에 놓이고 자리가 모자라면 뒤쪽 컴포넌트 힌트를 밀어내며, 기본 힌트와 함께도 안 들어갈 만큼 좁으면 가장 먼저 빠진다(5.4 상태줄).
 
 마우스: 클릭 = 포커스 + 항목 선택, 선택된 항목 다시 클릭 = 열기, 휠 = 포인터 아래 창 3줄 스크롤, 탭·레일·목록 클릭 = 이동, 리액션 칩 클릭 = 토글, 오버레이 바깥 클릭 = 닫기.
 

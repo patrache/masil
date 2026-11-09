@@ -664,9 +664,15 @@ func TestCycleTab(t *testing.T) {
 	t.Run("command cycles tabs only", func(t *testing.T) {
 		c := n
 		c.Front = FrontFeed
+		before := c.loc()
+		// Main now shows that tab: Front follows, so the switch is a history place
+		// and a later mode change shows it (CA 5.3.3 "기록")
 		c = c.cycleTab(1, layout.ModeCommand)
-		if c.Active != 1 || c.Front != FrontFeed {
+		if c.Active != 1 || c.Front != FrontTab {
 			t.Fatalf("got active %d front %d", c.Active, c.Front)
+		}
+		if c.loc().key() == before.key() {
+			t.Fatal("a command-mode tab switch must change the place")
 		}
 		if c = c.cycleTab(-2, layout.ModeCommand); c.Active != 2 {
 			t.Fatalf("got active %d", c.Active)

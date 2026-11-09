@@ -15,6 +15,7 @@ import (
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
+	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
@@ -163,8 +164,8 @@ func (v *threadView) headRows(ctx *ui.Context) []row {
 		n = m.Thread.ReplyCount
 	}
 	label := "답글 " + humanize.Count(n) + "개"
-	if ctx.Density() == ui.DensityMinimal { // tiny: no pane title says this is a thread
-		label = threadTitle + " · " + label
+	if ctx.Density() == ui.DensityMinimal { // tiny: no pane title says this is a thread (nor where it belongs)
+		label = v.parentPrefix(ctx) + threadTitle + " · " + label
 	}
 	return []row{
 		{Kind: rowMessage, ID: m.ID, Msg: &m},
@@ -651,14 +652,68 @@ func (v *threadView) Title(ctx *ui.Context) (string, ui.Badge) {
 	case r.Deleted:
 		return threadTitle + " · " + deletedText, ui.Badge{}
 	}
-	return threadTitle + " · " + textwidth.Sanitize(displayName(r.Author)) + ": " + markup.Plain(plainBody(r), threadTitleCells), ui.Badge{}
+	return v.parentPrefix(ctx) + threadTitle + " · " + textwidth.Sanitize(displayName(r.Author)) + ": " + markup.Plain(plainBody(r), threadTitleCells), ui.Badge{}
+}
+
+// parentPrefix is "<conversation> › " while the thread is shown in Main (no thread
+// pane: compact, widget, tiny, a narrow standard), so the single pane names where the
+// thread belongs; "" beside its conversation or when the channel is unknown.
+func (v *threadView) parentPrefix(ctx *ui.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if _, main := ctx.Layout.Pane(layout.SlotMain); !main {
+		return ""
+	}
+	if _, pane := ctx.Layout.Pane(layout.SlotThread); pane {
+		return ""
+	}
+	if l := v.parentLabel(ctx); l != "" {
+		return l + " › "
+	}
+	return ""
+}
+
+// parentLabelCells caps the conversation label in the title and the c hint, so a long
+// channel name never pushes "스레드" out.
+const parentLabelCells = 12
+
+// parentLabel is the thread's conversation label ("#개발", "민지"), at most
+// parentLabelCells; "" when unknown.
+func (v *threadView) parentLabel(ctx *ui.Context) string {
+	if ctx == nil || ctx.Store == nil {
+		return ""
+	}
+	return textwidth.Truncate(textwidth.Sanitize(ctx.Store.ChannelLabel(v.channelID())), parentLabelCells, "…")
 }
 
 func (v *threadView) Help(ctx *ui.Context) []key.Binding {
 	if v.composer.focused() {
 		return ctx.Keys.Help(keymap.ComposeSend, keymap.ComposeNewline, keymap.ComposeLeave, keymap.ComposeEditLast)
 	}
-	return ctx.Keys.Help(keymap.ComposeFocus, keymap.MsgReact, keymap.MsgActions, keymap.NavBack)
+	parent := ctx.Keys.Binding(keymap.ThreadChannel)
+	if l := v.parentLabel(ctx); l != "" {
+		parent.SetHelp(parent.Help().Key, withRo(l)) // "c #개발로"
+	}
+	if v.parentPrefix(ctx) == "" { // beside its conversation: the way there is a hint among others
+		return append(ctx.Keys.Help(keymap.ComposeFocus, keymap.MsgReact, keymap.MsgActions, keymap.NavBack), parent)
+	}
+	// alone in Main: the way to its conversation and back come first
+	return append([]key.Binding{parent}, ctx.Keys.Help(keymap.ComposeFocus, keymap.NavBack, keymap.MsgReact, keymap.MsgActions)...)
+}
+
+// withRo appends the particle 으로/로: 로 after a vowel or a final ㄹ, else 으로.
+func withRo(word string) string {
+	r := []rune(word)
+	if len(r) == 0 {
+		return word
+	}
+	if last := r[len(r)-1]; last >= 0xAC00 && last <= 0xD7A3 {
+		if fin := (last - 0xAC00) % 28; fin != 0 && fin != 8 { // 8 = ㄹ
+			return word + "으로"
+		}
+	}
+	return word + "로"
 }
 
 // refetchDropped (after a resync) loads the first page again when the thread

@@ -185,6 +185,22 @@ func TestComposerHugePaste(t *testing.T) {
 	}
 }
 
+// Edits tells the keys the composer acts on from the ones it ignores (ctrl+o goes
+// back in history even while typing; alt+left stays a word move).
+func TestComposerEdits(t *testing.T) {
+	c := widgets.NewComposer("")
+	for _, k := range []string{"a", "한", "ctrl+c", "enter", "tab", "esc", "alt+left", "alt+b", "alt+right", "alt+f", "left", "backspace", "ctrl+a", "shift+enter"} {
+		if !c.Edits(keyMsg(k)) {
+			t.Errorf("Edits(%s) = false", k)
+		}
+	}
+	for _, k := range []string{"ctrl+o", "ctrl+k", "ctrl+f", "ctrl+n", "ctrl+w", "ctrl+v"} {
+		if c.Edits(keyMsg(k)) {
+			t.Errorf("Edits(%s) = true", k)
+		}
+	}
+}
+
 func TestComposerHardGlobalsNotConsumed(t *testing.T) {
 	ctx := newCtx(nil, false)
 	c := widgets.NewComposer("")
