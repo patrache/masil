@@ -297,6 +297,9 @@ internal/
   ui/tools/                            P0   (도구 허브·도구 표면 명령·팔레트 소스)
   ui/secretsui/                        P0   (동의·가림 입력 오버레이)
   (도구 패키지)                         P1 LeetCode·lazygit, P2 작업공간, P3 아키텍처 설계, P4 API 시험 — 이름과 행은 각 줄기가 더한다
+  apitool/                             P4   (API 시험 엔진, UI 없음: 모델·로컬 파일·변수·전송·가드·검사·가리기·탐지·기록·실행기·공유 매핑·카드 데이터)
+  apitool/convert/                     P4   (curl·OpenAPI JSON·Postman v2.1 가져오기/내보내기)
+  ui/apitool/                          P4   (API 시험 도구 화면·도구/팔레트/카드 등록)
 ```
 
 ### 2.2 의존 방향 (import 규칙)
@@ -329,6 +332,9 @@ ui ─▶ (기존) + i18n, features, toolstate, secrets, termhost(타입·Exec),
 ui/termpane ─▶ ui, termhost, keymap, i18n, textwidth
 ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate, secrets, i18n
 도구 패키지(P1~P4) ─▶ ui, ui/termpane, termhost, secrets, collab, api, … (자기 줄기 계획)
+apitool, apitool/convert ─▶ secrets, collab(타입), config, ids, textwidth (api·ui·realtime·store 금지 — 직접 import 금지, 전이도 금지. 예외는 collab 을 거쳐서만 닿는 경로 하나: import 그래프에서 collab 으로 들어가지 않는 경로로 닿으면 위반)
+  - `apitool` 이 `collab` 에서 쓰는 것은 타입(`Snapshot`·`Object`·`Op`)과 순수 함수 `collab.NewDoc(…).Snapshot()`(스냅숏을 정규형으로 만들기)·`collab.IsName`(1.2 이름 규칙)까지다. `Session`·`Open` 등 연결·상태를 가진 것은 쓰지 않는다(그것은 `ui/apitool` 몫).
+ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keymap, ui/layout, apitool, apitool/convert, collab, secrets, api, errtext, features, i18n, termhost(Mode 타입 — ToolSpec.Open), theme, textwidth, humanize (ui/termpane 금지)
 ```
 
 - `internal/api` 는 `internal/secrets`·`internal/termhost`·`internal/collab`·`internal/ui/...`·도구 패키지를 **전이로도** import 하지 않는다 — 도구 비밀값(쿠키·토큰)이 구조적으로 masil 서버 요청에 실릴 수 없게(v0.1.3 설계서 A9.3).
@@ -414,6 +420,14 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 | 파일 | 쓰는 쪽 | 형식 |
 |---|---|---|
 | `tools-state.json` | TUI(도구들) | 기기 전용 기억. 맨 위 객체의 키 = 도구 ID(`leet`·`workspace`·`arch`·`git`·`api`), 값 = 그 도구가 정한 JSON 섹션(`toolstate.Section/SetSection` — 도구는 자기 섹션만). 공통 칸 `last_open`(마지막 여는 방식 `auto\|pane\|exec\|window`)·`zoomed`(넓게 보기)는 `toolstate.Common`. 0600, 원자적 쓰기, 없거나 깨지면 빈 값. masil 서버로 보내지 않는다 |
+| `api/collections/<이름>/collection.json` | TUI(API 시험, P4) | 개인 컬렉션: 이름·폴더 나무(요청 id 순서)·컬렉션 변수. 키 정렬·2칸 들여쓰기·끝 줄바꿈, 0600(폴더 0700), 원자적 쓰기. 비밀 변수는 이름과 `secret` 표시만(값 없음) |
+| `api/collections/<이름>/requests/<id>.json` | TUI(API 시험, P4) | 요청 하나에 파일 하나(같은 형식 규칙). 치환 전 템플릿 그대로, multipart 파일 필드는 내 PC 경로 유지. 나무에서 빠진 요청 파일은 저장 때 지운다. 밖에서 고치면 `LocalStore.Changed` 가 알린다 |
+| `api/envs/<이름>.json` | TUI(API 시험, P4) | 개인 환경: 변수 이름·비밀이 아닌 값·`secret` 표시·`allowed_hosts`. 비밀 값은 `secrets` 저장소에만 |
+| `api/globals.json` | TUI(API 시험, P4) | 내 전역 변수(환경과 같은 규칙) |
+| `api/history/<ULID>.json` | TUI(API 시험, P4) | 로컬 기록 한 건(치환 전 요청 + 치환 후 URL, 상태·시간·크기·헤더, 본문 앞 256KB). 비밀 헤더 값·비밀 변수 값은 `•••`. 최근 500건·30일. 서버로 가지 않음 |
+| `api/shared/<doc_id>.json` | TUI(API 시험, P4) | 공유 컬렉션(`apicol`) 오프라인 사본 — 비밀 값 없음 |
+| `api/shared/<doc_id>.mine.json` | TUI(API 시험, P4) | 그 공유 컬렉션의 "내 값"(비밀이 아닌 값)·비밀 변수의 허용 호스트·내가 비밀로 아는 이름. 비밀 값은 `secrets` 저장소에만 |
+| `api/shared/<doc_id>.lost.json` | TUI(API 시험, P4) | 동시 편집에서 덮어써진 내 본문(최근 20개) |
 | `secrets/` | TUI | 도구 자격증명 저장소(`internal/secrets`)의 대체 자리. 폴더 0700. `tools.json`(0600) = 사용자가 "파일에 저장"에 동의한 값, `index.json`(0600) = 저장한 값 **이름**만(값 없음, `Store.List`), `.gitignore` = `*` 한 줄. 파일 형식은 `secrets` 패키지 내부(다른 패키지가 직접 읽지 않음). OS 키체인에 저장된 값은 여기 없다 |
 
 ### 3.3 `config.toml`
@@ -511,6 +525,11 @@ embedded = true            # false => 내장 패널을 쓰지 않음(도구는 �
 [tools.lazygit]            # [tools.<절>] — 절 이름 = config.ToolConfigSection(도구 ID): git → lazygit, leet·workspace·arch·api 는 ID 그대로
 open = "auto"              # auto | pane | exec | window (그 밖 값 => auto). 모든 도구 공통 키
 # 나머지 키는 그 도구 소유: P1 [tools.lazygit] path·repo·theme_overlay, [tools.leet] lang·dir·auto_status / P4 [tools.api] …
+
+[tools.api]                # P4 API 시험 — 로컬 기록(api/history/)
+history = true             # false => 기록을 쓰지 않음
+history_max = 500          # 남길 최대 건수
+history_days = 30          # 이보다 오래된 기록은 다음 기록 때 지움
 ```
 
 ```go
@@ -2525,7 +2544,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | P1 LeetCode·lazygit | `leet.*`, `git.*` |
 | P2 작업공간 | `ws.*` |
 | P3 아키텍처 설계 | `arch.*` |
-| P4 API 시험 | `api.*` |
+| P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd`(+ `n` nonce)로 인스턴스 `api:main` 에 전달(`ui.OpenTool`). 여는 대상은 Query 개인 컬렉션 `col`·`req`(이름·요청 ID), 공유 컬렉션 `doc`·`req`(인스턴스 `api:doc:<doc_id>`, P4 Task 18·20) |
 
 - 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).
 

@@ -11,6 +11,8 @@ import { api, connectWs, makeSpace, signup } from "../helpers";
 const rtFor = (): Runtime => ({ env, waitUntil: () => {} });
 const nonce = () => crypto.randomUUID();
 const fieldsOf = (r: { body: any }) => r.body.error.details.fields;
+/** a valid api.run v1 (P4 schema, cards/api.ts) */
+const RUN3 = { collection: "c", requests: 3, passed: 3, failed: 0, time_ms: 9, failures: [], ref: {} };
 
 describe("card messages", () => {
   it("a member sends a user card: 201, kind card in the response, the event and GET", async () => {
@@ -58,7 +60,7 @@ describe("card messages", () => {
   it("card messages cannot be edited; thread replies may be cards", async () => {
     const o = await signup();
     const { generalChannelId: ch } = await makeSpace(o);
-    const card = { type: "api.result", v: 1, data: { status: 200 } };
+    const card = { type: "api.result", v: 1, data: { method: "GET", url: "/x", status: 200, time_ms: 5, size: 2, asserts: { passed: 0, total: 0 }, ref: { collection: "c", request_id: "r" } } }; // P4 schema (cards/api.ts)
     const r = await api(o.token).post<any>(`/v1/channels/${ch}/messages`, { client_nonce: nonce(), kind: "card", body: "GET /x → 200", card });
     expect(r.status).toBe(201);
     const p = await api(o.token).patch<any>(`/v1/messages/${r.body.message.id}`, { body: "changed" });
@@ -67,9 +69,9 @@ describe("card messages", () => {
     expect((await api(o.token).get<any>(`/v1/messages/${r.body.message.id}`)).body.message).toMatchObject({ body: "GET /x → 200", edited_at: null, card });
 
     const root = await api(o.token).post<any>(`/v1/channels/${ch}/messages`, { client_nonce: nonce(), body: "root" });
-    const reply = await api(o.token).post<any>(`/v1/messages/${root.body.message.id}/thread`, { client_nonce: nonce(), kind: "card", body: "▶ 3/3", card: { type: "api.run", v: 1, data: { ok: 3 } } });
+    const reply = await api(o.token).post<any>(`/v1/messages/${root.body.message.id}/thread`, { client_nonce: nonce(), kind: "card", body: "▶ 3/3", card: { type: "api.run", v: 1, data: RUN3 } });
     expect(reply.status).toBe(201);
-    expect(reply.body.message).toMatchObject({ kind: "card", thread_root_id: root.body.message.id, card: { type: "api.run", v: 1, data: { ok: 3 } } });
+    expect(reply.body.message).toMatchObject({ kind: "card", thread_root_id: root.body.message.id, card: { type: "api.run", v: 1, data: RUN3 } });
     const bad = await api(o.token).post<any>(`/v1/messages/${root.body.message.id}/thread`, { client_nonce: nonce(), kind: "card", body: "x", card: { type: "leet.solve", v: 1, data: {} } });
     expect(fieldsOf(bad)).toEqual({ "card.type": "not_allowed" });
   });

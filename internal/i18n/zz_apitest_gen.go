@@ -3,10 +3,2907 @@
 
 package i18n
 
+import "strconv"
+
 // ApitestT holds the "apitest" area messages (locales/*/apitest.toml).
 type ApitestT struct{ t *T }
 
 var areaApitest = area{
 	name: "apitest",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"big_body": {
+			desc: "응답 본문이 10MB 를 넘어 앞부분만 보일 때의 안내 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "앞 10MB 만 보여요 · 파일로 저장"},
+				En: {Other: "Showing the first 10MB · Save to a file"},
+			},
+		},
+		"binary_body": {
+			desc:   "응답이 이미지·바이너리라 글자로 그리지 않을 때(type = Content-Type, size = 사람이 읽는 크기)",
+			params: []Param{{Name: "type", Type: "string"}, {Name: "size", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "바이너리 · {type} · {size} — 파일로 저장"},
+				En: {Other: "Binary · {type} · {size} — Save to a file"},
+			},
+		},
+		"body_copied": {
+			desc: "응답 본문을 복사한 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "본문을 복사했어요"},
+				En: {Other: "Copied the body"},
+			},
+		},
+		"body_none": {
+			desc: "본문 종류: 본문 없음",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "없음"},
+				En: {Other: "none"},
+			},
+		},
+		"body_overwritten": {
+			desc:   "공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 본문을 바꿨어요 · 내 내용 복구"},
+				En: {Other: "{name} changed the body · Restore mine"},
+			},
+		},
+		"body_save_failed": {
+			desc:   "응답 본문 저장 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "저장하지 못했어요 · {err}"},
+				En: {Other: "Could not save · {err}"},
+			},
+		},
+		"body_saved": {
+			desc:       "응답 본문을 파일로 저장한 뒤 창(path = 경로, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 에 저장했어요"},
+				En: {Other: "Saved to {path}"},
+			},
+		},
+		"cancel": {
+			desc: "창의 선택지: 취소",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
+		"card_open_hint": {
+			desc: "공유 컬렉션을 가리키는 결과 카드 아래 키 안내(방 멤버에게만)",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 공유 컬렉션에서 열기"},
+				En: {Other: "⏎ Open in the shared collection"},
+			},
+		},
+		"card_result_body": {
+			desc:   "api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)",
+			params: []Param{{Name: "method", Type: "string"}, {Name: "path", Type: "string"}, {Name: "status", Type: "int"}, {Name: "ms", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"},
+				En: {Other: "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"},
+			},
+		},
+		"card_result_meta": {
+			desc:   "api.result 카드 둘째 줄(status = 상태 코드, ms = 시간, size = 크기 문구, ok/total = 검사 통과/전체)",
+			params: []Param{{Name: "status", Type: "int"}, {Name: "ms", Type: "int"}, {Name: "size", Type: "string"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{status} · {ms}ms · {size} · ✓{ok}/{total}"},
+				En: {Other: "{status} · {ms}ms · {size} · ✓{ok}/{total}"},
+			},
+		},
+		"card_run_body": {
+			desc:   "api.run 카드의 0.1.2 클라이언트용 대체 본문(name = 컬렉션 이름, n = 요청 수)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}, {Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧪 {name} 실행 · {n}개 · ✓{ok} ✕{fail} · {ms}ms"},
+				En: {Other: "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"},
+			},
+		},
+		"card_run_meta": {
+			desc:   "api.run 카드 둘째 줄(ok = 통과, fail = 실패, ms = 총 시간)",
+			params: []Param{{Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}, {Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✓{ok} ✕{fail} · {ms}ms"},
+				En: {Other: "✓{ok} ✕{fail} · {ms}ms"},
+			},
+		},
+		"card_run_title": {
+			desc:   "api.run 카드 첫 줄(name = 컬렉션 이름, n = 요청 수)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧪 {name} 실행 · {n}개"},
+				En: {Other: "🧪 {name} run · {n} requests"},
+			},
+		},
+		"cmd_env": {
+			desc: "명령 팔레트: 환경 화면",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 환경"},
+				En: {Other: "API test: environments"},
+			},
+		},
+		"cmd_history_clear": {
+			desc: "명령 팔레트: 로컬 기록 모두 지우기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 기록 모두 지우기"},
+				En: {Other: "API test: clear history"},
+			},
+		},
+		"cmd_import": {
+			desc: "명령 팔레트: curl·OpenAPI·Postman 가져오기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 가져오기"},
+				En: {Other: "API test: import"},
+			},
+		},
+		"cmd_new": {
+			desc: "명령 팔레트: 새 요청",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 새 요청"},
+				En: {Other: "API test: new request"},
+			},
+		},
+		"cmd_open": {
+			desc: "명령 팔레트: API 시험 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험 열기"},
+				En: {Other: "Open API test"},
+			},
+		},
+		"cmd_runner": {
+			desc: "명령 팔레트: 실행기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 실행기"},
+				En: {Other: "API test: runner"},
+			},
+		},
+		"cmd_send": {
+			desc: "명령 팔레트: 지금 요청 보내기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 보내기"},
+				En: {Other: "API test: send"},
+			},
+		},
+		"col_check": {
+			desc: "검사 표의 둘째 열 제목(연산과 기대값, 예: eq 201)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "검사"},
+				En: {Other: "check"},
+			},
+		},
+		"col_field": {
+			desc: "form 본문 표의 첫째 열 제목(필드 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "필드"},
+				En: {Other: "field"},
+			},
+		},
+		"col_from": {
+			desc: "추출 표의 둘째 열 제목(어디서 꺼낼지, 예: json $.token)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "가져올 곳"},
+				En: {Other: "from"},
+			},
+		},
+		"col_header": {
+			desc: "헤더 표의 첫째 열 제목(헤더 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "헤더"},
+				En: {Other: "header"},
+			},
+		},
+		"col_key": {
+			desc: "쿼리 표의 첫째 열 제목(매개변수 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "키"},
+				En: {Other: "key"},
+			},
+		},
+		"col_target": {
+			desc: "검사 표의 첫째 열 제목(status·json·header 등)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "대상"},
+				En: {Other: "target"},
+			},
+		},
+		"col_value": {
+			desc: "쿼리·헤더·form 표의 둘째 열 제목",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "값"},
+				En: {Other: "value"},
+			},
+		},
+		"col_var": {
+			desc: "추출 표의 첫째 열 제목(값을 넣을 변수 이름)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "변수"},
+				En: {Other: "variable"},
+			},
+		},
+		"default_collection": {
+			desc: "새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 요청"},
+				En: {Other: "My requests"},
+			},
+		},
+		"ed_asserts": {
+			desc:   "요청 편집 탭: 검사 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "검사 {n}"},
+				En: {Other: "Checks {n}"},
+			},
+		},
+		"ed_body": {
+			desc:   "요청 편집 탭: 본문 종류(kind = JSON·form·multipart·raw 그대로, 또는 body_none)",
+			params: []Param{{Name: "kind", Type: "string"}},
+			max:    16,
+			text: map[Locale]Forms{
+				Ko: {Other: "본문 {kind}"},
+				En: {Other: "Body {kind}"},
+			},
+		},
+		"ed_extracts": {
+			desc:   "요청 편집 탭: 추출 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "추출 {n}"},
+				En: {Other: "Extract {n}"},
+			},
+		},
+		"ed_headers": {
+			desc:   "요청 편집 탭: 헤더 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "헤더 {n}"},
+				En: {Other: "Headers {n}"},
+			},
+		},
+		"ed_query": {
+			desc:   "요청 편집 탭: 쿼리 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    12,
+			text: map[Locale]Forms{
+				Ko: {Other: "쿼리 {n}"},
+				En: {Other: "Query {n}"},
+			},
+		},
+		"ed_settings": {
+			desc: "요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "설정"},
+				En: {Other: "Settings"},
+			},
+		},
+		"env_add_prompt": {
+			desc: "변수 추가 창: 이름 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 이름 (영문·숫자·_ . -)"},
+				En: {Other: "Variable name (letters, digits, _ . -)"},
+			},
+		},
+		"env_add_title": {
+			desc: "변수 추가 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 추가"},
+				En: {Other: "Add a variable"},
+			},
+		},
+		"env_cookies": {
+			desc:   "환경 화면 쿠키 칸 제목(n = 쿠키 수, 이 PC 메모리에만 있음)",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "쿠키 {n}개 · C 지우기"},
+				En: {One: "{n} cookie · C clear", Other: "{n} cookies · C clear"},
+			},
+		},
+		"env_cookies_cleared": {
+			desc: "쿠키를 지운 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "쿠키를 지웠어요"},
+				En: {Other: "Cleared the cookies"},
+			},
+		},
+		"env_empty": {
+			desc: "환경 화면: 변수가 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수가 없어요 · a 로 추가"},
+				En: {Other: "No variables · a to add"},
+			},
+		},
+		"env_global_mark": {
+			desc: "환경 화면 변수 줄 끝: 전역 변수 표시",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "전역"},
+				En: {Other: "global"},
+			},
+		},
+		"env_hint": {
+			desc: "환경 화면 맨 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "a 추가 · ⏎ 값 · s 비밀로 · d 지우기 · esc 닫기"},
+				En: {Other: "a add · ⏎ value · s make secret · d delete · esc close"},
+			},
+		},
+		"env_hosts": {
+			desc:   "환경 화면: 비밀 변수가 갈 수 있는 호스트(hosts = 쉼표로 이은 목록)",
+			params: []Param{{Name: "hosts", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "허용 호스트 {hosts} · H 바꾸기"},
+				En: {Other: "Allowed hosts {hosts} · H change"},
+			},
+		},
+		"env_hosts_prompt": {
+			desc: "허용 호스트 창: 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 비밀 변수를 보내도 되는 호스트 이름 (쉼표로 나눔)"},
+				En: {Other: "Hosts this secret may be sent to (comma separated)"},
+			},
+		},
+		"env_hosts_title": {
+			desc: "허용 호스트 바꾸기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "허용 호스트"},
+				En: {Other: "Allowed hosts"},
+			},
+		},
+		"env_new_prompt": {
+			desc: "새 환경 창: 이름 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 이름"},
+				En: {Other: "Environment name"},
+			},
+		},
+		"env_new_title": {
+			desc: "새 환경 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "새 환경"},
+				En: {Other: "New environment"},
+			},
+		},
+		"env_none": {
+			desc: "환경을 고르지 않은 상태의 이름",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "(환경 없음)"},
+				En: {Other: "(no environment)"},
+			},
+		},
+		"env_picker": {
+			desc:   "환경 화면 둘째 줄: 고른 환경과 바꾸는 키(name = 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 ‹ {name} › · h/l 바꾸기 · N 새 환경"},
+				En: {Other: "Environment ‹ {name} › · h/l switch · N new"},
+			},
+		},
+		"env_source": {
+			desc:   "환경 화면: 고른 변수의 값 출처(src = 내 값·공유 환경·컬렉션·전역)",
+			params: []Param{{Name: "src", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "출처 {src}"},
+				En: {Other: "From {src}"},
+			},
+		},
+		"env_storage": {
+			desc:   "환경 화면 첫 줄: 비밀 값이 어디에 보관되는지(where = 키체인·이번 실행만 같은 보관 위치)",
+			params: []Param{{Name: "where", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 값 보관: {where}"},
+				En: {Other: "Secret values kept in: {where}"},
+			},
+		},
+		"env_storage_unset": {
+			desc: "환경 화면 첫 줄: 아직 비밀 값을 넣지 않아 보관 위치가 정해지지 않았을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 값 보관: 아직 넣은 값이 없어요"},
+				En: {Other: "Secret values kept in: no value yet"},
+			},
+		},
+		"env_title": {
+			desc:   "환경 화면 제목(name = 고른 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			max:    40,
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 · {name}"},
+				En: {Other: "Environment · {name}"},
+			},
+		},
+		"env_value_title": {
+			desc:   "변수 값 바꾸기 창 제목(name = 변수 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			max:    40,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 값"},
+				En: {Other: "{name} value"},
+			},
+		},
+		"err_bad_method": {
+			desc: "보내기 실패 원인: 메서드가 올바른 HTTP 토큰이 아님",
+			text: map[Locale]Forms{
+				Ko: {Other: "메서드를 확인해 주세요"},
+				En: {Other: "Check the method"},
+			},
+		},
+		"err_bad_url": {
+			desc: "보내기 실패 원인: URL 이 http·https 가 아니거나 호스트가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "URL 을 확인해 주세요 (http·https 와 호스트)"},
+				En: {Other: "Check the URL (http or https and a host)"},
+			},
+		},
+		"err_form_file": {
+			desc: "보내기 실패 원인: form 의 파일 칸이 가리키는 파일을 읽을 수 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "form 파일을 읽을 수 없어요"},
+				En: {Other: "A form file cannot be read"},
+			},
+		},
+		"err_not_found": {
+			desc: "저장·내보내기 실패 원인: 파일이나 폴더가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일이나 폴더가 없어요"},
+				En: {Other: "No such file or folder"},
+			},
+		},
+		"err_permission": {
+			desc: "저장·내보내기 실패 원인: 파일 권한 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일 권한이 없어요"},
+				En: {Other: "No permission for the file"},
+			},
+		},
+		"err_redirects": {
+			desc: "보내기 실패 원인: 리다이렉트가 설정한 최대 횟수를 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "리다이렉트가 너무 많아요"},
+				En: {Other: "Too many redirects"},
+			},
+		},
+		"err_tls": {
+			desc: "보내기 실패 원인: 서버 인증서 검사 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "서버 인증서를 확인할 수 없어요"},
+				En: {Other: "The server certificate could not be verified"},
+			},
+		},
+		"err_too_large": {
+			desc: "보내기 실패 원인: 응답 본문이 1GB 를 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "응답이 너무 커요 (최대 1GB)"},
+				En: {Other: "The response is too large (1GB at most)"},
+			},
+		},
+		"export_copied": {
+			desc: "curl 을 복사한 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl 을 복사했어요"},
+				En: {Other: "Copied the curl command"},
+			},
+		},
+		"export_curl": {
+			desc: "내보내기 선택지: curl 명령 복사({{변수}} 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl 복사 · 변수 그대로"},
+				En: {Other: "Copy curl · variables as they are"},
+			},
+		},
+		"export_curl_plain": {
+			desc: "내보내기 선택지: curl 명령 복사(비밀 아닌 변수는 값으로 채움, 비밀은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl 복사 · 비밀 아닌 변수는 값으로"},
+				En: {Other: "Copy curl · non-secret variables filled in"},
+			},
+		},
+		"export_failed": {
+			desc:   "내보내기 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내지 못했어요 · {err}"},
+				En: {Other: "Could not export · {err}"},
+			},
+		},
+		"export_path": {
+			desc: "Postman 파일로 저장: 경로 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장할 파일 경로"},
+				En: {Other: "File to save to"},
+			},
+		},
+		"export_postman": {
+			desc: "내보내기 선택지: 컬렉션을 Postman v2.1 파일로 저장",
+			text: map[Locale]Forms{
+				Ko: {Other: "컬렉션을 Postman v2.1 파일로 저장"},
+				En: {Other: "Save the collection as a Postman v2.1 file"},
+			},
+		},
+		"export_saved": {
+			desc:       "Postman 파일로 저장한 뒤 창(path = 저장한 경로, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 에 저장했어요"},
+				En: {Other: "Saved to {path}"},
+			},
+		},
+		"export_title": {
+			desc: "내보내기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내기"},
+				En: {Other: "Export"},
+			},
+		},
+		"file_changed": {
+			desc: "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일이 바뀌었어요 · 다시 읽기"},
+				En: {Other: "The file changed · Reload"},
+			},
+		},
+		"file_exists_body": {
+			desc:       "응답 본문·Postman 파일을 저장할 경로에 파일이 이미 있을 때 확인 창 본문(path = 경로, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 파일이 이미 있어요. 덮어쓸까요?"},
+				En: {Other: "{path} already exists. Overwrite it?"},
+			},
+		},
+		"file_exists_title": {
+			desc: "저장할 경로에 파일이 이미 있을 때 확인 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "같은 이름의 파일이 있어요"},
+				En: {Other: "The file exists"},
+			},
+		},
+		"find_none": {
+			desc:   "응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)",
+			params: []Param{{Name: "q", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{q}' 이(가) 없어요"},
+				En: {Other: "No '{q}'"},
+			},
+		},
+		"find_prompt": {
+			desc: "응답 본문 찾기 칸 앞 글자(/ 를 눌렀을 때)",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "찾기 "},
+				En: {Other: "Find "},
+			},
+		},
+		"held_field": {
+			desc:   "공유 전 확인 창: 걸린 칸(field = 칸 이름, 번역하지 않음)",
+			params: []Param{{Name: "field", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "칸: {field}"},
+				En: {Other: "Field: {field}"},
+			},
+		},
+		"held_title": {
+			desc: "공유로 나가기 전 비밀값을 찾았을 때의 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "올리기 전 확인"},
+				En: {Other: "Check before sharing"},
+			},
+		},
+		"help_close": {
+			desc: "도움말 창 맨 아래: 닫는 키",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 닫기"},
+				En: {Other: "esc close"},
+			},
+		},
+		"help_env": {
+			desc: "상태줄 키 안내: 환경",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "환경"},
+				En: {Other: "env"},
+			},
+		},
+		"help_help": {
+			desc: "상태줄 키 안내: 도움말",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "도움말"},
+				En: {Other: "help"},
+			},
+		},
+		"help_keys_1": {
+			desc: "도구 도움말의 키 설명 1째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 보내기 · esc 보내는 중 취소 · [ ] 칸 이동"},
+				En: {Other: "⏎ send · esc cancel sending · [ ] move between panes"},
+			},
+		},
+		"help_keys_2": {
+			desc: "도구 도움말의 키 설명 2째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "j/k 위아래 · enter 열기·편집 · n 새 요청 · ctrl+s 저장"},
+				En: {Other: "j/k up/down · enter open/edit · n new request · ctrl+s save"},
+			},
+		},
+		"help_keys_3": {
+			desc: "도구 도움말의 키 설명 3째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "1~6 요청 탭 · u 주소 편집 · m 메서드 · ctrl+v curl 붙여넣기"},
+				En: {Other: "1-6 request tabs · u edit URL · m method · ctrl+v paste curl"},
+			},
+		},
+		"help_keys_4": {
+			desc: "도구 도움말의 키 설명 4째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "e 환경 · r 실행기 · i 가져오기 · x 내보내기"},
+				En: {Other: "e environments · r runner · i import · x export"},
+			},
+		},
+		"help_keys_5": {
+			desc: "도구 도움말의 키 설명 5째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "응답: 1~4 탭 · h/l 접기·펴기 · / 찾기 · o 원문 · y 복사 · w 저장"},
+				En: {Other: "Response: 1-4 tabs · h/l fold/unfold · / find · o raw · y copy · w save"},
+			},
+		},
+		"help_runner": {
+			desc: "상태줄 키 안내: 실행기",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "실행기"},
+				En: {Other: "runner"},
+			},
+		},
+		"help_send": {
+			desc: "상태줄 키 안내: 보내기",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "보내기"},
+				En: {Other: "send"},
+			},
+		},
+		"help_tabs": {
+			desc: "상태줄 키 안내: [ ] 로 탭 이동",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "탭"},
+				En: {Other: "tabs"},
+			},
+		},
+		"help_terms": {
+			desc:       "도움말의 약관 책임 한 줄(요청은 사용자 PC 에서 나감, 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "요청은 내 PC·내 IP 에서 나가요. 대상 서비스 약관을 지킬 책임은 나에게 있어요"},
+				En: {Other: "Requests leave from my PC and my IP. Following the target service's terms is my responsibility"},
+			},
+		},
+		"help_title": {
+			desc: "도구 도움말 창의 제목",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험 도움말"},
+				En: {Other: "API test help"},
+			},
+		},
+		"history_cleared": {
+			desc: "기록을 모두 지운 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "기록을 모두 지웠어요"},
+				En: {Other: "History cleared"},
+			},
+		},
+		"host_allow": {
+			desc: "host_block 창의 선택지: 이 호스트를 허용 목록에 넣고 보내기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 호스트 허용"},
+				En: {Other: "Allow this host"},
+			},
+		},
+		"host_block": {
+			desc:       "비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)",
+			params:     []Param{{Name: "var", Type: "string"}, {Name: "host", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{var}}} 을 {host} 로 보내려 해요 · 이 호스트 허용 / 취소"},
+				En: {Other: "About to send {{{var}}} to {host} · Allow this host / Cancel"},
+			},
+		},
+		"host_block_title": {
+			desc: "host_block 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 변수 보낼 곳 확인"},
+				En: {Other: "Where a secret goes"},
+			},
+		},
+		"hub_status": {
+			desc:   "허브의 API 줄 상태: 마지막으로 연 개인 컬렉션과 환경(col = 컬렉션 이름, env = 환경 이름)",
+			params: []Param{{Name: "col", Type: "string"}, {Name: "env", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{col} (로컬) · {env}"},
+				En: {Other: "{col} (local) · {env}"},
+			},
+		},
+		"hub_status_empty": {
+			desc: "허브의 API 줄 상태: 아직 연 컬렉션이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 요청 · curl 붙여넣기"},
+				En: {Other: "New request · paste curl"},
+			},
+		},
+		"hub_status_no_env": {
+			desc:   "허브의 API 줄 상태: 환경을 고르지 않았을 때(col = 컬렉션 이름)",
+			params: []Param{{Name: "col", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{col} (로컬)"},
+				En: {Other: "{col} (local)"},
+			},
+		},
+		"import_done": {
+			desc:   "가져오기 보고: 컬렉션으로 가져온 요청 수(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 에 요청 {n}개를 가져왔어요"},
+				En: {One: "Imported {n} request into {name}", Other: "Imported {n} requests into {name}"},
+			},
+		},
+		"import_dropped": {
+			desc:   "가져오기 보고: 스크립트 말고 버린 것 목록(list = 쉼표로 이은 목록)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "버린 것: {list}"},
+				En: {Other: "Dropped: {list}"},
+			},
+		},
+		"import_env_done": {
+			desc:   "가져오기 보고: Postman 환경을 가져왔을 때(name = 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 {name} 을 가져왔어요"},
+				En: {Other: "Imported the environment {name}"},
+			},
+		},
+		"import_failed": {
+			desc:   "가져오기 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "가져오지 못했어요 · {err}"},
+				En: {Other: "Could not import · {err}"},
+			},
+		},
+		"import_ignored": {
+			desc:   "가져오기 보고: 읽지 않은 옵션·부분 목록(list = 쉼표로 이은 목록)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "읽지 않은 것: {list}"},
+				En: {Other: "Not read: {list}"},
+			},
+		},
+		"import_prompt": {
+			desc: "가져오기 창: 경로 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "가져올 파일 경로 · curl, OpenAPI JSON, Postman v2.1 컬렉션·환경"},
+				En: {Other: "File to import · curl, OpenAPI JSON, Postman v2.1 collection or environment"},
+			},
+		},
+		"import_secret_where": {
+			desc:   "가져오기 보고: 비밀값처럼 보이는 칸 목록(list = '요청 이름 · header:X-Api-Key' 꼴을 쉼표로 이은 것)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "찾은 곳: {list}"},
+				En: {Other: "Found in: {list}"},
+			},
+		},
+		"import_title": {
+			desc: "가져오기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "가져오기"},
+				En: {Other: "Import"},
+			},
+		},
+		"import_too_large": {
+			desc: "가져올 파일이 10MB 를 넘을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "10MB 가 넘는 파일은 가져올 수 없어요"},
+				En: {Other: "Files over 10MB can't be imported"},
+			},
+		},
+		"import_unknown": {
+			desc: "가져올 파일의 형식을 알 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "curl, OpenAPI JSON, Postman v2.1 형식이 아니에요"},
+				En: {Other: "Not curl, OpenAPI JSON or Postman v2.1"},
+			},
+		},
+		"kv_empty": {
+			desc: "헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "줄이 없어요 · a 로 추가"},
+				En: {Other: "No rows · a to add"},
+			},
+		},
+		"last_changed": {
+			desc:   "공유 요청 줄 옆: 마지막으로 바꾼 사람과 지난 시간(ago = '2분 전' 같은 사람이 읽는 시간)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "ago", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "마지막 변경: {name} · {ago}"},
+				En: {Other: "Last changed: {name} · {ago}"},
+			},
+		},
+		"need_bigger": {
+			desc: "창이 너무 작아 이 화면을 그릴 수 없을 때",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "창을 키워 주세요"},
+				En: {Other: "Make the window bigger"},
+			},
+		},
+		"new_request": {
+			desc: "새로 만든 요청의 기본 이름",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "새 요청"},
+				En: {Other: "New request"},
+			},
+		},
+		"no_value": {
+			desc: "환경 화면: 비밀 변수에 내 값이 아직 없을 때 값 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "값 없음(내 값 넣기)"},
+				En: {Other: "No value (set mine)"},
+			},
+		},
+		"openapi_yaml_unsupported": {
+			desc: "OpenAPI 가져오기에서 YAML 파일을 받았을 때(JSON 만 읽음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "OpenAPI YAML 은 아직 못 읽어요 · JSON 으로 바꿔 가져와 주세요"},
+				En: {Other: "OpenAPI YAML can't be read yet · Convert it to JSON and import again"},
+			},
+		},
+		"overwrite_body": {
+			desc: "밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 본문",
+			text: map[Locale]Forms{
+				Ko: {Other: "masil 밖에서 이 컬렉션 파일을 고쳤어요. 내 편집으로 덮어쓸까요?"},
+				En: {Other: "This collection's files were changed outside masil. Overwrite them with my edits?"},
+			},
+		},
+		"overwrite_title": {
+			desc: "밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "파일이 바뀌었어요"},
+				En: {Other: "The file changed"},
+			},
+		},
+		"overwrite_yes": {
+			desc: "덮어쓰기 확인 창의 단추",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "덮어쓰기"},
+				En: {Other: "Overwrite"},
+			},
+		},
+		"phases": {
+			desc:   "상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)",
+			params: []Param{{Name: "dns", Type: "int"}, {Name: "connect", Type: "int"}, {Name: "tls", Type: "int"}, {Name: "first", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "DNS {dns} · 연결 {connect} · TLS {tls} · 첫 바이트 {first}"},
+				En: {Other: "DNS {dns} · connect {connect} · TLS {tls} · first byte {first}"},
+			},
+		},
+		"private_send": {
+			desc: "private_target 창의 선택지: 이 버전은 그래도 보내기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "그래도 보내기"},
+				En: {Other: "Send anyway"},
+			},
+		},
+		"private_target": {
+			desc:       "남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 ({name}님이 마지막으로 바꿈)"},
+				En: {Other: "This request goes to an address on my PC or my network (last changed by {name})"},
+			},
+		},
+		"private_target_unknown": {
+			desc:       "private_target 와 같은 질문인데 마지막으로 바꾼 사람을 모를 때(처음 받은 문서·오프라인 사본·카드로 연 문서)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 (누가 마지막으로 바꿨는지 몰라요)"},
+				En: {Other: "This request goes to an address on my PC or my network (who changed it last is not known)"},
+			},
+		},
+		"private_title": {
+			desc: "private_target 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 PC·내 네트워크로 가는 요청"},
+				En: {Other: "Request to my PC or network"},
+			},
+		},
+		"redirect_blocked": {
+			desc:   "비밀 변수가 허용 목록 밖 호스트로 가지 않게 리다이렉트를 멈췄을 때의 토스트(var = 변수 이름, host = 호스트)",
+			params: []Param{{Name: "var", Type: "string"}, {Name: "host", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{var}}} 때문에 {host} 로의 리다이렉트를 멈췄어요"},
+				En: {Other: "Stopped the redirect to {host} because of {{{var}}}"},
+			},
+		},
+		"reject_body_too_large": {
+			desc: "서버가 너무 큰 요청 본문 편집을 거절했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "본문이 너무 커서 공유되지 않았어요"},
+				En: {Other: "The body is too large to share"},
+			},
+		},
+		"reject_invalid_op": {
+			desc: "서버가 공유 컬렉션 편집을 모양이 틀렸다고 거절했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "서버가 이 편집을 받지 않았어요"},
+				En: {Other: "The server didn't accept this edit"},
+			},
+		},
+		"reject_limit_requests": {
+			desc: "공유 컬렉션의 요청이 1,000개를 넘어 거절됐을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청이 1,000개를 넘어 공유되지 않았어요"},
+				En: {Other: "Over 1,000 requests, not shared"},
+			},
+		},
+		"reject_locked": {
+			desc: "잠긴 공유 컬렉션을 고치려 했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "잠긴 컬렉션이라 고칠 수 없어요"},
+				En: {Other: "The collection is locked"},
+			},
+		},
+		"reject_other": {
+			desc:   "그 밖의 이유로 편집이 거절됐을 때의 토스트(code = 서버 코드, 번역하지 않음)",
+			params: []Param{{Name: "code", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "편집이 반영되지 않았어요 ({code})"},
+				En: {Other: "The edit wasn't applied ({code})"},
+			},
+		},
+		"reject_secret_value": {
+			desc: "비밀 변수에 값이 실려 서버가 거절했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 변수의 값은 공유되지 않아요"},
+				En: {Other: "A secret variable's value is never shared"},
+			},
+		},
+		"reject_too_large": {
+			desc: "공유 컬렉션 문서·필드가 너무 커서 거절됐을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션이 너무 커서 편집이 반영되지 않았어요"},
+				En: {Other: "The shared collection is too large for this edit"},
+			},
+		},
+		"report_close": {
+			desc: "보고 창 맨 아래: 닫는 키",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 닫기"},
+				En: {Other: "esc close"},
+			},
+		},
+		"resp_body": {
+			desc: "응답 탭: 본문",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "본문"},
+				En: {Other: "Body"},
+			},
+		},
+		"resp_checks": {
+			desc:   "응답 탭: 검사 결과(ok = 통과, total = 전체)",
+			params: []Param{{Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
+			max:    20,
+			text: map[Locale]Forms{
+				Ko: {Other: "검사 {ok}/{total}"},
+				En: {Other: "Checks {ok}/{total}"},
+			},
+		},
+		"resp_empty": {
+			desc: "응답이 아직 없을 때 응답 칸의 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 로 보내면 응답이 여기에 보여요"},
+				En: {Other: "Press ⏎ to send; the response shows here"},
+			},
+		},
+		"resp_headers": {
+			desc:   "응답 탭: 헤더 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "헤더 {n}"},
+				En: {Other: "Headers {n}"},
+			},
+		},
+		"resp_raw": {
+			desc: "응답 탭: 원문(상태 줄·헤더·본문 그대로)",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "원문"},
+				En: {Other: "Raw"},
+			},
+		},
+		"restore_mine": {
+			desc: "본문이 덮어써졌을 때 창의 선택지: 내 내용을 새 편집으로 되살리기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 내용 복구"},
+				En: {Other: "Restore mine"},
+			},
+		},
+		"restored_mine": {
+			desc: "내 본문을 되살린 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "내 내용으로 되돌렸어요"},
+				En: {Other: "Restored your version"},
+			},
+		},
+		"run_bad_iterations": {
+			desc: "반복 횟수가 1~1000 밖일 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "반복은 1~1000번이에요"},
+				En: {Other: "Iterations are 1 to 1000"},
+			},
+		},
+		"run_delay": {
+			desc:   "실행기 창: 요청 사이 대기 줄(ms = 밀리초)",
+			params: []Param{{Name: "ms", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 사이 대기 {ms}ms"},
+				En: {Other: "Delay between requests {ms}ms"},
+			},
+		},
+		"run_done_hint": {
+			desc: "실행이 끝난 뒤 진행 표 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 실패한 줄의 응답 열기 · s 카드로 공유 · esc 닫기"},
+				En: {Other: "⏎ Open a failed row's response · s Share as card · esc Close"},
+			},
+		},
+		"run_env": {
+			desc:   "실행기 창: 환경 고르기 줄(name = 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 ‹ {name} › · h/l"},
+				En: {Other: "Environment ‹ {name} › · h/l"},
+			},
+		},
+		"run_failed_net": {
+			desc:   "실행기 표에서 응답 없이 실패한 줄의 상태 칸(reason = 실패 이유 코드)",
+			params: []Param{{Name: "reason", Type: "string"}},
+			max:    16,
+			text: map[Locale]Forms{
+				Ko: {Other: "실패 {reason}"},
+				En: {Other: "failed {reason}"},
+			},
+		},
+		"run_hosts_body": {
+			desc:       "공유 컬렉션 실행 전 호스트 목록 창 본문(줄여 쓰지 않음)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "동료가 바꾼 요청이 있을 수 있어요. 이번 실행은 아래 호스트로 요청을 보내요:"},
+				En: {Other: "A teammate may have changed requests. This run sends requests to these hosts:"},
+			},
+		},
+		"run_hosts_title": {
+			desc: "공유 컬렉션 실행 전 호스트 목록 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "이번 실행이 보낼 곳"},
+				En: {Other: "Where this run sends"},
+			},
+		},
+		"run_iterations": {
+			desc:   "실행기 창: 반복 횟수 줄(n = 횟수, 최대 1,000)",
+			params: []Param{{Name: "n", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "반복 {n}번 (최대 1000)"},
+				En: {Other: "Iterations {n} (at most 1000)"},
+			},
+		},
+		"run_progress": {
+			desc:   "실행기 진행 표 머리 줄(i = 끝난 요청, n = 전체, ok = 통과, fail = 실패)",
+			params: []Param{{Name: "i", Type: "int"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "실행 {i}/{n} · 통과 {ok} · 실패 {fail}"},
+				En: {Other: "Run {i}/{n} · passed {ok} · failed {fail}"},
+			},
+		},
+		"run_progress_short": {
+			desc:   "초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)",
+			params: []Param{{Name: "i", Type: "int"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}},
+			max:    24,
+			text: map[Locale]Forms{
+				Ko: {Other: "실행 {i}/{n} ✓{ok} ✕{fail}"},
+				En: {Other: "Run {i}/{n} ✓{ok} ✕{fail}"},
+			},
+		},
+		"run_resp_not_kept": {
+			desc:   "실행기 진행 표에서 응답을 남기지 않은 실패 줄에 enter 를 눌렀을 때 토스트(n = 응답을 남기는 실패 줄 수)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    36,
+			text: map[Locale]Forms{
+				Ko: {Other: "실패 줄 응답은 앞 {n}개만 남겨요"},
+				En: {Other: "Response not kept (first {n} only)"},
+			},
+		},
+		"run_running_hint": {
+			desc: "실행 중 진행 표 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 실행 멈춤"},
+				En: {Other: "esc stop the run"},
+			},
+		},
+		"run_start": {
+			desc: "실행기 창의 시작 단추",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "[실행 ⏎]"},
+				En: {Other: "[Run ⏎]"},
+			},
+		},
+		"run_stop_on_fail": {
+			desc:   "실행기 창: 실패 시 멈춤 줄(state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "실패 시 멈춤 {state} · space"},
+				En: {Other: "Stop on failure {state} · space"},
+			},
+		},
+		"run_target": {
+			desc:   "실행기 창: 돌릴 범위(name = 컬렉션 또는 폴더 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "범위 {name}"},
+				En: {Other: "Scope {name}"},
+			},
+		},
+		"run_title": {
+			desc: "실행기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "실행기"},
+				En: {Other: "Runner"},
+			},
+		},
+		"save_body_path": {
+			desc: "응답 본문 저장 창: 경로 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장할 파일 경로 (이 PC 에만, 나만 읽기)"},
+				En: {Other: "File to save to (this PC only, readable by me)"},
+			},
+		},
+		"save_body_title": {
+			desc: "응답 본문을 파일로 저장하는 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "본문 저장"},
+				En: {Other: "Save the body"},
+			},
+		},
+		"save_failed": {
+			desc:   "개인 컬렉션 저장 실패(err = 원인)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "저장하지 못했어요 · {err}"},
+				En: {Other: "Could not save · {err}"},
+			},
+		},
+		"save_first": {
+			desc: "저장 안 한 새 요청으로 컬렉션 내보내기를 고를 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "먼저 ctrl+s 로 저장해 주세요"},
+				En: {Other: "Save it first with ctrl+s"},
+			},
+		},
+		"saved": {
+			desc:   "요청을 개인 컬렉션에 저장한 뒤 토스트(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 에 저장했어요"},
+				En: {Other: "Saved to {name}"},
+			},
+		},
+		"scripts_dropped": {
+			desc:   "Postman 가져오기: 버린 스크립트(사전 요청·테스트) 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "스크립트 {n}개는 가져오지 않았어요"},
+				En: {One: "{n} script was not imported", Other: "{n} scripts were not imported"},
+			},
+		},
+		"secret_bad_name": {
+			desc: "변수 이름에 쓸 수 없는 글자가 있을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 이름은 영문·숫자·_ . - 만 써요"},
+				En: {Other: "Variable names use letters, digits, _ . - only"},
+			},
+		},
+		"secret_detected": {
+			desc:       "공유로 올라갈 칸에서 비밀값처럼 보이는 글자를 찾았을 때의 안내(줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀값처럼 보여요 → 변수로 바꾸기"},
+				En: {Other: "Looks like a secret → Make it a variable"},
+			},
+		},
+		"secret_keep": {
+			desc: "secret_detected 창의 선택지: 붙여넣은 그대로 두기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "그대로 두기"},
+				En: {Other: "Keep as is"},
+			},
+		},
+		"secret_label": {
+			desc:   "비밀 값 입력 창 안내(name = 변수 이름, 앞뒤 {{ }} 가 붙음)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{name}}} 의 값 (화면에 보이지 않아요)"},
+				En: {Other: "Value of {{{name}}} (not shown on screen)"},
+			},
+		},
+		"secret_name": {
+			desc: "secret_detected 창: 아래 칸에 넣을 변수 이름 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 이름 (값은 이 PC 의 비밀 보관소에만)"},
+				En: {Other: "Variable name (the value stays in this PC's secret store)"},
+			},
+		},
+		"secret_saved": {
+			desc:   "비밀값을 변수로 바꾸고 보관소에 넣은 뒤 토스트(name = 변수 이름, where = 보관 위치)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "where", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{name}}} 로 바꿨어요 · 값은 {where}"},
+				En: {Other: "Replaced with {{{name}}} · the value is in {where}"},
+			},
+		},
+		"secret_title": {
+			desc: "secret_detected 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀값 발견"},
+				En: {Other: "Secret found"},
+			},
+		},
+		"secret_to_var": {
+			desc: "secret_detected 창의 선택지: 변수로 바꾸기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "변수로 바꾸기"},
+				En: {Other: "Make it a variable"},
+			},
+		},
+		"send_button": {
+			desc: "요청 줄 오른쪽의 보내기 단추",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "[보내기 ⏎]"},
+				En: {Other: "[Send ⏎]"},
+			},
+		},
+		"send_canceled": {
+			desc: "보내는 중 esc 로 취소했을 때 응답 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "보내기를 취소했어요"},
+				En: {Other: "Send canceled"},
+			},
+		},
+		"send_failed": {
+			desc:   "연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인 문장: errtext.Describe 또는 err_* 키)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "보내지 못했어요 · {err}"},
+				En: {Other: "Could not send · {err}"},
+			},
+		},
+		"send_timeout": {
+			desc: "요청 타임아웃이 지났을 때 응답 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간이 다 됐어요 · 설정 탭에서 타임아웃 늘리기"},
+				En: {Other: "Timed out · raise the timeout in the Settings tab"},
+			},
+		},
+		"sending": {
+			desc: "요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "보내는 중… esc 취소"},
+				En: {Other: "Sending… esc to cancel"},
+			},
+		},
+		"set_follow": {
+			desc:   "요청 설정 줄: 리다이렉트 따라가기(state = on/off 문구)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "리다이렉트 따라가기 {state} · space 바꾸기"},
+				En: {Other: "Follow redirects {state} · space toggle"},
+			},
+		},
+		"set_max": {
+			desc:   "요청 설정 줄: 리다이렉트 최대 횟수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "리다이렉트 최대 {n}번 · ⏎ 바꾸기"},
+				En: {Other: "Redirects at most {n} · ⏎ change"},
+			},
+		},
+		"set_timeout": {
+			desc:   "요청 설정 줄: 타임아웃(ms = 밀리초)",
+			params: []Param{{Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "타임아웃 {ms}ms · ⏎ 바꾸기"},
+				En: {Other: "Timeout {ms}ms · ⏎ change"},
+			},
+		},
+		"set_tls": {
+			desc:   "요청 설정 줄: TLS 인증서 검사(state = on/off 문구)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "TLS 인증서 검사 {state} · space 바꾸기"},
+				En: {Other: "TLS certificate check {state} · space toggle"},
+			},
+		},
+		"share_failed": {
+			desc:   "카드 보내기 실패 토스트(err = 이유)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보내지 못했어요 · {err}"},
+				En: {Other: "Couldn't send the card · {err}"},
+			},
+		},
+		"share_no_channel": {
+			desc: "카드를 보낼 채널이 하나도 없을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보낼 채널이 없어요"},
+				En: {Other: "No channel to send the card to"},
+			},
+		},
+		"share_opt_body": {
+			desc:   "결과 카드 선택지: 응답 본문 앞 20줄 넣기(state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "응답 본문 앞 20줄 넣기 · {state}"},
+				En: {Other: "Include the first 20 body lines · {state}"},
+			},
+		},
+		"share_opt_headers": {
+			desc:   "결과 카드 선택지: 보낸 요청 헤더 넣기(민감한 값은 •••, state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 헤더 넣기 · {state}"},
+				En: {Other: "Include request headers · {state}"},
+			},
+		},
+		"share_opt_host": {
+			desc:   "결과 카드 선택지: URL 의 비밀이 아닌 변수 치환(state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "호스트 보이기 · {state}"},
+				En: {Other: "Show host · {state}"},
+			},
+		},
+		"share_pick": {
+			desc:       "결과 카드 미리보기 창 안내: 위 미리보기가 올라갈 내용 그대로임(가린 값은 •••)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "위 내용 그대로 올라가요(가린 값은 •••). 보낼 채널을 고르세요."},
+				En: {Other: "This is exactly what will be posted (hidden values show •••). Pick a channel."},
+			},
+		},
+		"share_sent": {
+			desc:   "카드를 보낸 뒤의 토스트(channel = 채널 이름)",
+			params: []Param{{Name: "channel", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보냈어요 · {channel}"},
+				En: {Other: "Card sent · {channel}"},
+			},
+		},
+		"share_title": {
+			desc: "결과 카드 미리보기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "카드로 공유"},
+				En: {Other: "Share as card"},
+			},
+		},
+		"shared_kicked": {
+			desc:   "공유 컬렉션에서 내보내졌거나 문서가 지워져 닫았을 때의 토스트(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션을 더 볼 수 없어요 · {name}"},
+				En: {Other: "You can no longer see this shared collection · {name}"},
+			},
+		},
+		"shared_too_large": {
+			desc: "공유 컬렉션 한도(요청 1,000개 · 본문 64KB · 전체 2MB)를 넘어 동기화하지 않았을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션 한도를 넘어 올리지 않았어요 (요청 1,000개 · 본문 64KB · 전체 2MB)"},
+				En: {Other: "Over the shared collection limits, not shared (1,000 requests · 64KB body · 2MB total)"},
+			},
+		},
+		"src_collection": {
+			desc: "변수 값 출처: 컬렉션 변수",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "컬렉션"},
+				En: {Other: "collection"},
+			},
+		},
+		"src_dynamic": {
+			desc: "변수 값 출처: {{$uuid}} 같은 동적 변수",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "동적"},
+				En: {Other: "dynamic"},
+			},
+		},
+		"src_global": {
+			desc: "변수 값 출처: 내 전역 변수",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "전역"},
+				En: {Other: "global"},
+			},
+		},
+		"src_mine": {
+			desc: "변수 값 출처: 내 값(개인 환경·공유 컬렉션의 내 값)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 값"},
+				En: {Other: "my value"},
+			},
+		},
+		"src_shared": {
+			desc: "변수 값 출처: 공유 컬렉션의 환경",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 환경"},
+				En: {Other: "shared env"},
+			},
+		},
+		"src_temp": {
+			desc: "변수 값 출처: 요청의 임시 값",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "임시 값"},
+				En: {Other: "temporary"},
+			},
+		},
+		"state_off": {
+			desc: "설정 값: 끔",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "끔"},
+				En: {Other: "off"},
+			},
+		},
+		"state_on": {
+			desc: "설정 값: 켬",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "켬"},
+				En: {Other: "on"},
+			},
+		},
+		"status_line": {
+			desc:   "응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면",
+			params: []Param{{Name: "status", Type: "int"}, {Name: "text", Type: "string"}, {Name: "ms", Type: "int"}, {Name: "phases", Type: "string"}, {Name: "size", Type: "string"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}, {Name: "mark", Type: "string"}},
+			max:    60,
+			text: map[Locale]Forms{
+				Ko: {Other: "{status} {text} · {ms}ms ({phases}) · {size} · 검사 {ok}/{total} {mark}", Short: "{status} · {ms}ms · ✓{ok}/{total}"},
+				En: {Other: "{status} {text} · {ms}ms ({phases}) · {size} · checks {ok}/{total} {mark}", Short: "{status} · {ms}ms · ✓{ok}/{total}"},
+			},
+		},
+		"tab_list": {
+			desc: "좁은 화면의 탭: 컬렉션 나무와 기록",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "목록"},
+				En: {Other: "List"},
+			},
+		},
+		"tab_request": {
+			desc: "좁은 화면의 탭: 요청 편집",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "요청"},
+				En: {Other: "Request"},
+			},
+		},
+		"tab_response": {
+			desc: "좁은 화면의 탭: 응답 보기",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "응답"},
+				En: {Other: "Response"},
+			},
+		},
+		"tiny_hint": {
+			desc: "초소형 화면 셋째 줄의 키 안내",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 다시 보내기 · r 실행"},
+				En: {Other: "⏎ resend · r run"},
+			},
+		},
+		"tls_off_warning": {
+			desc:       "TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "⚠ 인증서 검사 끔"},
+				En: {Other: "⚠ Certificate check off"},
+			},
+		},
+		"tool_login_account": {
+			desc:   "설정 도구 로그인 줄: 이 PC 에 값을 넣은 API 비밀 변수 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 변수 {n}개"},
+				En: {One: "{n} secret variable", Other: "{n} secret variables"},
+			},
+		},
+		"tool_name": {
+			desc: "도구 이름(허브 줄·팔레트·탭 제목·설정 도구 로그인 줄)",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험"},
+				En: {Other: "API test"},
+			},
+		},
+		"tree_count": {
+			desc:   "JSON 나무에서 접힌 객체·배열 옆의 자식 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			max:    12,
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}개"},
+				En: {One: "{n} item", Other: "{n} items"},
+			},
+		},
+		"tree_empty": {
+			desc: "개인 컬렉션이 하나도 없을 때 나무 안의 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "컬렉션이 없어요 · n 새 요청 · i 가져오기"},
+				En: {Other: "No collections · n new request · i import"},
+			},
+		},
+		"tree_history": {
+			desc: "나무 아래 최근 기록 묶음의 머리(양옆에 ─ 줄)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "기록"},
+				En: {Other: "History"},
+			},
+		},
+		"tree_local": {
+			desc: "나무의 개인 컬렉션 묶음 머리",
+			max:  22,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 컬렉션 (로컬)"},
+				En: {Other: "My collections (local)"},
+			},
+		},
+		"tree_shared": {
+			desc:   "왼쪽 나무: 방에 올린 공유 컬렉션 줄(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} (공유)"},
+				En: {Other: "{name} (shared)"},
+			},
+		},
+		"undefined_var": {
+			desc:   "보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{name}}} 값이 없어요 · e 환경에서 넣기"},
+				En: {Other: "{{{name}}} has no value · set it in e Environments"},
+			},
+		},
+		"upload_anyway": {
+			desc: "공유 전 확인 창의 선택지: 탐지를 무시하고 그대로 올리기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "그래도 올리기"},
+				En: {Other: "Share anyway"},
+			},
+		},
+		"upload_done": {
+			desc:   "공유 컬렉션을 만든 뒤 토스트(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올렸어요 · {name}"},
+				En: {Other: "Shared to the room · {name}"},
+			},
+		},
+		"upload_failed": {
+			desc:   "방에 올리기가 실패했을 때의 토스트(err = 오류 문장)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "올리지 못했어요 · {err}"},
+				En: {Other: "Couldn't share · {err}"},
+			},
+		},
+		"upload_no_space": {
+			desc: "올릴 방이 하나도 없을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방이 없어요"},
+				En: {Other: "No room to share to"},
+			},
+		},
+		"upload_pick": {
+			desc: "'방에 올리기' 창: 아래 목록에서 방을 고르라는 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방을 고르세요"},
+				En: {Other: "Pick the room to share to"},
+			},
+		},
+		"upload_plaintext_note": {
+			desc:       "'방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션의 정의(URL·헤더 이름·비밀이 아닌 값·본문 예시)는 masil 서버에 평문으로 저장되고 방 멤버와 운영자가 볼 수 있어요"},
+				En: {Other: "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"},
+			},
+		},
+		"upload_title": {
+			desc: "'방에 올리기' 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올리기"},
+				En: {Other: "Share to a room"},
+			},
+		},
+		"version_auto": {
+			desc: "자동으로 만든 버전의 만든 사람 칸",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "자동"},
+				En: {Other: "auto"},
+			},
+		},
+		"version_preview": {
+			desc:   "버전 미리보기(no = 버전 번호, n = 요청 수)",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#{no} · 요청 {n}개"},
+				En: {Other: "#{no} · {n} requests"},
+			},
+		},
+		"version_restore": {
+			desc: "버전 미리보기 창의 선택지: 이 버전으로 되돌리기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 버전으로 되돌리기"},
+				En: {Other: "Restore this version"},
+			},
+		},
+		"version_restored": {
+			desc:   "되돌린 뒤 토스트(no = 새로 생긴 버전 번호)",
+			params: []Param{{Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "되돌렸어요 · 새 버전 #{no}"},
+				En: {Other: "Restored · new version #{no}"},
+			},
+		},
+		"version_restored_row": {
+			desc:   "되돌리기로 생긴 버전 줄(from = 되돌린 버전 번호)",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "from", Type: "int"}, {Name: "when", Type: "string"}, {Name: "who", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#{no} · #{from} 로 되돌림 · {when} · {who}"},
+				En: {Other: "#{no} · restored #{from} · {when} · {who}"},
+			},
+		},
+		"version_row": {
+			desc:   "버전 목록 한 줄(no = 버전 번호, when = 시각, who = 만든 사람 또는 '자동')",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "when", Type: "string"}, {Name: "who", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#{no} · {when} · {who}"},
+				En: {Other: "#{no} · {when} · {who}"},
+			},
+		},
+		"versions_empty": {
+			desc: "공유 컬렉션에 저장된 버전이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장된 버전이 없어요"},
+				En: {Other: "No saved versions"},
+			},
+		},
+		"versions_failed": {
+			desc:   "버전 목록·내용을 읽지 못했을 때의 토스트(err = 오류 문장)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "버전을 읽지 못했어요 · {err}"},
+				En: {Other: "Couldn't read the versions · {err}"},
+			},
+		},
+		"versions_title": {
+			desc:   "공유 컬렉션 버전 창 제목(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 · {name}"},
+				En: {Other: "Versions · {name}"},
+			},
+		},
+	},
+}
+
+// BigBody: 응답 본문이 10MB 를 넘어 앞부분만 보일 때의 안내 줄
+func (a_ ApitestT) BigBody() string {
+	return a_.t.render(&areaApitest, "big_body", false, 0)
+}
+
+// BinaryBody: 응답이 이미지·바이너리라 글자로 그리지 않을 때(type = Content-Type, size = 사람이 읽는 크기)
+func (a_ ApitestT) BinaryBody(typeArg string, size string) string {
+	return a_.t.render(&areaApitest, "binary_body", false, 0, "type", typeArg, "size", size)
+}
+
+// BodyCopied: 응답 본문을 복사한 뒤 토스트
+func (a_ ApitestT) BodyCopied() string {
+	return a_.t.render(&areaApitest, "body_copied", false, 0)
+}
+
+// BodyNone: 본문 종류: 본문 없음
+func (a_ ApitestT) BodyNone() string {
+	return a_.t.render(&areaApitest, "body_none", false, 0)
+}
+
+// BodyOverwritten: 공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)
+func (a_ ApitestT) BodyOverwritten(name string) string {
+	return a_.t.render(&areaApitest, "body_overwritten", false, 0, "name", name)
+}
+
+// BodySaveFailed: 응답 본문 저장 실패(err = 원인)
+func (a_ ApitestT) BodySaveFailed(err string) string {
+	return a_.t.render(&areaApitest, "body_save_failed", false, 0, "err", err)
+}
+
+// BodySaved: 응답 본문을 파일로 저장한 뒤 창(path = 경로, 줄여 쓰지 않음)
+func (a_ ApitestT) BodySaved(path string) string {
+	return a_.t.render(&areaApitest, "body_saved", false, 0, "path", path)
+}
+
+// Cancel: 창의 선택지: 취소
+func (a_ ApitestT) Cancel() string {
+	return a_.t.render(&areaApitest, "cancel", false, 0)
+}
+
+// CardOpenHint: 공유 컬렉션을 가리키는 결과 카드 아래 키 안내(방 멤버에게만)
+func (a_ ApitestT) CardOpenHint() string {
+	return a_.t.render(&areaApitest, "card_open_hint", false, 0)
+}
+
+// CardResultBody: api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)
+func (a_ ApitestT) CardResultBody(method string, path string, status int, ms int, ok int, total int) string {
+	return a_.t.render(&areaApitest, "card_result_body", false, 0, "method", method, "path", path, "status", strconv.Itoa(status), "ms", strconv.Itoa(ms), "ok", strconv.Itoa(ok), "total", strconv.Itoa(total))
+}
+
+// CardResultMeta: api.result 카드 둘째 줄(status = 상태 코드, ms = 시간, size = 크기 문구, ok/total = 검사 통과/전체)
+func (a_ ApitestT) CardResultMeta(status int, ms int, size string, ok int, total int) string {
+	return a_.t.render(&areaApitest, "card_result_meta", false, 0, "status", strconv.Itoa(status), "ms", strconv.Itoa(ms), "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total))
+}
+
+// CardRunBody: api.run 카드의 0.1.2 클라이언트용 대체 본문(name = 컬렉션 이름, n = 요청 수)
+func (a_ ApitestT) CardRunBody(name string, n int, ok int, fail int, ms int) string {
+	return a_.t.render(&areaApitest, "card_run_body", false, 0, "name", name, "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail), "ms", strconv.Itoa(ms))
+}
+
+// CardRunMeta: api.run 카드 둘째 줄(ok = 통과, fail = 실패, ms = 총 시간)
+func (a_ ApitestT) CardRunMeta(ok int, fail int, ms int) string {
+	return a_.t.render(&areaApitest, "card_run_meta", false, 0, "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail), "ms", strconv.Itoa(ms))
+}
+
+// CardRunTitle: api.run 카드 첫 줄(name = 컬렉션 이름, n = 요청 수)
+func (a_ ApitestT) CardRunTitle(name string, n int) string {
+	return a_.t.render(&areaApitest, "card_run_title", false, 0, "name", name, "n", strconv.Itoa(n))
+}
+
+// CmdEnv: 명령 팔레트: 환경 화면
+func (a_ ApitestT) CmdEnv() string {
+	return a_.t.render(&areaApitest, "cmd_env", false, 0)
+}
+
+// CmdHistoryClear: 명령 팔레트: 로컬 기록 모두 지우기
+func (a_ ApitestT) CmdHistoryClear() string {
+	return a_.t.render(&areaApitest, "cmd_history_clear", false, 0)
+}
+
+// CmdImport: 명령 팔레트: curl·OpenAPI·Postman 가져오기
+func (a_ ApitestT) CmdImport() string {
+	return a_.t.render(&areaApitest, "cmd_import", false, 0)
+}
+
+// CmdNew: 명령 팔레트: 새 요청
+func (a_ ApitestT) CmdNew() string {
+	return a_.t.render(&areaApitest, "cmd_new", false, 0)
+}
+
+// CmdOpen: 명령 팔레트: API 시험 열기
+func (a_ ApitestT) CmdOpen() string {
+	return a_.t.render(&areaApitest, "cmd_open", false, 0)
+}
+
+// CmdRunner: 명령 팔레트: 실행기
+func (a_ ApitestT) CmdRunner() string {
+	return a_.t.render(&areaApitest, "cmd_runner", false, 0)
+}
+
+// CmdSend: 명령 팔레트: 지금 요청 보내기
+func (a_ ApitestT) CmdSend() string {
+	return a_.t.render(&areaApitest, "cmd_send", false, 0)
+}
+
+// ColCheck: 검사 표의 둘째 열 제목(연산과 기대값, 예: eq 201)
+func (a_ ApitestT) ColCheck() string {
+	return a_.t.render(&areaApitest, "col_check", false, 0)
+}
+
+// ColField: form 본문 표의 첫째 열 제목(필드 이름)
+func (a_ ApitestT) ColField() string {
+	return a_.t.render(&areaApitest, "col_field", false, 0)
+}
+
+// ColFrom: 추출 표의 둘째 열 제목(어디서 꺼낼지, 예: json $.token)
+func (a_ ApitestT) ColFrom() string {
+	return a_.t.render(&areaApitest, "col_from", false, 0)
+}
+
+// ColHeader: 헤더 표의 첫째 열 제목(헤더 이름)
+func (a_ ApitestT) ColHeader() string {
+	return a_.t.render(&areaApitest, "col_header", false, 0)
+}
+
+// ColKey: 쿼리 표의 첫째 열 제목(매개변수 이름)
+func (a_ ApitestT) ColKey() string {
+	return a_.t.render(&areaApitest, "col_key", false, 0)
+}
+
+// ColTarget: 검사 표의 첫째 열 제목(status·json·header 등)
+func (a_ ApitestT) ColTarget() string {
+	return a_.t.render(&areaApitest, "col_target", false, 0)
+}
+
+// ColValue: 쿼리·헤더·form 표의 둘째 열 제목
+func (a_ ApitestT) ColValue() string {
+	return a_.t.render(&areaApitest, "col_value", false, 0)
+}
+
+// ColVar: 추출 표의 첫째 열 제목(값을 넣을 변수 이름)
+func (a_ ApitestT) ColVar() string {
+	return a_.t.render(&areaApitest, "col_var", false, 0)
+}
+
+// DefaultCollection: 새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)
+func (a_ ApitestT) DefaultCollection() string {
+	return a_.t.render(&areaApitest, "default_collection", false, 0)
+}
+
+// EdAsserts: 요청 편집 탭: 검사 줄 수(n)
+func (a_ ApitestT) EdAsserts(n int) string {
+	return a_.t.render(&areaApitest, "ed_asserts", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdBody: 요청 편집 탭: 본문 종류(kind = JSON·form·multipart·raw 그대로, 또는 body_none)
+func (a_ ApitestT) EdBody(kind string) string {
+	return a_.t.render(&areaApitest, "ed_body", false, 0, "kind", kind)
+}
+
+// EdExtracts: 요청 편집 탭: 추출 줄 수(n)
+func (a_ ApitestT) EdExtracts(n int) string {
+	return a_.t.render(&areaApitest, "ed_extracts", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdHeaders: 요청 편집 탭: 헤더 줄 수(n)
+func (a_ ApitestT) EdHeaders(n int) string {
+	return a_.t.render(&areaApitest, "ed_headers", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdQuery: 요청 편집 탭: 쿼리 줄 수(n)
+func (a_ ApitestT) EdQuery(n int) string {
+	return a_.t.render(&areaApitest, "ed_query", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdSettings: 요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)
+func (a_ ApitestT) EdSettings() string {
+	return a_.t.render(&areaApitest, "ed_settings", false, 0)
+}
+
+// EnvAddPrompt: 변수 추가 창: 이름 칸 위 안내
+func (a_ ApitestT) EnvAddPrompt() string {
+	return a_.t.render(&areaApitest, "env_add_prompt", false, 0)
+}
+
+// EnvAddTitle: 변수 추가 창 제목
+func (a_ ApitestT) EnvAddTitle() string {
+	return a_.t.render(&areaApitest, "env_add_title", false, 0)
+}
+
+// EnvCookies: 환경 화면 쿠키 칸 제목(n = 쿠키 수, 이 PC 메모리에만 있음)
+func (a_ ApitestT) EnvCookies(n int) string {
+	return a_.t.render(&areaApitest, "env_cookies", false, n, "n", strconv.Itoa(n))
+}
+
+// EnvCookiesCleared: 쿠키를 지운 뒤 토스트
+func (a_ ApitestT) EnvCookiesCleared() string {
+	return a_.t.render(&areaApitest, "env_cookies_cleared", false, 0)
+}
+
+// EnvEmpty: 환경 화면: 변수가 하나도 없을 때
+func (a_ ApitestT) EnvEmpty() string {
+	return a_.t.render(&areaApitest, "env_empty", false, 0)
+}
+
+// EnvGlobalMark: 환경 화면 변수 줄 끝: 전역 변수 표시
+func (a_ ApitestT) EnvGlobalMark() string {
+	return a_.t.render(&areaApitest, "env_global_mark", false, 0)
+}
+
+// EnvHint: 환경 화면 맨 아래 키 안내
+func (a_ ApitestT) EnvHint() string {
+	return a_.t.render(&areaApitest, "env_hint", false, 0)
+}
+
+// EnvHosts: 환경 화면: 비밀 변수가 갈 수 있는 호스트(hosts = 쉼표로 이은 목록)
+func (a_ ApitestT) EnvHosts(hosts string) string {
+	return a_.t.render(&areaApitest, "env_hosts", false, 0, "hosts", hosts)
+}
+
+// EnvHostsPrompt: 허용 호스트 창: 칸 위 안내
+func (a_ ApitestT) EnvHostsPrompt() string {
+	return a_.t.render(&areaApitest, "env_hosts_prompt", false, 0)
+}
+
+// EnvHostsTitle: 허용 호스트 바꾸기 창 제목
+func (a_ ApitestT) EnvHostsTitle() string {
+	return a_.t.render(&areaApitest, "env_hosts_title", false, 0)
+}
+
+// EnvNewPrompt: 새 환경 창: 이름 칸 위 안내
+func (a_ ApitestT) EnvNewPrompt() string {
+	return a_.t.render(&areaApitest, "env_new_prompt", false, 0)
+}
+
+// EnvNewTitle: 새 환경 창 제목
+func (a_ ApitestT) EnvNewTitle() string {
+	return a_.t.render(&areaApitest, "env_new_title", false, 0)
+}
+
+// EnvNone: 환경을 고르지 않은 상태의 이름
+func (a_ ApitestT) EnvNone() string {
+	return a_.t.render(&areaApitest, "env_none", false, 0)
+}
+
+// EnvPicker: 환경 화면 둘째 줄: 고른 환경과 바꾸는 키(name = 환경 이름)
+func (a_ ApitestT) EnvPicker(name string) string {
+	return a_.t.render(&areaApitest, "env_picker", false, 0, "name", name)
+}
+
+// EnvSource: 환경 화면: 고른 변수의 값 출처(src = 내 값·공유 환경·컬렉션·전역)
+func (a_ ApitestT) EnvSource(src string) string {
+	return a_.t.render(&areaApitest, "env_source", false, 0, "src", src)
+}
+
+// EnvStorage: 환경 화면 첫 줄: 비밀 값이 어디에 보관되는지(where = 키체인·이번 실행만 같은 보관 위치)
+func (a_ ApitestT) EnvStorage(where string) string {
+	return a_.t.render(&areaApitest, "env_storage", false, 0, "where", where)
+}
+
+// EnvStorageUnset: 환경 화면 첫 줄: 아직 비밀 값을 넣지 않아 보관 위치가 정해지지 않았을 때
+func (a_ ApitestT) EnvStorageUnset() string {
+	return a_.t.render(&areaApitest, "env_storage_unset", false, 0)
+}
+
+// EnvTitle: 환경 화면 제목(name = 고른 환경 이름)
+func (a_ ApitestT) EnvTitle(name string) string {
+	return a_.t.render(&areaApitest, "env_title", false, 0, "name", name)
+}
+
+// EnvValueTitle: 변수 값 바꾸기 창 제목(name = 변수 이름)
+func (a_ ApitestT) EnvValueTitle(name string) string {
+	return a_.t.render(&areaApitest, "env_value_title", false, 0, "name", name)
+}
+
+// ErrBadMethod: 보내기 실패 원인: 메서드가 올바른 HTTP 토큰이 아님
+func (a_ ApitestT) ErrBadMethod() string {
+	return a_.t.render(&areaApitest, "err_bad_method", false, 0)
+}
+
+// ErrBadUrl: 보내기 실패 원인: URL 이 http·https 가 아니거나 호스트가 없음
+func (a_ ApitestT) ErrBadUrl() string {
+	return a_.t.render(&areaApitest, "err_bad_url", false, 0)
+}
+
+// ErrFormFile: 보내기 실패 원인: form 의 파일 칸이 가리키는 파일을 읽을 수 없음
+func (a_ ApitestT) ErrFormFile() string {
+	return a_.t.render(&areaApitest, "err_form_file", false, 0)
+}
+
+// ErrNotFound: 저장·내보내기 실패 원인: 파일이나 폴더가 없음
+func (a_ ApitestT) ErrNotFound() string {
+	return a_.t.render(&areaApitest, "err_not_found", false, 0)
+}
+
+// ErrPermission: 저장·내보내기 실패 원인: 파일 권한 없음
+func (a_ ApitestT) ErrPermission() string {
+	return a_.t.render(&areaApitest, "err_permission", false, 0)
+}
+
+// ErrRedirects: 보내기 실패 원인: 리다이렉트가 설정한 최대 횟수를 넘음
+func (a_ ApitestT) ErrRedirects() string {
+	return a_.t.render(&areaApitest, "err_redirects", false, 0)
+}
+
+// ErrTls: 보내기 실패 원인: 서버 인증서 검사 실패
+func (a_ ApitestT) ErrTls() string {
+	return a_.t.render(&areaApitest, "err_tls", false, 0)
+}
+
+// ErrTooLarge: 보내기 실패 원인: 응답 본문이 1GB 를 넘음
+func (a_ ApitestT) ErrTooLarge() string {
+	return a_.t.render(&areaApitest, "err_too_large", false, 0)
+}
+
+// ExportCopied: curl 을 복사한 뒤 토스트
+func (a_ ApitestT) ExportCopied() string {
+	return a_.t.render(&areaApitest, "export_copied", false, 0)
+}
+
+// ExportCurl: 내보내기 선택지: curl 명령 복사({{변수}} 그대로)
+func (a_ ApitestT) ExportCurl() string {
+	return a_.t.render(&areaApitest, "export_curl", false, 0)
+}
+
+// ExportCurlPlain: 내보내기 선택지: curl 명령 복사(비밀 아닌 변수는 값으로 채움, 비밀은 그대로)
+func (a_ ApitestT) ExportCurlPlain() string {
+	return a_.t.render(&areaApitest, "export_curl_plain", false, 0)
+}
+
+// ExportFailed: 내보내기 실패(err = 원인)
+func (a_ ApitestT) ExportFailed(err string) string {
+	return a_.t.render(&areaApitest, "export_failed", false, 0, "err", err)
+}
+
+// ExportPath: Postman 파일로 저장: 경로 칸 위 안내
+func (a_ ApitestT) ExportPath() string {
+	return a_.t.render(&areaApitest, "export_path", false, 0)
+}
+
+// ExportPostman: 내보내기 선택지: 컬렉션을 Postman v2.1 파일로 저장
+func (a_ ApitestT) ExportPostman() string {
+	return a_.t.render(&areaApitest, "export_postman", false, 0)
+}
+
+// ExportSaved: Postman 파일로 저장한 뒤 창(path = 저장한 경로, 줄여 쓰지 않음)
+func (a_ ApitestT) ExportSaved(path string) string {
+	return a_.t.render(&areaApitest, "export_saved", false, 0, "path", path)
+}
+
+// ExportTitle: 내보내기 창 제목
+func (a_ ApitestT) ExportTitle() string {
+	return a_.t.render(&areaApitest, "export_title", false, 0)
+}
+
+// FileChanged: 열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄
+func (a_ ApitestT) FileChanged() string {
+	return a_.t.render(&areaApitest, "file_changed", false, 0)
+}
+
+// FileExistsBody: 응답 본문·Postman 파일을 저장할 경로에 파일이 이미 있을 때 확인 창 본문(path = 경로, 줄여 쓰지 않음)
+func (a_ ApitestT) FileExistsBody(path string) string {
+	return a_.t.render(&areaApitest, "file_exists_body", false, 0, "path", path)
+}
+
+// FileExistsTitle: 저장할 경로에 파일이 이미 있을 때 확인 창 제목
+func (a_ ApitestT) FileExistsTitle() string {
+	return a_.t.render(&areaApitest, "file_exists_title", false, 0)
+}
+
+// FindNone: 응답 본문에서 찾는 글자가 없을 때의 토스트(q = 찾은 글자)
+func (a_ ApitestT) FindNone(q string) string {
+	return a_.t.render(&areaApitest, "find_none", false, 0, "q", q)
+}
+
+// FindPrompt: 응답 본문 찾기 칸 앞 글자(/ 를 눌렀을 때)
+func (a_ ApitestT) FindPrompt() string {
+	return a_.t.render(&areaApitest, "find_prompt", false, 0)
+}
+
+// HeldField: 공유 전 확인 창: 걸린 칸(field = 칸 이름, 번역하지 않음)
+func (a_ ApitestT) HeldField(field string) string {
+	return a_.t.render(&areaApitest, "held_field", false, 0, "field", field)
+}
+
+// HeldTitle: 공유로 나가기 전 비밀값을 찾았을 때의 창 제목
+func (a_ ApitestT) HeldTitle() string {
+	return a_.t.render(&areaApitest, "held_title", false, 0)
+}
+
+// HelpClose: 도움말 창 맨 아래: 닫는 키
+func (a_ ApitestT) HelpClose() string {
+	return a_.t.render(&areaApitest, "help_close", false, 0)
+}
+
+// HelpEnv: 상태줄 키 안내: 환경
+func (a_ ApitestT) HelpEnv() string {
+	return a_.t.render(&areaApitest, "help_env", false, 0)
+}
+
+// HelpHelp: 상태줄 키 안내: 도움말
+func (a_ ApitestT) HelpHelp() string {
+	return a_.t.render(&areaApitest, "help_help", false, 0)
+}
+
+// HelpKeys1: 도구 도움말의 키 설명 1째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys1() string {
+	return a_.t.render(&areaApitest, "help_keys_1", false, 0)
+}
+
+// HelpKeys2: 도구 도움말의 키 설명 2째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys2() string {
+	return a_.t.render(&areaApitest, "help_keys_2", false, 0)
+}
+
+// HelpKeys3: 도구 도움말의 키 설명 3째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys3() string {
+	return a_.t.render(&areaApitest, "help_keys_3", false, 0)
+}
+
+// HelpKeys4: 도구 도움말의 키 설명 4째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys4() string {
+	return a_.t.render(&areaApitest, "help_keys_4", false, 0)
+}
+
+// HelpKeys5: 도구 도움말의 키 설명 5째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys5() string {
+	return a_.t.render(&areaApitest, "help_keys_5", false, 0)
+}
+
+// HelpRunner: 상태줄 키 안내: 실행기
+func (a_ ApitestT) HelpRunner() string {
+	return a_.t.render(&areaApitest, "help_runner", false, 0)
+}
+
+// HelpSend: 상태줄 키 안내: 보내기
+func (a_ ApitestT) HelpSend() string {
+	return a_.t.render(&areaApitest, "help_send", false, 0)
+}
+
+// HelpTabs: 상태줄 키 안내: [ ] 로 탭 이동
+func (a_ ApitestT) HelpTabs() string {
+	return a_.t.render(&areaApitest, "help_tabs", false, 0)
+}
+
+// HelpTerms: 도움말의 약관 책임 한 줄(요청은 사용자 PC 에서 나감, 줄여 쓰지 않음)
+func (a_ ApitestT) HelpTerms() string {
+	return a_.t.render(&areaApitest, "help_terms", false, 0)
+}
+
+// HelpTitle: 도구 도움말 창의 제목
+func (a_ ApitestT) HelpTitle() string {
+	return a_.t.render(&areaApitest, "help_title", false, 0)
+}
+
+// HistoryCleared: 기록을 모두 지운 뒤 토스트
+func (a_ ApitestT) HistoryCleared() string {
+	return a_.t.render(&areaApitest, "history_cleared", false, 0)
+}
+
+// HostAllow: host_block 창의 선택지: 이 호스트를 허용 목록에 넣고 보내기
+func (a_ ApitestT) HostAllow() string {
+	return a_.t.render(&areaApitest, "host_allow", false, 0)
+}
+
+// HostBlock: 비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)
+func (a_ ApitestT) HostBlock(varArg string, host string) string {
+	return a_.t.render(&areaApitest, "host_block", false, 0, "var", varArg, "host", host)
+}
+
+// HostBlockTitle: host_block 창 제목
+func (a_ ApitestT) HostBlockTitle() string {
+	return a_.t.render(&areaApitest, "host_block_title", false, 0)
+}
+
+// HubStatus: 허브의 API 줄 상태: 마지막으로 연 개인 컬렉션과 환경(col = 컬렉션 이름, env = 환경 이름)
+func (a_ ApitestT) HubStatus(col string, env string) string {
+	return a_.t.render(&areaApitest, "hub_status", false, 0, "col", col, "env", env)
+}
+
+// HubStatusEmpty: 허브의 API 줄 상태: 아직 연 컬렉션이 없을 때
+func (a_ ApitestT) HubStatusEmpty() string {
+	return a_.t.render(&areaApitest, "hub_status_empty", false, 0)
+}
+
+// HubStatusNoEnv: 허브의 API 줄 상태: 환경을 고르지 않았을 때(col = 컬렉션 이름)
+func (a_ ApitestT) HubStatusNoEnv(col string) string {
+	return a_.t.render(&areaApitest, "hub_status_no_env", false, 0, "col", col)
+}
+
+// ImportDone: 가져오기 보고: 컬렉션으로 가져온 요청 수(name = 컬렉션 이름)
+func (a_ ApitestT) ImportDone(name string, n int) string {
+	return a_.t.render(&areaApitest, "import_done", false, n, "name", name, "n", strconv.Itoa(n))
+}
+
+// ImportDropped: 가져오기 보고: 스크립트 말고 버린 것 목록(list = 쉼표로 이은 목록)
+func (a_ ApitestT) ImportDropped(list string) string {
+	return a_.t.render(&areaApitest, "import_dropped", false, 0, "list", list)
+}
+
+// ImportEnvDone: 가져오기 보고: Postman 환경을 가져왔을 때(name = 환경 이름)
+func (a_ ApitestT) ImportEnvDone(name string) string {
+	return a_.t.render(&areaApitest, "import_env_done", false, 0, "name", name)
+}
+
+// ImportFailed: 가져오기 실패(err = 원인)
+func (a_ ApitestT) ImportFailed(err string) string {
+	return a_.t.render(&areaApitest, "import_failed", false, 0, "err", err)
+}
+
+// ImportIgnored: 가져오기 보고: 읽지 않은 옵션·부분 목록(list = 쉼표로 이은 목록)
+func (a_ ApitestT) ImportIgnored(list string) string {
+	return a_.t.render(&areaApitest, "import_ignored", false, 0, "list", list)
+}
+
+// ImportPrompt: 가져오기 창: 경로 칸 위 안내
+func (a_ ApitestT) ImportPrompt() string {
+	return a_.t.render(&areaApitest, "import_prompt", false, 0)
+}
+
+// ImportSecretWhere: 가져오기 보고: 비밀값처럼 보이는 칸 목록(list = '요청 이름 · header:X-Api-Key' 꼴을 쉼표로 이은 것)
+func (a_ ApitestT) ImportSecretWhere(list string) string {
+	return a_.t.render(&areaApitest, "import_secret_where", false, 0, "list", list)
+}
+
+// ImportTitle: 가져오기 창 제목
+func (a_ ApitestT) ImportTitle() string {
+	return a_.t.render(&areaApitest, "import_title", false, 0)
+}
+
+// ImportTooLarge: 가져올 파일이 10MB 를 넘을 때
+func (a_ ApitestT) ImportTooLarge() string {
+	return a_.t.render(&areaApitest, "import_too_large", false, 0)
+}
+
+// ImportUnknown: 가져올 파일의 형식을 알 수 없을 때
+func (a_ ApitestT) ImportUnknown() string {
+	return a_.t.render(&areaApitest, "import_unknown", false, 0)
+}
+
+// KvEmpty: 헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄
+func (a_ ApitestT) KvEmpty() string {
+	return a_.t.render(&areaApitest, "kv_empty", false, 0)
+}
+
+// LastChanged: 공유 요청 줄 옆: 마지막으로 바꾼 사람과 지난 시간(ago = '2분 전' 같은 사람이 읽는 시간)
+func (a_ ApitestT) LastChanged(name string, ago string) string {
+	return a_.t.render(&areaApitest, "last_changed", false, 0, "name", name, "ago", ago)
+}
+
+// NeedBigger: 창이 너무 작아 이 화면을 그릴 수 없을 때
+func (a_ ApitestT) NeedBigger() string {
+	return a_.t.render(&areaApitest, "need_bigger", false, 0)
+}
+
+// NewRequest: 새로 만든 요청의 기본 이름
+func (a_ ApitestT) NewRequest() string {
+	return a_.t.render(&areaApitest, "new_request", false, 0)
+}
+
+// NoValue: 환경 화면: 비밀 변수에 내 값이 아직 없을 때 값 칸
+func (a_ ApitestT) NoValue() string {
+	return a_.t.render(&areaApitest, "no_value", false, 0)
+}
+
+// OpenapiYamlUnsupported: OpenAPI 가져오기에서 YAML 파일을 받았을 때(JSON 만 읽음)
+func (a_ ApitestT) OpenapiYamlUnsupported() string {
+	return a_.t.render(&areaApitest, "openapi_yaml_unsupported", false, 0)
+}
+
+// OverwriteBody: 밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 본문
+func (a_ ApitestT) OverwriteBody() string {
+	return a_.t.render(&areaApitest, "overwrite_body", false, 0)
+}
+
+// OverwriteTitle: 밖에서 바뀐 컬렉션에 저장하려 할 때의 확인 창 제목
+func (a_ ApitestT) OverwriteTitle() string {
+	return a_.t.render(&areaApitest, "overwrite_title", false, 0)
+}
+
+// OverwriteYes: 덮어쓰기 확인 창의 단추
+func (a_ ApitestT) OverwriteYes() string {
+	return a_.t.render(&areaApitest, "overwrite_yes", false, 0)
+}
+
+// Phases: 상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)
+func (a_ ApitestT) Phases(dns int, connect int, tls int, first int) string {
+	return a_.t.render(&areaApitest, "phases", false, 0, "dns", strconv.Itoa(dns), "connect", strconv.Itoa(connect), "tls", strconv.Itoa(tls), "first", strconv.Itoa(first))
+}
+
+// PrivateSend: private_target 창의 선택지: 이 버전은 그래도 보내기
+func (a_ ApitestT) PrivateSend() string {
+	return a_.t.render(&areaApitest, "private_send", false, 0)
+}
+
+// PrivateTarget: 남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)
+func (a_ ApitestT) PrivateTarget(name string) string {
+	return a_.t.render(&areaApitest, "private_target", false, 0, "name", name)
+}
+
+// PrivateTargetUnknown: private_target 와 같은 질문인데 마지막으로 바꾼 사람을 모를 때(처음 받은 문서·오프라인 사본·카드로 연 문서)
+func (a_ ApitestT) PrivateTargetUnknown() string {
+	return a_.t.render(&areaApitest, "private_target_unknown", false, 0)
+}
+
+// PrivateTitle: private_target 창 제목
+func (a_ ApitestT) PrivateTitle() string {
+	return a_.t.render(&areaApitest, "private_title", false, 0)
+}
+
+// RedirectBlocked: 비밀 변수가 허용 목록 밖 호스트로 가지 않게 리다이렉트를 멈췄을 때의 토스트(var = 변수 이름, host = 호스트)
+func (a_ ApitestT) RedirectBlocked(varArg string, host string) string {
+	return a_.t.render(&areaApitest, "redirect_blocked", false, 0, "var", varArg, "host", host)
+}
+
+// RejectBodyTooLarge: 서버가 너무 큰 요청 본문 편집을 거절했을 때의 토스트
+func (a_ ApitestT) RejectBodyTooLarge() string {
+	return a_.t.render(&areaApitest, "reject_body_too_large", false, 0)
+}
+
+// RejectInvalidOp: 서버가 공유 컬렉션 편집을 모양이 틀렸다고 거절했을 때의 토스트
+func (a_ ApitestT) RejectInvalidOp() string {
+	return a_.t.render(&areaApitest, "reject_invalid_op", false, 0)
+}
+
+// RejectLimitRequests: 공유 컬렉션의 요청이 1,000개를 넘어 거절됐을 때의 토스트
+func (a_ ApitestT) RejectLimitRequests() string {
+	return a_.t.render(&areaApitest, "reject_limit_requests", false, 0)
+}
+
+// RejectLocked: 잠긴 공유 컬렉션을 고치려 했을 때의 토스트
+func (a_ ApitestT) RejectLocked() string {
+	return a_.t.render(&areaApitest, "reject_locked", false, 0)
+}
+
+// RejectOther: 그 밖의 이유로 편집이 거절됐을 때의 토스트(code = 서버 코드, 번역하지 않음)
+func (a_ ApitestT) RejectOther(code string) string {
+	return a_.t.render(&areaApitest, "reject_other", false, 0, "code", code)
+}
+
+// RejectSecretValue: 비밀 변수에 값이 실려 서버가 거절했을 때의 토스트
+func (a_ ApitestT) RejectSecretValue() string {
+	return a_.t.render(&areaApitest, "reject_secret_value", false, 0)
+}
+
+// RejectTooLarge: 공유 컬렉션 문서·필드가 너무 커서 거절됐을 때의 토스트
+func (a_ ApitestT) RejectTooLarge() string {
+	return a_.t.render(&areaApitest, "reject_too_large", false, 0)
+}
+
+// ReportClose: 보고 창 맨 아래: 닫는 키
+func (a_ ApitestT) ReportClose() string {
+	return a_.t.render(&areaApitest, "report_close", false, 0)
+}
+
+// RespBody: 응답 탭: 본문
+func (a_ ApitestT) RespBody() string {
+	return a_.t.render(&areaApitest, "resp_body", false, 0)
+}
+
+// RespChecks: 응답 탭: 검사 결과(ok = 통과, total = 전체)
+func (a_ ApitestT) RespChecks(ok int, total int) string {
+	return a_.t.render(&areaApitest, "resp_checks", false, 0, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total))
+}
+
+// RespEmpty: 응답이 아직 없을 때 응답 칸의 안내
+func (a_ ApitestT) RespEmpty() string {
+	return a_.t.render(&areaApitest, "resp_empty", false, 0)
+}
+
+// RespHeaders: 응답 탭: 헤더 수(n)
+func (a_ ApitestT) RespHeaders(n int) string {
+	return a_.t.render(&areaApitest, "resp_headers", false, 0, "n", strconv.Itoa(n))
+}
+
+// RespRaw: 응답 탭: 원문(상태 줄·헤더·본문 그대로)
+func (a_ ApitestT) RespRaw() string {
+	return a_.t.render(&areaApitest, "resp_raw", false, 0)
+}
+
+// RestoreMine: 본문이 덮어써졌을 때 창의 선택지: 내 내용을 새 편집으로 되살리기
+func (a_ ApitestT) RestoreMine() string {
+	return a_.t.render(&areaApitest, "restore_mine", false, 0)
+}
+
+// RestoredMine: 내 본문을 되살린 뒤 토스트
+func (a_ ApitestT) RestoredMine() string {
+	return a_.t.render(&areaApitest, "restored_mine", false, 0)
+}
+
+// RunBadIterations: 반복 횟수가 1~1000 밖일 때의 토스트
+func (a_ ApitestT) RunBadIterations() string {
+	return a_.t.render(&areaApitest, "run_bad_iterations", false, 0)
+}
+
+// RunDelay: 실행기 창: 요청 사이 대기 줄(ms = 밀리초)
+func (a_ ApitestT) RunDelay(ms string) string {
+	return a_.t.render(&areaApitest, "run_delay", false, 0, "ms", ms)
+}
+
+// RunDoneHint: 실행이 끝난 뒤 진행 표 아래 키 안내
+func (a_ ApitestT) RunDoneHint() string {
+	return a_.t.render(&areaApitest, "run_done_hint", false, 0)
+}
+
+// RunEnv: 실행기 창: 환경 고르기 줄(name = 환경 이름)
+func (a_ ApitestT) RunEnv(name string) string {
+	return a_.t.render(&areaApitest, "run_env", false, 0, "name", name)
+}
+
+// RunFailedNet: 실행기 표에서 응답 없이 실패한 줄의 상태 칸(reason = 실패 이유 코드)
+func (a_ ApitestT) RunFailedNet(reason string) string {
+	return a_.t.render(&areaApitest, "run_failed_net", false, 0, "reason", reason)
+}
+
+// RunHostsBody: 공유 컬렉션 실행 전 호스트 목록 창 본문(줄여 쓰지 않음)
+func (a_ ApitestT) RunHostsBody() string {
+	return a_.t.render(&areaApitest, "run_hosts_body", false, 0)
+}
+
+// RunHostsTitle: 공유 컬렉션 실행 전 호스트 목록 창 제목
+func (a_ ApitestT) RunHostsTitle() string {
+	return a_.t.render(&areaApitest, "run_hosts_title", false, 0)
+}
+
+// RunIterations: 실행기 창: 반복 횟수 줄(n = 횟수, 최대 1,000)
+func (a_ ApitestT) RunIterations(n string) string {
+	return a_.t.render(&areaApitest, "run_iterations", false, 0, "n", n)
+}
+
+// RunProgress: 실행기 진행 표 머리 줄(i = 끝난 요청, n = 전체, ok = 통과, fail = 실패)
+func (a_ ApitestT) RunProgress(i int, n int, ok int, fail int) string {
+	return a_.t.render(&areaApitest, "run_progress", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
+}
+
+// RunProgressShort: 초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)
+func (a_ ApitestT) RunProgressShort(i int, n int, ok int, fail int) string {
+	return a_.t.render(&areaApitest, "run_progress_short", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
+}
+
+// RunRespNotKept: 실행기 진행 표에서 응답을 남기지 않은 실패 줄에 enter 를 눌렀을 때 토스트(n = 응답을 남기는 실패 줄 수)
+func (a_ ApitestT) RunRespNotKept(n int) string {
+	return a_.t.render(&areaApitest, "run_resp_not_kept", false, 0, "n", strconv.Itoa(n))
+}
+
+// RunRunningHint: 실행 중 진행 표 아래 키 안내
+func (a_ ApitestT) RunRunningHint() string {
+	return a_.t.render(&areaApitest, "run_running_hint", false, 0)
+}
+
+// RunStart: 실행기 창의 시작 단추
+func (a_ ApitestT) RunStart() string {
+	return a_.t.render(&areaApitest, "run_start", false, 0)
+}
+
+// RunStopOnFail: 실행기 창: 실패 시 멈춤 줄(state = 켬/끔)
+func (a_ ApitestT) RunStopOnFail(state string) string {
+	return a_.t.render(&areaApitest, "run_stop_on_fail", false, 0, "state", state)
+}
+
+// RunTarget: 실행기 창: 돌릴 범위(name = 컬렉션 또는 폴더 이름)
+func (a_ ApitestT) RunTarget(name string) string {
+	return a_.t.render(&areaApitest, "run_target", false, 0, "name", name)
+}
+
+// RunTitle: 실행기 창 제목
+func (a_ ApitestT) RunTitle() string {
+	return a_.t.render(&areaApitest, "run_title", false, 0)
+}
+
+// SaveBodyPath: 응답 본문 저장 창: 경로 칸 위 안내
+func (a_ ApitestT) SaveBodyPath() string {
+	return a_.t.render(&areaApitest, "save_body_path", false, 0)
+}
+
+// SaveBodyTitle: 응답 본문을 파일로 저장하는 창 제목
+func (a_ ApitestT) SaveBodyTitle() string {
+	return a_.t.render(&areaApitest, "save_body_title", false, 0)
+}
+
+// SaveFailed: 개인 컬렉션 저장 실패(err = 원인)
+func (a_ ApitestT) SaveFailed(err string) string {
+	return a_.t.render(&areaApitest, "save_failed", false, 0, "err", err)
+}
+
+// SaveFirst: 저장 안 한 새 요청으로 컬렉션 내보내기를 고를 때의 토스트
+func (a_ ApitestT) SaveFirst() string {
+	return a_.t.render(&areaApitest, "save_first", false, 0)
+}
+
+// Saved: 요청을 개인 컬렉션에 저장한 뒤 토스트(name = 컬렉션 이름)
+func (a_ ApitestT) Saved(name string) string {
+	return a_.t.render(&areaApitest, "saved", false, 0, "name", name)
+}
+
+// ScriptsDropped: Postman 가져오기: 버린 스크립트(사전 요청·테스트) 수
+func (a_ ApitestT) ScriptsDropped(n int) string {
+	return a_.t.render(&areaApitest, "scripts_dropped", false, n, "n", strconv.Itoa(n))
+}
+
+// SecretBadName: 변수 이름에 쓸 수 없는 글자가 있을 때의 토스트
+func (a_ ApitestT) SecretBadName() string {
+	return a_.t.render(&areaApitest, "secret_bad_name", false, 0)
+}
+
+// SecretDetected: 공유로 올라갈 칸에서 비밀값처럼 보이는 글자를 찾았을 때의 안내(줄여 쓰지 않음)
+func (a_ ApitestT) SecretDetected() string {
+	return a_.t.render(&areaApitest, "secret_detected", false, 0)
+}
+
+// SecretKeep: secret_detected 창의 선택지: 붙여넣은 그대로 두기
+func (a_ ApitestT) SecretKeep() string {
+	return a_.t.render(&areaApitest, "secret_keep", false, 0)
+}
+
+// SecretLabel: 비밀 값 입력 창 안내(name = 변수 이름, 앞뒤 {{ }} 가 붙음)
+func (a_ ApitestT) SecretLabel(name string) string {
+	return a_.t.render(&areaApitest, "secret_label", false, 0, "name", name)
+}
+
+// SecretName: secret_detected 창: 아래 칸에 넣을 변수 이름 안내
+func (a_ ApitestT) SecretName() string {
+	return a_.t.render(&areaApitest, "secret_name", false, 0)
+}
+
+// SecretSaved: 비밀값을 변수로 바꾸고 보관소에 넣은 뒤 토스트(name = 변수 이름, where = 보관 위치)
+func (a_ ApitestT) SecretSaved(name string, where string) string {
+	return a_.t.render(&areaApitest, "secret_saved", false, 0, "name", name, "where", where)
+}
+
+// SecretTitle: secret_detected 창 제목
+func (a_ ApitestT) SecretTitle() string {
+	return a_.t.render(&areaApitest, "secret_title", false, 0)
+}
+
+// SecretToVar: secret_detected 창의 선택지: 변수로 바꾸기
+func (a_ ApitestT) SecretToVar() string {
+	return a_.t.render(&areaApitest, "secret_to_var", false, 0)
+}
+
+// SendButton: 요청 줄 오른쪽의 보내기 단추
+func (a_ ApitestT) SendButton() string {
+	return a_.t.render(&areaApitest, "send_button", false, 0)
+}
+
+// SendCanceled: 보내는 중 esc 로 취소했을 때 응답 칸
+func (a_ ApitestT) SendCanceled() string {
+	return a_.t.render(&areaApitest, "send_canceled", false, 0)
+}
+
+// SendFailed: 연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인 문장: errtext.Describe 또는 err_* 키)
+func (a_ ApitestT) SendFailed(err string) string {
+	return a_.t.render(&areaApitest, "send_failed", false, 0, "err", err)
+}
+
+// SendTimeout: 요청 타임아웃이 지났을 때 응답 칸
+func (a_ ApitestT) SendTimeout() string {
+	return a_.t.render(&areaApitest, "send_timeout", false, 0)
+}
+
+// Sending: 요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)
+func (a_ ApitestT) Sending() string {
+	return a_.t.render(&areaApitest, "sending", false, 0)
+}
+
+// SetFollow: 요청 설정 줄: 리다이렉트 따라가기(state = on/off 문구)
+func (a_ ApitestT) SetFollow(state string) string {
+	return a_.t.render(&areaApitest, "set_follow", false, 0, "state", state)
+}
+
+// SetMax: 요청 설정 줄: 리다이렉트 최대 횟수
+func (a_ ApitestT) SetMax(n int) string {
+	return a_.t.render(&areaApitest, "set_max", false, 0, "n", strconv.Itoa(n))
+}
+
+// SetTimeout: 요청 설정 줄: 타임아웃(ms = 밀리초)
+func (a_ ApitestT) SetTimeout(ms int) string {
+	return a_.t.render(&areaApitest, "set_timeout", false, 0, "ms", strconv.Itoa(ms))
+}
+
+// SetTls: 요청 설정 줄: TLS 인증서 검사(state = on/off 문구)
+func (a_ ApitestT) SetTls(state string) string {
+	return a_.t.render(&areaApitest, "set_tls", false, 0, "state", state)
+}
+
+// ShareFailed: 카드 보내기 실패 토스트(err = 이유)
+func (a_ ApitestT) ShareFailed(err string) string {
+	return a_.t.render(&areaApitest, "share_failed", false, 0, "err", err)
+}
+
+// ShareNoChannel: 카드를 보낼 채널이 하나도 없을 때의 토스트
+func (a_ ApitestT) ShareNoChannel() string {
+	return a_.t.render(&areaApitest, "share_no_channel", false, 0)
+}
+
+// ShareOptBody: 결과 카드 선택지: 응답 본문 앞 20줄 넣기(state = 켬/끔)
+func (a_ ApitestT) ShareOptBody(state string) string {
+	return a_.t.render(&areaApitest, "share_opt_body", false, 0, "state", state)
+}
+
+// ShareOptHeaders: 결과 카드 선택지: 보낸 요청 헤더 넣기(민감한 값은 •••, state = 켬/끔)
+func (a_ ApitestT) ShareOptHeaders(state string) string {
+	return a_.t.render(&areaApitest, "share_opt_headers", false, 0, "state", state)
+}
+
+// ShareOptHost: 결과 카드 선택지: URL 의 비밀이 아닌 변수 치환(state = 켬/끔)
+func (a_ ApitestT) ShareOptHost(state string) string {
+	return a_.t.render(&areaApitest, "share_opt_host", false, 0, "state", state)
+}
+
+// SharePick: 결과 카드 미리보기 창 안내: 위 미리보기가 올라갈 내용 그대로임(가린 값은 •••)
+func (a_ ApitestT) SharePick() string {
+	return a_.t.render(&areaApitest, "share_pick", false, 0)
+}
+
+// ShareSent: 카드를 보낸 뒤의 토스트(channel = 채널 이름)
+func (a_ ApitestT) ShareSent(channel string) string {
+	return a_.t.render(&areaApitest, "share_sent", false, 0, "channel", channel)
+}
+
+// ShareTitle: 결과 카드 미리보기 창 제목
+func (a_ ApitestT) ShareTitle() string {
+	return a_.t.render(&areaApitest, "share_title", false, 0)
+}
+
+// SharedKicked: 공유 컬렉션에서 내보내졌거나 문서가 지워져 닫았을 때의 토스트(name = 컬렉션 이름)
+func (a_ ApitestT) SharedKicked(name string) string {
+	return a_.t.render(&areaApitest, "shared_kicked", false, 0, "name", name)
+}
+
+// SharedTooLarge: 공유 컬렉션 한도(요청 1,000개 · 본문 64KB · 전체 2MB)를 넘어 동기화하지 않았을 때의 토스트
+func (a_ ApitestT) SharedTooLarge() string {
+	return a_.t.render(&areaApitest, "shared_too_large", false, 0)
+}
+
+// SrcCollection: 변수 값 출처: 컬렉션 변수
+func (a_ ApitestT) SrcCollection() string {
+	return a_.t.render(&areaApitest, "src_collection", false, 0)
+}
+
+// SrcDynamic: 변수 값 출처: {{$uuid}} 같은 동적 변수
+func (a_ ApitestT) SrcDynamic() string {
+	return a_.t.render(&areaApitest, "src_dynamic", false, 0)
+}
+
+// SrcGlobal: 변수 값 출처: 내 전역 변수
+func (a_ ApitestT) SrcGlobal() string {
+	return a_.t.render(&areaApitest, "src_global", false, 0)
+}
+
+// SrcMine: 변수 값 출처: 내 값(개인 환경·공유 컬렉션의 내 값)
+func (a_ ApitestT) SrcMine() string {
+	return a_.t.render(&areaApitest, "src_mine", false, 0)
+}
+
+// SrcShared: 변수 값 출처: 공유 컬렉션의 환경
+func (a_ ApitestT) SrcShared() string {
+	return a_.t.render(&areaApitest, "src_shared", false, 0)
+}
+
+// SrcTemp: 변수 값 출처: 요청의 임시 값
+func (a_ ApitestT) SrcTemp() string {
+	return a_.t.render(&areaApitest, "src_temp", false, 0)
+}
+
+// StateOff: 설정 값: 끔
+func (a_ ApitestT) StateOff() string {
+	return a_.t.render(&areaApitest, "state_off", false, 0)
+}
+
+// StateOn: 설정 값: 켬
+func (a_ ApitestT) StateOn() string {
+	return a_.t.render(&areaApitest, "state_on", false, 0)
+}
+
+// StatusLine: 응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면
+func (a_ ApitestT) StatusLine(status int, text string, ms int, phases string, size string, ok int, total int, mark string) string {
+	return a_.t.render(&areaApitest, "status_line", false, 0, "status", strconv.Itoa(status), "text", text, "ms", strconv.Itoa(ms), "phases", phases, "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total), "mark", mark)
+}
+
+// StatusLineShort: 응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면 (short form)
+func (a_ ApitestT) StatusLineShort(status int, text string, ms int, phases string, size string, ok int, total int, mark string) string {
+	return a_.t.render(&areaApitest, "status_line", true, 0, "status", strconv.Itoa(status), "text", text, "ms", strconv.Itoa(ms), "phases", phases, "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total), "mark", mark)
+}
+
+// TabList: 좁은 화면의 탭: 컬렉션 나무와 기록
+func (a_ ApitestT) TabList() string {
+	return a_.t.render(&areaApitest, "tab_list", false, 0)
+}
+
+// TabRequest: 좁은 화면의 탭: 요청 편집
+func (a_ ApitestT) TabRequest() string {
+	return a_.t.render(&areaApitest, "tab_request", false, 0)
+}
+
+// TabResponse: 좁은 화면의 탭: 응답 보기
+func (a_ ApitestT) TabResponse() string {
+	return a_.t.render(&areaApitest, "tab_response", false, 0)
+}
+
+// TinyHint: 초소형 화면 셋째 줄의 키 안내
+func (a_ ApitestT) TinyHint() string {
+	return a_.t.render(&areaApitest, "tiny_hint", false, 0)
+}
+
+// TlsOffWarning: TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄여 쓰지 않음)
+func (a_ ApitestT) TlsOffWarning() string {
+	return a_.t.render(&areaApitest, "tls_off_warning", false, 0)
+}
+
+// ToolLoginAccount: 설정 도구 로그인 줄: 이 PC 에 값을 넣은 API 비밀 변수 수
+func (a_ ApitestT) ToolLoginAccount(n int) string {
+	return a_.t.render(&areaApitest, "tool_login_account", false, n, "n", strconv.Itoa(n))
+}
+
+// ToolName: 도구 이름(허브 줄·팔레트·탭 제목·설정 도구 로그인 줄)
+func (a_ ApitestT) ToolName() string {
+	return a_.t.render(&areaApitest, "tool_name", false, 0)
+}
+
+// TreeCount: JSON 나무에서 접힌 객체·배열 옆의 자식 수
+func (a_ ApitestT) TreeCount(n int) string {
+	return a_.t.render(&areaApitest, "tree_count", false, n, "n", strconv.Itoa(n))
+}
+
+// TreeEmpty: 개인 컬렉션이 하나도 없을 때 나무 안의 안내
+func (a_ ApitestT) TreeEmpty() string {
+	return a_.t.render(&areaApitest, "tree_empty", false, 0)
+}
+
+// TreeHistory: 나무 아래 최근 기록 묶음의 머리(양옆에 ─ 줄)
+func (a_ ApitestT) TreeHistory() string {
+	return a_.t.render(&areaApitest, "tree_history", false, 0)
+}
+
+// TreeLocal: 나무의 개인 컬렉션 묶음 머리
+func (a_ ApitestT) TreeLocal() string {
+	return a_.t.render(&areaApitest, "tree_local", false, 0)
+}
+
+// TreeShared: 왼쪽 나무: 방에 올린 공유 컬렉션 줄(name = 컬렉션 이름)
+func (a_ ApitestT) TreeShared(name string) string {
+	return a_.t.render(&areaApitest, "tree_shared", false, 0, "name", name)
+}
+
+// UndefinedVar: 보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)
+func (a_ ApitestT) UndefinedVar(name string) string {
+	return a_.t.render(&areaApitest, "undefined_var", false, 0, "name", name)
+}
+
+// UploadAnyway: 공유 전 확인 창의 선택지: 탐지를 무시하고 그대로 올리기
+func (a_ ApitestT) UploadAnyway() string {
+	return a_.t.render(&areaApitest, "upload_anyway", false, 0)
+}
+
+// UploadDone: 공유 컬렉션을 만든 뒤 토스트(name = 컬렉션 이름)
+func (a_ ApitestT) UploadDone(name string) string {
+	return a_.t.render(&areaApitest, "upload_done", false, 0, "name", name)
+}
+
+// UploadFailed: 방에 올리기가 실패했을 때의 토스트(err = 오류 문장)
+func (a_ ApitestT) UploadFailed(err string) string {
+	return a_.t.render(&areaApitest, "upload_failed", false, 0, "err", err)
+}
+
+// UploadNoSpace: 올릴 방이 하나도 없을 때의 토스트
+func (a_ ApitestT) UploadNoSpace() string {
+	return a_.t.render(&areaApitest, "upload_no_space", false, 0)
+}
+
+// UploadPick: '방에 올리기' 창: 아래 목록에서 방을 고르라는 안내
+func (a_ ApitestT) UploadPick() string {
+	return a_.t.render(&areaApitest, "upload_pick", false, 0)
+}
+
+// UploadPlaintextNote: '방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)
+func (a_ ApitestT) UploadPlaintextNote() string {
+	return a_.t.render(&areaApitest, "upload_plaintext_note", false, 0)
+}
+
+// UploadTitle: '방에 올리기' 창 제목
+func (a_ ApitestT) UploadTitle() string {
+	return a_.t.render(&areaApitest, "upload_title", false, 0)
+}
+
+// VersionAuto: 자동으로 만든 버전의 만든 사람 칸
+func (a_ ApitestT) VersionAuto() string {
+	return a_.t.render(&areaApitest, "version_auto", false, 0)
+}
+
+// VersionPreview: 버전 미리보기(no = 버전 번호, n = 요청 수)
+func (a_ ApitestT) VersionPreview(no int, n int) string {
+	return a_.t.render(&areaApitest, "version_preview", false, 0, "no", strconv.Itoa(no), "n", strconv.Itoa(n))
+}
+
+// VersionRestore: 버전 미리보기 창의 선택지: 이 버전으로 되돌리기
+func (a_ ApitestT) VersionRestore() string {
+	return a_.t.render(&areaApitest, "version_restore", false, 0)
+}
+
+// VersionRestored: 되돌린 뒤 토스트(no = 새로 생긴 버전 번호)
+func (a_ ApitestT) VersionRestored(no int) string {
+	return a_.t.render(&areaApitest, "version_restored", false, 0, "no", strconv.Itoa(no))
+}
+
+// VersionRestoredRow: 되돌리기로 생긴 버전 줄(from = 되돌린 버전 번호)
+func (a_ ApitestT) VersionRestoredRow(no int, from int, when string, who string) string {
+	return a_.t.render(&areaApitest, "version_restored_row", false, 0, "no", strconv.Itoa(no), "from", strconv.Itoa(from), "when", when, "who", who)
+}
+
+// VersionRow: 버전 목록 한 줄(no = 버전 번호, when = 시각, who = 만든 사람 또는 '자동')
+func (a_ ApitestT) VersionRow(no int, when string, who string) string {
+	return a_.t.render(&areaApitest, "version_row", false, 0, "no", strconv.Itoa(no), "when", when, "who", who)
+}
+
+// VersionsEmpty: 공유 컬렉션에 저장된 버전이 없을 때
+func (a_ ApitestT) VersionsEmpty() string {
+	return a_.t.render(&areaApitest, "versions_empty", false, 0)
+}
+
+// VersionsFailed: 버전 목록·내용을 읽지 못했을 때의 토스트(err = 오류 문장)
+func (a_ ApitestT) VersionsFailed(err string) string {
+	return a_.t.render(&areaApitest, "versions_failed", false, 0, "err", err)
+}
+
+// VersionsTitle: 공유 컬렉션 버전 창 제목(name = 컬렉션 이름)
+func (a_ ApitestT) VersionsTitle(name string) string {
+	return a_.t.render(&areaApitest, "versions_title", false, 0, "name", name)
 }

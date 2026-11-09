@@ -130,7 +130,7 @@ describe("CollabHub: hello catch-up", () => {
     const doc = await makeDoc(owner, space.id, "apicol");
     const a = await connectDoc(owner.token, doc.id);
     const big = "x".repeat(60_000);
-    for (let i = 0; i < 17; i++) await ackOf(a, sendOp(a, [{ op: "put", id: `r${i}`, type: "request", fields: { body: big } }]));
+    for (let i = 0; i < 17; i++) await ackOf(a, sendOp(a, [{ op: "put", id: `req:r${i}`, type: "request", fields: { body: big } }]));
     const b = await connectDoc(owner.token, doc.id);
     expect(b.frames.filter((f) => f.t === "hello")).toHaveLength(1);
     expect(b.hello.snapshot.objects).toHaveLength(17);

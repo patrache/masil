@@ -1,0 +1,13 @@
+{
+  "openapi": "3.0.0",
+  "info": {"title": "Remote", "version": "1"},
+  "paths": {
+    "/x": {
+      "get": {
+        "parameters": [{"$ref": "http://LISTENER/params.json#/Limit"}, {"name": "ok", "in": "query"}],
+        "requestBody": {"$ref": "http://LISTENER/bodies.json"}
+      }
+    },
+    "/y": {"$ref": "other.json#/paths/~1y"}
+  }
+}

@@ -213,7 +213,44 @@ export const DOC_TYPES: Record<"arch" | "apicol", DocTypeSpec>;
 
 ## 7. `apicol` (P4)
 
-(P4 가 객체 종류·필드·한도·거절 `detail` 을 더한다.)
+공유 API 컬렉션(설계서 C3.8). 내용은 요청 **정의**뿐이다 — 비밀 변수의 값, form 파일의 경로(이 PC 의 경로), 응답·기록은 문서에 없다. 클라이언트는 `internal/apitool`(`DocFromCollection`·`CollectionFromDoc`·`Diff`·`Gate`·`CheckSharedLimits`), 서버 검사기는 `server/src/lib/collab/apicol.ts` 의 `APICOL_FIELDS` — 아래 표 하나가 두 쪽의 단일 출처다.
+
+### 7.1 객체 종류와 필드
+
+| 객체 `id` | `type` | 필드 (값 JSON 형) |
+|---|---|---|
+| `col` (문서에 하나) | `col` | `name` 문자열, `vars` 배열 `[{id?, name, value?, secret?}]`(비밀이면 `value` 없음, 허용 호스트는 싣지 않음 — 내 값) |
+| `folder:<id>` | `folder` | `name` 문자열, `parent` 문자열(폴더 id, `""` = 뿌리), `order` 수 |
+| `req:<id>` | `request` | `name`·`folder`(`""` = 뿌리)·`method`·`url`·`body_kind`(`none`·`json`·`urlencoded`·`multipart`·`raw`)·`body`·`content_type` 문자열, `order` 수, `auth` 객체(`{kind,user,pass,token,name,value,in}` 빈 칸 생략), `settings` 객체(`{timeout_ms,no_follow,max_redirects,insecure}`) |
+| `row:<id>` | `row` | `req` 문자열(요청 id), `list` 문자열(`query`·`header`·`form`·`assert`·`extract`), `order` 수, `key`·`value` 문자열, `off` 참/거짓, `extra` 객체(form 파일 줄 `{file_name}` — 경로는 없음, 검사 `{op, path}`, 추출 `{from}`) |
+| `env:<id>` | `env` | `name` 문자열, `order` 수 |
+| `envvar:<id>` | `envvar` | `env` 문자열(환경 id), `name` 문자열, `secret` 참/거짓, `order` 수, `value` 문자열(`secret:true` 면 없거나 `null`/`""`) |
+
+- `<id>` 는 1.2 이름 규칙 안에서 클라이언트가 정한다(요청·줄·폴더·환경 id 를 그대로 쓰고, 없거나 겹치면 새로 붙인다). 객체 `id` 의 접두사와 `type` 은 위 표처럼 짝이 맞아야 한다.
+- 검사 줄: `key` = 대상(`status`·`time`·`size`·`header`·`json`·`body`), `value` = 기대값. 추출 줄: `key` = 변수 이름, `value` = 경로(JSON 경로·헤더 이름).
+- 모든 필드의 값은 위 형 대신 `null` 이어도 된다 — 필드를 비운다는 뜻이다(`Diff` 는 사라진 필드를 `set … null` 로 보낸다). `body_kind` 는 위 다섯 값 말고 `""`(정하지 않음)도 받는다.
+- 모든 필드는 선택이다(`put` 이 일부 필드만 실어도 된다). 같은 필드 동시 편집은 1장 LWW. 줄 하나·필드 하나가 병합 단위라 서로 다른 헤더 줄 편집은 둘 다 남는다.
+- 나무 순서는 같은 부모 안에서 `order` 오름차순, 같으면 `id` 순. 부모가 없거나(지워짐) 고리를 이루는 폴더·요청은 뿌리로 본다. 요청이 없는 줄은 무시한다.
+
+### 7.2 한도와 거절
+
+| 검사 | 값 | 거절 `{code, detail}` |
+|---|---|---|
+| 모르는 객체 종류·필드, `id` 접두사와 `type` 불일치, 필드 값의 JSON 형이 표와 다름 | — | `{invalid, invalid_op}` |
+| `req:` 객체 수(삭제 안 된 것) | 1,000 | `{limit_exceeded, limit_requests}` (새 `req:` 의 `put`·`undel` 이 1,001번째일 때) |
+| `col` 객체 수 | 1 | `{invalid, invalid_op}` (`col` 이외 id 에 `type: "col"`) |
+| 요청 본문 `body` (UTF-8 바이트) | 65,536 | `{too_large, body_too_large}` |
+| `envvar` 에 `secret: true` 와 비지 않은 `value` (같은 op 이든 이미 있는 상태와의 조합이든), `col.vars` 의 원소가 `secret: true` 와 비지 않은 `value` | — | `{invalid, secret_value}` |
+| 필드 값 하나 (JSON 바이트, 5장 공통) | 61,440 | `{too_large}` |
+| 문서 전체 (5장 공통) | 2,097,152 | `{too_large}` |
+
+- 클라이언트는 같은 한도를 보내기 전에 본다(`CheckSharedLimits`: 요청 1,000 · 본문 65,536 · 필드 61,440 · 문서 2,097,152). 그래서 본문은 실제로는 필드 한도(JSON 으로 61,440 바이트)가 먼저 걸린다 — 설계서 "요청 본문 64KB" 와의 차이는 오너 확인 항목이다.
+- `reset`(버전 복원)·`POST …/docs {snapshot}` 은 스냅숏의 객체마다 같은 검사를 한다.
+- 서버는 필드 **내용**을 탐지하지 않는다(설계서 C3.12) — 비밀값 탐지는 클라이언트의 관문(`Gate`)이 op 를 보내기 전에 한다.
+
+### 7.3 클라이언트 로컬 파일 (서버에 가지 않음)
+
+`<config>/api/shared/` 아래: `<doc_id>.json`(오프라인 사본 — 문서 스냅숏과 제목, 비밀 없음, 변경 뒤 1초 묶어 씀), `<doc_id>.mine.json`(내 값·내 비밀 표시와 허용 호스트, `apitool.Mine`), `<doc_id>.lost.json`(남이 덮어써 진 내 본문, 최근 20개). 모두 0600.
 
 ---
 
