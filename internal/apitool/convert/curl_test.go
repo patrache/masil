@@ -306,3 +306,43 @@ func FuzzParseCurl(f *testing.F) {
 		}
 	})
 }
+
+// A secret variable's value typed in literally anywhere is masked in the
+// export (C3.10 layer 4), in both modes.
+func TestToCurlMasksScopeSecretValues(t *testing.T) {
+	vault := apitool.NewVault(context.Background(), secrettest.NewStore(t, true), "masil.test", "u1")
+	if err := vault.Put(apitool.SecretKey("", "e1", "token"), secrets.New("sk-live-abc123xyz")); err != nil {
+		t.Fatal(err)
+	}
+	s := &apitool.Scope{Vault: vault, Env: &apitool.Env{ID: "e1", Vars: []apitool.Var{
+		{Name: "token", Secret: true, AllowedHosts: []string{"api.test"}},
+	}}}
+	r := &rq{Method: "POST", URL: "https://api.test/v1",
+		Headers: []apitool.KV{{Key: "X-Trace", Value: "sk-live-abc123xyz"}},
+		Body:    apitool.Body{Kind: apitool.BodyJSON, Text: `{"k":"sk-live-abc123xyz"}`}}
+	for _, mode := range []CurlMode{CurlTemplate, CurlNonSecret} {
+		out, err := ToCurl(r, s, mode, apitool.Dyn{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(out, "sk-live") || strings.Count(out, apitool.Mask) != 2 {
+			t.Fatalf("mode %d: secret value not masked: %s", mode, out)
+		}
+	}
+}
+
+// A URL that starts with '-' is not read by curl as an option.
+func TestToCurlURLNotAnOption(t *testing.T) {
+	r := &rq{Method: "GET", URL: "-o/Users/me/.zshrc"}
+	out, err := ToCurl(r, nil, CurlTemplate, apitool.Dyn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "--url -o/Users/me/.zshrc") {
+		t.Fatalf("url passed positionally: %s", out)
+	}
+	back, _, err := ParseCurl(out)
+	if err != nil || back.URL != r.URL {
+		t.Fatalf("back = %+v %v", back, err)
+	}
+}

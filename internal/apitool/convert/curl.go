@@ -598,14 +598,45 @@ var placeholderRe = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_.$-]+)\s*\}\}`)
 
 // ToCurl writes r as one curl command. Exports hide typed-in credentials
 // (sensitive header, query and form values, the auth password/token/key)
+// and the value of every secret variable s can reach, wherever it appears,
 // as apitool.Mask; {{placeholders}} stay.
 func ToCurl(r *apitool.Request, s *apitool.Scope, mode CurlMode, d apitool.Dyn) (string, error) {
 	src := *r
 	if mode == CurlNonSecret {
 		src = expandNonSecret(r, s, d)
 	}
-	red := apitool.RedactRequest(&src, nil)
+	red := apitool.RedactRequest(&src, scopeSecretValues(s))
 	return curlCommand(&red), nil
+}
+
+// scopeSecretValues are the vault values of the secret variables declared
+// in s (env, collection, globals); one that cannot be read is skipped.
+func scopeSecretValues(s *apitool.Scope) []string {
+	if s == nil || s.Vault == nil {
+		return nil
+	}
+	var names []string
+	seen := map[string]bool{}
+	collect := func(vs []apitool.Var) {
+		for _, v := range vs {
+			if v.Secret && !seen[v.Name] {
+				seen[v.Name] = true
+				names = append(names, v.Name)
+			}
+		}
+	}
+	if s.Env != nil {
+		collect(s.Env.Vars)
+	}
+	collect(s.Collection)
+	collect(s.Globals)
+	var out []string
+	for _, n := range names {
+		if v, err := s.Lookup(n); err == nil && v.Secret && v.Text != "" {
+			out = append(out, v.Text)
+		}
+	}
+	return out
 }
 
 func expandNonSecret(r *apitool.Request, s *apitool.Scope, d apitool.Dyn) apitool.Request {
@@ -721,7 +752,11 @@ func curlCommand(r *apitool.Request) string {
 		}
 		u += sep + strings.Join(qs, "&")
 	}
-	add(u)
+	if strings.HasPrefix(u, "-") {
+		add("--url", u) // curl would read a bare "-o…" as an option
+	} else {
+		add(u)
+	}
 
 	hasCT := false
 	for _, h := range r.Headers {
