@@ -13,14 +13,14 @@ import (
 // tabItems returns the SlotTabs entries for the current mode and the active index
 // (CA 5.4 "탭"):
 //   - compact: every NavState tab root (home "홈", channel label + its My badge), then
-//     the fixed 피드 and 알림 (NotifUnread);
+//     the fixed 피드 and 알림 (Store.InboxBadge: notifications + unread conversations);
 //   - widget: 채팅 (TotalUnread, Mention when any) / 피드 / 알림;
 //   - tiny: the same three as 챗 / 피 / 알.
 //
 // The active entry is Tabs[Active] (Front==FrontTab) or the feed/notifications entry.
 func (m *Model) tabItems() ([]widgets.Tab, int) {
 	st := m.ctx.Store
-	notif := widgets.Tab{Label: "알림", Badge: ui.Badge{Count: st.NotifUnread}}
+	notif := widgets.Tab{Label: "알림", Badge: ui.Badge{Count: st.InboxBadge()}}
 	feed := widgets.Tab{Label: "피드"}
 	if m.lay.Mode == layout.ModeCompact {
 		var items []widgets.Tab

@@ -1133,6 +1133,11 @@ func (s *Store) IsMe(userID string) bool
 func (s *Store) ChannelLabel(id string) string       // "#개발", "민지", "점심팟", "민지, 준호, 하나"
 func (s *Store) SpaceChannels(spaceID string) []*api.Channel // visible, by position
 func (s *Store) TotalUnread() (unread, mentions int)
+func (s *Store) UnreadConversations() []UnreadConv   // 알림함 "안 읽은 대화" (ui/feed): unread DMs / group DMs, text channels with mentions or notify "all"; newest first
+func (s *Store) InboxBadge() int                     // 알림 badge: NotifUnread + the UnreadConv.Badged conversations
+func (s *Store) LastMessage(channelID string) (api.Message, bool) // newest top-level message seen this session (the section's preview)
+func (s *Store) MessageDeleted(id string) bool       // message.deleted seen this session (a stored alert about it is not previewed)
+func Quiet(ch *api.Channel) bool                      // muted or notify "none" (the section leaves it and its threads out)
 func (s *Store) FocusEnded(sum api.FocusSummary)     // Focus=nil, LastFocusSummary=&sum (focus.ended event and EndFocus result both call this; never opens UI)
 func (s *Store) Reset()                              // logout: clear everything, notify reducers
 
@@ -1670,7 +1675,7 @@ const (DensityFull Density = iota /*command, standard*/; DensityLine /*compact: 
 type RouteKind string
 const (
 	RouteHome          RouteKind = "home"          // chat: 받은 초대·친구 요청·피드·친구·방 만들기/참여 진입 + DM·접속 친구 목록 (레일 "홈")
-	RouteChannel       RouteKind = "channel"       // chat: ID=channel id (text|dm|group_dm), Anchor=message id
+	RouteChannel       RouteKind = "channel"       // chat: ID=channel id (text|dm|group_dm), Anchor=message id; Query{"jump":"unread"} = select the first unread after Anchor
 	RouteThread        RouteKind = "thread"        // chat: ID=root message id, Arg=channel id
 	RouteSearch        RouteKind = "search"        // chat: Arg=query, ID=channel|space scope ("" global)
 	RouteInvite        RouteKind = "invite"        // chat: ID=invite code (link preview); Arg="direct" => direct invite, ID=invite id ("" = list of pending Store.DirectInvites)
@@ -2032,6 +2037,7 @@ type Command struct {
 	KeyHint   string            // "ctrl+w 1"
 	Available func(ctx *ui.Context) bool
 	Run       func(ctx *ui.Context, args string) tea.Cmd
+	Badge     func(ctx *ui.Context) ui.Badge // item badge (nil = none): 알림함 → Store.InboxBadge
 }
 func Register(c Command)                  // init()-time; duplicate id => panic
 func Lookup(id string) (Command, bool)    // registered command by id (copy, Keywords copied too) — CR-B; app's RunCommandMsg dispatch (5.3.4 7)
@@ -2215,6 +2221,14 @@ func (f *FeedStore) NewDiscoverCount() int                   // 30s polling bann
 - 차단·신고(5.8 소유 규칙): 프로필에 "차단"·"사용자 신고"(`"user"`), 글 메뉴에 "글 신고"(`"post"`), 스토리 보기에 "신고"(`"story"`), 방명록 글에 "신고"(`"guestbook_entry"`) — 모두 `widgets.ReportDialog`.
 - 남의 프로필 메뉴(`m`)의 친구 항목(v0.1.1 C2, `Relationship` 에 따라 하나): 친구 아님 → "친구 요청"(`POST /v1/friends/requests`), 보낸 요청 대기 → "친구 요청 취소"(`DELETE /v1/friends/requests/{id}`), 받은 요청 → "친구 요청 수락"·"친구 요청 거절"(`…/accept`·`…/decline`), 친구 → "친구 끊기"(확인 뒤 `DELETE /v1/friends/{user}`). 차단한 사용자·내 프로필에는 없고, 정지된 사용자에게는 새 요청·수락을 내지 않는다. 답과 `friend.request_*`·`friend.added/removed` 이벤트로 바로 바뀐다. 성공한 답은 친구 화면의 같은 동작처럼 Store 에도 바로 반영한다 — 수락·자동 수락 → `Store.AddFriend`(받은 요청도 빠져 홈의 "친구 요청 N" 줄이 `friend.added` 를 기다리지 않고 줄어든다), 거절 → `Store.DropFriendRequests`, 친구 끊기 → `Store.RemoveFriend`. 보낸 요청은 서버가 보낸 사람에게 이벤트를 주지 않으므로(`friend.request_received` 는 받는 사람에게만) `ui.FriendRequestsChangedMsg` 를 방송하고(요청 취소도 같다 — 그 `friend.request_removed` 는 양쪽에 오지만 실시간 연결이 끊겨 있어도 맞게), 캐시된 친구 화면은 그것을 받아 "보낸 요청" 목록을 다시 받는다(`friend.add` 피커의 결과와 같은 효과).
 - 알림함 항목 `enter` 는 대상 경로로 이동한다(채팅 대상이면 `RouteChannel`/`RouteThread`, 방 초대면 `RouteInvite{Arg:"direct", ID:<subject.id>}`, 친구 요청이면 `RouteFriends{Anchor:"incoming"}` — 받은 요청 탭).
+- **알림함 "안 읽은 대화" 구역 [결정 2026-11-09]**: 일반 DM·그룹 DM 메시지와 채널 메시지는 서버가 알림함 행을 만들지 않는다(api.md 5.18 — 데스크톱 `alert` 만). 그래서 알림함은 알림 목록 **위에** 클라이언트가 Store 의 읽음 상태로 만든 구역을 둔다(서버 행·배포 없음). 비면 구역째 그리지 않는다.
+  - 대상(`Store.UnreadConversations`): `My.UnreadCount > 0` 인 DM·그룹 DM, `MentionCount > 0` 인 텍스트 채널, `notify="all"` 이고 안 읽은 메시지가 있는 텍스트 채널. 음소거(`muted`)·`notify="none"`·차단한 상대와의 1:1 DM 은 뺀다. `notify` 가 비면 서버 기본값(DM 류 `all`, 텍스트 `mentions`). 최근 메시지 순.
+  - 스레드: 스레드별 읽음 상태는 계약에 없다(`ChannelMyState` 는 최상위 메시지만 센다). 그래서 스레드는 **안 읽은 `thread_reply` 행(과 스레드 안 `message_mention` 행)** 을 `thread_root_id` 로 묶어 스레드당 한 줄로 보인다(받아 둔 알림 창 안의 것만). 묶인 알림은 아래 `알림` 목록에 다시 그리지 않는다(읽으면 기록으로 돌아온다). 음소거·`notify="none"` 채널의 스레드는 구역에 넣지 않는다(서버는 그 행을 그래도 만들므로 `알림` 목록에 남는다, `store.Quiet`).
+  - 한 줄 = 아이콘(`✉` DM·그룹, `#` 채널, `↩` 스레드) + 제목(`민지님` / `점심팟`(이름 없으면 `민지님, 준호님`) / `일반 · 노바 개발방` / `스레드 · #개발`) + 미리보기(`"민지님: 저녁 뭐 먹지?"`, 1:1 DM 은 이름 없이, 본문을 모르면 `새 메시지 N개`) + 개수 배지(멘션이면 멘션 색) + 상대 시간. 넓으면 `안 읽은 대화`·`알림` 머리줄, 초소형은 머리줄 없음, 좁으면(폭 40 미만·한 줄 밀도) 미리보기 없음. 사용자 문자열은 모두 `textwidth` 로 소독·자름.
+  - 미리보기 출처: `Store.LastMessage`(이번 세션에 본 `message.created`, 수정·삭제 반영) 또는 불러온 채팅 창의 마지막 최상위 메시지 중 새 것(읽음 포인터 뒤일 때만), 없으면 그 채널의 가장 최근 `alert` 본문 — 읽음 포인터 이후이고 이번 세션에 `message.deleted` 되지 않은 메시지의 것만(`Store.MessageDeleted`). 차단한 사람의 글은 미리보기하지 않는다.
+  - `enter`(클릭 포함): 채널·DM 은 `RouteChannel{ID, Anchor: My.LastReadMessageID, Query: {"jump":"unread"}}` — 대화 화면은 그 앵커 주변 페이지를 받고 **앵커 다음의 남이 쓴 첫 메시지**를 선택한다(없으면 앵커). 캐시된 화면이 이 경로로 다시 열리면 새 구분선 포인터도 지금의 읽음 포인터로 바꾼다. 한 번도 읽지 않은 대화(포인터 없음)는 앵커 없이 최신으로 연다. 스레드는 `RouteThread{ID: root, Arg: channel, Anchor: 가장 오래된 안 읽은 답글}` 로 열고 묶인 알림을 읽음 처리한다. `x`(모두 읽음)는 알림만 읽는다.
+  - 대화를 읽으면(`read_state.updated`, 내 로컬 읽음 결과) 그 줄이 바로 빠진다 — 로컬 읽음은 알림함 `Update` 뒤에 Store 에 닿을 수 있어 `View` 도 구역을 다시 계산한다.
+  - **알림 배지** = `Store.InboxBadge()` = `NotifUnread` + 구역 중 알림 행이 이미 세지 않은 대화 수(1:1 DM, 그룹 DM·`notify="all"` 채널은 안 읽은 수가 멘션 수보다 많을 때; 멘션만으로 오른 대화는 그 채널의 안 읽은 `message_mention` 행이 받아 둔 알림 창에 있을 때(알림함을 아직 받지 않았으면 있다고 본다, `store.MentionCoverer`)만 빼고 — `NotifUnread` 가 0 이면(예: `x`) 언제나 센다; 스레드 줄은 그 알림 행이 이미 센다). 탭 줄 `알림`, 알림함 창 제목, 팔레트 `알림함` 명령 배지가 모두 이 값이다(`palette.Command.Badge`).
 - 피드 카드: 작성자·상대 시간·본문(`markup`, 해시태그 강조)·이미지(`imgrender`)·투표(`widgets.PollView`)·`♥ 12  ↻ 3  💬 4`. 상단 스토리 링(안 본 것 acc 링). 지휘소 피드 열 상단 탭 `피드 / 팔로잉 / #트렌드`.
 - 보이는 글은 `Watcher.WatchTopics()` 로 `post:<id>` 를 낸다.
 

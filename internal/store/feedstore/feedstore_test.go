@@ -728,3 +728,25 @@ func TestNotificationsPageDropsOlderKeepsAllOnEmpty(t *testing.T) {
 		t.Fatalf("empty page: window = %v, want %v", got, want)
 	}
 }
+
+func TestCoversMentions(t *testing.T) {
+	_, f := newFeed(t)
+	ch := "C1"
+	if !f.CoversMentions(ch) {
+		t.Fatal("inbox never fetched: the server's mention row is assumed")
+	}
+	f.SetNotificationsPage(&api.NotificationPage{Items: []api.Notification{}})
+	if f.CoversMentions(ch) {
+		t.Fatal("loaded inbox without a mention row covers the channel")
+	}
+	m := api.Notification{ID: "N1", Type: "message_mention", Context: api.NotificationContext{ChannelID: &ch}, CreatedAt: time.Now()}
+	f.Notifications().Upsert(m)
+	if !f.CoversMentions(ch) || f.CoversMentions("C2") {
+		t.Fatal("an unread mention row covers its channel only")
+	}
+	m.Read = true
+	f.Notifications().Upsert(m)
+	if f.CoversMentions(ch) {
+		t.Fatal("a read mention row still covers the channel")
+	}
+}

@@ -26,6 +26,27 @@ test("friend_accepted, space_invite, message_mention, thread_reply hooks", async
   const rep = await api(c.token).post<any>(`/v1/messages/${m.body.message.id}/thread`, { client_nonce: "n2", body: "ㅇㅋ" });
   expect((await inbox(a)).items[0]).toMatchObject({ type: "thread_reply", subject: { type: "message", id: rep.body.message.id }, context: { thread_root_id: m.body.message.id } });
 });
+// Thread replies in a 1:1 dm and a group dm reach the root author's inbox: channelReadersAmong once bound
+// space_id / is_private for every kind, D1 rejected the extra bindings and the whole fan-out was lost.
+test("thread_reply in a 1:1 dm and a group dm reaches the root author", async () => {
+  const a = await signup(); const b = await signup(); const c = await signup();
+  await makeFriends(a, b); await makeFriends(a, c);
+  const dm = (await api(a.token).post<any>("/v1/dms", { users: [`@${b.handle}`] })).body.channel;
+  const root = (await api(a.token).post<any>(`/v1/channels/${dm.id}/messages`, { client_nonce: "d1", body: "주말에 뭐 해?" })).body.message;
+  const rep = (await api(b.token).post<any>(`/v1/messages/${root.id}/thread`, { client_nonce: "d2", body: "등산!" })).body.message;
+  expect((await inbox(a)).items[0]).toMatchObject({ type: "thread_reply", actor: { id: b.user.id }, subject: { type: "message", id: rep.id },
+    context: { channel_id: dm.id, message_id: rep.id, thread_root_id: root.id } });
+  // a reply that @mentions the root author in a 1:1 dm still leaves a thread_reply row (a dm has no mention rows)
+  const rep2 = (await api(b.token).post<any>(`/v1/messages/${root.id}/thread`, { client_nonce: "d3", body: `@${a.handle} 같이 갈래?` })).body.message;
+  expect((await inbox(a)).items[0]).toMatchObject({ type: "thread_reply", subject: { type: "message", id: rep2.id } });
+
+  const g = (await api(a.token).post<any>("/v1/dms", { users: [`@${b.handle}`, `@${c.handle}`] })).body.channel;
+  const groot = (await api(a.token).post<any>(`/v1/channels/${g.id}/messages`, { client_nonce: "g1", body: "점심?" })).body.message;
+  const grep = (await api(b.token).post<any>(`/v1/messages/${groot.id}/thread`, { client_nonce: "g2", body: "좋아" })).body.message;
+  expect((await inbox(a)).items[0]).toMatchObject({ type: "thread_reply", subject: { type: "message", id: grep.id }, context: { channel_id: g.id, thread_root_id: groot.id } });
+  // c neither wrote the root nor replied: no thread_reply
+  expect((await inbox(c)).items.filter((n: any) => n.type === "thread_reply")).toEqual([]);
+});
 test("notify helper: self skipped, blocked actor skipped, dedupe_key collapses", async () => {
   const a = await signup(); const b = await signup();
   const { notify } = await import("../../src/lib/notify");

@@ -378,8 +378,8 @@ async function channelReadersAmong(db: D1Database, channel: ChannelRow, userIds:
     `SELECT j.value AS user_id FROM json_each(?1) j WHERE ${cond}`,
     jsonList(ids),
     channel.id,
-    channel.space_id,
-    channel.is_private,
+    // D1 rejects bindings the SQL never references: the dm / group_dm condition reads ?1 and ?2 only
+    ...(channel.kind === "text" ? [channel.space_id, channel.is_private] : []),
   );
   return new Set(rows.map((r) => r.user_id));
 }
@@ -482,7 +482,8 @@ export async function fanoutMessageNotifications(rt: Runtime, message: Message, 
 
   const dmTo = new Set(parts.convMembers); // dm / group_dm: everyone else gets the dm alert
   const mentioned = mentionRows.map((r) => r.user_id).filter((u) => u !== authorId);
-  const mentionedSet = new Set(mentioned);
+  // a 1:1 dm writes no mention rows (api.md 2.1), so a mention there must not take the thread_reply row away
+  const mentionedSet = new Set(channel.kind === "dm" ? [] : mentioned);
   const readers = await channelReadersAmong(db, channel, [...threadRows, ...prefsRows].map((r) => r.user_id));
   const threadTo = [...new Set(threadRows.map((r) => r.user_id))].filter((u) => u !== authorId && !mentionedSet.has(u) && readers.has(u));
   const threadSet = new Set(threadTo);

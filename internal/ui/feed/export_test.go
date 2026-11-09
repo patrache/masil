@@ -84,3 +84,47 @@ func ImagesRetained(c ui.Component) int {
 	}
 	return -1
 }
+
+// NotifRowIDs is every 알림함 row ID, top first: "conv:<channel>" and
+// "conv:thread:<root>" for the 안 읽은 대화 section, then notification IDs.
+func NotifRowIDs(c ui.Component) []string {
+	n, ok := c.(*notifications)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(n.rows))
+	for _, r := range n.rows {
+		out = append(out, r.id())
+	}
+	return out
+}
+
+// SelectNotifRow selects the 알림함 row with this ID (false when absent).
+func SelectNotifRow(c ui.Component, id string) bool {
+	n, ok := c.(*notifications)
+	if !ok {
+		return false
+	}
+	for _, r := range n.rows {
+		if r.id() == id {
+			n.list.Select(id)
+			return true
+		}
+	}
+	return false
+}
+
+// NotifConvPreview is the 안 읽은 대화 row's preview body ("" = the 새 메시지
+// fallback) and whether the row exists.
+func NotifConvPreview(c ui.Component, id string) (string, bool) {
+	n, ok := c.(*notifications)
+	if !ok {
+		return "", false
+	}
+	for _, r := range n.convs {
+		if r.key == id {
+			return r.body, true
+		}
+	}
+	return "", false
+}

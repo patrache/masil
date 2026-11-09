@@ -19,7 +19,7 @@ func notifSelectedID(c ui.Component) string {
 		return ""
 	}
 	if it, ok := n.list.Selected(); ok {
-		return it.ID
+		return it.id()
 	}
 	return ""
 }
@@ -96,7 +96,7 @@ func TestNotificationsAcrossModes(t *testing.T) {
 	if inst == nil {
 		t.Fatal("no notifications instance")
 	}
-	ids := NotifIDs(inst)
+	ids := NotifRowIDs(inst)
 	if len(ids) < 2 {
 		t.Fatalf("inbox ids = %v, want at least 2", ids)
 	}
