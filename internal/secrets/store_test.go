@@ -293,3 +293,44 @@ func TestInvalidKey(t *testing.T) {
 		t.Error("Put with an empty user id succeeded")
 	}
 }
+
+// ctxOS is an OS store that works, except that it reports a call made with a
+// done context as unavailable (as an adapter that cannot tell a cancel from a
+// refusal would).
+type ctxOS struct{ *fakeOS }
+
+func (c ctxOS) Set(ctx context.Context, service, account, value string) error {
+	if ctx.Err() != nil {
+		return ErrUnavailable
+	}
+	return c.fakeOS.Set(ctx, service, account, value)
+}
+
+func (c ctxOS) Get(ctx context.Context, service, account string) (string, error) {
+	if ctx.Err() != nil {
+		return "", ErrUnavailable
+	}
+	return c.fakeOS.Get(ctx, service, account)
+}
+
+// TestCanceledContextKeepsOS: a cancel or timeout is not "the OS store cannot
+// be used" — Put and Get return the context's error, ask nothing, and the next
+// call with a live context reaches the OS store again.
+func TestCanceledContextKeepsOS(t *testing.T) {
+	f := newFakeOS(true)
+	s := Open(Options{OS: ctxOS{f}, Paths: testPaths(t)})
+	done, cancel := context.WithCancel(bg)
+	cancel()
+	if _, err := s.Put(done, key("U1", "c"), New("v")); !errors.Is(err, context.Canceled) || errors.Is(err, ErrNeedConsent) {
+		t.Fatalf("Put(canceled) = %v, want context.Canceled", err)
+	}
+	if b, err := s.Put(bg, key("U1", "c"), New("v")); err != nil || b != BackendKeychain {
+		t.Fatalf("Put after a cancel = %q, %v; want the OS store", b, err)
+	}
+	if _, _, err := s.Get(done, key("U1", "c")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Get(canceled) = %v, want context.Canceled", err)
+	}
+	if v, b, err := s.Get(bg, key("U1", "c")); err != nil || b != BackendKeychain || v.Reveal() != "v" {
+		t.Fatalf("Get after a cancel = %q, %q, %v", v.Reveal(), b, err)
+	}
+}

@@ -114,7 +114,7 @@ func (s *Store) Put(ctx context.Context, k Key, v Secret) (Backend, error) {
 	}
 	acct := k.Account()
 	if !s.down() {
-		err := s.os.Set(ctx, Service, acct, v.Reveal())
+		err := ctxErr(ctx, s.os.Set(ctx, Service, acct, v.Reveal()))
 		if err == nil {
 			s.mu.Lock()
 			defer s.mu.Unlock()
@@ -172,6 +172,7 @@ func (s *Store) Get(ctx context.Context, k Key) (Secret, Backend, error) {
 			osErr = ErrUnavailable
 		} else {
 			v, err := s.os.Get(ctx, Service, acct)
+			err = ctxErr(ctx, err)
 			switch {
 			case err == nil:
 				return New(v), s.os.Name(), nil
@@ -207,7 +208,7 @@ func (s *Store) Delete(ctx context.Context, k Key) error {
 
 func (s *Store) deleteAccount(ctx context.Context, acct string) error {
 	var keep error
-	if err := s.os.Delete(ctx, Service, acct); err != nil && !errors.Is(err, ErrNotFound) {
+	if err := ctxErr(ctx, s.os.Delete(ctx, Service, acct)); err != nil && !errors.Is(err, ErrNotFound) {
 		s.mu.Lock()
 		where := s.indexLocked()[acct]
 		inOS := where != "" && where == s.os.Name()
@@ -284,6 +285,19 @@ func (s *Store) accounts() []string {
 		set[a] = true
 	}
 	return slices.Sorted(maps.Keys(set))
+}
+
+// ctxErr is err, except that a failure while ctx is done is ctx's error and
+// never ErrUnavailable: a cancel or a timeout says nothing about the OS store,
+// so it must not mark the store down or ask for consent (Review Focus 4).
+func ctxErr(ctx context.Context, err error) error {
+	if err == nil || errors.Is(err, ErrNotFound) {
+		return err
+	}
+	if cerr := ctx.Err(); cerr != nil {
+		return fmt.Errorf("secrets: %w", cerr)
+	}
+	return err
 }
 
 func (s *Store) down() bool {

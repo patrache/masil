@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -435,5 +436,22 @@ func TestKeychainRawValue(t *testing.T) {
 	}
 	if got, err := defaultOS().Get(bg, Service, "leet/h/U1/c"); err != nil || got != "plain-value" {
 		t.Fatalf("Get = %q, %v", got, err)
+	}
+}
+
+// TestKeychainCanceledContext: security killed or never started because the
+// context ended is the context's error, not ErrUnavailable.
+func TestKeychainCanceledContext(t *testing.T) {
+	fakeSecurity(t)
+	t.Setenv("FAKE_SEC_SLEEP", "5")
+	short, cancel := context.WithTimeout(bg, 100*time.Millisecond)
+	defer cancel()
+	if err := defaultOS().Set(short, Service, "a/b/c/d", "v"); !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ErrUnavailable) {
+		t.Errorf("Set(timeout) = %v, want context.DeadlineExceeded", err)
+	}
+	done, cancel2 := context.WithCancel(bg)
+	cancel2()
+	if _, err := defaultOS().Get(done, Service, "a/b/c/d"); !errors.Is(err, context.Canceled) || errors.Is(err, ErrUnavailable) {
+		t.Errorf("Get(canceled) = %v, want context.Canceled", err)
 	}
 }

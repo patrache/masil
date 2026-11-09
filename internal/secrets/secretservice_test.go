@@ -260,3 +260,29 @@ func TestSecretServiceNoBus(t *testing.T) {
 		t.Fatalf("Set = %v, want ErrUnavailable", err)
 	}
 }
+
+// TestSecretServiceCanceledContext: a call made with a done context fails with
+// the context's error, not ErrUnavailable (a cancel is not a refusal).
+func TestSecretServiceCanceledContext(t *testing.T) {
+	b := newFakeBus()
+	ss := secretService{
+		env: func(string) string { return "unix:path=/run/user/1000/bus" },
+		dial: func(ctx context.Context, _ string) (dbusConn, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return b, nil
+		},
+	}
+	done, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := ss.Set(done, Service, "a/b/c/d", "v"); !errors.Is(err, context.Canceled) || errors.Is(err, ErrUnavailable) {
+		t.Errorf("Set = %v, want context.Canceled (not ErrUnavailable)", err)
+	}
+	if _, err := ss.Get(done, Service, "a/b/c/d"); !errors.Is(err, context.Canceled) || errors.Is(err, ErrUnavailable) {
+		t.Errorf("Get = %v, want context.Canceled (not ErrUnavailable)", err)
+	}
+	if err := ss.Delete(done, Service, "a/b/c/d"); !errors.Is(err, context.Canceled) || errors.Is(err, ErrUnavailable) {
+		t.Errorf("Delete = %v, want context.Canceled (not ErrUnavailable)", err)
+	}
+}

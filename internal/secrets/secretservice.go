@@ -112,7 +112,13 @@ func find(ctx context.Context, c dbusConn, attrs map[string]string) (string, err
 	return locked[0], nil
 }
 
+// Set, Get and Delete: a failure while ctx is done is ctx's error (ctxErr),
+// not ErrUnavailable.
 func (s secretService) Set(ctx context.Context, service, account, value string) error {
+	return ctxErr(ctx, s.set(ctx, service, account, value))
+}
+
+func (s secretService) set(ctx context.Context, service, account, value string) error {
 	c, session, err := s.open(ctx)
 	if err != nil {
 		return err
@@ -155,6 +161,11 @@ func (s secretService) Set(ctx context.Context, service, account, value string) 
 }
 
 func (s secretService) Get(ctx context.Context, service, account string) (string, error) {
+	v, err := s.get(ctx, service, account)
+	return v, ctxErr(ctx, err)
+}
+
+func (s secretService) get(ctx context.Context, service, account string) (string, error) {
 	c, session, err := s.open(ctx)
 	if err != nil {
 		return "", err
@@ -176,6 +187,10 @@ func (s secretService) Get(ctx context.Context, service, account string) (string
 }
 
 func (s secretService) Delete(ctx context.Context, service, account string) error {
+	return ctxErr(ctx, s.del(ctx, service, account))
+}
+
+func (s secretService) del(ctx context.Context, service, account string) error {
 	c, _, err := s.open(ctx)
 	if err != nil {
 		return err

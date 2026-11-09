@@ -198,7 +198,8 @@ func (k keychain) Delete(ctx context.Context, service, account string) error {
 }
 
 // runSecurity runs the tool and maps its exit code: 44 = ErrNotFound, any other
-// failure (denied, locked, canceled, no keychain, no tool) = ErrUnavailable.
+// failure (denied, locked, canceled, no keychain, no tool) = ErrUnavailable —
+// except that a run ended by ctx is ctx's error.
 // The tool's output is never put in an error.
 func runSecurity(ctx context.Context, stdin *strings.Reader, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, securityPath, args...)
@@ -210,6 +211,9 @@ func runSecurity(ctx context.Context, stdin *strings.Reader, args ...string) ([]
 	err := cmd.Run()
 	if err == nil {
 		return out.Bytes(), nil
+	}
+	if cerr := ctx.Err(); cerr != nil { // killed or never started: not a refusal
+		return nil, fmt.Errorf("secrets: keychain: %w", cerr)
 	}
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
