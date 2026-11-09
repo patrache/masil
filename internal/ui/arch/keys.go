@@ -115,7 +115,7 @@ func reservedGlobal(s string) bool {
 }
 
 // editKeys are the keys that change the design (the tiny summary refuses them).
-var editKeys = []string{"a", "c", "d", "g", "m", "x", "e", "v", "u", "ctrl+r", "=", "H", "J", "K", "L", "/"}
+var editKeys = []string{"a", "c", "d", "g", "m", "x", "e", "p", "v", "u", "ctrl+r", "=", "H", "J", "K", "L", "/"}
 
 func (m *canvasModel) tinyKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 	switch {
@@ -194,7 +194,16 @@ func (m *canvasModel) normalKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 		return true, m.undoStep(ctx, false)
 	case "ctrl+r":
 		return true, m.undoStep(ctx, true)
-	case "e":
+	case "e", "p":
+		// e opens the settings panel; p toggles it (a drawer pushes back in)
+		if s == "p" && m.mode == modePanel {
+			m.mode = modeNormal
+			if m.regs.PanelDrawer {
+				m.drawer.panel = false
+				m.layout()
+			}
+			return true, nil
+		}
 		m.mode = modePanel
 		if m.regs.PanelDrawer {
 			m.drawer.panel = true

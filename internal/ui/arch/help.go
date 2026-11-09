@@ -25,7 +25,7 @@ var helpKeys = []helpKey{
 	{"m", func(t *i18n.T) string { return t.Archcanvas.KeyMove() }},
 	{"a", func(t *i18n.T) string { return t.Archcanvas.KeyAdd() }},
 	{"c", func(t *i18n.T) string { return t.Archcanvas.KeyConnect() }},
-	{"e", func(t *i18n.T) string { return t.Archcanvas.KeyPanel() }},
+	{"e p", func(t *i18n.T) string { return t.Archcanvas.KeyPanel() }},
 	{"x", func(t *i18n.T) string { return t.Archcanvas.KeyFault() }},
 	{"g", func(t *i18n.T) string { return t.Archcanvas.KeyWrap() }},
 	{"v", func(t *i18n.T) string { return t.Archcanvas.KeyMulti() + " · " + t.Archcanvas.KeyView() }},

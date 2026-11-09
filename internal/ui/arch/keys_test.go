@@ -461,3 +461,26 @@ func TestReadOnlyCopyRefusesEdits(t *testing.T) {
 		t.Errorf("no read-only notice:\n%s", h.Screen())
 	}
 }
+
+// TestPanelDrawerKeys: in the 80×24 widget layout "p" pulls the settings panel
+// drawer out and pushes it back (spec C2.6: "e"/"p" panel drawer).
+func TestPanelDrawerKeys(t *testing.T) {
+	r := toolRoute("arch:file:t1", map[string]string{"file": fixtureName})
+	h, c := keyHarness(t, r, withDesign(t, fixtureName, loadFixture(t, "pay_v3")))
+	h.Resize(80, 24)
+	if !c.regs.PanelDrawer || c.regs.Panel.W != 0 {
+		t.Fatalf("80x24: panel drawer %v width %d, want a closed drawer", c.regs.PanelDrawer, c.regs.Panel.W)
+	}
+	h.Press("p")
+	if c.regs.Panel.W != panelW || c.mode != modePanel {
+		t.Errorf("p: panel width %d mode %d, want the open drawer in panel mode", c.regs.Panel.W, c.mode)
+	}
+	h.Press("p")
+	if c.regs.Panel.W != 0 || c.mode != modeNormal {
+		t.Errorf("p again: panel width %d mode %d, want it closed", c.regs.Panel.W, c.mode)
+	}
+	h.Press("e")
+	if c.regs.Panel.W != panelW || c.mode != modePanel {
+		t.Errorf("e: panel width %d mode %d, want the open drawer in panel mode", c.regs.Panel.W, c.mode)
+	}
+}
