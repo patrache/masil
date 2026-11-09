@@ -206,7 +206,9 @@ func (t *KVTable) cell() *string {
 
 func (t *KVTable) startEdit(added bool) {
 	t.editing, t.added = true, added
-	t.buf = []rune(*t.cell())
+	// The stored text may come from an import or a teammate: control
+	// sequences never reach the edit buffer (or the view).
+	t.buf = []rune(textwidth.SanitizeInput(*t.cell()))
 	t.pos = len(t.buf)
 }
 
@@ -321,14 +323,14 @@ func (t *KVTable) layout(w, h int) kvLayout {
 
 func (t *KVTable) display(i, col int) string {
 	if t.editing && i == t.cur && col == t.col {
-		return string(t.buf)
+		return textwidth.Sanitize(string(t.buf))
 	}
 	r := t.rows[i]
 	if col == 0 {
 		return textwidth.Sanitize(r.Key)
 	}
 	v := textwidth.Sanitize(r.Value)
-	if t.isSecret(i) && t.revealed != i && !(t.editing && i == t.cur) {
+	if t.isSecret(i) && t.revealed != i { // the value being edited returned above
 		return maskSecret(v)
 	}
 	return v
@@ -415,7 +417,7 @@ func (t *KVTable) Cursor() *tea.Cursor {
 	if y < l.header || y >= l.h {
 		return nil
 	}
-	before := textwidth.Width(string(t.buf[:t.pos]))
+	before := textwidth.Width(textwidth.Sanitize(string(t.buf[:t.pos])))
 	x := l.keyX + before
 	switch {
 	case l.narrow && t.col == 1:

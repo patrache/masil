@@ -161,3 +161,38 @@ func TestKVTableSecretMasked(t *testing.T) {
 		t.Fatalf("editing hides input: %s", view())
 	}
 }
+
+// Editing the key of a secret row keeps its value masked.
+func TestKVTableSecretMaskedWhileEditingKey(t *testing.T) {
+	ctx, _ := testCtx()
+	tb := NewKVTable(KVCols{Key: "Name", Value: "Value", Secretable: true})
+	tb.SetSecretNames(func(name string) bool { return name == "token" })
+	tb.SetRows([]apitool.KV{{Key: "token", Value: "sk-live-abcdef1234"}})
+	press(t, tb, "enter")
+	if !tb.CapturesInput() {
+		t.Fatal("enter did not edit the key")
+	}
+	if v := strings.Join(plain(tb.View(ctx, 80, 3, true)), "\n"); strings.Contains(v, "sk-live") {
+		t.Fatalf("editing the key shows the secret: %s", v)
+	}
+}
+
+// A cell being edited never puts control sequences in the view.
+func TestKVTableEditSanitized(t *testing.T) {
+	ctx, _ := testCtx()
+	tb := NewKVTable(KVCols{Key: "Name", Value: "Value"})
+	tb.SetRows([]apitool.KV{{Key: "X", Value: "a\x1b]0;pwned\x07b\x1b]52;c;ZXZpbA==\x07"}})
+	press(t, tb, "tab", "enter")
+	if !tb.CapturesInput() {
+		t.Fatal("not editing")
+	}
+	for _, w := range []int{80, 40} {
+		v := strings.Join(tb.View(ctx, w, 3, true), "\n")
+		if strings.Contains(v, "\x1b]") || strings.Contains(v, "\x07") || strings.Contains(v, "pwned") && strings.Contains(v, "\x1b]0") {
+			t.Fatalf("width %d: control sequence in view: %q", w, v)
+		}
+	}
+	if c := tb.Cursor(); c == nil {
+		t.Fatal("no cursor")
+	}
+}
