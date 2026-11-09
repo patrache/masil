@@ -53,6 +53,10 @@ var helpGroups = []struct {
 		keymap.PostOpenMedia, keymap.PostAuthor, keymap.PostCompose}},
 }
 
+// helpTabOrder follows the tab.next description in the help: the widget order (the
+// compact bar puts the open tabs before DM; command walks the tabs then DM).
+const helpTabOrder = " (채팅·DM·피드·알림)"
+
 // helpRowKind is what a help row draws.
 type helpRowKind int
 
@@ -93,14 +97,13 @@ func helpRows(km *keymap.Keymap) []helpRow {
 		for _, a := range g.actions {
 			b := km.Binding(a).Help()
 			desc := b.Desc
-			if a == keymap.AppQuit {
+			switch a {
+			case keymap.AppQuit:
 				desc += " (두 번)"
+			case keymap.TabNext: // the order; per-mode orders are in README / CA 5.4
+				desc += helpTabOrder
 			}
 			add(helpRow{kind: helpKey, key: b.Key, text: desc})
-		}
-		if g.name == "전역" {
-			tabs := km.Binding(keymap.TabPrev).Help().Key + " " + km.Binding(keymap.TabNext).Help().Key
-			add(helpRow{kind: helpKey, key: tabs, text: "탭 순환: 채팅 · DM · 피드 · 알림 (컴팩트: 열린 탭 · DM · 피드 · 알림)"})
 		}
 		if g.name == "창" {
 			for _, r := range [][2]string{

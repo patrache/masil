@@ -184,9 +184,11 @@ func (m *Model) setUpgradeRequired() tea.Cmd {
 
 // onEvent is CA 5.3.4 step 5: Store.Apply → broadcast → alert handling (CA 9.1) →
 // MarkProcessed. Store.Viewing already holds this projection's set (SetViewing runs
-// right after every Project), and an event never changes the projection. ready also
-// drives the bootstrap / resync (CA 5.4, events.md 5.3). Events reaching a logged-out
-// app (the old session's tail) are dropped.
+// right after every Project), and an event never changes the projection — except
+// that a DM which left the Store (deleted, left) or became hidden (I blocked the
+// peer) folds the DM surface back to its list (foldDM, CA 5.3.3), relayouting after
+// the broadcast. ready also drives the bootstrap / resync (CA 5.4, events.md 5.3).
+// Events reaching a logged-out app (the old session's tail) are dropped.
 func (m *Model) onEvent(msg ui.EventMsg) tea.Cmd {
 	if m.login != nil {
 		return nil
@@ -194,6 +196,12 @@ func (m *Model) onEvent(msg ui.EventMsg) tea.Cmd {
 	ev := msg.Event
 	m.ctx.Store.Apply(ev)
 	cmds := []tea.Cmd{m.broadcast(msg)}
+	if m.nav.foldDM(m.dmKept) {
+		if m.nav.InDM && m.nav.Front == FrontTab {
+			m.intent = FocusIntent{Slot: layout.SlotMain, RouteKey: dmsRoute.Key()}
+		}
+		cmds = append(cmds, m.relayout())
+	}
 	if ev.Type == "ready" {
 		cmds = append(cmds, m.onReady(ev))
 	}

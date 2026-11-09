@@ -3,7 +3,6 @@ package app
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -26,17 +25,18 @@ const (
 type histLoc struct {
 	Front Front
 	Root  ui.Route // FrontTab: the tab root (Anchor/Query cleared), RouteDMs on the DM surface; zero otherwise
+	DM    ui.Route // the DM surface's open DM (Anchor/Query cleared) the route sits on; zero on the list and off the DM surface
 	Route ui.Route // the route shown (Anchor cleared): the attached thread, the stack top, the feed top, NotifRoute
 }
 
 // key identifies a place (Anchor/Query never count).
 func (l histLoc) key() string {
-	return string(rune('0'+l.Front)) + "|" + l.Root.Key() + "|" + l.Route.Key()
+	return string(rune('0'+l.Front)) + "|" + l.Root.Key() + "|" + l.DM.Key() + "|" + l.Route.Key()
 }
 
 // loc is the place n shows, mode-independently: FrontTab => the chat surface's (the
-// active tab's, or the DM surface's) attached thread, else its stack top; FrontFeed =>
-// the feed top; FrontNotifications.
+// active tab's, or the DM surface's, with the DM open there) attached thread, else its
+// stack top; FrontFeed => the feed top; FrontNotifications.
 func (n NavState) loc() histLoc {
 	plain := func(r ui.Route) ui.Route { r.Anchor = ""; return r }
 	c := n.clone()
@@ -53,7 +53,12 @@ func (n NavState) loc() histLoc {
 	if attached(t) {
 		r = *t.Thread
 	}
-	return histLoc{Front: FrontTab, Root: root, Route: plain(r)}
+	var dm ui.Route
+	if c.InDM && len(t.Stack) >= 2 && t.Stack[1].Kind == ui.RouteChannel {
+		dm = t.Stack[1]
+		dm.Anchor, dm.Query = "", nil
+	}
+	return histLoc{Front: FrontTab, Root: root, DM: dm, Route: plain(r)}
 }
 
 // oneShot reports whether l shows a screen that closes itself once done (the sns
@@ -123,19 +128,15 @@ func placeExists(st *store.Store, l histLoc) bool {
 		if ch == nil {
 			return !st.Sync.Bootstrapped
 		}
-		if ch.Kind == api.ChannelDM {
-			for _, m := range ch.Members {
-				if !st.IsMe(m.ID) && st.IsBlocked(m.ID) {
-					return false
-				}
-			}
-		}
-		return true
+		return !st.HiddenDM(ch)
 	}
 	if l.Root.Kind == ui.RouteChannel && !known(l.Root.ID) {
 		return false
 	}
 	if l.Route.Kind == ui.RouteChannel && !known(l.Route.ID) { // a DM on the DM surface
+		return false
+	}
+	if l.DM.Kind == ui.RouteChannel && !known(l.DM.ID) { // the DM under a route pushed on the DM surface
 		return false
 	}
 	if l.Route.Kind == ui.RouteSpaceSettings {
@@ -149,7 +150,8 @@ func placeExists(st *store.Store, l histLoc) bool {
 // l.Root (re-added when it was closed or evicted), or the DM surface for a RouteDMs
 // root, and shows l.Route there — a thread as its attached thread (stack folded to
 // the root, on the DM surface to its DM), the root (or the DM) itself with no thread,
-// the DM list with no DM, any other route pushed there (one key, one place). The focus
+// the DM list with no DM, any other route pushed there (one key, one place; on the DM
+// surface over the DM it was pushed on, l.DM, or over the list). The focus
 // intent is the slot that shows it.
 func (n NavState) restore(l histLoc, mode layout.Mode) (NavState, FocusIntent) {
 	c := n.clone()
@@ -186,6 +188,11 @@ func (n NavState) restore(l histLoc, mode layout.Mode) (NavState, FocusIntent) {
 			d.Stack, d.Thread = d.Stack[:2], &th
 			return c, FocusIntent{Slot: threadSlot(mode), RouteKey: r.Key()}
 		default:
+			if l.DM.Kind == ui.RouteChannel {
+				c.openDM(l.DM) // that DM's stack stays when it is open now
+			} else {
+				d.Stack, d.Thread = d.Stack[:1], nil
+			}
 			c.push(r, false, false)
 		}
 		return c, FocusIntent{Slot: layout.SlotMain, RouteKey: r.Key()}

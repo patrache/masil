@@ -201,17 +201,28 @@ func (m *Model) onBootstrapRetry(msg bootstrapRetryMsg) tea.Cmd {
 	return m.startBootstrap()
 }
 
+// foldDM folds the DM surface back to its list when its open DM is not kept (gone
+// from the Store, or hidden: a 1:1 DM with someone I blocked), and closes a DM
+// thread of a channel not kept. It reports whether anything changed.
+func (n *NavState) foldDM(keep func(id string) bool) bool {
+	d := &n.DM
+	if len(d.Stack) >= 2 && d.Stack[1].Kind == ui.RouteChannel && !keep(d.Stack[1].ID) {
+		d.Stack, d.Thread = d.Stack[:1], nil
+		return true
+	}
+	if d.Thread != nil && !keep(d.Thread.Arg) {
+		d.Thread = nil
+		return true
+	}
+	return false
+}
+
 // pruneChannels drops the tabs whose channel root is unknown (deleted or left while
 // away) and threads of unknown channels; the active tab stays where it was or clamps.
-// An unknown DM on the DM surface folds it to the DM list.
+// An unknown DM on the DM surface folds it to the DM list (foldDM).
 func (n NavState) pruneChannels(known func(id string) bool) NavState {
 	c := n.clone()
-	if d := &c.DM; len(d.Stack) >= 2 && d.Stack[1].Kind == ui.RouteChannel && !known(d.Stack[1].ID) {
-		d.Stack, d.Thread = d.Stack[:1], nil
-	}
-	if d := &c.DM; d.Thread != nil && !known(d.Thread.Arg) {
-		d.Thread = nil
-	}
+	c.foldDM(known)
 	var tabs []TabState
 	active := 0
 	for i, t := range c.Tabs {

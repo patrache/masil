@@ -191,6 +191,38 @@ func TestDMHistory(t *testing.T) {
 	}
 }
 
+// A place pushed on the DM surface remembers the DM under it: restoring it shows that
+// DM again under the route, never another one that is open now.
+func TestDMHistoryKeepsDMUnderPush(t *testing.T) {
+	n := navDM(navDM(newNavState(), ch("D1")), search("q")) // [dms, D1, search]
+	l := n.loc()
+	if l.DM.Key() != "channel/D1/" || l.Route.Key() != "search//q" {
+		t.Fatalf("loc %+v", l)
+	}
+	if other := navDM(navDM(newNavState(), ch("D2")), search("q")).loc(); other.key() == l.key() {
+		t.Fatal("the same route over another DM must be another place")
+	}
+	later := navDM(navDM(n, ch("C1")), ch("D2")) // DM surface now [dms, D2]
+	for _, mode := range allModes {
+		r, _ := later.restore(l, mode)
+		if !r.InDM || !reflect.DeepEqual(keysOf(r.DM.Stack), []string{"dms//", "channel/D1/", "search//q"}) {
+			t.Fatalf("%s: restore: %v", mode.ID(), keysOf(r.DM.Stack))
+		}
+		if b := r.back(layout.SlotMain, mode, layoutFor(mode, r)); mode != layout.ModeTooSmall &&
+			!reflect.DeepEqual(keysOf(b.DM.Stack), []string{"dms//", "channel/D1/"}) {
+			t.Fatalf("%s: esc from it: %v", mode.ID(), keysOf(b.DM.Stack))
+		}
+	}
+	// a route pushed on the list itself (no DM under it) restores on the list
+	ls := navDM(navDM(newNavState(), dmsR), search("q"))
+	if ls.loc().DM.Kind != "" {
+		t.Fatalf("list push loc %+v", ls.loc())
+	}
+	if r, _ := later.restore(ls.loc(), layout.ModeWidget); !reflect.DeepEqual(keysOf(r.DM.Stack), []string{"dms//", "search//q"}) {
+		t.Fatalf("restore list push: %v", keysOf(r.DM.Stack))
+	}
+}
+
 func TestLiftDMs(t *testing.T) {
 	// tabs restored from state.json before the Store knew D1 / D2 were DMs
 	n := nav(nav(nav(nav(newNavState(), ch("D2")), ch("C1")), ch("D1")), thr("R", "D1"))

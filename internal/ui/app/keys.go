@@ -263,6 +263,18 @@ func (m *Model) applyNavigate(msg ui.NavigateMsg) tea.Cmd {
 // DM surface).
 func (m *Model) isDM(channelID string) bool { return m.ctx.Store.IsDM(channelID) }
 
+// dmKept reports whether the DM surface may keep channel id open: the Store knows it
+// (or has not bootstrapped yet: a DM restored from state.json) and it is not hidden
+// (Store.HiddenDM).
+func (m *Model) dmKept(id string) bool {
+	st := m.ctx.Store
+	ch := st.Channels[id]
+	if ch == nil {
+		return !st.Sync.Bootstrapped
+	}
+	return !st.HiddenDM(ch)
+}
+
 // applyToggle installs the result of toggleFeed/toggleNotifications.
 func (m *Model) applyToggle(n NavState, intent *FocusIntent) tea.Cmd {
 	m.nav = n

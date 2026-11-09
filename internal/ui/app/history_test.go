@@ -2,11 +2,13 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/store"
+	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -164,7 +166,9 @@ func TestPlaceExists(t *testing.T) {
 	}
 	st.Sync.Bootstrapped = true
 	st.Blocks = map[string]time.Time{"U1": {}}
-	for _, l := range []histLoc{tabLoc(ch("C9"), ch("C9")), tabLoc(ch("C9"), thr("R", "C9")), tabLoc(ch("D1"), ch("D1"))} {
+	dmPush := func(id string) histLoc { return histLoc{Front: FrontTab, Root: dmsR, DM: ch(id), Route: search("q")} }
+	for _, l := range []histLoc{tabLoc(ch("C9"), ch("C9")), tabLoc(ch("C9"), thr("R", "C9")), tabLoc(ch("D1"), ch("D1")),
+		dmPush("D1"), dmPush("D9")} {
 		if placeExists(st, l) {
 			t.Errorf("%s exists, want gone", l.key())
 		}
@@ -232,5 +236,33 @@ func TestHelpRowsHistory(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing help rows: %v", want)
+	}
+}
+
+// The ? help names the tab order on the tab keys themselves: one row per key (no
+// extra cycle row repeating [ and ]), short enough for the help overlay.
+func TestHelpRowsTabOrder(t *testing.T) {
+	km, _ := keymap.Load(nil)
+	seen := map[string]int{}
+	dm := false
+	for _, r := range helpRows(km) {
+		if r.kind != helpKey {
+			continue
+		}
+		for _, k := range strings.Fields(r.key) {
+			seen[k]++
+		}
+		if r.key == "]" && strings.Contains(r.text, "DM") {
+			dm = true
+		}
+		if w := textwidth.Width(r.key) + 1 + textwidth.Width(r.text); (r.key == "[" || r.key == "]") && w > 40 {
+			t.Errorf("%s row %q is %d cells wide", r.key, r.text, w)
+		}
+	}
+	if seen["["] != 1 || seen["]"] != 1 {
+		t.Errorf("[ listed %d times, ] %d times; want once each", seen["["], seen["]"])
+	}
+	if !dm {
+		t.Error("the ] row must name the tab order with DM")
 	}
 }

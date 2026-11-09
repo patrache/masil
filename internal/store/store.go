@@ -346,7 +346,9 @@ func (s *Store) SpaceChannels(spaceID string) []*api.Channel {
 	return out
 }
 
-// TotalUnread sums unread and mention counts. Muted channels add no unread, but their mentions count.
+// TotalUnread sums unread and mention counts over every channel (text and DM). Muted
+// channels add no unread, but their mentions count. The UI badges use ChannelUnread
+// (채팅) and DMUnread (DM) instead (CA 4.5).
 func (s *Store) TotalUnread() (unread, mentions int) {
 	for _, ch := range s.Channels {
 		if !ch.My.Muted {

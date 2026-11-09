@@ -184,7 +184,7 @@ func dmRow(ctx *ui.Context, t *theme.Theme, ch *api.Channel, cw int) string {
 }
 
 // dmPreview is the one-line preview of a DM's newest cached top-level message ("" when
-// none is cached): "나: " for mine, "이름: " in a group DM, the body's first line (a
+// none is cached; a window moved back from the live end, hasMoreAfter, has none): "나: " for mine, "이름: " in a group DM, the body's first line (a
 // deleted message says so). Sanitized.
 func dmPreview(ctx *ui.Context, ch *api.Channel) string {
 	c := chatOf(ctx)
@@ -196,7 +196,7 @@ func dmPreview(ctx *ui.Context, ch *api.Channel) string {
 	if ch.LastMessageID != nil {
 		m, ok = c.FindMessage(*ch.LastMessageID)
 	}
-	if !ok && c.HasWindow(ch.ID) {
+	if !ok && c.HasWindow(ch.ID) && !c.Window(ch.ID).HasMoreAfter() { // only a window that reaches the live end
 		items := c.Window(ch.ID).Items()
 		for i := len(items) - 1; i >= 0; i-- {
 			if items[i].ThreadRootID == nil {

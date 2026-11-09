@@ -376,3 +376,24 @@ func TestDMRailAndSidebarEntry(t *testing.T) {
 		h.Check()
 	})
 }
+
+// The window fallback previews only a window that reaches the live end: one moved back
+// to an old anchor (hasMoreAfter) holds no "last message".
+func TestDMPreviewOnlyFromLiveWindow(t *testing.T) {
+	h := openDMs(t, widgetSz, dmsRoute)
+	ctx := h.Context()
+	ch := ctx.Store.Channels[fixtures.DMMinji]
+	last := "01JDDMM9999999999999999999" // newest, cached nowhere
+	ch.LastMessageID = &last
+	old := api.Message{ID: "01JDDMM0000000000000000001", ChannelID: fixtures.DMMinji, Body: "아주 옛날 글",
+		Author: *ctx.Store.User(fixtures.UserMinji)}
+	w := chatOf(ctx).Window(fixtures.DMMinji)
+	w.Replace([]api.Message{old}, false, true)
+	if got := dmPreview(ctx, ch); got != "" {
+		t.Fatalf("a window behind the live end must not preview: %q", got)
+	}
+	w.Replace([]api.Message{old}, false, false)
+	if got := dmPreview(ctx, ch); !strings.Contains(got, "아주 옛날 글") {
+		t.Fatalf("the live window's newest message must preview: %q", got)
+	}
+}
