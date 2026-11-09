@@ -2315,6 +2315,7 @@ func (m *Model) Nav() NavState        // tests: current logical navigation state
 func (m *Model) Instance(routeKey string) ui.Component // tests: cached route instance or nil
 func (m *Model) Focus() FocusIntent   // tests: resolved focus slot + route key this frame
 func (m *Model) Frame() FrameInfo     // tests: geometry of the last View() (10.2 AssertIntegrity)
+func (m *Model) Locale() i18n.Resolution // P5 Task 2: the current language decision (start, then each SetLocaleMsg); Task 24 shows its source
 
 type FocusIntent struct{ Slot layout.SlotID; RouteKey string }
 
@@ -2324,7 +2325,7 @@ type FrameInfo struct {
 	Overlays []Box                      // bottom -> top, final clamped rects (5.3.7)
 	Toast    *Box                       // nil when no toast box is drawn (or tiny: shown in status line)
 }
-type Box struct{ Rect layout.Rect; Bordered bool }
+type Box struct{ Rect layout.Rect; Bordered bool; ID string } // ID(P5 Task 4): overlay's OpenOverlayMsg.ID, else its Go type without "*" ("palette.overlay"); "" for the toast
 
 func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Program (alt screen via View), start realtime bridge, run, save state.json on exit
 ```

@@ -664,6 +664,6 @@ type Box struct {
 	Bordered bool
 	// ID names an overlay box (P5 Task 4, the x-pseudo region key
 	// "overlay/<ID>"): the id it was opened by (ui.OpenOverlayMsg.ID), else its
-	// Go type ("palette.Model"). Empty for the toast.
+	// Go type without "*" ("palette.overlay"). Empty for the toast.
 	ID string
 }
