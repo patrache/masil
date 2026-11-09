@@ -1,0 +1,22 @@
+{
+ "schema_version": 1, "title": "mixed providers", "seed": 4, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "c", "kind": "client", "label": "app", "pos": [0, 0]},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0]},
+  {"id": "gapi", "kind": "api", "label": "분석 \"GCP\" ${x}", "pos": [40, 0], "provider": "gcp", "instance_type": "e2-standard-2", "region": "asia-northeast3"},
+  {"id": "adb", "kind": "db_primary", "label": "", "pos": [40, 6], "provider": "azure", "instance_type": "Standard_E2s_v5", "region": "koreacentral"},
+  {"id": "own", "kind": "worker", "label": "own metal", "pos": [60, 0], "provider": "custom", "custom_hourly_micro_usd": 50000},
+  {"id": "pay", "kind": "external", "label": "pay", "pos": [60, 6]},
+  {"id": "s3", "kind": "object_storage", "label": "Receipts", "pos": [80, 0]},
+  {"id": "q", "kind": "queue", "label": "Jobs", "pos": [80, 6]},
+  {"id": "find", "kind": "search", "label": "Find", "pos": [100, 0]},
+  {"id": "cdn", "kind": "cdn", "label": "cdn", "pos": [100, 6]}
+ ],
+ "edges": [
+  {"id": "e1", "from": "c", "to": "api"},
+  {"id": "e2", "from": "api", "to": "gapi"},
+  {"id": "e3", "from": "api", "to": "adb"}
+ ],
+ "faults": []
+}
