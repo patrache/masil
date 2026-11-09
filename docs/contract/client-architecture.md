@@ -1110,6 +1110,42 @@ func (c *Client) DeleteDocComment(ctx context.Context, docID, commentID string) 
 func (c *Client) DocSocketURL(docID string) string // ws(s)://.../v1/docs/<doc_id>/ws (internal/collab 이 AuthHeader 로 dial)
 ```
 
+LeetCode 오늘의 문제 (api.md 5.25, P1 Task 6 — `internal/api/types_leet.go`·`ep_leet.go`):
+
+```go
+const CardLeetDaily, CardLeetSolve = "leet.daily", "leet.solve"
+type LeetDailyFacts struct { FrontendID, Slug, Title, Difficulty string; Tags []string; IsPaidOnly bool } // json snake_case
+type LeetDaily struct { Date string; LeetDailyFacts; FirstReporter *UserSummary; FirstReportedAt time.Time; MismatchCount int }
+type LeetDailyRoot struct { SpaceID, ChannelID, MessageID string }
+type LeetDailyReport struct { Daily LeetDaily; Roots []LeetDailyRoot }
+type LeetSolveRequest struct { Slug, Lang, FrontendID string; RuntimePercentile *float64; SubmissionID *string; ShareSpaceIDs []string; Code *string } // status "accepted" 은 메서드가 채움
+type LeetSolve struct { Date, Slug, Lang string; PassedAt time.Time; RuntimePercentile *float64; CountsForStreak bool }
+type LeetSolveCardRef struct { SpaceID, MessageID string }
+type LeetSolveResult struct { Solve LeetSolve; Cards []LeetSolveCardRef }
+type LeetDailySpace struct { SpaceID, ChannelID string }
+type LeetMe struct { Current, Best int; Recent []LeetSolve; DailySpaces []LeetDailySpace }
+type LeetBoard struct { Period string; Items []LeetBoardEntry }
+type LeetBoardEntry struct { User UserSummary; Solved, Streak int }
+type LeetFriendsBoard struct { Items []LeetFriendStreak }
+type LeetFriendStreak struct { User UserSummary; Current, Best int }
+type LeetSpaceSettings struct { SpaceID string; Enabled bool; ChannelID, EnabledBy *string; EnabledAt *time.Time }
+type LeetDailyCard struct { Date string; LeetDailyFacts }                       // Card.Data of leet.daily v1
+type LeetSolveCard struct { Date, FrontendID, Slug, Lang string; RuntimePercentile *float64; Code *LeetSolveCode; Spoiler bool } // leet.solve v1
+type LeetSolveCode struct { Lang, Text string }
+// Settings.LeetShareWithFriends bool `json:"leet_share_with_friends"`; UpdateSettingsRequest.LeetShareWithFriends Opt[bool]
+
+func (c *Client) SetSpaceLeet(ctx context.Context, spaceID string, enabled bool, channelID *string) (*LeetSpaceSettings, error) // RL_SOCIAL
+func (c *Client) ReportLeetDaily(ctx context.Context, date string, f LeetDailyFacts) (*LeetDailyReport, error)               // RL_SOCIAL (서버는 루트를 만들 때 RL_MESSAGE 도 셈)
+func (c *Client) PutLeetSolve(ctx context.Context, date string, r LeetSolveRequest) (*LeetSolveResult, error)                // RL_SOCIAL
+func (c *Client) DeleteLeetSolve(ctx context.Context, date string) error                                                    // RL_SOCIAL
+func (c *Client) LeetMe(ctx context.Context) (*LeetMe, error)
+func (c *Client) LeetSpaceBoard(ctx context.Context, spaceID, period string) (*LeetBoard, error) // period "" = 서버 기본(week)
+func (c *Client) LeetFriendsBoard(ctx context.Context) (*LeetFriendsBoard, error)
+```
+
+- api.md 6장의 `PUT /v1/leet/daily/{date}` 행은 리미터가 둘(`RL_SOCIAL, RL_MESSAGE`)이다. `request.Limiter` 는 하나만 들므로 늘 세는 `RL_SOCIAL` 을 쓰고, `contract_limiters_test.go` 는 "행이 여럿이면 그중 하나" 로 대조한다.
+- `internal/api` 는 LeetCode 를 모른다 — 문제 본문·쿠키는 `internal/leetcode`(P1) 몫이고 이 메서드들은 masil 서버의 사실 정보·풀이 기록만 오간다.
+
 - `Message.Kind` 값에 `"card"` 가 더해진다. 0.1.2 이하 클라이언트는 모르는 kind 의 `body`(대체 요약)를 그대로 그린다.
 - `AlertTarget.Type` 값에 `"doc"` 가 더해진다.
 - 쓰기 엔드포인트의 리미터 정적 표(4.3.1 "속도 제한")에 `RL_DOC` 행이 api.md 6장과 같은 커밋에서 더해진다(`contract_limiters_test.go` 가 대조).

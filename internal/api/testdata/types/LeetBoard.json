@@ -1,0 +1,12 @@
+{
+  "period": "week",
+  "items": [ { "user": {
+    "id": "01JA0000000000000000000001",
+    "handle": "minji",
+    "display_name": "minji",
+    "avatar_url": "/v1/media/01JU0000000000000000000001",
+    "status": { "emoji": "🎧", "text": "listening", "expires_at": "2026-11-05T03:00:00.000Z" },
+    "is_private": false,
+    "suspended": false
+  }, "solved": 4, "streak": 3 } ]
+}

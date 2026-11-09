@@ -1,0 +1,13 @@
+{
+  "current": 3,
+  "best": 7,
+  "recent": [ {
+    "date": "2026-11-09",
+    "slug": "find-servers-that-handled-most-number-of-requests",
+    "lang": "golang",
+    "passed_at": "2026-11-09T13:04:05.000Z",
+    "runtime_percentile": 12.5,
+    "counts_for_streak": true
+  } ],
+  "daily_spaces": [ { "space_id": "01JS0000000000000000000001", "channel_id": "01JB0000000000000000000001" } ]
+}

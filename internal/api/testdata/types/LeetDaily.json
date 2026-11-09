@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-09",
+  "frontend_id": "1606",
+  "slug": "find-servers-that-handled-most-number-of-requests",
+  "title": "Find Servers That Handled Most Number of Requests",
+  "difficulty": "Hard",
+  "tags": ["Array", "Heap (Priority Queue)", "Ordered Set"],
+  "is_paid_only": false,
+  "first_reporter": {
+    "id": "01JA0000000000000000000001",
+    "handle": "minji",
+    "display_name": "minji",
+    "avatar_url": "/v1/media/01JU0000000000000000000001",
+    "status": { "emoji": "🎧", "text": "listening", "expires_at": "2026-11-05T03:00:00.000Z" },
+    "is_private": false,
+    "suspended": false
+  },
+  "first_reported_at": "2026-11-09T00:00:03.120Z",
+  "mismatch_count": 1
+}

@@ -1,0 +1,17 @@
+{
+  "daily": {
+    "date": "2026-11-09",
+    "frontend_id": "1606",
+  "slug": "find-servers-that-handled-most-number-of-requests",
+  "title": "Find Servers That Handled Most Number of Requests",
+  "difficulty": "Hard",
+  "tags": ["Array", "Heap (Priority Queue)", "Ordered Set"],
+  "is_paid_only": false,
+    "first_reporter": null,
+    "first_reported_at": "2026-11-09T00:00:03.120Z",
+    "mismatch_count": 0
+  },
+  "roots": [
+    { "space_id": "01JS0000000000000000000001", "channel_id": "01JB0000000000000000000001", "message_id": "01JC0000000000000000000001" }
+  ]
+}
