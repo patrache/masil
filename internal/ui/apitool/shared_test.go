@@ -141,6 +141,96 @@ func TestUploadToSpaceFlow(t *testing.T) {
 	}
 }
 
+// createDocBody is the snapshot JSON of the CreateDoc calls h made.
+func createDocBodies(h *uitest.Harness) []string {
+	var out []string
+	for _, r := range h.API.Requests() {
+		if r.Method == http.MethodPost && r.Path == "/v1/spaces/"+fixtures.SpaceNova+"/docs" {
+			out = append(out, string(r.Body))
+		}
+	}
+	return out
+}
+
+// Upload (flow ③) asks about every held field with the edit path's
+// choices: 변수로 바꾸기 turns that secret into a secret collection
+// variable (its value in my vault for the new document), 그래도 올리기
+// shares that field; nothing held goes up unasked.
+func TestUploadHeldEachFieldAsked(t *testing.T) {
+	const key2 = "q8Zr3Kp9Lm2Xw7Tb5Nc4Vh6Jd1Fs0Gy"
+	hub := collabtest.New(t)
+	store := secrettest.NewStore(t, true)
+	h := openAPI(t, uitest.WithCollab(hub), uitest.WithSecrets(store))
+	a := &apitool.Request{ID: "ra", Name: "A", Method: "GET", URL: "https://api.example.com/a",
+		Headers: []apitool.KV{{ID: "h1", Key: "Authorization", Value: "Bearer " + testJWT}}}
+	b := &apitool.Request{ID: "rb", Name: "B", Method: "GET", URL: "https://api.example.com/b",
+		Query: []apitool.KV{{ID: "q1", Key: "api_key", Value: key2}}}
+	tl := seedRequests(h, nil, a, b)
+	h.Press("U")
+	waitWhole(t, h, ko.UploadPlaintextNote())
+	h.Press("enter")
+	waitFor(t, h, "the first held question", func() bool {
+		o := overlayText(h)
+		return hasWhole(o, ko.SecretDetected()) && strings.Contains(o, ko.SecretToVar()) && strings.Contains(o, ko.UploadAnyway())
+	})
+	settle(h)
+	first := overlayText(h)
+	h.Press("ctrl+u")
+	h.Type("tok1")
+	h.Press("enter") // 변수로 바꾸기
+	waitFor(t, h, "the second held question", func() bool {
+		o := overlayText(h)
+		return hasWhole(o, ko.SecretDetected()) && o != first
+	})
+	if n := len(createDocBodies(h)); n != 0 {
+		t.Fatalf("uploaded before every held field was answered (%d)", n)
+	}
+	settle(h)
+	h.Press("down", "enter") // 그래도 올리기
+	waitFor(t, h, "the upload", func() bool { return len(createDocBodies(h)) == 1 })
+	body := createDocBodies(h)[0]
+	conv, kept := testJWT, key2
+	if !strings.Contains(body, "Bearer {{tok1}}") {
+		conv, kept = key2, testJWT
+	}
+	if strings.Contains(body, conv) || !strings.Contains(body, "{{tok1}}") || !strings.Contains(body, kept) {
+		t.Fatalf("snapshot (converted %q, kept %q):\n%s", conv[:8], kept[:8], body)
+	}
+	if !strings.Contains(body, `\"name\":\"tok1\",\"secret\":true`) && !strings.Contains(body, `"name":"tok1","secret":true`) {
+		t.Fatalf("no secret variable tok1 in the snapshot:\n%s", body)
+	}
+	waitFor(t, h, "the shared copy open", func() bool { return len(tl.docs) == 1 })
+	var docID string
+	for id := range tl.docs {
+		docID = id
+	}
+	waitFor(t, h, "the converted value in my vault", func() bool {
+		s, err := tl.vault(h.Context()).Get(apitool.SecretKey(docID, "col:"+docID, "tok1"))
+		return err == nil && s.Reveal() == conv
+	})
+	if m, _ := apitool.OpenLocal(h.Context().Paths).LoadMine(docID); !m.IsSecret("col:" + docID + "/tok1") {
+		t.Fatalf("tok1 is not marked mine: %+v", m)
+	}
+}
+
+func TestUploadHeldCancelUploadsNothing(t *testing.T) {
+	hub := collabtest.New(t)
+	h := openAPI(t, uitest.WithCollab(hub))
+	a := &apitool.Request{ID: "ra", Name: "A", Method: "GET", URL: "https://api.example.com/a",
+		Headers: []apitool.KV{{ID: "h1", Key: "Authorization", Value: "Bearer " + testJWT}}}
+	seedRequests(h, nil, a)
+	h.Press("U")
+	waitWhole(t, h, ko.UploadPlaintextNote())
+	h.Press("enter")
+	waitFor(t, h, "the held question", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	settle(h)
+	h.Press("down", "down", "enter") // 취소
+	settle(h)
+	if n := len(createDocBodies(h)); n != 0 {
+		t.Fatalf("CreateDoc calls = %d", n)
+	}
+}
+
 func TestPeerSeesNoValueForSecret(t *testing.T) {
 	hub := collabtest.New(t)
 	seedShared(hub, sharedCollection("https://api.example.com"))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -852,7 +853,126 @@ type uploadPlan struct {
 	name, space string
 	col         *apitool.Collection
 	snap        collab.Snapshot
-	envFrom     string // the personal environment attached (its secrets are copied)
+	envFrom     string          // the personal environment attached (its secrets are copied)
+	anyway      map[string]bool // held fields I chose to share ("<obj>\x00<field>")
+	vars        []upVar         // held secrets made secret collection variables
+}
+
+// upVar is a held secret made a variable during upload: its value goes to
+// my vault under the new document, the mark to its .mine.json.
+type upVar struct {
+	name  string
+	val   secrets.Secret
+	hosts []string
+}
+
+// pending are the held fields of p's snapshot not yet answered.
+func (p *uploadPlan) pending() []apitool.HeldField {
+	var puts []collab.Op
+	for _, o := range p.snap.Objects {
+		puts = append(puts, collab.Op{Op: collab.OpPut, ID: o.ID, Type: o.Type, Fields: o.Fields})
+	}
+	_, held := apitool.Gate(puts)
+	return slices.DeleteFunc(held, func(h apitool.HeldField) bool { return p.anyway[h.Obj+"\x00"+h.F] })
+}
+
+// toVar replaces secret with {{name}} in every held field holding it and
+// declares name a secret collection variable of p.
+func (p *uploadPlan) toVar(held []apitool.HeldField, secret, name string, hosts []string) {
+	objs := map[string]*collab.Object{}
+	for i := range p.snap.Objects {
+		objs[p.snap.Objects[i].ID] = &p.snap.Objects[i]
+	}
+	for _, h := range held {
+		o := objs[h.Obj]
+		if o == nil || h.Text[h.Finding.Start:h.Finding.End] != secret {
+			continue
+		}
+		fields := maps.Clone(o.Fields)
+		fields[h.F] = replaceInJSON(fields[h.F], secret, "{{"+name+"}}")
+		o.Fields = fields
+	}
+	if !slices.ContainsFunc(p.col.Vars, func(v apitool.Var) bool { return v.Name == name }) {
+		p.col.Vars = append(p.col.Vars, apitool.Var{Name: name, Secret: true})
+	}
+	if col := objs["col"]; col != nil {
+		vars := apitool.DocFromCollection(&apitool.Collection{Vars: p.col.Vars}).Objects[0].Fields["vars"]
+		fields := maps.Clone(col.Fields)
+		fields["vars"] = vars
+		col.Fields = fields
+	}
+	p.vars = append(p.vars, upVar{name: name, val: secrets.New(secret), hosts: hosts})
+}
+
+// requestOf is the request a held object of p belongs to (nil = none).
+func (p *uploadPlan) requestOf(obj string) *apitool.Request {
+	if id, ok := strings.CutPrefix(obj, "req:"); ok {
+		return p.col.Requests[id]
+	}
+	for _, o := range p.snap.Objects {
+		if o.ID == obj {
+			var id string
+			_ = json.Unmarshal(o.Fields["req"], &id)
+			return p.col.Requests[id]
+		}
+	}
+	return nil
+}
+
+// uploadHeldDialog asks about the first unanswered held field of the
+// upload (the edit path's choices; 취소 stops the upload), or uploads once
+// every one is answered.
+func (t *Tool) uploadHeldDialog(ctx *ui.Context, p *uploadPlan) tea.Cmd {
+	held := p.pending()
+	if len(held) == 0 {
+		t.upPlan = nil
+		return t.startUpload(ctx, p)
+	}
+	a := ctx.T.Apitest
+	h := held[0]
+	t.upPlan = p
+	return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkUploadHeld, title: a.HeldTitle(), prefW: 64,
+		body:    []string{a.SecretDetected(), a.HeldField(h.Obj + "." + h.F), a.SecretName()},
+		input:   newLineInput(suggestName(h.Finding.Rule, h.F)),
+		choices: []string{a.SecretToVar(), a.UploadAnyway(), a.Cancel()}})
+}
+
+// uploadHeldAnswer follows the upload's held question.
+func (t *Tool) uploadHeldAnswer(ctx *ui.Context, m dialogMsg) tea.Cmd {
+	p := t.upPlan
+	t.upPlan = nil
+	if p == nil {
+		return nil
+	}
+	held := p.pending()
+	if len(held) == 0 {
+		return t.startUpload(ctx, p)
+	}
+	h := held[0]
+	switch m.Choice {
+	case 0: // make it a variable
+		name := strings.TrimSpace(m.Input)
+		if !varName.MatchString(name) {
+			return tea.Batch(ui.Toast(ctx.T.Apitest.SecretBadName(), ui.ToastError), t.uploadHeldDialog(ctx, p))
+		}
+		hosts := []string{}
+		if r := p.requestOf(h.Obj); r != nil {
+			if u, _, err := apitool.Expand(r.URL, t.scope(ctx), dyn(ctx)); err == nil {
+				if host := hostOf(u); host != "" {
+					hosts = append(hosts, host)
+				}
+			}
+		}
+		p.toVar(held, h.Text[h.Finding.Start:h.Finding.End], name, hosts)
+		return t.uploadHeldDialog(ctx, p)
+	case 1: // share this field anyway
+		if p.anyway == nil {
+			p.anyway = map[string]bool{}
+		}
+		p.anyway[h.Obj+"\x00"+h.F] = true
+		return t.uploadHeldDialog(ctx, p)
+	}
+	return nil // 취소: nothing goes up
 }
 
 // prepareUpload copies the collection (with the selected personal
@@ -920,6 +1040,15 @@ func (t *Tool) startUpload(ctx *ui.Context, p *uploadPlan) tea.Cmd {
 						slog.Warn("api: copy secret", "err", err)
 					}
 				}
+			}
+		}
+		for _, uv := range p.vars {
+			mine.MarkSecret("col:"+d.ID+"/"+uv.name, uv.hosts)
+			if v == nil {
+				continue
+			}
+			if err := v.Put(apitool.SecretKey(d.ID, "col:"+d.ID, uv.name), uv.val); err != nil {
+				slog.Warn("api: put secret", "err", err)
 			}
 		}
 		if err := local.SaveMine(d.ID, mine); err != nil {
@@ -1072,17 +1201,9 @@ func (t *Tool) sharedDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 		if len(held) == 0 {
 			return t.startUpload(ctx, p)
 		}
-		a := ctx.T.Apitest
-		t.upPlan = p
-		return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkUploadHeld, title: a.HeldTitle(), prefW: 64,
-			body:    []string{a.SecretDetected(), a.HeldField(held[0].Obj + "." + held[0].F)},
-			choices: []string{a.UploadAnyway(), a.Cancel()}})
+		return t.uploadHeldDialog(ctx, p)
 	case dkUploadHeld:
-		p := t.upPlan
-		t.upPlan = nil
-		if p != nil && m.Choice == 0 {
-			return t.startUpload(ctx, p)
-		}
+		return t.uploadHeldAnswer(ctx, m)
 	case dkHeld:
 		return t.heldAnswer(ctx, m)
 	case dkLost:
