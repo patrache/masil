@@ -43,6 +43,9 @@ var (
 	}
 	// formatSAS shows a check number (goldens pin it).
 	formatSAS = func(s string) string { return s }
+	// ringBell sounds the terminal bell (BEL straight to the terminal; P0
+	// toasts have no sound of their own).
+	ringBell = func() tea.Cmd { return tea.Raw("\a") }
 )
 
 // ownerShare is one running share of this folder.
@@ -286,7 +289,7 @@ func (s *Surface) ownerEvent(ctx *ui.Context, ev share.Event) tea.Cmd {
 		// the owner was typing and could let someone in unchecked.
 		o.asked = append(o.asked, e.JoinRequest)
 		name := s.peer(ctx, e.Seat, e.UserID).name
-		return ui.Toast(t.JoinRequesting(name), ui.ToastAlert)
+		return tea.Batch(ui.Toast(t.JoinRequesting(name), ui.ToastAlert), ringBell())
 	case share.EventJoinExpired:
 		s.dropAsked(e.Seat)
 	case share.EventPeerJoined:

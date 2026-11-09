@@ -101,3 +101,17 @@ func TestProposalBandNamesRealKey(t *testing.T) {
 		t.Fatalf("band:\n%s", h.Screen())
 	}
 }
+
+// A join request rings the terminal bell with its toast (B6.3 #2).
+func TestJoinRequestRingsBell(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	bells := 0
+	t.Cleanup(CountBellsForTest(&bells))
+	r := newShareRig(t, h, fake, map[uint8]api.UserSummary{1: minjiUser})
+	r.shareFriends("minji")
+	r.addGuest(1)
+	if bells != 1 {
+		t.Fatalf("bells = %d", bells)
+	}
+}

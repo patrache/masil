@@ -3,6 +3,8 @@ package workspace
 import (
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/patrache/masil/internal/workspace/share"
 )
 
@@ -42,4 +44,11 @@ func SetTerminalForTest(f func(instanceID string) share.Terminal) (restore func(
 	old := shareTerminal
 	shareTerminal = func(t *term) share.Terminal { return f(t.id) }
 	return func() { shareTerminal = old }
+}
+
+// CountBellsForTest counts the bells the owner screens ring.
+func CountBellsForTest(n *int) (restore func()) {
+	old := ringBell
+	ringBell = func() tea.Cmd { *n++; return nil }
+	return func() { ringBell = old }
 }
