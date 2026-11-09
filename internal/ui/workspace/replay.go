@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
+	"github.com/patrache/masil/internal/workspace/share"
 	"github.com/patrache/masil/internal/workspace/wire"
 )
 
@@ -41,10 +42,11 @@ func newReplayTerm(id uint8) *replayTerm {
 	return &replayTerm{id: id, follow: true}
 }
 
-// size is the owner's terminal size (80x24 until the status says).
+// size is the owner's terminal size (80x24 until the status says), never
+// past share.MaxTermCols x share.MaxTermRows: the screen is allocated at it.
 func (rt *replayTerm) size() termhost.Size {
 	if rt.status.Cols > 0 && rt.status.Rows > 0 {
-		return termhost.Size{W: rt.status.Cols, H: rt.status.Rows}
+		return termhost.Size{W: min(rt.status.Cols, share.MaxTermCols), H: min(rt.status.Rows, share.MaxTermRows)}
 	}
 	return termhost.Size{W: 80, H: 24}
 }

@@ -190,3 +190,29 @@ func TestTermStatusAndAttention(t *testing.T) {
 		t.Fatalf("ctl_attention sent %d times", r.relay.Attention())
 	}
 }
+
+// A tampered owner client cannot make a participant build a huge screen: a
+// term_status size out of range reaches the participant clamped (Review
+// Focus 5).
+func TestTermStatusSizeClamped(t *testing.T) {
+	r, _ := termRig(t, wire.LevelViewer, 1)
+	r.takeGuest(1)
+	for _, p := range []string{`{"term":0,"cols":100000,"rows":100000}`, `{"term":0,"cols":-5,"rows":-1}`} {
+		if err := share.HostBroadcast(r.host, wire.KindTermStatus, []byte(p)); err != nil {
+			t.Fatal(err)
+		}
+		r.settle()
+		var got *wire.TermStatus
+		for _, e := range r.takeGuest(1) {
+			if s, ok := e.(share.EventTermStatus); ok {
+				got = &s.TermStatus
+			}
+		}
+		if got == nil {
+			t.Fatalf("%s: no status event", p)
+		}
+		if got.Cols < 0 || got.Rows < 0 || got.Cols > share.MaxTermCols || got.Rows > share.MaxTermRows {
+			t.Fatalf("%s: status size %dx%d not clamped", p, got.Cols, got.Rows)
+		}
+	}
+}

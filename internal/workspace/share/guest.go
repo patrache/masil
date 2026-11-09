@@ -468,6 +468,8 @@ func (g *Guest) dispatchMore(kind wire.Kind, p []byte) {
 	case wire.KindTermStatus:
 		var m wire.TermStatus
 		if unmarshal(p, &m) {
+			m.Cols = max(0, min(m.Cols, MaxTermCols))
+			m.Rows = max(0, min(m.Rows, MaxTermRows))
 			g.emit(EventTermStatus{TermStatus: m})
 		}
 	case wire.KindPropResult:

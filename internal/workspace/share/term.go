@@ -56,6 +56,15 @@ const (
 // owner's window.
 var FixedSizes = [][2]int{{0, 0}, {120, 40}, {100, 30}, {80, 24}}
 
+// MaxTermCols and MaxTermRows bound the terminal size a participant takes
+// from the owner's term_status (a larger one is clamped): the participant
+// builds its replay screen at that size, so a tampered owner client must not
+// pick it freely.
+const (
+	MaxTermCols = 500
+	MaxTermRows = 300
+)
+
 // sharedTerm is one terminal the host shares. buf/firstAt/overflow are
 // written by the terminal's output callback and guarded by Host.tapMu; the
 // rest belongs to Host.mu.
