@@ -109,6 +109,18 @@ func (s *localSink) due(gen int) tea.Cmd {
 	}
 }
 
+// flush writes the design now when an edit is not written yet (the canvas is
+// closing: the debounced save would find no instance). It reports a failed write.
+func (s *localSink) flush() error {
+	if s.gen == s.saved || s.store == nil || s.name == "" {
+		return nil
+	}
+	d, _ := archdoc.FromObjects(s.objs, nil)
+	err := s.store.Save(s.name, d, true)
+	s.done(savedMsg{instance: s.instance, gen: s.gen, err: err})
+	return err
+}
+
 // done records a finished write.
 func (s *localSink) done(m savedMsg) {
 	if m.err != nil {

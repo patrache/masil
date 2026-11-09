@@ -66,7 +66,20 @@ var (
 	_ ui.Titled       = (*canvasModel)(nil)
 	_ ui.Helper       = (*canvasModel)(nil)
 	_ ui.ToolStatuser = (*canvasModel)(nil)
+	_ ui.Closer       = (*canvasModel)(nil)
 )
+
+// CloseTool writes a personal design's pending edits before the instance goes
+// (hub x, ui.CloseTool); a failed write says so in a toast.
+func (m *canvasModel) CloseTool(ctx *ui.Context) tea.Cmd {
+	m.cancelGesture()
+	if ls, ok := m.sink.(*localSink); ok {
+		if err := ls.flush(); err != nil {
+			return ui.Toast(ctx.T.Archcanvas.SaveFailed(), ui.ToastError)
+		}
+	}
+	return nil
+}
 
 // newCanvas is the tool's ui.ToolSpec.New: the sink is chosen in Init.
 func newCanvas(_ *ui.Context, r ui.Route) ui.Component {

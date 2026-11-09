@@ -1,10 +1,14 @@
 package arch
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/patrache/masil/internal/archdoc"
 	"github.com/patrache/masil/internal/archdraw"
+	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
 )
 
@@ -50,5 +54,31 @@ func TestWidget80x24ShowsCanvas(t *testing.T) {
 	h.Resize(79, 24)
 	if c.regs.View != viewList {
 		t.Errorf("79x24 (inner %dx%d): view %d, want the list", c.size.W, c.size.H, c.regs.View)
+	}
+}
+
+// TestCloseWritesPendingEdits: closing a personal design within the save delay
+// writes its last edit at once (the debounced save would find no instance).
+func TestCloseWritesPendingEdits(t *testing.T) {
+	r := toolRoute("arch:file:t1", map[string]string{"file": fixtureName})
+	h, c := keyHarness(t, r, withDesign(t, fixtureName, loadFixture(t, "pay_v3")))
+	n := len(c.design.Nodes)
+	h.Press("a", "enter")
+	if len(c.design.Nodes) != n+1 || c.sink.Status() != savePending {
+		t.Fatalf("after a: %d nodes, status %d", len(c.design.Nodes), c.sink.Status())
+	}
+	h.Send(ui.CloseToolMsg{InstanceID: r.ID})
+	h.Advance(3 * time.Second)
+	h.Flush()
+	st, err := archdoc.OpenStore(filepath.Join(os.Getenv("MASIL_CONFIG_DIR"), "arch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := st.Load(fixtureName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Nodes) != n+1 {
+		t.Errorf("after closing: the file has %d nodes, want %d", len(d.Nodes), n+1)
 	}
 }
