@@ -425,6 +425,31 @@ func TestToolSurfaceLimit(t *testing.T) {
 	}
 }
 
+// TestToolSurfaceLimitKeepsHubSlot: instances opened without the hub (palette,
+// cards) stop at maxTools-1, so the hub can always be opened to close one.
+func TestToolSurfaceLimitKeepsHubSlot(t *testing.T) {
+	installStubTools(t, "all")
+	h := uitest.New(t)
+	for i := range 6 {
+		openTool(h, ui.ToolArch, fmt.Sprintf("a%d", i))
+	}
+	n := h.Model.Nav()
+	if len(n.Tools) != 5 {
+		t.Fatalf("tools = %d (%v), want 5 instances (one place kept for the hub)", len(n.Tools), n.Tools)
+	}
+	if !strings.Contains(h.Screen(), "6개까지") {
+		t.Errorf("no limit toast:\n%s", h.Screen())
+	}
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}})
+	n = h.Model.Nav()
+	if len(n.Tools) != 6 || n.Tools[0].Kind != ui.RouteTools {
+		t.Fatalf("tools.hub with 5 instances open: tools = %v, want the hub first (6)", n.Tools)
+	}
+	if r := n.Tools[n.ToolActive]; r.Kind != ui.RouteTools || n.Front != app.FrontTools {
+		t.Errorf("the hub is not in front: active %+v front %v", r, n.Front)
+	}
+}
+
 func TestToolsNotSaved(t *testing.T) {
 	installStubTools(t, "all")
 	h := uitest.New(t)

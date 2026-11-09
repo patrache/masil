@@ -25,7 +25,9 @@ import (
 // while a tool feature flag is on (features.Any): with no tool open the shell
 // is the 0.1.2 shell byte for byte.
 
-// maxTools is the tool-surface limit, the hub included (A8.4).
+// maxTools is the tool-surface limit, the hub included (A8.4). One place is
+// always kept for the hub: at most maxTools-1 instances, so the hub (where
+// the limit toast sends the user to close one) can always be opened.
 const maxTools = 6
 
 // widgetTools is the widget/tiny tab index of the tool tab (after 채팅/DM/피드/알림).
@@ -99,6 +101,17 @@ func (n NavState) toolTabs() int {
 	return 0
 }
 
+// instances is how many tool instances (not the hub) are open.
+func (n NavState) instances() int {
+	c := 0
+	for _, r := range n.Tools {
+		if r.Kind == ui.RouteTool {
+			c++
+		}
+	}
+	return c
+}
+
 // toolIndex is the index of the entry with key k, or -1.
 func (n NavState) toolIndex(k string) int {
 	return slices.IndexFunc(n.Tools, func(r ui.Route) bool { return r.Key() == k })
@@ -106,15 +119,15 @@ func (n NavState) toolIndex(k string) int {
 
 // openTool shows r (RouteTools or RouteTool) on the tool surface: an open entry
 // with that key is shown again (its Anchor/Query updated), a new one is added —
-// the hub first, an instance last — unless maxTools are open (then c is
-// unchanged and the intent empty).
+// the hub first, an instance last — unless the surface is full (then c is
+// unchanged and the intent empty): maxTools-1 instances, the hub's place kept.
 func (c NavState) openTool(r ui.Route, mode layout.Mode) (NavState, FocusIntent) {
 	k := r.Key()
 	i := c.toolIndex(k)
 	switch {
 	case i >= 0:
 		c.Tools[i] = r
-	case len(c.Tools) >= maxTools:
+	case r.Kind == ui.RouteTool && c.instances() >= maxTools-1:
 		return c, FocusIntent{}
 	case r.Kind == ui.RouteTools:
 		c.Tools = append([]ui.Route{r}, c.Tools...)
