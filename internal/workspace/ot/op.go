@@ -22,6 +22,11 @@ var (
 	ErrInvalid = errors.New("ot: invalid operation component")
 )
 
+// MaxLen bounds every count and both length sums of an operation (runes).
+// Far above any openable document (2 MiB); it keeps participant-supplied
+// counts from wrapping int arithmetic.
+const MaxLen = 1 << 30
+
 // Component is exactly one of: keep Retain runes, remove Delete runes, or
 // add Insert.
 type Component struct {
@@ -58,8 +63,14 @@ func (c Component) valid() bool {
 type Op []Component
 
 func (o Op) validate() error {
+	base, target := 0, 0
 	for _, c := range o {
-		if !c.valid() {
+		if !c.valid() || c.Retain > MaxLen || c.Delete > MaxLen {
+			return ErrInvalid
+		}
+		base += c.Retain + c.Delete
+		target += c.Retain + utf8.RuneCountInString(c.Insert)
+		if base > MaxLen || target > MaxLen {
 			return ErrInvalid
 		}
 	}
@@ -107,9 +118,15 @@ func (o Op) Apply(doc []rune) ([]rune, error) {
 	for _, c := range o {
 		switch {
 		case c.isRetain():
+			if c.Retain > len(doc)-pos {
+				return nil, ErrBaseLen
+			}
 			out = append(out, doc[pos:pos+c.Retain]...)
 			pos += c.Retain
 		case c.isDelete():
+			if c.Delete > len(doc)-pos {
+				return nil, ErrBaseLen
+			}
 			pos += c.Delete
 		default:
 			out = append(out, []rune(c.Insert)...)
@@ -286,7 +303,7 @@ func (o *Op) UnmarshalJSON(data []byte) error {
 			continue
 		}
 		n, err := strconv.Atoi(string(it))
-		if err != nil {
+		if err != nil || n > MaxLen || n < -MaxLen {
 			return fmt.Errorf("%w: %s", ErrInvalid, it)
 		}
 		if n >= 0 {

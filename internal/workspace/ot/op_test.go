@@ -153,3 +153,50 @@ func TestBuilders(t *testing.T) {
 		t.Fatalf("Delete %v", got)
 	}
 }
+
+// A participant-supplied operation whose counts wrap the length sums must be
+// rejected, never panic the owner's process (P2 review).
+func TestOverflowingCountsRejected(t *testing.T) {
+	const maxInt = int(^uint(0) >> 1)
+	doc := []rune("hello")
+	cases := []string{
+		`[9223372036854775807,-9223372036854775807,7]`,
+		`[9223372036854775807,9223372036854775807,7]`,
+		`[-9223372036854775808,5]`,
+		`[1073741825]`,
+	}
+	for _, js := range cases {
+		var o Op
+		if err := json.Unmarshal([]byte(js), &o); err == nil {
+			if _, err := o.Apply(doc); !errors.Is(err, ErrInvalid) && !errors.Is(err, ErrBaseLen) {
+				t.Fatalf("%s: apply err %v", js, err)
+			}
+			s := NewSequencer(doc)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						t.Fatalf("%s: sequencer panicked: %v", js, r)
+					}
+				}()
+				if _, _, err := s.Submit(0, o); err == nil {
+					t.Fatalf("%s: sequencer accepted", js)
+				}
+			}()
+		}
+	}
+	// built directly (not via JSON): each component in range, the sum wraps
+	direct := Op{{Retain: maxInt}, {Delete: maxInt}, {Retain: 7}}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("direct op panicked: %v", r)
+			}
+		}()
+		if _, err := direct.Apply(doc); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("direct: %v", err)
+		}
+		if _, _, err := NewSequencer(doc).Submit(0, direct); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("direct submit: %v", err)
+		}
+	}()
+}
