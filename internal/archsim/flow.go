@@ -65,6 +65,13 @@ type model struct {
 	order   []int // topological, clients first
 	clients []int
 	boxes   map[string]*archdoc.Box
+	wait    []waitMemo
+}
+
+type waitMemo struct {
+	ok bool
+	st station
+	v  float64
 }
 
 func sortedUnique[T any](s []T, id func(*T) string) []*T {
@@ -120,6 +127,7 @@ func newModel(d *archdoc.Design) *model {
 			}
 		}
 	}
+	m.wait = make([]waitMemo, len(m.nodes))
 	m.sortTopo()
 	for i := range m.edges {
 		m.edges[i].baseMicros = m.defaultLatency(&m.edges[i])

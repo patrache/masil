@@ -36,6 +36,8 @@ type nodeEval struct {
 	over     bool
 	down     bool
 	p        float64 // failure probability of one attempt
+	pTimeout float64 // part of p: waits past the timeout (ρ < 1)
+	pErr     float64 // part of p: the node's own error rate
 	hasSt    bool
 	st       station // CPU servers with the arrival rate scaled to util
 	pWait    float64
@@ -143,16 +145,27 @@ func (m *model) assess(u int, inst, addMs float64, l, k [2]float64) nodeEval {
 		ne.hasSt = true
 		ne.st = station{c: c, mu: mu, lambda: mul(mul(math.Min(ne.util, 1), float64(c)), mu)}
 		if !ne.over {
-			ne.pWait = ne.st.waitProb()
+			ne.pWait = m.waitProb(u, ne.st)
 			if ne.timeoutS > 0 {
 				theta := ne.st.capacity() - ne.st.lambda
 				pTimeout = mul(ne.pWait, detExp(-mul(theta, ne.timeoutS)))
 			}
 		}
 	}
-	pErr := float64(min(max(n.Params.ErrorPermille, 0), 1000)) / 1000
-	ne.p = 1 - mul(mul(1-pOver, 1-pTimeout), 1-pErr)
+	ne.pTimeout = pTimeout
+	ne.pErr = float64(min(max(n.Params.ErrorPermille, 0), 1000)) / 1000
+	ne.p = 1 - mul(mul(1-pOver, 1-pTimeout), 1-ne.pErr)
 	return ne
+}
+
+// waitProb is st.waitProb() remembered per node: timed runs ask again every
+// tick with the same numbers, and Erlang C costs O(servers).
+func (m *model) waitProb(u int, st station) float64 {
+	w := &m.wait[u]
+	if !w.ok || w.st != st {
+		*w = waitMemo{ok: true, st: st, v: st.waitProb()}
+	}
+	return w.v
 }
 
 // autoscaled is the steady-state instance count of an autoscaled node: the

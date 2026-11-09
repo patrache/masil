@@ -14,7 +14,7 @@ func erlangC(c int, a float64) float64 {
 		return 1
 	}
 	b := 1.0
-	for k := 1; k <= c; k++ {
+	for k := 1; k <= c && b != 0; k++ { // once B underflows to 0 it stays 0
 		ab := float64(a * b)
 		b = ab / (float64(k) + ab)
 	}
