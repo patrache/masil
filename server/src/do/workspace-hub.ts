@@ -7,8 +7,8 @@
 // The Worker route (routes/workspace-shares.ts) has checked the session, RL_SHARE_WS, the share, membership and blocks;
 // it passes who is connecting in X-Masil-Auth / X-Masil-Seat / X-Masil-Share, the only identity this object trusts.
 //
-// State: DO storage holds the share's metadata, the level table and the verified flags (plaintext metadata) and the
-// ended flag. Memory only: per-connection frame counters and the latest keyframe group (ciphertext) — both start empty
+// State: while the share is live, DO storage holds its metadata (id, owner, title), the level table and the verified
+// flags (plaintext metadata); once it ends only the ended flag is left (endAll drops the rest). Memory only: per-connection frame counters and the latest keyframe group (ciphertext) — both start empty
 // after the object wakes from hibernation (the next keyframe refills the cache).
 import { DurableObject } from "cloudflare:workers";
 import type { Runtime } from "../env";
@@ -64,7 +64,8 @@ export interface ShareMeta {
 interface HubConn {
   seat: number;
   userId: string;
-  /** closed by the hub (kick / end / replace): its close event changes nothing */
+  /** closed by the hub: its close event changes nothing (kick / end / replace need no departure; a 4000 / 4008 close
+   *  runs departed() itself, see drop) */
   gone?: boolean;
 }
 
@@ -162,6 +163,16 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     }
   }
 
+  /**
+   * Closes a socket the hub refuses to keep (4000 protocol / 4008 rate limit) and runs the departure at once: the owner
+   * hears srv_peer left and left_at is written, or — the owner's last socket — the grace alarm is armed (rules 5, 7, 8).
+   * Its later close event changes nothing (gone), so the departure runs once.
+   */
+  private async drop(ws: WebSocket, c: HubConn, code: number, reason: string): Promise<void> {
+    this.close(ws, code, reason);
+    await this.departed(ws, c);
+  }
+
   private owners(): WebSocket[] {
     return this.live(`seat:${SEAT_OWNER}`);
   }
@@ -174,12 +185,22 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     return serverFrame(K.srvPeer, SEAT_OWNER, { seat, user_id: userId, state });
   }
 
-  /** Closes every socket 4100, marks the hub ended (later connects are refused) and drops the grace alarm. */
+  /**
+   * Closes every socket 4100, marks the hub ended (later connects are refused) and drops the grace alarm. Only the ended
+   * flag stays in storage: the title, owner and level table go with the share (data-model.md 3.14).
+   */
   private async endAll(): Promise<void> {
     await this.ctx.storage.put("ended", true);
     await this.ctx.storage.deleteAlarm();
+    await this.scrub();
     this.cache = { frames: [], bytes: 0, active: false };
     for (const ws of this.live()) this.close(ws, WorkspaceClose.ended, "share_ended");
+  }
+
+  /** Drops everything but the ended flag. */
+  private async scrub(): Promise<void> {
+    await this.ctx.storage.delete(["meta", "levels", "verified"]);
+    this.levelTable = {};
   }
 
   /** Closes `userId`'s sockets 4101 and drops `seat` from the level table; the owner hears srv_peer left. */
@@ -246,7 +267,9 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
       await this.ctx.storage.put("meta", { share_id: share.share_id, owner_id: share.owner_id, title: share.title } satisfies ShareMeta);
     }
     const userId = auth.userId;
-    for (const old of this.live(`u:${userId}`)) this.close(old, WorkspaceClose.replaced, "replaced");
+    // the user's older sockets are replaced (4102) only once this one is allowed: a refused or failed connect leaves
+    // them as they were (an owner whose old socket closed here would get no grace alarm)
+    const olds = this.live(`u:${userId}`);
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
@@ -258,12 +281,16 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     } catch (e) {
       console.error({ msg: "WorkspaceHub: connect check failed", share_id: share.share_id, err: errFields(e) });
       this.close(server, 1011, "try again");
+      // an owner whose old socket closed while D1 was read has none left: the grace alarm still runs
+      if (seat === SEAT_OWNER) await this.departed(server, { seat, userId });
       return new Response("try again", { status: 503 });
     }
     if (!ok || server.readyState !== WebSocket.OPEN || (await this.ended())) {
       this.close(server, 1000, "not found");
+      if (await this.ended()) await this.scrub(); // a meta written above, racing the end
       return new Response("not found", { status: 404 });
     }
+    for (const old of olds) this.close(old, WorkspaceClose.replaced, "replaced");
     const t = this.now();
     if (seat === SEAT_OWNER) await this.ctx.storage.deleteAlarm();
     else await markPresence(this.env.DB, share.share_id, userId, "joined_at", t);
@@ -293,12 +320,14 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     if (ws.readyState !== WebSocket.OPEN) return;
     const c = this.conn(ws);
     if (c === null || c.gone) return this.close(ws, WorkspaceClose.protocol, "lost connection state");
-    if (typeof message === "string") return this.close(ws, WorkspaceClose.protocol, "binary frames only");
-    if (message.byteLength > MAX_FRAME) return this.close(ws, WorkspaceClose.protocol, "frame too big");
+    if (typeof message === "string") return this.drop(ws, c, WorkspaceClose.protocol, "binary frames only");
+    if (message.byteLength > MAX_FRAME) return this.drop(ws, c, WorkspaceClose.protocol, "frame too big");
     const h = parseHeader(message);
-    if (h === null) return this.close(ws, WorkspaceClose.protocol, "bad header");
-    if (h.from !== c.seat) return this.close(ws, WorkspaceClose.protocol, "from is not your seat");
-    if (!this.withinLimits(ws, c.seat, h.kind, message.byteLength)) return;
+    if (h === null) return this.drop(ws, c, WorkspaceClose.protocol, "bad header");
+    if (h.from !== c.seat) return this.drop(ws, c, WorkspaceClose.protocol, "from is not your seat");
+    const limit = this.withinLimits(ws, c.seat, h.kind, message.byteLength);
+    if (limit === "close") return this.drop(ws, c, WorkspaceClose.rateLimited, "rate_limited");
+    if (limit === "drop") return;
     const info = kindInfo(h.kind);
     if (info === undefined) return; // unknown kind: dropped (a newer client talking to an older hub)
     if (info.cls === "Server") {
@@ -406,9 +435,10 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
 
   /**
    * Rule 6 (per connection, 1-second windows): participants term_input 50/s, doc_op 30/s, prop_submit 10/min; the
-   * owner 2 MiB/s. A frame over the limit is dropped (false); the third second in a row with a drop closes 4008.
+   * owner 2 MiB/s. A frame over the limit is dropped ("drop"); the third second in a row with a drop closes 4008
+   * ("close" — the caller closes and runs the departure).
    */
-  private withinLimits(ws: WebSocket, seat: number, kind: number, bytes: number): boolean {
+  private withinLimits(ws: WebSocket, seat: number, kind: number, bytes: number): "ok" | "drop" | "close" {
     const t = this.now();
     const sec = Math.floor(t / 1000);
     const min = Math.floor(t / 60_000);
@@ -425,13 +455,12 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     else if (kind === K.termInput) over = ++r.termInput > L.termInputPerSec;
     else if (kind === K.docOp) over = ++r.docOp > L.docOpPerSec;
     else if (kind === K.propSubmit) over = ++r.prop > L.propPerMin;
-    if (!over) return true;
+    if (!over) return "ok";
     if (r.overSec !== sec) {
       r.overRun = r.overSec === sec - 1 ? r.overRun + 1 : 1;
       r.overSec = sec;
     }
-    if (r.overRun >= L.overSeconds) this.close(ws, WorkspaceClose.rateLimited, "rate_limited");
-    return false;
+    return r.overRun >= L.overSeconds ? "close" : "drop";
   }
 
   // ---------------------------------------------------------------- close / alarm

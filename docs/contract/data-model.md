@@ -736,7 +736,7 @@ CREATE INDEX idx_workspace_share_members_user ON workspace_share_members(user_id
 ALTER TABLE user_settings ADD COLUMN notify_workspace INTEGER NOT NULL DEFAULT 1 CHECK (notify_workspace IN (0,1));
 ```
 
-- 이 두 표에는 위 열만 있다(서버 시험이 `PRAGMA table_info` 로 확인). 경로·파일 이름·명령·화면·키·확인 숫자는 D1 에도 DO 저장소에도 쓰지 않는다. `WorkspaceHub` DO 는 단계표·확인 여부(평문 메타정보)만 DO 저장소에 두고, 최근 키프레임 묶음 암호문은 메모리에만 둔다(`docs/contract/workspace.md` 4장).
+- 이 두 표에는 위 열만 있다(서버 시험이 `PRAGMA table_info` 로 확인). 경로·파일 이름·명령·화면·키·확인 숫자는 D1 에도 DO 저장소에도 쓰지 않는다. `WorkspaceHub` DO 는 공유가 살아 있는 동안 공유 메타(id·오너·제목)와 단계표·확인 여부(평문 메타정보)만 DO 저장소에 두고, 공유가 끝나면 이를 지우고 끝남 표시만 남긴다. 최근 키프레임 묶음 암호문은 메모리에만 둔다(`docs/contract/workspace.md` 4장).
 - "60분에 10회" 공유 만들기 한도는 `idx_workspace_shares_owner` 로 `created_at` 을 센다(api.md 0.7).
 - `max_level`·`verified` 는 오너가 보낸 `ctl_levels` 의 최고 단계·확인 여부를 DO 가 옮겨 적는다. `joined_at`·`left_at` 은 DO 가 연결·종료 때 적는다.
 

@@ -249,6 +249,61 @@ describe("WorkspaceHub: kick, end, owner grace", () => {
   });
 });
 
+describe("WorkspaceHub: sockets the hub closes itself", () => {
+  const leftAt = (shareId: string, seat: number) =>
+    env.DB.prepare("SELECT left_at FROM workspace_share_members WHERE share_id = ?1 AND seat = ?2").bind(shareId, seat).first<any>().then((r) => r.left_at);
+
+  it("a participant closed 4000 leaves: the owner hears srv_peer left and left_at is set", async () => {
+    const { members, shareId, o, ps } = await room(1);
+    ps[0]!.sendRaw("hello");
+    expect((await ps[0]!.closed).code).toBe(4000);
+    expect(json(await o.next("srv_peer", (f) => json(f).state === "left"))).toEqual({ seat: 1, user_id: members[0]!.user.id, state: "left" });
+    expect(await waitFor(() => leftAt(shareId, 1), (v) => v !== null)).toBeGreaterThan(0);
+  });
+
+  it("a participant closed 4008 leaves, and a reconnect is a fresh join", async () => {
+    const { members, shareId, o, ps } = await room(1);
+    const p = ps[0]!;
+    levels(o, { "1": "keyboard" });
+    await sync(o, p, 1);
+    let t = 1_000_000_000_000;
+    await setClock(shareId, () => t);
+    for (const round of [0, 1, 2]) {
+      for (let i = 0; i < 51; i++) p.send("term_input", { from: 1, to: 0, payload: "x" });
+      if (round === 2) break;
+      await syncOwner(o, p, 1); // the hub reads the clock per frame: the burst is handled before the clock moves
+      t += 1000;
+    }
+    expect((await p.closed).code).toBe(4008);
+    await o.next("srv_peer", (f) => json(f).seat === 1 && json(f).state === "left");
+    expect(await waitFor(() => leftAt(shareId, 1), (v) => v !== null)).toBeGreaterThan(0);
+    await connectWorkspaceWs(members[0]!.token, shareId);
+    await o.next("srv_peer", (f) => json(f).seat === 1 && json(f).state === "joined"); // the first joined was taken by room()
+    expect(o.all("srv_peer").filter((f) => json(f).seat === 1).map((f) => json(f).state)).toEqual(["joined", "left", "joined"]);
+  });
+
+  it("the owner closed 4000 still gets the 2-minute grace, then the share times out", async () => {
+    const { shareId, o, ps } = await room(1);
+    o.sendRaw(frame("term_out", 0, 255, new Uint8Array(MAX_FRAME - HEADER_LEN + 1)));
+    expect((await o.closed).code).toBe(4000);
+    expect(await waitFor(() => runInDurableObject(hub(shareId), (_i, state) => state.storage.getAlarm()), (v) => v !== null)).not.toBeNull();
+    expect(await runDurableObjectAlarm(hub(shareId))).toBe(true);
+    expect((await ps[0]!.closed).code).toBe(4100);
+    expect(await env.DB.prepare("SELECT status, end_reason FROM workspace_shares WHERE id = ?1").bind(shareId).first()).toEqual({ status: "ended", end_reason: "timeout" });
+  });
+
+  it("ending the share keeps only the ended flag in DO storage (no title, owner or levels)", async () => {
+    const { owner, shareId, o } = await room(1);
+    levels(o, { "1": "viewer" }, { "1": true });
+    o.send("ctl_attention", { to: 254, payload: {} }); // a frame after ctl_levels: ctl_levels has been handled once the hub reads it
+    await waitFor(() => runInDurableObject(hub(shareId), (_i, state) => state.storage.get("levels")), (v) => v !== undefined);
+    expect((await api(owner.token).del(`/v1/workspace-shares/${shareId}`)).status).toBe(204);
+    expect((await o.closed).code).toBe(4100);
+    const keys = await runInDurableObject(hub(shareId), async (_i, state) => [...(await state.storage.list()).keys()].sort());
+    expect(keys).toEqual(["ended"]);
+  });
+});
+
 describe("WorkspaceHub: limits and alerts", () => {
   it("rate limits participant input and closes 4008 after 3 seconds over", async () => {
     const { shareId, o, ps } = await room(1);
