@@ -42,6 +42,8 @@ type Surface struct {
 	own  *ownerShare // the running share (nil = solo)
 	// starts: shares being started (nil until the first start)
 	starts *shareStarts
+	// spacePick: the open share dialog's space choice (its fetches land here)
+	spacePick *spacePick
 
 	focus    int
 	zoomed   bool // the tool surface's wide view

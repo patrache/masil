@@ -328,6 +328,10 @@ func (s *Surface) ownerUpdate(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if m.surface == s.id {
 			return s.shareStarted(ctx, m)
 		}
+	case spaceMembersMsg:
+		if m.surface == s.id {
+			s.spacePick.got(m)
+		}
 	case launchTermMsg:
 		if m.surface == s.id {
 			return s.launchTerm(ctx, m.argv, m.mode)

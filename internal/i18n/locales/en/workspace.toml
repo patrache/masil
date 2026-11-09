@@ -388,8 +388,17 @@ other = "You can invite up to {n} people"
 [share_invite_none]
 other = "No friends to invite"
 
+[share_invite_space]
+other = "Invite members of one space"
+
 [share_notice_screen]
 other = "The moment sharing starts, the current terminal screen is visible as it is, and so is everything printed after it (secrets included, if a program prints them). The file deny list protects only the tree and the editor, not terminal output."
+
+[share_space_failed]
+other = "Could not load the space's members"
+
+[share_space_loading]
+other = "Loading the space's members…"
 
 [share_term_size]
 other = "Terminal size"

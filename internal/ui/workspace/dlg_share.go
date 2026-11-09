@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/workspace/launch"
@@ -30,6 +31,8 @@ func newShareDialog(s *Surface, ctx *ui.Context) *form {
 	}
 	title := &field{label: ctx.T.Workspace.ShareTitleLabel(), r: []rune(ctx.T.Workspace.ShareTitleDefault(handle))}
 	pick := &invitePick{}
+	sp := &spacePick{}
+	s.spacePick = sp
 	files, autosave := true, false
 	size := 0
 	terms := map[string]bool{}
@@ -66,7 +69,7 @@ func newShareDialog(s *Surface, ctx *ui.Context) *form {
 		for id, on := range terms {
 			o.terms[id] = on
 		}
-		s.dlg = nil
+		s.dlg, s.spacePick = nil, nil
 		return true, s.startShare(ctx, o)
 	}
 	f.build = func(ctx *ui.Context) []row {
@@ -82,20 +85,39 @@ func newShareDialog(s *Surface, ctx *ui.Context) *form {
 		if len(cands) == 0 {
 			rows = append(rows, row{kind: rowText, text: t.ShareInviteNone(), dim: true})
 		}
-		for _, u := range cands {
+		person := func(u api.UserSummary) row {
 			h := u.Handle
-			label := textwidth.Sanitize(u.DisplayName)
-			if label == "" || label == textwidth.Sanitize(h) {
-				label = textwidth.Sanitize(h)
-			} else {
-				label += " @" + textwidth.Sanitize(h)
-			}
-			rows = append(rows, row{kind: rowOption, text: label, checked: on(pick.has(h)), act: func(ctx *ui.Context) tea.Cmd {
+			return row{kind: rowOption, text: inviteLabel(u), checked: on(pick.has(h)), act: func(ctx *ui.Context) tea.Cmd {
 				if !pick.toggle(h) {
 					return ui.Toast(ctx.T.Workspace.ShareInviteFull(maxInvite), ui.ToastInfo)
 				}
 				return nil
-			}})
+			}}
+		}
+		for _, u := range cands {
+			rows = append(rows, person(u))
+		}
+		// JB18: or the members of one space
+		if spaces := spaceChoices(ctx); len(spaces) > 0 {
+			rows = append(rows, row{kind: rowText}, row{kind: rowHead, text: t.ShareInviteSpace()})
+			for _, sd := range spaces {
+				id := sd.ID
+				rows = append(rows, row{kind: rowOption, text: textwidth.Sanitize(sd.Name), checked: on(sp.id == id), act: func(ctx *ui.Context) tea.Cmd {
+					return sp.choose(ctx, s.id, id)
+				}})
+				if sp.id != id {
+					continue
+				}
+				switch {
+				case sp.loading:
+					rows = append(rows, row{kind: rowText, text: t.ShareSpaceLoading(), dim: true})
+				case sp.failed:
+					rows = append(rows, row{kind: rowText, text: t.ShareSpaceFailed(), warn: true})
+				}
+				for _, u := range spaceInvitees(ctx, sp.members, cands) {
+					rows = append(rows, person(u))
+				}
+			}
 		}
 		rows = append(rows, row{kind: rowText}, row{kind: rowHead, text: t.ShareWhat()},
 			row{kind: rowOption, text: t.ShareFiles(), checked: on(files), act: func(*ui.Context) tea.Cmd {
@@ -156,6 +178,16 @@ func newShareDialog(s *Surface, ctx *ui.Context) *form {
 		return rows
 	}
 	return f
+}
+
+// inviteLabel is "display @handle" (sanitized), or the handle alone.
+func inviteLabel(u api.UserSummary) string {
+	h := textwidth.Sanitize(u.Handle)
+	label := textwidth.Sanitize(u.DisplayName)
+	if label == "" || label == h {
+		return h
+	}
+	return label + " @" + h
 }
 
 // blockReason is why a terminal cannot be shared.

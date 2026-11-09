@@ -13,6 +13,7 @@ import (
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/palette"
 	"github.com/patrache/masil/internal/ui/uitest"
+	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 	"github.com/patrache/masil/internal/workspace/share"
 	"github.com/patrache/masil/internal/workspace/wire"
 )
@@ -362,5 +363,37 @@ func TestKeyboardInputBandOnStatusLine(t *testing.T) {
 	}
 	if strings.Contains(status, "\x1b[A") || strings.Contains(status, "[A") {
 		t.Fatalf("control bytes in the band: %q", status)
+	}
+}
+
+// The share dialog can invite the members of one space (JB18), not only
+// friends.
+func TestShareInvitesSpaceMembers(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r := newShareRig(t, h, fake, nil)
+	dora := api.UserSummary{ID: "01JA000000000000000000DORA", Handle: "dora", DisplayName: "도라"}
+	h.API.JSON("GET /v1/spaces/"+fixtures.SpaceNova+"/members", 200, map[string]any{
+		"items":       []api.SpaceMember{{User: dora, Role: "member"}, {User: api.UserSummary{ID: fixtures.UserSam, Handle: "sam", DisplayName: "sam"}, Role: "owner"}},
+		"next_cursor": nil,
+	})
+	h.Press("ctrl+\\", "S")
+	r.pickRow("노바 개발방")
+	h.Press("space")
+	r.pickRow("도라 @dora")
+	h.Press("space")
+	for _, row := range r.s.dlg.build(h.Context()) {
+		if strings.Contains(row.text, "@sam") {
+			t.Fatal("the owner is offered as an invitee")
+		}
+	}
+	h.Press("enter")
+	r.settle()
+	reqs := r.shareRequests()
+	if len(reqs) != 1 {
+		t.Fatalf("POST count = %d", len(reqs))
+	}
+	if users, _ := reqs[0]["users"].([]any); len(users) != 1 || users[0] != "@dora" {
+		t.Fatalf("users = %v", reqs[0]["users"])
 	}
 }

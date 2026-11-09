@@ -982,6 +982,13 @@ var areaWorkspace = area{
 				En: {Other: "No friends to invite"},
 			},
 		},
+		"share_invite_space": {
+			desc: "공유 시작 대화상자: 방 하나를 골라 그 멤버를 초대하는 목록의 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 하나를 골라 그 멤버 초대"},
+				En: {Other: "Invite members of one space"},
+			},
+		},
 		"share_notice_screen": {
 			desc:       "공유 시작 안내 ①: 터미널 화면과 출력이 그대로 보임(스펙 고정 문구)",
 			noTruncate: true,
@@ -989,6 +996,20 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "공유를 켜는 순간 지금 터미널 화면이 그대로 보이고, 그 뒤에 출력되는 모든 것(비밀값을 출력하면 그것까지)이 보여요. 파일 차단 목록은 트리·편집기만 지키고 터미널 출력은 지키지 못해요."},
 				En: {Other: "The moment sharing starts, the current terminal screen is visible as it is, and so is everything printed after it (secrets included, if a program prints them). The file deny list protects only the tree and the editor, not terminal output."},
+			},
+		},
+		"share_space_failed": {
+			desc: "공유 시작 대화상자: 고른 방의 멤버를 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 멤버를 불러오지 못했어요"},
+				En: {Other: "Could not load the space's members"},
+			},
+		},
+		"share_space_loading": {
+			desc: "공유 시작 대화상자: 고른 방의 멤버를 불러오는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 멤버를 불러오는 중…"},
+				En: {Other: "Loading the space's members…"},
 			},
 		},
 		"share_term_size": {
@@ -1862,9 +1883,24 @@ func (a_ WorkspaceT) ShareInviteNone() string {
 	return a_.t.render(&areaWorkspace, "share_invite_none", false, 0)
 }
 
+// ShareInviteSpace: 공유 시작 대화상자: 방 하나를 골라 그 멤버를 초대하는 목록의 제목
+func (a_ WorkspaceT) ShareInviteSpace() string {
+	return a_.t.render(&areaWorkspace, "share_invite_space", false, 0)
+}
+
 // ShareNoticeScreen: 공유 시작 안내 ①: 터미널 화면과 출력이 그대로 보임(스펙 고정 문구)
 func (a_ WorkspaceT) ShareNoticeScreen() string {
 	return a_.t.render(&areaWorkspace, "share_notice_screen", false, 0)
+}
+
+// ShareSpaceFailed: 공유 시작 대화상자: 고른 방의 멤버를 불러오지 못함
+func (a_ WorkspaceT) ShareSpaceFailed() string {
+	return a_.t.render(&areaWorkspace, "share_space_failed", false, 0)
+}
+
+// ShareSpaceLoading: 공유 시작 대화상자: 고른 방의 멤버를 불러오는 중
+func (a_ WorkspaceT) ShareSpaceLoading() string {
+	return a_.t.render(&areaWorkspace, "share_space_loading", false, 0)
 }
 
 // ShareTermSize: 공유 시작 대화상자: 공유 터미널 크기 제목

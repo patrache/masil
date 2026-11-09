@@ -582,11 +582,23 @@ other = "최대 {n}명까지 초대할 수 있어요"
 desc = "공유 시작 대화상자: 초대할 친구가 없을 때"
 other = "초대할 친구가 없어요"
 
+[share_invite_space]
+desc = "공유 시작 대화상자: 방 하나를 골라 그 멤버를 초대하는 목록의 제목"
+other = "방 하나를 골라 그 멤버 초대"
+
 [share_notice_screen]
 desc = "공유 시작 안내 ①: 터미널 화면과 출력이 그대로 보임(스펙 고정 문구)"
 no_truncate = true
 legal = true
 other = "공유를 켜는 순간 지금 터미널 화면이 그대로 보이고, 그 뒤에 출력되는 모든 것(비밀값을 출력하면 그것까지)이 보여요. 파일 차단 목록은 트리·편집기만 지키고 터미널 출력은 지키지 못해요."
+
+[share_space_failed]
+desc = "공유 시작 대화상자: 고른 방의 멤버를 불러오지 못함"
+other = "방 멤버를 불러오지 못했어요"
+
+[share_space_loading]
+desc = "공유 시작 대화상자: 고른 방의 멤버를 불러오는 중"
+other = "방 멤버를 불러오는 중…"
 
 [share_term_size]
 desc = "공유 시작 대화상자: 공유 터미널 크기 제목"
