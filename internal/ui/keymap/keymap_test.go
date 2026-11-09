@@ -235,3 +235,24 @@ func TestHelpKorean(t *testing.T) {
 		t.Errorf("Help with unknown = %d bindings, want 1", len(hs))
 	}
 }
+
+func TestBound(t *testing.T) {
+	km := keymap.Default()
+	if !km.Bound(press('j', "j", 0)) || !km.Bound(press('k', "", tea.ModCtrl)) || !km.Bound(press(tea.KeyEnter, "", 0)) {
+		t.Error("j, ctrl+k and enter are bound by default")
+	}
+	if km.Bound(press('ㅓ', "ㅓ", 0)) || km.Bound(press('x', "x", 0)) {
+		t.Error("ㅓ and x are unbound by default")
+	}
+	km, errs := keymap.Load(map[string][]string{"list.down": {"ㅓ"}})
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	if !km.Bound(press('ㅓ', "ㅓ", 0)) || km.Bound(press('j', "j", 0)) {
+		t.Error("an override binds ㅓ and frees j")
+	}
+	var nilKM *keymap.Keymap
+	if !nilKM.Bound(press('j', "j", 0)) || nilKM.Bound(press('ㅓ', "ㅓ", 0)) {
+		t.Error("nil Keymap must fall back to defaults")
+	}
+}

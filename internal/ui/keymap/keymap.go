@@ -241,6 +241,19 @@ func (k *Keymap) Matches(msg tea.KeyPressMsg, a Action) bool {
 	return ok && key.Matches(msg, b)
 }
 
+// Bound reports whether msg triggers any action (a nil Keymap behaves like Default).
+func (k *Keymap) Bound(msg tea.KeyPressMsg) bool {
+	if k == nil || k.b == nil {
+		k = Default()
+	}
+	for _, b := range k.b {
+		if key.Matches(msg, b) {
+			return true
+		}
+	}
+	return false
+}
+
 // Help returns the bindings for as, for help/status hints (unknown actions skipped).
 func (k *Keymap) Help(as ...Action) []key.Binding {
 	out := make([]key.Binding, 0, len(as))

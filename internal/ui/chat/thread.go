@@ -550,6 +550,9 @@ func (v *threadView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.
 		}
 		return true, v.composer.focus()
 	}
+	if startsComposing(ctx.Keys, msg) && !v.inputBlocked(ctx) {
+		return true, v.composer.startTyping(ctx, msg)
+	}
 	if v.pane.failed != "" && ctx.Keys.Matches(msg, keymap.MsgReact) {
 		return true, v.retryFirst(ctx)
 	}
