@@ -10,6 +10,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/palette"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/workspace/share"
 )
@@ -270,5 +271,27 @@ func TestBandShowsShareTitle(t *testing.T) {
 	r.s.own.title = "evil\x1b[31m‮title"
 	if scr := h.Screen(); strings.Contains(scr, "‮") || !strings.Contains(scr, "title") {
 		t.Fatalf("title not sanitized:\n%q", scr)
+	}
+}
+
+// ws.share.end and ws.proposals are offered only while the workspace in
+// front shares; ws.share.start only while it does not.
+func TestPaletteCommandsFollowSharing(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r := newShareRig(t, h, fake, nil)
+	avail := func(id string) bool {
+		c, ok := palette.Lookup(id)
+		if !ok {
+			t.Fatalf("no %s", id)
+		}
+		return c.Available(h.Context())
+	}
+	if !avail("ws.share.start") || avail("ws.share.end") || avail("ws.proposals") {
+		t.Fatalf("solo: start %v end %v proposals %v", avail("ws.share.start"), avail("ws.share.end"), avail("ws.proposals"))
+	}
+	r.shareFriends()
+	if avail("ws.share.start") || !avail("ws.share.end") || !avail("ws.proposals") {
+		t.Fatalf("sharing: start %v end %v proposals %v", avail("ws.share.start"), avail("ws.share.end"), avail("ws.proposals"))
 	}
 }

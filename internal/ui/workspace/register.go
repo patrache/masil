@@ -56,19 +56,19 @@ func init() {
 	palette.Register(palette.Command{
 		ID: "ws.share.start", Label: func(t *i18n.T) string { return t.Workspace.PaletteShareStart() },
 		Keywords: []string{"workspace", "share"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return activeSurface(ctx) != "" },
+		Available: func(ctx *ui.Context) bool { return activeSharing(ctx) == 0 },
 		Run:       wsCommand("share.start"),
 	})
 	palette.Register(palette.Command{
 		ID: "ws.share.end", Label: func(t *i18n.T) string { return t.Workspace.PaletteShareEnd() },
 		Keywords: []string{"workspace", "share", "end"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return activeSurface(ctx) != "" },
+		Available: func(ctx *ui.Context) bool { return activeSharing(ctx) == 1 },
 		Run:       wsCommand("share.end"),
 	})
 	palette.Register(palette.Command{
 		ID: "ws.proposals", Label: func(t *i18n.T) string { return t.Workspace.PaletteProposals() },
 		Keywords: []string{"workspace", "proposals"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return activeSurface(ctx) != "" },
+		Available: func(ctx *ui.Context) bool { return activeSharing(ctx) == 1 },
 		Run:       wsCommand("proposals"),
 	})
 }
@@ -105,6 +105,26 @@ func activeSurface(ctx *ui.Context) string {
 		}
 	}
 	return first
+}
+
+// activeSharing is whether the workspace in front shares: -1 no open
+// folder, 0 solo, 1 sharing.
+func activeSharing(ctx *ui.Context) int {
+	id := activeSurface(ctx)
+	if id == "" {
+		return -1
+	}
+	liveMu.Lock()
+	defer liveMu.Unlock()
+	for _, s := range live {
+		if s.id == id && s.root != nil {
+			if s.sharing() {
+				return 1
+			}
+			return 0
+		}
+	}
+	return -1
 }
 
 // instanceID is the tool instance of a folder: "workspace:" + 8 hex digits of
