@@ -483,7 +483,7 @@ func cardLinesOf(ctx *ui.Context, m *api.Message, width int) []cardLine {
 	return out
 }
 
-// cardHint says what enter (and r) do on the card for me.
+// cardHint says what enter (and R) do on the card for me.
 func cardHint(ctx *ui.Context, c card) string {
 	if !features.On(ui.ToolArch) {
 		return ""
@@ -496,7 +496,7 @@ func cardHint(ctx *ui.Context, c card) string {
 	case c.copyDesign() != nil:
 		parts = append(parts, a.CardOpenCopyHint())
 	}
-	if c.sim != nil && c.copyDesign() != nil {
+	if canReplay(c) {
 		parts = append(parts, a.CardReplayHint())
 	}
 	return strings.Join(parts, " · ")
@@ -559,14 +559,25 @@ func messageThread(m *api.Message) tea.Cmd {
 	return ui.Navigate(ui.Route{Kind: ui.RouteThread, ID: root, Arg: m.ChannelID})
 }
 
-// cardKey: r on a sim card replays it (the same design and seed, compared
-// number by number).
+// replayKey replays a sim card. Chat binds no action to it on a message row
+// (r is the reaction there); a key the keymap binds (an override) is never
+// taken.
+const replayKey = "R"
+
+// canReplay: c is a sim card with something to run again.
+func canReplay(c card) bool {
+	return c.sim != nil && c.copyDesign() != nil
+}
+
+// cardKey: R on a sim card replays it (the same design and seed, compared
+// number by number). Any other key, a bound key, or a card with nothing to
+// replay is left to chat.
 func cardKey(ctx *ui.Context, m *api.Message, k tea.KeyPressMsg) (bool, tea.Cmd) {
-	if k.String() != "r" || !features.On(ui.ToolArch) {
+	if k.Text != replayKey || k.Mod&^tea.ModShift != 0 || !features.On(ui.ToolArch) || ctx.Keys.Bound(k) {
 		return false, nil
 	}
 	c, ok := parseCard(m)
-	if !ok || c.sim == nil {
+	if !ok || !canReplay(c) {
 		return false, nil
 	}
 	return true, replay(ctx, c)

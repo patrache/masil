@@ -246,9 +246,12 @@ func TestSimCardReplayMatches(t *testing.T) {
 	m := cardMessage("01JDSIM0000000000000000001", card, body)
 	replay := func(m api.Message) string {
 		t.Helper()
-		handled, cmd := cr.Key(ctx, &m, tea.KeyPressMsg{Code: 'r', Text: "r"})
+		if handled, _ := cr.Key(ctx, &m, tea.KeyPressMsg{Code: 'r', Text: "r"}); handled {
+			t.Fatal("r (chat's reaction) was taken by the sim card")
+		}
+		handled, cmd := cr.Key(ctx, &m, tea.KeyPressMsg{Code: 'R', Text: "R"})
 		if !handled || cmd == nil {
-			t.Fatal("r was not handled on the sim card")
+			t.Fatal("R was not handled on the sim card")
 		}
 		h.Send(cmd())
 		return h.Screen()
@@ -266,7 +269,7 @@ func TestSimCardReplayMatches(t *testing.T) {
 	}
 	// the card is drawn with the replay hint and every number
 	lines := ansi.Strip(strings.Join(cr.Lines(ctx, &m, 80), "\n"))
-	for _, want := range []string{"📐 결제 시스템 v3 시뮬", fmt.Sprintf("p99 %dms", res.P99Ms), "추정", "r 다시 돌려 보기"} {
+	for _, want := range []string{"📐 결제 시스템 v3 시뮬", fmt.Sprintf("p99 %dms", res.P99Ms), "추정", "R 다시 돌려 보기"} {
 		if !strings.Contains(lines, want) {
 			t.Errorf("sim card lacks %q:\n%s", want, lines)
 		}

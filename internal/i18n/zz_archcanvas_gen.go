@@ -120,10 +120,10 @@ var areaArchcanvas = area{
 			},
 		},
 		"card_replay_hint": {
-			desc: "시뮬 카드 안내: r 로 같은 설계를 다시 돌려 숫자를 맞춰 본다",
+			desc: "시뮬 카드 안내: R(shift+r) 로 같은 설계를 다시 돌려 숫자를 맞춰 본다(r 은 채팅의 리액션)",
 			text: map[Locale]Forms{
-				Ko: {Other: "r 다시 돌려 보기"},
-				En: {Other: "r replay"},
+				Ko: {Other: "R 다시 돌려 보기"},
+				En: {Other: "R replay"},
 			},
 		},
 		"card_replay_none": {
@@ -2984,7 +2984,7 @@ func (a_ ArchcanvasT) CardReplayDiff(p99 int, err string, cost string) string {
 	return a_.t.render(&areaArchcanvas, "card_replay_diff", false, 0, "p99", strconv.Itoa(p99), "err", err, "cost", cost)
 }
 
-// CardReplayHint: 시뮬 카드 안내: r 로 같은 설계를 다시 돌려 숫자를 맞춰 본다
+// CardReplayHint: 시뮬 카드 안내: R(shift+r) 로 같은 설계를 다시 돌려 숫자를 맞춰 본다(r 은 채팅의 리액션)
 func (a_ ArchcanvasT) CardReplayHint() string {
 	return a_.t.render(&areaArchcanvas, "card_replay_hint", false, 0)
 }

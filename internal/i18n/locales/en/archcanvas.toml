@@ -45,7 +45,7 @@ other = "⏎ open"
 other = "✕ The numbers differ now · p99 {p99}ms · errors {err}% · {cost}"
 
 [card_replay_hint]
-other = "r replay"
+other = "R replay"
 
 [card_replay_none]
 other = "This card carries no design copy to replay"

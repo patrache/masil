@@ -11,6 +11,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/archdoc"
 	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
@@ -186,5 +187,59 @@ func TestCardRendererHostileData(t *testing.T) {
 		if !strings.Contains(scr, "📐 제목") {
 			t.Errorf("%dx%d: the hostile card is not drawn:\n%s", sz[0], sz[1], scr)
 		}
+	}
+}
+
+// simData is a valid arch.sim v1 card carrying a copy of a one-client design.
+func simData(t *testing.T, over map[string]any) json.RawMessage {
+	t.Helper()
+	cp, err := archdoc.New("결제 시스템 v3").Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := map[string]any{
+		"title": "결제 시스템 v3", "space_id": nil, "doc_id": nil, "version_no": nil,
+		"seed": "7", "engine_version": 1, "max_rps": 0, "read_permille": 800, "p50_ms": 0, "p99_ms": 0,
+		"error_permille": 0, "cost_usd_month": 0, "price_asof": "2026-11", "bottleneck": nil, "challenge": nil,
+		"design": json.RawMessage(cp),
+	}
+	for k, v := range over {
+		d[k] = v
+	}
+	b, _ := json.Marshal(d)
+	return b
+}
+
+// TestSimCardLeavesChatKeys: r on a selected arch.sim card is still chat's
+// reaction (the card never takes a key chat binds on a message row); the
+// replay has its own key, and a card with nothing to replay takes no key.
+func TestSimCardLeavesChatKeys(t *testing.T) {
+	h := open(t, 120, 40, card(cardID, ui.CardArchSim, 1, simData(t, nil), 10))
+	if !strings.Contains(h.Screen(), "R 다시 돌려 보기") {
+		t.Errorf("no replay hint on the card:\n%s", h.Screen())
+	}
+	h.Press("r") // the newest message (the card) starts selected
+	scr := h.Screen()
+	if strings.Contains(scr, "다시 돌려도 같아요") || strings.Contains(scr, "다시 돌린 숫자") {
+		t.Fatalf("r replayed the card instead of reacting:\n%s", scr)
+	}
+	if !strings.Contains(scr, "😀") {
+		t.Fatalf("r did not open the reaction picker:\n%s", scr)
+	}
+	h.Press("esc")
+	h.Press("R")
+	if scr := h.Screen(); !strings.Contains(scr, "다시 돌려도 같아요") && !strings.Contains(scr, "다시 돌린 숫자") {
+		t.Errorf("R did not replay:\n%s", scr)
+	}
+
+	// a room document's card (no copy, not a member): nothing to replay, R is not taken
+	room := simData(t, map[string]any{"design": nil, "space_id": "01JB0000000000000000000ZZ1", "doc_id": "D0002"})
+	h2 := open(t, 120, 40, card(cardID, ui.CardArchSim, 1, room, 10))
+	if strings.Contains(h2.Screen(), "다시 돌려 보기") {
+		t.Errorf("a replay hint on a card with nothing to replay:\n%s", h2.Screen())
+	}
+	h2.Press("R")
+	if strings.Contains(h2.Screen(), "다시 돌릴 수 없어요") {
+		t.Errorf("R was taken by a card with nothing to replay:\n%s", h2.Screen())
 	}
 }

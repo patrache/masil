@@ -69,8 +69,8 @@ no_truncate = true
 other = "✕ 다시 돌린 숫자가 달라요 · p99 {p99}ms · 에러 {err}% · {cost}"
 
 [card_replay_hint]
-desc = "시뮬 카드 안내: r 로 같은 설계를 다시 돌려 숫자를 맞춰 본다"
-other = "r 다시 돌려 보기"
+desc = "시뮬 카드 안내: R(shift+r) 로 같은 설계를 다시 돌려 숫자를 맞춰 본다(r 은 채팅의 리액션)"
+other = "R 다시 돌려 보기"
 
 [card_replay_none]
 desc = "다시 돌려 보기: 카드에 설계 사본이 없을 때"
