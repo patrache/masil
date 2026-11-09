@@ -314,6 +314,13 @@ internal/
   apitool/                             P4   (API 시험 엔진, UI 없음: 모델·로컬 파일·변수·전송·가드·검사·가리기·탐지·기록·실행기·공유 매핑·카드 데이터)
   apitool/convert/                     P4   (curl·OpenAPI JSON·Postman v2.1 가져오기/내보내기)
   ui/apitool/                          P4   (API 시험 도구 화면·도구/팔레트/카드 등록)
+  archdoc/                             P3   (설계 문서 모델·JSON·검증·객체 키·되돌리기·자동 정리·점검·개인 저장소)
+  archsim/                             P3   (즉시 분석·시간 실행 시뮬레이터 — 순수 계산, ui 없음)
+  archsim/pricing/                     P3   (내장 가격표 `AsOf`)
+  archsim/challenge/                   P3   (선택: 일일 도전 시나리오 15개·점수 — 순수 계산, ui 없음)
+  archdraw/                            P3   (격자 그리기: 3단계 확대·직교 선 경로·적중 시험 — ui 없음)
+  archexport/                          P3   (텍스트 스냅샷·카드 미니 그림·내보내기)
+  ui/arch/                             P3   (도구 `arch`: 캔버스 인스턴스·모드별 배치·읽기 보기·docSink·편집)
 ```
 
 P1(LeetCode 오늘의 문제·lazygit) 행:
@@ -390,6 +397,7 @@ ui/gittool ─▶ ui, ui/termpane, ui/palette, ui/layout, lazygit, termhost, fea
 - `internal/leetcode`·`internal/lazygit` 는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(`toolPackagePrefixes` 의 P1 두 줄). `internal/api` 의 leet 엔드포인트는 쿠키를 모른다 — LeetCode 쿠키는 `ui/leet` → `leetcode` → LeetCode 로만 간다.
 - `ui/leet`·`ui/gittool` 은 서로, 그리고 `ui/chat`·`ui/feed`·`ui/fun` 을 import 하지 않는다. #daily·풀이 카드는 `ui.RegisterCard`, 순위·설정은 팔레트 명령으로만 닿는다.
 - `leetcodetest` 는 시험 파일에서만 import 한다.
+- **P3**: `archdoc ─▶ config(원자적 쓰기), ids, textwidth` · `archsim ─▶ archdoc, archsim/pricing` · `archsim/pricing ─▶ archdoc` · `archsim/challenge ─▶ archdoc, archsim` · `archdraw ─▶ archdoc, textwidth` · `archexport ─▶ archdoc, archsim, archsim/pricing, archdraw, textwidth` — 이 넷은 `internal/ui/...`·`api`·`collab` 을 전이로도 import 하지 않는다(화면 없이 시험·내보내기에 쓰는 순수 계산). `ui/arch ─▶ ui, ui/layout, ui/palette, features, i18n, ids, theme, textwidth, humanize, termhost(Mode 타입), archdoc, archsim, archsim/pricing, archsim/challenge, archdraw, archexport` 이고, `cmd/masil/register_arch.go` 의 blank import 로만 연결된다.
 
 ### 2.3 실행 순서 (병렬 작성, 단계적 실행)
 
@@ -480,6 +488,7 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 | 캐시 `leetcode/`, `lazygit/` | `leetcode`·`lazygit` | `<캐시>/leetcode/{daily/<date>.json, questions/<slug>.json, fetched/<UTC 날짜>.json}`(오늘의 문제·연 문제, 0600 — 쿠키 없음), `<캐시>/lazygit/theme-<해시>.yml`(패널 lazygit 의 색만 덧씌움, 0600). 풀이 파일은 설정 폴더 밖 `[tools.leet] dir`(기본 `~/masil/leetcode/<date>-<번호>-<slug>.<확장자>`) |
 | `workspace-audit/<공유 ID>.jsonl` | TUI(작업공간 오너, P2) | 공유 감사 기록(설계서 B8.5): 한 줄 JSON 덧붙이기만, 폴더 0700·파일 0600. 참가 요청·SAS 결과·권한 단계·제안·제안 처리·키보드 입력(참가자 것만)·참가자 저장. 캐시가 아니라 설정 폴더에 둔다(지워지지 않게). masil 서버로 보내지 않는다 |
 | `<캐시>/workspace-journal/<폴더 해시>/` | TUI(작업공간, P2) | 저장 안 된 편집의 복구 일지(파일마다). 저장하면 지우고, 다음에 같은 폴더를 열면 되살릴지 묻는다. 폴더 경로는 해시로만. masil 서버로 보내지 않는다 |
+| `arch/` | TUI(`ui/arch`) | 개인 아키텍처 설계(P3). `arch/<이름>.json` = `archdoc.Encode` 결과 한 파일(이름은 `archdoc.SafeName` 으로 거른 것), 폴더 0700·파일 0600, 원자적 쓰기, 마지막 편집 1초 뒤 저장. 읽을 때 `Validate` — 깨진 파일은 읽기 전용으로 연다. masil 서버로 보내지 않는다(공유는 방 문서·카드로만) |
 | `secrets/` | TUI | 도구 자격증명 저장소(`internal/secrets`)의 대체 자리. 폴더 0700. `tools.json`(0600) = 사용자가 "파일에 저장"에 동의한 값, `index.json`(0600) = 저장한 값 **이름**만(값 없음, `Store.List`), `.gitignore` = `*` 한 줄. 파일 형식은 `secrets` 패키지 내부(다른 패키지가 직접 읽지 않음). OS 키체인에 저장된 값은 여기 없다 |
 
 ### 3.3 `config.toml`
@@ -577,6 +586,7 @@ embedded = true            # false => 내장 패널을 쓰지 않음(도구는 �
 [tools.lazygit]            # [tools.<절>] — 절 이름 = config.ToolConfigSection(도구 ID): git → lazygit, leet·workspace·arch·api 는 ID 그대로
 open = "auto"              # auto | pane | exec | window (그 밖 값 => auto). 모든 도구 공통 키
 # 나머지 키는 그 도구 소유: P1 [tools.lazygit] path·repo·theme_overlay, [tools.leet] lang·dir·auto_status / P4 [tools.api] …
+# [tools.arch] export_dir = "~/masil/arch-exports"  # 내보내기(파일로 저장) 폴더. 비거나 없으면 이 기본값, "~/" 는 홈 (P3 Task 20)
 
 [tools.api]                # P4 API 시험 — 로컬 기록(api/history/)
 history = true             # false => 기록을 쓰지 않음
@@ -2655,7 +2665,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
 | P1 LeetCode·lazygit | `ui/leet`: `leet.open`(오늘의 문제 열기), `leet.board`(지금 방의 순위·친구 순위 — 방 안에서만), `leet.settings`(도구 설정 창), `leet.daily.toggle`(지금 방의 #daily 켜기·끄기 — 방 owner·admin 만) — 모두 `Available` 에 `features.On(ui.ToolLeet)`. `ui/gittool`: `git.open`(저장소 고르기) — `features.On(ui.ToolGit)`. 전부 `Label func(*i18n.T)` |
 | P2 작업공간 `ui/workspace` | `ws.open`, `ws.share.start`, `ws.share.end`, `ws.people`, `ws.proposals`, `ws.join`, `ws.term.new`, `ws.autosave.toggle`, `ws.notify.toggle` — 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("workspace")`(공유 중일 때만 `ws.share.end`·`ws.people`·`ws.proposals`, 폴더가 열렸을 때 `ws.term.new`·`ws.autosave.toggle`, 초대가 있을 때 `ws.join`). `ws.notify.toggle` = `PATCH /v1/me/settings {notify:{workspace}}`(설정 화면 줄은 없음) |
-| P3 아키텍처 설계 | `arch.*` |
+| P3 `ui/arch` | `arch.new`, `arch.open`(둘 다 `Available` = `features.On("arch")`), `arch.share`, `arch.export`, `arch.send_card`, `arch.run`, `arch.save_copy`(이 다섯은 플래그 + 앞에 연 arch 인스턴스가 있을 때만; 그 인스턴스에 실행을 보낸다. `arch.save_copy` = 방 문서를 개인 설계 사본으로 저장, 개인 설계에서는 안내만), `arch.versions`(플래그 + 앞의 arch 인스턴스가 방 문서(`doc` 쿼리)일 때만), `arch.challenge`(선택 — 플래그만; 오늘(UTC)의 일일 도전 시나리오를 `arch:challenge:<date>` 인스턴스로 연다) — 모두 `Group: GroupCommand`, `Label func(*i18n.T)` |
 | P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd`(+ `n` nonce)로 인스턴스 `api:main` 에 전달(`ui.OpenTool`). 여는 대상은 Query 개인 컬렉션 `col`·`req`(이름·요청 ID), 공유 컬렉션 `doc`·`req`(인스턴스 `api:doc:<doc_id>`, P4 Task 18·20) |
 
 - 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).

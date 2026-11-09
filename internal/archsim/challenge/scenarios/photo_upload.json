@@ -1,0 +1,21 @@
+{
+ "id": "photo_upload", "goal_p99_ms": 1500, "goal_err_permille": 10, "budget_usd_month": 1200,
+ "start": {
+  "schema_version": 1, "title": "photo_upload", "seed": 2811010, "duration_s": 120,
+  "boxes": [],
+  "nodes": [
+   {"id": "phones", "kind": "client", "label": "phones", "pos": [0, 0], "parent": "", "traffic": {"rps": 300, "read_permille": 200, "req_kb": 500, "resp_kb": 4}},
+   {"id": "api", "kind": "api", "label": "upload-api", "pos": [20, 0], "parent": "", "instances": 2, "nic_mbps": 1000},
+   {"id": "store", "kind": "object_storage", "label": "photos", "pos": [40, 0], "parent": ""},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [40, 6], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "phones", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "api", "to": "store", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 50, "kind": "instances_off", "target": "api", "count": 1, "dur_s": 30}
+  ]
+ }
+}

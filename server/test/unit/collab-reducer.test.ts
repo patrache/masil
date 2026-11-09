@@ -2,6 +2,9 @@
 import { describe, it, expect } from "vitest";
 import { DocState, applyFrame, applyOps, parseOps, parseSnapshot, type Op } from "../../src/lib/collab-reducer";
 import { DOC_TYPES } from "../../src/lib/collab-doctypes";
+import { archRulesOff } from "../arch-test-helpers";
+
+archRulesOff(); // generic objects: the reducer and the per-type limits, not the arch field rules
 
 const raw = import.meta.glob("../../../docs/contract/collab-vectors.json", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 

@@ -1,0 +1,1268 @@
+# Architecture design tool (v0.1.3 spec C2): the canvas, panels, metrics and
+# commands. Keys are snake_case with no area prefix; {usd} is a dollar
+# amount with thousands commas and {asof} the price table's year-month.
+
+[box_az]
+other = "AZ"
+
+[box_region]
+other = "region"
+
+[box_vpc]
+other = "VPC"
+
+[card_body_design]
+other = "📐 {title} · {n} nodes · p99 {p99}ms · ~${usd}/mo (estimate)"
+
+[card_body_sim]
+other = "📐 {title} simulation · p99 {p99}ms · errors {err}% · ~${usd}/mo (estimate)"
+
+[card_bottleneck]
+other = "Bottleneck {target} · {limit} {util}%"
+
+[card_challenge]
+other = "Challenge {date} · {scenario} · {score} pts"
+
+[card_copy_failed]
+other = "Couldn't load the card's design"
+
+[card_design_title]
+other = "📐 {title}"
+
+[card_doc_loading]
+other = "Still loading the document — try sending again in a moment"
+
+[card_nodes]
+other = "{n} nodes"
+
+[card_open_copy_hint]
+other = "⏎ open the copy"
+
+[card_open_hint]
+other = "⏎ open"
+
+[card_replay_diff]
+other = "✕ The numbers differ now · p99 {p99}ms · errors {err}% · {cost}"
+
+[card_replay_hint]
+other = "R replay"
+
+[card_replay_none]
+other = "This card carries no design copy to replay"
+
+[card_replay_same]
+other = "✓ Same numbers again · p99 {p99}ms · errors {err}% · {cost}"
+
+[card_sim_summary]
+other = "{rps} rps · reads {read}% · p50 {p50}ms · p99 {p99}ms · errors {err}%"
+
+[card_sim_title]
+other = "📐 {title} simulation"
+
+[card_too_big]
+other = "Share it in a room instead"
+
+[card_version_failed]
+other = "Couldn't save the version this card points to — try again in a moment"
+
+[card_version_name]
+other = "Card · {title}"
+
+[card_version_unsaved]
+other = "Your edits are still saving — send again once they're saved"
+
+[challenge_az_blackout_title]
+other = "AZ blackout"
+
+[challenge_budget_squeeze_title]
+other = "Half the budget"
+
+[challenge_cache_restart_title]
+other = "Cache restart"
+
+[challenge_class_signup_title]
+other = "Class sign-up rush"
+
+[challenge_client_missing]
+other = "Deleting the challenge's client leaves nothing to score — bring it back"
+
+[challenge_commute_maps_title]
+other = "Rush-hour directions"
+
+[challenge_concert_presale_title]
+other = "Concert presale"
+
+[challenge_db_failover_title]
+other = "Primary DB down"
+
+[challenge_fault_target_missing]
+other = "Deleting what the challenge's scheduled fault hits leaves nothing to score — bring it back"
+
+[challenge_flash_sale_title]
+other = "Flash sale"
+
+[challenge_intro]
+other = "Today's challenge · {title} — keep p99 ≤ {p99}ms and errors ≤ {err}% on ~${usd}/mo (est.) · space to start"
+
+[challenge_new_year_greetings_title]
+other = "New Year greetings"
+
+[challenge_night_settlement_title]
+other = "Overnight settlement"
+
+[challenge_photo_upload_title]
+other = "Photo uploads"
+
+[challenge_region_outage_title]
+other = "Region outage"
+
+[challenge_retry_storm_title]
+other = "Retry storm"
+
+[challenge_scored]
+other = "Challenge score {score} · goals kept {kept}/{total}s · share it on a sim card"
+
+[challenge_search_revamp_title]
+other = "Search revamp"
+
+[challenge_slow_payments_title]
+other = "Slow payments"
+
+[challenge_unrouted]
+other = "The challenge's traffic doesn't reach a server — connect each client, LB, CDN and queue so its edges pass on every request"
+
+[check_az_outside_vpc]
+other = "{targets}: AZ outside a VPC"
+
+[check_cycle]
+other = "{targets}: cycle (retry storm risk)"
+
+[check_ok]
+other = "No issues"
+
+[check_primary_replica_same_az]
+other = "{targets}: primary and replica share an AZ"
+
+[check_single_az_service]
+other = "{targets}: in one AZ only"
+
+[check_spof_single_instance]
+other = "{targets}: one instance = single point of failure"
+
+[check_spof_single_lb]
+other = "{targets}: one load balancer = single point of failure"
+
+[check_unconnected]
+other = "{targets}: not connected"
+
+[check_vpc_outside_region]
+other = "{targets}: VPC outside a region"
+
+[checks_label]
+other = "Checks"
+
+[choice_custom]
+other = "Custom"
+
+[choice_none]
+other = "None"
+
+[choice_off]
+other = "Off"
+
+[choice_on]
+other = "On"
+
+[choice_region_box]
+other = "From box"
+
+[comments_deleted]
+other = "(deleted comment)"
+
+[comments_empty]
+other = "No comments yet · press C to add one"
+
+[comments_failed]
+other = "Couldn't send the comment"
+
+[comments_group_at]
+other = "Empty spot ({x}, {y})"
+
+[comments_group_unknown]
+other = "Unknown place"
+
+[comments_load_failed]
+other = "Couldn't load the comments"
+
+[comments_new]
+other = "New comment · {target}"
+
+[comments_personal]
+other = "Comments are only for designs shared to a room"
+
+[comments_reply]
+other = "Reply to {name}"
+
+[comments_resolved]
+other = "resolved"
+
+[comments_title]
+other = "Comments {n}"
+
+[connect_exists]
+other = "Already connected"
+
+[connect_pick]
+other = "Connect to…"
+
+[copy_not_needed]
+other = "This is already a personal design"
+
+[copy_saved]
+other = "Saved a copy as '{name}'"
+
+[cost_long]
+other = "About ${usd}/mo (estimate · {asof} prices · on-demand · excludes tax, discounts and free tiers)"
+
+[cost_short]
+other = "~${usd}/mo (estimate · {asof} prices)"
+
+[curve_constant]
+other = "constant"
+
+[curve_ramp]
+other = "ramp"
+
+[curve_spike]
+other = "spike"
+
+[curve_wave]
+other = "wave"
+
+[deleted_node_comment]
+other = "Comments on deleted nodes"
+
+[disk_hdd]
+other = "HDD"
+
+[disk_ssd]
+other = "General SSD"
+
+[disk_ssd_fast]
+other = "Fast SSD"
+
+[empty_canvas]
+other = "Press a to add a component"
+
+[engine_instant]
+other = "Instant analysis"
+
+[engine_mismatch]
+other = "Another engine version made these numbers; they may differ slightly"
+
+[engine_paused]
+other = "Timed run paused {t}/{total}"
+
+[engine_running]
+other = "Running the timed run"
+
+[engine_timed]
+other = "Timed run {t}/{total} ×{speed}"
+
+[estimate_disclaimer]
+other = "Estimates; actual bills may differ"
+
+[ev_box_off]
+other = "{target} down"
+
+[ev_failover_done]
+other = "{target} promoted"
+
+[ev_failover_start]
+other = "{target} failover {s}s"
+
+[ev_fault_end]
+other = "{target} recovered"
+
+[ev_fault_start]
+other = "{target} fault starts"
+
+[ev_instances_off]
+other = "{target} {n} instances off"
+
+[ev_latency]
+other = "{target} latency +{ms}ms"
+
+[ev_lb_reroute]
+other = "{target} reroutes to {n} left"
+
+[ev_node_off]
+other = "{target} off"
+
+[ev_queue_drop]
+other = "{target} queue full · {n} dropped"
+
+[ev_scale_in]
+other = "{target} scales in to {n}"
+
+[ev_scale_out]
+other = "{target} scales out to {n}"
+
+[ev_writes_failing]
+other = "{target} writes failing 100%"
+
+[export_copied]
+other = "Copied to the clipboard"
+
+[export_d2]
+other = "D2 diagram (.d2)"
+
+[export_hint]
+other = "j k choose · enter confirm · esc close"
+
+[export_json]
+other = "Design JSON (.json)"
+
+[export_mermaid]
+other = "Mermaid diagram (.mmd)"
+
+[export_overwrite_title]
+other = "'{name}' exists. Overwrite it?"
+
+[export_overwrite_yes]
+other = "Overwrite"
+
+[export_path]
+other = "Saves to {path}"
+
+[export_rights]
+other = "You own the rights to the generated files"
+
+[export_save_failed]
+other = "Could not save the file"
+
+[export_saved]
+other = "Saved to {path}"
+
+[export_terraform]
+other = "Terraform AWS skeleton (.tf)"
+
+[export_text120]
+other = "Text snapshot, 120 columns (.txt)"
+
+[export_text80]
+other = "Text snapshot, 80 columns (.txt)"
+
+[export_title]
+other = "Export"
+
+[export_to_clipboard]
+other = "Clipboard"
+
+[export_to_file]
+other = "Save to a file"
+
+[export_use_file]
+other = "Too large for the clipboard · save it to a file"
+
+[export_where]
+other = "Where to?"
+
+[fault_add_ms]
+other = "Added latency ms"
+
+[fault_at]
+other = "At {t} of the run"
+
+[fault_at_hint]
+other = "Type mm:ss (00:00 to 10:00)"
+
+[fault_az_off]
+other = "Turn off AZ · {target}"
+
+[fault_count]
+other = "Instances to turn off"
+
+[fault_instances_off]
+other = "Turn off n instances · {target}"
+
+[fault_latency]
+other = "Add latency · {target}"
+
+[fault_menu_title]
+other = "Add a fault"
+
+[fault_node_off]
+other = "Turn off · {target}"
+
+[fault_none]
+other = "Select a node, AZ, region or connection first"
+
+[fault_now]
+other = "Now"
+
+[fault_region_off]
+other = "Turn off region · {target}"
+
+[fault_when]
+other = "When"
+
+[field_autoscale]
+other = "Autoscale"
+
+[field_autoscale_max]
+other = "Max instances"
+
+[field_autoscale_min]
+other = "Min instances"
+
+[field_autoscale_target]
+other = "Target CPU %"
+
+[field_cooldown]
+other = "Cool-down s"
+
+[field_cpu_cores]
+other = "CPU cores"
+
+[field_cpu_per_req]
+other = "CPU µs per request"
+
+[field_curve]
+other = "Shape"
+
+[field_custom_hourly]
+other = "Hourly price ¢"
+
+[field_disk_iops]
+other = "Disk IOPS"
+
+[field_disk_size]
+other = "Disk GB"
+
+[field_disk_type]
+other = "Disk type"
+
+[field_duration]
+other = "Run length s"
+
+[field_edge_read]
+other = "Read share %"
+
+[field_edge_write]
+other = "Write share %"
+
+[field_error_rate]
+other = "Error rate ‰"
+
+[field_failover_s]
+other = "Failover s"
+
+[field_failover_to]
+other = "Failover to"
+
+[field_fixed_latency]
+other = "Fixed latency ms"
+
+[field_health]
+other = "Health check s"
+
+[field_hit]
+other = "Hit rate %"
+
+[field_index_write]
+other = "Index writes ‰"
+
+[field_instance_type]
+other = "Type"
+
+[field_instances]
+other = "Instances"
+
+[field_label]
+other = "Label"
+
+[field_latency]
+other = "Latency µs"
+
+[field_lb_algo]
+other = "Balancing"
+
+[field_max_rps]
+other = "Max per second"
+
+[field_mbps]
+other = "Bandwidth Mbps"
+
+[field_memory]
+other = "Memory GiB"
+
+[field_nic]
+other = "Bandwidth Mbps"
+
+[field_pool]
+other = "Pool size"
+
+[field_protocol]
+other = "Protocol"
+
+[field_provider]
+other = "Provider"
+
+[field_queue_cap]
+other = "Queue cap"
+
+[field_read_iops]
+other = "Read IOPS‰"
+
+[field_read_pct]
+other = "Reads %"
+
+[field_region]
+other = "Region"
+
+[field_region_code]
+other = "Region code"
+
+[field_repl_lag]
+other = "Replica lag ms"
+
+[field_req_kb]
+other = "Request KB"
+
+[field_resp_kb]
+other = "Response KB"
+
+[field_retention]
+other = "Retention"
+
+[field_retries]
+other = "Retries"
+
+[field_rps]
+other = "Requests/s"
+
+[field_seed]
+other = "Seed"
+
+[field_spike_at]
+other = "Spike at s"
+
+[field_spike_dur]
+other = "Spike length s"
+
+[field_spike_mult]
+other = "Spike ×"
+
+[field_timeout]
+other = "Timeout ms"
+
+[field_ttl]
+other = "TTL s"
+
+[field_warmup]
+other = "Warm-up s"
+
+[field_working_set]
+other = "Working set MiB"
+
+[field_write_iops]
+other = "Write IOPS‰"
+
+[files_bad_name]
+other = "That name cannot be used"
+
+[files_delete_body]
+other = "A deleted design cannot be brought back"
+
+[files_delete_title]
+other = "Delete the design '{name}'?"
+
+[files_delete_yes]
+other = "Delete"
+
+[files_deleted]
+other = "Deleted the design '{name}'"
+
+[files_empty]
+other = "No saved designs yet"
+
+[files_failed]
+other = "Could not read or write the designs folder"
+
+[files_hint]
+other = "enter open · n new · r rename · d delete · i import · esc close"
+
+[files_import_prompt]
+other = "Path of the design JSON to import"
+
+[files_input_hint]
+other = "enter confirm · esc cancel"
+
+[files_is_open]
+other = "That design is open · close it first"
+
+[files_name_exists]
+other = "A design with that name exists"
+
+[files_new_prompt]
+other = "New design name"
+
+[files_nodes]
+other = "{n} nodes"
+
+[files_rename_prompt]
+other = "New name for '{name}'"
+
+[files_title]
+other = "My designs"
+
+[find_none]
+other = "No node matches '{q}'"
+
+[help_model_intro]
+other = "These numbers are approximations from queueing formulas. Use them to compare designs. Confirm a real service with a load test"
+
+[help_title]
+other = "Architecture design help"
+
+[hourly_price]
+other = "~${usd}/h (estimate · {asof} prices)"
+
+[import_done]
+other = "Imported as '{name}'"
+
+[import_invalid]
+other = "The design failed a check: {issue}"
+
+[import_read_failed]
+other = "Could not read the file"
+
+[import_syntax]
+other = "Not a design JSON file"
+
+[import_too_large]
+other = "Files over 1MB cannot be imported"
+
+[import_version]
+other = "Unsupported design version"
+
+[invalid_value]
+other = "That value cannot be used"
+
+[key_add]
+other = "Add"
+
+[key_arrange]
+other = "Arrange"
+
+[key_cancel]
+other = "Cancel"
+
+[key_checks]
+other = "Checks"
+
+[key_comment]
+other = "comment"
+
+[key_confirm]
+other = "Confirm"
+
+[key_connect]
+other = "Connect"
+
+[key_delete]
+other = "Delete"
+
+[key_edit]
+other = "edit"
+
+[key_fault]
+other = "Faults"
+
+[key_find]
+other = "Find"
+
+[key_fit]
+other = "Fit"
+
+[key_help]
+other = "Help"
+
+[key_move]
+other = "Move"
+
+[key_multi]
+other = "Multi-select"
+
+[key_pan]
+other = "Pan"
+
+[key_panel]
+other = "Settings"
+
+[key_pick]
+other = "Choose"
+
+[key_redo]
+other = "Redo"
+
+[key_reply]
+other = "reply"
+
+[key_resolve]
+other = "resolve"
+
+[key_run]
+other = "Run"
+
+[key_select]
+other = "Select"
+
+[key_send]
+other = "send"
+
+[key_speed]
+other = "Speed"
+
+[key_step]
+other = "Nudge"
+
+[key_time]
+other = "±1s"
+
+[key_toggle]
+other = "Toggle"
+
+[key_undo]
+other = "Undo"
+
+[key_view]
+other = "View"
+
+[key_wrap]
+other = "Wrap in a box"
+
+[key_zoom]
+other = "Zoom"
+
+[kicked_notice]
+other = "You can no longer reach this design · it is read-only now"
+
+[kicked_pending]
+other = "{n} edits were not sent · keep them with 'Save a copy' in the palette"
+
+[kind_api]
+other = "API server"
+
+[kind_cache]
+other = "cache"
+
+[kind_cdn]
+other = "CDN"
+
+[kind_client]
+other = "client"
+
+[kind_db_primary]
+other = "DB primary"
+
+[kind_db_replica]
+other = "DB replica"
+
+[kind_external]
+other = "External service"
+
+[kind_lb]
+other = "LB"
+
+[kind_object_storage]
+other = "object storage"
+
+[kind_queue]
+other = "queue"
+
+[kind_search]
+other = "search"
+
+[kind_worker]
+other = "worker"
+
+[lb_least_conn]
+other = "Least connections"
+
+[lb_round_robin]
+other = "Round robin"
+
+[limit_cpu]
+other = "CPU"
+
+[limit_ext_limit]
+other = "external limit"
+
+[limit_iops]
+other = "IOPS"
+
+[limit_link]
+other = "link bandwidth"
+
+[limit_nic]
+other = "bandwidth"
+
+[limit_pool]
+other = "connection pool"
+
+[limit_queue]
+other = "queue"
+
+[limit_reached]
+other = "Limit reached · up to 300 parts, 1,000 connections and 100 boxes"
+
+[list_empty]
+other = "No nodes · press a to add"
+
+[list_outside]
+other = "Outside boxes"
+
+[load_failed]
+other = "Cannot open design \"{name}\""
+
+[locked_notice]
+other = "This design is locked · only its creator and space admins can edit it"
+
+[menu_comment]
+other = "Comment"
+
+[menu_delete]
+other = "Delete"
+
+[menu_fault]
+other = "Fault"
+
+[menu_settings]
+other = "Settings"
+
+[metric_bottleneck]
+other = "bottleneck ⚠ {label} · {limit} {util}% ({demand}/s × {unit})"
+
+[metric_err]
+other = "errors {pct}%"
+
+[metric_no_traffic]
+other = "No traffic · add a client"
+
+[metric_overloaded]
+other = "overloaded"
+
+[metric_throughput]
+other = "{rps}/s served"
+
+[metrics_total]
+other = "Total"
+
+[moved_by]
+other = "Moved by {name}"
+
+[narrow_no_drag]
+other = "Dragging needs 60 columns or more · edit in the list"
+
+[node_deleted]
+other = "Someone deleted it, so its settings closed"
+
+[palette_boxes]
+other = "Boxes"
+
+[palette_challenge]
+other = "Today's architecture challenge"
+
+[palette_export]
+other = "Export design"
+
+[palette_new]
+other = "New architecture design"
+
+[palette_open]
+other = "Open architecture design"
+
+[palette_parts]
+other = "Parts"
+
+[palette_run]
+other = "Start/stop timed run"
+
+[palette_save_copy]
+other = "Save the architecture design as a copy"
+
+[palette_send_card]
+other = "Send design card"
+
+[palette_share]
+other = "Share design to a room"
+
+[palette_versions]
+other = "Design versions"
+
+[panel_autoscale]
+other = "(auto {min}–{max})"
+
+[panel_box]
+one = "{n} node"
+other = "{n} nodes"
+
+[panel_cpu_mem]
+other = "CPU {cpu} · memory {mem}GiB"
+
+[panel_curve]
+other = "shape {curve}"
+
+[panel_custom_type]
+other = "custom"
+
+[panel_down]
+other = "down"
+
+[panel_edge]
+other = "{from} → {to}"
+
+[panel_instances]
+other = "instances {n}"
+
+[panel_latency]
+other = "p50 {p50} · p99 {p99}"
+
+[panel_nic]
+other = "bandwidth {gbps}Gbps"
+
+[panel_no_client]
+other = "No client yet"
+
+[panel_read]
+other = "{pct}% reads"
+
+[panel_result]
+other = "Result"
+
+[panel_rps]
+other = "{n} requests/s"
+
+[panel_sizes]
+other = "request {req}KB · response {resp}KB"
+
+[panel_traffic]
+other = "Traffic model"
+
+[panel_util]
+other = "utilization {pct}%"
+
+[preview_header]
+other = "Preview {label} · read-only · esc back to now"
+
+[preview_readonly]
+other = "A version preview is read-only · esc goes back to now"
+
+[proto_async]
+other = "Async queue"
+
+[range_hint]
+other = "A number from {min} to {max}"
+
+[read_only_copy]
+other = "Copy · read-only"
+
+[reject_arch_cycle]
+other = "A box cannot go inside itself"
+
+[reject_arch_depth]
+other = "Boxes nest at most 3 levels deep"
+
+[reject_arch_limit]
+other = "The node, connection, box or fault limit is reached"
+
+[reject_arch_value]
+other = "The server refused this value · it was undone"
+
+[reject_other]
+other = "The edit was refused ({code}) · it was undone"
+
+[reject_too_large]
+other = "The design is too large (1MB) · it was undone"
+
+[room_connecting]
+other = "Space · connecting…"
+
+[room_kicked]
+other = "Space · left · read-only"
+
+[room_live]
+other = "Space · {names}"
+
+[room_locked]
+other = "Space · locked · read-only"
+
+[room_offline]
+other = "Edits ● offline — sent when reconnected"
+
+[run_failed]
+other = "The timed run failed"
+
+[save_failed]
+other = "Save failed"
+
+[save_pending]
+other = "Editing ●"
+
+[save_saved]
+other = "Saved"
+
+[save_unsaved]
+other = "Not saved"
+
+[send_confirm_hint]
+other = "⏎ send · esc back"
+
+[send_done]
+other = "Card sent to {channel}"
+
+[send_failed]
+other = "Couldn't send the card"
+
+[send_hint]
+other = "↑↓ pick · s card type · ⏎ preview · esc close"
+
+[send_kind_design]
+other = "Design card"
+
+[send_kind_sim]
+other = "Simulation card"
+
+[send_no_channels]
+other = "No conversations to send to"
+
+[send_pick]
+other = "Send to"
+
+[send_preview]
+other = "This goes to {channel}"
+
+[send_title]
+other = "Send a design card"
+
+[share_already]
+other = "This design is already in a space"
+
+[share_done]
+other = "Shared to {space} · your personal design stays as it is"
+
+[share_failed]
+other = "Could not share the design"
+
+[share_hint]
+other = "enter confirm · esc close"
+
+[share_no_spaces]
+other = "No spaces to share to · join one first"
+
+[share_pick]
+other = "Pick a space"
+
+[share_plaintext_warning]
+other = "A shared design is stored on the masil server without encryption. Space members and the server operators can see it. Keep sensitive designs personal."
+
+[share_title]
+other = "Share to a space"
+
+[share_yes]
+other = "Share"
+
+[snap_col_cost]
+other = "Cost"
+
+[snap_col_instances]
+other = "Count"
+
+[snap_col_kind]
+other = "Kind"
+
+[snap_col_name]
+other = "Name"
+
+[snap_col_p99]
+other = "p99"
+
+[snap_col_util]
+other = "Util"
+
+[snap_cost_note]
+other = "/mo (estimate · {asof} prices)"
+
+[status_copy]
+other = "{title} (copy)"
+
+[status_new]
+other = "New design"
+
+[status_personal]
+other = "{title} (personal)"
+
+[status_room]
+one = "{title} (room) · {n} editing"
+other = "{title} (room) · {n} editing"
+
+[tf_header]
+other = "Generated skeleton · review before use · masil never runs this file"
+
+[tiny_bottleneck]
+other = "⚠ {label} {limit} {util}%"
+
+[tiny_edit_hint]
+other = "Enlarge the window to edit"
+
+[tiny_run]
+other = "space timed run"
+
+[tiny_running]
+other = "space stop · {t} ×{speed}"
+
+[tiny_summary]
+other = "📐 {title} · p99 {p99} · errors {err}%"
+
+[too_small_edit]
+other = "Please enlarge the window"
+
+[tool_name]
+other = "Architecture design"
+
+[top_costs]
+other = "Top costs {list}"
+
+[traffic_hint]
+other = "A client is where traffic starts"
+
+[traffic_summary]
+other = "{rps} rps · {read}% reads · {kb}KB"
+
+[untitled]
+other = "Untitled design"
+
+[ver_field_add_ms]
+other = "Added latency ms"
+
+[ver_field_at_s]
+other = "At (s)"
+
+[ver_field_count]
+other = "Instances off"
+
+[ver_field_dur_s]
+other = "Duration (s)"
+
+[ver_field_from]
+other = "From"
+
+[ver_field_kind]
+other = "Kind"
+
+[ver_field_parent]
+other = "Parent box"
+
+[ver_field_pos]
+other = "Position"
+
+[ver_field_rect]
+other = "Area"
+
+[ver_field_target]
+other = "Target"
+
+[ver_field_title]
+other = "Title"
+
+[ver_field_to]
+other = "To"
+
+[versions_auto]
+other = "v{no} — autosave {when}"
+
+[versions_diff_added]
+other = "Added {n}"
+
+[versions_diff_changed]
+other = "Changed {n}"
+
+[versions_diff_hint]
+other = "j/k scroll · esc back to the list"
+
+[versions_diff_meta]
+other = "Design settings"
+
+[versions_diff_none]
+other = "No changes"
+
+[versions_diff_oldest]
+other = "This is the oldest version · nothing before it to compare"
+
+[versions_diff_removed]
+other = "Removed {n}"
+
+[versions_diff_title]
+other = "v{a} → v{b} changes"
+
+[versions_empty]
+other = "No versions yet · n saves this state with a name"
+
+[versions_failed]
+other = "Could not do that · try again shortly"
+
+[versions_hint]
+other = "enter preview · d diff with previous · r restore · n save with a name · esc close"
+
+[versions_limit]
+other = "Up to 100 named versions"
+
+[versions_loading]
+other = "Loading versions…"
+
+[versions_meta]
+other = "{who} · {when}"
+
+[versions_name_hint]
+other = "enter save · esc cancel"
+
+[versions_name_prompt]
+other = "Version name"
+
+[versions_named]
+other = "v{no} — {name}"
+
+[versions_personal]
+other = "Personal designs have no versions · use a shared design"
+
+[versions_restore_body]
+other = "Makes a new version with this content · the history stays"
+
+[versions_restore_title]
+other = "Restore v{no}?"
+
+[versions_restore_yes]
+other = "Restore"
+
+[versions_restored]
+other = "v{no} — restored v{from}"
+
+[versions_restored_toast]
+other = "Restored v{from} · new version v{no}"
+
+[versions_saved]
+other = "Saved as v{no}"
+
+[versions_title]
+other = "Versions"
+
+[view_canvas]
+other = "Canvas"
+
+[view_list]
+other = "List"
+
+[zoom_overlap]
+other = "Zoom in"

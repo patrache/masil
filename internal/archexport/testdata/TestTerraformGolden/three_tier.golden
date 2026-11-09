@@ -1,0 +1,265 @@
+# 자동 생성된 뼈대 · 실행 전 검토 필요 · masil 은 이 파일을 실행하지 않음
+# ${not} %{code}
+
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.region
+}
+
+variable "region" {
+  type    = string
+  default = "ap-northeast-2"
+}
+
+variable "ami_id" {
+  type = string
+}
+
+variable "db_username" {
+  type = string
+}
+
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+resource "aws_vpc" "vpc" {
+  cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = "본 VPC"
+  }
+}
+
+resource "aws_security_group" "vpc" {
+  vpc_id = aws_vpc.vpc.id
+
+  # TODO: ingress and egress rules
+
+  tags = {
+    Name = "본 VPC"
+  }
+}
+
+resource "aws_subnet" "a" {
+  vpc_id            = aws_vpc.vpc.id
+  cidr_block        = "10.0.0.0/24"
+  availability_zone = data.aws_availability_zones.available.names[0]
+
+  tags = {
+    Name = "가용 영역 A"
+  }
+}
+
+resource "aws_subnet" "b" {
+  vpc_id            = aws_vpc.vpc.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = {
+    Name = "가용 영역 B"
+  }
+}
+
+resource "aws_launch_template" "api" {
+  image_id      = var.ami_id
+  instance_type = "c7g.large"
+
+  tags = {
+    Name = "결제 API"
+  }
+}
+
+resource "aws_autoscaling_group" "api" {
+  min_size            = 3
+  max_size            = 3
+  desired_capacity    = 3
+  vpc_zone_identifier = [aws_subnet.a.id]
+  target_group_arns   = [aws_lb_target_group.lb.arn]
+
+  launch_template {
+    id      = aws_launch_template.api.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "결제 API"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_launch_template" "api_2" {
+  image_id      = var.ami_id
+  instance_type = "c7g.large"
+
+  tags = {
+    Name = "결제 API"
+  }
+}
+
+resource "aws_autoscaling_group" "api_2" {
+  min_size            = 3
+  max_size            = 3
+  desired_capacity    = 3
+  vpc_zone_identifier = [aws_subnet.b.id]
+  target_group_arns   = [aws_lb_target_group.lb.arn]
+
+  launch_template {
+    id      = aws_launch_template.api_2.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "결제 API"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_elasticache_cluster" "cache" {
+  cluster_id      = "cache"
+  engine          = "redis"
+  node_type       = "cache.r7g.large"
+  num_cache_nodes = 1
+
+  tags = {
+    Name = "세션 캐시"
+  }
+}
+
+resource "aws_cloudfront_distribution" "cdn" {
+  enabled = true
+
+  origin {
+    domain_name = aws_lb.lb.dns_name
+    origin_id   = "cdn"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "cdn"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name = "CDN"
+  }
+}
+
+resource "aws_s3_bucket" "object_storage" {
+  bucket_prefix = "object-storage-"
+
+  tags = {
+    Name = "영수증 저장소"
+  }
+}
+
+resource "aws_sqs_queue" "queue" {
+  name = "queue"
+
+  tags = {
+    Name = "작업 큐"
+  }
+}
+
+resource "aws_lb" "lb" {
+  load_balancer_type = "application"
+  subnets            = [aws_subnet.a.id, aws_subnet.b.id]
+  security_groups    = [aws_security_group.vpc.id]
+
+  tags = {
+    Name = "부하 분산기"
+  }
+}
+
+resource "aws_lb_target_group" "lb" {
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.vpc.id
+
+  tags = {
+    Name = "부하 분산기"
+  }
+}
+
+resource "aws_lb_listener" "lb" {
+  load_balancer_arn = aws_lb.lb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.lb.arn
+  }
+}
+
+resource "aws_db_instance" "db" {
+  identifier                  = "db"
+  engine                      = "postgres"
+  instance_class              = "db.r7g.large"
+  allocated_storage           = 100
+  username                    = var.db_username
+  manage_master_user_password = true
+  multi_az                    = false
+
+  tags = {
+    Name = "주 DB"
+  }
+}
+
+resource "aws_db_instance" "db_replica" {
+  identifier          = "db-replica"
+  replicate_source_db = aws_db_instance.db.identifier
+  instance_class      = "db.r7g.large"
+
+  tags = {
+    Name = "읽기 복제본"
+  }
+}
+
+resource "aws_opensearch_domain" "search" {
+  domain_name = "search"
+
+  cluster_config {
+    instance_type  = "r7g.large.search"
+    instance_count = 2
+  }
+
+  tags = {
+    Name = "주문 검색"
+  }
+}

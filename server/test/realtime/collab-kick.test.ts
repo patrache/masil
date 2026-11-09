@@ -4,6 +4,9 @@
 import { env } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import { api, connectDoc, login, makeAdmin, makeDoc, makeSpace, signup, type DocClient, type TestUser } from "../helpers";
+import { archRulesOff } from "../arch-test-helpers";
+
+archRulesOff(); // generic objects: the hub mechanics, not the arch field rules
 
 async function room() {
   const owner = await signup();

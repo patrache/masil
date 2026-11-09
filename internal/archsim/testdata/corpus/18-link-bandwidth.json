@@ -1,0 +1,16 @@
+{
+ "schema_version": 1, "title": "18-link-bandwidth", "seed": 118, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 1000, "read_permille": 900, "resp_kb": 512}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": "", "instances": 4, "cpu_cores": 8},
+  {"id": "db", "kind": "db_primary", "label": "db", "pos": [40, 0], "parent": "", "cpu_cores": 16}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000, "mbps": 4000, "protocol": "tcp"}
+ ],
+ "faults": [
+  {"id": "f1", "at_s": 60, "kind": "latency", "target": "e2", "add_ms": 40, "dur_s": 20}
+ ]
+}

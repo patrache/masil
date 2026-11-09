@@ -1,0 +1,12 @@
+{
+ "schema_version": 1, "title": "01-single-api", "seed": 101, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 300, "read_permille": 800}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": ""}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000}
+ ],
+ "faults": []
+}

@@ -1,0 +1,23 @@
+{
+ "id": "budget_squeeze", "goal_p99_ms": 300, "goal_err_permille": 5, "budget_usd_month": 1500,
+ "start": {
+  "schema_version": 1, "title": "budget_squeeze", "seed": 2811014, "duration_s": 120,
+  "boxes": [],
+  "nodes": [
+   {"id": "members", "kind": "client", "label": "members", "pos": [0, 0], "parent": "", "traffic": {"rps": 500, "read_permille": 900}},
+   {"id": "lb", "kind": "lb", "label": "lb", "pos": [20, 0], "parent": ""},
+   {"id": "api", "kind": "api", "label": "api", "pos": [40, 0], "parent": "", "instances": 12},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [60, 0], "parent": "", "cpu_cores": 16},
+   {"id": "replica", "kind": "db_replica", "label": "replica", "pos": [60, 6], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "members", "to": "lb", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "lb", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "db", "read_permille": 500, "write_permille": 1000},
+   {"id": "e4", "from": "api", "to": "replica", "read_permille": 500, "write_permille": 0}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 60, "kind": "latency", "target": "replica", "add_ms": 400, "dur_s": 20}
+  ]
+ }
+}

@@ -1,0 +1,162 @@
+# 자동 생성된 뼈대 · 실행 전 검토 필요 · masil 은 이 파일을 실행하지 않음
+# ${not} %{code}
+
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.region
+}
+
+variable "region" {
+  type = string
+}
+
+variable "ami_id" {
+  type = string
+}
+
+variable "cdn_origin_domain" {
+  type = string
+}
+
+# TODO: non-AWS provider (db_primary "db_primary")
+
+resource "aws_launch_template" "api" {
+  image_id      = var.ami_id
+  instance_type = "c7g.large"
+
+  tags = {
+    Name = "api"
+  }
+}
+
+resource "aws_autoscaling_group" "api" {
+  min_size            = 2
+  max_size            = 2
+  desired_capacity    = 2
+  vpc_zone_identifier = []
+
+  # TODO: place the group in VPC subnets
+
+  launch_template {
+    id      = aws_launch_template.api.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "api"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_cloudfront_distribution" "cdn" {
+  enabled = true
+
+  origin {
+    domain_name = var.cdn_origin_domain
+    origin_id   = "cdn"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "cdn"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name = "cdn"
+  }
+}
+
+resource "aws_opensearch_domain" "find" {
+  domain_name = "find"
+
+  cluster_config {
+    instance_type  = "r7g.large.search"
+    instance_count = 2
+  }
+
+  tags = {
+    Name = "Find"
+  }
+}
+
+# TODO: non-AWS provider (api "분석 \"GCP\" $${x}")
+
+resource "aws_launch_template" "own_metal" {
+  image_id      = var.ami_id
+  instance_type = "c7g.large"
+
+  tags = {
+    Name = "own metal"
+  }
+}
+
+resource "aws_autoscaling_group" "own_metal" {
+  min_size            = 2
+  max_size            = 2
+  desired_capacity    = 2
+  vpc_zone_identifier = []
+
+  # TODO: place the group in VPC subnets
+
+  launch_template {
+    id      = aws_launch_template.own_metal.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "own metal"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_sqs_queue" "jobs" {
+  name = "jobs"
+
+  tags = {
+    Name = "Jobs"
+  }
+}
+
+resource "aws_s3_bucket" "receipts" {
+  bucket_prefix = "receipts-"
+
+  tags = {
+    Name = "Receipts"
+  }
+}

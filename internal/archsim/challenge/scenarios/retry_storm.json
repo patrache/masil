@@ -1,0 +1,19 @@
+{
+ "id": "retry_storm", "goal_p99_ms": 400, "goal_err_permille": 20, "budget_usd_month": 4500,
+ "start": {
+  "schema_version": 1, "title": "retry_storm", "seed": 2811013, "duration_s": 150,
+  "boxes": [],
+  "nodes": [
+   {"id": "app", "kind": "client", "label": "app", "pos": [0, 0], "parent": "", "traffic": {"rps": 1000, "read_permille": 800}},
+   {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": "", "instances": 4, "timeout_ms": 300, "retries": 3},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [40, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "app", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 40, "kind": "latency", "target": "db", "add_ms": 400, "dur_s": 40}
+  ]
+ }
+}

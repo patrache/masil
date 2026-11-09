@@ -1,0 +1,24 @@
+{
+ "id": "night_settlement", "goal_p99_ms": 1000, "goal_err_permille": 5, "budget_usd_month": 5000,
+ "start": {
+  "schema_version": 1, "title": "night_settlement", "seed": 2811012, "duration_s": 180,
+  "boxes": [],
+  "nodes": [
+   {"id": "stores", "kind": "client", "label": "stores", "pos": [0, 0], "parent": "", "traffic": {"rps": 400, "read_permille": 100, "curve": "spike", "spike_mult": 6, "spike_at_s": 60, "spike_dur_s": 60}},
+   {"id": "api", "kind": "api", "label": "ledger-api", "pos": [20, 0], "parent": "", "instances": 2},
+   {"id": "queue", "kind": "queue", "label": "batches", "pos": [40, 0], "parent": ""},
+   {"id": "worker", "kind": "worker", "label": "settler", "pos": [60, 0], "parent": "", "instances": 1},
+   {"id": "db", "kind": "db_primary", "label": "ledger", "pos": [80, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "stores", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "api", "to": "queue", "read_permille": 0, "write_permille": 1000, "protocol": "async"},
+   {"id": "e3", "from": "queue", "to": "worker", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e4", "from": "worker", "to": "db", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e5", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 0}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 120, "kind": "node_off", "target": "worker", "dur_s": 20}
+  ]
+ }
+}

@@ -1,0 +1,224 @@
+# 자동 생성된 뼈대 · 실행 전 검토 필요 · masil 은 이 파일을 실행하지 않음
+# ${not} %{code}
+
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.region
+}
+
+variable "region" {
+  type    = string
+  default = "us-east-1"
+}
+
+variable "ami_id" {
+  type = string
+}
+
+variable "db_username" {
+  type = string
+}
+
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+resource "aws_vpc" "prod_vpc" {
+  cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = "prod-vpc"
+  }
+}
+
+resource "aws_security_group" "prod_vpc" {
+  vpc_id = aws_vpc.prod_vpc.id
+
+  # TODO: ingress and egress rules
+
+  tags = {
+    Name = "prod-vpc"
+  }
+}
+
+resource "aws_subnet" "us_east_1a" {
+  vpc_id            = aws_vpc.prod_vpc.id
+  cidr_block        = "10.0.0.0/24"
+  availability_zone = data.aws_availability_zones.available.names[0]
+
+  tags = {
+    Name = "us-east-1a"
+  }
+}
+
+resource "aws_subnet" "us_east_1b" {
+  vpc_id            = aws_vpc.prod_vpc.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = {
+    Name = "us-east-1b"
+  }
+}
+
+resource "aws_lb" "public_alb" {
+  load_balancer_type = "application"
+  subnets            = [aws_subnet.us_east_1a.id, aws_subnet.us_east_1b.id]
+  security_groups    = [aws_security_group.prod_vpc.id]
+
+  tags = {
+    Name = "Public ALB"
+  }
+}
+
+resource "aws_lb_target_group" "public_alb" {
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.prod_vpc.id
+
+  tags = {
+    Name = "Public ALB"
+  }
+}
+
+resource "aws_lb_listener" "public_alb" {
+  load_balancer_arn = aws_lb.public_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.public_alb.arn
+  }
+}
+
+resource "aws_launch_template" "order_api" {
+  image_id      = var.ami_id
+  instance_type = "c7g.large"
+
+  tags = {
+    Name = "Order API"
+  }
+}
+
+resource "aws_autoscaling_group" "order_api" {
+  min_size            = 2
+  max_size            = 8
+  desired_capacity    = 3
+  vpc_zone_identifier = [aws_subnet.us_east_1a.id, aws_subnet.us_east_1b.id]
+  target_group_arns   = [aws_lb_target_group.public_alb.arn]
+
+  launch_template {
+    id      = aws_launch_template.order_api.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "Order API"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_db_instance" "orders" {
+  identifier                  = "orders"
+  engine                      = "postgres"
+  instance_class              = "db.r7g.large"
+  allocated_storage           = 100
+  username                    = var.db_username
+  manage_master_user_password = true
+  multi_az                    = true
+
+  tags = {
+    Name = "orders"
+  }
+}
+
+resource "aws_db_instance" "db_replica" {
+  identifier          = "db-replica"
+  replicate_source_db = aws_db_instance.orders.identifier
+  instance_class      = "db.r7g.large"
+
+  tags = {
+    Name = "db_replica"
+  }
+}
+
+resource "aws_cloudfront_distribution" "edge_cache" {
+  enabled = true
+
+  origin {
+    domain_name = aws_lb.public_alb.dns_name
+    origin_id   = "edge-cache"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "edge-cache"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name = "Edge Cache"
+  }
+}
+
+resource "aws_launch_template" "order_api_2" {
+  image_id      = var.ami_id
+  instance_type = "c7g.large"
+
+  tags = {
+    Name = "Order API"
+  }
+}
+
+resource "aws_autoscaling_group" "order_api_2" {
+  min_size            = 2
+  max_size            = 2
+  desired_capacity    = 2
+  vpc_zone_identifier = [aws_subnet.us_east_1b.id]
+
+  launch_template {
+    id      = aws_launch_template.order_api_2.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "Order API"
+    propagate_at_launch = true
+  }
+}

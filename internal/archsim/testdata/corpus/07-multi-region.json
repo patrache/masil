@@ -1,0 +1,25 @@
+{
+ "schema_version": 1, "title": "07-multi-region", "seed": 107, "duration_s": 120,
+ "boxes": [
+  {"id": "seoul", "kind": "region", "label": "seoul", "parent": "", "rect": [0, 0, 60, 40], "region_code": "ap-northeast-2"},
+  {"id": "virginia", "kind": "region", "label": "virginia", "parent": "", "rect": [80, 0, 60, 40], "region_code": "us-east-1"},
+  {"id": "vpc-s", "kind": "vpc", "label": "vpc-s", "parent": "seoul", "rect": [2, 2, 56, 36]},
+  {"id": "vpc-v", "kind": "vpc", "label": "vpc-v", "parent": "virginia", "rect": [82, 2, 56, 36]}
+ ],
+ "nodes": [
+  {"id": "kr", "kind": "client", "label": "kr", "pos": [0, 50], "parent": "", "traffic": {"rps": 900, "read_permille": 800}},
+  {"id": "us", "kind": "client", "label": "us", "pos": [80, 50], "parent": "", "traffic": {"rps": 600, "read_permille": 800}},
+  {"id": "api-s", "kind": "api", "label": "api-s", "pos": [10, 10], "parent": "vpc-s", "instances": 5},
+  {"id": "api-v", "kind": "api", "label": "api-v", "pos": [90, 10], "parent": "vpc-v", "instances": 3},
+  {"id": "primary", "kind": "db_primary", "label": "primary", "pos": [10, 25], "parent": "vpc-s", "cpu_cores": 4},
+  {"id": "replica-v", "kind": "db_replica", "label": "replica-v", "pos": [90, 25], "parent": "vpc-v"}
+ ],
+ "edges": [
+  {"id": "e1", "from": "kr", "to": "api-s", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "us", "to": "api-v", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e3", "from": "api-s", "to": "primary", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e4", "from": "api-v", "to": "primary", "read_permille": 200, "write_permille": 1000},
+  {"id": "e5", "from": "api-v", "to": "replica-v", "read_permille": 800, "write_permille": 0}
+ ],
+ "faults": []
+}

@@ -1,0 +1,242 @@
+{
+ "provider": "gcp",
+ "as_of": "2026-11",
+ "note": "On-demand list prices in USD, Linux, tax, discounts and free tiers excluded. Entered by hand from the public pages in sources (no automated collection); where a region was not entered type by type, the price is the us-east/us-central/eastus price times that family's regional ratio. Re-check against sources before each release. Managed types are representative node types. Object storage and the load balancer are usage-priced: their instance entry carries a nominal (1 micro-USD) or hourly price and the rest is in the region fields.",
+ "sources": [
+  "https://cloud.google.com/compute/vm-instance-pricing",
+  "https://cloud.google.com/compute/disks-image-pricing",
+  "https://cloud.google.com/vpc/network-pricing",
+  "https://cloud.google.com/storage/pricing"
+ ],
+ "defaults": {
+  "lb": "cloud-lb",
+  "object_storage": "gcs",
+  "api": "e2-standard-2",
+  "worker": "e2-standard-2",
+  "cache": "n2-highmem-2",
+  "db_primary": "n2-highmem-2",
+  "db_replica": "n2-highmem-2",
+  "queue": "e2-standard-2",
+  "search": "n2-highmem-2"
+ },
+ "regions": {
+  "us-central1": {
+   "instances": [
+    {
+     "name": "c3-standard-4",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 23000,
+     "hourly_micro_usd": 201600
+    },
+    {
+     "name": "cloud-lb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 25000
+    },
+    {
+     "name": "e2-highmem-2",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 4000,
+     "hourly_micro_usd": 90400
+    },
+    {
+     "name": "e2-medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 2000,
+     "hourly_micro_usd": 33500
+    },
+    {
+     "name": "e2-micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 8400
+    },
+    {
+     "name": "e2-small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 16800
+    },
+    {
+     "name": "e2-standard-2",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 4000,
+     "hourly_micro_usd": 67000
+    },
+    {
+     "name": "e2-standard-4",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 8000,
+     "hourly_micro_usd": 134000
+    },
+    {
+     "name": "gcs",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "n2-highmem-2",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 131000
+    },
+    {
+     "name": "n2-standard-2",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 97100
+    },
+    {
+     "name": "n2-standard-4",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 194200
+    },
+    {
+     "name": "n2d-standard-2",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 84500
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 100000,
+    "ssd_fast": 170000,
+    "hdd": 40000
+   },
+   "iops_month_micro_usd": 5000,
+   "egress_gb_micro_usd": 120000,
+   "lb_hourly_micro_usd": 25000,
+   "lb_gb_micro_usd": 8000,
+   "object_gb_month_micro_usd": 20000,
+   "managed": {
+    "lb": "cloud-lb",
+    "object_storage": "gcs"
+   }
+  },
+  "asia-northeast3": {
+   "instances": [
+    {
+     "name": "c3-standard-4",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 23000,
+     "hourly_micro_usd": 254000
+    },
+    {
+     "name": "cloud-lb",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 31500
+    },
+    {
+     "name": "e2-highmem-2",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 4000,
+     "hourly_micro_usd": 113900
+    },
+    {
+     "name": "e2-medium",
+     "vcpu": 2,
+     "memory_mib": 4096,
+     "nic_mbps": 2000,
+     "hourly_micro_usd": 42200
+    },
+    {
+     "name": "e2-micro",
+     "vcpu": 2,
+     "memory_mib": 1024,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 10600
+    },
+    {
+     "name": "e2-small",
+     "vcpu": 2,
+     "memory_mib": 2048,
+     "nic_mbps": 1000,
+     "hourly_micro_usd": 21100
+    },
+    {
+     "name": "e2-standard-2",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 4000,
+     "hourly_micro_usd": 84400
+    },
+    {
+     "name": "e2-standard-4",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 8000,
+     "hourly_micro_usd": 168900
+    },
+    {
+     "name": "gcs",
+     "vcpu": 64,
+     "memory_mib": 1024,
+     "nic_mbps": 100000,
+     "hourly_micro_usd": 1
+    },
+    {
+     "name": "n2-highmem-2",
+     "vcpu": 2,
+     "memory_mib": 16384,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 165100
+    },
+    {
+     "name": "n2-standard-2",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 122400
+    },
+    {
+     "name": "n2-standard-4",
+     "vcpu": 4,
+     "memory_mib": 16384,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 244700
+    },
+    {
+     "name": "n2d-standard-2",
+     "vcpu": 2,
+     "memory_mib": 8192,
+     "nic_mbps": 10000,
+     "hourly_micro_usd": 106500
+    }
+   ],
+   "disk_gb_month_micro_usd": {
+    "ssd": 130000,
+    "ssd_fast": 221000,
+    "hdd": 52000
+   },
+   "iops_month_micro_usd": 6500,
+   "egress_gb_micro_usd": 120000,
+   "lb_hourly_micro_usd": 31500,
+   "lb_gb_micro_usd": 10100,
+   "object_gb_month_micro_usd": 23000,
+   "managed": {
+    "lb": "cloud-lb",
+    "object_storage": "gcs"
+   }
+  }
+ }
+}

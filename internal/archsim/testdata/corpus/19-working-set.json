@@ -1,0 +1,17 @@
+{
+ "schema_version": 1, "title": "19-working-set", "seed": 119, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 1500, "read_permille": 900}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": "", "instances": 8},
+  {"id": "cache", "kind": "cache", "label": "cache", "pos": [40, 0], "parent": "", "instances": 1, "params": {"hit_permille": 900, "working_set_mib": 40000}},
+  {"id": "db", "kind": "db_primary", "label": "db", "pos": [60, 0], "parent": "", "cpu_cores": 8, "params": {"working_set_mib": 65536}}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "api", "to": "cache", "read_permille": 1000, "write_permille": 0},
+  {"id": "e3", "from": "cache", "to": "db", "read_permille": 1000, "write_permille": 0},
+  {"id": "e4", "from": "api", "to": "db", "read_permille": 0, "write_permille": 1000}
+ ],
+ "faults": []
+}

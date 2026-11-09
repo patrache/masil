@@ -1,0 +1,16 @@
+{
+ "schema_version": 1, "title": "10-search", "seed": 110, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 600, "read_permille": 950}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": "", "instances": 3},
+  {"id": "search", "kind": "search", "label": "search", "pos": [40, 0], "parent": "", "instances": 4, "cpu_cores": 4},
+  {"id": "db", "kind": "db_primary", "label": "db", "pos": [40, 6], "parent": ""}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "api", "to": "search", "read_permille": 500, "write_permille": 0},
+  {"id": "e3", "from": "api", "to": "db", "read_permille": 500, "write_permille": 1000}
+ ],
+ "faults": []
+}

@@ -1,0 +1,70 @@
+# 자동 생성된 그림 · masil
+# %%{init: {"theme":"dark"}}%%
+# two lines
+direction: right
+b3: {
+  label: "서울 리전"
+  b4: {
+    label: "본 VPC"
+    b1: {
+      label: "가용 영역 A"
+      n1: {
+        label: "결제 API"
+      }
+      n3: {
+        label: "세션 캐시"
+      }
+      n9: {
+        label: "주 DB"
+        shape: cylinder
+      }
+    }
+    b2: {
+      label: "가용 영역 B"
+      n2: {
+        label: "결제 API"
+      }
+      n6: {
+        label: "작업 큐"
+        shape: queue
+      }
+      n10: {
+        label: "읽기 복제본"
+        shape: cylinder
+      }
+    }
+    n7: {
+      label: "부하 분산기"
+    }
+    n11: {
+      label: "주문 검색"
+    }
+  }
+}
+n4: {
+  label: "CDN"
+  shape: cloud
+}
+n5: {
+  label: "영수증 저장소"
+  shape: stored_data
+}
+n8: {
+  label: "PG사"
+  shape: cloud
+}
+n12: {
+  label: "사용자"
+  shape: person
+}
+n12 -> n4: "HTTP/1.1"
+n4 -> b3.b4.n7: "HTTP/2 · 2ms"
+b3.b4.n7 -> b3.b4.b1.n1: "HTTP/1.1"
+b3.b4.n7 -> b3.b4.b2.n2: "HTTP/1.1"
+b3.b4.b1.n1 -> b3.b4.b1.n3: "TCP"
+b3.b4.b1.n1 -> b3.b4.b1.n9: "TCP · 0.2ms"
+b3.b4.b2.n2 -> b3.b4.b2.n10: "TCP · 1.5ms"
+b3.b4.b2.n2 -> b3.b4.b2.n6: "async" {style.stroke-dash: 3}
+b3.b4.b2.n6 -> n5: "HTTP/1.1"
+b3.b4.b1.n1 -> b3.b4.n11: "gRPC"
+b3.b4.b2.n2 -> n8: "HTTP/1.1"

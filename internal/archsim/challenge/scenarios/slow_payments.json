@@ -1,0 +1,21 @@
+{
+ "id": "slow_payments", "goal_p99_ms": 1200, "goal_err_permille": 20, "budget_usd_month": 2200,
+ "start": {
+  "schema_version": 1, "title": "slow_payments", "seed": 2811007, "duration_s": 150,
+  "boxes": [],
+  "nodes": [
+   {"id": "buyers", "kind": "client", "label": "buyers", "pos": [0, 0], "parent": "", "traffic": {"rps": 400, "read_permille": 500}},
+   {"id": "api", "kind": "api", "label": "checkout-api", "pos": [20, 0], "parent": "", "instances": 3, "timeout_ms": 1000, "retries": 2},
+   {"id": "pay", "kind": "external", "label": "payments", "pos": [40, 0], "parent": "", "params": {"fixed_latency_ms": 250, "error_permille": 5, "max_rps": 400}},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [40, 6], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "buyers", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "api", "to": "pay", "read_permille": 0, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "db", "read_permille": 1000, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 30, "kind": "latency", "target": "pay", "add_ms": 900, "dur_s": 60}
+  ]
+ }
+}

@@ -3,10 +3,5205 @@
 
 package i18n
 
+import "strconv"
+
 // ArchcanvasT holds the "archcanvas" area messages (locales/*/archcanvas.toml).
 type ArchcanvasT struct{ t *T }
 
 var areaArchcanvas = area{
 	name: "archcanvas",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"box_az": {
+			desc: "상자 종류 이름: az",
+			text: map[Locale]Forms{
+				Ko: {Other: "AZ"},
+				En: {Other: "AZ"},
+			},
+		},
+		"box_region": {
+			desc: "상자 종류 이름: region",
+			text: map[Locale]Forms{
+				Ko: {Other: "region"},
+				En: {Other: "region"},
+			},
+		},
+		"box_vpc": {
+			desc: "상자 종류 이름: vpc",
+			text: map[Locale]Forms{
+				Ko: {Other: "VPC"},
+				En: {Other: "VPC"},
+			},
+		},
+		"card_body_design": {
+			desc:       "설계 카드의 대체 문구(0.1.2 클라이언트가 보는 body). title = 설계 제목, n = 노드 수, p99 = ms, usd = 천 단위 쉼표 달러",
+			params:     []Param{{Name: "title", Type: "string"}, {Name: "n", Type: "int"}, {Name: "p99", Type: "int"}, {Name: "usd", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} · 노드 {n} · p99 {p99}ms · 약 ${usd}/월(추정)"},
+				En: {Other: "📐 {title} · {n} nodes · p99 {p99}ms · ~${usd}/mo (estimate)"},
+			},
+		},
+		"card_body_sim": {
+			desc:       "시뮬 결과 카드의 대체 문구(body). err = 에러율 % 소수 한 자리",
+			params:     []Param{{Name: "title", Type: "string"}, {Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "usd", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} 시뮬 · p99 {p99}ms · 에러 {err}% · 약 ${usd}/월(추정)"},
+				En: {Other: "📐 {title} simulation · p99 {p99}ms · errors {err}% · ~${usd}/mo (estimate)"},
+			},
+		},
+		"card_bottleneck": {
+			desc:   "시뮬 카드: 병목. target = 부품 이름, limit = 자원 이름, util = 사용률 %",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "병목 {target} · {limit} {util}%"},
+				En: {Other: "Bottleneck {target} · {limit} {util}%"},
+			},
+		},
+		"card_challenge": {
+			desc:   "시뮬 카드: 일일 도전 결과. date = YYYY-MM-DD, scenario = 시나리오 이름",
+			params: []Param{{Name: "date", Type: "string"}, {Name: "scenario", Type: "string"}, {Name: "score", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "도전 {date} · {scenario} · {score}점"},
+				En: {Other: "Challenge {date} · {scenario} · {score} pts"},
+			},
+		},
+		"card_copy_failed": {
+			desc: "카드의 설계 사본을 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드의 설계를 불러오지 못했어요"},
+				En: {Other: "Couldn't load the card's design"},
+			},
+		},
+		"card_design_title": {
+			desc:   "채팅 설계 카드의 첫 줄",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title}"},
+				En: {Other: "📐 {title}"},
+			},
+		},
+		"card_doc_loading": {
+			desc: "방 문서의 정보(방)를 아직 받지 못해 카드를 만들 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "문서 정보를 받는 중이에요 — 잠시 뒤 다시 보내 주세요"},
+				En: {Other: "Still loading the document — try sending again in a moment"},
+			},
+		},
+		"card_nodes": {
+			desc:   "설계 카드 요약: 노드 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 {n}"},
+				En: {Other: "{n} nodes"},
+			},
+		},
+		"card_open_copy_hint": {
+			desc: "카드 안내: enter 로 카드에 든 사본을 연다",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 사본으로 열기"},
+				En: {Other: "⏎ open the copy"},
+			},
+		},
+		"card_open_hint": {
+			desc: "카드 안내: enter 로 방 문서를 연다",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 열기"},
+				En: {Other: "⏎ open"},
+			},
+		},
+		"card_replay_diff": {
+			desc:       "다시 돌려 보기: 카드와 다른 숫자(지금 엔진의 값)",
+			params:     []Param{{Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "cost", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "✕ 다시 돌린 숫자가 달라요 · p99 {p99}ms · 에러 {err}% · {cost}"},
+				En: {Other: "✕ The numbers differ now · p99 {p99}ms · errors {err}% · {cost}"},
+			},
+		},
+		"card_replay_hint": {
+			desc: "시뮬 카드 안내: R(shift+r) 로 같은 설계를 다시 돌려 숫자를 맞춰 본다(r 은 채팅의 리액션)",
+			text: map[Locale]Forms{
+				Ko: {Other: "R 다시 돌려 보기"},
+				En: {Other: "R replay"},
+			},
+		},
+		"card_replay_none": {
+			desc: "다시 돌려 보기: 카드에 설계 사본이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드에 설계 사본이 없어 다시 돌릴 수 없어요"},
+				En: {Other: "This card carries no design copy to replay"},
+			},
+		},
+		"card_replay_same": {
+			desc:       "다시 돌려 보기: 카드와 같은 숫자. cost = cost_short",
+			params:     []Param{{Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "cost", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "✓ 다시 돌려도 같아요 · p99 {p99}ms · 에러 {err}% · {cost}"},
+				En: {Other: "✓ Same numbers again · p99 {p99}ms · errors {err}% · {cost}"},
+			},
+		},
+		"card_sim_summary": {
+			desc:   "시뮬 카드 요약 줄. rps = 초당 요청, read = 읽기 비율 %, p50·p99 = ms, err = 에러율 %",
+			params: []Param{{Name: "rps", Type: "string"}, {Name: "read", Type: "string"}, {Name: "p50", Type: "int"}, {Name: "p99", Type: "int"}, {Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{rps} rps · 읽기 {read}% · p50 {p50}ms · p99 {p99}ms · 에러 {err}%"},
+				En: {Other: "{rps} rps · reads {read}% · p50 {p50}ms · p99 {p99}ms · errors {err}%"},
+			},
+		},
+		"card_sim_title": {
+			desc:   "채팅 시뮬 결과 카드의 첫 줄",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} 시뮬"},
+				En: {Other: "📐 {title} simulation"},
+			},
+		},
+		"card_too_big": {
+			desc: "사본을 담은 카드가 16KB 를 넘을 때(보내지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올려 공유하세요"},
+				En: {Other: "Share it in a room instead"},
+			},
+		},
+		"card_version_failed": {
+			desc: "방 문서 카드: 카드가 가리킬 문서 버전을 남기지 못함(버전 한도·네트워크·그사이 편집)",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드가 가리킬 버전을 남기지 못했어요 — 잠시 뒤 다시 해 보세요"},
+				En: {Other: "Couldn't save the version this card points to — try again in a moment"},
+			},
+		},
+		"card_version_name": {
+			desc:   "방 문서 카드를 보낼 때 남기는 이름 버전(1..60자). title = 설계 제목(50자로 자름)",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "카드 · {title}"},
+				En: {Other: "Card · {title}"},
+			},
+		},
+		"card_version_unsaved": {
+			desc: "방 문서 카드: 아직 저장되지 않은 내 편집이 있어 버전을 가리킬 수 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "편집이 아직 저장 중이에요 — 저장된 뒤 다시 보내 주세요"},
+				En: {Other: "Your edits are still saving — send again once they're saved"},
+			},
+		},
+		"challenge_az_blackout_title": {
+			desc: "일일 도전 시나리오 이름: az_blackout",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "AZ 정전"},
+				En: {Other: "AZ blackout"},
+			},
+		},
+		"challenge_budget_squeeze_title": {
+			desc: "일일 도전 시나리오 이름: budget_squeeze",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "반값 예산"},
+				En: {Other: "Half the budget"},
+			},
+		},
+		"challenge_cache_restart_title": {
+			desc: "일일 도전 시나리오 이름: cache_restart",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "캐시 재시작"},
+				En: {Other: "Cache restart"},
+			},
+		},
+		"challenge_class_signup_title": {
+			desc: "일일 도전 시나리오 이름: class_signup",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "수강신청 대란"},
+				En: {Other: "Class sign-up rush"},
+			},
+		},
+		"challenge_client_missing": {
+			desc: "일일 도전: 시나리오의 클라이언트를 지워 시간 실행·점수를 할 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "도전의 클라이언트를 지우면 점수를 매길 수 없어요 — 되살려 주세요"},
+				En: {Other: "Deleting the challenge's client leaves nothing to score — bring it back"},
+			},
+		},
+		"challenge_commute_maps_title": {
+			desc: "일일 도전 시나리오 이름: commute_maps",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "출근길 길찾기"},
+				En: {Other: "Rush-hour directions"},
+			},
+		},
+		"challenge_concert_presale_title": {
+			desc: "일일 도전 시나리오 이름: concert_presale",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "콘서트 예매 오픈"},
+				En: {Other: "Concert presale"},
+			},
+		},
+		"challenge_db_failover_title": {
+			desc: "일일 도전 시나리오 이름: db_failover",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "주 DB 고장"},
+				En: {Other: "Primary DB down"},
+			},
+		},
+		"challenge_fault_target_missing": {
+			desc: "일일 도전: 시나리오의 예약 장애가 노리는 노드·연결·영역을 지워 시간 실행·점수를 할 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "도전의 예약 장애가 노리는 대상을 지우면 점수를 매길 수 없어요 — 되살려 주세요"},
+				En: {Other: "Deleting what the challenge's scheduled fault hits leaves nothing to score — bring it back"},
+			},
+		},
+		"challenge_flash_sale_title": {
+			desc: "일일 도전 시나리오 이름: flash_sale",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "반짝 특가"},
+				En: {Other: "Flash sale"},
+			},
+		},
+		"challenge_intro": {
+			desc:       "일일 도전을 열었을 때 토스트. title = 시나리오 이름, p99 = 목표 ms, err = 목표 에러율 % 소수 한 자리, usd = 천 단위 쉼표 달러(월 예산)",
+			params:     []Param{{Name: "title", Type: "string"}, {Name: "p99", Type: "int"}, {Name: "err", Type: "string"}, {Name: "usd", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 도전 · {title} — 목표 p99 {p99}ms·에러 {err}% 이하, 예산 ~${usd}/월(추정) · space 로 시작"},
+				En: {Other: "Today's challenge · {title} — keep p99 ≤ {p99}ms and errors ≤ {err}% on ~${usd}/mo (est.) · space to start"},
+			},
+		},
+		"challenge_new_year_greetings_title": {
+			desc: "일일 도전 시나리오 이름: new_year_greetings",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "새해 인사 폭주"},
+				En: {Other: "New Year greetings"},
+			},
+		},
+		"challenge_night_settlement_title": {
+			desc: "일일 도전 시나리오 이름: night_settlement",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "밤샘 정산"},
+				En: {Other: "Overnight settlement"},
+			},
+		},
+		"challenge_photo_upload_title": {
+			desc: "일일 도전 시나리오 이름: photo_upload",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "사진 올리기"},
+				En: {Other: "Photo uploads"},
+			},
+		},
+		"challenge_region_outage_title": {
+			desc: "일일 도전 시나리오 이름: region_outage",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "리전 장애"},
+				En: {Other: "Region outage"},
+			},
+		},
+		"challenge_retry_storm_title": {
+			desc: "일일 도전 시나리오 이름: retry_storm",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "재시도 폭풍"},
+				En: {Other: "Retry storm"},
+			},
+		},
+		"challenge_scored": {
+			desc:   "일일 도전 시간 실행이 끝났을 때 점수 토스트. kept·total = 초",
+			params: []Param{{Name: "score", Type: "int"}, {Name: "kept", Type: "int"}, {Name: "total", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "도전 점수 {score}점 · 목표를 지킨 시간 {kept}/{total}초 · 시뮬 카드로 공유할 수 있어요"},
+				En: {Other: "Challenge score {score} · goals kept {kept}/{total}s · share it on a sim card"},
+			},
+		},
+		"challenge_search_revamp_title": {
+			desc: "일일 도전 시나리오 이름: search_revamp",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "검색 개편"},
+				En: {Other: "Search revamp"},
+			},
+		},
+		"challenge_slow_payments_title": {
+			desc: "일일 도전 시나리오 이름: slow_payments",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "느린 결제"},
+				En: {Other: "Slow payments"},
+			},
+		},
+		"challenge_unrouted": {
+			desc: "일일 도전: 클라이언트 트래픽 일부가 LB·CDN·큐·클라이언트에서 멈춰(나가는 연결 비율 합이 모자라거나 고리) 시간 실행·점수를 할 수 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "도전의 트래픽이 서버까지 가지 않아요 — 클라이언트·LB·CDN·큐에서 나가는 연결이 요청을 모두 넘기게 이어 주세요"},
+				En: {Other: "The challenge's traffic doesn't reach a server — connect each client, LB, CDN and queue so its edges pass on every request"},
+			},
+		},
+		"check_az_outside_vpc": {
+			desc:   "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: AZ 가 VPC 밖"},
+				En: {Other: "{targets}: AZ outside a VPC"},
+			},
+		},
+		"check_cycle": {
+			desc:   "설계 점검 경고(cycle). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 순환(재시도 폭주 위험)"},
+				En: {Other: "{targets}: cycle (retry storm risk)"},
+			},
+		},
+		"check_ok": {
+			desc: "설계 점검에 걸린 것이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "문제 없음"},
+				En: {Other: "No issues"},
+			},
+		},
+		"check_primary_replica_same_az": {
+			desc:   "설계 점검 경고(primary_replica_same_az). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: primary 와 replica 가 같은 AZ"},
+				En: {Other: "{targets}: primary and replica share an AZ"},
+			},
+		},
+		"check_single_az_service": {
+			desc:   "설계 점검 경고(single_az_service). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 한 AZ 에만 있음"},
+				En: {Other: "{targets}: in one AZ only"},
+			},
+		},
+		"check_spof_single_instance": {
+			desc:   "설계 점검 경고(spof_single_instance). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 인스턴스 1대 = 단일 장애점"},
+				En: {Other: "{targets}: one instance = single point of failure"},
+			},
+		},
+		"check_spof_single_lb": {
+			desc:   "설계 점검 경고(spof_single_lb). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: LB 1대 = 단일 장애점"},
+				En: {Other: "{targets}: one load balancer = single point of failure"},
+			},
+		},
+		"check_unconnected": {
+			desc:   "설계 점검 경고(unconnected). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 연결 안 됨"},
+				En: {Other: "{targets}: not connected"},
+			},
+		},
+		"check_vpc_outside_region": {
+			desc:   "설계 점검 경고(vpc_outside_region). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: VPC 가 리전 밖"},
+				En: {Other: "{targets}: VPC outside a region"},
+			},
+		},
+		"checks_label": {
+			desc: "지표 줄의 점검 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "점검"},
+				En: {Other: "Checks"},
+			},
+		},
+		"choice_custom": {
+			desc: "사업자 선택지: 직접 입력(가격표 없이 시간당 가격을 적음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "직접 입력"},
+				En: {Other: "Custom"},
+			},
+		},
+		"choice_none": {
+			desc: "선택지: 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "없음"},
+				En: {Other: "None"},
+			},
+		},
+		"choice_off": {
+			desc: "켬/끔 칸의 끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "끔"},
+				En: {Other: "Off"},
+			},
+		},
+		"choice_on": {
+			desc: "켬/끔 칸의 켬",
+			text: map[Locale]Forms{
+				Ko: {Other: "켬"},
+				En: {Other: "On"},
+			},
+		},
+		"choice_region_box": {
+			desc: "리전 선택지: 감싼 리전 상자를 따름",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자 따름"},
+				En: {Other: "From box"},
+			},
+		},
+		"comments_deleted": {
+			desc: "지운 댓글 자리(답글이 남은 첫 댓글)",
+			text: map[Locale]Forms{
+				Ko: {Other: "(지운 댓글)"},
+				En: {Other: "(deleted comment)"},
+			},
+		},
+		"comments_empty": {
+			desc: "댓글 패널: 댓글이 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글이 없어요 · C 로 달아 보세요"},
+				En: {Other: "No comments yet · press C to add one"},
+			},
+		},
+		"comments_failed": {
+			desc: "댓글 보내기·해결 처리가 실패했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글을 보내지 못했어요"},
+				En: {Other: "Couldn't send the comment"},
+			},
+		},
+		"comments_group_at": {
+			desc:   "댓글 묶음 이름: 빈 자리 좌표에 단 댓글. x·y = 세계 좌표",
+			params: []Param{{Name: "x", Type: "int"}, {Name: "y", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "빈 자리 ({x}, {y})"},
+				En: {Other: "Empty spot ({x}, {y})"},
+			},
+		},
+		"comments_group_unknown": {
+			desc: "댓글 묶음 이름: 앵커 모양을 모르는 댓글(뒤 버전이 단 것 등)",
+			text: map[Locale]Forms{
+				Ko: {Other: "위치 모름"},
+				En: {Other: "Unknown place"},
+			},
+		},
+		"comments_load_failed": {
+			desc: "댓글 목록을 불러오지 못했을 때(패널 안)",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글을 불러오지 못했어요"},
+				En: {Other: "Couldn't load the comments"},
+			},
+		},
+		"comments_new": {
+			desc:   "새 댓글 입력 칸 머리. target = 댓글을 다는 곳 이름",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "새 댓글 · {target}"},
+				En: {Other: "New comment · {target}"},
+			},
+		},
+		"comments_personal": {
+			desc: "개인 설계·사본에서 댓글을 달려 할 때 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글은 방에 올린 설계에만 달 수 있어요"},
+				En: {Other: "Comments are only for designs shared to a room"},
+			},
+		},
+		"comments_reply": {
+			desc:   "답글 입력 칸 머리. name = 첫 댓글 쓴 사람",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님에게 답글"},
+				En: {Other: "Reply to {name}"},
+			},
+		},
+		"comments_resolved": {
+			desc: "해결된 댓글 묶음 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "해결됨"},
+				En: {Other: "resolved"},
+			},
+		},
+		"comments_title": {
+			desc:   "댓글 패널 머리. n = 아직 해결 안 된 댓글 묶음 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글 {n}"},
+				En: {Other: "Comments {n}"},
+			},
+		},
+		"connect_exists": {
+			desc: "연결하려는 두 노드가 이미 이어져 있을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미 연결돼 있어요"},
+				En: {Other: "Already connected"},
+			},
+		},
+		"connect_pick": {
+			desc: "설정 폼의 줄: 이 노드에서 이을 대상을 목록에서 고름",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 대상 고르기"},
+				En: {Other: "Connect to…"},
+			},
+		},
+		"copy_not_needed": {
+			desc: "개인 설계에서 사본으로 저장을 고를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미 개인 설계예요"},
+				En: {Other: "This is already a personal design"},
+			},
+		},
+		"copy_saved": {
+			desc:   "사본 저장 뒤 알림. name = 개인 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}'(으)로 사본을 저장했어요"},
+				En: {Other: "Saved a copy as '{name}'"},
+			},
+		},
+		"cost_long": {
+			desc:       "월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월",
+			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "약 ${usd}/월 (추정 · {asof} 가격표 · 온디맨드 · 세금·할인·무료 사용량 제외)"},
+				En: {Other: "About ${usd}/mo (estimate · {asof} prices · on-demand · excludes tax, discounts and free tiers)"},
+			},
+		},
+		"cost_short": {
+			desc:       "월 비용 짧은 형(지표 줄·카드·요약). usd = 천 단위 쉼표 달러, asof = 가격표 기준 연월",
+			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "~${usd}/월 (추정 · {asof} 가격표)"},
+				En: {Other: "~${usd}/mo (estimate · {asof} prices)"},
+			},
+		},
+		"curve_constant": {
+			desc: "트래픽 모양 이름: constant",
+			text: map[Locale]Forms{
+				Ko: {Other: "일정"},
+				En: {Other: "constant"},
+			},
+		},
+		"curve_ramp": {
+			desc: "트래픽 모양 이름: ramp",
+			text: map[Locale]Forms{
+				Ko: {Other: "점점 증가"},
+				En: {Other: "ramp"},
+			},
+		},
+		"curve_spike": {
+			desc: "트래픽 모양 이름: spike",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증"},
+				En: {Other: "spike"},
+			},
+		},
+		"curve_wave": {
+			desc: "트래픽 모양 이름: wave",
+			text: map[Locale]Forms{
+				Ko: {Other: "물결"},
+				En: {Other: "wave"},
+			},
+		},
+		"deleted_node_comment": {
+			desc: "댓글 묶음 이름: 지금 설계에 없는 노드·연결·상자에 단 댓글",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제된 노드에 단 댓글"},
+				En: {Other: "Comments on deleted nodes"},
+			},
+		},
+		"disk_hdd": {
+			desc: "디스크 종류: HDD",
+			text: map[Locale]Forms{
+				Ko: {Other: "HDD"},
+				En: {Other: "HDD"},
+			},
+		},
+		"disk_ssd": {
+			desc: "디스크 종류: 범용 SSD",
+			text: map[Locale]Forms{
+				Ko: {Other: "범용 SSD"},
+				En: {Other: "General SSD"},
+			},
+		},
+		"disk_ssd_fast": {
+			desc: "디스크 종류: 고성능 SSD",
+			text: map[Locale]Forms{
+				Ko: {Other: "고성능 SSD"},
+				En: {Other: "Fast SSD"},
+			},
+		},
+		"empty_canvas": {
+			desc: "빈 캔버스 안내 첫 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "a 로 부품을 추가하세요"},
+				En: {Other: "Press a to add a component"},
+			},
+		},
+		"engine_instant": {
+			desc: "머리 줄 엔진 상태: 즉시 분석",
+			text: map[Locale]Forms{
+				Ko: {Other: "즉시분석"},
+				En: {Other: "Instant analysis"},
+			},
+		},
+		"engine_mismatch": {
+			desc: "카드·사본의 엔진 버전이 지금과 다를 때 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "엔진 버전이 달라 숫자가 조금 다를 수 있어요"},
+				En: {Other: "Another engine version made these numbers; they may differ slightly"},
+			},
+		},
+		"engine_paused": {
+			desc:   "머리 줄 엔진 상태: 시간 실행 멈춤. t·total = mm:ss",
+			params: []Param{{Name: "t", Type: "string"}, {Name: "total", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행 멈춤 {t}/{total}"},
+				En: {Other: "Timed run paused {t}/{total}"},
+			},
+		},
+		"engine_running": {
+			desc: "머리 줄 엔진 상태: 시간 실행을 계산하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행 계산 중"},
+				En: {Other: "Running the timed run"},
+			},
+		},
+		"engine_timed": {
+			desc:   "머리 줄 엔진 상태: 시간 실행 재생 중. t·total = mm:ss, speed = 배속",
+			params: []Param{{Name: "t", Type: "string"}, {Name: "total", Type: "string"}, {Name: "speed", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행 {t}/{total} ×{speed}"},
+				En: {Other: "Timed run {t}/{total} ×{speed}"},
+			},
+		},
+		"estimate_disclaimer": {
+			desc:  "비용·숫자가 추정이라는 고지(법적 문구)",
+			legal: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "추정치이며 실제 청구액과 다를 수 있음"},
+				En: {Other: "Estimates; actual bills may differ"},
+			},
+		},
+		"ev_box_off": {
+			desc:   "시간 실행 이벤트: AZ·리전 중단",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 중단"},
+				En: {Other: "{target} down"},
+			},
+		},
+		"ev_failover_done": {
+			desc:   "시간 실행 이벤트: replica 승격 끝",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 승격"},
+				En: {Other: "{target} promoted"},
+			},
+		},
+		"ev_failover_start": {
+			desc:   "시간 실행 이벤트: 장애 조치 시작. s = 걸리는 초",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "s", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 장애 조치 {s}초"},
+				En: {Other: "{target} failover {s}s"},
+			},
+		},
+		"ev_fault_end": {
+			desc:   "시간 실행 이벤트: 장애 끝",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 복구"},
+				En: {Other: "{target} recovered"},
+			},
+		},
+		"ev_fault_start": {
+			desc:   "시간 실행 이벤트: 장애 시작(종류 모름). target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 장애 시작"},
+				En: {Other: "{target} fault starts"},
+			},
+		},
+		"ev_instances_off": {
+			desc:   "시간 실행 이벤트: 인스턴스 n대 꺼짐",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} {n}대 꺼짐"},
+				En: {Other: "{target} {n} instances off"},
+			},
+		},
+		"ev_latency": {
+			desc:   "시간 실행 이벤트: 지연 증가",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 지연 +{ms}ms"},
+				En: {Other: "{target} latency +{ms}ms"},
+			},
+		},
+		"ev_lb_reroute": {
+			desc:   "시간 실행 이벤트: LB 가 남은 대상으로 돌림. n = 남은 대상 수",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 남은 {n}곳으로 돌림"},
+				En: {Other: "{target} reroutes to {n} left"},
+			},
+		},
+		"ev_node_off": {
+			desc:   "시간 실행 이벤트: 노드 꺼짐",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 꺼짐"},
+				En: {Other: "{target} off"},
+			},
+		},
+		"ev_queue_drop": {
+			desc:   "시간 실행 이벤트: 대기열이 넘쳐 버림",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 대기열 넘침 · {n}건 버림"},
+				En: {Other: "{target} queue full · {n} dropped"},
+			},
+		},
+		"ev_scale_in": {
+			desc:   "시간 실행 이벤트: 자동 확장으로 줄임",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} {n}대로 줄임"},
+				En: {Other: "{target} scales in to {n}"},
+			},
+		},
+		"ev_scale_out": {
+			desc:   "시간 실행 이벤트: 자동 확장으로 늘림",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} {n}대로 늘림"},
+				En: {Other: "{target} scales out to {n}"},
+			},
+		},
+		"ev_writes_failing": {
+			desc:   "시간 실행 이벤트: 쓰기 실패(장애 조치 대상 없음)",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 쓰기 실패 100%"},
+				En: {Other: "{target} writes failing 100%"},
+			},
+		},
+		"export_copied": {
+			desc: "클립보드로 보낸 뒤 알림",
+			text: map[Locale]Forms{
+				Ko: {Other: "클립보드에 복사했어요"},
+				En: {Other: "Copied to the clipboard"},
+			},
+		},
+		"export_d2": {
+			desc: "내보내기 형식: D2",
+			text: map[Locale]Forms{
+				Ko: {Other: "D2 그림 (.d2)"},
+				En: {Other: "D2 diagram (.d2)"},
+			},
+		},
+		"export_hint": {
+			desc: "내보내기 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "j k 고르기 · enter 확인 · esc 닫기"},
+				En: {Other: "j k choose · enter confirm · esc close"},
+			},
+		},
+		"export_json": {
+			desc: "내보내기 형식: 설계 JSON",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 JSON (.json)"},
+				En: {Other: "Design JSON (.json)"},
+			},
+		},
+		"export_mermaid": {
+			desc: "내보내기 형식: Mermaid",
+			text: map[Locale]Forms{
+				Ko: {Other: "Mermaid 그림 (.mmd)"},
+				En: {Other: "Mermaid diagram (.mmd)"},
+			},
+		},
+		"export_overwrite_title": {
+			desc:   "덮어쓰기 확인 제목. name = 파일 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}' 파일이 이미 있어요. 덮어쓸까요?"},
+				En: {Other: "'{name}' exists. Overwrite it?"},
+			},
+		},
+		"export_overwrite_yes": {
+			desc: "덮어쓰기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "덮어쓰기"},
+				En: {Other: "Overwrite"},
+			},
+		},
+		"export_path": {
+			desc:   "저장될 파일 경로. path = 경로",
+			params: []Param{{Name: "path", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "저장 위치 {path}"},
+				En: {Other: "Saves to {path}"},
+			},
+		},
+		"export_rights": {
+			desc:  "내보낸 파일의 권리 고지(법적 문구, 내보내기 대화상자·도움말)",
+			legal: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "생성된 파일의 권리는 사용자에게 있음"},
+				En: {Other: "You own the rights to the generated files"},
+			},
+		},
+		"export_save_failed": {
+			desc: "파일로 저장하지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일로 저장하지 못했어요"},
+				En: {Other: "Could not save the file"},
+			},
+		},
+		"export_saved": {
+			desc:       "파일로 저장한 뒤 알림. path = 경로",
+			params:     []Param{{Name: "path", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{path} 에 저장했어요"},
+				En: {Other: "Saved to {path}"},
+			},
+		},
+		"export_terraform": {
+			desc: "내보내기 형식: Terraform",
+			text: map[Locale]Forms{
+				Ko: {Other: "Terraform AWS 뼈대 (.tf)"},
+				En: {Other: "Terraform AWS skeleton (.tf)"},
+			},
+		},
+		"export_text120": {
+			desc: "내보내기 형식: 글자 스냅숏 120칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "글자 스냅숏 120칸 (.txt)"},
+				En: {Other: "Text snapshot, 120 columns (.txt)"},
+			},
+		},
+		"export_text80": {
+			desc: "내보내기 형식: 글자 스냅숏 80칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "글자 스냅숏 80칸 (.txt)"},
+				En: {Other: "Text snapshot, 80 columns (.txt)"},
+			},
+		},
+		"export_title": {
+			desc: "내보내기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내기"},
+				En: {Other: "Export"},
+			},
+		},
+		"export_to_clipboard": {
+			desc: "내보내기 대상: 클립보드",
+			text: map[Locale]Forms{
+				Ko: {Other: "클립보드"},
+				En: {Other: "Clipboard"},
+			},
+		},
+		"export_to_file": {
+			desc: "내보내기 대상: 파일",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일로 저장"},
+				En: {Other: "Save to a file"},
+			},
+		},
+		"export_use_file": {
+			desc: "클립보드 한도(256KB)를 넘을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "클립보드에 담기엔 너무 커요 · 파일로 저장하세요"},
+				En: {Other: "Too large for the clipboard · save it to a file"},
+			},
+		},
+		"export_where": {
+			desc: "내보내기 대상 고르기 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "어디로 보낼까요?"},
+				En: {Other: "Where to?"},
+			},
+		},
+		"fault_add_ms": {
+			desc: "장애 메뉴: 더할 지연 ms 입력 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "더할 지연 ms"},
+				En: {Other: "Added latency ms"},
+			},
+		},
+		"fault_at": {
+			desc:   "장애 메뉴: 시간 실행의 그 시각에. t = mm:ss 입력",
+			params: []Param{{Name: "t", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행의 {t} 에"},
+				En: {Other: "At {t} of the run"},
+			},
+		},
+		"fault_at_hint": {
+			desc: "장애 메뉴: 시각을 잘못 적었을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "mm:ss 로 적으세요 (00:00~10:00)"},
+				En: {Other: "Type mm:ss (00:00 to 10:00)"},
+			},
+		},
+		"fault_az_off": {
+			desc:   "장애 메뉴: AZ 끄기. target = AZ 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "AZ 끄기 · {target}"},
+				En: {Other: "Turn off AZ · {target}"},
+			},
+		},
+		"fault_count": {
+			desc: "장애 메뉴: 끌 인스턴스 수 입력 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "끌 대수"},
+				En: {Other: "Instances to turn off"},
+			},
+		},
+		"fault_instances_off": {
+			desc:   "장애 메뉴: 인스턴스 몇 대 끄기. target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "인스턴스 n대 끄기 · {target}"},
+				En: {Other: "Turn off n instances · {target}"},
+			},
+		},
+		"fault_latency": {
+			desc:   "장애 메뉴: 지연 더하기. target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "지연 +ms · {target}"},
+				En: {Other: "Add latency · {target}"},
+			},
+		},
+		"fault_menu_title": {
+			desc: "장애 메뉴 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애 넣기"},
+				En: {Other: "Add a fault"},
+			},
+		},
+		"fault_node_off": {
+			desc:   "장애 메뉴: 노드 끄기. target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 끄기 · {target}"},
+				En: {Other: "Turn off · {target}"},
+			},
+		},
+		"fault_none": {
+			desc: "고른 것에 넣을 장애가 없을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드·AZ·리전·연결을 고른 뒤 장애를 넣으세요"},
+				En: {Other: "Select a node, AZ, region or connection first"},
+			},
+		},
+		"fault_now": {
+			desc: "장애 메뉴: 시간 실행 시작부터",
+			text: map[Locale]Forms{
+				Ko: {Other: "지금"},
+				En: {Other: "Now"},
+			},
+		},
+		"fault_region_off": {
+			desc:   "장애 메뉴: 리전 끄기. target = 리전 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "리전 끄기 · {target}"},
+				En: {Other: "Turn off region · {target}"},
+			},
+		},
+		"fault_when": {
+			desc: "장애 메뉴: 언제 넣을지 고르는 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "언제"},
+				En: {Other: "When"},
+			},
+		},
+		"field_autoscale": {
+			desc: "설정 칸: 자동 확장 켬/끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 확장"},
+				En: {Other: "Autoscale"},
+			},
+		},
+		"field_autoscale_max": {
+			desc: "설정 칸: 자동 확장 최대 대수",
+			text: map[Locale]Forms{
+				Ko: {Other: "최대 대수"},
+				En: {Other: "Max instances"},
+			},
+		},
+		"field_autoscale_min": {
+			desc: "설정 칸: 자동 확장 최소 대수",
+			text: map[Locale]Forms{
+				Ko: {Other: "최소 대수"},
+				En: {Other: "Min instances"},
+			},
+		},
+		"field_autoscale_target": {
+			desc: "설정 칸: 자동 확장 목표 CPU 사용률 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "목표 CPU %"},
+				En: {Other: "Target CPU %"},
+			},
+		},
+		"field_cooldown": {
+			desc: "설정 칸: 자동 확장 쉬는 시간(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "쉬는 시간 초"},
+				En: {Other: "Cool-down s"},
+			},
+		},
+		"field_cpu_cores": {
+			desc: "설정 칸: 인스턴스 하나의 vCPU 수",
+			text: map[Locale]Forms{
+				Ko: {Other: "CPU 코어"},
+				En: {Other: "CPU cores"},
+			},
+		},
+		"field_cpu_per_req": {
+			desc: "설정 칸: 요청 하나에 드는 CPU 시간(코어 1개 기준, 마이크로초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청당 CPU µs"},
+				En: {Other: "CPU µs per request"},
+			},
+		},
+		"field_curve": {
+			desc: "트래픽 칸: 시간에 따른 모양",
+			text: map[Locale]Forms{
+				Ko: {Other: "모양"},
+				En: {Other: "Shape"},
+			},
+		},
+		"field_custom_hourly": {
+			desc: "설정 칸: 직접 입력 사업자의 시간당 가격(센트)",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간당 가격 ¢"},
+				En: {Other: "Hourly price ¢"},
+			},
+		},
+		"field_disk_iops": {
+			desc: "설정 칸: 디스크 IOPS",
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크 IOPS"},
+				En: {Other: "Disk IOPS"},
+			},
+		},
+		"field_disk_size": {
+			desc: "설정 칸: 디스크 크기 GB",
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크 GB"},
+				En: {Other: "Disk GB"},
+			},
+		},
+		"field_disk_type": {
+			desc: "설정 칸: 디스크 종류",
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크 종류"},
+				En: {Other: "Disk type"},
+			},
+		},
+		"field_duration": {
+			desc: "설정 칸: 시간 실행 길이(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "실행 시간 초"},
+				En: {Other: "Run length s"},
+			},
+		},
+		"field_edge_read": {
+			desc: "연결 칸: 읽기 경로 비율 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 비율 %"},
+				En: {Other: "Read share %"},
+			},
+		},
+		"field_edge_write": {
+			desc: "연결 칸: 쓰기 경로 비율 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "쓰기 비율 %"},
+				En: {Other: "Write share %"},
+			},
+		},
+		"field_error_rate": {
+			desc: "설정 칸: 외부 서비스 에러율 ‰",
+			text: map[Locale]Forms{
+				Ko: {Other: "에러율 ‰"},
+				En: {Other: "Error rate ‰"},
+			},
+		},
+		"field_failover_s": {
+			desc: "설정 칸: 장애 조치 시간(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애 조치 초"},
+				En: {Other: "Failover s"},
+			},
+		},
+		"field_failover_to": {
+			desc: "설정 칸: 장애 조치 대상(replica)",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애 조치 대상"},
+				En: {Other: "Failover to"},
+			},
+		},
+		"field_fixed_latency": {
+			desc: "설정 칸: 외부 서비스 고정 지연 ms",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정 지연 ms"},
+				En: {Other: "Fixed latency ms"},
+			},
+		},
+		"field_health": {
+			desc: "설정 칸: 건강 검사 간격(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "건강 검사 초"},
+				En: {Other: "Health check s"},
+			},
+		},
+		"field_hit": {
+			desc: "설정 칸: 적중률 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "적중률 %"},
+				En: {Other: "Hit rate %"},
+			},
+		},
+		"field_index_write": {
+			desc: "설정 칸: search 인덱싱 쓰기 비율 ‰",
+			text: map[Locale]Forms{
+				Ko: {Other: "인덱싱 쓰기 ‰"},
+				En: {Other: "Index writes ‰"},
+			},
+		},
+		"field_instance_type": {
+			desc: "설정 칸: 인스턴스 종류",
+			text: map[Locale]Forms{
+				Ko: {Other: "종류"},
+				En: {Other: "Type"},
+			},
+		},
+		"field_instances": {
+			desc: "설정 칸: 인스턴스 수",
+			text: map[Locale]Forms{
+				Ko: {Other: "인스턴스 수"},
+				En: {Other: "Instances"},
+			},
+		},
+		"field_label": {
+			desc: "설정 칸: 라벨",
+			text: map[Locale]Forms{
+				Ko: {Other: "라벨"},
+				En: {Other: "Label"},
+			},
+		},
+		"field_latency": {
+			desc: "연결 칸: 기본 지연 µs(-1 = 위치에 따른 기본값)",
+			text: map[Locale]Forms{
+				Ko: {Other: "기본 지연 µs"},
+				En: {Other: "Latency µs"},
+			},
+		},
+		"field_lb_algo": {
+			desc: "설정 칸: LB 분산 방식",
+			text: map[Locale]Forms{
+				Ko: {Other: "분산 방식"},
+				En: {Other: "Balancing"},
+			},
+		},
+		"field_max_rps": {
+			desc: "설정 칸: 초당 처리 한도",
+			text: map[Locale]Forms{
+				Ko: {Other: "초당 한도"},
+				En: {Other: "Max per second"},
+			},
+		},
+		"field_mbps": {
+			desc: "연결 칸: 대역폭 Mbps(0 = 양 끝 NIC)",
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭 Mbps"},
+				En: {Other: "Bandwidth Mbps"},
+			},
+		},
+		"field_memory": {
+			desc: "설정 칸: 인스턴스 하나의 메모리(GiB 정수로 입력)",
+			text: map[Locale]Forms{
+				Ko: {Other: "메모리 GiB"},
+				En: {Other: "Memory GiB"},
+			},
+		},
+		"field_nic": {
+			desc: "설정 칸: 인스턴스 하나의 네트워크 대역폭 Mbps",
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭 Mbps"},
+				En: {Other: "Bandwidth Mbps"},
+			},
+		},
+		"field_pool": {
+			desc: "설정 칸: DB 연결 풀 상한",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 풀 상한"},
+				En: {Other: "Pool size"},
+			},
+		},
+		"field_protocol": {
+			desc: "연결 칸: 프로토콜",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로토콜"},
+				En: {Other: "Protocol"},
+			},
+		},
+		"field_provider": {
+			desc: "설정 칸: 사업자",
+			text: map[Locale]Forms{
+				Ko: {Other: "사업자"},
+				En: {Other: "Provider"},
+			},
+		},
+		"field_queue_cap": {
+			desc: "설정 칸: 대기열 상한(이보다 길면 버림)",
+			text: map[Locale]Forms{
+				Ko: {Other: "대기열 상한"},
+				En: {Other: "Queue cap"},
+			},
+		},
+		"field_read_iops": {
+			desc: "설정 칸: 읽기 요청 하나가 쓰는 IOPS × 1000",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 IOPS‰"},
+				En: {Other: "Read IOPS‰"},
+			},
+		},
+		"field_read_pct": {
+			desc: "트래픽 칸: 읽기 비율 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 %"},
+				En: {Other: "Reads %"},
+			},
+		},
+		"field_region": {
+			desc: "설정 칸: 리전",
+			text: map[Locale]Forms{
+				Ko: {Other: "리전"},
+				En: {Other: "Region"},
+			},
+		},
+		"field_region_code": {
+			desc: "상자 칸: 리전 코드",
+			text: map[Locale]Forms{
+				Ko: {Other: "리전 코드"},
+				En: {Other: "Region code"},
+			},
+		},
+		"field_repl_lag": {
+			desc: "설정 칸: 복제 지연 ms",
+			text: map[Locale]Forms{
+				Ko: {Other: "복제 지연 ms"},
+				En: {Other: "Replica lag ms"},
+			},
+		},
+		"field_req_kb": {
+			desc: "트래픽 칸: 요청 크기 KB",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 KB"},
+				En: {Other: "Request KB"},
+			},
+		},
+		"field_resp_kb": {
+			desc: "트래픽 칸: 응답 크기 KB",
+			text: map[Locale]Forms{
+				Ko: {Other: "응답 KB"},
+				En: {Other: "Response KB"},
+			},
+		},
+		"field_retention": {
+			desc: "설정 칸: queue 보관 한도(메시지 수)",
+			text: map[Locale]Forms{
+				Ko: {Other: "보관 한도"},
+				En: {Other: "Retention"},
+			},
+		},
+		"field_retries": {
+			desc: "설정 칸: 실패 시 재시도 횟수",
+			text: map[Locale]Forms{
+				Ko: {Other: "재시도"},
+				En: {Other: "Retries"},
+			},
+		},
+		"field_rps": {
+			desc: "트래픽 칸: 초당 요청 수",
+			text: map[Locale]Forms{
+				Ko: {Other: "초당 요청"},
+				En: {Other: "Requests/s"},
+			},
+		},
+		"field_seed": {
+			desc: "설정 칸: 설계의 난수 시드",
+			text: map[Locale]Forms{
+				Ko: {Other: "시드"},
+				En: {Other: "Seed"},
+			},
+		},
+		"field_spike_at": {
+			desc: "트래픽 칸: 급증 시작 초",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증 시작 초"},
+				En: {Other: "Spike at s"},
+			},
+		},
+		"field_spike_dur": {
+			desc: "트래픽 칸: 급증 길이 초",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증 길이 초"},
+				En: {Other: "Spike length s"},
+			},
+		},
+		"field_spike_mult": {
+			desc: "트래픽 칸: 급증 배수",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증 배수"},
+				En: {Other: "Spike ×"},
+			},
+		},
+		"field_timeout": {
+			desc: "설정 칸: 타임아웃 ms",
+			text: map[Locale]Forms{
+				Ko: {Other: "타임아웃 ms"},
+				En: {Other: "Timeout ms"},
+			},
+		},
+		"field_ttl": {
+			desc: "설정 칸: 만료 초",
+			text: map[Locale]Forms{
+				Ko: {Other: "만료 초"},
+				En: {Other: "TTL s"},
+			},
+		},
+		"field_warmup": {
+			desc: "설정 칸: 새 인스턴스 준비 시간(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "준비 시간 초"},
+				En: {Other: "Warm-up s"},
+			},
+		},
+		"field_working_set": {
+			desc: "설정 칸: 작업 데이터 MiB",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업 데이터 MiB"},
+				En: {Other: "Working set MiB"},
+			},
+		},
+		"field_write_iops": {
+			desc: "설정 칸: 쓰기 요청 하나가 쓰는 IOPS × 1000",
+			text: map[Locale]Forms{
+				Ko: {Other: "쓰기 IOPS‰"},
+				En: {Other: "Write IOPS‰"},
+			},
+		},
+		"files_bad_name": {
+			desc: "파일 이름으로 쓸 수 없는 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "쓸 수 없는 이름이에요"},
+				En: {Other: "That name cannot be used"},
+			},
+		},
+		"files_delete_body": {
+			desc: "지우기 확인 본문",
+			text: map[Locale]Forms{
+				Ko: {Other: "지운 설계는 되돌릴 수 없어요"},
+				En: {Other: "A deleted design cannot be brought back"},
+			},
+		},
+		"files_delete_title": {
+			desc:   "지우기 확인 제목. name = 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}' 설계를 지울까요?"},
+				En: {Other: "Delete the design '{name}'?"},
+			},
+		},
+		"files_delete_yes": {
+			desc: "지우기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "지우기"},
+				En: {Other: "Delete"},
+			},
+		},
+		"files_deleted": {
+			desc:   "지운 뒤 알림. name = 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}' 설계를 지웠어요"},
+				En: {Other: "Deleted the design '{name}'"},
+			},
+		},
+		"files_empty": {
+			desc: "개인 설계가 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장한 설계가 없어요"},
+				En: {Other: "No saved designs yet"},
+			},
+		},
+		"files_failed": {
+			desc: "설계 폴더를 읽거나 쓰지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 폴더를 읽거나 쓰지 못했어요"},
+				En: {Other: "Could not read or write the designs folder"},
+			},
+		},
+		"files_hint": {
+			desc: "개인 설계 목록 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 열기 · n 새로 · r 이름 바꾸기 · d 지우기 · i 가져오기 · esc 닫기"},
+				En: {Other: "enter open · n new · r rename · d delete · i import · esc close"},
+			},
+		},
+		"files_import_prompt": {
+			desc: "JSON 가져오기 경로 입력 칸 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "가져올 설계 JSON 파일 경로"},
+				En: {Other: "Path of the design JSON to import"},
+			},
+		},
+		"files_input_hint": {
+			desc: "입력 칸 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 확인 · esc 취소"},
+				En: {Other: "enter confirm · esc cancel"},
+			},
+		},
+		"files_is_open": {
+			desc: "열려 있는 설계를 바꾸거나 지우려 할 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "열려 있는 설계예요 · 닫은 뒤 다시 해 주세요"},
+				En: {Other: "That design is open · close it first"},
+			},
+		},
+		"files_name_exists": {
+			desc: "같은 이름의 설계가 있을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "같은 이름의 설계가 있어요"},
+				En: {Other: "A design with that name exists"},
+			},
+		},
+		"files_new_prompt": {
+			desc: "새 설계 이름 입력 칸 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 설계 이름"},
+				En: {Other: "New design name"},
+			},
+		},
+		"files_nodes": {
+			desc:   "개인 설계 목록 줄: 노드 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 {n}개"},
+				En: {Other: "{n} nodes"},
+			},
+		},
+		"files_rename_prompt": {
+			desc:   "이름 바꾸기 입력 칸 머리. name = 지금 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}'의 새 이름"},
+				En: {Other: "New name for '{name}'"},
+			},
+		},
+		"files_title": {
+			desc: "개인 설계 열기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "내 설계"},
+				En: {Other: "My designs"},
+			},
+		},
+		"find_none": {
+			desc:   "찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말",
+			params: []Param{{Name: "q", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{q}' 에 맞는 노드가 없어요"},
+				En: {Other: "No node matches '{q}'"},
+			},
+		},
+		"help_model_intro": {
+			desc:       "도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 숫자는 줄서기 공식으로 만든 근사입니다. 설계끼리 비교하는 데 쓰세요. 실제 서비스는 부하 시험으로 확인하세요"},
+				En: {Other: "These numbers are approximations from queueing formulas. Use them to compare designs. Confirm a real service with a load test"},
+			},
+		},
+		"help_title": {
+			desc: "도움말 첫 줄 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계 도움말"},
+				En: {Other: "Architecture design help"},
+			},
+		},
+		"hourly_price": {
+			desc:       "설정 패널: 인스턴스 종류의 시간당 가격. usd = 달러(소수), asof = 가격표 기준 연월",
+			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "시간당 ~${usd} (추정 · {asof} 가격표)"},
+				En: {Other: "~${usd}/h (estimate · {asof} prices)"},
+			},
+		},
+		"import_done": {
+			desc:   "가져온 뒤 알림. name = 저장한 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{name}'(으)로 가져왔어요"},
+				En: {Other: "Imported as '{name}'"},
+			},
+		},
+		"import_invalid": {
+			desc:   "가져올 설계가 검사에 걸렸을 때. issue = 경로: 코드",
+			params: []Param{{Name: "issue", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 검사에 걸렸어요: {issue}"},
+				En: {Other: "The design failed a check: {issue}"},
+			},
+		},
+		"import_read_failed": {
+			desc: "가져올 파일을 읽지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일을 읽지 못했어요"},
+				En: {Other: "Could not read the file"},
+			},
+		},
+		"import_syntax": {
+			desc: "가져올 파일이 JSON 객체가 아닐 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 JSON 파일이 아니에요"},
+				En: {Other: "Not a design JSON file"},
+			},
+		},
+		"import_too_large": {
+			desc: "가져올 파일이 1MB 를 넘을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "1MB보다 큰 파일은 가져올 수 없어요"},
+				En: {Other: "Files over 1MB cannot be imported"},
+			},
+		},
+		"import_version": {
+			desc: "가져올 파일의 schema_version 이 다를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "지원하지 않는 설계 버전이에요"},
+				En: {Other: "Unsupported design version"},
+			},
+		},
+		"invalid_value": {
+			desc: "설정 칸 값을 설계가 받지 않을 때(라벨 너무 김·금지 문자·최소 > 최대)",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 값은 쓸 수 없어요"},
+				En: {Other: "That value cannot be used"},
+			},
+		},
+		"key_add": {
+			desc: "키 안내: 부품 팔레트에서 추가",
+			text: map[Locale]Forms{
+				Ko: {Other: "추가"},
+				En: {Other: "Add"},
+			},
+		},
+		"key_arrange": {
+			desc: "키 안내: 자동 정리",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 정리"},
+				En: {Other: "Arrange"},
+			},
+		},
+		"key_cancel": {
+			desc: "키 안내: 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
+		"key_checks": {
+			desc: "키 안내: 점검 줄 펼치기",
+			text: map[Locale]Forms{
+				Ko: {Other: "점검"},
+				En: {Other: "Checks"},
+			},
+		},
+		"key_comment": {
+			desc: "키 안내: C — 고른 곳(없으면 화면 가운데)에 댓글",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글"},
+				En: {Other: "comment"},
+			},
+		},
+		"key_confirm": {
+			desc: "키 안내: 확정",
+			text: map[Locale]Forms{
+				Ko: {Other: "확정"},
+				En: {Other: "Confirm"},
+			},
+		},
+		"key_connect": {
+			desc: "키 안내: 연결 모드",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결"},
+				En: {Other: "Connect"},
+			},
+		},
+		"key_delete": {
+			desc: "키 안내: 삭제(확인 없음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
+			},
+		},
+		"key_edit": {
+			desc: "키 안내: 설정 칸 고치기",
+			text: map[Locale]Forms{
+				Ko: {Other: "고치기"},
+				En: {Other: "edit"},
+			},
+		},
+		"key_fault": {
+			desc: "키 안내: 장애 메뉴",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애"},
+				En: {Other: "Faults"},
+			},
+		},
+		"key_find": {
+			desc: "키 안내: 노드 찾기",
+			text: map[Locale]Forms{
+				Ko: {Other: "찾기"},
+				En: {Other: "Find"},
+			},
+		},
+		"key_fit": {
+			desc: "키 안내: 선택한 것으로 화면 맞춤",
+			text: map[Locale]Forms{
+				Ko: {Other: "맞춤"},
+				En: {Other: "Fit"},
+			},
+		},
+		"key_help": {
+			desc: "키 안내: 이 도구의 도움말",
+			text: map[Locale]Forms{
+				Ko: {Other: "도움말"},
+				En: {Other: "Help"},
+			},
+		},
+		"key_move": {
+			desc: "키 안내: 선택한 것을 옮기기(옮기기 모드)",
+			text: map[Locale]Forms{
+				Ko: {Other: "옮기기"},
+				En: {Other: "Move"},
+			},
+		},
+		"key_multi": {
+			desc: "키 안내: 여러 개 선택",
+			text: map[Locale]Forms{
+				Ko: {Other: "여러 개 선택"},
+				En: {Other: "Multi-select"},
+			},
+		},
+		"key_pan": {
+			desc: "키 안내: 화면 이동",
+			text: map[Locale]Forms{
+				Ko: {Other: "화면 이동"},
+				En: {Other: "Pan"},
+			},
+		},
+		"key_panel": {
+			desc: "키 안내: 설정 패널로",
+			text: map[Locale]Forms{
+				Ko: {Other: "설정"},
+				En: {Other: "Settings"},
+			},
+		},
+		"key_pick": {
+			desc: "키 안내: 목록에서 고르기",
+			text: map[Locale]Forms{
+				Ko: {Other: "고르기"},
+				En: {Other: "Choose"},
+			},
+		},
+		"key_redo": {
+			desc: "키 안내: 다시하기",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시하기"},
+				En: {Other: "Redo"},
+			},
+		},
+		"key_reply": {
+			desc: "키 안내: 댓글 패널의 enter — 답글",
+			text: map[Locale]Forms{
+				Ko: {Other: "답글"},
+				En: {Other: "reply"},
+			},
+		},
+		"key_resolve": {
+			desc: "키 안내: 댓글 패널의 x — 해결·다시 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "해결"},
+				En: {Other: "resolve"},
+			},
+		},
+		"key_run": {
+			desc: "키 안내: 시간 실행 시작·정지",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행"},
+				En: {Other: "Run"},
+			},
+		},
+		"key_select": {
+			desc: "키 안내: 가장 가까운 노드로 선택 이동",
+			text: map[Locale]Forms{
+				Ko: {Other: "선택"},
+				En: {Other: "Select"},
+			},
+		},
+		"key_send": {
+			desc: "키 안내: 댓글 입력의 enter — 보내기",
+			text: map[Locale]Forms{
+				Ko: {Other: "보내기"},
+				En: {Other: "send"},
+			},
+		},
+		"key_speed": {
+			desc: "키 안내: 시간 실행 배속",
+			text: map[Locale]Forms{
+				Ko: {Other: "배속"},
+				En: {Other: "Speed"},
+			},
+		},
+		"key_step": {
+			desc: "키 안내: 선택한 것을 격자 한 칸씩 옮기기",
+			text: map[Locale]Forms{
+				Ko: {Other: "한 칸 옮기기"},
+				En: {Other: "Nudge"},
+			},
+		},
+		"key_time": {
+			desc: "키 안내: 시간 실행이 멈췄을 때 ←/→ 로 1초씩",
+			text: map[Locale]Forms{
+				Ko: {Other: "1초 앞뒤"},
+				En: {Other: "±1s"},
+			},
+		},
+		"key_toggle": {
+			desc: "키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기",
+			text: map[Locale]Forms{
+				Ko: {Other: "넣고 빼기"},
+				En: {Other: "Toggle"},
+			},
+		},
+		"key_undo": {
+			desc: "키 안내: 되돌리기",
+			text: map[Locale]Forms{
+				Ko: {Other: "되돌리기"},
+				En: {Other: "Undo"},
+			},
+		},
+		"key_view": {
+			desc: "키 안내: 캔버스·목록 보기 바꾸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "보기"},
+				En: {Other: "View"},
+			},
+		},
+		"key_wrap": {
+			desc: "키 안내: 선택한 노드를 새 상자로 감싸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자로 감싸기"},
+				En: {Other: "Wrap in a box"},
+			},
+		},
+		"key_zoom": {
+			desc: "키 안내: 확대 단계",
+			text: map[Locale]Forms{
+				Ko: {Other: "확대"},
+				En: {Other: "Zoom"},
+			},
+		},
+		"kicked_notice": {
+			desc: "방 설계에서 내보내졌을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 설계에 더는 접속할 수 없어요 · 읽기 전용으로 바뀌었어요"},
+				En: {Other: "You can no longer reach this design · it is read-only now"},
+			},
+		},
+		"kicked_pending": {
+			desc:   "내보내질 때 보내지 못한 편집이 있을 때. n = 편집 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "보내지 못한 편집 {n}개 · 팔레트의 '사본으로 저장'으로 남겨 두세요"},
+				En: {Other: "{n} edits were not sent · keep them with 'Save a copy' in the palette"},
+			},
+		},
+		"kind_api": {
+			desc: "부품 이름: api(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 서버"},
+				En: {Other: "API server"},
+			},
+		},
+		"kind_cache": {
+			desc: "부품 이름: cache(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "cache"},
+				En: {Other: "cache"},
+			},
+		},
+		"kind_cdn": {
+			desc: "부품 이름: cdn(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "CDN"},
+				En: {Other: "CDN"},
+			},
+		},
+		"kind_client": {
+			desc: "부품 이름: client(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "client"},
+				En: {Other: "client"},
+			},
+		},
+		"kind_db_primary": {
+			desc: "부품 이름: db_primary(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "DB primary"},
+				En: {Other: "DB primary"},
+			},
+		},
+		"kind_db_replica": {
+			desc: "부품 이름: db_replica(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "DB replica"},
+				En: {Other: "DB replica"},
+			},
+		},
+		"kind_external": {
+			desc: "부품 이름: external(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "외부 서비스"},
+				En: {Other: "External service"},
+			},
+		},
+		"kind_lb": {
+			desc: "부품 이름: lb(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "LB"},
+				En: {Other: "LB"},
+			},
+		},
+		"kind_object_storage": {
+			desc: "부품 이름: object_storage(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "object storage"},
+				En: {Other: "object storage"},
+			},
+		},
+		"kind_queue": {
+			desc: "부품 이름: queue(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "queue"},
+				En: {Other: "queue"},
+			},
+		},
+		"kind_search": {
+			desc: "부품 이름: search(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "search"},
+				En: {Other: "search"},
+			},
+		},
+		"kind_worker": {
+			desc: "부품 이름: worker(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "worker"},
+				En: {Other: "worker"},
+			},
+		},
+		"lb_least_conn": {
+			desc: "분산 방식: 최소 연결",
+			text: map[Locale]Forms{
+				Ko: {Other: "최소 연결"},
+				En: {Other: "Least connections"},
+			},
+		},
+		"lb_round_robin": {
+			desc: "분산 방식: 균등",
+			text: map[Locale]Forms{
+				Ko: {Other: "균등"},
+				En: {Other: "Round robin"},
+			},
+		},
+		"limit_cpu": {
+			desc: "병목 자원 이름: cpu",
+			text: map[Locale]Forms{
+				Ko: {Other: "CPU"},
+				En: {Other: "CPU"},
+			},
+		},
+		"limit_ext_limit": {
+			desc: "병목 자원 이름: ext_limit",
+			text: map[Locale]Forms{
+				Ko: {Other: "외부 한도"},
+				En: {Other: "external limit"},
+			},
+		},
+		"limit_iops": {
+			desc: "병목 자원 이름: iops",
+			text: map[Locale]Forms{
+				Ko: {Other: "IOPS"},
+				En: {Other: "IOPS"},
+			},
+		},
+		"limit_link": {
+			desc: "병목 자원 이름: link",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 대역폭"},
+				En: {Other: "link bandwidth"},
+			},
+		},
+		"limit_nic": {
+			desc: "병목 자원 이름: nic",
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭"},
+				En: {Other: "bandwidth"},
+			},
+		},
+		"limit_pool": {
+			desc: "병목 자원 이름: pool",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 풀"},
+				En: {Other: "connection pool"},
+			},
+		},
+		"limit_queue": {
+			desc: "병목 자원 이름: queue",
+			text: map[Locale]Forms{
+				Ko: {Other: "대기열"},
+				En: {Other: "queue"},
+			},
+		},
+		"limit_reached": {
+			desc: "설계가 부품·연결·상자 개수 한도에 닿아 더 넣지 못할 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "더 넣을 수 없어요 · 부품 300개, 연결 1,000개, 상자 100개까지"},
+				En: {Other: "Limit reached · up to 300 parts, 1,000 connections and 100 boxes"},
+			},
+		},
+		"list_empty": {
+			desc: "목록 보기: 노드가 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드가 없어요 · a 로 추가"},
+				En: {Other: "No nodes · press a to add"},
+			},
+		},
+		"list_outside": {
+			desc: "목록 보기: 상자 밖 노드 묶음 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자 밖"},
+				En: {Other: "Outside boxes"},
+			},
+		},
+		"load_failed": {
+			desc:   "캔버스: 설계 파일을 열 수 없을 때. name = 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 \"{name}\" 을(를) 열 수 없어요"},
+				En: {Other: "Cannot open design \"{name}\""},
+			},
+		},
+		"locked_notice": {
+			desc: "잠긴 방 설계를 고치려 할 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "잠긴 설계예요 · 만든 사람과 방 관리자만 고칠 수 있어요"},
+				En: {Other: "This design is locked · only its creator and space admins can edit it"},
+			},
+		},
+		"menu_comment": {
+			desc: "오른쪽 클릭 메뉴: 댓글",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글"},
+				En: {Other: "Comment"},
+			},
+		},
+		"menu_delete": {
+			desc: "오른쪽 클릭 메뉴: 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
+			},
+		},
+		"menu_fault": {
+			desc: "오른쪽 클릭 메뉴: 장애 넣기",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애"},
+				En: {Other: "Fault"},
+			},
+		},
+		"menu_settings": {
+			desc: "오른쪽 클릭 메뉴: 설정 패널 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "설정"},
+				En: {Other: "Settings"},
+			},
+		},
+		"metric_bottleneck": {
+			desc:   "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %, demand = 초당 수요(천 단위 쉼표), unit = 요청 하나가 쓰는 양(8ms, 1.25 IOPS, 18KB)",
+			params: []Param{{Name: "label", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "int"}, {Name: "demand", Type: "string"}, {Name: "unit", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "병목 ⚠ {label} · {limit} {util}% ({demand}/s × {unit})"},
+				En: {Other: "bottleneck ⚠ {label} · {limit} {util}% ({demand}/s × {unit})"},
+			},
+		},
+		"metric_err": {
+			desc:   "지표: 에러율. pct = 소수 한 자리 %",
+			params: []Param{{Name: "pct", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "에러 {pct}%"},
+				En: {Other: "errors {pct}%"},
+			},
+		},
+		"metric_no_traffic": {
+			desc: "지표: client 가 없어 트래픽이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "트래픽 없음 · client 를 추가하세요"},
+				En: {Other: "No traffic · add a client"},
+			},
+		},
+		"metric_overloaded": {
+			desc: "지표: 설계가 과부하",
+			text: map[Locale]Forms{
+				Ko: {Other: "과부하"},
+				En: {Other: "overloaded"},
+			},
+		},
+		"metric_throughput": {
+			desc:   "지표: 처리량. rps = 짧은 수",
+			params: []Param{{Name: "rps", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "처리 {rps}/s"},
+				En: {Other: "{rps}/s served"},
+			},
+		},
+		"metrics_total": {
+			desc: "지표 줄 머리: 설계 전체",
+			text: map[Locale]Forms{
+				Ko: {Other: "전체"},
+				En: {Other: "Total"},
+			},
+		},
+		"moved_by": {
+			desc:   "내가 옮긴 것을 다른 사람이 다시 옮겼을 때. name = 그 사람 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 옮김"},
+				En: {Other: "Moved by {name}"},
+			},
+		},
+		"narrow_no_drag": {
+			desc: "60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "60칸보다 좁으면 끌어다 놓을 수 없어요 · 목록에서 편집하세요"},
+				En: {Other: "Dragging needs 60 columns or more · edit in the list"},
+			},
+		},
+		"node_deleted": {
+			desc: "설정 중이던 노드를 다른 사람이 지워 설정 패널을 닫을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "다른 사람이 지워서 설정을 닫았어요"},
+				En: {Other: "Someone deleted it, so its settings closed"},
+			},
+		},
+		"palette_boxes": {
+			desc: "부품 팔레트의 상자 묶음 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자"},
+				En: {Other: "Boxes"},
+			},
+		},
+		"palette_challenge": {
+			desc: "명령 팔레트 항목: arch.challenge(일일 도전 열기)",
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 아키텍처 도전"},
+				En: {Other: "Today's architecture challenge"},
+			},
+		},
+		"palette_export": {
+			desc: "명령 팔레트 항목: arch.export",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 내보내기"},
+				En: {Other: "Export design"},
+			},
+		},
+		"palette_new": {
+			desc: "명령 팔레트 항목: arch.new",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 아키텍처 설계"},
+				En: {Other: "New architecture design"},
+			},
+		},
+		"palette_open": {
+			desc: "명령 팔레트 항목: arch.open",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계 열기"},
+				En: {Other: "Open architecture design"},
+			},
+		},
+		"palette_parts": {
+			desc: "부품 팔레트 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "부품"},
+				En: {Other: "Parts"},
+			},
+		},
+		"palette_run": {
+			desc: "명령 팔레트 항목: arch.run",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 시간 실행 시작/정지"},
+				En: {Other: "Start/stop timed run"},
+			},
+		},
+		"palette_save_copy": {
+			desc: "팔레트: 공유·사본 설계를 개인 설계로 저장",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계 사본으로 저장"},
+				En: {Other: "Save the architecture design as a copy"},
+			},
+		},
+		"palette_send_card": {
+			desc: "명령 팔레트 항목: arch.send_card",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 카드 보내기"},
+				En: {Other: "Send design card"},
+			},
+		},
+		"palette_share": {
+			desc: "명령 팔레트 항목: arch.share",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계를 방에 올리기"},
+				En: {Other: "Share design to a room"},
+			},
+		},
+		"palette_versions": {
+			desc: "명령 팔레트 항목: arch.versions",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 버전 보기"},
+				En: {Other: "Design versions"},
+			},
+		},
+		"panel_autoscale": {
+			desc:   "설정: 자동 확장 범위(인스턴스 줄 뒤)",
+			params: []Param{{Name: "min", Type: "int"}, {Name: "max", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "(자동 {min}~{max})"},
+				En: {Other: "(auto {min}–{max})"},
+			},
+		},
+		"panel_box": {
+			desc:   "설정 패널: 상자를 골랐을 때 안에 든 노드 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 {n}개"},
+				En: {One: "{n} node", Other: "{n} nodes"},
+			},
+		},
+		"panel_cpu_mem": {
+			desc:   "설정: CPU 코어 · 메모리 GiB",
+			params: []Param{{Name: "cpu", Type: "int"}, {Name: "mem", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "CPU {cpu} · 메모리 {mem}GiB"},
+				En: {Other: "CPU {cpu} · memory {mem}GiB"},
+			},
+		},
+		"panel_curve": {
+			desc:   "트래픽: 시간에 따른 모양. curve = curve_* 문구",
+			params: []Param{{Name: "curve", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "모양 {curve}"},
+				En: {Other: "shape {curve}"},
+			},
+		},
+		"panel_custom_type": {
+			desc: "설정: 인스턴스 종류를 직접 정했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용자 지정"},
+				En: {Other: "custom"},
+			},
+		},
+		"panel_down": {
+			desc: "결과: 꺼짐",
+			text: map[Locale]Forms{
+				Ko: {Other: "꺼짐"},
+				En: {Other: "down"},
+			},
+		},
+		"panel_edge": {
+			desc:   "설정 패널: 연결을 골랐을 때. from·to = 노드 라벨",
+			params: []Param{{Name: "from", Type: "string"}, {Name: "to", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{from} → {to}"},
+				En: {Other: "{from} → {to}"},
+			},
+		},
+		"panel_instances": {
+			desc:   "설정: 인스턴스 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "인스턴스 {n}"},
+				En: {Other: "instances {n}"},
+			},
+		},
+		"panel_latency": {
+			desc:   "결과: 지연 p50·p99(짧은 시간 표기)",
+			params: []Param{{Name: "p50", Type: "string"}, {Name: "p99", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "p50 {p50} · p99 {p99}"},
+				En: {Other: "p50 {p50} · p99 {p99}"},
+			},
+		},
+		"panel_nic": {
+			desc:   "설정: 네트워크 대역폭 Gbps",
+			params: []Param{{Name: "gbps", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭 {gbps}Gbps"},
+				En: {Other: "bandwidth {gbps}Gbps"},
+			},
+		},
+		"panel_no_client": {
+			desc: "설정 패널: client 가 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "client 가 없어요"},
+				En: {Other: "No client yet"},
+			},
+		},
+		"panel_read": {
+			desc:   "트래픽: 읽기 비율 %",
+			params: []Param{{Name: "pct", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 {pct}%"},
+				En: {Other: "{pct}% reads"},
+			},
+		},
+		"panel_result": {
+			desc: "설정 패널의 결과 구분선 글",
+			text: map[Locale]Forms{
+				Ko: {Other: "결과"},
+				En: {Other: "Result"},
+			},
+		},
+		"panel_rps": {
+			desc:   "트래픽: 초당 요청. n = 쉼표가 든 수",
+			params: []Param{{Name: "n", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "초당 요청 {n}"},
+				En: {Other: "{n} requests/s"},
+			},
+		},
+		"panel_sizes": {
+			desc:   "트래픽: 요청·응답 크기 KB",
+			params: []Param{{Name: "req", Type: "int"}, {Name: "resp", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 {req}KB · 응답 {resp}KB"},
+				En: {Other: "request {req}KB · response {resp}KB"},
+			},
+		},
+		"panel_traffic": {
+			desc: "설정 패널: 아무것도 안 골랐을 때의 트래픽 모델 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "트래픽 모델"},
+				En: {Other: "Traffic model"},
+			},
+		},
+		"panel_util": {
+			desc:   "결과: 사용률 %",
+			params: []Param{{Name: "pct", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "사용률 {pct}%"},
+				En: {Other: "utilization {pct}%"},
+			},
+		},
+		"preview_header": {
+			desc:   "버전 미리보기 중 위 줄. label = 버전 줄(v3 — 리뷰용)",
+			params: []Param{{Name: "label", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{label} 미리보기 · 읽기 전용 · esc 현재로"},
+				En: {Other: "Preview {label} · read-only · esc back to now"},
+			},
+		},
+		"preview_readonly": {
+			desc: "미리보기에서 편집 키를 눌렀을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 미리보기는 읽기 전용이에요 · esc 로 현재로 돌아가요"},
+				En: {Other: "A version preview is read-only · esc goes back to now"},
+			},
+		},
+		"proto_async": {
+			desc: "연결 프로토콜: 비동기 큐",
+			text: map[Locale]Forms{
+				Ko: {Other: "비동기 큐"},
+				En: {Other: "Async queue"},
+			},
+		},
+		"range_hint": {
+			desc:   "설정 칸에 범위 밖이거나 숫자가 아닌 값을 넣었을 때. min·max = 범위",
+			params: []Param{{Name: "min", Type: "string"}, {Name: "max", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{min}~{max} 사이 숫자"},
+				En: {Other: "A number from {min} to {max}"},
+			},
+		},
+		"read_only_copy": {
+			desc: "머리 줄: 카드에서 연 읽기 전용 사본",
+			text: map[Locale]Forms{
+				Ko: {Other: "사본 · 읽기 전용"},
+				En: {Other: "Copy · read-only"},
+			},
+		},
+		"reject_arch_cycle": {
+			desc: "서버 거절: 상자 순환",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자를 자기 안에 넣을 수 없어요"},
+				En: {Other: "A box cannot go inside itself"},
+			},
+		},
+		"reject_arch_depth": {
+			desc: "서버 거절: 상자 3단 초과",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자는 3단까지만 겹칠 수 있어요"},
+				En: {Other: "Boxes nest at most 3 levels deep"},
+			},
+		},
+		"reject_arch_limit": {
+			desc: "서버 거절: 개수 한도",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드·연결·상자·장애 개수 한도에 걸렸어요"},
+				En: {Other: "The node, connection, box or fault limit is reached"},
+			},
+		},
+		"reject_arch_value": {
+			desc: "서버 거절: 값·필드·객체가 규칙 밖",
+			text: map[Locale]Forms{
+				Ko: {Other: "서버가 이 값을 받지 않았어요 · 되돌렸어요"},
+				En: {Other: "The server refused this value · it was undone"},
+			},
+		},
+		"reject_other": {
+			desc:   "서버 거절: 그 밖. code = 거절 코드",
+			params: []Param{{Name: "code", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "편집이 거절됐어요 ({code}) · 되돌렸어요"},
+				En: {Other: "The edit was refused ({code}) · it was undone"},
+			},
+		},
+		"reject_too_large": {
+			desc: "서버 거절: 문서가 너무 큼",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계가 너무 커요 (1MB) · 되돌렸어요"},
+				En: {Other: "The design is too large (1MB) · it was undone"},
+			},
+		},
+		"room_connecting": {
+			desc: "머리 줄: 방 설계에 연결하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · 연결 중…"},
+				En: {Other: "Space · connecting…"},
+			},
+		},
+		"room_kicked": {
+			desc: "머리 줄: 방 설계에서 내보내짐(읽기 전용)",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · 나감 · 읽기 전용"},
+				En: {Other: "Space · left · read-only"},
+			},
+		},
+		"room_live": {
+			desc:   "머리 줄: 방 설계에 연결됨. names = 접속자 이름들(·로 이음)",
+			params: []Param{{Name: "names", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · {names}"},
+				En: {Other: "Space · {names}"},
+			},
+		},
+		"room_locked": {
+			desc: "머리 줄: 잠긴 방 설계(읽기 전용)",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 · 잠김 · 읽기 전용"},
+				En: {Other: "Space · locked · read-only"},
+			},
+		},
+		"room_offline": {
+			desc:       "머리 줄: 방 설계 연결이 끊김",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "편집 ● 오프라인 — 다시 연결되면 보냄"},
+				En: {Other: "Edits ● offline — sent when reconnected"},
+			},
+		},
+		"run_failed": {
+			desc: "시간 실행이 실패했을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행을 하지 못했어요"},
+				En: {Other: "The timed run failed"},
+			},
+		},
+		"save_failed": {
+			desc: "머리 줄 저장 상태: 저장 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장 실패"},
+				En: {Other: "Save failed"},
+			},
+		},
+		"save_pending": {
+			desc: "머리 줄 저장 상태: 아직 저장 전 편집이 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "편집 ●"},
+				En: {Other: "Editing ●"},
+			},
+		},
+		"save_saved": {
+			desc: "머리 줄 저장 상태: 저장됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장됨"},
+				En: {Other: "Saved"},
+			},
+		},
+		"save_unsaved": {
+			desc: "머리 줄 저장 상태: 파일 이름이 없는 새 설계",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장 안 됨"},
+				En: {Other: "Not saved"},
+			},
+		},
+		"send_confirm_hint": {
+			desc: "카드 보내기 미리보기 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 보내기 · esc 뒤로"},
+				En: {Other: "⏎ send · esc back"},
+			},
+		},
+		"send_done": {
+			desc:   "카드를 보냈을 때 토스트. channel = 대화 이름",
+			params: []Param{{Name: "channel", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{channel} 에 카드를 보냈어요"},
+				En: {Other: "Card sent to {channel}"},
+			},
+		},
+		"send_failed": {
+			desc: "카드 보내기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "카드를 보내지 못했어요"},
+				En: {Other: "Couldn't send the card"},
+			},
+		},
+		"send_hint": {
+			desc: "카드 보내기 첫 단계 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "↑↓ 고르기 · s 카드 종류 · ⏎ 미리보기 · esc 닫기"},
+				En: {Other: "↑↓ pick · s card type · ⏎ preview · esc close"},
+			},
+		},
+		"send_kind_design": {
+			desc: "카드 종류: 설계",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 카드"},
+				En: {Other: "Design card"},
+			},
+		},
+		"send_kind_sim": {
+			desc: "카드 종류: 시뮬 결과",
+			text: map[Locale]Forms{
+				Ko: {Other: "시뮬 결과 카드"},
+				En: {Other: "Simulation card"},
+			},
+		},
+		"send_no_channels": {
+			desc: "카드 보내기: 보낼 대화가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "보낼 대화가 없어요"},
+				En: {Other: "No conversations to send to"},
+			},
+		},
+		"send_pick": {
+			desc: "카드 보내기: 대화 고르기 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "보낼 대화"},
+				En: {Other: "Send to"},
+			},
+		},
+		"send_preview": {
+			desc:   "카드 보내기: 미리보기 머리. channel = 대화 이름",
+			params: []Param{{Name: "channel", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{channel} 에 이렇게 올라가요"},
+				En: {Other: "This goes to {channel}"},
+			},
+		},
+		"send_title": {
+			desc: "카드 보내기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 카드 보내기"},
+				En: {Other: "Send a design card"},
+			},
+		},
+		"share_already": {
+			desc: "이미 방에 있는 설계에서 방에 올리기를 고를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미 방에 있는 설계예요"},
+				En: {Other: "This design is already in a space"},
+			},
+		},
+		"share_done": {
+			desc:   "방에 올린 뒤 알림. space = 방 이름",
+			params: []Param{{Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{space}에 올렸어요 · 개인 설계는 그대로예요"},
+				En: {Other: "Shared to {space} · your personal design stays as it is"},
+			},
+		},
+		"share_failed": {
+			desc: "방에 올리지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올리지 못했어요"},
+				En: {Other: "Could not share the design"},
+			},
+		},
+		"share_hint": {
+			desc: "방에 올리기 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 확인 · esc 닫기"},
+				En: {Other: "enter confirm · esc close"},
+			},
+		},
+		"share_no_spaces": {
+			desc: "올릴 방이 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방이 없어요 · 먼저 방에 들어가 주세요"},
+				En: {Other: "No spaces to share to · join one first"},
+			},
+		},
+		"share_pick": {
+			desc: "방에 올리기: 방 고르기 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방을 고르세요"},
+				En: {Other: "Pick a space"},
+			},
+		},
+		"share_plaintext_warning": {
+			desc:       "방에 올리기 전 확인(법적 문구, 어떤 크기에서도 줄이지 않고 줄바꿈)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올린 설계는 masil 서버에 암호화하지 않고 저장돼요. 방 멤버와 서버 운영자가 볼 수 있어요. 민감한 설계는 개인 설계로 두세요."},
+				En: {Other: "A shared design is stored on the masil server without encryption. Space members and the server operators can see it. Keep sensitive designs personal."},
+			},
+		},
+		"share_title": {
+			desc: "방에 올리기 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올리기"},
+				En: {Other: "Share to a space"},
+			},
+		},
+		"share_yes": {
+			desc: "방에 올리기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "올리기"},
+				En: {Other: "Share"},
+			},
+		},
+		"snap_col_cost": {
+			desc: "글자 스냅숏 표 머리: 비용",
+			text: map[Locale]Forms{
+				Ko: {Other: "비용"},
+				En: {Other: "Cost"},
+			},
+		},
+		"snap_col_instances": {
+			desc: "글자 스냅숏 표 머리: 대수",
+			text: map[Locale]Forms{
+				Ko: {Other: "대수"},
+				En: {Other: "Count"},
+			},
+		},
+		"snap_col_kind": {
+			desc: "글자 스냅숏 표 머리: 종류",
+			text: map[Locale]Forms{
+				Ko: {Other: "종류"},
+				En: {Other: "Kind"},
+			},
+		},
+		"snap_col_name": {
+			desc: "글자 스냅숏 표 머리: 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름"},
+				En: {Other: "Name"},
+			},
+		},
+		"snap_col_p99": {
+			desc: "글자 스냅숏 표 머리: p99",
+			text: map[Locale]Forms{
+				Ko: {Other: "p99"},
+				En: {Other: "p99"},
+			},
+		},
+		"snap_col_util": {
+			desc: "글자 스냅숏 표 머리: 사용률",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용률"},
+				En: {Other: "Util"},
+			},
+		},
+		"snap_cost_note": {
+			desc:   "글자 스냅숏 총비용 뒤 꼬리. asof = 가격표 기준 연월",
+			params: []Param{{Name: "asof", Type: "string"}},
+			legal:  true,
+			text: map[Locale]Forms{
+				Ko: {Other: "/월 (추정 · {asof} 가격표)"},
+				En: {Other: "/mo (estimate · {asof} prices)"},
+			},
+		},
+		"status_copy": {
+			desc:   "허브 상태: 채팅 카드에서 연 사본",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} (사본)"},
+				En: {Other: "{title} (copy)"},
+			},
+		},
+		"status_new": {
+			desc: "허브 상태: 아직 저장하지 않은 새 설계",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 설계"},
+				En: {Other: "New design"},
+			},
+		},
+		"status_personal": {
+			desc:   "허브 상태: 내 PC 의 개인 설계",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} (개인)"},
+				En: {Other: "{title} (personal)"},
+			},
+		},
+		"status_room": {
+			desc:   "허브 상태: 방에 공유된 설계. title = 설계 제목, n = 지금 편집 중인 사람 수",
+			params: []Param{{Name: "title", Type: "string"}, {Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} (방) · {n}명 편집 중"},
+				En: {One: "{title} (room) · {n} editing", Other: "{title} (room) · {n} editing"},
+			},
+		},
+		"tf_header": {
+			desc:  "Terraform 내보내기 머리 주석(법적 문구)",
+			legal: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 생성된 뼈대 · 실행 전 검토 필요 · masil 은 이 파일을 실행하지 않음"},
+				En: {Other: "Generated skeleton · review before use · masil never runs this file"},
+			},
+		},
+		"tiny_bottleneck": {
+			desc:   "초소형 요약 병목 줄",
+			params: []Param{{Name: "label", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "⚠ {label} {limit} {util}%"},
+				En: {Other: "⚠ {label} {limit} {util}%"},
+			},
+		},
+		"tiny_edit_hint": {
+			desc: "초소형 요약 마지막 줄: 편집하려면 창을 키우라는 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "창을 키우면 편집"},
+				En: {Other: "Enlarge the window to edit"},
+			},
+		},
+		"tiny_run": {
+			desc: "초소형 요약 마지막 줄 앞: 시간 실행 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "space 시간실행"},
+				En: {Other: "space timed run"},
+			},
+		},
+		"tiny_running": {
+			desc:   "초소형 요약 마지막 줄: 시간 실행 중. t = mm:ss, speed = 배속",
+			params: []Param{{Name: "t", Type: "string"}, {Name: "speed", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "space 정지 · {t} ×{speed}"},
+				En: {Other: "space stop · {t} ×{speed}"},
+			},
+		},
+		"tiny_summary": {
+			desc:   "초소형 요약 첫 줄. title = 설계 제목, p99 = 짧은 시간, err = 소수 한 자리 %",
+			params: []Param{{Name: "title", Type: "string"}, {Name: "p99", Type: "string"}, {Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} · p99 {p99} · 에러 {err}%"},
+				En: {Other: "📐 {title} · p99 {p99} · errors {err}%"},
+			},
+		},
+		"too_small_edit": {
+			desc: "초소형에서 편집 키를 눌렀을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "창을 키워 주세요"},
+				En: {Other: "Please enlarge the window"},
+			},
+		},
+		"tool_name": {
+			desc: "도구 이름(허브·팔레트·탭)",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계"},
+				En: {Other: "Architecture design"},
+			},
+		},
+		"top_costs": {
+			desc:   "지표 줄: 비용 상위 3개. list = \"라벨 41%\" 를 \" · \" 로 이은 것(전체 비용 중 몫)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "비용 상위 {list}"},
+				En: {Other: "Top costs {list}"},
+			},
+		},
+		"traffic_hint": {
+			desc: "빈 캔버스 안내 둘째 줄: client 가 트래픽의 출발점",
+			text: map[Locale]Forms{
+				Ko: {Other: "client 가 트래픽의 출발점이에요"},
+				En: {Other: "A client is where traffic starts"},
+			},
+		},
+		"traffic_summary": {
+			desc:   "머리 줄 트래픽 요약. rps = 짧은 수(12.0k), read = 읽기 %, kb = 요청 KB",
+			params: []Param{{Name: "rps", Type: "string"}, {Name: "read", Type: "int"}, {Name: "kb", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{rps} rps · 읽기 {read}% · {kb}KB"},
+				En: {Other: "{rps} rps · {read}% reads · {kb}KB"},
+			},
+		},
+		"untitled": {
+			desc: "제목이 빈 설계의 표시 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "제목 없는 설계"},
+				En: {Other: "Untitled design"},
+			},
+		},
+		"ver_field_add_ms": {
+			desc: "차이 목록의 필드 이름: add_ms (장애: 더하는 지연)",
+			text: map[Locale]Forms{
+				Ko: {Other: "더할 지연 ms"},
+				En: {Other: "Added latency ms"},
+			},
+		},
+		"ver_field_at_s": {
+			desc: "차이 목록의 필드 이름: at_s (장애: 시간 실행의 시각(초))",
+			text: map[Locale]Forms{
+				Ko: {Other: "넣는 시각 초"},
+				En: {Other: "At (s)"},
+			},
+		},
+		"ver_field_count": {
+			desc: "차이 목록의 필드 이름: count (장애: 끌 인스턴스 수)",
+			text: map[Locale]Forms{
+				Ko: {Other: "끌 대수"},
+				En: {Other: "Instances off"},
+			},
+		},
+		"ver_field_dur_s": {
+			desc: "차이 목록의 필드 이름: dur_s (장애: 지속 시간(초))",
+			text: map[Locale]Forms{
+				Ko: {Other: "지속 초"},
+				En: {Other: "Duration (s)"},
+			},
+		},
+		"ver_field_from": {
+			desc: "차이 목록의 필드 이름: from (연결: 출발 노드)",
+			text: map[Locale]Forms{
+				Ko: {Other: "출발"},
+				En: {Other: "From"},
+			},
+		},
+		"ver_field_kind": {
+			desc: "차이 목록의 필드 이름: kind (노드·상자·장애의 종류)",
+			text: map[Locale]Forms{
+				Ko: {Other: "종류"},
+				En: {Other: "Kind"},
+			},
+		},
+		"ver_field_parent": {
+			desc: "차이 목록의 필드 이름: parent",
+			text: map[Locale]Forms{
+				Ko: {Other: "들어 있는 상자"},
+				En: {Other: "Parent box"},
+			},
+		},
+		"ver_field_pos": {
+			desc: "차이 목록의 필드 이름: pos",
+			text: map[Locale]Forms{
+				Ko: {Other: "위치"},
+				En: {Other: "Position"},
+			},
+		},
+		"ver_field_rect": {
+			desc: "차이 목록의 필드 이름: rect",
+			text: map[Locale]Forms{
+				Ko: {Other: "자리·크기"},
+				En: {Other: "Area"},
+			},
+		},
+		"ver_field_target": {
+			desc: "차이 목록의 필드 이름: target (장애: 대상)",
+			text: map[Locale]Forms{
+				Ko: {Other: "대상"},
+				En: {Other: "Target"},
+			},
+		},
+		"ver_field_title": {
+			desc: "차이 목록의 필드 이름: title (설계 제목)",
+			text: map[Locale]Forms{
+				Ko: {Other: "제목"},
+				En: {Other: "Title"},
+			},
+		},
+		"ver_field_to": {
+			desc: "차이 목록의 필드 이름: to (연결: 도착 노드)",
+			text: map[Locale]Forms{
+				Ko: {Other: "도착"},
+				En: {Other: "To"},
+			},
+		},
+		"versions_auto": {
+			desc:   "자동 버전 한 줄. no = 버전 번호, when = 저장 시각",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "when", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} — 자동 저장 {when}"},
+				En: {Other: "v{no} — autosave {when}"},
+			},
+		},
+		"versions_diff_added": {
+			desc:   "차이 요약: 더한 객체 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "추가 {n}"},
+				En: {Other: "Added {n}"},
+			},
+		},
+		"versions_diff_changed": {
+			desc:   "차이 요약: 바뀐 설정 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "바뀐 설정 {n}"},
+				En: {Other: "Changed {n}"},
+			},
+		},
+		"versions_diff_hint": {
+			desc: "차이 목록 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "j/k 넘기기 · esc 목록으로"},
+				En: {Other: "j/k scroll · esc back to the list"},
+			},
+		},
+		"versions_diff_meta": {
+			desc: "차이 목록: 설계 정보(제목·트래픽 등) 객체",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 정보"},
+				En: {Other: "Design settings"},
+			},
+		},
+		"versions_diff_none": {
+			desc: "두 버전이 같을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "차이가 없어요"},
+				En: {Other: "No changes"},
+			},
+		},
+		"versions_diff_oldest": {
+			desc: "가장 오래된 버전에서 d 를 눌렀을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "가장 오래된 버전이라 비교할 앞 버전이 없어요"},
+				En: {Other: "This is the oldest version · nothing before it to compare"},
+			},
+		},
+		"versions_diff_removed": {
+			desc:   "차이 요약: 지운 객체 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제 {n}"},
+				En: {Other: "Removed {n}"},
+			},
+		},
+		"versions_diff_title": {
+			desc:   "차이 목록 머리. a = 앞 버전, b = 고른 버전",
+			params: []Param{{Name: "a", Type: "int"}, {Name: "b", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{a} → v{b} 차이"},
+				En: {Other: "v{a} → v{b} changes"},
+			},
+		},
+		"versions_empty": {
+			desc: "저장된 버전이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장된 버전이 없어요 · n 으로 지금 상태를 이름 붙여 저장해요"},
+				En: {Other: "No versions yet · n saves this state with a name"},
+			},
+		},
+		"versions_failed": {
+			desc: "버전 작업이 실패했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 작업을 하지 못했어요 · 잠시 뒤 다시 해 주세요"},
+				En: {Other: "Could not do that · try again shortly"},
+			},
+		},
+		"versions_hint": {
+			desc: "버전 목록 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 미리보기 · d 앞 버전과 차이 · r 되돌리기 · n 이름 붙여 저장 · esc 닫기"},
+				En: {Other: "enter preview · d diff with previous · r restore · n save with a name · esc close"},
+			},
+		},
+		"versions_limit": {
+			desc: "이름 붙인 버전이 한도(100)에 찼을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름 붙인 버전은 100개까지예요"},
+				En: {Other: "Up to 100 named versions"},
+			},
+		},
+		"versions_loading": {
+			desc: "버전 목록을 불러오는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전을 불러오는 중…"},
+				En: {Other: "Loading versions…"},
+			},
+		},
+		"versions_meta": {
+			desc:   "버전 줄의 뒤쪽(만든 사람·시각). who = 이름, when = 시각",
+			params: []Param{{Name: "who", Type: "string"}, {Name: "when", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{who} · {when}"},
+				En: {Other: "{who} · {when}"},
+			},
+		},
+		"versions_name_hint": {
+			desc: "이름 붙여 저장 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 저장 · esc 취소"},
+				En: {Other: "enter save · esc cancel"},
+			},
+		},
+		"versions_name_prompt": {
+			desc: "이름 붙여 저장: 입력 칸 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 이름"},
+				En: {Other: "Version name"},
+			},
+		},
+		"versions_named": {
+			desc:   "이름 붙인 버전 한 줄. no = 버전 번호, name = 이름",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} — {name}"},
+				En: {Other: "v{no} — {name}"},
+			},
+		},
+		"versions_personal": {
+			desc: "개인 설계에서 버전 명령을 부를 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "개인 설계에는 버전 기록이 없어요 · 방에 올린 설계에서 써 주세요"},
+				En: {Other: "Personal designs have no versions · use a shared design"},
+			},
+		},
+		"versions_restore_body": {
+			desc: "되돌리기 확인 본문",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 버전의 내용으로 새 버전을 만들어요 · 이전 기록은 그대로 남아요"},
+				En: {Other: "Makes a new version with this content · the history stays"},
+			},
+		},
+		"versions_restore_title": {
+			desc:   "되돌리기 확인 제목. no = 버전 번호",
+			params: []Param{{Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} 버전으로 되돌릴까요?"},
+				En: {Other: "Restore v{no}?"},
+			},
+		},
+		"versions_restore_yes": {
+			desc: "되돌리기 확인 버튼",
+			text: map[Locale]Forms{
+				Ko: {Other: "되돌리기"},
+				En: {Other: "Restore"},
+			},
+		},
+		"versions_restored": {
+			desc:   "되돌리기로 생긴 버전 한 줄. no = 버전 번호, from = 되돌린 버전",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "from", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} — v{from} 버전으로 되돌림"},
+				En: {Other: "v{no} — restored v{from}"},
+			},
+		},
+		"versions_restored_toast": {
+			desc:   "되돌린 뒤 알림. from = 되돌린 버전, no = 새 버전",
+			params: []Param{{Name: "from", Type: "int"}, {Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{from} 버전으로 되돌렸어요 · 새 버전 v{no}"},
+				En: {Other: "Restored v{from} · new version v{no}"},
+			},
+		},
+		"versions_saved": {
+			desc:   "이름 붙여 저장한 뒤 알림. no = 새 버전 번호",
+			params: []Param{{Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "v{no} 버전으로 저장했어요"},
+				En: {Other: "Saved as v{no}"},
+			},
+		},
+		"versions_title": {
+			desc: "버전 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "버전"},
+				En: {Other: "Versions"},
+			},
+		},
+		"view_canvas": {
+			desc: "보기 이름: 캔버스",
+			text: map[Locale]Forms{
+				Ko: {Other: "캔버스"},
+				En: {Other: "Canvas"},
+			},
+		},
+		"view_list": {
+			desc: "보기 이름: 목록",
+			text: map[Locale]Forms{
+				Ko: {Other: "목록"},
+				En: {Other: "List"},
+			},
+		},
+		"zoom_overlap": {
+			desc: "이 확대 단계에서 노드가 겹칠 때 캔버스 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "확대를 높이세요"},
+				En: {Other: "Zoom in"},
+			},
+		},
+	},
+}
+
+// BoxAz: 상자 종류 이름: az
+func (a_ ArchcanvasT) BoxAz() string {
+	return a_.t.render(&areaArchcanvas, "box_az", false, 0)
+}
+
+// BoxRegion: 상자 종류 이름: region
+func (a_ ArchcanvasT) BoxRegion() string {
+	return a_.t.render(&areaArchcanvas, "box_region", false, 0)
+}
+
+// BoxVpc: 상자 종류 이름: vpc
+func (a_ ArchcanvasT) BoxVpc() string {
+	return a_.t.render(&areaArchcanvas, "box_vpc", false, 0)
+}
+
+// CardBodyDesign: 설계 카드의 대체 문구(0.1.2 클라이언트가 보는 body). title = 설계 제목, n = 노드 수, p99 = ms, usd = 천 단위 쉼표 달러
+func (a_ ArchcanvasT) CardBodyDesign(title string, n int, p99 int, usd string) string {
+	return a_.t.render(&areaArchcanvas, "card_body_design", false, 0, "title", title, "n", strconv.Itoa(n), "p99", strconv.Itoa(p99), "usd", usd)
+}
+
+// CardBodySim: 시뮬 결과 카드의 대체 문구(body). err = 에러율 % 소수 한 자리
+func (a_ ArchcanvasT) CardBodySim(title string, p99 int, err string, usd string) string {
+	return a_.t.render(&areaArchcanvas, "card_body_sim", false, 0, "title", title, "p99", strconv.Itoa(p99), "err", err, "usd", usd)
+}
+
+// CardBottleneck: 시뮬 카드: 병목. target = 부품 이름, limit = 자원 이름, util = 사용률 %
+func (a_ ArchcanvasT) CardBottleneck(target string, limit string, util string) string {
+	return a_.t.render(&areaArchcanvas, "card_bottleneck", false, 0, "target", target, "limit", limit, "util", util)
+}
+
+// CardChallenge: 시뮬 카드: 일일 도전 결과. date = YYYY-MM-DD, scenario = 시나리오 이름
+func (a_ ArchcanvasT) CardChallenge(date string, scenario string, score int) string {
+	return a_.t.render(&areaArchcanvas, "card_challenge", false, 0, "date", date, "scenario", scenario, "score", strconv.Itoa(score))
+}
+
+// CardCopyFailed: 카드의 설계 사본을 불러오지 못함
+func (a_ ArchcanvasT) CardCopyFailed() string {
+	return a_.t.render(&areaArchcanvas, "card_copy_failed", false, 0)
+}
+
+// CardDesignTitle: 채팅 설계 카드의 첫 줄
+func (a_ ArchcanvasT) CardDesignTitle(title string) string {
+	return a_.t.render(&areaArchcanvas, "card_design_title", false, 0, "title", title)
+}
+
+// CardDocLoading: 방 문서의 정보(방)를 아직 받지 못해 카드를 만들 수 없을 때
+func (a_ ArchcanvasT) CardDocLoading() string {
+	return a_.t.render(&areaArchcanvas, "card_doc_loading", false, 0)
+}
+
+// CardNodes: 설계 카드 요약: 노드 수
+func (a_ ArchcanvasT) CardNodes(n int) string {
+	return a_.t.render(&areaArchcanvas, "card_nodes", false, 0, "n", strconv.Itoa(n))
+}
+
+// CardOpenCopyHint: 카드 안내: enter 로 카드에 든 사본을 연다
+func (a_ ArchcanvasT) CardOpenCopyHint() string {
+	return a_.t.render(&areaArchcanvas, "card_open_copy_hint", false, 0)
+}
+
+// CardOpenHint: 카드 안내: enter 로 방 문서를 연다
+func (a_ ArchcanvasT) CardOpenHint() string {
+	return a_.t.render(&areaArchcanvas, "card_open_hint", false, 0)
+}
+
+// CardReplayDiff: 다시 돌려 보기: 카드와 다른 숫자(지금 엔진의 값)
+func (a_ ArchcanvasT) CardReplayDiff(p99 int, err string, cost string) string {
+	return a_.t.render(&areaArchcanvas, "card_replay_diff", false, 0, "p99", strconv.Itoa(p99), "err", err, "cost", cost)
+}
+
+// CardReplayHint: 시뮬 카드 안내: R(shift+r) 로 같은 설계를 다시 돌려 숫자를 맞춰 본다(r 은 채팅의 리액션)
+func (a_ ArchcanvasT) CardReplayHint() string {
+	return a_.t.render(&areaArchcanvas, "card_replay_hint", false, 0)
+}
+
+// CardReplayNone: 다시 돌려 보기: 카드에 설계 사본이 없을 때
+func (a_ ArchcanvasT) CardReplayNone() string {
+	return a_.t.render(&areaArchcanvas, "card_replay_none", false, 0)
+}
+
+// CardReplaySame: 다시 돌려 보기: 카드와 같은 숫자. cost = cost_short
+func (a_ ArchcanvasT) CardReplaySame(p99 int, err string, cost string) string {
+	return a_.t.render(&areaArchcanvas, "card_replay_same", false, 0, "p99", strconv.Itoa(p99), "err", err, "cost", cost)
+}
+
+// CardSimSummary: 시뮬 카드 요약 줄. rps = 초당 요청, read = 읽기 비율 %, p50·p99 = ms, err = 에러율 %
+func (a_ ArchcanvasT) CardSimSummary(rps string, read string, p50 int, p99 int, err string) string {
+	return a_.t.render(&areaArchcanvas, "card_sim_summary", false, 0, "rps", rps, "read", read, "p50", strconv.Itoa(p50), "p99", strconv.Itoa(p99), "err", err)
+}
+
+// CardSimTitle: 채팅 시뮬 결과 카드의 첫 줄
+func (a_ ArchcanvasT) CardSimTitle(title string) string {
+	return a_.t.render(&areaArchcanvas, "card_sim_title", false, 0, "title", title)
+}
+
+// CardTooBig: 사본을 담은 카드가 16KB 를 넘을 때(보내지 않음)
+func (a_ ArchcanvasT) CardTooBig() string {
+	return a_.t.render(&areaArchcanvas, "card_too_big", false, 0)
+}
+
+// CardVersionFailed: 방 문서 카드: 카드가 가리킬 문서 버전을 남기지 못함(버전 한도·네트워크·그사이 편집)
+func (a_ ArchcanvasT) CardVersionFailed() string {
+	return a_.t.render(&areaArchcanvas, "card_version_failed", false, 0)
+}
+
+// CardVersionName: 방 문서 카드를 보낼 때 남기는 이름 버전(1..60자). title = 설계 제목(50자로 자름)
+func (a_ ArchcanvasT) CardVersionName(title string) string {
+	return a_.t.render(&areaArchcanvas, "card_version_name", false, 0, "title", title)
+}
+
+// CardVersionUnsaved: 방 문서 카드: 아직 저장되지 않은 내 편집이 있어 버전을 가리킬 수 없음
+func (a_ ArchcanvasT) CardVersionUnsaved() string {
+	return a_.t.render(&areaArchcanvas, "card_version_unsaved", false, 0)
+}
+
+// ChallengeAzBlackoutTitle: 일일 도전 시나리오 이름: az_blackout
+func (a_ ArchcanvasT) ChallengeAzBlackoutTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_az_blackout_title", false, 0)
+}
+
+// ChallengeBudgetSqueezeTitle: 일일 도전 시나리오 이름: budget_squeeze
+func (a_ ArchcanvasT) ChallengeBudgetSqueezeTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_budget_squeeze_title", false, 0)
+}
+
+// ChallengeCacheRestartTitle: 일일 도전 시나리오 이름: cache_restart
+func (a_ ArchcanvasT) ChallengeCacheRestartTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_cache_restart_title", false, 0)
+}
+
+// ChallengeClassSignupTitle: 일일 도전 시나리오 이름: class_signup
+func (a_ ArchcanvasT) ChallengeClassSignupTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_class_signup_title", false, 0)
+}
+
+// ChallengeClientMissing: 일일 도전: 시나리오의 클라이언트를 지워 시간 실행·점수를 할 수 없을 때
+func (a_ ArchcanvasT) ChallengeClientMissing() string {
+	return a_.t.render(&areaArchcanvas, "challenge_client_missing", false, 0)
+}
+
+// ChallengeCommuteMapsTitle: 일일 도전 시나리오 이름: commute_maps
+func (a_ ArchcanvasT) ChallengeCommuteMapsTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_commute_maps_title", false, 0)
+}
+
+// ChallengeConcertPresaleTitle: 일일 도전 시나리오 이름: concert_presale
+func (a_ ArchcanvasT) ChallengeConcertPresaleTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_concert_presale_title", false, 0)
+}
+
+// ChallengeDbFailoverTitle: 일일 도전 시나리오 이름: db_failover
+func (a_ ArchcanvasT) ChallengeDbFailoverTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_db_failover_title", false, 0)
+}
+
+// ChallengeFaultTargetMissing: 일일 도전: 시나리오의 예약 장애가 노리는 노드·연결·영역을 지워 시간 실행·점수를 할 수 없을 때
+func (a_ ArchcanvasT) ChallengeFaultTargetMissing() string {
+	return a_.t.render(&areaArchcanvas, "challenge_fault_target_missing", false, 0)
+}
+
+// ChallengeFlashSaleTitle: 일일 도전 시나리오 이름: flash_sale
+func (a_ ArchcanvasT) ChallengeFlashSaleTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_flash_sale_title", false, 0)
+}
+
+// ChallengeIntro: 일일 도전을 열었을 때 토스트. title = 시나리오 이름, p99 = 목표 ms, err = 목표 에러율 % 소수 한 자리, usd = 천 단위 쉼표 달러(월 예산)
+func (a_ ArchcanvasT) ChallengeIntro(title string, p99 int, err string, usd string) string {
+	return a_.t.render(&areaArchcanvas, "challenge_intro", false, 0, "title", title, "p99", strconv.Itoa(p99), "err", err, "usd", usd)
+}
+
+// ChallengeNewYearGreetingsTitle: 일일 도전 시나리오 이름: new_year_greetings
+func (a_ ArchcanvasT) ChallengeNewYearGreetingsTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_new_year_greetings_title", false, 0)
+}
+
+// ChallengeNightSettlementTitle: 일일 도전 시나리오 이름: night_settlement
+func (a_ ArchcanvasT) ChallengeNightSettlementTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_night_settlement_title", false, 0)
+}
+
+// ChallengePhotoUploadTitle: 일일 도전 시나리오 이름: photo_upload
+func (a_ ArchcanvasT) ChallengePhotoUploadTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_photo_upload_title", false, 0)
+}
+
+// ChallengeRegionOutageTitle: 일일 도전 시나리오 이름: region_outage
+func (a_ ArchcanvasT) ChallengeRegionOutageTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_region_outage_title", false, 0)
+}
+
+// ChallengeRetryStormTitle: 일일 도전 시나리오 이름: retry_storm
+func (a_ ArchcanvasT) ChallengeRetryStormTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_retry_storm_title", false, 0)
+}
+
+// ChallengeScored: 일일 도전 시간 실행이 끝났을 때 점수 토스트. kept·total = 초
+func (a_ ArchcanvasT) ChallengeScored(score int, kept int, total int) string {
+	return a_.t.render(&areaArchcanvas, "challenge_scored", false, 0, "score", strconv.Itoa(score), "kept", strconv.Itoa(kept), "total", strconv.Itoa(total))
+}
+
+// ChallengeSearchRevampTitle: 일일 도전 시나리오 이름: search_revamp
+func (a_ ArchcanvasT) ChallengeSearchRevampTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_search_revamp_title", false, 0)
+}
+
+// ChallengeSlowPaymentsTitle: 일일 도전 시나리오 이름: slow_payments
+func (a_ ArchcanvasT) ChallengeSlowPaymentsTitle() string {
+	return a_.t.render(&areaArchcanvas, "challenge_slow_payments_title", false, 0)
+}
+
+// ChallengeUnrouted: 일일 도전: 클라이언트 트래픽 일부가 LB·CDN·큐·클라이언트에서 멈춰(나가는 연결 비율 합이 모자라거나 고리) 시간 실행·점수를 할 수 없을 때
+func (a_ ArchcanvasT) ChallengeUnrouted() string {
+	return a_.t.render(&areaArchcanvas, "challenge_unrouted", false, 0)
+}
+
+// CheckAzOutsideVpc: 설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckAzOutsideVpc(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_az_outside_vpc", false, 0, "targets", targets)
+}
+
+// CheckCycle: 설계 점검 경고(cycle). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckCycle(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_cycle", false, 0, "targets", targets)
+}
+
+// CheckOk: 설계 점검에 걸린 것이 없을 때
+func (a_ ArchcanvasT) CheckOk() string {
+	return a_.t.render(&areaArchcanvas, "check_ok", false, 0)
+}
+
+// CheckPrimaryReplicaSameAz: 설계 점검 경고(primary_replica_same_az). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckPrimaryReplicaSameAz(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_primary_replica_same_az", false, 0, "targets", targets)
+}
+
+// CheckSingleAzService: 설계 점검 경고(single_az_service). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckSingleAzService(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_single_az_service", false, 0, "targets", targets)
+}
+
+// CheckSpofSingleInstance: 설계 점검 경고(spof_single_instance). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckSpofSingleInstance(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_spof_single_instance", false, 0, "targets", targets)
+}
+
+// CheckSpofSingleLb: 설계 점검 경고(spof_single_lb). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckSpofSingleLb(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_spof_single_lb", false, 0, "targets", targets)
+}
+
+// CheckUnconnected: 설계 점검 경고(unconnected). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckUnconnected(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_unconnected", false, 0, "targets", targets)
+}
+
+// CheckVpcOutsideRegion: 설계 점검 경고(vpc_outside_region). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckVpcOutsideRegion(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_vpc_outside_region", false, 0, "targets", targets)
+}
+
+// ChecksLabel: 지표 줄의 점검 머리
+func (a_ ArchcanvasT) ChecksLabel() string {
+	return a_.t.render(&areaArchcanvas, "checks_label", false, 0)
+}
+
+// ChoiceCustom: 사업자 선택지: 직접 입력(가격표 없이 시간당 가격을 적음)
+func (a_ ArchcanvasT) ChoiceCustom() string {
+	return a_.t.render(&areaArchcanvas, "choice_custom", false, 0)
+}
+
+// ChoiceNone: 선택지: 없음
+func (a_ ArchcanvasT) ChoiceNone() string {
+	return a_.t.render(&areaArchcanvas, "choice_none", false, 0)
+}
+
+// ChoiceOff: 켬/끔 칸의 끔
+func (a_ ArchcanvasT) ChoiceOff() string {
+	return a_.t.render(&areaArchcanvas, "choice_off", false, 0)
+}
+
+// ChoiceOn: 켬/끔 칸의 켬
+func (a_ ArchcanvasT) ChoiceOn() string {
+	return a_.t.render(&areaArchcanvas, "choice_on", false, 0)
+}
+
+// ChoiceRegionBox: 리전 선택지: 감싼 리전 상자를 따름
+func (a_ ArchcanvasT) ChoiceRegionBox() string {
+	return a_.t.render(&areaArchcanvas, "choice_region_box", false, 0)
+}
+
+// CommentsDeleted: 지운 댓글 자리(답글이 남은 첫 댓글)
+func (a_ ArchcanvasT) CommentsDeleted() string {
+	return a_.t.render(&areaArchcanvas, "comments_deleted", false, 0)
+}
+
+// CommentsEmpty: 댓글 패널: 댓글이 하나도 없을 때
+func (a_ ArchcanvasT) CommentsEmpty() string {
+	return a_.t.render(&areaArchcanvas, "comments_empty", false, 0)
+}
+
+// CommentsFailed: 댓글 보내기·해결 처리가 실패했을 때
+func (a_ ArchcanvasT) CommentsFailed() string {
+	return a_.t.render(&areaArchcanvas, "comments_failed", false, 0)
+}
+
+// CommentsGroupAt: 댓글 묶음 이름: 빈 자리 좌표에 단 댓글. x·y = 세계 좌표
+func (a_ ArchcanvasT) CommentsGroupAt(x int, y int) string {
+	return a_.t.render(&areaArchcanvas, "comments_group_at", false, 0, "x", strconv.Itoa(x), "y", strconv.Itoa(y))
+}
+
+// CommentsGroupUnknown: 댓글 묶음 이름: 앵커 모양을 모르는 댓글(뒤 버전이 단 것 등)
+func (a_ ArchcanvasT) CommentsGroupUnknown() string {
+	return a_.t.render(&areaArchcanvas, "comments_group_unknown", false, 0)
+}
+
+// CommentsLoadFailed: 댓글 목록을 불러오지 못했을 때(패널 안)
+func (a_ ArchcanvasT) CommentsLoadFailed() string {
+	return a_.t.render(&areaArchcanvas, "comments_load_failed", false, 0)
+}
+
+// CommentsNew: 새 댓글 입력 칸 머리. target = 댓글을 다는 곳 이름
+func (a_ ArchcanvasT) CommentsNew(target string) string {
+	return a_.t.render(&areaArchcanvas, "comments_new", false, 0, "target", target)
+}
+
+// CommentsPersonal: 개인 설계·사본에서 댓글을 달려 할 때 안내
+func (a_ ArchcanvasT) CommentsPersonal() string {
+	return a_.t.render(&areaArchcanvas, "comments_personal", false, 0)
+}
+
+// CommentsReply: 답글 입력 칸 머리. name = 첫 댓글 쓴 사람
+func (a_ ArchcanvasT) CommentsReply(name string) string {
+	return a_.t.render(&areaArchcanvas, "comments_reply", false, 0, "name", name)
+}
+
+// CommentsResolved: 해결된 댓글 묶음 표시
+func (a_ ArchcanvasT) CommentsResolved() string {
+	return a_.t.render(&areaArchcanvas, "comments_resolved", false, 0)
+}
+
+// CommentsTitle: 댓글 패널 머리. n = 아직 해결 안 된 댓글 묶음 수
+func (a_ ArchcanvasT) CommentsTitle(n int) string {
+	return a_.t.render(&areaArchcanvas, "comments_title", false, 0, "n", strconv.Itoa(n))
+}
+
+// ConnectExists: 연결하려는 두 노드가 이미 이어져 있을 때 토스트
+func (a_ ArchcanvasT) ConnectExists() string {
+	return a_.t.render(&areaArchcanvas, "connect_exists", false, 0)
+}
+
+// ConnectPick: 설정 폼의 줄: 이 노드에서 이을 대상을 목록에서 고름
+func (a_ ArchcanvasT) ConnectPick() string {
+	return a_.t.render(&areaArchcanvas, "connect_pick", false, 0)
+}
+
+// CopyNotNeeded: 개인 설계에서 사본으로 저장을 고를 때
+func (a_ ArchcanvasT) CopyNotNeeded() string {
+	return a_.t.render(&areaArchcanvas, "copy_not_needed", false, 0)
+}
+
+// CopySaved: 사본 저장 뒤 알림. name = 개인 설계 이름
+func (a_ ArchcanvasT) CopySaved(name string) string {
+	return a_.t.render(&areaArchcanvas, "copy_saved", false, 0, "name", name)
+}
+
+// CostLong: 월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월
+func (a_ ArchcanvasT) CostLong(usd string, asof string) string {
+	return a_.t.render(&areaArchcanvas, "cost_long", false, 0, "usd", usd, "asof", asof)
+}
+
+// CostShort: 월 비용 짧은 형(지표 줄·카드·요약). usd = 천 단위 쉼표 달러, asof = 가격표 기준 연월
+func (a_ ArchcanvasT) CostShort(usd string, asof string) string {
+	return a_.t.render(&areaArchcanvas, "cost_short", false, 0, "usd", usd, "asof", asof)
+}
+
+// CurveConstant: 트래픽 모양 이름: constant
+func (a_ ArchcanvasT) CurveConstant() string {
+	return a_.t.render(&areaArchcanvas, "curve_constant", false, 0)
+}
+
+// CurveRamp: 트래픽 모양 이름: ramp
+func (a_ ArchcanvasT) CurveRamp() string {
+	return a_.t.render(&areaArchcanvas, "curve_ramp", false, 0)
+}
+
+// CurveSpike: 트래픽 모양 이름: spike
+func (a_ ArchcanvasT) CurveSpike() string {
+	return a_.t.render(&areaArchcanvas, "curve_spike", false, 0)
+}
+
+// CurveWave: 트래픽 모양 이름: wave
+func (a_ ArchcanvasT) CurveWave() string {
+	return a_.t.render(&areaArchcanvas, "curve_wave", false, 0)
+}
+
+// DeletedNodeComment: 댓글 묶음 이름: 지금 설계에 없는 노드·연결·상자에 단 댓글
+func (a_ ArchcanvasT) DeletedNodeComment() string {
+	return a_.t.render(&areaArchcanvas, "deleted_node_comment", false, 0)
+}
+
+// DiskHdd: 디스크 종류: HDD
+func (a_ ArchcanvasT) DiskHdd() string {
+	return a_.t.render(&areaArchcanvas, "disk_hdd", false, 0)
+}
+
+// DiskSsd: 디스크 종류: 범용 SSD
+func (a_ ArchcanvasT) DiskSsd() string {
+	return a_.t.render(&areaArchcanvas, "disk_ssd", false, 0)
+}
+
+// DiskSsdFast: 디스크 종류: 고성능 SSD
+func (a_ ArchcanvasT) DiskSsdFast() string {
+	return a_.t.render(&areaArchcanvas, "disk_ssd_fast", false, 0)
+}
+
+// EmptyCanvas: 빈 캔버스 안내 첫 줄
+func (a_ ArchcanvasT) EmptyCanvas() string {
+	return a_.t.render(&areaArchcanvas, "empty_canvas", false, 0)
+}
+
+// EngineInstant: 머리 줄 엔진 상태: 즉시 분석
+func (a_ ArchcanvasT) EngineInstant() string {
+	return a_.t.render(&areaArchcanvas, "engine_instant", false, 0)
+}
+
+// EngineMismatch: 카드·사본의 엔진 버전이 지금과 다를 때 안내
+func (a_ ArchcanvasT) EngineMismatch() string {
+	return a_.t.render(&areaArchcanvas, "engine_mismatch", false, 0)
+}
+
+// EnginePaused: 머리 줄 엔진 상태: 시간 실행 멈춤. t·total = mm:ss
+func (a_ ArchcanvasT) EnginePaused(t string, total string) string {
+	return a_.t.render(&areaArchcanvas, "engine_paused", false, 0, "t", t, "total", total)
+}
+
+// EngineRunning: 머리 줄 엔진 상태: 시간 실행을 계산하는 중
+func (a_ ArchcanvasT) EngineRunning() string {
+	return a_.t.render(&areaArchcanvas, "engine_running", false, 0)
+}
+
+// EngineTimed: 머리 줄 엔진 상태: 시간 실행 재생 중. t·total = mm:ss, speed = 배속
+func (a_ ArchcanvasT) EngineTimed(t string, total string, speed int) string {
+	return a_.t.render(&areaArchcanvas, "engine_timed", false, 0, "t", t, "total", total, "speed", strconv.Itoa(speed))
+}
+
+// EstimateDisclaimer: 비용·숫자가 추정이라는 고지(법적 문구)
+func (a_ ArchcanvasT) EstimateDisclaimer() string {
+	return a_.t.render(&areaArchcanvas, "estimate_disclaimer", false, 0)
+}
+
+// EvBoxOff: 시간 실행 이벤트: AZ·리전 중단
+func (a_ ArchcanvasT) EvBoxOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_box_off", false, 0, "target", target)
+}
+
+// EvFailoverDone: 시간 실행 이벤트: replica 승격 끝
+func (a_ ArchcanvasT) EvFailoverDone(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_failover_done", false, 0, "target", target)
+}
+
+// EvFailoverStart: 시간 실행 이벤트: 장애 조치 시작. s = 걸리는 초
+func (a_ ArchcanvasT) EvFailoverStart(target string, s int) string {
+	return a_.t.render(&areaArchcanvas, "ev_failover_start", false, 0, "target", target, "s", strconv.Itoa(s))
+}
+
+// EvFaultEnd: 시간 실행 이벤트: 장애 끝
+func (a_ ArchcanvasT) EvFaultEnd(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_fault_end", false, 0, "target", target)
+}
+
+// EvFaultStart: 시간 실행 이벤트: 장애 시작(종류 모름). target = 대상 라벨
+func (a_ ArchcanvasT) EvFaultStart(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_fault_start", false, 0, "target", target)
+}
+
+// EvInstancesOff: 시간 실행 이벤트: 인스턴스 n대 꺼짐
+func (a_ ArchcanvasT) EvInstancesOff(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_instances_off", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvLatency: 시간 실행 이벤트: 지연 증가
+func (a_ ArchcanvasT) EvLatency(target string, ms int) string {
+	return a_.t.render(&areaArchcanvas, "ev_latency", false, 0, "target", target, "ms", strconv.Itoa(ms))
+}
+
+// EvLbReroute: 시간 실행 이벤트: LB 가 남은 대상으로 돌림. n = 남은 대상 수
+func (a_ ArchcanvasT) EvLbReroute(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_lb_reroute", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvNodeOff: 시간 실행 이벤트: 노드 꺼짐
+func (a_ ArchcanvasT) EvNodeOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_node_off", false, 0, "target", target)
+}
+
+// EvQueueDrop: 시간 실행 이벤트: 대기열이 넘쳐 버림
+func (a_ ArchcanvasT) EvQueueDrop(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_queue_drop", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvScaleIn: 시간 실행 이벤트: 자동 확장으로 줄임
+func (a_ ArchcanvasT) EvScaleIn(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_scale_in", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvScaleOut: 시간 실행 이벤트: 자동 확장으로 늘림
+func (a_ ArchcanvasT) EvScaleOut(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_scale_out", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvWritesFailing: 시간 실행 이벤트: 쓰기 실패(장애 조치 대상 없음)
+func (a_ ArchcanvasT) EvWritesFailing(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_writes_failing", false, 0, "target", target)
+}
+
+// ExportCopied: 클립보드로 보낸 뒤 알림
+func (a_ ArchcanvasT) ExportCopied() string {
+	return a_.t.render(&areaArchcanvas, "export_copied", false, 0)
+}
+
+// ExportD2: 내보내기 형식: D2
+func (a_ ArchcanvasT) ExportD2() string {
+	return a_.t.render(&areaArchcanvas, "export_d2", false, 0)
+}
+
+// ExportHint: 내보내기 키 안내
+func (a_ ArchcanvasT) ExportHint() string {
+	return a_.t.render(&areaArchcanvas, "export_hint", false, 0)
+}
+
+// ExportJson: 내보내기 형식: 설계 JSON
+func (a_ ArchcanvasT) ExportJson() string {
+	return a_.t.render(&areaArchcanvas, "export_json", false, 0)
+}
+
+// ExportMermaid: 내보내기 형식: Mermaid
+func (a_ ArchcanvasT) ExportMermaid() string {
+	return a_.t.render(&areaArchcanvas, "export_mermaid", false, 0)
+}
+
+// ExportOverwriteTitle: 덮어쓰기 확인 제목. name = 파일 이름
+func (a_ ArchcanvasT) ExportOverwriteTitle(name string) string {
+	return a_.t.render(&areaArchcanvas, "export_overwrite_title", false, 0, "name", name)
+}
+
+// ExportOverwriteYes: 덮어쓰기 확인 버튼
+func (a_ ArchcanvasT) ExportOverwriteYes() string {
+	return a_.t.render(&areaArchcanvas, "export_overwrite_yes", false, 0)
+}
+
+// ExportPath: 저장될 파일 경로. path = 경로
+func (a_ ArchcanvasT) ExportPath(path string) string {
+	return a_.t.render(&areaArchcanvas, "export_path", false, 0, "path", path)
+}
+
+// ExportRights: 내보낸 파일의 권리 고지(법적 문구, 내보내기 대화상자·도움말)
+func (a_ ArchcanvasT) ExportRights() string {
+	return a_.t.render(&areaArchcanvas, "export_rights", false, 0)
+}
+
+// ExportSaveFailed: 파일로 저장하지 못했을 때
+func (a_ ArchcanvasT) ExportSaveFailed() string {
+	return a_.t.render(&areaArchcanvas, "export_save_failed", false, 0)
+}
+
+// ExportSaved: 파일로 저장한 뒤 알림. path = 경로
+func (a_ ArchcanvasT) ExportSaved(path string) string {
+	return a_.t.render(&areaArchcanvas, "export_saved", false, 0, "path", path)
+}
+
+// ExportTerraform: 내보내기 형식: Terraform
+func (a_ ArchcanvasT) ExportTerraform() string {
+	return a_.t.render(&areaArchcanvas, "export_terraform", false, 0)
+}
+
+// ExportText120: 내보내기 형식: 글자 스냅숏 120칸
+func (a_ ArchcanvasT) ExportText120() string {
+	return a_.t.render(&areaArchcanvas, "export_text120", false, 0)
+}
+
+// ExportText80: 내보내기 형식: 글자 스냅숏 80칸
+func (a_ ArchcanvasT) ExportText80() string {
+	return a_.t.render(&areaArchcanvas, "export_text80", false, 0)
+}
+
+// ExportTitle: 내보내기 대화상자 제목
+func (a_ ArchcanvasT) ExportTitle() string {
+	return a_.t.render(&areaArchcanvas, "export_title", false, 0)
+}
+
+// ExportToClipboard: 내보내기 대상: 클립보드
+func (a_ ArchcanvasT) ExportToClipboard() string {
+	return a_.t.render(&areaArchcanvas, "export_to_clipboard", false, 0)
+}
+
+// ExportToFile: 내보내기 대상: 파일
+func (a_ ArchcanvasT) ExportToFile() string {
+	return a_.t.render(&areaArchcanvas, "export_to_file", false, 0)
+}
+
+// ExportUseFile: 클립보드 한도(256KB)를 넘을 때
+func (a_ ArchcanvasT) ExportUseFile() string {
+	return a_.t.render(&areaArchcanvas, "export_use_file", false, 0)
+}
+
+// ExportWhere: 내보내기 대상 고르기 머리
+func (a_ ArchcanvasT) ExportWhere() string {
+	return a_.t.render(&areaArchcanvas, "export_where", false, 0)
+}
+
+// FaultAddMs: 장애 메뉴: 더할 지연 ms 입력 머리
+func (a_ ArchcanvasT) FaultAddMs() string {
+	return a_.t.render(&areaArchcanvas, "fault_add_ms", false, 0)
+}
+
+// FaultAt: 장애 메뉴: 시간 실행의 그 시각에. t = mm:ss 입력
+func (a_ ArchcanvasT) FaultAt(t string) string {
+	return a_.t.render(&areaArchcanvas, "fault_at", false, 0, "t", t)
+}
+
+// FaultAtHint: 장애 메뉴: 시각을 잘못 적었을 때
+func (a_ ArchcanvasT) FaultAtHint() string {
+	return a_.t.render(&areaArchcanvas, "fault_at_hint", false, 0)
+}
+
+// FaultAzOff: 장애 메뉴: AZ 끄기. target = AZ 라벨
+func (a_ ArchcanvasT) FaultAzOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_az_off", false, 0, "target", target)
+}
+
+// FaultCount: 장애 메뉴: 끌 인스턴스 수 입력 머리
+func (a_ ArchcanvasT) FaultCount() string {
+	return a_.t.render(&areaArchcanvas, "fault_count", false, 0)
+}
+
+// FaultInstancesOff: 장애 메뉴: 인스턴스 몇 대 끄기. target = 대상 라벨
+func (a_ ArchcanvasT) FaultInstancesOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_instances_off", false, 0, "target", target)
+}
+
+// FaultLatency: 장애 메뉴: 지연 더하기. target = 대상 라벨
+func (a_ ArchcanvasT) FaultLatency(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_latency", false, 0, "target", target)
+}
+
+// FaultMenuTitle: 장애 메뉴 머리
+func (a_ ArchcanvasT) FaultMenuTitle() string {
+	return a_.t.render(&areaArchcanvas, "fault_menu_title", false, 0)
+}
+
+// FaultNodeOff: 장애 메뉴: 노드 끄기. target = 대상 라벨
+func (a_ ArchcanvasT) FaultNodeOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_node_off", false, 0, "target", target)
+}
+
+// FaultNone: 고른 것에 넣을 장애가 없을 때 토스트
+func (a_ ArchcanvasT) FaultNone() string {
+	return a_.t.render(&areaArchcanvas, "fault_none", false, 0)
+}
+
+// FaultNow: 장애 메뉴: 시간 실행 시작부터
+func (a_ ArchcanvasT) FaultNow() string {
+	return a_.t.render(&areaArchcanvas, "fault_now", false, 0)
+}
+
+// FaultRegionOff: 장애 메뉴: 리전 끄기. target = 리전 라벨
+func (a_ ArchcanvasT) FaultRegionOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_region_off", false, 0, "target", target)
+}
+
+// FaultWhen: 장애 메뉴: 언제 넣을지 고르는 머리
+func (a_ ArchcanvasT) FaultWhen() string {
+	return a_.t.render(&areaArchcanvas, "fault_when", false, 0)
+}
+
+// FieldAutoscale: 설정 칸: 자동 확장 켬/끔
+func (a_ ArchcanvasT) FieldAutoscale() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale", false, 0)
+}
+
+// FieldAutoscaleMax: 설정 칸: 자동 확장 최대 대수
+func (a_ ArchcanvasT) FieldAutoscaleMax() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale_max", false, 0)
+}
+
+// FieldAutoscaleMin: 설정 칸: 자동 확장 최소 대수
+func (a_ ArchcanvasT) FieldAutoscaleMin() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale_min", false, 0)
+}
+
+// FieldAutoscaleTarget: 설정 칸: 자동 확장 목표 CPU 사용률 %
+func (a_ ArchcanvasT) FieldAutoscaleTarget() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale_target", false, 0)
+}
+
+// FieldCooldown: 설정 칸: 자동 확장 쉬는 시간(초)
+func (a_ ArchcanvasT) FieldCooldown() string {
+	return a_.t.render(&areaArchcanvas, "field_cooldown", false, 0)
+}
+
+// FieldCpuCores: 설정 칸: 인스턴스 하나의 vCPU 수
+func (a_ ArchcanvasT) FieldCpuCores() string {
+	return a_.t.render(&areaArchcanvas, "field_cpu_cores", false, 0)
+}
+
+// FieldCpuPerReq: 설정 칸: 요청 하나에 드는 CPU 시간(코어 1개 기준, 마이크로초)
+func (a_ ArchcanvasT) FieldCpuPerReq() string {
+	return a_.t.render(&areaArchcanvas, "field_cpu_per_req", false, 0)
+}
+
+// FieldCurve: 트래픽 칸: 시간에 따른 모양
+func (a_ ArchcanvasT) FieldCurve() string {
+	return a_.t.render(&areaArchcanvas, "field_curve", false, 0)
+}
+
+// FieldCustomHourly: 설정 칸: 직접 입력 사업자의 시간당 가격(센트)
+func (a_ ArchcanvasT) FieldCustomHourly() string {
+	return a_.t.render(&areaArchcanvas, "field_custom_hourly", false, 0)
+}
+
+// FieldDiskIops: 설정 칸: 디스크 IOPS
+func (a_ ArchcanvasT) FieldDiskIops() string {
+	return a_.t.render(&areaArchcanvas, "field_disk_iops", false, 0)
+}
+
+// FieldDiskSize: 설정 칸: 디스크 크기 GB
+func (a_ ArchcanvasT) FieldDiskSize() string {
+	return a_.t.render(&areaArchcanvas, "field_disk_size", false, 0)
+}
+
+// FieldDiskType: 설정 칸: 디스크 종류
+func (a_ ArchcanvasT) FieldDiskType() string {
+	return a_.t.render(&areaArchcanvas, "field_disk_type", false, 0)
+}
+
+// FieldDuration: 설정 칸: 시간 실행 길이(초)
+func (a_ ArchcanvasT) FieldDuration() string {
+	return a_.t.render(&areaArchcanvas, "field_duration", false, 0)
+}
+
+// FieldEdgeRead: 연결 칸: 읽기 경로 비율 %
+func (a_ ArchcanvasT) FieldEdgeRead() string {
+	return a_.t.render(&areaArchcanvas, "field_edge_read", false, 0)
+}
+
+// FieldEdgeWrite: 연결 칸: 쓰기 경로 비율 %
+func (a_ ArchcanvasT) FieldEdgeWrite() string {
+	return a_.t.render(&areaArchcanvas, "field_edge_write", false, 0)
+}
+
+// FieldErrorRate: 설정 칸: 외부 서비스 에러율 ‰
+func (a_ ArchcanvasT) FieldErrorRate() string {
+	return a_.t.render(&areaArchcanvas, "field_error_rate", false, 0)
+}
+
+// FieldFailoverS: 설정 칸: 장애 조치 시간(초)
+func (a_ ArchcanvasT) FieldFailoverS() string {
+	return a_.t.render(&areaArchcanvas, "field_failover_s", false, 0)
+}
+
+// FieldFailoverTo: 설정 칸: 장애 조치 대상(replica)
+func (a_ ArchcanvasT) FieldFailoverTo() string {
+	return a_.t.render(&areaArchcanvas, "field_failover_to", false, 0)
+}
+
+// FieldFixedLatency: 설정 칸: 외부 서비스 고정 지연 ms
+func (a_ ArchcanvasT) FieldFixedLatency() string {
+	return a_.t.render(&areaArchcanvas, "field_fixed_latency", false, 0)
+}
+
+// FieldHealth: 설정 칸: 건강 검사 간격(초)
+func (a_ ArchcanvasT) FieldHealth() string {
+	return a_.t.render(&areaArchcanvas, "field_health", false, 0)
+}
+
+// FieldHit: 설정 칸: 적중률 %
+func (a_ ArchcanvasT) FieldHit() string {
+	return a_.t.render(&areaArchcanvas, "field_hit", false, 0)
+}
+
+// FieldIndexWrite: 설정 칸: search 인덱싱 쓰기 비율 ‰
+func (a_ ArchcanvasT) FieldIndexWrite() string {
+	return a_.t.render(&areaArchcanvas, "field_index_write", false, 0)
+}
+
+// FieldInstanceType: 설정 칸: 인스턴스 종류
+func (a_ ArchcanvasT) FieldInstanceType() string {
+	return a_.t.render(&areaArchcanvas, "field_instance_type", false, 0)
+}
+
+// FieldInstances: 설정 칸: 인스턴스 수
+func (a_ ArchcanvasT) FieldInstances() string {
+	return a_.t.render(&areaArchcanvas, "field_instances", false, 0)
+}
+
+// FieldLabel: 설정 칸: 라벨
+func (a_ ArchcanvasT) FieldLabel() string {
+	return a_.t.render(&areaArchcanvas, "field_label", false, 0)
+}
+
+// FieldLatency: 연결 칸: 기본 지연 µs(-1 = 위치에 따른 기본값)
+func (a_ ArchcanvasT) FieldLatency() string {
+	return a_.t.render(&areaArchcanvas, "field_latency", false, 0)
+}
+
+// FieldLbAlgo: 설정 칸: LB 분산 방식
+func (a_ ArchcanvasT) FieldLbAlgo() string {
+	return a_.t.render(&areaArchcanvas, "field_lb_algo", false, 0)
+}
+
+// FieldMaxRps: 설정 칸: 초당 처리 한도
+func (a_ ArchcanvasT) FieldMaxRps() string {
+	return a_.t.render(&areaArchcanvas, "field_max_rps", false, 0)
+}
+
+// FieldMbps: 연결 칸: 대역폭 Mbps(0 = 양 끝 NIC)
+func (a_ ArchcanvasT) FieldMbps() string {
+	return a_.t.render(&areaArchcanvas, "field_mbps", false, 0)
+}
+
+// FieldMemory: 설정 칸: 인스턴스 하나의 메모리(GiB 정수로 입력)
+func (a_ ArchcanvasT) FieldMemory() string {
+	return a_.t.render(&areaArchcanvas, "field_memory", false, 0)
+}
+
+// FieldNic: 설정 칸: 인스턴스 하나의 네트워크 대역폭 Mbps
+func (a_ ArchcanvasT) FieldNic() string {
+	return a_.t.render(&areaArchcanvas, "field_nic", false, 0)
+}
+
+// FieldPool: 설정 칸: DB 연결 풀 상한
+func (a_ ArchcanvasT) FieldPool() string {
+	return a_.t.render(&areaArchcanvas, "field_pool", false, 0)
+}
+
+// FieldProtocol: 연결 칸: 프로토콜
+func (a_ ArchcanvasT) FieldProtocol() string {
+	return a_.t.render(&areaArchcanvas, "field_protocol", false, 0)
+}
+
+// FieldProvider: 설정 칸: 사업자
+func (a_ ArchcanvasT) FieldProvider() string {
+	return a_.t.render(&areaArchcanvas, "field_provider", false, 0)
+}
+
+// FieldQueueCap: 설정 칸: 대기열 상한(이보다 길면 버림)
+func (a_ ArchcanvasT) FieldQueueCap() string {
+	return a_.t.render(&areaArchcanvas, "field_queue_cap", false, 0)
+}
+
+// FieldReadIops: 설정 칸: 읽기 요청 하나가 쓰는 IOPS × 1000
+func (a_ ArchcanvasT) FieldReadIops() string {
+	return a_.t.render(&areaArchcanvas, "field_read_iops", false, 0)
+}
+
+// FieldReadPct: 트래픽 칸: 읽기 비율 %
+func (a_ ArchcanvasT) FieldReadPct() string {
+	return a_.t.render(&areaArchcanvas, "field_read_pct", false, 0)
+}
+
+// FieldRegion: 설정 칸: 리전
+func (a_ ArchcanvasT) FieldRegion() string {
+	return a_.t.render(&areaArchcanvas, "field_region", false, 0)
+}
+
+// FieldRegionCode: 상자 칸: 리전 코드
+func (a_ ArchcanvasT) FieldRegionCode() string {
+	return a_.t.render(&areaArchcanvas, "field_region_code", false, 0)
+}
+
+// FieldReplLag: 설정 칸: 복제 지연 ms
+func (a_ ArchcanvasT) FieldReplLag() string {
+	return a_.t.render(&areaArchcanvas, "field_repl_lag", false, 0)
+}
+
+// FieldReqKb: 트래픽 칸: 요청 크기 KB
+func (a_ ArchcanvasT) FieldReqKb() string {
+	return a_.t.render(&areaArchcanvas, "field_req_kb", false, 0)
+}
+
+// FieldRespKb: 트래픽 칸: 응답 크기 KB
+func (a_ ArchcanvasT) FieldRespKb() string {
+	return a_.t.render(&areaArchcanvas, "field_resp_kb", false, 0)
+}
+
+// FieldRetention: 설정 칸: queue 보관 한도(메시지 수)
+func (a_ ArchcanvasT) FieldRetention() string {
+	return a_.t.render(&areaArchcanvas, "field_retention", false, 0)
+}
+
+// FieldRetries: 설정 칸: 실패 시 재시도 횟수
+func (a_ ArchcanvasT) FieldRetries() string {
+	return a_.t.render(&areaArchcanvas, "field_retries", false, 0)
+}
+
+// FieldRps: 트래픽 칸: 초당 요청 수
+func (a_ ArchcanvasT) FieldRps() string {
+	return a_.t.render(&areaArchcanvas, "field_rps", false, 0)
+}
+
+// FieldSeed: 설정 칸: 설계의 난수 시드
+func (a_ ArchcanvasT) FieldSeed() string {
+	return a_.t.render(&areaArchcanvas, "field_seed", false, 0)
+}
+
+// FieldSpikeAt: 트래픽 칸: 급증 시작 초
+func (a_ ArchcanvasT) FieldSpikeAt() string {
+	return a_.t.render(&areaArchcanvas, "field_spike_at", false, 0)
+}
+
+// FieldSpikeDur: 트래픽 칸: 급증 길이 초
+func (a_ ArchcanvasT) FieldSpikeDur() string {
+	return a_.t.render(&areaArchcanvas, "field_spike_dur", false, 0)
+}
+
+// FieldSpikeMult: 트래픽 칸: 급증 배수
+func (a_ ArchcanvasT) FieldSpikeMult() string {
+	return a_.t.render(&areaArchcanvas, "field_spike_mult", false, 0)
+}
+
+// FieldTimeout: 설정 칸: 타임아웃 ms
+func (a_ ArchcanvasT) FieldTimeout() string {
+	return a_.t.render(&areaArchcanvas, "field_timeout", false, 0)
+}
+
+// FieldTtl: 설정 칸: 만료 초
+func (a_ ArchcanvasT) FieldTtl() string {
+	return a_.t.render(&areaArchcanvas, "field_ttl", false, 0)
+}
+
+// FieldWarmup: 설정 칸: 새 인스턴스 준비 시간(초)
+func (a_ ArchcanvasT) FieldWarmup() string {
+	return a_.t.render(&areaArchcanvas, "field_warmup", false, 0)
+}
+
+// FieldWorkingSet: 설정 칸: 작업 데이터 MiB
+func (a_ ArchcanvasT) FieldWorkingSet() string {
+	return a_.t.render(&areaArchcanvas, "field_working_set", false, 0)
+}
+
+// FieldWriteIops: 설정 칸: 쓰기 요청 하나가 쓰는 IOPS × 1000
+func (a_ ArchcanvasT) FieldWriteIops() string {
+	return a_.t.render(&areaArchcanvas, "field_write_iops", false, 0)
+}
+
+// FilesBadName: 파일 이름으로 쓸 수 없는 이름
+func (a_ ArchcanvasT) FilesBadName() string {
+	return a_.t.render(&areaArchcanvas, "files_bad_name", false, 0)
+}
+
+// FilesDeleteBody: 지우기 확인 본문
+func (a_ ArchcanvasT) FilesDeleteBody() string {
+	return a_.t.render(&areaArchcanvas, "files_delete_body", false, 0)
+}
+
+// FilesDeleteTitle: 지우기 확인 제목. name = 설계 이름
+func (a_ ArchcanvasT) FilesDeleteTitle(name string) string {
+	return a_.t.render(&areaArchcanvas, "files_delete_title", false, 0, "name", name)
+}
+
+// FilesDeleteYes: 지우기 확인 버튼
+func (a_ ArchcanvasT) FilesDeleteYes() string {
+	return a_.t.render(&areaArchcanvas, "files_delete_yes", false, 0)
+}
+
+// FilesDeleted: 지운 뒤 알림. name = 설계 이름
+func (a_ ArchcanvasT) FilesDeleted(name string) string {
+	return a_.t.render(&areaArchcanvas, "files_deleted", false, 0, "name", name)
+}
+
+// FilesEmpty: 개인 설계가 하나도 없을 때
+func (a_ ArchcanvasT) FilesEmpty() string {
+	return a_.t.render(&areaArchcanvas, "files_empty", false, 0)
+}
+
+// FilesFailed: 설계 폴더를 읽거나 쓰지 못했을 때
+func (a_ ArchcanvasT) FilesFailed() string {
+	return a_.t.render(&areaArchcanvas, "files_failed", false, 0)
+}
+
+// FilesHint: 개인 설계 목록 키 안내
+func (a_ ArchcanvasT) FilesHint() string {
+	return a_.t.render(&areaArchcanvas, "files_hint", false, 0)
+}
+
+// FilesImportPrompt: JSON 가져오기 경로 입력 칸 머리
+func (a_ ArchcanvasT) FilesImportPrompt() string {
+	return a_.t.render(&areaArchcanvas, "files_import_prompt", false, 0)
+}
+
+// FilesInputHint: 입력 칸 키 안내
+func (a_ ArchcanvasT) FilesInputHint() string {
+	return a_.t.render(&areaArchcanvas, "files_input_hint", false, 0)
+}
+
+// FilesIsOpen: 열려 있는 설계를 바꾸거나 지우려 할 때
+func (a_ ArchcanvasT) FilesIsOpen() string {
+	return a_.t.render(&areaArchcanvas, "files_is_open", false, 0)
+}
+
+// FilesNameExists: 같은 이름의 설계가 있을 때
+func (a_ ArchcanvasT) FilesNameExists() string {
+	return a_.t.render(&areaArchcanvas, "files_name_exists", false, 0)
+}
+
+// FilesNewPrompt: 새 설계 이름 입력 칸 머리
+func (a_ ArchcanvasT) FilesNewPrompt() string {
+	return a_.t.render(&areaArchcanvas, "files_new_prompt", false, 0)
+}
+
+// FilesNodes: 개인 설계 목록 줄: 노드 수
+func (a_ ArchcanvasT) FilesNodes(n int) string {
+	return a_.t.render(&areaArchcanvas, "files_nodes", false, 0, "n", strconv.Itoa(n))
+}
+
+// FilesRenamePrompt: 이름 바꾸기 입력 칸 머리. name = 지금 이름
+func (a_ ArchcanvasT) FilesRenamePrompt(name string) string {
+	return a_.t.render(&areaArchcanvas, "files_rename_prompt", false, 0, "name", name)
+}
+
+// FilesTitle: 개인 설계 열기 대화상자 제목
+func (a_ ArchcanvasT) FilesTitle() string {
+	return a_.t.render(&areaArchcanvas, "files_title", false, 0)
+}
+
+// FindNone: 찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말
+func (a_ ArchcanvasT) FindNone(q string) string {
+	return a_.t.render(&areaArchcanvas, "find_none", false, 0, "q", q)
+}
+
+// HelpModelIntro: 도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)
+func (a_ ArchcanvasT) HelpModelIntro() string {
+	return a_.t.render(&areaArchcanvas, "help_model_intro", false, 0)
+}
+
+// HelpTitle: 도움말 첫 줄 제목
+func (a_ ArchcanvasT) HelpTitle() string {
+	return a_.t.render(&areaArchcanvas, "help_title", false, 0)
+}
+
+// HourlyPrice: 설정 패널: 인스턴스 종류의 시간당 가격. usd = 달러(소수), asof = 가격표 기준 연월
+func (a_ ArchcanvasT) HourlyPrice(usd string, asof string) string {
+	return a_.t.render(&areaArchcanvas, "hourly_price", false, 0, "usd", usd, "asof", asof)
+}
+
+// ImportDone: 가져온 뒤 알림. name = 저장한 이름
+func (a_ ArchcanvasT) ImportDone(name string) string {
+	return a_.t.render(&areaArchcanvas, "import_done", false, 0, "name", name)
+}
+
+// ImportInvalid: 가져올 설계가 검사에 걸렸을 때. issue = 경로: 코드
+func (a_ ArchcanvasT) ImportInvalid(issue string) string {
+	return a_.t.render(&areaArchcanvas, "import_invalid", false, 0, "issue", issue)
+}
+
+// ImportReadFailed: 가져올 파일을 읽지 못했을 때
+func (a_ ArchcanvasT) ImportReadFailed() string {
+	return a_.t.render(&areaArchcanvas, "import_read_failed", false, 0)
+}
+
+// ImportSyntax: 가져올 파일이 JSON 객체가 아닐 때
+func (a_ ArchcanvasT) ImportSyntax() string {
+	return a_.t.render(&areaArchcanvas, "import_syntax", false, 0)
+}
+
+// ImportTooLarge: 가져올 파일이 1MB 를 넘을 때
+func (a_ ArchcanvasT) ImportTooLarge() string {
+	return a_.t.render(&areaArchcanvas, "import_too_large", false, 0)
+}
+
+// ImportVersion: 가져올 파일의 schema_version 이 다를 때
+func (a_ ArchcanvasT) ImportVersion() string {
+	return a_.t.render(&areaArchcanvas, "import_version", false, 0)
+}
+
+// InvalidValue: 설정 칸 값을 설계가 받지 않을 때(라벨 너무 김·금지 문자·최소 > 최대)
+func (a_ ArchcanvasT) InvalidValue() string {
+	return a_.t.render(&areaArchcanvas, "invalid_value", false, 0)
+}
+
+// KeyAdd: 키 안내: 부품 팔레트에서 추가
+func (a_ ArchcanvasT) KeyAdd() string {
+	return a_.t.render(&areaArchcanvas, "key_add", false, 0)
+}
+
+// KeyArrange: 키 안내: 자동 정리
+func (a_ ArchcanvasT) KeyArrange() string {
+	return a_.t.render(&areaArchcanvas, "key_arrange", false, 0)
+}
+
+// KeyCancel: 키 안내: 취소
+func (a_ ArchcanvasT) KeyCancel() string {
+	return a_.t.render(&areaArchcanvas, "key_cancel", false, 0)
+}
+
+// KeyChecks: 키 안내: 점검 줄 펼치기
+func (a_ ArchcanvasT) KeyChecks() string {
+	return a_.t.render(&areaArchcanvas, "key_checks", false, 0)
+}
+
+// KeyComment: 키 안내: C — 고른 곳(없으면 화면 가운데)에 댓글
+func (a_ ArchcanvasT) KeyComment() string {
+	return a_.t.render(&areaArchcanvas, "key_comment", false, 0)
+}
+
+// KeyConfirm: 키 안내: 확정
+func (a_ ArchcanvasT) KeyConfirm() string {
+	return a_.t.render(&areaArchcanvas, "key_confirm", false, 0)
+}
+
+// KeyConnect: 키 안내: 연결 모드
+func (a_ ArchcanvasT) KeyConnect() string {
+	return a_.t.render(&areaArchcanvas, "key_connect", false, 0)
+}
+
+// KeyDelete: 키 안내: 삭제(확인 없음)
+func (a_ ArchcanvasT) KeyDelete() string {
+	return a_.t.render(&areaArchcanvas, "key_delete", false, 0)
+}
+
+// KeyEdit: 키 안내: 설정 칸 고치기
+func (a_ ArchcanvasT) KeyEdit() string {
+	return a_.t.render(&areaArchcanvas, "key_edit", false, 0)
+}
+
+// KeyFault: 키 안내: 장애 메뉴
+func (a_ ArchcanvasT) KeyFault() string {
+	return a_.t.render(&areaArchcanvas, "key_fault", false, 0)
+}
+
+// KeyFind: 키 안내: 노드 찾기
+func (a_ ArchcanvasT) KeyFind() string {
+	return a_.t.render(&areaArchcanvas, "key_find", false, 0)
+}
+
+// KeyFit: 키 안내: 선택한 것으로 화면 맞춤
+func (a_ ArchcanvasT) KeyFit() string {
+	return a_.t.render(&areaArchcanvas, "key_fit", false, 0)
+}
+
+// KeyHelp: 키 안내: 이 도구의 도움말
+func (a_ ArchcanvasT) KeyHelp() string {
+	return a_.t.render(&areaArchcanvas, "key_help", false, 0)
+}
+
+// KeyMove: 키 안내: 선택한 것을 옮기기(옮기기 모드)
+func (a_ ArchcanvasT) KeyMove() string {
+	return a_.t.render(&areaArchcanvas, "key_move", false, 0)
+}
+
+// KeyMulti: 키 안내: 여러 개 선택
+func (a_ ArchcanvasT) KeyMulti() string {
+	return a_.t.render(&areaArchcanvas, "key_multi", false, 0)
+}
+
+// KeyPan: 키 안내: 화면 이동
+func (a_ ArchcanvasT) KeyPan() string {
+	return a_.t.render(&areaArchcanvas, "key_pan", false, 0)
+}
+
+// KeyPanel: 키 안내: 설정 패널로
+func (a_ ArchcanvasT) KeyPanel() string {
+	return a_.t.render(&areaArchcanvas, "key_panel", false, 0)
+}
+
+// KeyPick: 키 안내: 목록에서 고르기
+func (a_ ArchcanvasT) KeyPick() string {
+	return a_.t.render(&areaArchcanvas, "key_pick", false, 0)
+}
+
+// KeyRedo: 키 안내: 다시하기
+func (a_ ArchcanvasT) KeyRedo() string {
+	return a_.t.render(&areaArchcanvas, "key_redo", false, 0)
+}
+
+// KeyReply: 키 안내: 댓글 패널의 enter — 답글
+func (a_ ArchcanvasT) KeyReply() string {
+	return a_.t.render(&areaArchcanvas, "key_reply", false, 0)
+}
+
+// KeyResolve: 키 안내: 댓글 패널의 x — 해결·다시 열기
+func (a_ ArchcanvasT) KeyResolve() string {
+	return a_.t.render(&areaArchcanvas, "key_resolve", false, 0)
+}
+
+// KeyRun: 키 안내: 시간 실행 시작·정지
+func (a_ ArchcanvasT) KeyRun() string {
+	return a_.t.render(&areaArchcanvas, "key_run", false, 0)
+}
+
+// KeySelect: 키 안내: 가장 가까운 노드로 선택 이동
+func (a_ ArchcanvasT) KeySelect() string {
+	return a_.t.render(&areaArchcanvas, "key_select", false, 0)
+}
+
+// KeySend: 키 안내: 댓글 입력의 enter — 보내기
+func (a_ ArchcanvasT) KeySend() string {
+	return a_.t.render(&areaArchcanvas, "key_send", false, 0)
+}
+
+// KeySpeed: 키 안내: 시간 실행 배속
+func (a_ ArchcanvasT) KeySpeed() string {
+	return a_.t.render(&areaArchcanvas, "key_speed", false, 0)
+}
+
+// KeyStep: 키 안내: 선택한 것을 격자 한 칸씩 옮기기
+func (a_ ArchcanvasT) KeyStep() string {
+	return a_.t.render(&areaArchcanvas, "key_step", false, 0)
+}
+
+// KeyTime: 키 안내: 시간 실행이 멈췄을 때 ←/→ 로 1초씩
+func (a_ ArchcanvasT) KeyTime() string {
+	return a_.t.render(&areaArchcanvas, "key_time", false, 0)
+}
+
+// KeyToggle: 키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기
+func (a_ ArchcanvasT) KeyToggle() string {
+	return a_.t.render(&areaArchcanvas, "key_toggle", false, 0)
+}
+
+// KeyUndo: 키 안내: 되돌리기
+func (a_ ArchcanvasT) KeyUndo() string {
+	return a_.t.render(&areaArchcanvas, "key_undo", false, 0)
+}
+
+// KeyView: 키 안내: 캔버스·목록 보기 바꾸기
+func (a_ ArchcanvasT) KeyView() string {
+	return a_.t.render(&areaArchcanvas, "key_view", false, 0)
+}
+
+// KeyWrap: 키 안내: 선택한 노드를 새 상자로 감싸기
+func (a_ ArchcanvasT) KeyWrap() string {
+	return a_.t.render(&areaArchcanvas, "key_wrap", false, 0)
+}
+
+// KeyZoom: 키 안내: 확대 단계
+func (a_ ArchcanvasT) KeyZoom() string {
+	return a_.t.render(&areaArchcanvas, "key_zoom", false, 0)
+}
+
+// KickedNotice: 방 설계에서 내보내졌을 때
+func (a_ ArchcanvasT) KickedNotice() string {
+	return a_.t.render(&areaArchcanvas, "kicked_notice", false, 0)
+}
+
+// KickedPending: 내보내질 때 보내지 못한 편집이 있을 때. n = 편집 수
+func (a_ ArchcanvasT) KickedPending(n int) string {
+	return a_.t.render(&areaArchcanvas, "kicked_pending", false, 0, "n", strconv.Itoa(n))
+}
+
+// KindApi: 부품 이름: api(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindApi() string {
+	return a_.t.render(&areaArchcanvas, "kind_api", false, 0)
+}
+
+// KindCache: 부품 이름: cache(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindCache() string {
+	return a_.t.render(&areaArchcanvas, "kind_cache", false, 0)
+}
+
+// KindCdn: 부품 이름: cdn(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindCdn() string {
+	return a_.t.render(&areaArchcanvas, "kind_cdn", false, 0)
+}
+
+// KindClient: 부품 이름: client(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindClient() string {
+	return a_.t.render(&areaArchcanvas, "kind_client", false, 0)
+}
+
+// KindDbPrimary: 부품 이름: db_primary(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindDbPrimary() string {
+	return a_.t.render(&areaArchcanvas, "kind_db_primary", false, 0)
+}
+
+// KindDbReplica: 부품 이름: db_replica(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindDbReplica() string {
+	return a_.t.render(&areaArchcanvas, "kind_db_replica", false, 0)
+}
+
+// KindExternal: 부품 이름: external(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindExternal() string {
+	return a_.t.render(&areaArchcanvas, "kind_external", false, 0)
+}
+
+// KindLb: 부품 이름: lb(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindLb() string {
+	return a_.t.render(&areaArchcanvas, "kind_lb", false, 0)
+}
+
+// KindObjectStorage: 부품 이름: object_storage(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindObjectStorage() string {
+	return a_.t.render(&areaArchcanvas, "kind_object_storage", false, 0)
+}
+
+// KindQueue: 부품 이름: queue(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindQueue() string {
+	return a_.t.render(&areaArchcanvas, "kind_queue", false, 0)
+}
+
+// KindSearch: 부품 이름: search(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindSearch() string {
+	return a_.t.render(&areaArchcanvas, "kind_search", false, 0)
+}
+
+// KindWorker: 부품 이름: worker(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindWorker() string {
+	return a_.t.render(&areaArchcanvas, "kind_worker", false, 0)
+}
+
+// LbLeastConn: 분산 방식: 최소 연결
+func (a_ ArchcanvasT) LbLeastConn() string {
+	return a_.t.render(&areaArchcanvas, "lb_least_conn", false, 0)
+}
+
+// LbRoundRobin: 분산 방식: 균등
+func (a_ ArchcanvasT) LbRoundRobin() string {
+	return a_.t.render(&areaArchcanvas, "lb_round_robin", false, 0)
+}
+
+// LimitCpu: 병목 자원 이름: cpu
+func (a_ ArchcanvasT) LimitCpu() string {
+	return a_.t.render(&areaArchcanvas, "limit_cpu", false, 0)
+}
+
+// LimitExtLimit: 병목 자원 이름: ext_limit
+func (a_ ArchcanvasT) LimitExtLimit() string {
+	return a_.t.render(&areaArchcanvas, "limit_ext_limit", false, 0)
+}
+
+// LimitIops: 병목 자원 이름: iops
+func (a_ ArchcanvasT) LimitIops() string {
+	return a_.t.render(&areaArchcanvas, "limit_iops", false, 0)
+}
+
+// LimitLink: 병목 자원 이름: link
+func (a_ ArchcanvasT) LimitLink() string {
+	return a_.t.render(&areaArchcanvas, "limit_link", false, 0)
+}
+
+// LimitNic: 병목 자원 이름: nic
+func (a_ ArchcanvasT) LimitNic() string {
+	return a_.t.render(&areaArchcanvas, "limit_nic", false, 0)
+}
+
+// LimitPool: 병목 자원 이름: pool
+func (a_ ArchcanvasT) LimitPool() string {
+	return a_.t.render(&areaArchcanvas, "limit_pool", false, 0)
+}
+
+// LimitQueue: 병목 자원 이름: queue
+func (a_ ArchcanvasT) LimitQueue() string {
+	return a_.t.render(&areaArchcanvas, "limit_queue", false, 0)
+}
+
+// LimitReached: 설계가 부품·연결·상자 개수 한도에 닿아 더 넣지 못할 때 토스트
+func (a_ ArchcanvasT) LimitReached() string {
+	return a_.t.render(&areaArchcanvas, "limit_reached", false, 0)
+}
+
+// ListEmpty: 목록 보기: 노드가 없을 때
+func (a_ ArchcanvasT) ListEmpty() string {
+	return a_.t.render(&areaArchcanvas, "list_empty", false, 0)
+}
+
+// ListOutside: 목록 보기: 상자 밖 노드 묶음 머리
+func (a_ ArchcanvasT) ListOutside() string {
+	return a_.t.render(&areaArchcanvas, "list_outside", false, 0)
+}
+
+// LoadFailed: 캔버스: 설계 파일을 열 수 없을 때. name = 설계 이름
+func (a_ ArchcanvasT) LoadFailed(name string) string {
+	return a_.t.render(&areaArchcanvas, "load_failed", false, 0, "name", name)
+}
+
+// LockedNotice: 잠긴 방 설계를 고치려 할 때
+func (a_ ArchcanvasT) LockedNotice() string {
+	return a_.t.render(&areaArchcanvas, "locked_notice", false, 0)
+}
+
+// MenuComment: 오른쪽 클릭 메뉴: 댓글
+func (a_ ArchcanvasT) MenuComment() string {
+	return a_.t.render(&areaArchcanvas, "menu_comment", false, 0)
+}
+
+// MenuDelete: 오른쪽 클릭 메뉴: 삭제
+func (a_ ArchcanvasT) MenuDelete() string {
+	return a_.t.render(&areaArchcanvas, "menu_delete", false, 0)
+}
+
+// MenuFault: 오른쪽 클릭 메뉴: 장애 넣기
+func (a_ ArchcanvasT) MenuFault() string {
+	return a_.t.render(&areaArchcanvas, "menu_fault", false, 0)
+}
+
+// MenuSettings: 오른쪽 클릭 메뉴: 설정 패널 열기
+func (a_ ArchcanvasT) MenuSettings() string {
+	return a_.t.render(&areaArchcanvas, "menu_settings", false, 0)
+}
+
+// MetricBottleneck: 지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %, demand = 초당 수요(천 단위 쉼표), unit = 요청 하나가 쓰는 양(8ms, 1.25 IOPS, 18KB)
+func (a_ ArchcanvasT) MetricBottleneck(label string, limit string, util int, demand string, unit string) string {
+	return a_.t.render(&areaArchcanvas, "metric_bottleneck", false, 0, "label", label, "limit", limit, "util", strconv.Itoa(util), "demand", demand, "unit", unit)
+}
+
+// MetricErr: 지표: 에러율. pct = 소수 한 자리 %
+func (a_ ArchcanvasT) MetricErr(pct string) string {
+	return a_.t.render(&areaArchcanvas, "metric_err", false, 0, "pct", pct)
+}
+
+// MetricNoTraffic: 지표: client 가 없어 트래픽이 없음
+func (a_ ArchcanvasT) MetricNoTraffic() string {
+	return a_.t.render(&areaArchcanvas, "metric_no_traffic", false, 0)
+}
+
+// MetricOverloaded: 지표: 설계가 과부하
+func (a_ ArchcanvasT) MetricOverloaded() string {
+	return a_.t.render(&areaArchcanvas, "metric_overloaded", false, 0)
+}
+
+// MetricThroughput: 지표: 처리량. rps = 짧은 수
+func (a_ ArchcanvasT) MetricThroughput(rps string) string {
+	return a_.t.render(&areaArchcanvas, "metric_throughput", false, 0, "rps", rps)
+}
+
+// MetricsTotal: 지표 줄 머리: 설계 전체
+func (a_ ArchcanvasT) MetricsTotal() string {
+	return a_.t.render(&areaArchcanvas, "metrics_total", false, 0)
+}
+
+// MovedBy: 내가 옮긴 것을 다른 사람이 다시 옮겼을 때. name = 그 사람 이름
+func (a_ ArchcanvasT) MovedBy(name string) string {
+	return a_.t.render(&areaArchcanvas, "moved_by", false, 0, "name", name)
+}
+
+// NarrowNoDrag: 60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트
+func (a_ ArchcanvasT) NarrowNoDrag() string {
+	return a_.t.render(&areaArchcanvas, "narrow_no_drag", false, 0)
+}
+
+// NodeDeleted: 설정 중이던 노드를 다른 사람이 지워 설정 패널을 닫을 때 토스트
+func (a_ ArchcanvasT) NodeDeleted() string {
+	return a_.t.render(&areaArchcanvas, "node_deleted", false, 0)
+}
+
+// PaletteBoxes: 부품 팔레트의 상자 묶음 머리
+func (a_ ArchcanvasT) PaletteBoxes() string {
+	return a_.t.render(&areaArchcanvas, "palette_boxes", false, 0)
+}
+
+// PaletteChallenge: 명령 팔레트 항목: arch.challenge(일일 도전 열기)
+func (a_ ArchcanvasT) PaletteChallenge() string {
+	return a_.t.render(&areaArchcanvas, "palette_challenge", false, 0)
+}
+
+// PaletteExport: 명령 팔레트 항목: arch.export
+func (a_ ArchcanvasT) PaletteExport() string {
+	return a_.t.render(&areaArchcanvas, "palette_export", false, 0)
+}
+
+// PaletteNew: 명령 팔레트 항목: arch.new
+func (a_ ArchcanvasT) PaletteNew() string {
+	return a_.t.render(&areaArchcanvas, "palette_new", false, 0)
+}
+
+// PaletteOpen: 명령 팔레트 항목: arch.open
+func (a_ ArchcanvasT) PaletteOpen() string {
+	return a_.t.render(&areaArchcanvas, "palette_open", false, 0)
+}
+
+// PaletteParts: 부품 팔레트 머리
+func (a_ ArchcanvasT) PaletteParts() string {
+	return a_.t.render(&areaArchcanvas, "palette_parts", false, 0)
+}
+
+// PaletteRun: 명령 팔레트 항목: arch.run
+func (a_ ArchcanvasT) PaletteRun() string {
+	return a_.t.render(&areaArchcanvas, "palette_run", false, 0)
+}
+
+// PaletteSaveCopy: 팔레트: 공유·사본 설계를 개인 설계로 저장
+func (a_ ArchcanvasT) PaletteSaveCopy() string {
+	return a_.t.render(&areaArchcanvas, "palette_save_copy", false, 0)
+}
+
+// PaletteSendCard: 명령 팔레트 항목: arch.send_card
+func (a_ ArchcanvasT) PaletteSendCard() string {
+	return a_.t.render(&areaArchcanvas, "palette_send_card", false, 0)
+}
+
+// PaletteShare: 명령 팔레트 항목: arch.share
+func (a_ ArchcanvasT) PaletteShare() string {
+	return a_.t.render(&areaArchcanvas, "palette_share", false, 0)
+}
+
+// PaletteVersions: 명령 팔레트 항목: arch.versions
+func (a_ ArchcanvasT) PaletteVersions() string {
+	return a_.t.render(&areaArchcanvas, "palette_versions", false, 0)
+}
+
+// PanelAutoscale: 설정: 자동 확장 범위(인스턴스 줄 뒤)
+func (a_ ArchcanvasT) PanelAutoscale(min int, max int) string {
+	return a_.t.render(&areaArchcanvas, "panel_autoscale", false, 0, "min", strconv.Itoa(min), "max", strconv.Itoa(max))
+}
+
+// PanelBox: 설정 패널: 상자를 골랐을 때 안에 든 노드 수
+func (a_ ArchcanvasT) PanelBox(n int) string {
+	return a_.t.render(&areaArchcanvas, "panel_box", false, n, "n", strconv.Itoa(n))
+}
+
+// PanelCpuMem: 설정: CPU 코어 · 메모리 GiB
+func (a_ ArchcanvasT) PanelCpuMem(cpu int, mem string) string {
+	return a_.t.render(&areaArchcanvas, "panel_cpu_mem", false, 0, "cpu", strconv.Itoa(cpu), "mem", mem)
+}
+
+// PanelCurve: 트래픽: 시간에 따른 모양. curve = curve_* 문구
+func (a_ ArchcanvasT) PanelCurve(curve string) string {
+	return a_.t.render(&areaArchcanvas, "panel_curve", false, 0, "curve", curve)
+}
+
+// PanelCustomType: 설정: 인스턴스 종류를 직접 정했을 때
+func (a_ ArchcanvasT) PanelCustomType() string {
+	return a_.t.render(&areaArchcanvas, "panel_custom_type", false, 0)
+}
+
+// PanelDown: 결과: 꺼짐
+func (a_ ArchcanvasT) PanelDown() string {
+	return a_.t.render(&areaArchcanvas, "panel_down", false, 0)
+}
+
+// PanelEdge: 설정 패널: 연결을 골랐을 때. from·to = 노드 라벨
+func (a_ ArchcanvasT) PanelEdge(from string, to string) string {
+	return a_.t.render(&areaArchcanvas, "panel_edge", false, 0, "from", from, "to", to)
+}
+
+// PanelInstances: 설정: 인스턴스 수
+func (a_ ArchcanvasT) PanelInstances(n int) string {
+	return a_.t.render(&areaArchcanvas, "panel_instances", false, 0, "n", strconv.Itoa(n))
+}
+
+// PanelLatency: 결과: 지연 p50·p99(짧은 시간 표기)
+func (a_ ArchcanvasT) PanelLatency(p50 string, p99 string) string {
+	return a_.t.render(&areaArchcanvas, "panel_latency", false, 0, "p50", p50, "p99", p99)
+}
+
+// PanelNic: 설정: 네트워크 대역폭 Gbps
+func (a_ ArchcanvasT) PanelNic(gbps string) string {
+	return a_.t.render(&areaArchcanvas, "panel_nic", false, 0, "gbps", gbps)
+}
+
+// PanelNoClient: 설정 패널: client 가 없을 때
+func (a_ ArchcanvasT) PanelNoClient() string {
+	return a_.t.render(&areaArchcanvas, "panel_no_client", false, 0)
+}
+
+// PanelRead: 트래픽: 읽기 비율 %
+func (a_ ArchcanvasT) PanelRead(pct int) string {
+	return a_.t.render(&areaArchcanvas, "panel_read", false, 0, "pct", strconv.Itoa(pct))
+}
+
+// PanelResult: 설정 패널의 결과 구분선 글
+func (a_ ArchcanvasT) PanelResult() string {
+	return a_.t.render(&areaArchcanvas, "panel_result", false, 0)
+}
+
+// PanelRps: 트래픽: 초당 요청. n = 쉼표가 든 수
+func (a_ ArchcanvasT) PanelRps(n string) string {
+	return a_.t.render(&areaArchcanvas, "panel_rps", false, 0, "n", n)
+}
+
+// PanelSizes: 트래픽: 요청·응답 크기 KB
+func (a_ ArchcanvasT) PanelSizes(req int, resp int) string {
+	return a_.t.render(&areaArchcanvas, "panel_sizes", false, 0, "req", strconv.Itoa(req), "resp", strconv.Itoa(resp))
+}
+
+// PanelTraffic: 설정 패널: 아무것도 안 골랐을 때의 트래픽 모델 머리
+func (a_ ArchcanvasT) PanelTraffic() string {
+	return a_.t.render(&areaArchcanvas, "panel_traffic", false, 0)
+}
+
+// PanelUtil: 결과: 사용률 %
+func (a_ ArchcanvasT) PanelUtil(pct int) string {
+	return a_.t.render(&areaArchcanvas, "panel_util", false, 0, "pct", strconv.Itoa(pct))
+}
+
+// PreviewHeader: 버전 미리보기 중 위 줄. label = 버전 줄(v3 — 리뷰용)
+func (a_ ArchcanvasT) PreviewHeader(label string) string {
+	return a_.t.render(&areaArchcanvas, "preview_header", false, 0, "label", label)
+}
+
+// PreviewReadonly: 미리보기에서 편집 키를 눌렀을 때
+func (a_ ArchcanvasT) PreviewReadonly() string {
+	return a_.t.render(&areaArchcanvas, "preview_readonly", false, 0)
+}
+
+// ProtoAsync: 연결 프로토콜: 비동기 큐
+func (a_ ArchcanvasT) ProtoAsync() string {
+	return a_.t.render(&areaArchcanvas, "proto_async", false, 0)
+}
+
+// RangeHint: 설정 칸에 범위 밖이거나 숫자가 아닌 값을 넣었을 때. min·max = 범위
+func (a_ ArchcanvasT) RangeHint(min string, max string) string {
+	return a_.t.render(&areaArchcanvas, "range_hint", false, 0, "min", min, "max", max)
+}
+
+// ReadOnlyCopy: 머리 줄: 카드에서 연 읽기 전용 사본
+func (a_ ArchcanvasT) ReadOnlyCopy() string {
+	return a_.t.render(&areaArchcanvas, "read_only_copy", false, 0)
+}
+
+// RejectArchCycle: 서버 거절: 상자 순환
+func (a_ ArchcanvasT) RejectArchCycle() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_cycle", false, 0)
+}
+
+// RejectArchDepth: 서버 거절: 상자 3단 초과
+func (a_ ArchcanvasT) RejectArchDepth() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_depth", false, 0)
+}
+
+// RejectArchLimit: 서버 거절: 개수 한도
+func (a_ ArchcanvasT) RejectArchLimit() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_limit", false, 0)
+}
+
+// RejectArchValue: 서버 거절: 값·필드·객체가 규칙 밖
+func (a_ ArchcanvasT) RejectArchValue() string {
+	return a_.t.render(&areaArchcanvas, "reject_arch_value", false, 0)
+}
+
+// RejectOther: 서버 거절: 그 밖. code = 거절 코드
+func (a_ ArchcanvasT) RejectOther(code string) string {
+	return a_.t.render(&areaArchcanvas, "reject_other", false, 0, "code", code)
+}
+
+// RejectTooLarge: 서버 거절: 문서가 너무 큼
+func (a_ ArchcanvasT) RejectTooLarge() string {
+	return a_.t.render(&areaArchcanvas, "reject_too_large", false, 0)
+}
+
+// RoomConnecting: 머리 줄: 방 설계에 연결하는 중
+func (a_ ArchcanvasT) RoomConnecting() string {
+	return a_.t.render(&areaArchcanvas, "room_connecting", false, 0)
+}
+
+// RoomKicked: 머리 줄: 방 설계에서 내보내짐(읽기 전용)
+func (a_ ArchcanvasT) RoomKicked() string {
+	return a_.t.render(&areaArchcanvas, "room_kicked", false, 0)
+}
+
+// RoomLive: 머리 줄: 방 설계에 연결됨. names = 접속자 이름들(·로 이음)
+func (a_ ArchcanvasT) RoomLive(names string) string {
+	return a_.t.render(&areaArchcanvas, "room_live", false, 0, "names", names)
+}
+
+// RoomLocked: 머리 줄: 잠긴 방 설계(읽기 전용)
+func (a_ ArchcanvasT) RoomLocked() string {
+	return a_.t.render(&areaArchcanvas, "room_locked", false, 0)
+}
+
+// RoomOffline: 머리 줄: 방 설계 연결이 끊김
+func (a_ ArchcanvasT) RoomOffline() string {
+	return a_.t.render(&areaArchcanvas, "room_offline", false, 0)
+}
+
+// RunFailed: 시간 실행이 실패했을 때 토스트
+func (a_ ArchcanvasT) RunFailed() string {
+	return a_.t.render(&areaArchcanvas, "run_failed", false, 0)
+}
+
+// SaveFailed: 머리 줄 저장 상태: 저장 실패
+func (a_ ArchcanvasT) SaveFailed() string {
+	return a_.t.render(&areaArchcanvas, "save_failed", false, 0)
+}
+
+// SavePending: 머리 줄 저장 상태: 아직 저장 전 편집이 있음
+func (a_ ArchcanvasT) SavePending() string {
+	return a_.t.render(&areaArchcanvas, "save_pending", false, 0)
+}
+
+// SaveSaved: 머리 줄 저장 상태: 저장됨
+func (a_ ArchcanvasT) SaveSaved() string {
+	return a_.t.render(&areaArchcanvas, "save_saved", false, 0)
+}
+
+// SaveUnsaved: 머리 줄 저장 상태: 파일 이름이 없는 새 설계
+func (a_ ArchcanvasT) SaveUnsaved() string {
+	return a_.t.render(&areaArchcanvas, "save_unsaved", false, 0)
+}
+
+// SendConfirmHint: 카드 보내기 미리보기 키 안내
+func (a_ ArchcanvasT) SendConfirmHint() string {
+	return a_.t.render(&areaArchcanvas, "send_confirm_hint", false, 0)
+}
+
+// SendDone: 카드를 보냈을 때 토스트. channel = 대화 이름
+func (a_ ArchcanvasT) SendDone(channel string) string {
+	return a_.t.render(&areaArchcanvas, "send_done", false, 0, "channel", channel)
+}
+
+// SendFailed: 카드 보내기 실패
+func (a_ ArchcanvasT) SendFailed() string {
+	return a_.t.render(&areaArchcanvas, "send_failed", false, 0)
+}
+
+// SendHint: 카드 보내기 첫 단계 키 안내
+func (a_ ArchcanvasT) SendHint() string {
+	return a_.t.render(&areaArchcanvas, "send_hint", false, 0)
+}
+
+// SendKindDesign: 카드 종류: 설계
+func (a_ ArchcanvasT) SendKindDesign() string {
+	return a_.t.render(&areaArchcanvas, "send_kind_design", false, 0)
+}
+
+// SendKindSim: 카드 종류: 시뮬 결과
+func (a_ ArchcanvasT) SendKindSim() string {
+	return a_.t.render(&areaArchcanvas, "send_kind_sim", false, 0)
+}
+
+// SendNoChannels: 카드 보내기: 보낼 대화가 없음
+func (a_ ArchcanvasT) SendNoChannels() string {
+	return a_.t.render(&areaArchcanvas, "send_no_channels", false, 0)
+}
+
+// SendPick: 카드 보내기: 대화 고르기 머리
+func (a_ ArchcanvasT) SendPick() string {
+	return a_.t.render(&areaArchcanvas, "send_pick", false, 0)
+}
+
+// SendPreview: 카드 보내기: 미리보기 머리. channel = 대화 이름
+func (a_ ArchcanvasT) SendPreview(channel string) string {
+	return a_.t.render(&areaArchcanvas, "send_preview", false, 0, "channel", channel)
+}
+
+// SendTitle: 카드 보내기 대화상자 제목
+func (a_ ArchcanvasT) SendTitle() string {
+	return a_.t.render(&areaArchcanvas, "send_title", false, 0)
+}
+
+// ShareAlready: 이미 방에 있는 설계에서 방에 올리기를 고를 때
+func (a_ ArchcanvasT) ShareAlready() string {
+	return a_.t.render(&areaArchcanvas, "share_already", false, 0)
+}
+
+// ShareDone: 방에 올린 뒤 알림. space = 방 이름
+func (a_ ArchcanvasT) ShareDone(space string) string {
+	return a_.t.render(&areaArchcanvas, "share_done", false, 0, "space", space)
+}
+
+// ShareFailed: 방에 올리지 못했을 때
+func (a_ ArchcanvasT) ShareFailed() string {
+	return a_.t.render(&areaArchcanvas, "share_failed", false, 0)
+}
+
+// ShareHint: 방에 올리기 키 안내
+func (a_ ArchcanvasT) ShareHint() string {
+	return a_.t.render(&areaArchcanvas, "share_hint", false, 0)
+}
+
+// ShareNoSpaces: 올릴 방이 하나도 없을 때
+func (a_ ArchcanvasT) ShareNoSpaces() string {
+	return a_.t.render(&areaArchcanvas, "share_no_spaces", false, 0)
+}
+
+// SharePick: 방에 올리기: 방 고르기 머리
+func (a_ ArchcanvasT) SharePick() string {
+	return a_.t.render(&areaArchcanvas, "share_pick", false, 0)
+}
+
+// SharePlaintextWarning: 방에 올리기 전 확인(법적 문구, 어떤 크기에서도 줄이지 않고 줄바꿈)
+func (a_ ArchcanvasT) SharePlaintextWarning() string {
+	return a_.t.render(&areaArchcanvas, "share_plaintext_warning", false, 0)
+}
+
+// ShareTitle: 방에 올리기 대화상자 제목
+func (a_ ArchcanvasT) ShareTitle() string {
+	return a_.t.render(&areaArchcanvas, "share_title", false, 0)
+}
+
+// ShareYes: 방에 올리기 확인 버튼
+func (a_ ArchcanvasT) ShareYes() string {
+	return a_.t.render(&areaArchcanvas, "share_yes", false, 0)
+}
+
+// SnapColCost: 글자 스냅숏 표 머리: 비용
+func (a_ ArchcanvasT) SnapColCost() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_cost", false, 0)
+}
+
+// SnapColInstances: 글자 스냅숏 표 머리: 대수
+func (a_ ArchcanvasT) SnapColInstances() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_instances", false, 0)
+}
+
+// SnapColKind: 글자 스냅숏 표 머리: 종류
+func (a_ ArchcanvasT) SnapColKind() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_kind", false, 0)
+}
+
+// SnapColName: 글자 스냅숏 표 머리: 이름
+func (a_ ArchcanvasT) SnapColName() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_name", false, 0)
+}
+
+// SnapColP99: 글자 스냅숏 표 머리: p99
+func (a_ ArchcanvasT) SnapColP99() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_p99", false, 0)
+}
+
+// SnapColUtil: 글자 스냅숏 표 머리: 사용률
+func (a_ ArchcanvasT) SnapColUtil() string {
+	return a_.t.render(&areaArchcanvas, "snap_col_util", false, 0)
+}
+
+// SnapCostNote: 글자 스냅숏 총비용 뒤 꼬리. asof = 가격표 기준 연월
+func (a_ ArchcanvasT) SnapCostNote(asof string) string {
+	return a_.t.render(&areaArchcanvas, "snap_cost_note", false, 0, "asof", asof)
+}
+
+// StatusCopy: 허브 상태: 채팅 카드에서 연 사본
+func (a_ ArchcanvasT) StatusCopy(title string) string {
+	return a_.t.render(&areaArchcanvas, "status_copy", false, 0, "title", title)
+}
+
+// StatusNew: 허브 상태: 아직 저장하지 않은 새 설계
+func (a_ ArchcanvasT) StatusNew() string {
+	return a_.t.render(&areaArchcanvas, "status_new", false, 0)
+}
+
+// StatusPersonal: 허브 상태: 내 PC 의 개인 설계
+func (a_ ArchcanvasT) StatusPersonal(title string) string {
+	return a_.t.render(&areaArchcanvas, "status_personal", false, 0, "title", title)
+}
+
+// StatusRoom: 허브 상태: 방에 공유된 설계. title = 설계 제목, n = 지금 편집 중인 사람 수
+func (a_ ArchcanvasT) StatusRoom(title string, n int) string {
+	return a_.t.render(&areaArchcanvas, "status_room", false, n, "title", title, "n", strconv.Itoa(n))
+}
+
+// TfHeader: Terraform 내보내기 머리 주석(법적 문구)
+func (a_ ArchcanvasT) TfHeader() string {
+	return a_.t.render(&areaArchcanvas, "tf_header", false, 0)
+}
+
+// TinyBottleneck: 초소형 요약 병목 줄
+func (a_ ArchcanvasT) TinyBottleneck(label string, limit string, util int) string {
+	return a_.t.render(&areaArchcanvas, "tiny_bottleneck", false, 0, "label", label, "limit", limit, "util", strconv.Itoa(util))
+}
+
+// TinyEditHint: 초소형 요약 마지막 줄: 편집하려면 창을 키우라는 안내
+func (a_ ArchcanvasT) TinyEditHint() string {
+	return a_.t.render(&areaArchcanvas, "tiny_edit_hint", false, 0)
+}
+
+// TinyRun: 초소형 요약 마지막 줄 앞: 시간 실행 키
+func (a_ ArchcanvasT) TinyRun() string {
+	return a_.t.render(&areaArchcanvas, "tiny_run", false, 0)
+}
+
+// TinyRunning: 초소형 요약 마지막 줄: 시간 실행 중. t = mm:ss, speed = 배속
+func (a_ ArchcanvasT) TinyRunning(t string, speed int) string {
+	return a_.t.render(&areaArchcanvas, "tiny_running", false, 0, "t", t, "speed", strconv.Itoa(speed))
+}
+
+// TinySummary: 초소형 요약 첫 줄. title = 설계 제목, p99 = 짧은 시간, err = 소수 한 자리 %
+func (a_ ArchcanvasT) TinySummary(title string, p99 string, err string) string {
+	return a_.t.render(&areaArchcanvas, "tiny_summary", false, 0, "title", title, "p99", p99, "err", err)
+}
+
+// TooSmallEdit: 초소형에서 편집 키를 눌렀을 때 토스트
+func (a_ ArchcanvasT) TooSmallEdit() string {
+	return a_.t.render(&areaArchcanvas, "too_small_edit", false, 0)
+}
+
+// ToolName: 도구 이름(허브·팔레트·탭)
+func (a_ ArchcanvasT) ToolName() string {
+	return a_.t.render(&areaArchcanvas, "tool_name", false, 0)
+}
+
+// TopCosts: 지표 줄: 비용 상위 3개. list = "라벨 41%" 를 " · " 로 이은 것(전체 비용 중 몫)
+func (a_ ArchcanvasT) TopCosts(list string) string {
+	return a_.t.render(&areaArchcanvas, "top_costs", false, 0, "list", list)
+}
+
+// TrafficHint: 빈 캔버스 안내 둘째 줄: client 가 트래픽의 출발점
+func (a_ ArchcanvasT) TrafficHint() string {
+	return a_.t.render(&areaArchcanvas, "traffic_hint", false, 0)
+}
+
+// TrafficSummary: 머리 줄 트래픽 요약. rps = 짧은 수(12.0k), read = 읽기 %, kb = 요청 KB
+func (a_ ArchcanvasT) TrafficSummary(rps string, read int, kb int) string {
+	return a_.t.render(&areaArchcanvas, "traffic_summary", false, 0, "rps", rps, "read", strconv.Itoa(read), "kb", strconv.Itoa(kb))
+}
+
+// Untitled: 제목이 빈 설계의 표시 이름
+func (a_ ArchcanvasT) Untitled() string {
+	return a_.t.render(&areaArchcanvas, "untitled", false, 0)
+}
+
+// VerFieldAddMs: 차이 목록의 필드 이름: add_ms (장애: 더하는 지연)
+func (a_ ArchcanvasT) VerFieldAddMs() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_add_ms", false, 0)
+}
+
+// VerFieldAtS: 차이 목록의 필드 이름: at_s (장애: 시간 실행의 시각(초))
+func (a_ ArchcanvasT) VerFieldAtS() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_at_s", false, 0)
+}
+
+// VerFieldCount: 차이 목록의 필드 이름: count (장애: 끌 인스턴스 수)
+func (a_ ArchcanvasT) VerFieldCount() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_count", false, 0)
+}
+
+// VerFieldDurS: 차이 목록의 필드 이름: dur_s (장애: 지속 시간(초))
+func (a_ ArchcanvasT) VerFieldDurS() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_dur_s", false, 0)
+}
+
+// VerFieldFrom: 차이 목록의 필드 이름: from (연결: 출발 노드)
+func (a_ ArchcanvasT) VerFieldFrom() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_from", false, 0)
+}
+
+// VerFieldKind: 차이 목록의 필드 이름: kind (노드·상자·장애의 종류)
+func (a_ ArchcanvasT) VerFieldKind() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_kind", false, 0)
+}
+
+// VerFieldParent: 차이 목록의 필드 이름: parent
+func (a_ ArchcanvasT) VerFieldParent() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_parent", false, 0)
+}
+
+// VerFieldPos: 차이 목록의 필드 이름: pos
+func (a_ ArchcanvasT) VerFieldPos() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_pos", false, 0)
+}
+
+// VerFieldRect: 차이 목록의 필드 이름: rect
+func (a_ ArchcanvasT) VerFieldRect() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_rect", false, 0)
+}
+
+// VerFieldTarget: 차이 목록의 필드 이름: target (장애: 대상)
+func (a_ ArchcanvasT) VerFieldTarget() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_target", false, 0)
+}
+
+// VerFieldTitle: 차이 목록의 필드 이름: title (설계 제목)
+func (a_ ArchcanvasT) VerFieldTitle() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_title", false, 0)
+}
+
+// VerFieldTo: 차이 목록의 필드 이름: to (연결: 도착 노드)
+func (a_ ArchcanvasT) VerFieldTo() string {
+	return a_.t.render(&areaArchcanvas, "ver_field_to", false, 0)
+}
+
+// VersionsAuto: 자동 버전 한 줄. no = 버전 번호, when = 저장 시각
+func (a_ ArchcanvasT) VersionsAuto(no int, when string) string {
+	return a_.t.render(&areaArchcanvas, "versions_auto", false, 0, "no", strconv.Itoa(no), "when", when)
+}
+
+// VersionsDiffAdded: 차이 요약: 더한 객체 수
+func (a_ ArchcanvasT) VersionsDiffAdded(n int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_added", false, 0, "n", strconv.Itoa(n))
+}
+
+// VersionsDiffChanged: 차이 요약: 바뀐 설정 수
+func (a_ ArchcanvasT) VersionsDiffChanged(n int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_changed", false, 0, "n", strconv.Itoa(n))
+}
+
+// VersionsDiffHint: 차이 목록 키 안내
+func (a_ ArchcanvasT) VersionsDiffHint() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_hint", false, 0)
+}
+
+// VersionsDiffMeta: 차이 목록: 설계 정보(제목·트래픽 등) 객체
+func (a_ ArchcanvasT) VersionsDiffMeta() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_meta", false, 0)
+}
+
+// VersionsDiffNone: 두 버전이 같을 때
+func (a_ ArchcanvasT) VersionsDiffNone() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_none", false, 0)
+}
+
+// VersionsDiffOldest: 가장 오래된 버전에서 d 를 눌렀을 때
+func (a_ ArchcanvasT) VersionsDiffOldest() string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_oldest", false, 0)
+}
+
+// VersionsDiffRemoved: 차이 요약: 지운 객체 수
+func (a_ ArchcanvasT) VersionsDiffRemoved(n int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_removed", false, 0, "n", strconv.Itoa(n))
+}
+
+// VersionsDiffTitle: 차이 목록 머리. a = 앞 버전, b = 고른 버전
+func (a_ ArchcanvasT) VersionsDiffTitle(a int, b int) string {
+	return a_.t.render(&areaArchcanvas, "versions_diff_title", false, 0, "a", strconv.Itoa(a), "b", strconv.Itoa(b))
+}
+
+// VersionsEmpty: 저장된 버전이 없을 때
+func (a_ ArchcanvasT) VersionsEmpty() string {
+	return a_.t.render(&areaArchcanvas, "versions_empty", false, 0)
+}
+
+// VersionsFailed: 버전 작업이 실패했을 때
+func (a_ ArchcanvasT) VersionsFailed() string {
+	return a_.t.render(&areaArchcanvas, "versions_failed", false, 0)
+}
+
+// VersionsHint: 버전 목록 키 안내
+func (a_ ArchcanvasT) VersionsHint() string {
+	return a_.t.render(&areaArchcanvas, "versions_hint", false, 0)
+}
+
+// VersionsLimit: 이름 붙인 버전이 한도(100)에 찼을 때
+func (a_ ArchcanvasT) VersionsLimit() string {
+	return a_.t.render(&areaArchcanvas, "versions_limit", false, 0)
+}
+
+// VersionsLoading: 버전 목록을 불러오는 중
+func (a_ ArchcanvasT) VersionsLoading() string {
+	return a_.t.render(&areaArchcanvas, "versions_loading", false, 0)
+}
+
+// VersionsMeta: 버전 줄의 뒤쪽(만든 사람·시각). who = 이름, when = 시각
+func (a_ ArchcanvasT) VersionsMeta(who string, when string) string {
+	return a_.t.render(&areaArchcanvas, "versions_meta", false, 0, "who", who, "when", when)
+}
+
+// VersionsNameHint: 이름 붙여 저장 키 안내
+func (a_ ArchcanvasT) VersionsNameHint() string {
+	return a_.t.render(&areaArchcanvas, "versions_name_hint", false, 0)
+}
+
+// VersionsNamePrompt: 이름 붙여 저장: 입력 칸 머리
+func (a_ ArchcanvasT) VersionsNamePrompt() string {
+	return a_.t.render(&areaArchcanvas, "versions_name_prompt", false, 0)
+}
+
+// VersionsNamed: 이름 붙인 버전 한 줄. no = 버전 번호, name = 이름
+func (a_ ArchcanvasT) VersionsNamed(no int, name string) string {
+	return a_.t.render(&areaArchcanvas, "versions_named", false, 0, "no", strconv.Itoa(no), "name", name)
+}
+
+// VersionsPersonal: 개인 설계에서 버전 명령을 부를 때
+func (a_ ArchcanvasT) VersionsPersonal() string {
+	return a_.t.render(&areaArchcanvas, "versions_personal", false, 0)
+}
+
+// VersionsRestoreBody: 되돌리기 확인 본문
+func (a_ ArchcanvasT) VersionsRestoreBody() string {
+	return a_.t.render(&areaArchcanvas, "versions_restore_body", false, 0)
+}
+
+// VersionsRestoreTitle: 되돌리기 확인 제목. no = 버전 번호
+func (a_ ArchcanvasT) VersionsRestoreTitle(no int) string {
+	return a_.t.render(&areaArchcanvas, "versions_restore_title", false, 0, "no", strconv.Itoa(no))
+}
+
+// VersionsRestoreYes: 되돌리기 확인 버튼
+func (a_ ArchcanvasT) VersionsRestoreYes() string {
+	return a_.t.render(&areaArchcanvas, "versions_restore_yes", false, 0)
+}
+
+// VersionsRestored: 되돌리기로 생긴 버전 한 줄. no = 버전 번호, from = 되돌린 버전
+func (a_ ArchcanvasT) VersionsRestored(no int, from int) string {
+	return a_.t.render(&areaArchcanvas, "versions_restored", false, 0, "no", strconv.Itoa(no), "from", strconv.Itoa(from))
+}
+
+// VersionsRestoredToast: 되돌린 뒤 알림. from = 되돌린 버전, no = 새 버전
+func (a_ ArchcanvasT) VersionsRestoredToast(from int, no int) string {
+	return a_.t.render(&areaArchcanvas, "versions_restored_toast", false, 0, "from", strconv.Itoa(from), "no", strconv.Itoa(no))
+}
+
+// VersionsSaved: 이름 붙여 저장한 뒤 알림. no = 새 버전 번호
+func (a_ ArchcanvasT) VersionsSaved(no int) string {
+	return a_.t.render(&areaArchcanvas, "versions_saved", false, 0, "no", strconv.Itoa(no))
+}
+
+// VersionsTitle: 버전 대화상자 제목
+func (a_ ArchcanvasT) VersionsTitle() string {
+	return a_.t.render(&areaArchcanvas, "versions_title", false, 0)
+}
+
+// ViewCanvas: 보기 이름: 캔버스
+func (a_ ArchcanvasT) ViewCanvas() string {
+	return a_.t.render(&areaArchcanvas, "view_canvas", false, 0)
+}
+
+// ViewList: 보기 이름: 목록
+func (a_ ArchcanvasT) ViewList() string {
+	return a_.t.render(&areaArchcanvas, "view_list", false, 0)
+}
+
+// ZoomOverlap: 이 확대 단계에서 노드가 겹칠 때 캔버스 안내
+func (a_ ArchcanvasT) ZoomOverlap() string {
+	return a_.t.render(&areaArchcanvas, "zoom_overlap", false, 0)
 }

@@ -1,0 +1,24 @@
+{
+ "id": "new_year_greetings", "goal_p99_ms": 500, "goal_err_permille": 10, "budget_usd_month": 7500,
+ "start": {
+  "schema_version": 1, "title": "new_year_greetings", "seed": 2811015, "duration_s": 150,
+  "boxes": [],
+  "nodes": [
+   {"id": "senders", "kind": "client", "label": "senders", "pos": [0, 0], "parent": "", "traffic": {"rps": 500, "read_permille": 400, "curve": "spike", "spike_mult": 15, "spike_at_s": 60, "spike_dur_s": 20}},
+   {"id": "lb", "kind": "lb", "label": "lb", "pos": [20, 0], "parent": ""},
+   {"id": "api", "kind": "api", "label": "message-api", "pos": [40, 0], "parent": "", "instances": 3},
+   {"id": "cache", "kind": "cache", "label": "inbox-cache", "pos": [60, 0], "parent": ""},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [80, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "senders", "to": "lb", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "lb", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "cache", "read_permille": 1000, "write_permille": 0},
+   {"id": "e4", "from": "cache", "to": "db", "read_permille": 1000, "write_permille": 0},
+   {"id": "e5", "from": "api", "to": "db", "read_permille": 0, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 70, "kind": "instances_off", "target": "api", "count": 1, "dur_s": 30}
+  ]
+ }
+}
