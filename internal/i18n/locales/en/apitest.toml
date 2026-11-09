@@ -72,6 +72,64 @@ other = "Query {n}"
 [ed_settings]
 other = "Settings"
 
+[env_add_prompt]
+other = "Variable name (letters, digits, _ . -)"
+
+[env_add_title]
+other = "Add a variable"
+
+[env_cookies]
+one = "{n} cookie · C clear"
+other = "{n} cookies · C clear"
+
+[env_cookies_cleared]
+other = "Cleared the cookies"
+
+[env_empty]
+other = "No variables · a to add"
+
+[env_global_mark]
+other = "global"
+
+[env_hint]
+other = "a add · ⏎ value · s make secret · d delete · esc close"
+
+[env_hosts]
+other = "Allowed hosts {hosts} · H change"
+
+[env_hosts_prompt]
+other = "Hosts this secret may be sent to (comma separated)"
+
+[env_hosts_title]
+other = "Allowed hosts"
+
+[env_new_prompt]
+other = "Environment name"
+
+[env_new_title]
+other = "New environment"
+
+[env_none]
+other = "(no environment)"
+
+[env_picker]
+other = "Environment ‹ {name} › · h/l switch · N new"
+
+[env_source]
+other = "From {src}"
+
+[env_storage]
+other = "Secret values kept in: {where}"
+
+[env_storage_unset]
+other = "Secret values kept in: no value yet"
+
+[env_title]
+other = "Environment · {name}"
+
+[env_value_title]
+other = "{name} value"
+
 [export_copied]
 other = "Copied the curl command"
 
@@ -287,6 +345,9 @@ other = "Looks like a secret → Make it a variable"
 [secret_keep]
 other = "Keep as is"
 
+[secret_label]
+other = "Value of {{{name}}} (not shown on screen)"
+
 [secret_name]
 other = "Variable name (the value stays in this PC's secret store)"
 
@@ -326,6 +387,24 @@ other = "Timeout {ms}ms · ⏎ change"
 [set_tls]
 other = "TLS certificate check {state} · space toggle"
 
+[src_collection]
+other = "collection"
+
+[src_dynamic]
+other = "dynamic"
+
+[src_global]
+other = "global"
+
+[src_mine]
+other = "my value"
+
+[src_shared]
+other = "shared env"
+
+[src_temp]
+other = "temporary"
+
 [state_off]
 other = "off"
 
@@ -350,6 +429,10 @@ other = "⏎ resend · r run"
 
 [tls_off_warning]
 other = "⚠ Certificate check off"
+
+[tool_login_account]
+one = "{n} secret variable"
+other = "{n} secret variables"
 
 [tool_name]
 other = "API test"

@@ -8,7 +8,6 @@ import (
 
 // Entry points the later screens fill in.
 
-func (t *Tool) openEnv(*ui.Context) tea.Cmd    { return nil }
 func (t *Tool) openRunner(*ui.Context) tea.Cmd { return nil }
 func (t *Tool) runQuick(*ui.Context) tea.Cmd   { return nil }
 func (t *Tool) tinyStatus(ctx *ui.Context) string {
@@ -17,4 +16,3 @@ func (t *Tool) tinyStatus(ctx *ui.Context) string {
 	}
 	return ""
 }
-func registerToolLogin() {}

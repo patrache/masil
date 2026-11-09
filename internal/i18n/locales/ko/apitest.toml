@@ -119,6 +119,97 @@ desc = "요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)"
 max = 8
 other = "설정"
 
+[env_add_prompt]
+desc = "변수 추가 창: 이름 칸 위 안내"
+other = "변수 이름 (영문·숫자·_ . -)"
+
+[env_add_title]
+desc = "변수 추가 창 제목"
+max = 30
+other = "변수 추가"
+
+[env_cookies]
+desc = "환경 화면 쿠키 칸 제목(n = 쿠키 수, 이 PC 메모리에만 있음)"
+params = { n = "int" }
+count = "n"
+other = "쿠키 {n}개 · C 지우기"
+
+[env_cookies_cleared]
+desc = "쿠키를 지운 뒤 토스트"
+other = "쿠키를 지웠어요"
+
+[env_empty]
+desc = "환경 화면: 변수가 하나도 없을 때"
+other = "변수가 없어요 · a 로 추가"
+
+[env_global_mark]
+desc = "환경 화면 변수 줄 끝: 전역 변수 표시"
+max = 8
+other = "전역"
+
+[env_hint]
+desc = "환경 화면 맨 아래 키 안내"
+other = "a 추가 · ⏎ 값 · s 비밀로 · d 지우기 · esc 닫기"
+
+[env_hosts]
+desc = "환경 화면: 비밀 변수가 갈 수 있는 호스트(hosts = 쉼표로 이은 목록)"
+params = { hosts = "string" }
+other = "허용 호스트 {hosts} · H 바꾸기"
+
+[env_hosts_prompt]
+desc = "허용 호스트 창: 칸 위 안내"
+other = "이 비밀 변수를 보내도 되는 호스트 이름 (쉼표로 나눔)"
+
+[env_hosts_title]
+desc = "허용 호스트 바꾸기 창 제목"
+max = 30
+other = "허용 호스트"
+
+[env_new_prompt]
+desc = "새 환경 창: 이름 칸 위 안내"
+other = "환경 이름"
+
+[env_new_title]
+desc = "새 환경 창 제목"
+max = 30
+other = "새 환경"
+
+[env_none]
+desc = "환경을 고르지 않은 상태의 이름"
+max = 16
+other = "(환경 없음)"
+
+[env_picker]
+desc = "환경 화면 둘째 줄: 고른 환경과 바꾸는 키(name = 환경 이름)"
+params = { name = "string" }
+other = "환경 ‹ {name} › · h/l 바꾸기 · N 새 환경"
+
+[env_source]
+desc = "환경 화면: 고른 변수의 값 출처(src = 내 값·공유 환경·컬렉션·전역)"
+params = { src = "string" }
+other = "출처 {src}"
+
+[env_storage]
+desc = "환경 화면 첫 줄: 비밀 값이 어디에 보관되는지(where = 키체인·이번 실행만 같은 보관 위치)"
+params = { where = "string" }
+other = "비밀 값 보관: {where}"
+
+[env_storage_unset]
+desc = "환경 화면 첫 줄: 아직 비밀 값을 넣지 않아 보관 위치가 정해지지 않았을 때"
+other = "비밀 값 보관: 아직 넣은 값이 없어요"
+
+[env_title]
+desc = "환경 화면 제목(name = 고른 환경 이름)"
+params = { name = "string" }
+max = 40
+other = "환경 · {name}"
+
+[env_value_title]
+desc = "변수 값 바꾸기 창 제목(name = 변수 이름)"
+params = { name = "string" }
+max = 40
+other = "{name} 값"
+
 [export_copied]
 desc = "curl 을 복사한 뒤 토스트"
 other = "curl 을 복사했어요"
@@ -463,6 +554,11 @@ desc = "secret_detected 창의 선택지: 붙여넣은 그대로 두기"
 max = 30
 other = "그대로 두기"
 
+[secret_label]
+desc = "비밀 값 입력 창 안내(name = 변수 이름, 앞뒤 {{ }} 가 붙음)"
+params = { name = "string" }
+other = "{{{name}}} 의 값 (화면에 보이지 않아요)"
+
 [secret_name]
 desc = "secret_detected 창: 아래 칸에 넣을 변수 이름 안내"
 other = "변수 이름 (값은 이 PC 의 비밀 보관소에만)"
@@ -525,6 +621,36 @@ desc = "요청 설정 줄: TLS 인증서 검사(state = on/off 문구)"
 params = { state = "string" }
 other = "TLS 인증서 검사 {state} · space 바꾸기"
 
+[src_collection]
+desc = "변수 값 출처: 컬렉션 변수"
+max = 10
+other = "컬렉션"
+
+[src_dynamic]
+desc = "변수 값 출처: {{$uuid}} 같은 동적 변수"
+max = 10
+other = "동적"
+
+[src_global]
+desc = "변수 값 출처: 내 전역 변수"
+max = 10
+other = "전역"
+
+[src_mine]
+desc = "변수 값 출처: 내 값(개인 환경·공유 컬렉션의 내 값)"
+max = 10
+other = "내 값"
+
+[src_shared]
+desc = "변수 값 출처: 공유 컬렉션의 환경"
+max = 10
+other = "공유 환경"
+
+[src_temp]
+desc = "변수 값 출처: 요청의 임시 값"
+max = 10
+other = "임시 값"
+
 [state_off]
 desc = "설정 값: 끔"
 max = 6
@@ -567,6 +693,12 @@ desc = "TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄�
 no_truncate = true
 legal = true
 other = "⚠ 인증서 검사 끔"
+
+[tool_login_account]
+desc = "설정 도구 로그인 줄: 이 PC 에 값을 넣은 API 비밀 변수 수"
+params = { n = "int" }
+count = "n"
+other = "비밀 변수 {n}개"
 
 [tool_name]
 desc = "도구 이름(허브 줄·팔레트·탭 제목·설정 도구 로그인 줄)"

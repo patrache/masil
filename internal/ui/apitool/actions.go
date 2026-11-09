@@ -488,7 +488,7 @@ func (t *Tool) onSecretPut(ctx *ui.Context, m secretPutMsg) tea.Cmd {
 		if v := t.vault(ctx); v != nil {
 			where = secretsui.BackendLabel(ctx.T, v.Where(last.key))
 		}
-		return ui.Toast(a.SecretSaved(textwidth.Sanitize(last.name), where), ui.ToastSuccess)
+		return tea.Batch(ui.Toast(a.SecretSaved(textwidth.Sanitize(last.name), where), ui.ToastSuccess), t.loadMasks(ctx))
 	}
 	return nil
 }

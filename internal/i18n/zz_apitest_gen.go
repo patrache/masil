@@ -200,6 +200,154 @@ var areaApitest = area{
 				En: {Other: "Settings"},
 			},
 		},
+		"env_add_prompt": {
+			desc: "변수 추가 창: 이름 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 이름 (영문·숫자·_ . -)"},
+				En: {Other: "Variable name (letters, digits, _ . -)"},
+			},
+		},
+		"env_add_title": {
+			desc: "변수 추가 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "변수 추가"},
+				En: {Other: "Add a variable"},
+			},
+		},
+		"env_cookies": {
+			desc:   "환경 화면 쿠키 칸 제목(n = 쿠키 수, 이 PC 메모리에만 있음)",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "쿠키 {n}개 · C 지우기"},
+				En: {One: "{n} cookie · C clear", Other: "{n} cookies · C clear"},
+			},
+		},
+		"env_cookies_cleared": {
+			desc: "쿠키를 지운 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "쿠키를 지웠어요"},
+				En: {Other: "Cleared the cookies"},
+			},
+		},
+		"env_empty": {
+			desc: "환경 화면: 변수가 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "변수가 없어요 · a 로 추가"},
+				En: {Other: "No variables · a to add"},
+			},
+		},
+		"env_global_mark": {
+			desc: "환경 화면 변수 줄 끝: 전역 변수 표시",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "전역"},
+				En: {Other: "global"},
+			},
+		},
+		"env_hint": {
+			desc: "환경 화면 맨 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "a 추가 · ⏎ 값 · s 비밀로 · d 지우기 · esc 닫기"},
+				En: {Other: "a add · ⏎ value · s make secret · d delete · esc close"},
+			},
+		},
+		"env_hosts": {
+			desc:   "환경 화면: 비밀 변수가 갈 수 있는 호스트(hosts = 쉼표로 이은 목록)",
+			params: []Param{{Name: "hosts", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "허용 호스트 {hosts} · H 바꾸기"},
+				En: {Other: "Allowed hosts {hosts} · H change"},
+			},
+		},
+		"env_hosts_prompt": {
+			desc: "허용 호스트 창: 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 비밀 변수를 보내도 되는 호스트 이름 (쉼표로 나눔)"},
+				En: {Other: "Hosts this secret may be sent to (comma separated)"},
+			},
+		},
+		"env_hosts_title": {
+			desc: "허용 호스트 바꾸기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "허용 호스트"},
+				En: {Other: "Allowed hosts"},
+			},
+		},
+		"env_new_prompt": {
+			desc: "새 환경 창: 이름 칸 위 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 이름"},
+				En: {Other: "Environment name"},
+			},
+		},
+		"env_new_title": {
+			desc: "새 환경 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "새 환경"},
+				En: {Other: "New environment"},
+			},
+		},
+		"env_none": {
+			desc: "환경을 고르지 않은 상태의 이름",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "(환경 없음)"},
+				En: {Other: "(no environment)"},
+			},
+		},
+		"env_picker": {
+			desc:   "환경 화면 둘째 줄: 고른 환경과 바꾸는 키(name = 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 ‹ {name} › · h/l 바꾸기 · N 새 환경"},
+				En: {Other: "Environment ‹ {name} › · h/l switch · N new"},
+			},
+		},
+		"env_source": {
+			desc:   "환경 화면: 고른 변수의 값 출처(src = 내 값·공유 환경·컬렉션·전역)",
+			params: []Param{{Name: "src", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "출처 {src}"},
+				En: {Other: "From {src}"},
+			},
+		},
+		"env_storage": {
+			desc:   "환경 화면 첫 줄: 비밀 값이 어디에 보관되는지(where = 키체인·이번 실행만 같은 보관 위치)",
+			params: []Param{{Name: "where", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 값 보관: {where}"},
+				En: {Other: "Secret values kept in: {where}"},
+			},
+		},
+		"env_storage_unset": {
+			desc: "환경 화면 첫 줄: 아직 비밀 값을 넣지 않아 보관 위치가 정해지지 않았을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 값 보관: 아직 넣은 값이 없어요"},
+				En: {Other: "Secret values kept in: no value yet"},
+			},
+		},
+		"env_title": {
+			desc:   "환경 화면 제목(name = 고른 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			max:    40,
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 · {name}"},
+				En: {Other: "Environment · {name}"},
+			},
+		},
+		"env_value_title": {
+			desc:   "변수 값 바꾸기 창 제목(name = 변수 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			max:    40,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 값"},
+				En: {Other: "{name} value"},
+			},
+		},
 		"export_copied": {
 			desc: "curl 을 복사한 뒤 토스트",
 			text: map[Locale]Forms{
@@ -757,6 +905,14 @@ var areaApitest = area{
 				En: {Other: "Keep as is"},
 			},
 		},
+		"secret_label": {
+			desc:   "비밀 값 입력 창 안내(name = 변수 이름, 앞뒤 {{ }} 가 붙음)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{name}}} 의 값 (화면에 보이지 않아요)"},
+				En: {Other: "Value of {{{name}}} (not shown on screen)"},
+			},
+		},
 		"secret_name": {
 			desc: "secret_detected 창: 아래 칸에 넣을 변수 이름 안내",
 			text: map[Locale]Forms{
@@ -858,6 +1014,54 @@ var areaApitest = area{
 				En: {Other: "TLS certificate check {state} · space toggle"},
 			},
 		},
+		"src_collection": {
+			desc: "변수 값 출처: 컬렉션 변수",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "컬렉션"},
+				En: {Other: "collection"},
+			},
+		},
+		"src_dynamic": {
+			desc: "변수 값 출처: {{$uuid}} 같은 동적 변수",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "동적"},
+				En: {Other: "dynamic"},
+			},
+		},
+		"src_global": {
+			desc: "변수 값 출처: 내 전역 변수",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "전역"},
+				En: {Other: "global"},
+			},
+		},
+		"src_mine": {
+			desc: "변수 값 출처: 내 값(개인 환경·공유 컬렉션의 내 값)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 값"},
+				En: {Other: "my value"},
+			},
+		},
+		"src_shared": {
+			desc: "변수 값 출처: 공유 컬렉션의 환경",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 환경"},
+				En: {Other: "shared env"},
+			},
+		},
+		"src_temp": {
+			desc: "변수 값 출처: 요청의 임시 값",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "임시 값"},
+				En: {Other: "temporary"},
+			},
+		},
 		"state_off": {
 			desc: "설정 값: 끔",
 			max:  6,
@@ -922,6 +1126,15 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "⚠ 인증서 검사 끔"},
 				En: {Other: "⚠ Certificate check off"},
+			},
+		},
+		"tool_login_account": {
+			desc:   "설정 도구 로그인 줄: 이 PC 에 값을 넣은 API 비밀 변수 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 변수 {n}개"},
+				En: {One: "{n} secret variable", Other: "{n} secret variables"},
 			},
 		},
 		"tool_name": {
@@ -1103,6 +1316,101 @@ func (a_ ApitestT) EdQuery(n int) string {
 // EdSettings: 요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)
 func (a_ ApitestT) EdSettings() string {
 	return a_.t.render(&areaApitest, "ed_settings", false, 0)
+}
+
+// EnvAddPrompt: 변수 추가 창: 이름 칸 위 안내
+func (a_ ApitestT) EnvAddPrompt() string {
+	return a_.t.render(&areaApitest, "env_add_prompt", false, 0)
+}
+
+// EnvAddTitle: 변수 추가 창 제목
+func (a_ ApitestT) EnvAddTitle() string {
+	return a_.t.render(&areaApitest, "env_add_title", false, 0)
+}
+
+// EnvCookies: 환경 화면 쿠키 칸 제목(n = 쿠키 수, 이 PC 메모리에만 있음)
+func (a_ ApitestT) EnvCookies(n int) string {
+	return a_.t.render(&areaApitest, "env_cookies", false, n, "n", strconv.Itoa(n))
+}
+
+// EnvCookiesCleared: 쿠키를 지운 뒤 토스트
+func (a_ ApitestT) EnvCookiesCleared() string {
+	return a_.t.render(&areaApitest, "env_cookies_cleared", false, 0)
+}
+
+// EnvEmpty: 환경 화면: 변수가 하나도 없을 때
+func (a_ ApitestT) EnvEmpty() string {
+	return a_.t.render(&areaApitest, "env_empty", false, 0)
+}
+
+// EnvGlobalMark: 환경 화면 변수 줄 끝: 전역 변수 표시
+func (a_ ApitestT) EnvGlobalMark() string {
+	return a_.t.render(&areaApitest, "env_global_mark", false, 0)
+}
+
+// EnvHint: 환경 화면 맨 아래 키 안내
+func (a_ ApitestT) EnvHint() string {
+	return a_.t.render(&areaApitest, "env_hint", false, 0)
+}
+
+// EnvHosts: 환경 화면: 비밀 변수가 갈 수 있는 호스트(hosts = 쉼표로 이은 목록)
+func (a_ ApitestT) EnvHosts(hosts string) string {
+	return a_.t.render(&areaApitest, "env_hosts", false, 0, "hosts", hosts)
+}
+
+// EnvHostsPrompt: 허용 호스트 창: 칸 위 안내
+func (a_ ApitestT) EnvHostsPrompt() string {
+	return a_.t.render(&areaApitest, "env_hosts_prompt", false, 0)
+}
+
+// EnvHostsTitle: 허용 호스트 바꾸기 창 제목
+func (a_ ApitestT) EnvHostsTitle() string {
+	return a_.t.render(&areaApitest, "env_hosts_title", false, 0)
+}
+
+// EnvNewPrompt: 새 환경 창: 이름 칸 위 안내
+func (a_ ApitestT) EnvNewPrompt() string {
+	return a_.t.render(&areaApitest, "env_new_prompt", false, 0)
+}
+
+// EnvNewTitle: 새 환경 창 제목
+func (a_ ApitestT) EnvNewTitle() string {
+	return a_.t.render(&areaApitest, "env_new_title", false, 0)
+}
+
+// EnvNone: 환경을 고르지 않은 상태의 이름
+func (a_ ApitestT) EnvNone() string {
+	return a_.t.render(&areaApitest, "env_none", false, 0)
+}
+
+// EnvPicker: 환경 화면 둘째 줄: 고른 환경과 바꾸는 키(name = 환경 이름)
+func (a_ ApitestT) EnvPicker(name string) string {
+	return a_.t.render(&areaApitest, "env_picker", false, 0, "name", name)
+}
+
+// EnvSource: 환경 화면: 고른 변수의 값 출처(src = 내 값·공유 환경·컬렉션·전역)
+func (a_ ApitestT) EnvSource(src string) string {
+	return a_.t.render(&areaApitest, "env_source", false, 0, "src", src)
+}
+
+// EnvStorage: 환경 화면 첫 줄: 비밀 값이 어디에 보관되는지(where = 키체인·이번 실행만 같은 보관 위치)
+func (a_ ApitestT) EnvStorage(where string) string {
+	return a_.t.render(&areaApitest, "env_storage", false, 0, "where", where)
+}
+
+// EnvStorageUnset: 환경 화면 첫 줄: 아직 비밀 값을 넣지 않아 보관 위치가 정해지지 않았을 때
+func (a_ ApitestT) EnvStorageUnset() string {
+	return a_.t.render(&areaApitest, "env_storage_unset", false, 0)
+}
+
+// EnvTitle: 환경 화면 제목(name = 고른 환경 이름)
+func (a_ ApitestT) EnvTitle(name string) string {
+	return a_.t.render(&areaApitest, "env_title", false, 0, "name", name)
+}
+
+// EnvValueTitle: 변수 값 바꾸기 창 제목(name = 변수 이름)
+func (a_ ApitestT) EnvValueTitle(name string) string {
+	return a_.t.render(&areaApitest, "env_value_title", false, 0, "name", name)
 }
 
 // ExportCopied: curl 을 복사한 뒤 토스트
@@ -1460,6 +1768,11 @@ func (a_ ApitestT) SecretKeep() string {
 	return a_.t.render(&areaApitest, "secret_keep", false, 0)
 }
 
+// SecretLabel: 비밀 값 입력 창 안내(name = 변수 이름, 앞뒤 {{ }} 가 붙음)
+func (a_ ApitestT) SecretLabel(name string) string {
+	return a_.t.render(&areaApitest, "secret_label", false, 0, "name", name)
+}
+
 // SecretName: secret_detected 창: 아래 칸에 넣을 변수 이름 안내
 func (a_ ApitestT) SecretName() string {
 	return a_.t.render(&areaApitest, "secret_name", false, 0)
@@ -1525,6 +1838,36 @@ func (a_ ApitestT) SetTls(state string) string {
 	return a_.t.render(&areaApitest, "set_tls", false, 0, "state", state)
 }
 
+// SrcCollection: 변수 값 출처: 컬렉션 변수
+func (a_ ApitestT) SrcCollection() string {
+	return a_.t.render(&areaApitest, "src_collection", false, 0)
+}
+
+// SrcDynamic: 변수 값 출처: {{$uuid}} 같은 동적 변수
+func (a_ ApitestT) SrcDynamic() string {
+	return a_.t.render(&areaApitest, "src_dynamic", false, 0)
+}
+
+// SrcGlobal: 변수 값 출처: 내 전역 변수
+func (a_ ApitestT) SrcGlobal() string {
+	return a_.t.render(&areaApitest, "src_global", false, 0)
+}
+
+// SrcMine: 변수 값 출처: 내 값(개인 환경·공유 컬렉션의 내 값)
+func (a_ ApitestT) SrcMine() string {
+	return a_.t.render(&areaApitest, "src_mine", false, 0)
+}
+
+// SrcShared: 변수 값 출처: 공유 컬렉션의 환경
+func (a_ ApitestT) SrcShared() string {
+	return a_.t.render(&areaApitest, "src_shared", false, 0)
+}
+
+// SrcTemp: 변수 값 출처: 요청의 임시 값
+func (a_ ApitestT) SrcTemp() string {
+	return a_.t.render(&areaApitest, "src_temp", false, 0)
+}
+
 // StateOff: 설정 값: 끔
 func (a_ ApitestT) StateOff() string {
 	return a_.t.render(&areaApitest, "state_off", false, 0)
@@ -1568,6 +1911,11 @@ func (a_ ApitestT) TinyHint() string {
 // TlsOffWarning: TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄여 쓰지 않음)
 func (a_ ApitestT) TlsOffWarning() string {
 	return a_.t.render(&areaApitest, "tls_off_warning", false, 0)
+}
+
+// ToolLoginAccount: 설정 도구 로그인 줄: 이 PC 에 값을 넣은 API 비밀 변수 수
+func (a_ ApitestT) ToolLoginAccount(n int) string {
+	return a_.t.render(&areaApitest, "tool_login_account", false, n, "n", strconv.Itoa(n))
 }
 
 // ToolName: 도구 이름(허브 줄·팔레트·탭 제목·설정 도구 로그인 줄)

@@ -107,6 +107,9 @@ type Tool struct {
 	pendingPuts    []pendingPut
 	pendingHost    *apitool.HostNotAllowedError
 	pendingPrivate string
+
+	envCur int               // the environments screen's selected row
+	masks  map[string]string // secret rows "e:<name>" -> "••••1234"
 }
 
 var (
@@ -337,6 +340,15 @@ func (t *Tool) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if m.t == t {
 			return t.onSecretPut(ctx, m)
 		}
+	case secretsui.PromptMsg:
+		if m.Tool == ui.ToolAPI {
+			return t.onPrompt(ctx, m)
+		}
+	case masksMsg:
+		if m.t == t {
+			t.masks = m.masks
+		}
+		return nil
 	case secretsui.ConsentMsg:
 		if m.Tool != ui.ToolAPI || len(t.pendingPuts) == 0 {
 			return nil
