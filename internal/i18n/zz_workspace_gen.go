@@ -1120,6 +1120,14 @@ var areaWorkspace = area{
 				En: {Other: "s send · i insert · r reject · x end sharing"},
 			},
 		},
+		"tiny_owner_keys_fs": {
+			desc:       "초소형 오너 요약 바닥 줄 키 안내(파일 이름 바꾸기·지우기 요청을 골랐을 때)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "a 허용 · r 거절 · x 공유 끝"},
+				En: {Other: "a approve · r reject · x end sharing"},
+			},
+		},
 		"tiny_owner_summary": {
 			desc:   "초소형 오너 요약 머리. n = 들어온 사람 수",
 			params: []Param{{Name: "n", Type: "int"}},
@@ -1926,6 +1934,11 @@ func (a_ WorkspaceT) TinyKeyboard(name string, mmss string) string {
 // TinyOwnerKeys: 초소형 오너 요약 바닥 줄 키 안내
 func (a_ WorkspaceT) TinyOwnerKeys() string {
 	return a_.t.render(&areaWorkspace, "tiny_owner_keys", false, 0)
+}
+
+// TinyOwnerKeysFs: 초소형 오너 요약 바닥 줄 키 안내(파일 이름 바꾸기·지우기 요청을 골랐을 때)
+func (a_ WorkspaceT) TinyOwnerKeysFs() string {
+	return a_.t.render(&areaWorkspace, "tiny_owner_keys_fs", false, 0)
 }
 
 // TinyOwnerSummary: 초소형 오너 요약 머리. n = 들어온 사람 수

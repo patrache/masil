@@ -442,6 +442,9 @@ other = "keyboard {name} {mmss}"
 [tiny_owner_keys]
 other = "s send · i insert · r reject · x end sharing"
 
+[tiny_owner_keys_fs]
+other = "a approve · r reject · x end sharing"
+
 [tiny_owner_summary]
 other = "🔴 Sharing · {n}"
 

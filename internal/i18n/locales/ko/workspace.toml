@@ -666,6 +666,11 @@ desc = "초소형 오너 요약 바닥 줄 키 안내"
 no_truncate = true
 other = "s 넣고 보내기 · i 넣기 · r 거절 · x 공유 끝"
 
+[tiny_owner_keys_fs]
+desc = "초소형 오너 요약 바닥 줄 키 안내(파일 이름 바꾸기·지우기 요청을 골랐을 때)"
+no_truncate = true
+other = "a 허용 · r 거절 · x 공유 끝"
+
 [tiny_owner_summary]
 desc = "초소형 오너 요약 머리. n = 들어온 사람 수"
 params = { n = "int" }

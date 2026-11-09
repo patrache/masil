@@ -47,15 +47,23 @@ func (s *Surface) tinyView(ctx *ui.Context, w, h int) []string {
 	for _, l := range textwidth.Wrap(strings.Join(parts, " · "), max(w-1, 1)) {
 		lines = append(lines, " "+red.Render(l))
 	}
-	keys := packItems(strings.Split(t.TinyOwnerKeys(), " · "), " · ", max(w-1, 1))
-	room := max(h-len(lines)-len(keys), 0)
 	sel := s.tinySel(len(ps))
+	hint := t.TinyOwnerKeys()
+	if sel < len(ps) && ps[sel].Kind != "" { // a file request: only a or r
+		hint = t.TinyOwnerKeysFs()
+	}
+	keys := packItems(strings.Split(hint, " · "), " · ", max(w-1, 1))
+	room := max(h-len(lines)-len(keys), 0)
 	for i, p := range ps {
 		if i >= room {
 			break
 		}
 		name := s.peer(ctx, p.Seat, s.seatUser(p.Seat)).handle
-		text := textwidth.Truncate(" "+name+": "+proposalText(ctx, p), w, "…")
+		head := name
+		if p.Kind != "" { // a rename or delete is named as one
+			head = t.ProposalFrom(name, proposalKind(ctx, p))
+		}
+		text := textwidth.Truncate(" "+head+": "+proposalText(ctx, p), w, "…")
 		if i == sel {
 			text = th.S.Selected.Render(textwidth.PadRight(text, w))
 		}
@@ -108,13 +116,17 @@ func (s *Surface) tinyKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 		act = share.ActInsertSend
 	case "i":
 		act = share.ActInsert
+	case "a":
+		act = share.ActApprove
 	case "r":
 		act = share.ActReject
 	default:
 		return false, nil
 	}
-	if p.Kind != "" && act != share.ActReject {
-		act = share.ActApprove
+	// The queue dialog's rule: a file request is carried out only with a, a
+	// proposal is typed only with i or s.
+	if (p.Kind != "") != (act == share.ActApprove) && act != share.ActReject {
+		return true, nil
 	}
 	return true, s.actOnProposal(ctx, p, act, "")
 }
