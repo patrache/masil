@@ -1916,6 +1916,7 @@ const (DensityFull Density = iota /*command, standard*/; DensityLine /*compact: 
 	Lang       i18n.Locale      // 실효 언어
 	Post       Poster           // 고루틴에서 화면으로 msg 를 보내는 유일한 길 — never nil
 	ToolState  *toolstate.File  // tools-state.json (3.2) — never nil (하네스는 t.TempDir() 의 빈 파일)
+	OpenTools  func() []OpenToolInfo // 도구 표면에 열린 인스턴스(허브 빼고, 표면 순서) — 앱이 채움, nil = 없음. 허브의 "열려 있음" 목록이 씀(5.3.6)
 	Secrets    *secrets.Store   // 도구 자격증명 저장소 — never nil (하네스는 secrettest.NewStore(tb, true))
 	CollabDial func(ctx context.Context, url string, h http.Header) (realtime.Conn, error) // 방 문서 소켓 dial; nil = 진짜 연결
 
@@ -2079,7 +2080,7 @@ const (
 // app
 const FrontTools Front = ... // 새 Front: 단일 창 모드는 Main 에, 지휘소는 SlotTool 에 도구 표면
 // NavState 에 추가:
-//   Tools      []ui.Route      // 도구 표면 목록: [0] = 허브(열려 있으면), 그 뒤 인스턴스. 최대 6
+//   Tools      []ui.Route      // 도구 표면 목록: [0] = 허브(열려 있으면), 그 뒤 인스턴스. 최대 6 — 허브 자리 하나는 늘 남긴다(인스턴스는 5개까지, 허브 없이 열어도). 넘으면 거절 + 토스트 tools.limit_toast
 //   ToolActive int             // Tools 의 활성 인덱스
 //   ToolZoom   map[string]bool // 인스턴스 Route.Key() -> 넓게 보기(없으면 ToolSpec.WideDefault)
 ```
@@ -2178,7 +2179,7 @@ const OverlayFocusSummary = "fun.focus_summary" // sns-fun ui/fun; args = alert 
 - 등록되지 않은 슬롯/경로는 앱이 `widgets.Placeholder("준비 중")` 로 그린다 → core 골든은 chat/sns 없이도 깨지지 않는다. core 시험은 `uitest/stub`(10.2)을 등록해 실제 상호작용을 시험한다.
 - **경로 슬롯** `SlotMain`·`SlotThread`·`SlotFeed`·`SlotNotifications` 는 PaneFactory 가 없고 `app.Project`(5.3.3) 가 정한 **경로 인스턴스**를 띄운다: `SlotFeed` ← 피드 표면 맨 위(`RouteFeed` 등), `SlotNotifications` ← `RouteNotifications` 인스턴스, `SlotThread` ← 활성 탭의 `RouteThread` 인스턴스. 그래서 모드가 바뀌어 같은 경로가 Main 으로 내려오거나 전용 창으로 올라가도 **같은 인스턴스**(선택·스크롤·초안 유지)다.
 
-**v0.1.3 추가 — 등록부** (P0 Task 9·9a·16·18·25). 모두 `init()` 에서만 부르고 중복은 panic, `Registry` 스냅샷(`Registered()`·`clone()`·`SnapshotRegistryForTest`)이 함께 복사·복원한다(`Registry.Tools`·`Cards`·`KillSwitches`·`AlertTargets`).
+**v0.1.3 추가 — 등록부** (P0 Task 9·9a·16·18·25). 모두 `init()` 에서만 부르고 중복은 panic, `Registry` 스냅샷(`Registered()`·`clone()`·`SnapshotRegistryForTest`)이 함께 복사·복원한다(`Registry.Tools`·`Cards`·`KillSwitches`·`AlertTargets`). 각 필드는 그 등록 함수를 만드는 Task 가 `internal/ui/registry.go` 의 `Registry`·`emptyRegistry`·`clone` 에 함께 더한다(`Tools` = Task 18, `AlertTargets` = Task 9, `KillSwitches` = Task 16, `Cards` = Task 25) — 패키지 수준 변수에 따로 두지 않는다.
 
 ```go
 // 도구 (v0.1.3 설계서 A8.2)
@@ -2197,13 +2198,29 @@ type ToolSpec struct {
 	PrefixKeys  []PrefixKey                            // 접두키 추가분(ReservedPrefixKeys 와 겹치면 panic)
 	WideDefault bool                                   // workspace·arch·api = true, leet·git = false
 }
-func RegisterTool(s ToolSpec)                                // 중복 ID·Order panic
+func RegisterTool(s ToolSpec)                                // 위 다섯 ID 밖의 ID·중복 ID·중복 Order·ReservedPrefixKeys 접두키 => panic (시험 대역도 다섯 ID 중 하나로 등록)
 func Tools() []ToolSpec                                      // Order 순, features.On(ID) 인 것만
-func ToolByID(id string) (ToolSpec, bool)
+func ToolByID(id string) (ToolSpec, bool)                    // 등록됐고 features.On(id) 일 때만 ok — 꺼진 도구는 없는 것과 같다
 func OpenTool(toolID, instanceID string, query map[string]string) tea.Cmd // NavigateMsg{RouteTool}
 func CloseTool(instanceID string) tea.Cmd                    // 인스턴스의 Closer.CloseTool(있으면) 뒤 도구 표면에서 뺌; 없는 ID 무시
+type CloseToolMsg struct{ InstanceID string }                // CloseTool 이 보내는 msg — 앱이 소비(방송 안 함)
 type Closer interface{ CloseTool(ctx *Context) tea.Cmd }
 type ToolSwitchedMsg struct{ Route Route; Zoomed bool }      // 도구 표면 활성 인스턴스가 바뀔 때 방송
+type ToolStatuser interface{ ToolStatus(ctx *Context) string } // 선택: 허브 "열려 있음" 줄의 "방식 · 상태"(A8.2, 예 "패널 · 실행 중") — 없으면 빈칸. 앱이 Sanitize
+type OpenToolInfo struct {                                   // Context.OpenTools 의 한 줄
+	Route  Route  // 그 RouteTool 경로
+	Title  string // 탭 제목(Titled, 없으면 도구 이름) + 도구 아이콘, Sanitize
+	Status string // ToolStatuser.ToolStatus, 없으면 ""
+	Active bool   // 도구 표면이 앞에 있고 그 활성 항목
+}
+type ToolSurfaceAction int                                   // ToolSurfaceToggle | ToolSurfaceNext | ToolSurfacePrev | ToolSurfaceZoom
+type ToolSurfaceMsg struct{ Action ToolSurfaceAction }       // 팔레트 tools.toggle/next/prev/zoom 이 보냄 — 앱이 소비(플래그 꺼짐이면 무시)
+```
+
+- **인스턴스 ID 는 도구 표면 전체에서 하나**다(`CloseTool` 은 ID 만 받으므로). 다른 도구의 인스턴스가 이미 그 ID 로 열려 있으면 앱은 그 `RouteTool` 을 거절한다(로그만, 토스트 없음). 그래서 도구는 인스턴스 ID 를 `"<도구 ID>:"` 로 시작한다(예 `"git:"+repo`, `"arch:doc:"+id`).
+- 열기 거절(가득 참·ID 겹침)·플래그 꺼짐은 `OpenTool` 의 Cmd 를 아무 일 없이 끝낸다 — 도구는 열렸다고 가정하지 않는다.
+
+```go
 
 // 채팅 카드 (v0.1.3 설계서 C1.2) — ui/chat 이 그리고, 도구 패키지가 등록
 const (CardLeetDaily = "leet.daily"; CardLeetSolve = "leet.solve"; CardArchDesign = "arch.design"; CardArchSim = "arch.sim"; CardAPIResult = "api.result"; CardAPIRun = "api.run")
@@ -2324,7 +2341,7 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 - `Options` 에 `Locale *i18n.Resolution`(nil = `i18n.Resolve(i18n.DetectOS() + config)`). 앱은 시작 때 `ctx.T = i18n.For(Effective)`, `api.Client.SetLanguage`, `Notifier.SetLocale`, `ctx.Keys.Localize(ctx.T)` 를 한 번 한다.
 - **브리지 줄(A6.2)**: 실시간 콜백(`OnEvent`/`OnState`)은 `tea.Program.Send` 를 부르지 않고 **순서를 지키는 줄(FIFO)** 에 넣고 바로 돌아간다. 배달 고루틴 하나가 줄에서 꺼내 `Send` 한다 — 화면 쪽이 막혀도(화면 전환 중) 실시간 루프는 ping·소켓 읽기를 계속한다. 상한 `bridgeQueueLimit = 4096`: 넘치면 쌓인 `EventMsg` 를 버리고 마지막 `RealtimeStateMsg` 만 남긴 뒤 `resyncNeededMsg` 하나를 넣는다 → 화면이 돌아오면 기존 재동기화(REST 부트스트랩 → Resyncer)를 한 번 탄다. `ctx.Post` 는 같은 배달 고루틴의 별도 줄(상한 4096, 넘치면 가장 오래된 비-Coalesce 항목을 버리고 `slog.Warn`).
 - **화면 전환 복귀 토스트(JA28)**: `termhost.Exclusive()` 가 참인 동안 브리지가 남의 `message.created`·mention alert 를 세고, 끝나면 상태줄 토스트 한 번 `termpane.exec_return` = `{program} 쓰는 동안 · 새 메시지 {messages} · 멘션 {mentions}`(`{program}` = `ExitInfo.Title`, 비면 `filepath.Base(Program)`; 0건이면 토스트 없음).
-- **탭 줄**: 컴팩트·위젯·초소형은 도구가 하나라도 열려 있을 때만 끝에 고정 칸 `도구`(초소형 `도`, 카탈로그 `tools.tab_label`/`tab_label_short`)가 생기고, 모두 닫으면 사라진다(80×24·44×24 에서 넘치지 않음). 위젯 맥락 줄은 도구 표면일 때 `🌿 lazygit · masil ▾` 처럼 도구 제목 + 대상, `▾` 로 열린 도구 사이 전환.
+- **탭 줄**: 컴팩트·위젯·초소형은 도구가 하나라도 열려 있을 때만 끝에 고정 칸 `도구`(초소형 `도`, 카탈로그 `tools.tab_label`/`tab_label_short`)가 생기고, 모두 닫으면 사라진다(80×24·44×24 에서 넘치지 않음). 위젯 맥락 줄은 도구 표면일 때 `🌿 lazygit · masil ▾` 처럼 도구 제목 + 대상, `▾` 클릭으로 열린 도구 사이 전환(다음 항목, 끝에서 처음으로; 하나만 열려 있으면 지금처럼 팔레트). 위젯·초소형의 `[`/`]` 는 고정 탭 순환 그대로이고, 키보드로 도구 사이를 오가는 길은 팔레트 `tools.next`/`tools.prev` 와 허브다. 초소형(테두리 없음)의 허브는 첫 줄 왼쪽에 제목 `도구` 를 직접 그린다.
 - **상태줄**: 포커스 컴포넌트가 `StatusTexter` 면 그 문구가 힌트를 대신한다(패널 포커스 `⌨ lazygit 에 입력 중 · ctrl+\ esc 나가기`, 접두 대기 `ctrl+\ 다음: esc 나가기 · z 확대 · x 끝내기 · p 팔레트 · ? 도움말`). 도움말·상태줄의 `ctrl+t`·`tools.zoom` 줄은 `features.Any()` 일 때만 보인다(플래그가 꺼져 있으면 0.1.2 와 같은 화면).
 - **키 독점**: 포커스 컴포넌트가 `KeyGrabber` 이고 `GrabsKeys()` 면 앱은 하드 전역(`ctrl+c`·`ctrl+k`·`tab` …)을 판단하기 전에 키·붙여넣기·포커스 msg 를 그 컴포넌트로 넘긴다. 빠져나오는 길은 `ctrl+\` 접두키(5.5 `termhost.escape`)뿐. `ui.KillSwitchActive()` 인 동안은 어느 화면에서든 `ctrl+\` 다음 `x` 가 `ui.KillAll`(확인 없음).
 - **끝내기**: 모든 종료 경로(`ctrl+c` 두 번·`/quit`·팔레트 `quit`)가 하나의 `requestQuit()` 를 지나고, `termhost.Running()` 이 비어 있지 않으면 확인 대화상자 `termpane.quit_confirm`(`lazygit 1개, nvim 1개가 실행 중이에요. 함께 끌까요?`, 기본 "아니오") → 예 = `termhost.CloseAll(2s)` 뒤 종료. `MASIL_PANE=1`(masil 이 masil 패널 안에서 뜸)이면 첫 그리기 뒤 경고 토스트 한 번.
@@ -2478,11 +2495,11 @@ func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Ko
 const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 ```
 - 검색 후보 = `Label(ctx.T)` + `Label(i18n.For(i18n.En))` + `Keywords`(Label 이 없으면 기존 `Title`) — 한국어 화면에서도 영어 이름으로 찾는다(i18n 설계서 6.4.4). 기존 `Group: "명령"` 같은 호출부는 상수로 바꾼다(문구는 그대로).
-- 도구 팔레트 Source(`ui/tools`): 등록된 도구(`ui.Tools()`)마다 `<아이콘> <이름>` 항목(이름 = `spec.Name(ctx.T)`, 영어 별칭 `tools`·도구 ID 로도 검색), 실행 = `spec.Open(ctx, termhost.ModeAuto)`.
+- 도구 팔레트 항목(`ui/tools`): `palette.Source` 가 아니라 도구 ID 마다 명령 하나 `tools.open.<id>`(다섯 개, `Group: GroupNav`) — 팔레트는 고른 명령 항목을 등록된 id 로 `ui.RunCommand` 하므로 항목이 등록된 명령이어야 한다. 제목 `Label` = `<아이콘> <spec.Name(ctx.T)>`(그릴 때마다), `Keywords` = `tools`·도구 ID, `Available` = `ui.ToolByID(id)` 가 ok(등록됨·플래그 켜짐), 실행 = `spec.Open(ctx, termhost.ModeAuto)`.
 
 | 등록 패키지 | 명령 id |
 |---|---|
-| core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)` |
+| core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
 | P1 LeetCode·lazygit | `leet.*`, `git.*` |
 | P2 작업공간 | `ws.*` |
 | P3 아키텍처 설계 | `arch.*` |
