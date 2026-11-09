@@ -1,9 +1,45 @@
 package workspace
 
+import (
+	"time"
+
+	"github.com/patrache/masil/internal/workspace/share"
+)
+
 // SetPaneSupportedForTest makes embedded panes (un)available, as on Windows,
 // and returns the restore func.
 func SetPaneSupportedForTest(on bool) (restore func()) {
 	old := paneSupported
 	paneSupported = func() bool { return on }
 	return func() { paneSupported = old }
+}
+
+// SetDialForTest makes shares connect through dial with the engine on
+// ManualTick (the pump ticks it on the harness clock).
+func SetDialForTest(dial share.DialFunc) (restore func()) {
+	oldDial, oldManual := dialFor, manualTick
+	dialFor, manualTick = dial, true
+	return func() { dialFor, manualTick = oldDial, oldManual }
+}
+
+// SetOwnerActivityForTest replaces the owner-activity report.
+func SetOwnerActivityForTest(f func(*share.Host, time.Time)) (restore func()) {
+	old := ownerActivity
+	ownerActivity = f
+	return func() { ownerActivity = old }
+}
+
+// SetSASForTest shows every check number as sas (goldens).
+func SetSASForTest(sas string) (restore func()) {
+	old := formatSAS
+	formatSAS = func(string) string { return sas }
+	return func() { formatSAS = old }
+}
+
+// SetTerminalForTest adapts terminals for sharing with f (fake panes have
+// no termhost.Pane).
+func SetTerminalForTest(f func(instanceID string) share.Terminal) (restore func()) {
+	old := shareTerminal
+	shareTerminal = func(t *term) share.Terminal { return f(t.id) }
+	return func() { shareTerminal = old }
 }

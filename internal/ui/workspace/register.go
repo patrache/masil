@@ -17,6 +17,7 @@ import (
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/palette"
 )
 
 // pickerID is the folder picker's instance (a route without a folder).
@@ -51,6 +52,46 @@ func init() {
 		},
 		WideDefault: true,
 	})
+	palette.Register(palette.Command{
+		ID: "ws.share.start", Label: func(t *i18n.T) string { return t.Workspace.PaletteShareStart() },
+		Keywords: []string{"workspace", "share"}, Group: palette.GroupCommand,
+		Available: func(ctx *ui.Context) bool { return activeSurface(ctx) != "" },
+		Run:       wsCommand("share.start"),
+	})
+}
+
+// wsCommandMsg runs a palette command on workspace instance surface.
+type wsCommandMsg struct{ surface, action string }
+
+// wsCommand is a palette command for the active workspace instance.
+func wsCommand(action string) func(*ui.Context, string) tea.Cmd {
+	return func(ctx *ui.Context, _ string) tea.Cmd {
+		id := activeSurface(ctx)
+		if id == "" {
+			return nil
+		}
+		return func() tea.Msg { return wsCommandMsg{surface: id, action: action} }
+	}
+}
+
+// activeSurface is the workspace instance in front (else the first open one).
+func activeSurface(ctx *ui.Context) string {
+	if !features.On(ui.ToolWorkspace) || ctx.OpenTools == nil {
+		return ""
+	}
+	first := ""
+	for _, o := range ctx.OpenTools() {
+		if o.Route.Arg != ui.ToolWorkspace || o.Route.ID == pickerID {
+			continue
+		}
+		if o.Active {
+			return o.Route.ID
+		}
+		if first == "" {
+			first = o.Route.ID
+		}
+	}
+	return first
 }
 
 // instanceID is the tool instance of a folder: "workspace:" + 8 hex digits of

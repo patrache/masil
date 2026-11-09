@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -41,6 +42,7 @@ type field struct {
 	label string
 	r     []rune
 	mask  bool
+	raw   bool // keep what was typed as is (shown sanitized): a check must see it
 }
 
 func (f *field) value() string { return string(f.r) }
@@ -57,7 +59,11 @@ func (f *field) key(msg tea.KeyPressMsg) bool {
 		return true
 	}
 	if msg.Text != "" && msg.Mod&^tea.ModShift == 0 { // printable (shift allowed)
-		f.r = append(f.r, []rune(textwidth.SanitizeInput(msg.Text))...)
+		if f.raw {
+			f.r = append(f.r, []rune(msg.Text)...)
+		} else {
+			f.r = append(f.r, []rune(textwidth.SanitizeInput(msg.Text))...)
+		}
 		return true
 	}
 	return false
@@ -75,9 +81,13 @@ type form struct {
 	cancel func(ctx *ui.Context) tea.Cmd // esc (nil: just close)
 	keys   func(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd)
 	hint   func(ctx *ui.Context) string
-	sel    int // index into the selectable rows
-	scroll int
-	closed bool
+	// shareOnly: the dialog belongs to the running share (it goes when the share ends)
+	shareOnly bool
+	sel       int // index into the selectable rows
+	scroll    int
+	follow    bool // the selection moved: bring it into view on the next draw
+	drawn     bool
+	closed    bool
 	// drawn layout (set by view): selectable row -> first body line
 	selLine []int
 	cursor  *tea.Cursor
@@ -134,12 +144,14 @@ func (f *form) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) tea.Cmd {
 	case "up", "k", "shift+tab":
 		if f.sel > 0 {
 			f.sel--
+			f.follow = true
 		} else {
 			f.scroll = max(0, f.scroll-1)
 		}
 	case "down", "j", "tab":
 		if f.sel < n-1 {
 			f.sel++
+			f.follow = true
 		} else {
 			f.scroll++
 		}
@@ -153,6 +165,23 @@ func (f *form) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// bodyText is the dialog's body as drawn at width w, every line (tests and
+// the scroll end check).
+func (f *form) bodyText(ctx *ui.Context, w int) []string {
+	keep := *f
+	lines := f.view(ctx, w, 100000)
+	*f = keep
+	end := len(lines) - 2
+	for end > 1 && strings.TrimSpace(ansi.Strip(lines[end-1])) == "" {
+		end--
+	}
+	out := make([]string, 0, end)
+	for _, l := range lines[1:end] {
+		out = append(out, ansi.Strip(l))
+	}
+	return out
 }
 
 func (f *form) paste(ctx *ui.Context, s string) {
@@ -251,8 +280,10 @@ func (f *form) view(ctx *ui.Context, w, h int) []string {
 	}
 	f.lines = len(body)
 	bodyH := max(h-3, 1)
-	// keep the selected row on screen
-	if cur >= 0 {
+	// bring the selected row on screen when it moved (a dialog opens at its
+	// top: warnings are read from their first line)
+	if cur >= 0 && f.follow {
+		f.follow = false
 		first := f.selLine[cur]
 		last := first
 		if cur+1 < len(rows) {

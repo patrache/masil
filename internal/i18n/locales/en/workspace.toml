@@ -1,5 +1,32 @@
+[ago_minutes]
+other = "{n} min ago"
+
+[ago_now]
+other = "just now"
+
 [band_private]
 other = "🔒 Only me · {folder}"
+
+[band_sharing]
+other = "🔴 Sharing · {n}"
+
+[cancel]
+other = "Cancel"
+
+[check_accept_edits]
+other = "This mode allows file edits without asking"
+
+[check_blocked_bypass]
+other = "A program started in a mode that skips permission checks (dangerously…) cannot be shared"
+
+[check_blocked_mode]
+other = "This permission mode cannot be shared (only manual, plan and acceptEdits)"
+
+[check_blocked_settings]
+other = "A program started with its own --settings cannot be shared"
+
+[check_shell_warning]
+other = "masil cannot check the mode of programs run inside a shell"
 
 [code_cannot_open]
 other = "This file cannot be opened"
@@ -25,6 +52,9 @@ other = "Read-only · mixed line endings"
 [code_unsaved]
 other = "● Unsaved"
 
+[company_code_notice]
+other = "If this is company code, check your company's policy first"
+
 [disk_merged]
 other = "Merged changes from disk · u undo · d use the disk version"
 
@@ -43,6 +73,78 @@ other = "{folder} · 🔒 Only me · {n} terminals"
 [hub_status_sharing]
 other = "{folder} · 🔴 Sharing with {n}"
 
+[join_requesting]
+other = "{name} wants to join"
+
+[keyboard_duration]
+other = "Duration"
+
+[keyboard_extend]
+other = "Extend the keyboard · {name}"
+
+[keyboard_handle_label]
+other = "Handle"
+
+[keyboard_handle_mismatch]
+other = "The handle does not match"
+
+[keyboard_hours]
+other = "{n} h"
+
+[keyboard_minutes]
+other = "{n} min"
+
+[keyboard_needs_verify]
+other = "Only people whose number was checked can edit or get the keyboard"
+
+[keyboard_paused]
+other = "Owner away · keyboard paused"
+
+[keyboard_remaining]
+other = "keyboard {mmss}"
+
+[keyboard_title]
+other = "Give the keyboard · {name}"
+
+[keyboard_type_handle]
+other = "Type {handle} exactly to allow"
+
+[keyboard_warning]
+other = "If you give {name} the keyboard, {name} can run anything on this PC just as {owner} can: delete files, read secrets (environment variables included), press \"yes\" in a program's permission prompt, send files over the internet. masil cannot filter keys one by one. Give it only to people you trust, only as long as needed."
+
+[keyboard_warning_own_device]
+other = "This is another device of {owner}'s. It will be able to run anything on this PC."
+
+[kick_confirm]
+other = "Remove {name}?"
+
+[kick_yes]
+other = "Remove"
+
+[kill_hint]
+other = "{key} then x ends sharing"
+
+[last_input]
+other = "Last input: {name} · {ago}"
+
+[legal_notice]
+other = "When someone else types into this session, they may in effect be using {owner}'s account and subscription. AI service terms may limit sharing an account or subscription. For several people working together, API key billing (charged to the owner as used) is the clearer way. Please check the terms of the services you use."
+
+[legal_notice_short]
+other = "With the keyboard they may in effect use {owner}'s account and subscription. Please check the terms of the services you use."
+
+[level_editor]
+other = "edit"
+
+[level_keyboard]
+other = "keyboard"
+
+[level_prompter]
+other = "propose"
+
+[level_viewer]
+other = "view"
+
 [newterm_custom]
 other = "Type a command"
 
@@ -52,8 +154,29 @@ other = "New terminal"
 [open_failed]
 other = "Could not open the folder"
 
+[palette_share_start]
+other = "Workspace: start sharing"
+
 [path_prompt]
 other = "Type a path"
+
+[peer_joined]
+other = "{name} joined"
+
+[peer_left]
+other = "{name} left"
+
+[people_keys]
+other = "+/- level · k keyboard · K extend · x remove"
+
+[people_offline]
+other = "offline"
+
+[people_title]
+other = "People {n}"
+
+[people_waiting]
+other = "waiting"
 
 [pick_folder_title]
 other = "Open a folder"
@@ -82,6 +205,9 @@ other = "to the terminal cell"
 [prefix_help_tree]
 other = "to the tree cell"
 
+[proposal_pending]
+other = "{n} proposals waiting ({key} to view)"
+
 [recent_folders]
 other = "Recent folders"
 
@@ -100,11 +226,89 @@ other = "Discard"
 [recovery_restore]
 other = "Recover"
 
+[sas_allow]
+other = "Match · allow"
+
+[sas_allow_unverified]
+other = "Allow without checking"
+
+[sas_compare_hint]
+other = "Compare the numbers outside masil (a voice call, in person, another messenger). Comparing over masil DMs is not full protection: the server could change DMs too."
+
+[sas_decline]
+other = "Decline"
+
+[sas_keyboard_later]
+other = "The keyboard can be given later from the people list"
+
+[sas_level]
+other = "Level"
+
+[sas_mismatch]
+other = "Different"
+
+[sas_mismatch_warning]
+other = "Someone may be in the middle"
+
+[sas_peer_matched]
+other = "{name} pressed match too"
+
+[sas_title]
+other = "Check number · {name}"
+
 [save_failed]
 other = "Could not save"
 
 [saved]
 other = "Saved {file}"
+
+[share_autosave]
+other = "Autosave (2 s after an edit)"
+
+[share_dialog_hint]
+other = "↑↓ choose · space toggle · enter start sharing · esc close"
+
+[share_dialog_title]
+other = "Start sharing"
+
+[share_failed]
+other = "Could not start sharing"
+
+[share_files]
+other = "Files (tree and editor)"
+
+[share_invite_friends]
+other = "Invite (up to {n})"
+
+[share_invite_full]
+other = "You can invite up to {n} people"
+
+[share_invite_none]
+other = "No friends to invite"
+
+[share_notice_screen]
+other = "The moment sharing starts, the current terminal screen is visible as it is, and so is everything printed after it (secrets included, if a program prints them). The file deny list protects only the tree and the editor, not terminal output."
+
+[share_term_size]
+other = "Terminal size"
+
+[share_term_size_fit]
+other = "Fit the window"
+
+[share_terminal]
+other = "Terminal {n} · {name}"
+
+[share_title_default]
+other = "{name}'s workspace"
+
+[share_title_label]
+other = "Share name"
+
+[share_title_server_visible]
+other = "The server can see this"
+
+[share_what]
+other = "What to share"
 
 [subtab_code]
 other = "Code"
@@ -118,6 +322,15 @@ other = "Term"
 [subtab_tree]
 other = "Tree"
 
+[tamper_continue]
+other = "Keep sharing"
+
+[tamper_stop]
+other = "Stop sharing"
+
+[tamper_warning]
+other = "Content is being changed by the server or the network. Stop sharing?"
+
 [term_empty_hint]
 other = "n new terminal"
 
@@ -130,5 +343,11 @@ other = "…{n} more"
 [tree_secret_hidden]
 other = "🔒 {name} (not shared)"
 
+[unverified]
+other = "unverified"
+
 [windows_no_terminal]
 other = "Terminals inside masil do not work on Windows yet. Press {key} to run full screen"
+
+[windows_term_share_disabled]
+other = "Terminals cannot be shared on Windows"

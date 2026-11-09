@@ -11,12 +11,82 @@ type WorkspaceT struct{ t *T }
 var areaWorkspace = area{
 	name: "workspace",
 	keys: map[string]*entry{
+		"ago_minutes": {
+			desc:   "지난 시간(분). n = 분",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}분 전"},
+				En: {Other: "{n} min ago"},
+			},
+		},
+		"ago_now": {
+			desc: "지난 시간: 1분 안",
+			text: map[Locale]Forms{
+				Ko: {Other: "방금"},
+				En: {Other: "just now"},
+			},
+		},
 		"band_private": {
 			desc:   "상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)",
 			params: []Param{{Name: "folder", Type: "string"}},
 			text: map[Locale]Forms{
 				Ko: {Other: "🔒 나만 보기 · {folder}"},
 				En: {Other: "🔒 Only me · {folder}"},
+			},
+		},
+		"band_sharing": {
+			desc:   "상단 띠(공유 중): 들어온 사람 수. n = 사람 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🔴 공유 중 · {n}명"},
+				En: {Other: "🔴 Sharing · {n}"},
+			},
+		},
+		"cancel": {
+			desc: "작업공간 대화상자 단추: 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
+		"check_accept_edits": {
+			desc:       "프로그램 점검 경고: claude 가 파일 편집을 묻지 않음(스펙 고정 문구)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "파일 편집을 묻지 않고 허용하는 모드예요"},
+				En: {Other: "This mode allows file edits without asking"},
+			},
+		},
+		"check_blocked_bypass": {
+			desc:       "프로그램 점검: 권한 확인을 건너뛰는 플래그로 실행해서 공유할 수 없음",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "권한 확인을 건너뛰는 모드(dangerously…)로 실행한 프로그램은 공유할 수 없어요"},
+				En: {Other: "A program started in a mode that skips permission checks (dangerously…) cannot be shared"},
+			},
+		},
+		"check_blocked_mode": {
+			desc:       "프로그램 점검: 허용 목록 밖의 권한 모드라 공유할 수 없음",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "masil이 허용하지 않는 권한 모드라 공유할 수 없어요(manual · plan · acceptEdits만 돼요)"},
+				En: {Other: "This permission mode cannot be shared (only manual, plan and acceptEdits)"},
+			},
+		},
+		"check_blocked_settings": {
+			desc:       "프로그램 점검: 사용자가 직접 지정한 --settings 가 있어 공유할 수 없음",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "직접 지정한 --settings 가 있어 공유할 수 없어요"},
+				En: {Other: "A program started with its own --settings cannot be shared"},
+			},
+		},
+		"check_shell_warning": {
+			desc:       "프로그램 점검 경고: 셸 안에서 실행하는 프로그램은 모드를 확인할 수 없음(스펙 고정 문구)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "셸 안에서 실행하는 프로그램의 모드는 masil이 확인할 수 없어요"},
+				En: {Other: "masil cannot check the mode of programs run inside a shell"},
 			},
 		},
 		"code_cannot_open": {
@@ -75,6 +145,15 @@ var areaWorkspace = area{
 				En: {Other: "● Unsaved"},
 			},
 		},
+		"company_code_notice": {
+			desc:       "공유 시작 안내: 회사 코드일 때(스펙 고정 문구)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "회사 코드라면 회사 정책을 먼저 확인해 주세요"},
+				En: {Other: "If this is company code, check your company's policy first"},
+			},
+		},
 		"disk_merged": {
 			desc:       "코드 칸 알림: 다른 프로그램이 파일을 바꿔서 저장 안 된 편집과 합쳤을 때(무엇을 할 수 있는지)",
 			noTruncate: true,
@@ -121,6 +200,198 @@ var areaWorkspace = area{
 				En: {Other: "{folder} · 🔴 Sharing with {n}"},
 			},
 		},
+		"join_requesting": {
+			desc:   "토스트·대기 줄: 누가 참가를 요청함. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 참가하려고 해요"},
+				En: {Other: "{name} wants to join"},
+			},
+		},
+		"keyboard_duration": {
+			desc: "키보드 경고: 기간 고르기 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "기간"},
+				En: {Other: "Duration"},
+			},
+		},
+		"keyboard_extend": {
+			desc:   "키보드 연장 대화상자 제목. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "키보드 연장 · {name}"},
+				En: {Other: "Extend the keyboard · {name}"},
+			},
+		},
+		"keyboard_handle_label": {
+			desc: "키보드 경고: 핸들 입력 칸의 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "핸들"},
+				En: {Other: "Handle"},
+			},
+		},
+		"keyboard_handle_mismatch": {
+			desc: "키보드 경고: 입력한 핸들이 다름",
+			text: map[Locale]Forms{
+				Ko: {Other: "핸들이 달라요"},
+				En: {Other: "The handle does not match"},
+			},
+		},
+		"keyboard_hours": {
+			desc:   "키보드 기간 선택지(시간). n = 시간",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}시간"},
+				En: {Other: "{n} h"},
+			},
+		},
+		"keyboard_minutes": {
+			desc:   "키보드 기간 선택지(분). n = 분",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}분"},
+				En: {Other: "{n} min"},
+			},
+		},
+		"keyboard_needs_verify": {
+			desc:       "토스트: 확인 숫자를 비교하지 않은 사람에게 편집·키보드를 주려 할 때",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "숫자를 확인한 사람에게만 편집·키보드를 줄 수 있어요"},
+				En: {Other: "Only people whose number was checked can edit or get the keyboard"},
+			},
+		},
+		"keyboard_paused": {
+			desc: "띠: 오너가 자리를 비워 키보드 입력을 멈춤(스펙 고정 문구)",
+			text: map[Locale]Forms{
+				Ko: {Other: "오너 자리 비움 · 키보드 멈춤"},
+				En: {Other: "Owner away · keyboard paused"},
+			},
+		},
+		"keyboard_remaining": {
+			desc:   "띠·사람 목록: 키보드 남은 시간. mmss = 분:초(번역하지 않음)",
+			params: []Param{{Name: "mmss", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "키보드 {mmss}"},
+				En: {Other: "keyboard {mmss}"},
+			},
+		},
+		"keyboard_title": {
+			desc:   "키보드 넘기기 대화상자 제목. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "키보드 넘기기 · {name}"},
+				En: {Other: "Give the keyboard · {name}"},
+			},
+		},
+		"keyboard_type_handle": {
+			desc:       "키보드 경고: 상대 핸들을 그대로 입력해야 허용됨. handle = 상대 핸들(번역하지 않음)",
+			params:     []Param{{Name: "handle", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "허용하려면 {handle} 을 그대로 입력해 주세요"},
+				En: {Other: "Type {handle} exactly to allow"},
+			},
+		},
+		"keyboard_warning": {
+			desc:       "키보드 경고 전문(스펙 고정 문구). name = 받는 사람 표시 이름, owner = 오너 이름",
+			params:     []Param{{Name: "name", Type: "string"}, {Name: "owner", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님에게 키보드를 넘기면, {name}님은 이 PC에서 {owner}님과 똑같이 무엇이든 실행할 수 있어요. 파일 지우기, 비밀값 읽기(환경 변수 포함), 프로그램의 권한 승인 창에 \"예\" 누르기, 인터넷으로 파일 보내기까지요. masil은 키 하나하나를 걸러 낼 수 없어요. 믿는 사람에게만, 필요한 동안만 넘겨 주세요."},
+				En: {Other: "If you give {name} the keyboard, {name} can run anything on this PC just as {owner} can: delete files, read secrets (environment variables included), press \"yes\" in a program's permission prompt, send files over the internet. masil cannot filter keys one by one. Give it only to people you trust, only as long as needed."},
+			},
+		},
+		"keyboard_warning_own_device": {
+			desc:       "키보드 경고(오너의 다른 기기일 때 짧은 형). owner = 오너 이름",
+			params:     []Param{{Name: "owner", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{owner}님의 다른 기기예요. 그 기기에서 이 PC의 무엇이든 실행할 수 있게 돼요."},
+				En: {Other: "This is another device of {owner}'s. It will be able to run anything on this PC."},
+			},
+		},
+		"kick_confirm": {
+			desc:   "내보내기 확인. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 내보낼까요?"},
+				En: {Other: "Remove {name}?"},
+			},
+		},
+		"kick_yes": {
+			desc: "내보내기 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내기"},
+				En: {Other: "Remove"},
+			},
+		},
+		"kill_hint": {
+			desc:   "상태줄 힌트: 공유를 바로 끊는 키. key = 접두키(번역하지 않음)",
+			params: []Param{{Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{key} 다음 x 공유 끝"},
+				En: {Other: "{key} then x ends sharing"},
+			},
+		},
+		"last_input": {
+			desc:   "공유 중: 마지막으로 입력한 사람과 지난 시간. name = 표시 이름, ago = 지난 시간",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "ago", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "마지막 입력: {name} · {ago}"},
+				En: {Other: "Last input: {name} · {ago}"},
+			},
+		},
+		"legal_notice": {
+			desc:       "공유 시작 안내 ②: 계정·구독을 나눠 쓰는 셈이 될 수 있음(스펙 고정 문구). owner = 오너 이름",
+			params:     []Param{{Name: "owner", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "다른 사람이 이 세션에 입력하면 그 사람이 {owner}님의 계정과 구독을 쓰는 셈이 될 수 있어요. AI 서비스 약관은 계정이나 구독을 남과 나눠 쓰는 것을 제한할 수 있어요. 여러 사람이 함께 쓰려면 API 키 과금(쓴 만큼 오너에게 청구)이 더 분명한 방법이에요. 쓰는 서비스의 약관을 직접 확인해 주세요."},
+				En: {Other: "When someone else types into this session, they may in effect be using {owner}'s account and subscription. AI service terms may limit sharing an account or subscription. For several people working together, API key billing (charged to the owner as used) is the clearer way. Please check the terms of the services you use."},
+			},
+		},
+		"legal_notice_short": {
+			desc:       "키보드 경고 아래 짧은 약관 안내. owner = 오너 이름",
+			params:     []Param{{Name: "owner", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "키보드를 넘기면 그 사람이 {owner}님의 계정과 구독을 쓰는 셈이 될 수 있어요. 쓰는 서비스의 약관을 확인해 주세요."},
+				En: {Other: "With the keyboard they may in effect use {owner}'s account and subscription. Please check the terms of the services you use."},
+			},
+		},
+		"level_editor": {
+			desc: "참가 단계 이름: 편집",
+			text: map[Locale]Forms{
+				Ko: {Other: "편집"},
+				En: {Other: "edit"},
+			},
+		},
+		"level_keyboard": {
+			desc: "참가 단계 이름: 키보드",
+			text: map[Locale]Forms{
+				Ko: {Other: "키보드"},
+				En: {Other: "keyboard"},
+			},
+		},
+		"level_prompter": {
+			desc: "참가 단계 이름: 제안",
+			text: map[Locale]Forms{
+				Ko: {Other: "제안"},
+				En: {Other: "propose"},
+			},
+		},
+		"level_viewer": {
+			desc: "참가 단계 이름: 보기",
+			text: map[Locale]Forms{
+				Ko: {Other: "보기"},
+				En: {Other: "view"},
+			},
+		},
 		"newterm_custom": {
 			desc: "새 터미널 목록의 마지막 줄: 실행할 명령을 직접 입력",
 			text: map[Locale]Forms{
@@ -142,11 +413,63 @@ var areaWorkspace = area{
 				En: {Other: "Could not open the folder"},
 			},
 		},
+		"palette_share_start": {
+			desc: "팔레트 명령: 작업공간 공유 시작",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업공간: 공유 시작"},
+				En: {Other: "Workspace: start sharing"},
+			},
+		},
 		"path_prompt": {
 			desc: "폴더 고르기 화면: 경로를 직접 입력하는 칸의 이름",
 			text: map[Locale]Forms{
 				Ko: {Other: "경로 입력"},
 				En: {Other: "Type a path"},
+			},
+		},
+		"peer_joined": {
+			desc:   "토스트: 참가자가 들어옴. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 들어왔어요"},
+				En: {Other: "{name} joined"},
+			},
+		},
+		"peer_left": {
+			desc:   "토스트: 참가자가 나감. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 나갔어요"},
+				En: {Other: "{name} left"},
+			},
+		},
+		"people_keys": {
+			desc: "사람 목록 바닥 줄 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "+/- 단계 · k 키보드 · K 연장 · x 내보내기"},
+				En: {Other: "+/- level · k keyboard · K extend · x remove"},
+			},
+		},
+		"people_offline": {
+			desc: "사람 목록: 연결이 끊긴 사람 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "끊김"},
+				En: {Other: "offline"},
+			},
+		},
+		"people_title": {
+			desc:   "사람 목록 칸 제목. n = 들어온 사람 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "사람 {n}"},
+				En: {Other: "People {n}"},
+			},
+		},
+		"people_waiting": {
+			desc: "사람 목록: 참가 요청 중인 사람 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 중"},
+				En: {Other: "waiting"},
 			},
 		},
 		"pick_folder_title": {
@@ -212,6 +535,14 @@ var areaWorkspace = area{
 				En: {Other: "to the tree cell"},
 			},
 		},
+		"proposal_pending": {
+			desc:   "띠: 기다리는 제안 수와 여는 키. n = 수, key = 키(번역하지 않음)",
+			params: []Param{{Name: "n", Type: "int"}, {Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "제안 {n}건 대기({key} 보기)"},
+				En: {Other: "{n} proposals waiting ({key} to view)"},
+			},
+		},
 		"recent_folders": {
 			desc: "폴더 고르기 화면: 최근 연 폴더 목록 제목",
 			text: map[Locale]Forms{
@@ -256,6 +587,81 @@ var areaWorkspace = area{
 				En: {Other: "Recover"},
 			},
 		},
+		"sas_allow": {
+			desc: "확인 숫자 대화상자 단추: 숫자가 같음, 허용",
+			text: map[Locale]Forms{
+				Ko: {Other: "일치 · 허용"},
+				En: {Other: "Match · allow"},
+			},
+		},
+		"sas_allow_unverified": {
+			desc: "확인 숫자 대화상자 단추: 비교 없이 허용(보기·제안만)",
+			text: map[Locale]Forms{
+				Ko: {Other: "확인 없이 허용"},
+				En: {Other: "Allow without checking"},
+			},
+		},
+		"sas_compare_hint": {
+			desc:       "확인 숫자 대화상자: 숫자를 masil 밖에서 비교하라는 안내(스펙 고정 문구)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "masil 밖의 경로(음성 통화, 옆자리, 다른 메신저)로 숫자를 비교해 주세요. masil DM 으로 비교하면 서버가 DM 도 바꿀 수 있어서 완전한 보호가 아니에요."},
+				En: {Other: "Compare the numbers outside masil (a voice call, in person, another messenger). Comparing over masil DMs is not full protection: the server could change DMs too."},
+			},
+		},
+		"sas_decline": {
+			desc: "확인 숫자 대화상자 단추: 거절",
+			text: map[Locale]Forms{
+				Ko: {Other: "거절"},
+				En: {Other: "Decline"},
+			},
+		},
+		"sas_keyboard_later": {
+			desc:       "확인 숫자 대화상자: 키보드는 나중에 사람 목록에서 줄 수 있음",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "키보드는 들어온 뒤 사람 목록에서 줄 수 있어요"},
+				En: {Other: "The keyboard can be given later from the people list"},
+			},
+		},
+		"sas_level": {
+			desc: "확인 숫자 대화상자: 들어올 단계 고르기 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "들어올 단계"},
+				En: {Other: "Level"},
+			},
+		},
+		"sas_mismatch": {
+			desc: "확인 숫자 대화상자 단추: 숫자가 다름",
+			text: map[Locale]Forms{
+				Ko: {Other: "다름"},
+				En: {Other: "Different"},
+			},
+		},
+		"sas_mismatch_warning": {
+			desc:       "경고: 확인 숫자가 달라서 중간에서 가로챘을 수 있음(스펙 고정 문구)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "중간에서 누가 가로챘을 수 있어요"},
+				En: {Other: "Someone may be in the middle"},
+			},
+		},
+		"sas_peer_matched": {
+			desc:   "확인 숫자 대화상자: 상대가 이미 일치를 누름. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님도 일치를 눌렀어요"},
+				En: {Other: "{name} pressed match too"},
+			},
+		},
+		"sas_title": {
+			desc:   "확인 숫자 대화상자 제목. name = 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "확인 숫자 · {name}"},
+				En: {Other: "Check number · {name}"},
+			},
+		},
 		"save_failed": {
 			desc: "토스트: 파일을 저장하지 못했을 때",
 			text: map[Locale]Forms{
@@ -269,6 +675,125 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{file} 저장했어요"},
 				En: {Other: "Saved {file}"},
+			},
+		},
+		"share_autosave": {
+			desc: "공유 시작 대화상자: 자동 저장 켬/끔(편집 2초 뒤 저장)",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 저장 (편집 2초 뒤)"},
+				En: {Other: "Autosave (2 s after an edit)"},
+			},
+		},
+		"share_dialog_hint": {
+			desc: "공유 시작 대화상자 바닥 줄 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "↑↓ 고르기 · space 켬/끔 · enter 공유 시작 · esc 닫기"},
+				En: {Other: "↑↓ choose · space toggle · enter start sharing · esc close"},
+			},
+		},
+		"share_dialog_title": {
+			desc: "공유 시작 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 시작"},
+				En: {Other: "Start sharing"},
+			},
+		},
+		"share_failed": {
+			desc: "토스트: 공유를 시작하지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유를 시작하지 못했어요"},
+				En: {Other: "Could not start sharing"},
+			},
+		},
+		"share_files": {
+			desc: "공유 시작 대화상자: 파일(트리·편집기) 공유 켬/끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일 (트리·편집기)"},
+				En: {Other: "Files (tree and editor)"},
+			},
+		},
+		"share_invite_friends": {
+			desc:   "공유 시작 대화상자: 초대할 친구 목록 제목. n = 최대 인원",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "초대할 사람 (최대 {n}명)"},
+				En: {Other: "Invite (up to {n})"},
+			},
+		},
+		"share_invite_full": {
+			desc:   "토스트: 초대 인원이 가득 찼을 때. n = 최대 인원",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "최대 {n}명까지 초대할 수 있어요"},
+				En: {Other: "You can invite up to {n} people"},
+			},
+		},
+		"share_invite_none": {
+			desc: "공유 시작 대화상자: 초대할 친구가 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대할 친구가 없어요"},
+				En: {Other: "No friends to invite"},
+			},
+		},
+		"share_notice_screen": {
+			desc:       "공유 시작 안내 ①: 터미널 화면과 출력이 그대로 보임(스펙 고정 문구)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "공유를 켜는 순간 지금 터미널 화면이 그대로 보이고, 그 뒤에 출력되는 모든 것(비밀값을 출력하면 그것까지)이 보여요. 파일 차단 목록은 트리·편집기만 지키고 터미널 출력은 지키지 못해요."},
+				En: {Other: "The moment sharing starts, the current terminal screen is visible as it is, and so is everything printed after it (secrets included, if a program prints them). The file deny list protects only the tree and the editor, not terminal output."},
+			},
+		},
+		"share_term_size": {
+			desc: "공유 시작 대화상자: 공유 터미널 크기 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "터미널 크기"},
+				En: {Other: "Terminal size"},
+			},
+		},
+		"share_term_size_fit": {
+			desc: "터미널 크기 선택지: 오너 창 크기를 따라감",
+			text: map[Locale]Forms{
+				Ko: {Other: "창에 맞춤"},
+				En: {Other: "Fit the window"},
+			},
+		},
+		"share_terminal": {
+			desc:   "공유 시작 대화상자: 터미널 하나 공유 켬/끔. n = 터미널 번호, name = 프로그램 이름(번역하지 않음)",
+			params: []Param{{Name: "n", Type: "int"}, {Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "터미널 {n} · {name}"},
+				En: {Other: "Terminal {n} · {name}"},
+			},
+		},
+		"share_title_default": {
+			desc:   "공유 이름 기본값. name = 오너 핸들(번역하지 않음)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}의 작업공간"},
+				En: {Other: "{name}'s workspace"},
+			},
+		},
+		"share_title_label": {
+			desc: "공유 시작 대화상자: 공유 이름 입력 칸의 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 이름"},
+				En: {Other: "Share name"},
+			},
+		},
+		"share_title_server_visible": {
+			desc:       "공유 이름 옆 안내: 이 이름은 서버가 볼 수 있음",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "서버에 보이는 정보예요"},
+				En: {Other: "The server can see this"},
+			},
+		},
+		"share_what": {
+			desc: "공유 시작 대화상자: 공유할 것 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유할 것"},
+				En: {Other: "What to share"},
 			},
 		},
 		"subtab_code": {
@@ -304,6 +829,28 @@ var areaWorkspace = area{
 				En: {Other: "Tree"},
 			},
 		},
+		"tamper_continue": {
+			desc: "변조 경고 단추: 계속 공유",
+			text: map[Locale]Forms{
+				Ko: {Other: "계속하기"},
+				En: {Other: "Keep sharing"},
+			},
+		},
+		"tamper_stop": {
+			desc: "변조 경고 단추: 공유를 바로 멈춤",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 멈추기"},
+				En: {Other: "Stop sharing"},
+			},
+		},
+		"tamper_warning": {
+			desc:       "경고: 내용이 중간에서 바뀌고 있음(스펙 고정 문구)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "서버나 네트워크에서 내용이 바뀌고 있어요. 공유를 멈출까요?"},
+				En: {Other: "Content is being changed by the server or the network. Stop sharing?"},
+			},
+		},
 		"term_empty_hint": {
 			desc: "터미널 칸: 아직 터미널이 없을 때(n 키로 새 터미널)",
 			text: map[Locale]Forms{
@@ -335,6 +882,13 @@ var areaWorkspace = area{
 				En: {Other: "🔒 {name} (not shared)"},
 			},
 		},
+		"unverified": {
+			desc: "확인 숫자를 비교하지 않고 들어온 사람 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "미확인"},
+				En: {Other: "unverified"},
+			},
+		},
 		"windows_no_terminal": {
 			desc:       "터미널 칸 안내: Windows 에서는 내장 터미널이 아직 안 됨. key = 전체 화면 실행 키(번역하지 않음)",
 			params:     []Param{{Name: "key", Type: "string"}},
@@ -344,12 +898,65 @@ var areaWorkspace = area{
 				En: {Other: "Terminals inside masil do not work on Windows yet. Press {key} to run full screen"},
 			},
 		},
+		"windows_term_share_disabled": {
+			desc:       "공유 시작 대화상자: Windows 에서는 터미널을 공유할 수 없음",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "Windows에서는 터미널을 공유할 수 없어요"},
+				En: {Other: "Terminals cannot be shared on Windows"},
+			},
+		},
 	},
+}
+
+// AgoMinutes: 지난 시간(분). n = 분
+func (a_ WorkspaceT) AgoMinutes(n int) string {
+	return a_.t.render(&areaWorkspace, "ago_minutes", false, 0, "n", strconv.Itoa(n))
+}
+
+// AgoNow: 지난 시간: 1분 안
+func (a_ WorkspaceT) AgoNow() string {
+	return a_.t.render(&areaWorkspace, "ago_now", false, 0)
 }
 
 // BandPrivate: 상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)
 func (a_ WorkspaceT) BandPrivate(folder string) string {
 	return a_.t.render(&areaWorkspace, "band_private", false, 0, "folder", folder)
+}
+
+// BandSharing: 상단 띠(공유 중): 들어온 사람 수. n = 사람 수
+func (a_ WorkspaceT) BandSharing(n int) string {
+	return a_.t.render(&areaWorkspace, "band_sharing", false, 0, "n", strconv.Itoa(n))
+}
+
+// Cancel: 작업공간 대화상자 단추: 취소
+func (a_ WorkspaceT) Cancel() string {
+	return a_.t.render(&areaWorkspace, "cancel", false, 0)
+}
+
+// CheckAcceptEdits: 프로그램 점검 경고: claude 가 파일 편집을 묻지 않음(스펙 고정 문구)
+func (a_ WorkspaceT) CheckAcceptEdits() string {
+	return a_.t.render(&areaWorkspace, "check_accept_edits", false, 0)
+}
+
+// CheckBlockedBypass: 프로그램 점검: 권한 확인을 건너뛰는 플래그로 실행해서 공유할 수 없음
+func (a_ WorkspaceT) CheckBlockedBypass() string {
+	return a_.t.render(&areaWorkspace, "check_blocked_bypass", false, 0)
+}
+
+// CheckBlockedMode: 프로그램 점검: 허용 목록 밖의 권한 모드라 공유할 수 없음
+func (a_ WorkspaceT) CheckBlockedMode() string {
+	return a_.t.render(&areaWorkspace, "check_blocked_mode", false, 0)
+}
+
+// CheckBlockedSettings: 프로그램 점검: 사용자가 직접 지정한 --settings 가 있어 공유할 수 없음
+func (a_ WorkspaceT) CheckBlockedSettings() string {
+	return a_.t.render(&areaWorkspace, "check_blocked_settings", false, 0)
+}
+
+// CheckShellWarning: 프로그램 점검 경고: 셸 안에서 실행하는 프로그램은 모드를 확인할 수 없음(스펙 고정 문구)
+func (a_ WorkspaceT) CheckShellWarning() string {
+	return a_.t.render(&areaWorkspace, "check_shell_warning", false, 0)
 }
 
 // CodeCannotOpen: 코드 칸: 열 수 없는 파일(차단·무시·찾을 수 없음 등)을 골랐을 때
@@ -392,6 +999,11 @@ func (a_ WorkspaceT) CodeUnsaved() string {
 	return a_.t.render(&areaWorkspace, "code_unsaved", false, 0)
 }
 
+// CompanyCodeNotice: 공유 시작 안내: 회사 코드일 때(스펙 고정 문구)
+func (a_ WorkspaceT) CompanyCodeNotice() string {
+	return a_.t.render(&areaWorkspace, "company_code_notice", false, 0)
+}
+
 // DiskMerged: 코드 칸 알림: 다른 프로그램이 파일을 바꿔서 저장 안 된 편집과 합쳤을 때(무엇을 할 수 있는지)
 func (a_ WorkspaceT) DiskMerged() string {
 	return a_.t.render(&areaWorkspace, "disk_merged", false, 0)
@@ -422,6 +1034,126 @@ func (a_ WorkspaceT) HubStatusSharing(folder string, n int) string {
 	return a_.t.render(&areaWorkspace, "hub_status_sharing", false, 0, "folder", folder, "n", strconv.Itoa(n))
 }
 
+// JoinRequesting: 토스트·대기 줄: 누가 참가를 요청함. name = 표시 이름
+func (a_ WorkspaceT) JoinRequesting(name string) string {
+	return a_.t.render(&areaWorkspace, "join_requesting", false, 0, "name", name)
+}
+
+// KeyboardDuration: 키보드 경고: 기간 고르기 제목
+func (a_ WorkspaceT) KeyboardDuration() string {
+	return a_.t.render(&areaWorkspace, "keyboard_duration", false, 0)
+}
+
+// KeyboardExtend: 키보드 연장 대화상자 제목. name = 표시 이름
+func (a_ WorkspaceT) KeyboardExtend(name string) string {
+	return a_.t.render(&areaWorkspace, "keyboard_extend", false, 0, "name", name)
+}
+
+// KeyboardHandleLabel: 키보드 경고: 핸들 입력 칸의 이름
+func (a_ WorkspaceT) KeyboardHandleLabel() string {
+	return a_.t.render(&areaWorkspace, "keyboard_handle_label", false, 0)
+}
+
+// KeyboardHandleMismatch: 키보드 경고: 입력한 핸들이 다름
+func (a_ WorkspaceT) KeyboardHandleMismatch() string {
+	return a_.t.render(&areaWorkspace, "keyboard_handle_mismatch", false, 0)
+}
+
+// KeyboardHours: 키보드 기간 선택지(시간). n = 시간
+func (a_ WorkspaceT) KeyboardHours(n int) string {
+	return a_.t.render(&areaWorkspace, "keyboard_hours", false, 0, "n", strconv.Itoa(n))
+}
+
+// KeyboardMinutes: 키보드 기간 선택지(분). n = 분
+func (a_ WorkspaceT) KeyboardMinutes(n int) string {
+	return a_.t.render(&areaWorkspace, "keyboard_minutes", false, 0, "n", strconv.Itoa(n))
+}
+
+// KeyboardNeedsVerify: 토스트: 확인 숫자를 비교하지 않은 사람에게 편집·키보드를 주려 할 때
+func (a_ WorkspaceT) KeyboardNeedsVerify() string {
+	return a_.t.render(&areaWorkspace, "keyboard_needs_verify", false, 0)
+}
+
+// KeyboardPaused: 띠: 오너가 자리를 비워 키보드 입력을 멈춤(스펙 고정 문구)
+func (a_ WorkspaceT) KeyboardPaused() string {
+	return a_.t.render(&areaWorkspace, "keyboard_paused", false, 0)
+}
+
+// KeyboardRemaining: 띠·사람 목록: 키보드 남은 시간. mmss = 분:초(번역하지 않음)
+func (a_ WorkspaceT) KeyboardRemaining(mmss string) string {
+	return a_.t.render(&areaWorkspace, "keyboard_remaining", false, 0, "mmss", mmss)
+}
+
+// KeyboardTitle: 키보드 넘기기 대화상자 제목. name = 표시 이름
+func (a_ WorkspaceT) KeyboardTitle(name string) string {
+	return a_.t.render(&areaWorkspace, "keyboard_title", false, 0, "name", name)
+}
+
+// KeyboardTypeHandle: 키보드 경고: 상대 핸들을 그대로 입력해야 허용됨. handle = 상대 핸들(번역하지 않음)
+func (a_ WorkspaceT) KeyboardTypeHandle(handle string) string {
+	return a_.t.render(&areaWorkspace, "keyboard_type_handle", false, 0, "handle", handle)
+}
+
+// KeyboardWarning: 키보드 경고 전문(스펙 고정 문구). name = 받는 사람 표시 이름, owner = 오너 이름
+func (a_ WorkspaceT) KeyboardWarning(name string, owner string) string {
+	return a_.t.render(&areaWorkspace, "keyboard_warning", false, 0, "name", name, "owner", owner)
+}
+
+// KeyboardWarningOwnDevice: 키보드 경고(오너의 다른 기기일 때 짧은 형). owner = 오너 이름
+func (a_ WorkspaceT) KeyboardWarningOwnDevice(owner string) string {
+	return a_.t.render(&areaWorkspace, "keyboard_warning_own_device", false, 0, "owner", owner)
+}
+
+// KickConfirm: 내보내기 확인. name = 표시 이름
+func (a_ WorkspaceT) KickConfirm(name string) string {
+	return a_.t.render(&areaWorkspace, "kick_confirm", false, 0, "name", name)
+}
+
+// KickYes: 내보내기 확인 단추
+func (a_ WorkspaceT) KickYes() string {
+	return a_.t.render(&areaWorkspace, "kick_yes", false, 0)
+}
+
+// KillHint: 상태줄 힌트: 공유를 바로 끊는 키. key = 접두키(번역하지 않음)
+func (a_ WorkspaceT) KillHint(key string) string {
+	return a_.t.render(&areaWorkspace, "kill_hint", false, 0, "key", key)
+}
+
+// LastInput: 공유 중: 마지막으로 입력한 사람과 지난 시간. name = 표시 이름, ago = 지난 시간
+func (a_ WorkspaceT) LastInput(name string, ago string) string {
+	return a_.t.render(&areaWorkspace, "last_input", false, 0, "name", name, "ago", ago)
+}
+
+// LegalNotice: 공유 시작 안내 ②: 계정·구독을 나눠 쓰는 셈이 될 수 있음(스펙 고정 문구). owner = 오너 이름
+func (a_ WorkspaceT) LegalNotice(owner string) string {
+	return a_.t.render(&areaWorkspace, "legal_notice", false, 0, "owner", owner)
+}
+
+// LegalNoticeShort: 키보드 경고 아래 짧은 약관 안내. owner = 오너 이름
+func (a_ WorkspaceT) LegalNoticeShort(owner string) string {
+	return a_.t.render(&areaWorkspace, "legal_notice_short", false, 0, "owner", owner)
+}
+
+// LevelEditor: 참가 단계 이름: 편집
+func (a_ WorkspaceT) LevelEditor() string {
+	return a_.t.render(&areaWorkspace, "level_editor", false, 0)
+}
+
+// LevelKeyboard: 참가 단계 이름: 키보드
+func (a_ WorkspaceT) LevelKeyboard() string {
+	return a_.t.render(&areaWorkspace, "level_keyboard", false, 0)
+}
+
+// LevelPrompter: 참가 단계 이름: 제안
+func (a_ WorkspaceT) LevelPrompter() string {
+	return a_.t.render(&areaWorkspace, "level_prompter", false, 0)
+}
+
+// LevelViewer: 참가 단계 이름: 보기
+func (a_ WorkspaceT) LevelViewer() string {
+	return a_.t.render(&areaWorkspace, "level_viewer", false, 0)
+}
+
 // NewtermCustom: 새 터미널 목록의 마지막 줄: 실행할 명령을 직접 입력
 func (a_ WorkspaceT) NewtermCustom() string {
 	return a_.t.render(&areaWorkspace, "newterm_custom", false, 0)
@@ -437,9 +1169,44 @@ func (a_ WorkspaceT) OpenFailed() string {
 	return a_.t.render(&areaWorkspace, "open_failed", false, 0)
 }
 
+// PaletteShareStart: 팔레트 명령: 작업공간 공유 시작
+func (a_ WorkspaceT) PaletteShareStart() string {
+	return a_.t.render(&areaWorkspace, "palette_share_start", false, 0)
+}
+
 // PathPrompt: 폴더 고르기 화면: 경로를 직접 입력하는 칸의 이름
 func (a_ WorkspaceT) PathPrompt() string {
 	return a_.t.render(&areaWorkspace, "path_prompt", false, 0)
+}
+
+// PeerJoined: 토스트: 참가자가 들어옴. name = 표시 이름
+func (a_ WorkspaceT) PeerJoined(name string) string {
+	return a_.t.render(&areaWorkspace, "peer_joined", false, 0, "name", name)
+}
+
+// PeerLeft: 토스트: 참가자가 나감. name = 표시 이름
+func (a_ WorkspaceT) PeerLeft(name string) string {
+	return a_.t.render(&areaWorkspace, "peer_left", false, 0, "name", name)
+}
+
+// PeopleKeys: 사람 목록 바닥 줄 키 안내
+func (a_ WorkspaceT) PeopleKeys() string {
+	return a_.t.render(&areaWorkspace, "people_keys", false, 0)
+}
+
+// PeopleOffline: 사람 목록: 연결이 끊긴 사람 표시
+func (a_ WorkspaceT) PeopleOffline() string {
+	return a_.t.render(&areaWorkspace, "people_offline", false, 0)
+}
+
+// PeopleTitle: 사람 목록 칸 제목. n = 들어온 사람 수
+func (a_ WorkspaceT) PeopleTitle(n int) string {
+	return a_.t.render(&areaWorkspace, "people_title", false, 0, "n", strconv.Itoa(n))
+}
+
+// PeopleWaiting: 사람 목록: 참가 요청 중인 사람 표시
+func (a_ WorkspaceT) PeopleWaiting() string {
+	return a_.t.render(&areaWorkspace, "people_waiting", false, 0)
 }
 
 // PickFolderTitle: 폴더 고르기 화면 제목
@@ -487,6 +1254,11 @@ func (a_ WorkspaceT) PrefixHelpTree() string {
 	return a_.t.render(&areaWorkspace, "prefix_help_tree", false, 0)
 }
 
+// ProposalPending: 띠: 기다리는 제안 수와 여는 키. n = 수, key = 키(번역하지 않음)
+func (a_ WorkspaceT) ProposalPending(n int, key string) string {
+	return a_.t.render(&areaWorkspace, "proposal_pending", false, 0, "n", strconv.Itoa(n), "key", key)
+}
+
 // RecentFolders: 폴더 고르기 화면: 최근 연 폴더 목록 제목
 func (a_ WorkspaceT) RecentFolders() string {
 	return a_.t.render(&areaWorkspace, "recent_folders", false, 0)
@@ -517,6 +1289,56 @@ func (a_ WorkspaceT) RecoveryRestore() string {
 	return a_.t.render(&areaWorkspace, "recovery_restore", false, 0)
 }
 
+// SasAllow: 확인 숫자 대화상자 단추: 숫자가 같음, 허용
+func (a_ WorkspaceT) SasAllow() string {
+	return a_.t.render(&areaWorkspace, "sas_allow", false, 0)
+}
+
+// SasAllowUnverified: 확인 숫자 대화상자 단추: 비교 없이 허용(보기·제안만)
+func (a_ WorkspaceT) SasAllowUnverified() string {
+	return a_.t.render(&areaWorkspace, "sas_allow_unverified", false, 0)
+}
+
+// SasCompareHint: 확인 숫자 대화상자: 숫자를 masil 밖에서 비교하라는 안내(스펙 고정 문구)
+func (a_ WorkspaceT) SasCompareHint() string {
+	return a_.t.render(&areaWorkspace, "sas_compare_hint", false, 0)
+}
+
+// SasDecline: 확인 숫자 대화상자 단추: 거절
+func (a_ WorkspaceT) SasDecline() string {
+	return a_.t.render(&areaWorkspace, "sas_decline", false, 0)
+}
+
+// SasKeyboardLater: 확인 숫자 대화상자: 키보드는 나중에 사람 목록에서 줄 수 있음
+func (a_ WorkspaceT) SasKeyboardLater() string {
+	return a_.t.render(&areaWorkspace, "sas_keyboard_later", false, 0)
+}
+
+// SasLevel: 확인 숫자 대화상자: 들어올 단계 고르기 제목
+func (a_ WorkspaceT) SasLevel() string {
+	return a_.t.render(&areaWorkspace, "sas_level", false, 0)
+}
+
+// SasMismatch: 확인 숫자 대화상자 단추: 숫자가 다름
+func (a_ WorkspaceT) SasMismatch() string {
+	return a_.t.render(&areaWorkspace, "sas_mismatch", false, 0)
+}
+
+// SasMismatchWarning: 경고: 확인 숫자가 달라서 중간에서 가로챘을 수 있음(스펙 고정 문구)
+func (a_ WorkspaceT) SasMismatchWarning() string {
+	return a_.t.render(&areaWorkspace, "sas_mismatch_warning", false, 0)
+}
+
+// SasPeerMatched: 확인 숫자 대화상자: 상대가 이미 일치를 누름. name = 표시 이름
+func (a_ WorkspaceT) SasPeerMatched(name string) string {
+	return a_.t.render(&areaWorkspace, "sas_peer_matched", false, 0, "name", name)
+}
+
+// SasTitle: 확인 숫자 대화상자 제목. name = 표시 이름
+func (a_ WorkspaceT) SasTitle(name string) string {
+	return a_.t.render(&areaWorkspace, "sas_title", false, 0, "name", name)
+}
+
 // SaveFailed: 토스트: 파일을 저장하지 못했을 때
 func (a_ WorkspaceT) SaveFailed() string {
 	return a_.t.render(&areaWorkspace, "save_failed", false, 0)
@@ -525,6 +1347,86 @@ func (a_ WorkspaceT) SaveFailed() string {
 // Saved: 토스트: 파일을 저장했을 때. file = 파일 이름(번역하지 않음)
 func (a_ WorkspaceT) Saved(file string) string {
 	return a_.t.render(&areaWorkspace, "saved", false, 0, "file", file)
+}
+
+// ShareAutosave: 공유 시작 대화상자: 자동 저장 켬/끔(편집 2초 뒤 저장)
+func (a_ WorkspaceT) ShareAutosave() string {
+	return a_.t.render(&areaWorkspace, "share_autosave", false, 0)
+}
+
+// ShareDialogHint: 공유 시작 대화상자 바닥 줄 키 안내
+func (a_ WorkspaceT) ShareDialogHint() string {
+	return a_.t.render(&areaWorkspace, "share_dialog_hint", false, 0)
+}
+
+// ShareDialogTitle: 공유 시작 대화상자 제목
+func (a_ WorkspaceT) ShareDialogTitle() string {
+	return a_.t.render(&areaWorkspace, "share_dialog_title", false, 0)
+}
+
+// ShareFailed: 토스트: 공유를 시작하지 못했을 때
+func (a_ WorkspaceT) ShareFailed() string {
+	return a_.t.render(&areaWorkspace, "share_failed", false, 0)
+}
+
+// ShareFiles: 공유 시작 대화상자: 파일(트리·편집기) 공유 켬/끔
+func (a_ WorkspaceT) ShareFiles() string {
+	return a_.t.render(&areaWorkspace, "share_files", false, 0)
+}
+
+// ShareInviteFriends: 공유 시작 대화상자: 초대할 친구 목록 제목. n = 최대 인원
+func (a_ WorkspaceT) ShareInviteFriends(n int) string {
+	return a_.t.render(&areaWorkspace, "share_invite_friends", false, 0, "n", strconv.Itoa(n))
+}
+
+// ShareInviteFull: 토스트: 초대 인원이 가득 찼을 때. n = 최대 인원
+func (a_ WorkspaceT) ShareInviteFull(n int) string {
+	return a_.t.render(&areaWorkspace, "share_invite_full", false, 0, "n", strconv.Itoa(n))
+}
+
+// ShareInviteNone: 공유 시작 대화상자: 초대할 친구가 없을 때
+func (a_ WorkspaceT) ShareInviteNone() string {
+	return a_.t.render(&areaWorkspace, "share_invite_none", false, 0)
+}
+
+// ShareNoticeScreen: 공유 시작 안내 ①: 터미널 화면과 출력이 그대로 보임(스펙 고정 문구)
+func (a_ WorkspaceT) ShareNoticeScreen() string {
+	return a_.t.render(&areaWorkspace, "share_notice_screen", false, 0)
+}
+
+// ShareTermSize: 공유 시작 대화상자: 공유 터미널 크기 제목
+func (a_ WorkspaceT) ShareTermSize() string {
+	return a_.t.render(&areaWorkspace, "share_term_size", false, 0)
+}
+
+// ShareTermSizeFit: 터미널 크기 선택지: 오너 창 크기를 따라감
+func (a_ WorkspaceT) ShareTermSizeFit() string {
+	return a_.t.render(&areaWorkspace, "share_term_size_fit", false, 0)
+}
+
+// ShareTerminal: 공유 시작 대화상자: 터미널 하나 공유 켬/끔. n = 터미널 번호, name = 프로그램 이름(번역하지 않음)
+func (a_ WorkspaceT) ShareTerminal(n int, name string) string {
+	return a_.t.render(&areaWorkspace, "share_terminal", false, 0, "n", strconv.Itoa(n), "name", name)
+}
+
+// ShareTitleDefault: 공유 이름 기본값. name = 오너 핸들(번역하지 않음)
+func (a_ WorkspaceT) ShareTitleDefault(name string) string {
+	return a_.t.render(&areaWorkspace, "share_title_default", false, 0, "name", name)
+}
+
+// ShareTitleLabel: 공유 시작 대화상자: 공유 이름 입력 칸의 이름
+func (a_ WorkspaceT) ShareTitleLabel() string {
+	return a_.t.render(&areaWorkspace, "share_title_label", false, 0)
+}
+
+// ShareTitleServerVisible: 공유 이름 옆 안내: 이 이름은 서버가 볼 수 있음
+func (a_ WorkspaceT) ShareTitleServerVisible() string {
+	return a_.t.render(&areaWorkspace, "share_title_server_visible", false, 0)
+}
+
+// ShareWhat: 공유 시작 대화상자: 공유할 것 제목
+func (a_ WorkspaceT) ShareWhat() string {
+	return a_.t.render(&areaWorkspace, "share_what", false, 0)
 }
 
 // SubtabCode: 위젯 하위 탭: 코드 칸
@@ -547,6 +1449,21 @@ func (a_ WorkspaceT) SubtabTree() string {
 	return a_.t.render(&areaWorkspace, "subtab_tree", false, 0)
 }
 
+// TamperContinue: 변조 경고 단추: 계속 공유
+func (a_ WorkspaceT) TamperContinue() string {
+	return a_.t.render(&areaWorkspace, "tamper_continue", false, 0)
+}
+
+// TamperStop: 변조 경고 단추: 공유를 바로 멈춤
+func (a_ WorkspaceT) TamperStop() string {
+	return a_.t.render(&areaWorkspace, "tamper_stop", false, 0)
+}
+
+// TamperWarning: 경고: 내용이 중간에서 바뀌고 있음(스펙 고정 문구)
+func (a_ WorkspaceT) TamperWarning() string {
+	return a_.t.render(&areaWorkspace, "tamper_warning", false, 0)
+}
+
 // TermEmptyHint: 터미널 칸: 아직 터미널이 없을 때(n 키로 새 터미널)
 func (a_ WorkspaceT) TermEmptyHint() string {
 	return a_.t.render(&areaWorkspace, "term_empty_hint", false, 0)
@@ -567,7 +1484,17 @@ func (a_ WorkspaceT) TreeSecretHidden(name string) string {
 	return a_.t.render(&areaWorkspace, "tree_secret_hidden", false, 0, "name", name)
 }
 
+// Unverified: 확인 숫자를 비교하지 않고 들어온 사람 표시
+func (a_ WorkspaceT) Unverified() string {
+	return a_.t.render(&areaWorkspace, "unverified", false, 0)
+}
+
 // WindowsNoTerminal: 터미널 칸 안내: Windows 에서는 내장 터미널이 아직 안 됨. key = 전체 화면 실행 키(번역하지 않음)
 func (a_ WorkspaceT) WindowsNoTerminal(key string) string {
 	return a_.t.render(&areaWorkspace, "windows_no_terminal", false, 0, "key", key)
+}
+
+// WindowsTermShareDisabled: 공유 시작 대화상자: Windows 에서는 터미널을 공유할 수 없음
+func (a_ WorkspaceT) WindowsTermShareDisabled() string {
+	return a_.t.render(&areaWorkspace, "windows_term_share_disabled", false, 0)
 }

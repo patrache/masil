@@ -39,6 +39,7 @@ type Surface struct {
 	tree *treeCell
 	code *codeCell
 	term *termCell
+	own  *ownerShare // the running share (nil = solo)
 
 	focus    int
 	zoomed   bool // the tool surface's wide view
@@ -285,17 +286,22 @@ func (s *Surface) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 		return true, cmd
 	}
 	if s.dlg != nil {
+		s.noteOwnerKey(ctx)
 		d := s.dlg
 		cmd := d.handleKey(ctx, msg)
 		if d.closed && s.dlg == d {
 			s.dlg = nil
 			s.relayout(ctx)
 		}
+		if s.dlg == nil {
+			s.nextJoinDialog(ctx)
+		}
 		return true, cmd
 	}
 	if s.root == nil {
 		return false, nil
 	}
+	s.noteOwnerKey(ctx)
 	if s.GrabsKeys() {
 		return s.term.current().view.HandleKey(ctx, msg)
 	}
@@ -537,13 +543,23 @@ func (s *Surface) StatusText(ctx *ui.Context) (string, bool) {
 
 // Help implements ui.Helper: the cell keys after ctrl+\.
 func (s *Surface) Help(ctx *ui.Context) []key.Binding {
-	if s.picker != nil || s.dlg != nil {
-		return nil
-	}
 	t := ctx.T.Workspace
+	if f := s.picker; f != nil || s.dlg != nil {
+		if f == nil {
+			f = s.dlg
+		}
+		hint := t.DlgHint()
+		if f.hint != nil {
+			hint = f.hint(ctx)
+		}
+		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp(hint, ""))}
+	}
 	k := ctx.Keys.Binding(keymap.TermhostEscape).Help().Key
 	b := func(keyName, help string) key.Binding {
 		return key.NewBinding(key.WithKeys(keyName), key.WithHelp(k+" "+keyName, help))
+	}
+	if s.own != nil {
+		return []key.Binding{key.NewBinding(key.WithKeys("x"), key.WithHelp(t.KillHint(k), "")), b("4", t.PrefixHelpPeople()), b("1", t.PrefixHelpTree()), b("3", t.PrefixHelpTerm())}
 	}
 	return []key.Binding{b("1", t.PrefixHelpTree()), b("2", t.PrefixHelpCode()), b("3", t.PrefixHelpTerm()), b("n", t.PrefixHelpNewTerm())}
 }

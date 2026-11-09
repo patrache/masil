@@ -150,6 +150,8 @@ func (s *Surface) treeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 		}
 	case "n":
 		s.openNewTerm(ctx, s.termMode())
+	case "p":
+		s.setFocus(ctx, PanePeople)
 	default:
 		return false, nil
 	}
