@@ -106,7 +106,7 @@
 | 500 | `internal_error` | 서버 오류 |
 | 503 | `service_unavailable` | 일시 장애. 재시도 가능 |
 
-`limit_exceeded.details.what` 값: `group_dm_members, post_media, reactions_per_message, pins_per_channel, channels_per_space, owned_spaces, pending_friend_requests, pending_uploads, active_stories, watch_topics, poll_options, space_members, search_scope`. v0.1.3 더하기: `named_versions`(방 문서 이름 버전, 문서당 100, 5.24), `live_workspace_shares`(진행 중인 내 작업공간 공유, 사용자당 3, 5.25), `workspace_share_members`(작업공간 공유 참가자, 공유당 8, 5.25).
+`limit_exceeded.details.what` 값: `group_dm_members, post_media, reactions_per_message, pins_per_channel, channels_per_space, owned_spaces, pending_friend_requests, pending_uploads, active_stories, watch_topics, poll_options, space_members, search_scope`. v0.1.3 더하기: `named_versions`(방 문서 이름 버전, 문서당 100, 5.24).
 
 ### 0.6 페이지네이션 (커서)
 
@@ -1567,6 +1567,8 @@ interface DocComment {
 내 PC 폴더를 고른 사람과 종단간 암호화로 공유하는 작업공간(설계서 B부)의 **메타정보**. 서버는 공유 이름·오너·초대된 사람·자리·단계·끝난 이유만 안다. 내용은 공유 소켓 `GET /v1/workspace-shares/{share_id}/ws`(프레임·라우팅·종료 코드 = `docs/contract/workspace.md`)의 암호문으로만 흐르고 서버는 저장도 기록도 하지 않는다. 타입 `WorkspaceShare`·`WorkspaceShareMember` 는 2장.
 
 **초대 자격**: 초대 대상은 나 아님, 정지 중 아님, 나와 어느 방향으로도 차단 없음, 그리고 (친구 또는 같은 방 멤버). 하나라도 어긋나면 아무것도 쓰지 않고 `403 action_not_allowed`, `details.user_ids` = 어긋난 사람들의 ID. 없는 사용자 참조는 `404`.
+
+**한도 (`422 limit_exceeded` 의 `details.what`)**: `live_workspace_shares`(진행 중인 내 공유, 사용자당 3), `workspace_share_members`(내보내지지 않은 참가자, 공유당 8). 0.5 의 목록에 더하는 값이다.
 
 **권한**: 오너와 내보내지지 않은 멤버만 공유를 본다(그 밖 — 내보내진 사람 포함 — 모든 경로 `404`, 존재를 숨김). 초대 더하기·끝내기는 오너만(멤버 `403 forbidden`).
 
