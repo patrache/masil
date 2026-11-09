@@ -417,7 +417,7 @@ func (t *Tool) submit(ctx *ui.Context, sd *sharedDoc, next *apitool.Collection) 
 	if len(ops) == 0 {
 		return nil
 	}
-	send, held := apitool.Gate(ops)
+	send, held := apitool.GateIn(sd.col, ops)
 	var ask []apitool.HeldField
 	for _, h := range held {
 		if !sd.declined[heldKey(ops, h)] {

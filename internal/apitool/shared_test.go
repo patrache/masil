@@ -326,3 +326,62 @@ func itoa(i int) string {
 }
 
 func sameStrings(got []string, want ...string) bool { return reflect.DeepEqual(got, want) }
+
+// A set of an existing row's or variable's value is scanned under the
+// object's name (named_high_entropy, C3.10 layer 2), a URL's query values
+// under their parameter names; a value I kept local (the held put sent
+// without it) is held again on the next edit.
+func TestGateNamesSetValues(t *testing.T) {
+	const key = "q8Zr3Kp9Lm2Xw7Tb5Nc4Vh6Jd1Fs0Gy" // no known prefix
+	fixture := func() *Collection {
+		c := sharedFixture()
+		c.Requests["r-pay"].Headers = append(c.Requests["r-pay"].Headers, KV{ID: "h9", Key: "X-Api-Key", Value: "{{k}}"})
+		c.Envs[1].Vars = append(c.Envs[1].Vars, Var{ID: "v9", Name: "API_TOKEN", Value: "x"})
+		return c
+	}
+	base := fixture()
+	ops := []collab.Op{
+		{Op: collab.OpSet, ID: "row:h9", Field: "value", Value: mustRaw(key)},
+		{Op: collab.OpSet, ID: "envvar:v9", Field: "value", Value: mustRaw(key)},
+		{Op: collab.OpSet, ID: "row:h2", Field: "key", Value: mustRaw("X-Session")},
+		{Op: collab.OpSet, ID: "row:h2", Field: "value", Value: mustRaw(key)},
+		{Op: collab.OpSet, ID: "req:r-get", Field: "url", Value: mustRaw("https://x.example/a?page=2&api_key=" + key + "#top")},
+		{Op: collab.OpSet, ID: "row:q1", Field: "value", Value: mustRaw(key)}, // query row "dry": not a secret name
+	}
+	send, held := GateIn(base, ops)
+	if len(held) != 4 {
+		t.Fatalf("held = %+v", held)
+	}
+	for i, h := range held {
+		if h.Text[h.Finding.Start:h.Finding.End] != key || h.Finding.Rule != "named_high_entropy" {
+			t.Fatalf("held[%d] = %+v (%q)", i, h, h.Text[h.Finding.Start:h.Finding.End])
+		}
+	}
+	if held[3].Obj != "req:r-get" || held[3].F != "url" {
+		t.Fatalf("held[3] = %+v", held[3])
+	}
+	if len(send) != 2 || send[0].Field != "key" || send[1].ID != "row:q1" {
+		t.Fatalf("send = %+v", send)
+	}
+
+	// 취소 on a new header row: its put went out without the value; the
+	// next edit of the request diffs the value again and holds it.
+	next := fixture()
+	next.Requests["r-pay"].Headers = append(next.Requests["r-pay"].Headers, KV{ID: "h10", Key: "X-API-Key", Value: key})
+	s1, h1 := GateIn(base, Diff(base, next))
+	if len(h1) != 1 {
+		t.Fatalf("first held = %+v", h1)
+	}
+	d := collab.NewDoc(DocFromCollection(base))
+	d.Apply(d.Seq()+1, s1)
+	shared, err := CollectionFromDoc(d.Snapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	next.Requests["r-pay"].Method = "PUT"
+	s2, h2 := GateIn(shared, Diff(shared, next))
+	raw, _ := json.Marshal(s2)
+	if len(h2) != 1 || strings.Contains(string(raw), key) {
+		t.Fatalf("the kept value left on the next edit: held=%+v send=%s", h2, raw)
+	}
+}

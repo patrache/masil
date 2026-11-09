@@ -233,6 +233,26 @@ func TestHeldFieldAsksBeforeSync(t *testing.T) {
 	waitFor(t, h, "the confirmed value on the hub", func() bool { return strings.Contains(opsText(hub), testJWT) })
 }
 
+// A literal typed into an existing header row's value (a set with no name
+// in the op) is held under the row's name.
+func TestHeldSetOfExistingRowValue(t *testing.T) {
+	const key = "q8Zr3Kp9Lm2Xw7Tb5Nc4Vh6Jd1Fs0Gy"
+	hub := collabtest.New(t)
+	seedShared(hub, sharedCollection("https://api.example.com"))
+	h := openAPI(t, uitest.WithCollab(hub))
+	tl := openShared(t, h, "r-pay")
+	editHeaderValue(h, tl, 0, key) // Authorization
+	waitFor(t, h, "the held question", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	for range 10 {
+		h.Flush()
+		h.Advance(50 * time.Millisecond)
+		time.Sleep(3 * time.Millisecond)
+	}
+	if strings.Contains(opsText(hub), key) {
+		t.Fatalf("the literal reached the hub: %s", opsText(hub))
+	}
+}
+
 func TestOfflineSendWorks(t *testing.T) {
 	srv, hits := hitServer(t, created)
 	hub := collabtest.New(t)

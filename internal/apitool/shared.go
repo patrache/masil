@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -636,15 +637,23 @@ type HeldField struct {
 	Text    string
 }
 
-// Gate runs the secret detector over every string an op would share (C3.10
-// layer 2). A set whose value looks secret is held whole; a put keeps its
-// other fields and drops the held ones. Names: a put's "key"/"name" field
-// names its "value"; inside an object value the sibling "name"/"key" does.
-func Gate(ops []collab.Op) (send []collab.Op, held []HeldField) {
+// Gate is GateIn with no base document: a set of an existing row's or
+// variable's value then has no name to read (use GateIn for edits).
+func Gate(ops []collab.Op) (send []collab.Op, held []HeldField) { return GateIn(nil, ops) }
+
+// GateIn runs the secret detector over every string an op would share
+// (C3.10 layer 2). A set whose value looks secret is held whole; a put keeps
+// its other fields and drops the held ones. Names: a row's "key" or a
+// variable's "name" names its "value" — from the op itself, an earlier set
+// in ops, or else base (the shared state the ops apply to); inside an object
+// value the sibling "name"/"key" does; a URL's query values are scanned
+// under their parameter names.
+func GateIn(base *Collection, ops []collab.Op) (send []collab.Op, held []HeldField) {
+	names := valueNames(base, ops)
 	for i, op := range ops {
 		switch op.Op {
 		case collab.OpSet:
-			if f, text, ok := scanField(op.Field, op.Value, ""); ok {
+			if f, text, ok := scanField(op.Field, op.Value, names[op.ID]); ok {
 				held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: op.Field, Finding: f, Text: text})
 				continue
 			}
@@ -681,6 +690,42 @@ func Gate(ops []collab.Op) (send []collab.Op, held []HeldField) {
 	return send, held
 }
 
+// valueNames maps each row and variable object to the name of its value:
+// the row's key or the variable's name in base, replaced by a put or set of
+// it in ops.
+func valueNames(base *Collection, ops []collab.Op) map[string]string {
+	names := map[string]string{}
+	named := func(id string) bool { return strings.HasPrefix(id, prefixRow) || strings.HasPrefix(id, prefixEnvVar) }
+	if base != nil {
+		for _, o := range DocFromCollection(base).Objects {
+			if !named(o.ID) {
+				continue
+			}
+			f := fieldReader(o.Fields)
+			if n := cmp.Or(f.str("key"), f.str("name")); n != "" {
+				names[o.ID] = n
+			}
+		}
+	}
+	for _, op := range ops {
+		if !named(op.ID) {
+			continue
+		}
+		switch op.Op {
+		case collab.OpPut:
+			f := fieldReader(op.Fields)
+			names[op.ID] = cmp.Or(f.str("key"), f.str("name"))
+		case collab.OpSet:
+			if op.Field == "key" || op.Field == "name" {
+				var n string
+				_ = json.Unmarshal(op.Value, &n)
+				names[op.ID] = n
+			}
+		}
+	}
+	return names
+}
+
 // scanField finds the first secret-looking string in a field value.
 func scanField(field string, raw json.RawMessage, hint string) (Finding, string, bool) {
 	var v any
@@ -691,7 +736,46 @@ func scanField(field string, raw json.RawMessage, hint string) (Finding, string,
 	if field == "value" {
 		name = hint
 	}
-	return scanValue(v, name)
+	if f, s, ok := scanValue(v, name); ok {
+		return f, s, true
+	}
+	if u, ok := v.(string); ok && field == "url" {
+		if f, ok := scanQuery(u); ok {
+			return f, u, true
+		}
+	}
+	return Finding{}, "", false
+}
+
+// scanQuery finds the first secret-looking query value of a URL, scanned
+// under its parameter name; the offsets are in u.
+func scanQuery(u string) (Finding, bool) {
+	q := strings.IndexByte(u, '?')
+	if q < 0 {
+		return Finding{}, false
+	}
+	end := len(u)
+	if h := strings.IndexByte(u[q:], '#'); h >= 0 {
+		end = q + h
+	}
+	at := q + 1
+	for _, part := range strings.Split(u[q+1:end], "&") {
+		k, v, ok := strings.Cut(part, "=")
+		if ok && v != "" {
+			name := k
+			if dk, err := url.QueryUnescape(k); err == nil {
+				name = dk
+			}
+			if fs := Detect(name, v); len(fs) > 0 {
+				off := at + len(k) + 1
+				f := fs[0]
+				f.Start, f.End = f.Start+off, f.End+off
+				return f, true
+			}
+		}
+		at += len(part) + 1
+	}
+	return Finding{}, false
 }
 
 func scanValue(v any, name string) (Finding, string, bool) {
