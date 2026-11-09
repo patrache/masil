@@ -312,3 +312,44 @@ func TestHostileMethodSanitized(t *testing.T) {
 	v := &runView{t: tl, st: tl.run, size: tl.size}
 	bad("the runner view", v.View(h.Context(), true))
 }
+
+// Spill files a quit (or a crash) left behind are removed when the tool
+// opens again; recent ones (another masil may be showing them) stay.
+func TestStaleSpillFilesRemovedOnOpen(t *testing.T) {
+	t.Setenv("MASIL_FEATURES", "api")
+	h := uitest.New(t)
+	dir := filepath.Join(h.Context().Paths.Cache, "api")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name string, age time.Duration) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("BODY"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-age)
+		if err := os.Chtimes(p, old, old); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	stale := write("masil-api-111.body", 3*time.Hour)
+	fresh := write("masil-api-222.body", time.Minute)
+	other := write("notes.txt", 3*time.Hour)
+	openIn(h)
+	for i := 0; i < 100; i++ {
+		if _, err := os.Stat(stale); err != nil {
+			break
+		}
+		h.Advance(50 * time.Millisecond)
+		time.Sleep(2 * time.Millisecond)
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Fatalf("a stale spill file was left in %s", dir)
+	}
+	for _, p := range []string{fresh, other} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("%s was removed: %v", p, err)
+		}
+	}
+}

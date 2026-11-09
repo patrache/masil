@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -313,10 +314,38 @@ func (t *Tool) loadHistory() tea.Cmd {
 	}
 }
 
-// Init implements ui.Component: the history loads and a command the route
-// carries runs.
+// Init implements ui.Component: the history loads, stale spill files go
+// and a command the route carries runs.
 func (t *Tool) Init(ctx *ui.Context) tea.Cmd {
-	return tea.Batch(t.loadHistory(), t.command(ctx, t.route.Query[queryCmd]))
+	return tea.Batch(t.loadHistory(), cleanSpills(t.spillDir), t.command(ctx, t.route.Query[queryCmd]))
+}
+
+// spillStale is the age after which a spill file nobody removed is a
+// leftover (masil quit or crashed with a big response shown). Younger ones
+// stay: another masil may still be showing them.
+const spillStale = time.Hour
+
+// cleanSpills removes the stale spill files of dir off the UI goroutine
+// (full response bodies must not pile up on disk).
+func cleanSpills(dir string) tea.Cmd {
+	return func() tea.Msg {
+		ents, err := os.ReadDir(dir)
+		if err != nil {
+			return nil
+		}
+		for _, e := range ents {
+			name := e.Name()
+			if !e.Type().IsRegular() || !strings.HasPrefix(name, "masil-api-") || !strings.HasSuffix(name, ".body") {
+				continue
+			}
+			if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > spillStale {
+				if err := os.Remove(filepath.Join(dir, name)); err != nil {
+					slog.Debug("api: stale spill", "err", err)
+				}
+			}
+		}
+		return nil
+	}
 }
 
 // Update implements ui.Component.
