@@ -6,6 +6,9 @@ other = "Showing the first 10MB · Save to a file"
 [binary_body]
 other = "Binary · {type} · {size} — Save to a file"
 
+[body_none]
+other = "none"
+
 [body_overwritten]
 other = "{name} changed the body · Restore mine"
 
@@ -15,14 +18,104 @@ other = "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"
 [card_run_body]
 other = "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"
 
+[cmd_env]
+other = "API test: environments"
+
+[cmd_history_clear]
+other = "API test: clear history"
+
+[cmd_import]
+other = "API test: import"
+
+[cmd_new]
+other = "API test: new request"
+
+[cmd_open]
+other = "Open API test"
+
+[cmd_runner]
+other = "API test: runner"
+
+[cmd_send]
+other = "API test: send"
+
+[default_collection]
+other = "My requests"
+
+[ed_asserts]
+other = "Checks {n}"
+
+[ed_body]
+other = "Body {kind}"
+
+[ed_extracts]
+other = "Extract {n}"
+
+[ed_headers]
+other = "Headers {n}"
+
+[ed_query]
+other = "Query {n}"
+
+[ed_settings]
+other = "Settings"
+
 [file_changed]
 other = "The file changed · Reload"
+
+[help_close]
+other = "esc close"
+
+[help_env]
+other = "env"
+
+[help_help]
+other = "help"
+
+[help_keys_1]
+other = "⏎ send · esc cancel sending · [ ] move between panes"
+
+[help_keys_2]
+other = "j/k up/down · enter open/edit · n new request · ctrl+s save"
+
+[help_keys_3]
+other = "1-6 request tabs · u edit URL · m method · ctrl+v paste curl"
+
+[help_keys_4]
+other = "e environments · r runner · i import · x export"
+
+[help_keys_5]
+other = "Response: 1-4 tabs · h/l fold/unfold · / find · o raw · y copy · w save"
+
+[help_runner]
+other = "runner"
+
+[help_send]
+other = "send"
+
+[help_tabs]
+other = "tabs"
 
 [help_terms]
 other = "Requests leave from my PC and my IP. Following the target service's terms is my responsibility"
 
+[help_title]
+other = "API test help"
+
+[history_cleared]
+other = "History cleared"
+
 [host_block]
 other = "About to send {{{var}}} to {host} · Allow this host / Cancel"
+
+[hub_status]
+other = "{col} (local) · {env}"
+
+[hub_status_empty]
+other = "New request · paste curl"
+
+[hub_status_no_env]
+other = "{col} (local)"
 
 [kv_empty]
 other = "No rows · a to add"
@@ -33,14 +126,35 @@ other = "Last changed: {name} · {ago}"
 [need_bigger]
 other = "Make the window bigger"
 
+[new_request]
+other = "New request"
+
 [no_value]
 other = "No value (set mine)"
 
 [openapi_yaml_unsupported]
 other = "OpenAPI YAML can't be read yet · Convert it to JSON and import again"
 
+[phases]
+other = "DNS {dns} · connect {connect} · TLS {tls} · first byte {first}"
+
 [private_target]
 other = "This request goes to an address on my PC or my network (last changed by {name})"
+
+[resp_body]
+other = "Body"
+
+[resp_checks]
+other = "Checks {ok}/{total}"
+
+[resp_empty]
+other = "Press ⏎ to send; the response shows here"
+
+[resp_headers]
+other = "Headers {n}"
+
+[resp_raw]
+other = "Raw"
 
 [run_progress_short]
 other = "Run {i}/{n} ✓{ok} ✕{fail}"
@@ -52,16 +166,46 @@ other = "{n} scripts were not imported"
 [secret_detected]
 other = "Looks like a secret → Make it a variable"
 
+[send_button]
+other = "[Send ⏎]"
+
+[sending]
+other = "Sending… esc to cancel"
+
 [status_line]
 other = "{status} {text} · {ms}ms ({phases}) · {size} · checks {ok}/{total} {mark}"
 short = "{status} · {ms}ms · ✓{ok}/{total}"
 
+[tab_list]
+other = "List"
+
+[tab_request]
+other = "Request"
+
+[tab_response]
+other = "Response"
+
+[tiny_hint]
+other = "⏎ resend · r run"
+
 [tls_off_warning]
 other = "⚠ Certificate check off"
+
+[tool_name]
+other = "API test"
 
 [tree_count]
 one = "{n} item"
 other = "{n} items"
+
+[tree_empty]
+other = "No collections · n new request · i import"
+
+[tree_history]
+other = "History"
+
+[tree_local]
+other = "My collections (local)"
 
 [upload_plaintext_note]
 other = "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"

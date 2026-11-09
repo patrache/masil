@@ -11,6 +11,11 @@ desc = "응답이 이미지·바이너리라 글자로 그리지 않을 때(type
 params = { type = "string", size = "string" }
 other = "바이너리 · {type} · {size} — 파일로 저장"
 
+[body_none]
+desc = "본문 종류: 본문 없음"
+max = 6
+other = "없음"
+
 [body_overwritten]
 desc = "공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)"
 params = { name = "string" }
@@ -26,9 +31,127 @@ desc = "api.run 카드의 0.1.2 클라이언트용 대체 본문(name = 컬렉�
 params = { name = "string", n = "int", ok = "int", fail = "int", ms = "int" }
 other = "🧪 {name} 실행 · {n}개 · ✓{ok} ✕{fail} · {ms}ms"
 
+[cmd_env]
+desc = "명령 팔레트: 환경 화면"
+other = "API 시험: 환경"
+
+[cmd_history_clear]
+desc = "명령 팔레트: 로컬 기록 모두 지우기"
+other = "API 시험: 기록 모두 지우기"
+
+[cmd_import]
+desc = "명령 팔레트: curl·OpenAPI·Postman 가져오기"
+other = "API 시험: 가져오기"
+
+[cmd_new]
+desc = "명령 팔레트: 새 요청"
+other = "API 시험: 새 요청"
+
+[cmd_open]
+desc = "명령 팔레트: API 시험 열기"
+other = "API 시험 열기"
+
+[cmd_runner]
+desc = "명령 팔레트: 실행기"
+other = "API 시험: 실행기"
+
+[cmd_send]
+desc = "명령 팔레트: 지금 요청 보내기"
+other = "API 시험: 보내기"
+
+[default_collection]
+desc = "새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)"
+max = 16
+other = "내 요청"
+
+[ed_asserts]
+desc = "요청 편집 탭: 검사 줄 수(n)"
+params = { n = "int" }
+max = 14
+other = "검사 {n}"
+
+[ed_body]
+desc = "요청 편집 탭: 본문 종류(kind = JSON·form·multipart·raw 그대로, 또는 body_none)"
+params = { kind = "string" }
+max = 16
+other = "본문 {kind}"
+
+[ed_extracts]
+desc = "요청 편집 탭: 추출 줄 수(n)"
+params = { n = "int" }
+max = 14
+other = "추출 {n}"
+
+[ed_headers]
+desc = "요청 편집 탭: 헤더 줄 수(n)"
+params = { n = "int" }
+max = 14
+other = "헤더 {n}"
+
+[ed_query]
+desc = "요청 편집 탭: 쿼리 줄 수(n)"
+params = { n = "int" }
+max = 12
+other = "쿼리 {n}"
+
+[ed_settings]
+desc = "요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)"
+max = 8
+other = "설정"
+
 [file_changed]
 desc = "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄"
 other = "파일이 바뀌었어요 · 다시 읽기"
+
+[help_close]
+desc = "도움말 창 맨 아래: 닫는 키"
+max = 20
+other = "esc 닫기"
+
+[help_env]
+desc = "상태줄 키 안내: 환경"
+max = 10
+other = "환경"
+
+[help_help]
+desc = "상태줄 키 안내: 도움말"
+max = 10
+other = "도움말"
+
+[help_keys_1]
+desc = "도구 도움말의 키 설명 1째 줄(키 이름은 그대로)"
+other = "⏎ 보내기 · esc 보내는 중 취소 · [ ] 칸 이동"
+
+[help_keys_2]
+desc = "도구 도움말의 키 설명 2째 줄(키 이름은 그대로)"
+other = "j/k 위아래 · enter 열기·편집 · n 새 요청 · ctrl+s 저장"
+
+[help_keys_3]
+desc = "도구 도움말의 키 설명 3째 줄(키 이름은 그대로)"
+other = "1~6 요청 탭 · u 주소 편집 · m 메서드 · ctrl+v curl 붙여넣기"
+
+[help_keys_4]
+desc = "도구 도움말의 키 설명 4째 줄(키 이름은 그대로)"
+other = "e 환경 · r 실행기 · i 가져오기 · x 내보내기"
+
+[help_keys_5]
+desc = "도구 도움말의 키 설명 5째 줄(키 이름은 그대로)"
+other = "응답: 1~4 탭 · h/l 접기·펴기 · / 찾기 · o 원문 · y 복사 · w 저장"
+
+[help_runner]
+desc = "상태줄 키 안내: 실행기"
+max = 10
+other = "실행기"
+
+[help_send]
+desc = "상태줄 키 안내: 보내기"
+max = 10
+other = "보내기"
+
+[help_tabs]
+desc = "상태줄 키 안내: [ ] 로 탭 이동"
+max = 10
+other = "탭"
 
 [help_terms]
 desc = "도움말의 약관 책임 한 줄(요청은 사용자 PC 에서 나감, 줄여 쓰지 않음)"
@@ -36,12 +159,35 @@ no_truncate = true
 legal = true
 other = "요청은 내 PC·내 IP 에서 나가요. 대상 서비스 약관을 지킬 책임은 나에게 있어요"
 
+[help_title]
+desc = "도구 도움말 창의 제목"
+max = 20
+other = "API 시험 도움말"
+
+[history_cleared]
+desc = "기록을 모두 지운 뒤 토스트"
+other = "기록을 모두 지웠어요"
+
 [host_block]
 desc = "비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)"
 params = { var = "string", host = "string" }
 no_truncate = true
 legal = true
 other = "{{{var}}} 을 {host} 로 보내려 해요 · 이 호스트 허용 / 취소"
+
+[hub_status]
+desc = "허브의 API 줄 상태: 마지막으로 연 개인 컬렉션과 환경(col = 컬렉션 이름, env = 환경 이름)"
+params = { col = "string", env = "string" }
+other = "{col} (로컬) · {env}"
+
+[hub_status_empty]
+desc = "허브의 API 줄 상태: 아직 연 컬렉션이 없을 때"
+other = "새 요청 · curl 붙여넣기"
+
+[hub_status_no_env]
+desc = "허브의 API 줄 상태: 환경을 고르지 않았을 때(col = 컬렉션 이름)"
+params = { col = "string" }
+other = "{col} (로컬)"
 
 [kv_empty]
 desc = "헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄"
@@ -58,6 +204,11 @@ desc = "창이 너무 작아 이 화면을 그릴 수 없을 때"
 max = 24
 other = "창을 키워 주세요"
 
+[new_request]
+desc = "새로 만든 요청의 기본 이름"
+max = 16
+other = "새 요청"
+
 [no_value]
 desc = "환경 화면: 비밀 변수에 내 값이 아직 없을 때 값 칸"
 other = "값 없음(내 값 넣기)"
@@ -66,12 +217,43 @@ other = "값 없음(내 값 넣기)"
 desc = "OpenAPI 가져오기에서 YAML 파일을 받았을 때(JSON 만 읽음)"
 other = "OpenAPI YAML 은 아직 못 읽어요 · JSON 으로 바꿔 가져와 주세요"
 
+[phases]
+desc = "상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)"
+params = { dns = "int", connect = "int", tls = "int", first = "int" }
+other = "DNS {dns} · 연결 {connect} · TLS {tls} · 첫 바이트 {first}"
+
 [private_target]
 desc = "남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)"
 params = { name = "string" }
 no_truncate = true
 legal = true
 other = "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 ({name}님이 마지막으로 바꿈)"
+
+[resp_body]
+desc = "응답 탭: 본문"
+max = 8
+other = "본문"
+
+[resp_checks]
+desc = "응답 탭: 검사 결과(ok = 통과, total = 전체)"
+params = { ok = "int", total = "int" }
+max = 20
+other = "검사 {ok}/{total}"
+
+[resp_empty]
+desc = "응답이 아직 없을 때 응답 칸의 안내"
+other = "⏎ 로 보내면 응답이 여기에 보여요"
+
+[resp_headers]
+desc = "응답 탭: 헤더 수(n)"
+params = { n = "int" }
+max = 14
+other = "헤더 {n}"
+
+[resp_raw]
+desc = "응답 탭: 원문(상태 줄·헤더·본문 그대로)"
+max = 8
+other = "원문"
 
 [run_progress_short]
 desc = "초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)"
@@ -91,6 +273,16 @@ no_truncate = true
 legal = true
 other = "비밀값처럼 보여요 → 변수로 바꾸기"
 
+[send_button]
+desc = "요청 줄 오른쪽의 보내기 단추"
+max = 12
+other = "[보내기 ⏎]"
+
+[sending]
+desc = "요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)"
+max = 24
+other = "보내는 중… esc 취소"
+
 [status_line]
 desc = "응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면"
 params = { status = "int", text = "string", ms = "int", phases = "string", size = "string", ok = "int", total = "int", mark = "string" }
@@ -98,11 +290,36 @@ max = 60
 other = "{status} {text} · {ms}ms ({phases}) · {size} · 검사 {ok}/{total} {mark}"
 short = "{status} · {ms}ms · ✓{ok}/{total}"
 
+[tab_list]
+desc = "좁은 화면의 탭: 컬렉션 나무와 기록"
+max = 8
+other = "목록"
+
+[tab_request]
+desc = "좁은 화면의 탭: 요청 편집"
+max = 8
+other = "요청"
+
+[tab_response]
+desc = "좁은 화면의 탭: 응답 보기"
+max = 8
+other = "응답"
+
+[tiny_hint]
+desc = "초소형 화면 셋째 줄의 키 안내"
+max = 24
+other = "⏎ 다시 보내기 · r 실행"
+
 [tls_off_warning]
 desc = "TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄여 쓰지 않음)"
 no_truncate = true
 legal = true
 other = "⚠ 인증서 검사 끔"
+
+[tool_name]
+desc = "도구 이름(허브 줄·팔레트·탭 제목·설정 도구 로그인 줄)"
+max = 16
+other = "API 시험"
 
 [tree_count]
 desc = "JSON 나무에서 접힌 객체·배열 옆의 자식 수"
@@ -110,6 +327,20 @@ params = { n = "int" }
 count = "n"
 max = 12
 other = "{n}개"
+
+[tree_empty]
+desc = "개인 컬렉션이 하나도 없을 때 나무 안의 안내"
+other = "컬렉션이 없어요 · n 새 요청 · i 가져오기"
+
+[tree_history]
+desc = "나무 아래 최근 기록 묶음의 머리(양옆에 ─ 줄)"
+max = 10
+other = "기록"
+
+[tree_local]
+desc = "나무의 개인 컬렉션 묶음 머리"
+max = 22
+other = "내 컬렉션 (로컬)"
 
 [upload_plaintext_note]
 desc = "'방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)"

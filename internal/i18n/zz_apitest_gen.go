@@ -26,6 +26,14 @@ var areaApitest = area{
 				En: {Other: "Binary · {type} · {size} — Save to a file"},
 			},
 		},
+		"body_none": {
+			desc: "본문 종류: 본문 없음",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "없음"},
+				En: {Other: "none"},
+			},
+		},
 		"body_overwritten": {
 			desc:   "공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)",
 			params: []Param{{Name: "name", Type: "string"}},
@@ -50,11 +58,204 @@ var areaApitest = area{
 				En: {Other: "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"},
 			},
 		},
+		"cmd_env": {
+			desc: "명령 팔레트: 환경 화면",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 환경"},
+				En: {Other: "API test: environments"},
+			},
+		},
+		"cmd_history_clear": {
+			desc: "명령 팔레트: 로컬 기록 모두 지우기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 기록 모두 지우기"},
+				En: {Other: "API test: clear history"},
+			},
+		},
+		"cmd_import": {
+			desc: "명령 팔레트: curl·OpenAPI·Postman 가져오기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 가져오기"},
+				En: {Other: "API test: import"},
+			},
+		},
+		"cmd_new": {
+			desc: "명령 팔레트: 새 요청",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 새 요청"},
+				En: {Other: "API test: new request"},
+			},
+		},
+		"cmd_open": {
+			desc: "명령 팔레트: API 시험 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험 열기"},
+				En: {Other: "Open API test"},
+			},
+		},
+		"cmd_runner": {
+			desc: "명령 팔레트: 실행기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 실행기"},
+				En: {Other: "API test: runner"},
+			},
+		},
+		"cmd_send": {
+			desc: "명령 팔레트: 지금 요청 보내기",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험: 보내기"},
+				En: {Other: "API test: send"},
+			},
+		},
+		"default_collection": {
+			desc: "새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 요청"},
+				En: {Other: "My requests"},
+			},
+		},
+		"ed_asserts": {
+			desc:   "요청 편집 탭: 검사 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "검사 {n}"},
+				En: {Other: "Checks {n}"},
+			},
+		},
+		"ed_body": {
+			desc:   "요청 편집 탭: 본문 종류(kind = JSON·form·multipart·raw 그대로, 또는 body_none)",
+			params: []Param{{Name: "kind", Type: "string"}},
+			max:    16,
+			text: map[Locale]Forms{
+				Ko: {Other: "본문 {kind}"},
+				En: {Other: "Body {kind}"},
+			},
+		},
+		"ed_extracts": {
+			desc:   "요청 편집 탭: 추출 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "추출 {n}"},
+				En: {Other: "Extract {n}"},
+			},
+		},
+		"ed_headers": {
+			desc:   "요청 편집 탭: 헤더 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "헤더 {n}"},
+				En: {Other: "Headers {n}"},
+			},
+		},
+		"ed_query": {
+			desc:   "요청 편집 탭: 쿼리 줄 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    12,
+			text: map[Locale]Forms{
+				Ko: {Other: "쿼리 {n}"},
+				En: {Other: "Query {n}"},
+			},
+		},
+		"ed_settings": {
+			desc: "요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "설정"},
+				En: {Other: "Settings"},
+			},
+		},
 		"file_changed": {
 			desc: "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄",
 			text: map[Locale]Forms{
 				Ko: {Other: "파일이 바뀌었어요 · 다시 읽기"},
 				En: {Other: "The file changed · Reload"},
+			},
+		},
+		"help_close": {
+			desc: "도움말 창 맨 아래: 닫는 키",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 닫기"},
+				En: {Other: "esc close"},
+			},
+		},
+		"help_env": {
+			desc: "상태줄 키 안내: 환경",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "환경"},
+				En: {Other: "env"},
+			},
+		},
+		"help_help": {
+			desc: "상태줄 키 안내: 도움말",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "도움말"},
+				En: {Other: "help"},
+			},
+		},
+		"help_keys_1": {
+			desc: "도구 도움말의 키 설명 1째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 보내기 · esc 보내는 중 취소 · [ ] 칸 이동"},
+				En: {Other: "⏎ send · esc cancel sending · [ ] move between panes"},
+			},
+		},
+		"help_keys_2": {
+			desc: "도구 도움말의 키 설명 2째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "j/k 위아래 · enter 열기·편집 · n 새 요청 · ctrl+s 저장"},
+				En: {Other: "j/k up/down · enter open/edit · n new request · ctrl+s save"},
+			},
+		},
+		"help_keys_3": {
+			desc: "도구 도움말의 키 설명 3째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "1~6 요청 탭 · u 주소 편집 · m 메서드 · ctrl+v curl 붙여넣기"},
+				En: {Other: "1-6 request tabs · u edit URL · m method · ctrl+v paste curl"},
+			},
+		},
+		"help_keys_4": {
+			desc: "도구 도움말의 키 설명 4째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "e 환경 · r 실행기 · i 가져오기 · x 내보내기"},
+				En: {Other: "e environments · r runner · i import · x export"},
+			},
+		},
+		"help_keys_5": {
+			desc: "도구 도움말의 키 설명 5째 줄(키 이름은 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "응답: 1~4 탭 · h/l 접기·펴기 · / 찾기 · o 원문 · y 복사 · w 저장"},
+				En: {Other: "Response: 1-4 tabs · h/l fold/unfold · / find · o raw · y copy · w save"},
+			},
+		},
+		"help_runner": {
+			desc: "상태줄 키 안내: 실행기",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "실행기"},
+				En: {Other: "runner"},
+			},
+		},
+		"help_send": {
+			desc: "상태줄 키 안내: 보내기",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "보내기"},
+				En: {Other: "send"},
+			},
+		},
+		"help_tabs": {
+			desc: "상태줄 키 안내: [ ] 로 탭 이동",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "탭"},
+				En: {Other: "tabs"},
 			},
 		},
 		"help_terms": {
@@ -66,6 +267,21 @@ var areaApitest = area{
 				En: {Other: "Requests leave from my PC and my IP. Following the target service's terms is my responsibility"},
 			},
 		},
+		"help_title": {
+			desc: "도구 도움말 창의 제목",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험 도움말"},
+				En: {Other: "API test help"},
+			},
+		},
+		"history_cleared": {
+			desc: "기록을 모두 지운 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "기록을 모두 지웠어요"},
+				En: {Other: "History cleared"},
+			},
+		},
 		"host_block": {
 			desc:       "비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)",
 			params:     []Param{{Name: "var", Type: "string"}, {Name: "host", Type: "string"}},
@@ -74,6 +290,29 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{{{var}}} 을 {host} 로 보내려 해요 · 이 호스트 허용 / 취소"},
 				En: {Other: "About to send {{{var}}} to {host} · Allow this host / Cancel"},
+			},
+		},
+		"hub_status": {
+			desc:   "허브의 API 줄 상태: 마지막으로 연 개인 컬렉션과 환경(col = 컬렉션 이름, env = 환경 이름)",
+			params: []Param{{Name: "col", Type: "string"}, {Name: "env", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{col} (로컬) · {env}"},
+				En: {Other: "{col} (local) · {env}"},
+			},
+		},
+		"hub_status_empty": {
+			desc: "허브의 API 줄 상태: 아직 연 컬렉션이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 요청 · curl 붙여넣기"},
+				En: {Other: "New request · paste curl"},
+			},
+		},
+		"hub_status_no_env": {
+			desc:   "허브의 API 줄 상태: 환경을 고르지 않았을 때(col = 컬렉션 이름)",
+			params: []Param{{Name: "col", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{col} (로컬)"},
+				En: {Other: "{col} (local)"},
 			},
 		},
 		"kv_empty": {
@@ -100,6 +339,14 @@ var areaApitest = area{
 				En: {Other: "Make the window bigger"},
 			},
 		},
+		"new_request": {
+			desc: "새로 만든 요청의 기본 이름",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "새 요청"},
+				En: {Other: "New request"},
+			},
+		},
 		"no_value": {
 			desc: "환경 화면: 비밀 변수에 내 값이 아직 없을 때 값 칸",
 			text: map[Locale]Forms{
@@ -114,6 +361,14 @@ var areaApitest = area{
 				En: {Other: "OpenAPI YAML can't be read yet · Convert it to JSON and import again"},
 			},
 		},
+		"phases": {
+			desc:   "상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)",
+			params: []Param{{Name: "dns", Type: "int"}, {Name: "connect", Type: "int"}, {Name: "tls", Type: "int"}, {Name: "first", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "DNS {dns} · 연결 {connect} · TLS {tls} · 첫 바이트 {first}"},
+				En: {Other: "DNS {dns} · connect {connect} · TLS {tls} · first byte {first}"},
+			},
+		},
 		"private_target": {
 			desc:       "남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)",
 			params:     []Param{{Name: "name", Type: "string"}},
@@ -122,6 +377,47 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 ({name}님이 마지막으로 바꿈)"},
 				En: {Other: "This request goes to an address on my PC or my network (last changed by {name})"},
+			},
+		},
+		"resp_body": {
+			desc: "응답 탭: 본문",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "본문"},
+				En: {Other: "Body"},
+			},
+		},
+		"resp_checks": {
+			desc:   "응답 탭: 검사 결과(ok = 통과, total = 전체)",
+			params: []Param{{Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
+			max:    20,
+			text: map[Locale]Forms{
+				Ko: {Other: "검사 {ok}/{total}"},
+				En: {Other: "Checks {ok}/{total}"},
+			},
+		},
+		"resp_empty": {
+			desc: "응답이 아직 없을 때 응답 칸의 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 로 보내면 응답이 여기에 보여요"},
+				En: {Other: "Press ⏎ to send; the response shows here"},
+			},
+		},
+		"resp_headers": {
+			desc:   "응답 탭: 헤더 수(n)",
+			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
+			text: map[Locale]Forms{
+				Ko: {Other: "헤더 {n}"},
+				En: {Other: "Headers {n}"},
+			},
+		},
+		"resp_raw": {
+			desc: "응답 탭: 원문(상태 줄·헤더·본문 그대로)",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "원문"},
+				En: {Other: "Raw"},
 			},
 		},
 		"run_progress_short": {
@@ -151,6 +447,22 @@ var areaApitest = area{
 				En: {Other: "Looks like a secret → Make it a variable"},
 			},
 		},
+		"send_button": {
+			desc: "요청 줄 오른쪽의 보내기 단추",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "[보내기 ⏎]"},
+				En: {Other: "[Send ⏎]"},
+			},
+		},
+		"sending": {
+			desc: "요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "보내는 중… esc 취소"},
+				En: {Other: "Sending… esc to cancel"},
+			},
+		},
 		"status_line": {
 			desc:   "응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면",
 			params: []Param{{Name: "status", Type: "int"}, {Name: "text", Type: "string"}, {Name: "ms", Type: "int"}, {Name: "phases", Type: "string"}, {Name: "size", Type: "string"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}, {Name: "mark", Type: "string"}},
@@ -158,6 +470,38 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{status} {text} · {ms}ms ({phases}) · {size} · 검사 {ok}/{total} {mark}", Short: "{status} · {ms}ms · ✓{ok}/{total}"},
 				En: {Other: "{status} {text} · {ms}ms ({phases}) · {size} · checks {ok}/{total} {mark}", Short: "{status} · {ms}ms · ✓{ok}/{total}"},
+			},
+		},
+		"tab_list": {
+			desc: "좁은 화면의 탭: 컬렉션 나무와 기록",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "목록"},
+				En: {Other: "List"},
+			},
+		},
+		"tab_request": {
+			desc: "좁은 화면의 탭: 요청 편집",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "요청"},
+				En: {Other: "Request"},
+			},
+		},
+		"tab_response": {
+			desc: "좁은 화면의 탭: 응답 보기",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "응답"},
+				En: {Other: "Response"},
+			},
+		},
+		"tiny_hint": {
+			desc: "초소형 화면 셋째 줄의 키 안내",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 다시 보내기 · r 실행"},
+				En: {Other: "⏎ resend · r run"},
 			},
 		},
 		"tls_off_warning": {
@@ -169,6 +513,14 @@ var areaApitest = area{
 				En: {Other: "⚠ Certificate check off"},
 			},
 		},
+		"tool_name": {
+			desc: "도구 이름(허브 줄·팔레트·탭 제목·설정 도구 로그인 줄)",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "API 시험"},
+				En: {Other: "API test"},
+			},
+		},
 		"tree_count": {
 			desc:   "JSON 나무에서 접힌 객체·배열 옆의 자식 수",
 			params: []Param{{Name: "n", Type: "int"}},
@@ -177,6 +529,29 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{n}개"},
 				En: {One: "{n} item", Other: "{n} items"},
+			},
+		},
+		"tree_empty": {
+			desc: "개인 컬렉션이 하나도 없을 때 나무 안의 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "컬렉션이 없어요 · n 새 요청 · i 가져오기"},
+				En: {Other: "No collections · n new request · i import"},
+			},
+		},
+		"tree_history": {
+			desc: "나무 아래 최근 기록 묶음의 머리(양옆에 ─ 줄)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "기록"},
+				En: {Other: "History"},
+			},
+		},
+		"tree_local": {
+			desc: "나무의 개인 컬렉션 묶음 머리",
+			max:  22,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 컬렉션 (로컬)"},
+				En: {Other: "My collections (local)"},
 			},
 		},
 		"upload_plaintext_note": {
@@ -201,6 +576,11 @@ func (a_ ApitestT) BinaryBody(typeArg string, size string) string {
 	return a_.t.render(&areaApitest, "binary_body", false, 0, "type", typeArg, "size", size)
 }
 
+// BodyNone: 본문 종류: 본문 없음
+func (a_ ApitestT) BodyNone() string {
+	return a_.t.render(&areaApitest, "body_none", false, 0)
+}
+
 // BodyOverwritten: 공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)
 func (a_ ApitestT) BodyOverwritten(name string) string {
 	return a_.t.render(&areaApitest, "body_overwritten", false, 0, "name", name)
@@ -216,9 +596,134 @@ func (a_ ApitestT) CardRunBody(name string, n int, ok int, fail int, ms int) str
 	return a_.t.render(&areaApitest, "card_run_body", false, 0, "name", name, "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail), "ms", strconv.Itoa(ms))
 }
 
+// CmdEnv: 명령 팔레트: 환경 화면
+func (a_ ApitestT) CmdEnv() string {
+	return a_.t.render(&areaApitest, "cmd_env", false, 0)
+}
+
+// CmdHistoryClear: 명령 팔레트: 로컬 기록 모두 지우기
+func (a_ ApitestT) CmdHistoryClear() string {
+	return a_.t.render(&areaApitest, "cmd_history_clear", false, 0)
+}
+
+// CmdImport: 명령 팔레트: curl·OpenAPI·Postman 가져오기
+func (a_ ApitestT) CmdImport() string {
+	return a_.t.render(&areaApitest, "cmd_import", false, 0)
+}
+
+// CmdNew: 명령 팔레트: 새 요청
+func (a_ ApitestT) CmdNew() string {
+	return a_.t.render(&areaApitest, "cmd_new", false, 0)
+}
+
+// CmdOpen: 명령 팔레트: API 시험 열기
+func (a_ ApitestT) CmdOpen() string {
+	return a_.t.render(&areaApitest, "cmd_open", false, 0)
+}
+
+// CmdRunner: 명령 팔레트: 실행기
+func (a_ ApitestT) CmdRunner() string {
+	return a_.t.render(&areaApitest, "cmd_runner", false, 0)
+}
+
+// CmdSend: 명령 팔레트: 지금 요청 보내기
+func (a_ ApitestT) CmdSend() string {
+	return a_.t.render(&areaApitest, "cmd_send", false, 0)
+}
+
+// DefaultCollection: 새 요청을 처음 저장할 때 만드는 개인 컬렉션의 기본 이름(폴더 이름이 됨)
+func (a_ ApitestT) DefaultCollection() string {
+	return a_.t.render(&areaApitest, "default_collection", false, 0)
+}
+
+// EdAsserts: 요청 편집 탭: 검사 줄 수(n)
+func (a_ ApitestT) EdAsserts(n int) string {
+	return a_.t.render(&areaApitest, "ed_asserts", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdBody: 요청 편집 탭: 본문 종류(kind = JSON·form·multipart·raw 그대로, 또는 body_none)
+func (a_ ApitestT) EdBody(kind string) string {
+	return a_.t.render(&areaApitest, "ed_body", false, 0, "kind", kind)
+}
+
+// EdExtracts: 요청 편집 탭: 추출 줄 수(n)
+func (a_ ApitestT) EdExtracts(n int) string {
+	return a_.t.render(&areaApitest, "ed_extracts", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdHeaders: 요청 편집 탭: 헤더 줄 수(n)
+func (a_ ApitestT) EdHeaders(n int) string {
+	return a_.t.render(&areaApitest, "ed_headers", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdQuery: 요청 편집 탭: 쿼리 줄 수(n)
+func (a_ ApitestT) EdQuery(n int) string {
+	return a_.t.render(&areaApitest, "ed_query", false, 0, "n", strconv.Itoa(n))
+}
+
+// EdSettings: 요청 편집 탭: 요청 설정(타임아웃·리다이렉트·TLS)
+func (a_ ApitestT) EdSettings() string {
+	return a_.t.render(&areaApitest, "ed_settings", false, 0)
+}
+
 // FileChanged: 열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄
 func (a_ ApitestT) FileChanged() string {
 	return a_.t.render(&areaApitest, "file_changed", false, 0)
+}
+
+// HelpClose: 도움말 창 맨 아래: 닫는 키
+func (a_ ApitestT) HelpClose() string {
+	return a_.t.render(&areaApitest, "help_close", false, 0)
+}
+
+// HelpEnv: 상태줄 키 안내: 환경
+func (a_ ApitestT) HelpEnv() string {
+	return a_.t.render(&areaApitest, "help_env", false, 0)
+}
+
+// HelpHelp: 상태줄 키 안내: 도움말
+func (a_ ApitestT) HelpHelp() string {
+	return a_.t.render(&areaApitest, "help_help", false, 0)
+}
+
+// HelpKeys1: 도구 도움말의 키 설명 1째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys1() string {
+	return a_.t.render(&areaApitest, "help_keys_1", false, 0)
+}
+
+// HelpKeys2: 도구 도움말의 키 설명 2째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys2() string {
+	return a_.t.render(&areaApitest, "help_keys_2", false, 0)
+}
+
+// HelpKeys3: 도구 도움말의 키 설명 3째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys3() string {
+	return a_.t.render(&areaApitest, "help_keys_3", false, 0)
+}
+
+// HelpKeys4: 도구 도움말의 키 설명 4째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys4() string {
+	return a_.t.render(&areaApitest, "help_keys_4", false, 0)
+}
+
+// HelpKeys5: 도구 도움말의 키 설명 5째 줄(키 이름은 그대로)
+func (a_ ApitestT) HelpKeys5() string {
+	return a_.t.render(&areaApitest, "help_keys_5", false, 0)
+}
+
+// HelpRunner: 상태줄 키 안내: 실행기
+func (a_ ApitestT) HelpRunner() string {
+	return a_.t.render(&areaApitest, "help_runner", false, 0)
+}
+
+// HelpSend: 상태줄 키 안내: 보내기
+func (a_ ApitestT) HelpSend() string {
+	return a_.t.render(&areaApitest, "help_send", false, 0)
+}
+
+// HelpTabs: 상태줄 키 안내: [ ] 로 탭 이동
+func (a_ ApitestT) HelpTabs() string {
+	return a_.t.render(&areaApitest, "help_tabs", false, 0)
 }
 
 // HelpTerms: 도움말의 약관 책임 한 줄(요청은 사용자 PC 에서 나감, 줄여 쓰지 않음)
@@ -226,9 +731,34 @@ func (a_ ApitestT) HelpTerms() string {
 	return a_.t.render(&areaApitest, "help_terms", false, 0)
 }
 
+// HelpTitle: 도구 도움말 창의 제목
+func (a_ ApitestT) HelpTitle() string {
+	return a_.t.render(&areaApitest, "help_title", false, 0)
+}
+
+// HistoryCleared: 기록을 모두 지운 뒤 토스트
+func (a_ ApitestT) HistoryCleared() string {
+	return a_.t.render(&areaApitest, "history_cleared", false, 0)
+}
+
 // HostBlock: 비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)
 func (a_ ApitestT) HostBlock(varArg string, host string) string {
 	return a_.t.render(&areaApitest, "host_block", false, 0, "var", varArg, "host", host)
+}
+
+// HubStatus: 허브의 API 줄 상태: 마지막으로 연 개인 컬렉션과 환경(col = 컬렉션 이름, env = 환경 이름)
+func (a_ ApitestT) HubStatus(col string, env string) string {
+	return a_.t.render(&areaApitest, "hub_status", false, 0, "col", col, "env", env)
+}
+
+// HubStatusEmpty: 허브의 API 줄 상태: 아직 연 컬렉션이 없을 때
+func (a_ ApitestT) HubStatusEmpty() string {
+	return a_.t.render(&areaApitest, "hub_status_empty", false, 0)
+}
+
+// HubStatusNoEnv: 허브의 API 줄 상태: 환경을 고르지 않았을 때(col = 컬렉션 이름)
+func (a_ ApitestT) HubStatusNoEnv(col string) string {
+	return a_.t.render(&areaApitest, "hub_status_no_env", false, 0, "col", col)
 }
 
 // KvEmpty: 헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄
@@ -246,6 +776,11 @@ func (a_ ApitestT) NeedBigger() string {
 	return a_.t.render(&areaApitest, "need_bigger", false, 0)
 }
 
+// NewRequest: 새로 만든 요청의 기본 이름
+func (a_ ApitestT) NewRequest() string {
+	return a_.t.render(&areaApitest, "new_request", false, 0)
+}
+
 // NoValue: 환경 화면: 비밀 변수에 내 값이 아직 없을 때 값 칸
 func (a_ ApitestT) NoValue() string {
 	return a_.t.render(&areaApitest, "no_value", false, 0)
@@ -256,9 +791,39 @@ func (a_ ApitestT) OpenapiYamlUnsupported() string {
 	return a_.t.render(&areaApitest, "openapi_yaml_unsupported", false, 0)
 }
 
+// Phases: 상태 줄의 단계별 시간(ms 숫자만, DNS·TLS 는 그대로)
+func (a_ ApitestT) Phases(dns int, connect int, tls int, first int) string {
+	return a_.t.render(&areaApitest, "phases", false, 0, "dns", strconv.Itoa(dns), "connect", strconv.Itoa(connect), "tls", strconv.Itoa(tls), "first", strconv.Itoa(first))
+}
+
 // PrivateTarget: 남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)
 func (a_ ApitestT) PrivateTarget(name string) string {
 	return a_.t.render(&areaApitest, "private_target", false, 0, "name", name)
+}
+
+// RespBody: 응답 탭: 본문
+func (a_ ApitestT) RespBody() string {
+	return a_.t.render(&areaApitest, "resp_body", false, 0)
+}
+
+// RespChecks: 응답 탭: 검사 결과(ok = 통과, total = 전체)
+func (a_ ApitestT) RespChecks(ok int, total int) string {
+	return a_.t.render(&areaApitest, "resp_checks", false, 0, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total))
+}
+
+// RespEmpty: 응답이 아직 없을 때 응답 칸의 안내
+func (a_ ApitestT) RespEmpty() string {
+	return a_.t.render(&areaApitest, "resp_empty", false, 0)
+}
+
+// RespHeaders: 응답 탭: 헤더 수(n)
+func (a_ ApitestT) RespHeaders(n int) string {
+	return a_.t.render(&areaApitest, "resp_headers", false, 0, "n", strconv.Itoa(n))
+}
+
+// RespRaw: 응답 탭: 원문(상태 줄·헤더·본문 그대로)
+func (a_ ApitestT) RespRaw() string {
+	return a_.t.render(&areaApitest, "resp_raw", false, 0)
 }
 
 // RunProgressShort: 초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)
@@ -276,6 +841,16 @@ func (a_ ApitestT) SecretDetected() string {
 	return a_.t.render(&areaApitest, "secret_detected", false, 0)
 }
 
+// SendButton: 요청 줄 오른쪽의 보내기 단추
+func (a_ ApitestT) SendButton() string {
+	return a_.t.render(&areaApitest, "send_button", false, 0)
+}
+
+// Sending: 요청을 보내는 중(요청 줄 오른쪽·응답 칸·허브 열린 목록)
+func (a_ ApitestT) Sending() string {
+	return a_.t.render(&areaApitest, "sending", false, 0)
+}
+
 // StatusLine: 응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면
 func (a_ ApitestT) StatusLine(status int, text string, ms int, phases string, size string, ok int, total int, mark string) string {
 	return a_.t.render(&areaApitest, "status_line", false, 0, "status", strconv.Itoa(status), "text", text, "ms", strconv.Itoa(ms), "phases", phases, "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total), "mark", mark)
@@ -286,14 +861,54 @@ func (a_ ApitestT) StatusLineShort(status int, text string, ms int, phases strin
 	return a_.t.render(&areaApitest, "status_line", true, 0, "status", strconv.Itoa(status), "text", text, "ms", strconv.Itoa(ms), "phases", phases, "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total), "mark", mark)
 }
 
+// TabList: 좁은 화면의 탭: 컬렉션 나무와 기록
+func (a_ ApitestT) TabList() string {
+	return a_.t.render(&areaApitest, "tab_list", false, 0)
+}
+
+// TabRequest: 좁은 화면의 탭: 요청 편집
+func (a_ ApitestT) TabRequest() string {
+	return a_.t.render(&areaApitest, "tab_request", false, 0)
+}
+
+// TabResponse: 좁은 화면의 탭: 응답 보기
+func (a_ ApitestT) TabResponse() string {
+	return a_.t.render(&areaApitest, "tab_response", false, 0)
+}
+
+// TinyHint: 초소형 화면 셋째 줄의 키 안내
+func (a_ ApitestT) TinyHint() string {
+	return a_.t.render(&areaApitest, "tiny_hint", false, 0)
+}
+
 // TlsOffWarning: TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄여 쓰지 않음)
 func (a_ ApitestT) TlsOffWarning() string {
 	return a_.t.render(&areaApitest, "tls_off_warning", false, 0)
 }
 
+// ToolName: 도구 이름(허브 줄·팔레트·탭 제목·설정 도구 로그인 줄)
+func (a_ ApitestT) ToolName() string {
+	return a_.t.render(&areaApitest, "tool_name", false, 0)
+}
+
 // TreeCount: JSON 나무에서 접힌 객체·배열 옆의 자식 수
 func (a_ ApitestT) TreeCount(n int) string {
 	return a_.t.render(&areaApitest, "tree_count", false, n, "n", strconv.Itoa(n))
+}
+
+// TreeEmpty: 개인 컬렉션이 하나도 없을 때 나무 안의 안내
+func (a_ ApitestT) TreeEmpty() string {
+	return a_.t.render(&areaApitest, "tree_empty", false, 0)
+}
+
+// TreeHistory: 나무 아래 최근 기록 묶음의 머리(양옆에 ─ 줄)
+func (a_ ApitestT) TreeHistory() string {
+	return a_.t.render(&areaApitest, "tree_history", false, 0)
+}
+
+// TreeLocal: 나무의 개인 컬렉션 묶음 머리
+func (a_ ApitestT) TreeLocal() string {
+	return a_.t.render(&areaApitest, "tree_local", false, 0)
 }
 
 // UploadPlaintextNote: '방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)

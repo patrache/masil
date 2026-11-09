@@ -2543,7 +2543,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | P1 LeetCode·lazygit | `leet.*`, `git.*` |
 | P2 작업공간 | `ws.*` |
 | P3 아키텍처 설계 | `arch.*` |
-| P4 API 시험 | `api.*` |
+| P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd` 로 인스턴스 `api:main` 에 전달(`ui.OpenTool`) |
 
 - 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).
 
