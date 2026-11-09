@@ -171,6 +171,10 @@ func (t *Tool) send(ctx *ui.Context) tea.Cmd {
 	fi := t.foreign[req.ID]
 	pk := privKey(sc.DocID, req.ID, fi.Seq)
 	privOK := t.privateOK[pk]
+	if ipk, ask := t.peerInsecure(sc.DocID, req); ask {
+		t.pendingInsecure = ipk
+		return t.insecureDialog(ctx, fi.By)
+	}
 	d := dyn(ctx)
 	sender, hist, spillDir := t.sender, t.hist, t.spillDir
 	envName := ""
@@ -690,4 +694,26 @@ func (t *Tool) reloadFile(ctx *ui.Context) tea.Cmd {
 	t.openFirst(name, id)
 	t.tree.follow(ctx, t)
 	return nil
+}
+
+// peerInsecure reports whether request r of shared document doc would skip
+// the certificate check on someone else's word: the check is off, the
+// request is not mine (foreignInfo) and I have not allowed this version
+// (pk, the private-target consent's key). A personal request never asks.
+func (t *Tool) peerInsecure(doc string, r *apitool.Request) (pk string, ask bool) {
+	fi := t.foreign[r.ID]
+	pk = privKey(doc, r.ID, fi.Seq)
+	return pk, doc != "" && r.Settings.Insecure && fi.foreign() && !t.insecureOK[pk]
+}
+
+// insecureDialog asks before a shared request goes out without the
+// certificate check someone else turned off (by: who changed it last).
+func (t *Tool) insecureDialog(ctx *ui.Context, by string) tea.Cmd {
+	a := ctx.T.Apitest
+	line := a.InsecureUnknown()
+	if by != "" {
+		line = a.InsecurePeer(textwidth.Sanitize(by))
+	}
+	return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkInsecure, title: a.InsecureTitle(), prefW: 60,
+		body: []string{line}, choices: []string{a.InsecureSend(), a.Cancel()}})
 }

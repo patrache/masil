@@ -3,10 +3,13 @@ package apitool
 import (
 	"errors"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/patrache/masil/internal/apitool"
@@ -133,4 +136,61 @@ func TestHeldShareAnywayOnlyShown(t *testing.T) {
 	waitFor(t, h, "both secrets on the hub", func() bool {
 		return strings.Contains(opsText(hub), testJWT) && strings.Contains(opsText(hub), key2)
 	})
+}
+
+// A shared request someone else turned the certificate check off for is
+// not sent that way on their word: the first send asks (cancel sends
+// nothing), and a run of the collection checks the certificate unless I
+// allowed it. My own toggle counts as allowing it.
+func TestPeerInsecureAsksBeforeSend(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(created))
+	t.Cleanup(srv.Close)
+	var hits atomic.Int32
+	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1); created(w, r) })
+	hub := collabtest.New(t)
+	c := sharedCollection(srv.URL)
+	c.Requests["r-get"].Settings.Insecure = true
+	seedShared(hub, c)
+	h := openAPI(t, uitest.WithCollab(hub))
+	tl := openShared(t, h, "r-get")
+	tl.focus = paneRequest
+	h.Press("enter")
+	waitFor(t, h, "the certificate question", func() bool { return hasWhole(overlayText(h), ko.InsecureUnknown()) })
+	settle(h)
+	if hits.Load() != 0 {
+		t.Fatalf("sent before the answer: %d", hits.Load())
+	}
+	// A run without my answer checks the certificate.
+	pr, _ := tl.prepareRun(h.Context(), tl.colName, "", apitool.RunOptions{Iterations: 1})
+	if pr == nil || pr.snap.Collection.Requests["r-get"].Settings.Insecure {
+		t.Fatal("a run skips the certificate check on a peer's word")
+	}
+	h.Press("esc")
+	settle(h)
+	if hits.Load() != 0 {
+		t.Fatalf("sent after cancel: %d", hits.Load())
+	}
+	h.Press("enter")
+	waitFor(t, h, "the certificate question again", func() bool { return hasWhole(overlayText(h), ko.InsecureUnknown()) })
+	settle(h)
+	h.Press("enter") // 검사 없이 보내기
+	waitFor(t, h, "the private-target question", func() bool { return hasWhole(overlayText(h), ko.PrivateTargetUnknown()) })
+	settle(h)
+	h.Press("enter")
+	waitScreen(t, h, "201")
+	if hits.Load() != 1 {
+		t.Fatalf("target hits = %d", hits.Load())
+	}
+	if pr, _ := tl.prepareRun(h.Context(), tl.colName, "", apitool.RunOptions{Iterations: 1}); pr == nil || !pr.snap.Collection.Requests["r-get"].Settings.Insecure {
+		t.Fatal("a run after my answer still checks the certificate")
+	}
+	// My own toggle on another request needs no question.
+	tl2 := openShared(t, h, "r-pay")
+	tl2.req.Settings.Insecure = true
+	tl2.ed.load(tl2.req)
+	h.Send(syncNowMsg{t: tl2})
+	settle(h)
+	if _, ask := tl2.peerInsecure(sharedDocID, tl2.req); ask {
+		t.Fatal("my own certificate-check toggle asks me")
+	}
 }

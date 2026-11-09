@@ -382,6 +382,10 @@ func (t *Tool) syncShared(ctx *ui.Context) tea.Cmd {
 	if old == nil || reflect.DeepEqual(old, t.req) {
 		return nil
 	}
+	if !old.Settings.Insecure && t.req.Settings.Insecure {
+		// I turned the certificate check off myself: no question for it.
+		t.insecureOK[privKey(sd.id, t.req.ID, t.foreign[t.req.ID].Seq)] = true
+	}
 	next := cloneCol(sd.col)
 	next.Requests[t.req.ID] = cloneRequest(t.req)
 	before := rowIDs(t.req)

@@ -326,6 +326,18 @@ other = "Files over 10MB can't be imported"
 [import_unknown]
 other = "Not curl, OpenAPI JSON or Postman v2.1"
 
+[insecure_peer]
+other = "This shared request has the certificate check off (last changed by {name}). Send it without checking the certificate?"
+
+[insecure_send]
+other = "Send without checking"
+
+[insecure_title]
+other = "Shared request, cert check off"
+
+[insecure_unknown]
+other = "This shared request has the certificate check off (who changed it last is not known). Send it without checking the certificate?"
+
 [kv_empty]
 other = "No rows · a to add"
 

@@ -43,6 +43,7 @@ const (
 	dkReport     dialogKind = "report"
 	dkSaveBody   dialogKind = "save_body"
 	dkFileExists dialogKind = "file_exists"
+	dkInsecure   dialogKind = "insecure"
 )
 
 // pendingWrite is a save to a path that exists, waiting for the overwrite
@@ -122,6 +123,13 @@ func (t *Tool) onDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 		t.pendingPrivate = ""
 		if pk != "" && m.Choice == 0 {
 			t.privateOK[pk] = true
+			return t.send(ctx)
+		}
+	case dkInsecure:
+		pk := t.pendingInsecure
+		t.pendingInsecure = ""
+		if pk != "" && m.Choice == 0 {
+			t.insecureOK[pk] = true
 			return t.send(ctx)
 		}
 	case dkImport:
