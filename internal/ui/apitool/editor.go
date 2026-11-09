@@ -272,9 +272,11 @@ func (e *editor) cursor() *tea.Cursor {
 	return tea.NewCursor(e.curX, e.curY)
 }
 
-// methodOf is the request's method (GET when empty).
+// methodOf is the request's method (GET when empty), sanitized: it is drawn
+// and may come from an imported or shared file (Prepare rejects what is not
+// a valid token).
 func methodOf(r *apitool.Request) string {
-	m := strings.ToUpper(strings.TrimSpace(r.Method))
+	m := strings.ToUpper(strings.TrimSpace(textwidth.Sanitize(r.Method)))
 	if m == "" {
 		return "GET"
 	}

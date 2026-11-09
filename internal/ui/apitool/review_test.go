@@ -290,3 +290,25 @@ func TestSecretExtractAsksConsent(t *testing.T) {
 		t.Fatalf("the extracted token was lost: %v", err)
 	}
 }
+
+// A hostile method (from an imported or shared file) is sanitized on the
+// URL line and in the runner's table.
+func TestHostileMethodSanitized(t *testing.T) {
+	srv, _ := hitServer(t, created)
+	h := openAPI(t)
+	tl := seedRequests(h, nil, &apitool.Request{ID: "m", Name: "m", Method: "\u202eTEG\x1b[2J\x1b]0;PWN\a", URL: srv.URL + "/x"})
+	bad := func(where, s string) {
+		t.Helper()
+		// (the screen's own styling is SGR: only the method's sequences count)
+		if strings.ContainsAny(s, "\u202e\a") || strings.Contains(s, "\x1b[2J") || strings.Contains(s, "\x1b]0;") {
+			t.Fatalf("%s carries a control or bidi character:\n%q", where, s)
+		}
+	}
+	bad("the URL line", strings.Join(tl.ed.view(h.Context(), tl, 90, 6, true), "\n"))
+	bad("the screen", h.Screen())
+	h.Press("r", "enter")
+	waitRun(t, h, tl)
+	bad("the runner", overlayText(h))
+	v := &runView{t: tl, st: tl.run, size: tl.size}
+	bad("the runner view", v.View(h.Context(), true))
+}
