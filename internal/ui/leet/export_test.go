@@ -1,6 +1,8 @@
 package leet
 
 import (
+	tea "charm.land/bubbletea/v2"
+
 	"time"
 
 	"github.com/patrache/masil/internal/config"
@@ -117,3 +119,7 @@ func SetLoginAccountForTest(ctx *ui.Context, user string, premium bool) {
 		m.lc = nil // as read back on a later start
 	}
 }
+
+// ShareToggleForTest is the friends switch's request for next, as the
+// settings dialog sends it (no dialog needed to take the answer).
+func ShareToggleForTest(ctx *ui.Context, next bool) tea.Cmd { return shareToggle(ctx, next) }

@@ -45,6 +45,9 @@ type settingsDlg struct {
 	size    ui.Size
 	inputY  int // the field's row in the last draw (-1 = not drawn)
 	inputX  int
+	// sharing is the friends switch's value while its PATCH is out (nil =
+	// none): only the dialog shows it, the store keeps the server's.
+	sharing *bool
 }
 
 var (
@@ -68,18 +71,16 @@ func (d *settingsDlg) Title(ctx *ui.Context) (string, ui.Badge) {
 	return ctx.T.Leetcode.SettingsTitle(), ui.Badge{}
 }
 
-// shareTag is the ui.Do tag of the friends switch.
-const shareTag = "leet.settings:share"
+// shareDoneMsg is the friends switch's answer (settings = nil: it failed).
+type shareDoneMsg struct{ settings *api.Settings }
 
 func (d *settingsDlg) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
-	if m, ok := msg.(ui.ResultMsg[*api.Settings]); ok && m.Tag == shareTag {
-		if m.Err != nil {
-			return func() tea.Msg { return ui.ErrorMsg{Err: m.Err} }
-		}
-		if m.Value != nil && ctx.Store != nil {
-			ctx.Store.Settings = *m.Value
+	if m, ok := msg.(shareDoneMsg); ok {
+		d.sharing = nil
+		if m.settings != nil && ctx.Store != nil {
+			ctx.Store.Settings = *m.settings
 			if ctx.Store.Me != nil {
-				ctx.Store.Me.Settings = *m.Value
+				ctx.Store.Me.Settings = *m.settings
 			}
 		}
 	}
@@ -162,17 +163,37 @@ func (d *settingsDlg) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 		if ctx.Store != nil {
 			on = ctx.Store.Settings.LeetShareWithFriends
 		}
-		next := !on
-		if ctx.Store != nil {
-			ctx.Store.Settings.LeetShareWithFriends = next // optimistic; the answer replaces it
+		if d.sharing != nil {
+			return true, nil // one at a time
 		}
-		return true, ui.Do(ctx, shareTag, func(c context.Context, a *api.Client) (*api.Settings, error) {
-			return a.UpdateSettings(c, api.UpdateSettingsRequest{LeetShareWithFriends: api.Some(next)})
-		})
+		next := !on
+		d.sharing = &next
+		return true, shareToggle(ctx, next)
 	case rowDaily:
 		return true, setDaily(ctx, r.space, !dailyOn(ctx, r.space))
 	}
 	return true, nil
+}
+
+// shareToggle sets "show my streak to friends" to next. Nothing is changed
+// before the server says so: the answer comes back as settings.updated
+// (realtime) and as shareDoneMsg to an open dialog; a failure is a toast
+// from the Cmd itself, so it shows with the dialog closed too.
+func shareToggle(ctx *ui.Context, next bool) tea.Cmd {
+	client := ctx.API
+	return func() tea.Msg {
+		if client == nil {
+			return shareDoneMsg{}
+		}
+		st, err := client.UpdateSettings(context.Background(), api.UpdateSettingsRequest{LeetShareWithFriends: api.Some(next)})
+		if err != nil {
+			return tea.BatchMsg{
+				func() tea.Msg { return ui.ErrorMsg{Err: err} },
+				func() tea.Msg { return shareDoneMsg{} },
+			}
+		}
+		return shareDoneMsg{settings: st}
+	}
 }
 
 // langChangedMsg tells open instances the language setting changed.
@@ -199,6 +220,9 @@ func (d *settingsDlg) View(ctx *ui.Context, _ bool) string {
 	share := true
 	if ctx.Store != nil {
 		share = ctx.Store.Settings.LeetShareWithFriends
+	}
+	if d.sharing != nil {
+		share = *d.sharing
 	}
 	labelOf := func(r setRow) string {
 		switch r.kind {

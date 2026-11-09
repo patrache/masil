@@ -313,6 +313,34 @@ func TestSettingsShareFriends(t *testing.T) {
 	if len(got) != 1 || !strings.Contains(got[0], `"leet_share_with_friends":false`) {
 		t.Fatalf("PATCH bodies = %q", got)
 	}
+	if h.Context().Store.Settings.LeetShareWithFriends {
+		t.Fatal("store not updated from the answer")
+	}
+}
+
+// A failed switch leaves the store (and the dialog) as the server has it,
+// even when the dialog was closed before the answer came.
+func TestSettingsShareFriendsFails(t *testing.T) {
+	for _, closeFirst := range []bool{false, true} {
+		t.Run(map[bool]string{false: "open", true: "closed"}[closeFirst], func(t *testing.T) {
+			setup(t)
+			h := uitest.New(t)
+			h.Context().Store.Settings.LeetShareWithFriends = true
+			h.API.JSON("PATCH /v1/me/settings", http.StatusInternalServerError, map[string]any{"error": map[string]any{"code": "internal", "message": "x"}})
+			h.Send(ui.RunCommandMsg{ID: "leet.settings"})
+			h.Press("down", "down", "down")
+			if closeFirst { // the answer lands after the dialog is gone
+				cmd := leet.ShareToggleForTest(h.Context(), false)
+				h.Press("esc")
+				h.Send(cmd())
+			} else {
+				h.Press("enter")
+			}
+			if !h.Context().Store.Settings.LeetShareWithFriends {
+				t.Fatalf("store shows the switch off after a failed PATCH:\n%s", h.Screen())
+			}
+		})
+	}
 }
 
 func TestFirstRunAndSettingsGolden(t *testing.T) {
