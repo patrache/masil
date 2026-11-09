@@ -513,18 +513,23 @@ func (t *Tool) heldAnswer(ctx *ui.Context, m dialogMsg) tea.Cmd {
 	}
 }
 
-// heldToVar replaces each held secret with {{name}}, declares name a secret
-// collection variable (mine: its value in the vault, its host the request's)
-// and syncs the rest.
+// heldToVar replaces the first held secret with {{name}} wherever it is
+// held, declares name a secret collection variable (mine: its value in the
+// vault, its host the request's) and syncs those fields; a field still
+// holding another secret is asked about next (one variable per value).
 func (t *Tool) heldToVar(ctx *ui.Context, sd *sharedDoc, he *heldEdit, name string) tea.Cmd {
-	val := ""
+	h0 := he.held[0]
+	val := h0.Text[h0.Finding.Start:h0.Finding.End]
+	var conv, rest []collab.Op
+	var restHeld []apitool.HeldField
 	for i, op := range he.ops {
 		h := he.held[i]
-		secret := h.Text[h.Finding.Start:h.Finding.End]
-		if val == "" {
-			val = secret
+		if h.Text[h.Finding.Start:h.Finding.End] != val {
+			rest, restHeld = append(rest, op), append(restHeld, h)
+			continue
 		}
-		he.ops[i].Value = replaceInJSON(op.Value, secret, "{{"+name+"}}")
+		op.Value = replaceInJSON(op.Value, val, "{{"+name+"}}")
+		conv = append(conv, op)
 	}
 	next := cloneCol(sd.col)
 	if !slices.ContainsFunc(next.Vars, func(v apitool.Var) bool { return v.Name == name }) {
@@ -544,7 +549,12 @@ func (t *Tool) heldToVar(ctx *ui.Context, sd *sharedDoc, he *heldEdit, name stri
 		slog.Warn("api: save mine", "err", err)
 	}
 	cmd := t.submit(ctx, sd, next)
-	t.sendOps(sd, he.ops)
+	// A converted field may hold a second, different secret: it is gated
+	// again and asked about with the rest.
+	send, again := apitool.GateIn(sd.col, conv)
+	t.sendOps(sd, send)
+	rest = append(heldOps(conv, again), rest...)
+	restHeld = append(again, restHeld...)
 	if t.req != nil {
 		if r := sd.col.Requests[t.req.ID]; r != nil {
 			t.req = cloneRequest(r)
@@ -552,7 +562,12 @@ func (t *Tool) heldToVar(ctx *ui.Context, sd *sharedDoc, he *heldEdit, name stri
 		}
 	}
 	t.pendingPuts = append(t.pendingPuts, pendingPut{key: apitool.SecretKey(sd.id, "col:"+sd.id, name), name: name, val: secrets.New(val)})
-	return tea.Batch(cmd, t.flushPuts(ctx))
+	cmds := []tea.Cmd{cmd, t.flushPuts(ctx)}
+	if len(rest) > 0 && sd.held == nil {
+		sd.held = &heldEdit{ops: rest, held: restHeld}
+		cmds = append(cmds, t.heldDialog(ctx, sd))
+	}
+	return tea.Batch(cmds...)
 }
 
 // hostOf is the host name of an expanded URL.

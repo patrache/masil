@@ -65,6 +65,16 @@ func waitFor(t testing.TB, h *uitest.Harness, what string, cond func() bool) {
 	t.Fatalf("never: %s\n%s", what, h.Screen())
 }
 
+// settle lets the harness run a few clock steps (an overlay opened by a
+// command is ready for keys).
+func settle(h *uitest.Harness) {
+	for range 10 {
+		h.Flush()
+		h.Advance(50 * time.Millisecond)
+		time.Sleep(3 * time.Millisecond)
+	}
+}
+
 // openShared opens the shared collection on request req in h and waits
 // until it is loaded.
 func openShared(t testing.TB, h *uitest.Harness, req string) *Tool {
@@ -251,6 +261,50 @@ func TestHeldSetOfExistingRowValue(t *testing.T) {
 	if strings.Contains(opsText(hub), key) {
 		t.Fatalf("the literal reached the hub: %s", opsText(hub))
 	}
+}
+
+// Two different secrets held in one edit: 변수로 바꾸기 turns only the
+// first into {{name}} (its value in the vault) and asks again about the
+// other, which never takes the first one's name.
+func TestHeldToVarDistinctSecrets(t *testing.T) {
+	const key2 = "q8Zr3Kp9Lm2Xw7Tb5Nc4Vh6Jd1Fs0Gy"
+	hub := collabtest.New(t)
+	seedShared(hub, sharedCollection("https://api.example.com"))
+	store := secrettest.NewStore(t, true)
+	h := openAPI(t, uitest.WithCollab(hub), uitest.WithSecrets(store))
+	tl := openShared(t, h, "r-get")
+	tl.req.Headers = []apitool.KV{{Key: "Authorization", Value: "Bearer " + testJWT}}
+	tl.req.Query = []apitool.KV{{Key: "api_key", Value: key2}}
+	tl.ed.load(tl.req)
+	h.Send(syncNowMsg{t: tl})
+	waitFor(t, h, "the held question", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	settle(h)
+	h.Press("ctrl+u")
+	h.Type("token")
+	h.Press("enter") // 변수로 바꾸기
+	// The detector's first held field (either one) becomes {{token}}.
+	waitFor(t, h, "one field as {{token}} on the hub", func() bool { return strings.Contains(opsText(hub), "{{token}}\"") })
+	waitFor(t, h, "the question about the other secret", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	if strings.Contains(opsText(hub), key2) || strings.Contains(opsText(hub), testJWT) {
+		t.Fatalf("a held value reached the hub: %s", opsText(hub))
+	}
+	r := tl.docs[sharedDocID].col.Requests["r-get"]
+	first, other := testJWT, "Bearer {{token}}"
+	if len(r.Query) == 1 && r.Query[0].Value == "{{token}}" {
+		first, other = key2, ""
+	} else if len(r.Headers) != 1 || r.Headers[0].Value != "Bearer {{token}}" {
+		t.Fatalf("neither field became {{token}}: %+v %+v", r.Headers, r.Query)
+	}
+	if other != "" && len(r.Query) == 1 && r.Query[0].Value == "{{token}}" {
+		t.Fatalf("both fields took the first secret's name: %+v %+v", r.Headers, r.Query)
+	}
+	if other == "" && strings.Contains(opsText(hub), "Bearer {{token}}") {
+		t.Fatalf("both fields took the first secret's name: %s", opsText(hub))
+	}
+	waitFor(t, h, "the first secret in the vault", func() bool {
+		s, err := tl.vault(h.Context()).Get(apitool.SecretKey(sharedDocID, "col:"+sharedDocID, "token"))
+		return err == nil && s.Reveal() == first
+	})
 }
 
 func TestOfflineSendWorks(t *testing.T) {
