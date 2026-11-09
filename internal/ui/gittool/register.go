@@ -220,5 +220,8 @@ func open(ctx *ui.Context, mode termhost.Mode) tea.Cmd {
 // newComponent is ToolSpec.New: the picker for the picker id, else the
 // instance of one repository.
 func newComponent(ctx *ui.Context, r ui.Route) ui.Component {
-	return newPicker(ctx, r)
+	if r.ID == pickID {
+		return newPicker(ctx, r)
+	}
+	return newInstance(ctx, r)
 }

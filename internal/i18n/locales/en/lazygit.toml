@@ -1,6 +1,12 @@
 [cmd_open]
 other = "Open lazygit"
 
+[exited]
+other = "Exited · enter to reopen"
+
+[exited_close]
+other = "x close"
+
 [hub_installed]
 other = "Installed v{version} · recent {recent}"
 
@@ -31,6 +37,9 @@ other = "masil was tested with lazygit v{version}"
 [install_title]
 other = "Installing lazygit"
 
+[launch_failed]
+other = "Could not open lazygit"
+
 [name]
 other = "lazygit"
 
@@ -54,3 +63,15 @@ other = "Choose a repository"
 
 [pick_type_path]
 other = "Type a path"
+
+[running_elsewhere]
+other = "Running · {mode}"
+
+[starting]
+other = "Opening lazygit…"
+
+[status_exited]
+other = "Exited"
+
+[status_running]
+other = "{mode} · running"

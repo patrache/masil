@@ -16,6 +16,22 @@ var areaLazygit = area{
 				En: {Other: "Open lazygit"},
 			},
 		},
+		"exited": {
+			desc: "lazygit 도구 화면: lazygit 이 끝났을 때 — enter 로 다시 연다(enter 는 키 이름)",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "종료됨 · enter 다시 열기"},
+				En: {Other: "Exited · enter to reopen"},
+			},
+		},
+		"exited_close": {
+			desc: "lazygit 도구 화면: 끝난 뒤 x 로 도구 탭을 닫는다는 안내(x 는 키 이름)",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "x 닫기"},
+				En: {Other: "x close"},
+			},
+		},
 		"hub_installed": {
 			desc:   "도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 있을 때. version = lazygit 버전(0.66.3 꼴), recent = 최근 저장소 폴더 이름(사용자 이름, 번역하지 않음)",
 			params: []Param{{Name: "version", Type: "string"}, {Name: "recent", Type: "string"}},
@@ -97,6 +113,13 @@ var areaLazygit = area{
 				En: {Other: "Installing lazygit"},
 			},
 		},
+		"launch_failed": {
+			desc: "토스트: lazygit 을 실행하지 못했을 때(패널 상한 말고 다른 이유)",
+			text: map[Locale]Forms{
+				Ko: {Other: "lazygit 을 열지 못했어요"},
+				En: {Other: "Could not open lazygit"},
+			},
+		},
 		"name": {
 			desc: "도구 이름(허브·탭·팔레트) — 프로그램 이름 그대로, 번역하지 않음",
 			max:  12,
@@ -159,12 +182,54 @@ var areaLazygit = area{
 				En: {Other: "Type a path"},
 			},
 		},
+		"running_elsewhere": {
+			desc:   "lazygit 도구 화면: 패널이 아니라 화면 전환·외부 창(tmux 팝업)으로 실행 중일 때. mode = 여는 방식 이름(tools.mode_exec·mode_window 문구)",
+			params: []Param{{Name: "mode", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{mode|으로/로} 실행 중이에요"},
+				En: {Other: "Running · {mode}"},
+			},
+		},
+		"starting": {
+			desc: "lazygit 도구 화면: 실행 준비 중(설정 경로 찾기·실행)",
+			text: map[Locale]Forms{
+				Ko: {Other: "lazygit 여는 중…"},
+				En: {Other: "Opening lazygit…"},
+			},
+		},
+		"status_exited": {
+			desc: "도구 허브 열린 목록의 lazygit 상태: 끝남",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "종료됨"},
+				En: {Other: "Exited"},
+			},
+		},
+		"status_running": {
+			desc:   "도구 허브 열린 목록의 lazygit 상태: 어떤 방식으로 실행 중인지. mode = 여는 방식 이름(tools.mode_pane·mode_exec·mode_window 문구)",
+			params: []Param{{Name: "mode", Type: "string"}},
+			max:    24,
+			text: map[Locale]Forms{
+				Ko: {Other: "{mode} · 실행 중"},
+				En: {Other: "{mode} · running"},
+			},
+		},
 	},
 }
 
 // CmdOpen: 명령 팔레트 항목: lazygit 도구 열기(lazygit 은 프로그램 이름, 번역하지 않음)
 func (a_ LazygitT) CmdOpen() string {
 	return a_.t.render(&areaLazygit, "cmd_open", false, 0)
+}
+
+// Exited: lazygit 도구 화면: lazygit 이 끝났을 때 — enter 로 다시 연다(enter 는 키 이름)
+func (a_ LazygitT) Exited() string {
+	return a_.t.render(&areaLazygit, "exited", false, 0)
+}
+
+// ExitedClose: lazygit 도구 화면: 끝난 뒤 x 로 도구 탭을 닫는다는 안내(x 는 키 이름)
+func (a_ LazygitT) ExitedClose() string {
+	return a_.t.render(&areaLazygit, "exited_close", false, 0)
 }
 
 // HubInstalled: 도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 있을 때. version = lazygit 버전(0.66.3 꼴), recent = 최근 저장소 폴더 이름(사용자 이름, 번역하지 않음)
@@ -217,6 +282,11 @@ func (a_ LazygitT) InstallTitle() string {
 	return a_.t.render(&areaLazygit, "install_title", false, 0)
 }
 
+// LaunchFailed: 토스트: lazygit 을 실행하지 못했을 때(패널 상한 말고 다른 이유)
+func (a_ LazygitT) LaunchFailed() string {
+	return a_.t.render(&areaLazygit, "launch_failed", false, 0)
+}
+
 // Name: 도구 이름(허브·탭·팔레트) — 프로그램 이름 그대로, 번역하지 않음
 func (a_ LazygitT) Name() string {
 	return a_.t.render(&areaLazygit, "name", false, 0)
@@ -255,4 +325,24 @@ func (a_ LazygitT) PickTitle() string {
 // PickTypePath: 저장소 고르기 목록의 마지막 줄: 고르면 경로를 직접 입력하는 칸이 열린다
 func (a_ LazygitT) PickTypePath() string {
 	return a_.t.render(&areaLazygit, "pick_type_path", false, 0)
+}
+
+// RunningElsewhere: lazygit 도구 화면: 패널이 아니라 화면 전환·외부 창(tmux 팝업)으로 실행 중일 때. mode = 여는 방식 이름(tools.mode_exec·mode_window 문구)
+func (a_ LazygitT) RunningElsewhere(mode string) string {
+	return a_.t.render(&areaLazygit, "running_elsewhere", false, 0, "mode", mode)
+}
+
+// Starting: lazygit 도구 화면: 실행 준비 중(설정 경로 찾기·실행)
+func (a_ LazygitT) Starting() string {
+	return a_.t.render(&areaLazygit, "starting", false, 0)
+}
+
+// StatusExited: 도구 허브 열린 목록의 lazygit 상태: 끝남
+func (a_ LazygitT) StatusExited() string {
+	return a_.t.render(&areaLazygit, "status_exited", false, 0)
+}
+
+// StatusRunning: 도구 허브 열린 목록의 lazygit 상태: 어떤 방식으로 실행 중인지. mode = 여는 방식 이름(tools.mode_pane·mode_exec·mode_window 문구)
+func (a_ LazygitT) StatusRunning(mode string) string {
+	return a_.t.render(&areaLazygit, "status_running", false, 0, "mode", mode)
 }
