@@ -39,7 +39,8 @@ type Guest struct {
 	haveSeat bool
 	seat     uint8
 	phase    guestPhase
-	confirm  *bool // my answer, once given
+	confirm  *bool     // my answer, once given
+	resumeAt time.Time // last hs_resume sent
 
 	kp  *wscrypto.KeyPair
 	sas string
@@ -275,10 +276,16 @@ func (g *Guest) onHello(m wire.SrvHello) {
 	g.seat, g.haveSeat = m.Seat, true
 	if g.bopen != nil && g.p2o != nil {
 		g.phase = phaseResuming
-		_ = g.sendOwner(wire.KindHsResume, mustJSON(wire.HsResume{}))
+		g.sendResume()
 		return
 	}
 	g.startHandshake()
+}
+
+// sendResume sends hs_resume and notes when, for the retry timer.
+func (g *Guest) sendResume() {
+	g.resumeAt = g.now()
+	_ = g.sendOwner(wire.KindHsResume, mustJSON(wire.HsResume{}))
 }
 
 func (g *Guest) startHandshake() {
@@ -352,6 +359,9 @@ func (g *Guest) onGrant(m wire.HsGrant) {
 	}
 	g.signPub = append(ed25519.PublicKey(nil), m.SignPub...)
 	g.level, g.verified, g.kbUntil = lvl, m.Verified, m.KeyboardUntil
+	if g.phase == phaseGranted {
+		return // a second answer to a resume asked twice
+	}
 	resumed := g.phase == phaseResuming
 	g.phase = phaseGranted
 	if resumed {
@@ -429,6 +439,12 @@ func (g *Guest) dispatchMore(kind wire.Kind, p []byte) {
 			return
 		}
 		if m.Code == NoticeResumed {
+			if g.phase == phaseResuming {
+				// My hs_resume went out while the owner was away: ask
+				// again; the grant brings EventResumed.
+				g.sendResume()
+				return
+			}
 			g.emit(EventResumed{})
 			g.afterResume()
 			return
@@ -486,5 +502,10 @@ func (g *Guest) dispatchMore(kind wire.Kind, p []byte) {
 
 // Hooks later parts of the engine fill in.
 
-func (g *Guest) tickMore(now time.Time) { g.tickDocs(now) }
+func (g *Guest) tickMore(now time.Time) {
+	if g.phase == phaseResuming && g.curConn() != nil && now.Sub(g.resumeAt) >= resumeRetry {
+		g.sendResume() // lost on the way (the owner was away)
+	}
+	g.tickDocs(now)
+}
 func (g *Guest) onNotice(m wire.Notice) { g.emit(EventNotice{Notice: m}) }

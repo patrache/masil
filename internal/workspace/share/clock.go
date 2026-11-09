@@ -20,6 +20,8 @@ const (
 	dialTimeout = 10 * time.Second
 	// rateLimitedWait is the redial delay after a 4008 close.
 	rateLimitedWait = 10 * time.Second
+	// resumeRetry: an unanswered hs_resume is sent again after this long.
+	resumeRetry = 5 * time.Second
 	// JoinTimeout is how long a join request waits for the owner.
 	JoinTimeout = 5 * time.Minute
 	// tamperWindow / tamperCount: this many rejected frames within the

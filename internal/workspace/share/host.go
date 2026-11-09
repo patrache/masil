@@ -520,6 +520,11 @@ func (h *Host) handleSealed(seat uint8, kind wire.Kind, frame []byte) {
 	}
 	if op == nil {
 		h.rejectFrame(seat, kind, "no_key", false)
+		if kind == wire.KindHsResume {
+			// Not a member here (this host started after the participant's
+			// grant, or removed it): the participant starts over.
+			_ = h.sendPlain(wire.KindHsDecline, wire.SeatOwner, seat, wire.HsDecline{Reason: reasonResumeBad})
+		}
 		return
 	}
 	hd, pt, err := op.Open(frame, 0)
