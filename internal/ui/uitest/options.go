@@ -3,6 +3,7 @@ package uitest
 import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/store"
@@ -28,6 +29,7 @@ type config struct {
 	locale     i18n.Locale    // "" => i18n.Ko
 	secrets    *secrets.Store // nil => secrettest.NewStore(tb, true)
 	nestedPane bool           // app.Options.NestedPane
+	collab     *collabtest.Hub
 }
 
 // WithSecrets uses s as ctx.Secrets (default: a secrettest memory store whose
@@ -87,4 +89,11 @@ func WithCredentials(cr *auth.Credentials) Option {
 // app.Options.NestedPane). The harness never reads MASIL_PANE itself.
 func WithNestedPane() Option {
 	return func(c *config) { c.nestedPane = true }
+}
+
+// WithCollab serves room documents from hub: ctx.CollabDial = hub.Dial, and
+// hub.Register on the harness's apitest server (after WithAPI's routes), with
+// the harness credentials' token read as their user.
+func WithCollab(hub *collabtest.Hub) Option {
+	return func(c *config) { c.collab = hub }
 }

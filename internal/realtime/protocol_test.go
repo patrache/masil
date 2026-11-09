@@ -411,6 +411,24 @@ func TestDecodeAllTypes(t *testing.T) {
 					t.Errorf("device.tui_state = %+v", d)
 				}
 			}},
+		{"doc.created", `{"doc":` + docJSON + `}`,
+			func(t *testing.T, v any) {
+				if d := v.(DocCreatedEvent); d.Doc.ID != "D1" || d.Doc.Type != "arch" || d.Doc.HeadSeq != 4 {
+					t.Errorf("doc.created = %+v", d)
+				}
+			}},
+		{"doc.updated", `{"doc":` + docJSON + `,"deleted":true}`,
+			func(t *testing.T, v any) {
+				if d := v.(DocUpdatedEvent); d.Doc.ID != "D1" || !d.Deleted {
+					t.Errorf("doc.updated = %+v", d)
+				}
+			}},
+		{"doc.comment_created", `{"doc_id":"D1","comment":` + commentJSON + `}`,
+			func(t *testing.T, v any) {
+				if d := v.(DocCommentCreatedEvent); d.DocID != "D1" || d.Comment.ID != "K1" || d.Comment.Anchor != "node:n1" {
+					t.Errorf("doc.comment_created = %+v", d)
+				}
+			}},
 	}
 
 	// Every events.md 8장 server type except pong must be covered exactly once.
@@ -462,7 +480,55 @@ friend.request_received, friend.request_accepted, friend.request_removed, friend
 presence.snapshot, presence.updated, presence.self, focus.started, focus.ended,
 notification.created, notifications.read, alert,
 timeline.item_created, post.deleted, post.stats, post.reply_created, story.created, story.deleted,
-device.tui_state`))
+device.tui_state,
+doc.created, doc.updated, doc.comment_created`))
+
+const (
+	docUserJSON = `{"id":"U1","handle":"hana","display_name":"하나","avatar_url":null,"status":null,"is_private":false,"suspended":false}`
+	docJSON     = `{"id":"D1","space_id":"S1","type":"arch","title":"결제","created_by":` + docUserJSON +
+		`,"created_at":"2026-11-05T02:00:00Z","updated_at":"2026-11-05T02:05:00Z","head_seq":4,"locked":false}`
+	commentJSON = `{"id":"K1","doc_id":"D1","anchor":"node:n1","author":` + docUserJSON +
+		`,"body":"@sam 봐 주세요","root_id":null,"resolved_at":null,"created_at":"2026-11-05T02:05:00Z","deleted":false}`
+)
+
+// TestDecodeDocEvents: the three v0.1.3 doc.* frames (events.md 4.10) decode
+// to their types, unknown fields are ignored, and they are logged events.
+func TestDecodeDocEvents(t *testing.T) {
+	frames := map[string]string{
+		"doc.created":         `{"doc":` + docJSON[:len(docJSON)-1] + `,"future":1},"extra":true}`,
+		"doc.updated":         `{"doc":` + docJSON + `,"deleted":false,"why":"x"}`,
+		"doc.comment_created": `{"doc_id":"D1","comment":` + commentJSON + `,"badge":3}`,
+	}
+	for typ, data := range frames {
+		ev, err := parseFrame([]byte(`{"type":"` + typ + `","seq":9,"ts":"2026-11-05T02:05:00Z","data":` + data + `}`))
+		if err != nil {
+			t.Fatalf("%s: %v", typ, err)
+		}
+		v, err := ev.Decode()
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", typ, err)
+		}
+		switch d := v.(type) {
+		case DocCreatedEvent:
+			if typ != "doc.created" || d.Doc.Title != "결제" || d.Doc.CreatedBy.Handle != "hana" {
+				t.Errorf("%s = %+v", typ, d)
+			}
+		case DocUpdatedEvent:
+			if typ != "doc.updated" || d.Doc.ID != "D1" || d.Deleted {
+				t.Errorf("%s = %+v", typ, d)
+			}
+		case DocCommentCreatedEvent:
+			if typ != "doc.comment_created" || d.DocID != "D1" || d.Comment.Body != "@sam 봐 주세요" || d.Comment.RootID != nil {
+				t.Errorf("%s = %+v", typ, d)
+			}
+		default:
+			t.Errorf("%s decoded to %T", typ, v)
+		}
+		if !loggedTypes[typ] {
+			t.Errorf("%s is not logged (events.md 4.10: 기록)", typ)
+		}
+	}
+}
 
 func TestDecodeUnknownType(t *testing.T) {
 	v, err := Event{Type: "future.thing", Data: json.RawMessage(`{"x":1}`)}.Decode()
@@ -496,6 +562,7 @@ func TestLoggedTypes(t *testing.T) {
 		"friend.request_received", "friend.request_accepted", "friend.request_removed", "friend.added", "friend.removed",
 		"block.updated", "user.updated", "settings.updated", "focus.started", "focus.ended",
 		"notification.created", "notifications.read", "alert",
+		"doc.created", "doc.updated", "doc.comment_created",
 	}
 	ephemeral := []string{
 		"hello", "ready", "reply", "pong", "session.revoked", "typing", "presence.snapshot", "presence.updated", "presence.self",

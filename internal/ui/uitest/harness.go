@@ -150,6 +150,13 @@ func New(tb testing.TB, opts ...Option) *Harness {
 	})
 	h.posts = newRecPoster()
 	h.Model.Context().Post = h.posts // recorded; Flush delivers
+	if c.collab != nil {
+		h.Model.Context().CollabDial = c.collab.Dial
+		c.collab.Register(srv)
+		if creds != nil {
+			c.collab.MapToken(creds.Token, creds.UserID)
+		}
+	}
 	seed := c.seed
 	if seed == nil {
 		seed = fixtures.Seed

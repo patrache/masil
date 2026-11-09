@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"context"
+	"net/http"
 	"time"
 
 	"github.com/patrache/masil/internal/api"
@@ -57,6 +59,10 @@ type Context struct {
 	// cookies, tokens and keys only through it. Never nil in the app
 	// (secrets.Open at start; the harness: secrettest.NewStore).
 	Secrets *secrets.Store
+	// CollabDial opens a room document socket (v0.1.3 C1.1): tools hand it to
+	// collab.Options.Dial. nil = the real connection (realtime.DialConn); the
+	// harness sets collabtest.Hub.Dial (uitest.WithCollab).
+	CollabDial func(ctx context.Context, url string, h http.Header) (realtime.Conn, error)
 }
 
 // Realtime is the UI-facing subset of realtime.Client.

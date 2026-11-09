@@ -628,3 +628,52 @@ type AdminAction struct {
 	Reason     string      `json:"reason"`
 	CreatedAt  time.Time   `json:"created_at"`
 }
+
+// ---- 5.24 room documents (v0.1.3, docs/contract/collab.md) ----
+
+// Doc is a room document's metadata (api.md 5.24); its content lives in the
+// document socket (internal/collab).
+type Doc struct {
+	ID        string      `json:"id"`
+	SpaceID   string      `json:"space_id"`
+	Type      string      `json:"type"` // arch|apicol
+	Title     string      `json:"title"`
+	CreatedBy UserSummary `json:"created_by"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	HeadSeq   int64       `json:"head_seq"` // last sequenced op; 0 = empty
+	Locked    bool        `json:"locked"`
+}
+
+// DocVersion is one saved version of a document (named, automatic or a
+// restore).
+type DocVersion struct {
+	No           int          `json:"no"`
+	Seq          int64        `json:"seq"`
+	Name         *string      `json:"name"` // nil for auto and restore versions
+	Auto         bool         `json:"auto"`
+	RestoredFrom *int         `json:"restored_from"`
+	CreatedBy    *UserSummary `json:"created_by"` // nil for auto versions
+	CreatedAt    time.Time    `json:"created_at"`
+}
+
+// DocVersionSnapshot is GET /v1/docs/{doc_id}/versions/{no}: the version and
+// its snapshot, kept raw (collab.DecodeSnapshot decodes it; api does not
+// import collab).
+type DocVersionSnapshot struct {
+	Version  DocVersion      `json:"version"`
+	Snapshot json.RawMessage `json:"snapshot"`
+}
+
+// DocComment is a comment on a document object.
+type DocComment struct {
+	ID         string      `json:"id"`
+	DocID      string      `json:"doc_id"`
+	Anchor     string      `json:"anchor"`
+	Author     UserSummary `json:"author"`
+	Body       string      `json:"body"` // "" when deleted
+	RootID     *string     `json:"root_id"`
+	ResolvedAt *time.Time  `json:"resolved_at"`
+	CreatedAt  time.Time   `json:"created_at"`
+	Deleted    bool        `json:"deleted"`
+}

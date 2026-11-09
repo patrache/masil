@@ -188,6 +188,43 @@ var pathCalls = map[string]func(c *api.Client, v string) error{
 		_, err := c.ListFollowing(ctx, api.UserRef(v), api.PageOpts{})
 		return err
 	},
+	// 5.24 room documents (P0 Task 30)
+	"ListDocs":  func(c *api.Client, v string) error { _, err := c.ListDocs(ctx, v, "", api.PageOpts{}); return err },
+	"CreateDoc": func(c *api.Client, v string) error { _, err := c.CreateDoc(ctx, v, api.CreateDocRequest{}); return err },
+	"GetDoc":    func(c *api.Client, v string) error { _, err := c.GetDoc(ctx, v); return err },
+	"UpdateDoc": func(c *api.Client, v string) error { _, err := c.UpdateDoc(ctx, v, api.UpdateDocRequest{}); return err },
+	"DeleteDoc": func(c *api.Client, v string) error { return c.DeleteDoc(ctx, v) },
+	"ListDocVersions": func(c *api.Client, v string) error {
+		_, err := c.ListDocVersions(ctx, v)
+		return err
+	},
+	"CreateDocVersion": func(c *api.Client, v string) error {
+		_, err := c.CreateDocVersion(ctx, v, "n")
+		return err
+	},
+	"GetDocVersion": func(c *api.Client, v string) error { _, err := c.GetDocVersion(ctx, v, 1); return err },
+	"RestoreDocVersion": func(c *api.Client, v string) error {
+		_, err := c.RestoreDocVersion(ctx, v, 1)
+		return err
+	},
+	"ListDocComments": func(c *api.Client, v string) error {
+		_, err := c.ListDocComments(ctx, v, api.PageOpts{})
+		return err
+	},
+	"CreateDocComment": func(c *api.Client, v string) error {
+		_, err := c.CreateDocComment(ctx, v, api.CreateDocCommentRequest{})
+		return err
+	},
+	"UpdateDocComment": func(c *api.Client, v string) error {
+		_, err := c.UpdateDocComment(ctx, v, "K", api.UpdateDocCommentRequest{})
+		return err
+	},
+	"UpdateDocComment/comment": func(c *api.Client, v string) error {
+		_, err := c.UpdateDocComment(ctx, "D", v, api.UpdateDocCommentRequest{})
+		return err
+	},
+	"DeleteDocComment":         func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, v, "K") },
+	"DeleteDocComment/comment": func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, "D", v) },
 	// FetchMedia takes a server-supplied URL (Media.URL) instead of a segment.
 	"FetchMedia": func(c *api.Client, v string) error { _, err := c.FetchMedia(ctx, "/v1/media/"+v, ""); return err },
 	"FetchMedia/abs": func(c *api.Client, v string) error {

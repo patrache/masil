@@ -414,13 +414,14 @@ export interface Alert {
   body: string; // <= 200 code points, plain text
   actor: UserSummary | null;
   target: {
-    type: "channel" | "message" | "post" | "space" | "user" | "notification";
+    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc";
     id: ID;
     channel_id: ID | null;
     message_id: ID | null;
     thread_root_id: ID | null;
     post_id: ID | null;
     space_id: ID | null;
+    doc_type?: DocType; // v0.1.3: only when type == "doc" (api.md 2 — other targets keep their 0.1.2 shape)
   };
   created_at: Timestamp;
   suppressed: boolean;
