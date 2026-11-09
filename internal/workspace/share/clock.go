@@ -22,6 +22,9 @@ const (
 	rateLimitedWait = 10 * time.Second
 	// resumeRetry: an unanswered hs_resume is sent again after this long.
 	resumeRetry = 5 * time.Second
+	// commitRetry: an unanswered hs_commit is sent again after this long
+	// (until JoinTimeout).
+	commitRetry = 3 * time.Second
 	// JoinTimeout is how long a join request waits for the owner.
 	JoinTimeout = 5 * time.Minute
 	// tamperWindow / tamperCount: this many rejected frames within the

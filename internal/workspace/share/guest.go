@@ -42,6 +42,9 @@ type Guest struct {
 	confirm  *bool     // my answer, once given
 	resumeAt time.Time // last hs_resume sent
 
+	commit                []byte    // my hs_commit, while waiting for hs_owner_pub
+	commitStart, commitAt time.Time // first and last hs_commit sent
+
 	kp  *wscrypto.KeyPair
 	sas string
 	p2o *wscrypto.Sealer
@@ -296,7 +299,17 @@ func (g *Guest) startHandshake() {
 	g.kp, g.sas, g.p2o, g.o2p, g.confirm = kp, "", nil, nil, nil
 	g.bopen, g.prevOpen, g.signPub = nil, nil, nil
 	g.phase = phaseCommitted
-	_ = g.sendPlain(wire.KindHsCommit, g.seat, wire.SeatOwner, wire.HsCommit{Commit: wscrypto.Commit(g.shareID, kp.Public())})
+	g.commit = wscrypto.Commit(g.shareID, kp.Public())
+	g.commitStart = g.now()
+	g.sendCommit()
+}
+
+// sendCommit sends hs_commit (again: the owner may have been away, and the
+// hub drops what it cannot deliver). The owner answers a repeat of the same
+// commitment with the same key.
+func (g *Guest) sendCommit() {
+	g.commitAt = g.now()
+	_ = g.sendPlain(wire.KindHsCommit, g.seat, wire.SeatOwner, wire.HsCommit{Commit: g.commit})
 }
 
 func (g *Guest) onOwnerPub(pub []byte) {
@@ -505,6 +518,15 @@ func (g *Guest) dispatchMore(kind wire.Kind, p []byte) {
 func (g *Guest) tickMore(now time.Time) {
 	if g.phase == phaseResuming && g.curConn() != nil && now.Sub(g.resumeAt) >= resumeRetry {
 		g.sendResume() // lost on the way (the owner was away)
+	}
+	if g.phase == phaseCommitted {
+		switch {
+		case now.Sub(g.commitStart) >= JoinTimeout:
+			g.declineLocked(ReasonExpired)
+			return
+		case g.curConn() != nil && now.Sub(g.commitAt) >= commitRetry:
+			g.sendCommit()
+		}
 	}
 	g.tickDocs(now)
 }

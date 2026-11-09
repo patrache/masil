@@ -1,6 +1,7 @@
 package share
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sort"
@@ -461,6 +462,14 @@ func (h *Host) onReconnected() {
 func (h *Host) onCommit(seat uint8, commit []byte) {
 	user := h.users[seat]
 	if user == "" || len(commit) == 0 {
+		return
+	}
+	if j := h.joins[seat]; j != nil && j.user == user && bytes.Equal(j.commit, commit) {
+		// The participant sent its commitment again (it heard nothing):
+		// the same exchange, the same key.
+		if !j.derived {
+			_ = h.sendPlain(wire.KindHsOwnerPub, wire.SeatOwner, seat, wire.HsPub{Pub: j.kp.Public()})
+		}
 		return
 	}
 	kp, err := wscrypto.NewKeyPair()
