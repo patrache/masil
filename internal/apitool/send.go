@@ -214,13 +214,20 @@ func (s *Sender) client(p *Prepared, set Settings, g *guard) *http.Client {
 		Transport: tr,
 		Jar:       jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if set.NoFollow {
-				return http.ErrUseLastResponse
+			err := ErrTooManyRedirects
+			switch {
+			case set.NoFollow:
+				err = http.ErrUseLastResponse
+			case len(via) <= set.MaxRedirects:
+				err = g.redirect(req)
 			}
-			if len(via) > set.MaxRedirects {
-				return ErrTooManyRedirects
+			// net/http has already reopened the body (GetBody) for req and
+			// closes it on any error but this one: close it here, or a
+			// multipart writer goroutine blocks forever.
+			if errors.Is(err, http.ErrUseLastResponse) && req.Body != nil {
+				req.Body.Close()
 			}
-			return g.redirect(req)
+			return err
 		},
 	}
 }

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/patrache/masil/internal/secrets"
 )
 
 // echo is a handler writing back what it received.
@@ -463,5 +465,50 @@ func TestIsBinaryEdge(t *testing.T) {
 	}
 	if isBinary("text/html", []byte{0xff}) {
 		t.Error("text/* called binary")
+	}
+}
+
+// TestMultipartStoppedRedirectNoLeak: a 307 not followed (NoFollow, or a
+// redirect stopped for a secret) must not leave the multipart writer of the
+// body net/http reopened for the redirect blocked forever.
+func TestMultipartStoppedRedirectNoLeak(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/r" {
+			w.Header().Set("Location", "http://localhost:1/steal")
+			w.WriteHeader(http.StatusTemporaryRedirect)
+			return
+		}
+		w.Header().Set("Location", "/next")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	file := filepath.Join(t.TempDir(), "a.bin")
+	if err := os.WriteFile(file, bytes.Repeat([]byte("x"), 64<<10), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	form := []FormField{{KV: KV{Key: "name", Value: "v"}}, {KV: KV{Key: "f"}, File: file}}
+	s := newSender(t)
+	before := runtime.NumGoroutine()
+	sc := &Scope{Env: &Env{ID: "e1", Vars: []Var{{Name: "k", Secret: true, AllowedHosts: []string{"127.0.0.1"}}}}, Vault: testVault(t)}
+	if err := sc.Vault.Put(SecretKey("", "e1", "k"), secrets.New("sv")); err != nil {
+		t.Fatal(err)
+	}
+	for range 10 {
+		r := &Request{Method: "POST", URL: srv.URL + "/a", Body: Body{Kind: BodyMultipart, Form: form}, Settings: Settings{NoFollow: true}}
+		if resp, err := send(t, s, r, nil); err != nil || resp.Status != 307 {
+			t.Fatalf("NoFollow: %v", err)
+		}
+		r = &Request{Method: "POST", URL: srv.URL + "/r", Headers: []KV{{Key: "X-K", Value: "{{k}}"}}, Body: Body{Kind: BodyMultipart, Form: form}}
+		if resp, err := send(t, s, r, sc); err != nil || resp.Status != 307 || resp.RedirectBlocked == nil {
+			t.Fatalf("blocked: %v %+v", err, resp)
+		}
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for runtime.NumGoroutine() > before+2 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if n := runtime.NumGoroutine(); n > before+2 {
+		buf := make([]byte, 1<<16)
+		t.Fatalf("goroutines %d -> %d after 20 stopped redirects\n%s", before, n, buf[:runtime.Stack(buf, true)])
 	}
 }
