@@ -41,16 +41,18 @@ const (
 	vmSplit                 // tree | request / response
 )
 
-// Layout thresholds (C3.6): the split view needs the standard mode's width
-// (a 120-column window), the tabbed view takes the rest down to 44 columns.
+// Layout thresholds (C3.6, P4 Task 13), as widths of the tool pane (the
+// window less its 2 border cells): the split view from a 120-column window,
+// the tabbed view below it, the short status line and JSON indent 1 below 80
+// columns.
 const (
-	splitMinW   = 100
+	splitMinW   = 118 // a 120-column window
 	splitMinH   = 16
 	treeW       = 26 // the left column of the split view
 	splitMin    = 5  // rows the request and the response keep at least
 	splitDef    = 45 // request share of the right column, percent
 	historyRows = 8  // history rows under the tree at most
-	narrowW     = 76 // below this the JSON tree indents by 1 and the status line is short
+	narrowW     = 78 // an 80-column window; below it the JSON tree indents by 1 and the status line is short
 )
 
 // savedState is the tool's section of tools-state.json (A8.5): what to show

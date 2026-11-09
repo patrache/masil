@@ -401,3 +401,33 @@ func TestSendErrorDescribed(t *testing.T) {
 		}
 	}
 }
+
+// The layout follows the plan's terminal widths (C3.6, P4 Task 13): split
+// view from 120 columns, tabs at 80–119, the short status line and indent 1
+// at 44–79.
+func TestLayoutThresholdsFollowPlan(t *testing.T) {
+	h := openAPI(t)
+	tl := seedRequests(h, nil, &apitool.Request{ID: "x", Name: "x", Method: "GET", URL: "https://example.com/x"})
+	showOn(h, tl, jsonResponse(`{"a":{"b":1}}`))
+	for _, c := range []struct {
+		w, h   int
+		mode   viewMode
+		indent int
+	}{
+		{120, 40, vmSplit, 2},
+		{119, 40, vmTabs, 2},
+		{110, 40, vmTabs, 2},
+		{80, 24, vmTabs, 2},
+		{79, 24, vmTabs, 1},
+		{44, 24, vmTabs, 1},
+	} {
+		h.Resize(c.w, c.h)
+		_ = h.Screen()
+		if m := tl.mode(h.Context()); m != c.mode {
+			t.Errorf("%dx%d: mode %v, want %v", c.w, c.h, m, c.mode)
+		}
+		if i := tl.rv.indent(); i != c.indent {
+			t.Errorf("%dx%d: JSON indent %d, want %d", c.w, c.h, i, c.indent)
+		}
+	}
+}
