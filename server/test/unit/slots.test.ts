@@ -27,7 +27,8 @@ describe("server assembly slots", () => {
     expect(LIMITER_PERIOD_SEC.RL_DOC).toBe(60);
     expect(LIMITER_PERIOD_SEC.RL_SHARE).toBe(60);
     expect(LIMITER_PERIOD_SEC.RL_SHARE_WS).toBe(60);
+    // P2 Task 13 filled the WorkspaceHub slot: an unknown internal path is 404 (it was 501 while empty)
     const res = await env.WORKSPACE_HUB.getByName("slot").fetch("http://do/x");
-    expect(res.status).toBe(501);
+    expect(res.status).toBe(404);
   });
 });

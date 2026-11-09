@@ -23,7 +23,7 @@ var contractMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "P
 var (
 	placeholderRe  = regexp.MustCompile(`\{[^}]+\}`)
 	limiterCellRe  = regexp.MustCompile(`^(RL_[A-Z_]+)(?:\(([A-Z/]+)\))?$`)
-	realtimeLimits = map[string]bool{"RL_WS": true} // realtime, not request.Limiter
+	realtimeLimits = map[string]bool{"RL_WS": true, "RL_SHARE_WS": true} // socket upgrades, not request.Limiter
 )
 
 // contractNormPath turns {user}, {id}, {channel_id}... into * (names differ between doc and harness).

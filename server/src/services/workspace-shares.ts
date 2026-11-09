@@ -331,13 +331,104 @@ export async function removeMember(rt: Runtime, shareId: string, actorId: string
   const access = await shareAccess(db, shareId, actorId);
   if (access === null) throw err.notFound("workspace share");
   if (access.role === "owner" ? targetId === actorId : targetId !== actorId) throw err.forbidden();
-  const res = await batch(db, [
-    stmt(db, "UPDATE workspace_share_members SET removed_at = ?3 WHERE share_id = ?1 AND user_id = ?2 AND removed_at IS NULL", shareId, targetId, now()),
-  ]);
-  if (res[0]!.meta.changes === 0) throw err.notFound("user");
+  if (!(await markRemoved(rt, access.row, targetId))) throw err.notFound("user");
   await tellHub(rt, shareId, "/kick", { user_id: targetId });
-  const share = await serializeShare(db, access.row);
-  await updated(rt, share, [access.row.owner_id, ...share.members.map((m) => m.user.id), targetId]);
+}
+
+/** removed_at for `userId` (if not removed yet) + workspace_share.updated to the owner, the members and them. */
+async function markRemoved(rt: Runtime, row: WorkspaceShareRow, userId: string): Promise<boolean> {
+  const db = rt.env.DB;
+  const res = await batch(db, [
+    stmt(db, "UPDATE workspace_share_members SET removed_at = ?3 WHERE share_id = ?1 AND user_id = ?2 AND removed_at IS NULL", row.id, userId, now()),
+  ]);
+  if (res[0]!.meta.changes === 0) return false;
+  const share = await serializeShare(db, row);
+  await updated(rt, share, [row.owner_id, ...share.members.map((m) => m.user.id), userId]);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// called by the WorkspaceHub DO (workspace.md 4) — it never calls back into itself through tellHub
+
+/** ctl_kick: the member on `seat` is removed (as DELETE .../participants/{user}); their user id, or null. */
+export async function removeSeatFromHub(rt: Runtime, shareId: string, seat: number): Promise<string | null> {
+  const db = rt.env.DB;
+  const row = await first<WorkspaceShareRow>(db, "SELECT * FROM workspace_shares WHERE id = ?1", shareId);
+  const m = await first<{ user_id: string }>(
+    db,
+    "SELECT user_id FROM workspace_share_members WHERE share_id = ?1 AND seat = ?2 AND removed_at IS NULL",
+    shareId,
+    seat,
+  );
+  if (row === null || m === null) return null;
+  await markRemoved(rt, row, m.user_id);
+  return m.user_id;
+}
+
+/**
+ * ctl_levels: max_level becomes the higher of the stored and the granted level, verified stays 1 once set; the
+ * owner and members get workspace_share.updated when a row changed.
+ */
+export async function recordLevels(rt: Runtime, shareId: string, levels: Map<number, string>, verified: Map<number, boolean>): Promise<void> {
+  const db = rt.env.DB;
+  const seats = [...new Set([...levels.keys(), ...verified.keys()])];
+  if (seats.length === 0) return;
+  const rank = `CASE ?3 WHEN 'viewer' THEN 1 WHEN 'prompter' THEN 2 WHEN 'editor' THEN 3 WHEN 'keyboard' THEN 4 ELSE 0 END`;
+  const cur = `CASE max_level WHEN 'viewer' THEN 1 WHEN 'prompter' THEN 2 WHEN 'editor' THEN 3 WHEN 'keyboard' THEN 4 ELSE 0 END`;
+  const res = await batch(
+    db,
+    seats.map((seat) =>
+      stmt(
+        db,
+        `UPDATE workspace_share_members
+            SET max_level = CASE WHEN ${rank} > ${cur} THEN ?3 ELSE max_level END,
+                verified = MAX(verified, ?4)
+          WHERE share_id = ?1 AND seat = ?2 AND removed_at IS NULL
+            AND (${rank} > ${cur} OR verified < ?4)`,
+        shareId,
+        seat,
+        levels.get(seat) ?? "",
+        verified.get(seat) === true ? 1 : 0,
+      ),
+    ),
+  );
+  if (!res.some((r) => r.meta.changes > 0)) return;
+  const row = await first<WorkspaceShareRow>(db, "SELECT * FROM workspace_shares WHERE id = ?1", shareId);
+  if (row === null) return;
+  const share = await serializeShare(db, row);
+  await updated(rt, share, [row.owner_id, ...share.members.map((m) => m.user.id)]);
+}
+
+/** joined_at (connect) / left_at (close) of a member's socket (workspace.md 4 rule 8). */
+export async function markPresence(db: D1Database, shareId: string, userId: string, column: "joined_at" | "left_at", t: number): Promise<void> {
+  await db.prepare(`UPDATE workspace_share_members SET ${column} = ?3 WHERE share_id = ?1 AND user_id = ?2`).bind(shareId, userId, t).run();
+}
+
+/** ctl_attention: the workspace_attention alert to the owner (no actor — it is about their own share). */
+export async function sendAttention(rt: Runtime, shareId: string, ownerId: string, title: string): Promise<void> {
+  await sendAlerts(rt, [
+    {
+      userId: ownerId,
+      actorId: null,
+      alert: alertSpec("workspace_attention", { id: "workspace.attention", params: { share: title } }, shareTarget(shareId)),
+    },
+  ]);
+}
+
+/**
+ * The socket check after the hub accepted (a kick / end may have committed after the Worker's read): the share is
+ * live and `userId` is its owner or a member that was not removed.
+ */
+export async function stillAllowed(db: D1Database, shareId: string, userId: string): Promise<boolean> {
+  const r = await first<{ ok: number }>(
+    db,
+    `SELECT 1 AS ok FROM workspace_shares s WHERE s.id = ?1 AND s.status = 'live'
+        AND (s.owner_id = ?2 OR EXISTS (SELECT 1 FROM workspace_share_members m
+                                         WHERE m.share_id = s.id AND m.user_id = ?2 AND m.removed_at IS NULL))`,
+    shareId,
+    userId,
+  );
+  return r !== null;
 }
 
 /**

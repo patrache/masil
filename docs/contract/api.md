@@ -1691,6 +1691,7 @@ interface DocComment {
 | POST | /v1/workspace-shares/{share_id}/invites | ✓ | RL_SHARE |
 | DELETE | /v1/workspace-shares/{share_id}/participants/{user} | ✓ | |
 | DELETE | /v1/workspace-shares/{share_id} | ✓ | |
+| GET | /v1/workspace-shares/{share_id}/ws | ✓ | RL_SHARE_WS |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

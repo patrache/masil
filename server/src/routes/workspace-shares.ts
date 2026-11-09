@@ -9,7 +9,18 @@ import { err } from "../lib/errors";
 import { idParam } from "../lib/params";
 import { limit } from "../lib/ratelimit";
 import { vJson, vQuery, zText, zUserRef } from "../lib/validate";
-import { addInvites, createShare, endShare, listShares, removeMember, serializeShare, shareAccess, WORKSPACE_LIMITS } from "../services/workspace-shares";
+import { isBlockedEither } from "../lib/permissions";
+import {
+  addInvites,
+  createShare,
+  endShare,
+  listShares,
+  removeMember,
+  serializeShare,
+  shareAccess,
+  workspaceHub,
+  WORKSPACE_LIMITS,
+} from "../services/workspace-shares";
 
 const Users = z.array(zUserRef).min(1).max(WORKSPACE_LIMITS.members);
 
@@ -77,4 +88,32 @@ workspaceShareRoutes.delete("/workspace-shares/:share_id", requireAuth, async (c
   if (access.role !== "owner") throw err.forbidden();
   await endShare(rt(c), shareId, "ended");
   return c.body(null, 204);
+});
+
+/**
+ * workspace.md 1: requireAuth -> RL_SHARE_WS -> a live share I own (seat 0) or am a member of that was not removed
+ * (my seat), with no block either way between me and the owner — else 404 before the upgrade. The hub gets the upgrade
+ * with X-Masil-Auth / X-Masil-Seat / X-Masil-Share set by us (the global middleware already dropped client copies).
+ */
+workspaceShareRoutes.get("/workspace-shares/:share_id/ws", requireAuth, limit("RL_SHARE_WS"), async (c) => {
+  const upgrade = c.req.header("Upgrade");
+  if ((upgrade ?? "").toLowerCase() !== "websocket") throw err.invalid({ upgrade: upgrade === undefined ? "required" : "invalid" });
+  const auth = getAuth(c);
+  const shareId = idParam(c, "share_id", "workspace share");
+  const access = await shareAccess(c.env.DB, shareId, auth.userId);
+  if (access === null || access.row.status !== "live") throw err.notFound("workspace share");
+  let seat = 0;
+  if (access.role === "member") {
+    if (await isBlockedEither(c.env.DB, access.row.owner_id, auth.userId)) throw err.notFound("workspace share");
+    const m = await c.env.DB.prepare("SELECT seat FROM workspace_share_members WHERE share_id = ?1 AND user_id = ?2 AND removed_at IS NULL")
+      .bind(shareId, auth.userId)
+      .first<{ seat: number }>();
+    if (m === null) throw err.notFound("workspace share");
+    seat = m.seat;
+  }
+  const headers = new Headers(c.req.raw.headers);
+  headers.set("X-Masil-Auth", JSON.stringify({ userId: auth.userId, sessionId: auth.sessionId }));
+  headers.set("X-Masil-Seat", String(seat));
+  headers.set("X-Masil-Share", JSON.stringify({ share_id: shareId, owner_id: access.row.owner_id, title: access.row.title }));
+  return workspaceHub(rt(c), shareId).fetch(new Request("https://hub/connect", { method: "GET", headers }));
 });
