@@ -5,9 +5,11 @@
 // X-Masil-Doc-Auth, the only identity this object trusts.
 //
 // Storage (DO SQLite, data-model.md 3.13): `ops` (the sequenced frames since the snapshot, client_op_id unique for
-// idempotent resends), `snapshot` (one row: the canonical state at some seq), `versions` (Task 28), `meta`. The state
-// is held in memory once loaded (snapshot + the ops after it) and rebuilt after eviction. Presence is memory only.
-// The alarm (30 s batches) mirrors head_seq / updated_at to D1 and compacts the op log past 1,000 ops.
+// idempotent resends), `snapshot` (one row: the canonical state at some seq), `versions` (each version's canonical
+// snapshot; its metadata row in D1 collab_versions is written by this object too), `meta`. The state is held in memory
+// once loaded (snapshot + the ops after it) and rebuilt after eviction. Presence is memory only.
+// The alarm mirrors head_seq / updated_at to D1 (30 s batches), makes automatic versions, applies the record-version
+// retention (api.md 5.24 버전 규칙) and compacts the op log past 1,000 ops.
 import { DurableObject } from "cloudflare:workers";
 import { errFields } from "../lib/log";
 import { DocState, applyOps, limitReason, parseSnapshot, type Change, type Op } from "../lib/collab-reducer";
@@ -62,15 +64,28 @@ interface DocConn {
 /** init's answer: the head seq, or why the snapshot was refused (api.md 5.24 -> 400 fields.snapshot). */
 export type InitResult = { seq: number } | { error: "invalid" | "too_long" };
 
+/** createVersion / restoreVersion: the new version's no (its D1 collab_versions row is written), or the refusal. */
+export type VersionResult = { no: number; seq: number } | { error: "limit_exceeded" | "not_found" | "invalid" };
+
 const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)",
   "CREATE TABLE IF NOT EXISTS ops (seq INTEGER PRIMARY KEY, author TEXT NOT NULL, ts INTEGER NOT NULL, client_op_id TEXT UNIQUE, ops TEXT NOT NULL)",
   "CREATE TABLE IF NOT EXISTS snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), seq INTEGER NOT NULL, body TEXT NOT NULL)",
-  "CREATE TABLE IF NOT EXISTS versions (no INTEGER PRIMARY KEY, seq INTEGER NOT NULL, body TEXT NOT NULL)",
+  // kind: named (permanent, <= 100) | auto / restore = "record" versions (30 days, newest 200 kept)
+  "CREATE TABLE IF NOT EXISTS versions (no INTEGER PRIMARY KEY, seq INTEGER NOT NULL, body TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('named','auto','restore')), created_at INTEGER NOT NULL)",
 ];
 
 const ALARM_BATCH_MS = 30_000;
 const COMPACT_AFTER_OPS = 1000;
+/** api.md 5.24 버전 규칙 */
+export const VERSION_RULES = {
+  namedMax: 100,
+  recordMax: 200,
+  recordKeepMs: 30 * 24 * 3600_000,
+  autoIdleMs: 5 * 60_000,
+  autoEveryOps: 200,
+  autoMinGapMs: 5 * 60_000,
+} as const;
 const ROLES: ReadonlySet<string> = new Set(["creator", "admin", "member"]);
 
 function parseDocAuth(header: string | null): DocAuth | null {
@@ -92,7 +107,8 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
   /** the document state, loaded on first use (null = not loaded / dropped after a failed write) */
   private doc: DocState | null = null;
   private presence = new Map<string, Presence>();
-  private alarmArmed = false;
+  /** the alarm time this object last saw / set (null = unknown: ask storage) */
+  private alarmAt: number | null = null;
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -309,6 +325,7 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
         this.sql.exec("INSERT INTO ops (seq, author, ts, client_op_id, ops) VALUES (?, ?, ?, ?, ?)", seq, c.userId, t, clientOpId, r.opsText);
         this.setMeta("seq", seq);
         this.setMeta("last_op_at", t);
+        if (this.getMetaNum("mirror_at") === 0) this.setMeta("mirror_at", t + ALARM_BATCH_MS);
       });
     } catch (e) {
       this.doc = null; // memory ran ahead of storage: rebuild from what was written
@@ -318,7 +335,7 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
     this.send(ws, ackFrame(clientOpId, seq));
     const frame = opFrame(seq, c.userId, clientOpId, r.opsText);
     for (const s of this.others(ws)) this.send(s, frame);
-    await this.armAlarm();
+    await this.armAlarm(t);
   }
 
   /** collab.md 3.1-3.2 presence: merged per connection, memory only, to other people, 10 per second (rest dropped). */
@@ -340,29 +357,124 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
 
   // ---------------------------------------------------------------- alarm
 
-  private async armAlarm(): Promise<void> {
-    if (this.alarmArmed) return;
-    this.alarmArmed = true;
-    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(this.now() + ALARM_BATCH_MS);
+  /**
+   * The earliest thing due: the D1 mirror (30 s after the first unmirrored op), the next automatic version (api.md
+   * 5.24: edits idle 5 minutes, or 200 seqs since the last version — never within 5 minutes of the last automatic one)
+   * and the oldest record version's 30-day expiry. Never moves a set alarm later; the alarm re-arms itself.
+   */
+  protected async armAlarm(t = this.now()): Promise<void> {
+    const due: number[] = [];
+    const seq = this.getMetaNum("seq");
+    if (seq > this.getMetaNum("d1_seq")) due.push(this.getMetaNum("mirror_at") || t + ALARM_BATCH_MS);
+    const lastVersionSeq = this.getMetaNum("last_version_seq");
+    if (seq > lastVersionSeq) {
+      const base = seq - lastVersionSeq >= VERSION_RULES.autoEveryOps ? t : this.getMetaNum("last_op_at") + VERSION_RULES.autoIdleMs;
+      due.push(Math.max(base, this.getMetaNum("last_auto_at") + VERSION_RULES.autoMinGapMs));
+    }
+    const oldest = this.sql.exec<{ c: number | null }>("SELECT MIN(created_at) AS c FROM versions WHERE kind <> 'named'").toArray()[0]?.c ?? null;
+    if (oldest !== null) due.push(oldest + VERSION_RULES.recordKeepMs + 1);
+    if (due.length === 0) return;
+    const next = Math.min(...due);
+    if (this.alarmAt !== null && this.alarmAt <= next) return;
+    const cur = await this.ctx.storage.getAlarm();
+    if (cur === null || cur > next) {
+      await this.ctx.storage.setAlarm(next);
+      this.alarmAt = next;
+    } else this.alarmAt = cur;
   }
 
-  /** Mirrors head_seq / updated_at to D1 (collab_docs) and compacts the op log. */
   async alarm(): Promise<void> {
-    this.alarmArmed = false;
+    this.alarmAt = null;
+    const t = this.now();
+    await this.mirrorHead(t);
+    await this.autoVersion(t);
+    await this.pruneVersions(t);
+    this.compact();
+    await this.armAlarm(t);
+  }
+
+  /** head_seq / updated_at to D1 collab_docs (MAX: never back). A failure is retried by the next alarm. */
+  protected async mirrorHead(t: number): Promise<void> {
     const docId = this.getMeta("doc_id");
     const seq = this.getMetaNum("seq");
-    if (docId !== null && seq > this.getMetaNum("d1_seq")) {
-      try {
-        await this.env.DB.prepare("UPDATE collab_docs SET head_seq = MAX(head_seq, ?2), updated_at = MAX(updated_at, ?3) WHERE id = ?1")
-          .bind(docId, seq, this.getMetaNum("last_op_at"))
-          .run();
-        this.setMeta("d1_seq", seq);
-      } catch (e) {
-        console.error({ msg: "CollabHub: D1 mirror failed", doc_id: docId, err: errFields(e) });
-        await this.armAlarm();
-      }
+    if (docId === null || seq <= this.getMetaNum("d1_seq")) return;
+    try {
+      await this.env.DB.prepare("UPDATE collab_docs SET head_seq = MAX(head_seq, ?2), updated_at = MAX(updated_at, ?3) WHERE id = ?1")
+        .bind(docId, seq, this.getMetaNum("last_op_at"))
+        .run();
+      this.setMeta("d1_seq", seq);
+      this.setMeta("mirror_at", 0);
+    } catch (e) {
+      this.setMeta("mirror_at", t + ALARM_BATCH_MS);
+      console.error({ msg: "CollabHub: D1 mirror failed", doc_id: docId, err: errFields(e) });
     }
-    this.compact();
+  }
+
+  /** api.md 5.24: an automatic version when one is due (see armAlarm). */
+  protected async autoVersion(t: number): Promise<void> {
+    const seq = this.getMetaNum("seq");
+    const lastVersionSeq = this.getMetaNum("last_version_seq");
+    if (seq <= lastVersionSeq || this.getMeta("doc_id") === null) return;
+    const idle = t - this.getMetaNum("last_op_at") >= VERSION_RULES.autoIdleMs;
+    const many = seq - lastVersionSeq >= VERSION_RULES.autoEveryOps;
+    if (!(idle || many) || t - this.getMetaNum("last_auto_at") < VERSION_RULES.autoMinGapMs) return;
+    try {
+      await this.addVersion("auto", null, null, null, t);
+    } catch (e) {
+      console.error({ msg: "CollabHub: auto version failed", doc_id: this.getMeta("doc_id"), err: errFields(e) });
+    }
+  }
+
+  /**
+   * Stores a version of the current state (DO body first, then the D1 metadata row; a D1 failure takes the body back
+   * out and throws). `no` comes from a counter, so concurrent calls never collide.
+   */
+  protected async addVersion(kind: "named" | "auto" | "restore", name: string | null, createdBy: string | null, restoredFrom: number | null, t: number): Promise<{ no: number; seq: number }> {
+    const docId = this.getMeta("doc_id");
+    if (docId === null) throw new Error("CollabHub: version before the doc id is known");
+    const st = this.state();
+    const no = this.getMetaNum("version_no") + 1;
+    const seq = st.seq;
+    this.ctx.storage.transactionSync(() => {
+      this.setMeta("version_no", no);
+      this.sql.exec("INSERT INTO versions (no, seq, body, kind, created_at) VALUES (?, ?, ?, ?, ?)", no, seq, st.snapshotText(), kind, t);
+      this.setMeta("last_version_seq", Math.max(seq, this.getMetaNum("last_version_seq")));
+      if (kind === "auto") this.setMeta("last_auto_at", t);
+    });
+    try {
+      await this.env.DB.prepare(
+        `INSERT INTO collab_versions (doc_id, no, seq, name, auto, restored_from, created_by, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+      )
+        .bind(docId, no, seq, name, kind === "auto" ? 1 : 0, restoredFrom, createdBy, t)
+        .run();
+    } catch (e) {
+      this.sql.exec("DELETE FROM versions WHERE no = ?", no);
+      throw e;
+    }
+    return { no, seq };
+  }
+
+  /** Record versions (auto / restore): older than 30 days, and beyond the newest 200, go — D1 rows first. */
+  protected async pruneVersions(t: number): Promise<void> {
+    const docId = this.getMeta("doc_id");
+    if (docId === null) return;
+    const doomed = this.sql
+      .exec<{ no: number }>(
+        `SELECT no FROM versions WHERE kind <> 'named'
+          AND (created_at < ? OR no NOT IN (SELECT no FROM versions WHERE kind <> 'named' ORDER BY no DESC LIMIT ?))`,
+        t - VERSION_RULES.recordKeepMs,
+        VERSION_RULES.recordMax,
+      )
+      .toArray()
+      .map((r) => r.no);
+    if (doomed.length === 0) return;
+    try {
+      await this.env.DB.prepare("DELETE FROM collab_versions WHERE doc_id = ?1 AND no IN (SELECT value FROM json_each(?2))").bind(docId, JSON.stringify(doomed)).run();
+      this.sql.exec(`DELETE FROM versions WHERE no IN (${doomed.map(() => "?").join(",")})`, ...doomed);
+    } catch (e) {
+      console.error({ msg: "CollabHub: version prune failed", doc_id: docId, err: errFields(e) });
+    }
   }
 
   /** Past 1,000 ops after the snapshot (any, with `force`): snapshot at head, older ops dropped (collab.md 3.2). */
@@ -404,6 +516,66 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
     });
     this.doc = st;
     return { seq };
+  }
+
+  /** The doc id / type a REST call names, for an object that has had no socket yet. */
+  private bindDoc(docId: string, docType: DocKind): void {
+    if (this.getMeta("doc_id") === null) this.setMeta("doc_id", docId);
+    if (this.getMeta("doc_type") === null) this.setMeta("doc_type", docType);
+  }
+
+  /** POST /v1/docs/{id}/versions: a named version of the head (api.md 5.24; the 101st -> limit_exceeded). */
+  async createVersion(docId: string, docType: DocKind, name: string, userId: string): Promise<VersionResult> {
+    this.bindDoc(docId, docType);
+    const named = this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM versions WHERE kind = 'named'").toArray()[0]?.n ?? 0;
+    if (named >= VERSION_RULES.namedMax) return { error: "limit_exceeded" };
+    const t = this.now();
+    const r = await this.addVersion("named", name, userId, null, t);
+    await this.armAlarm(t);
+    return r;
+  }
+
+  /**
+   * POST /v1/docs/{id}/versions/{no}/restore (permission checks are the Worker's): one seq whose frame is
+   * `[{op:"reset", snapshot}]` by `userId`, sent to every socket (collab.md 1.1, 3.2), then a restore version
+   * (restored_from = no) of the result. History is kept.
+   */
+  async restoreVersion(docId: string, docType: DocKind, no: number, userId: string): Promise<VersionResult> {
+    this.bindDoc(docId, docType);
+    const row = this.sql.exec<{ body: string }>("SELECT body FROM versions WHERE no = ?", no).toArray()[0];
+    if (!row) return { error: "not_found" };
+    const spec = this.spec();
+    if (spec === null) return { error: "invalid" };
+    const snapshot = parseSnapshot(JSON.parse(row.body));
+    if (snapshot === null) return { error: "invalid" };
+    const ops: Op[] = [{ op: "reset", snapshot }];
+    const st = this.state();
+    const seq = st.seq + 1;
+    const t = this.now();
+    const r = decideOp(st, spec, seq, "", ops);
+    if (!r.ok) return { error: "invalid" };
+    try {
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec("INSERT INTO ops (seq, author, ts, client_op_id, ops) VALUES (?, ?, ?, NULL, ?)", seq, userId, t, r.opsText);
+        this.setMeta("seq", seq);
+        this.setMeta("last_op_at", t);
+        if (this.getMetaNum("mirror_at") === 0) this.setMeta("mirror_at", t + ALARM_BATCH_MS);
+      });
+    } catch (e) {
+      this.doc = null;
+      throw e;
+    }
+    const frame = opFrame(seq, userId, null, r.opsText);
+    for (const s of this.liveSockets()) if (this.conn(s)?.ready) this.send(s, frame);
+    const v = await this.addVersion("restore", null, userId, no, t);
+    await this.pruneVersions(t);
+    await this.armAlarm(t);
+    return v;
+  }
+
+  /** A version's canonical snapshot text, or null (never made / pruned). */
+  async versionBody(no: number): Promise<string | null> {
+    return this.sql.exec<{ body: string }>("SELECT body FROM versions WHERE no = ?", no).toArray()[0]?.body ?? null;
   }
 
   /** kicked{reason} then 4100 on every socket of the user. */

@@ -24,6 +24,7 @@ import {
 import { charCount, isSingleEmoji, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
 import { vJson, vQuery, zChannelName, zText, zUserRef } from "../lib/validate";
+import { kickFromSpaceDocs, setDocRole } from "../services/docs";
 import { OWNED_SPACES_MAX, removeFromSpace } from "../services/membership";
 import { postSystemMessage } from "../services/messages";
 import type { SpaceRole } from "../types/api";
@@ -210,6 +211,7 @@ spaceRoutes.delete("/spaces/:space_id", requireAuth, async (c) => {
     throw new Error("space delete: 0-row UPDATE with no reason");
   }
   await publishEvent(rt(c), { users: memberIds }, "space.deleted", { space_id: spaceId });
+  rt(c).waitUntil(kickFromSpaceDocs(rt(c), spaceId, null, "space_deleted")); // collab.md 4.1: every doc socket of the space
   return c.body(null, 204);
 });
 
@@ -267,6 +269,7 @@ spaceRoutes.post("/spaces/:space_id/transfer", requireAuth, vJson(TransferBody),
     ...members.map((member) => ({ type: "space.member_updated" as const, data: { space_id: spaceId, member } })),
     { type: "space.updated" as const, data: { space: forEvent } },
   ]);
+  rt(c).waitUntil(setDocRole(rt(c), spaceId, target.id, "admin")); // the new owner edits locked docs (the old one stays admin)
   return c.json({ space: forMe });
 });
 
@@ -374,6 +377,7 @@ spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody
   }
   const [member] = await serializeSpaceMembers(db, [row]);
   await publishEvent(rt(c), { space: spaceId }, "space.member_updated", { space_id: spaceId, member: member! });
+  rt(c).waitUntil(setDocRole(rt(c), spaceId, target.id, role)); // collab.md 4.1: open doc sockets follow the new role
   return c.json({ member });
 });
 

@@ -1,5 +1,5 @@
 // Room documents (v0.1.3 C1.4, api.md 5.24, data-model.md 3.13). D1 holds the metadata (collab_docs); a document's
-// content lives in its CollabHub DO ("doc:<id>"). Every document path answers 404 to anyone who is not a member of a
+// content lives in its CollabHub DO ("doc:<id>"), and so do the version bodies (D1 collab_versions = their metadata). Every document path answers 404 to anyone who is not a member of a
 // live space (docRole === null) — existence is hidden, as for spaces (api.md 3.5).
 import type { Runtime } from "../env";
 import { all, decodeCursor, encodeCursor, first } from "../lib/db";
@@ -10,8 +10,8 @@ import { getSpaceRole } from "../lib/permissions";
 import { publishEvent } from "../lib/realtime";
 import { loadUserSummaries } from "../lib/serialize";
 import { iso, now } from "../lib/time";
-import type { Doc, DocType } from "../types/api";
-import type { CollabDocRow } from "../types/rows";
+import type { Doc, DocType, DocVersion } from "../types/api";
+import type { CollabDocRow, CollabVersionRow } from "../types/rows";
 import type { DocKickReason } from "../do/collab-hub";
 
 export type DocRole = "creator" | "admin" | "member";
@@ -201,4 +201,128 @@ export function closeDocSockets(rt: Runtime, docIds: string[], kickReason: DocKi
     }),
   );
   rt.waitUntil(work);
+}
+
+// ---------------------------------------------------------------- versions (api.md 5.24 버전 규칙, P0 Task 28)
+
+async function serializeVersions(db: D1Database, rows: CollabVersionRow[]): Promise<DocVersion[]> {
+  const users = await loadUserSummaries(db, rows.flatMap((r) => (r.created_by === null ? [] : [r.created_by])));
+  return rows.map((r) => ({
+    no: r.no,
+    seq: r.seq,
+    name: r.name,
+    auto: r.auto === 1,
+    restored_from: r.restored_from,
+    created_by: r.created_by === null ? null : (users.get(r.created_by) ?? null),
+    created_at: iso(r.created_at),
+  }));
+}
+
+async function versionRow(db: D1Database, docId: string, no: number): Promise<CollabVersionRow> {
+  const row = await first<CollabVersionRow>(db, "SELECT * FROM collab_versions WHERE doc_id = ?1 AND no = ?2", docId, no);
+  if (row === null) throw err.notFound("version");
+  return row;
+}
+
+/** GET /v1/docs/{doc_id}/versions: newest first; named ones plus the record versions retention left (<= 300). */
+export async function listVersions(db: D1Database, docId: string, userId: string): Promise<DocVersion[]> {
+  await loadDocFor(db, docId, userId);
+  const rows = await all<CollabVersionRow>(db, "SELECT * FROM collab_versions WHERE doc_id = ?1 ORDER BY no DESC", docId);
+  return serializeVersions(db, rows);
+}
+
+/** GET /v1/docs/{doc_id}/versions/{no}: the version and its snapshot; unknown or pruned -> 404. */
+export async function getVersion(rt: Runtime, docId: string, userId: string, no: number): Promise<{ version: DocVersion; snapshot: unknown }> {
+  const db = rt.env.DB;
+  await loadDocFor(db, docId, userId);
+  const row = await versionRow(db, docId, no);
+  const body = await collabHub(rt, docId).versionBody(no);
+  if (body === null) throw err.notFound("version");
+  const [version] = await serializeVersions(db, [row]);
+  return { version: version!, snapshot: JSON.parse(body) };
+}
+
+/** POST /v1/docs/{doc_id}/versions {name}: a named version of the head; the 101st -> 422 limit_exceeded named_versions. */
+export async function createVersion(rt: Runtime, docId: string, userId: string, name: string): Promise<DocVersion> {
+  const db = rt.env.DB;
+  const { row } = await loadDocFor(db, docId, userId);
+  const r = await collabHub(rt, docId).createVersion(docId, row.type, name, userId);
+  if ("error" in r) throw err.limit("named_versions", 100);
+  const [version] = await serializeVersions(db, [await versionRow(db, docId, r.no)]);
+  return version!;
+}
+
+/**
+ * POST /v1/docs/{doc_id}/versions/{no}/restore: a locked doc only by creator / owner / admin (403). The hub sequences a
+ * reset to every socket and records a restore version (restored_from = no); D1 head_seq follows right away.
+ */
+export async function restoreVersion(rt: Runtime, docId: string, userId: string, no: number): Promise<{ doc: Doc; version: DocVersion }> {
+  const db = rt.env.DB;
+  const { row, role } = await loadDocFor(db, docId, userId);
+  if (row.locked === 1 && !canManageDoc(role)) throw err.forbidden("forbidden", "the document is locked");
+  await versionRow(db, docId, no);
+  const r = await collabHub(rt, docId).restoreVersion(docId, row.type, no, userId);
+  if ("error" in r) {
+    if (r.error === "not_found") throw err.notFound("version");
+    throw new Error(`restore: hub refused version ${no}: ${r.error}`);
+  }
+  const t = Math.max(now(), row.updated_at);
+  const updated = await first<CollabDocRow>(
+    db,
+    "UPDATE collab_docs SET head_seq = MAX(head_seq, ?2), updated_at = MAX(updated_at, ?3) WHERE id = ?1 AND deleted_at IS NULL RETURNING *",
+    docId,
+    r.seq,
+    t,
+  );
+  const [version] = await serializeVersions(db, [await versionRow(db, docId, r.no)]);
+  return { doc: await serializeDoc(db, updated ?? row), version: version! };
+}
+
+// ---------------------------------------------------------------- open sockets (collab.md 4.1, P0 Task 28)
+
+async function eachHub(rt: Runtime, docIds: string[], what: string, call: (hub: ReturnType<typeof collabHub>) => Promise<void>): Promise<void> {
+  await Promise.all(
+    docIds.map(async (id) => {
+      try {
+        await call(collabHub(rt, id));
+      } catch (e) {
+        console.error({ msg: "docs: CollabHub call failed", call: what, doc_id: id, err: errFields(e) }); // D1 is the truth (collab.md 4.1)
+      }
+    }),
+  );
+}
+
+async function liveDocIdsOfSpace(db: D1Database, spaceId: string): Promise<string[]> {
+  return (await all<{ id: string }>(db, "SELECT id FROM collab_docs WHERE space_id = ?1 AND deleted_at IS NULL", spaceId)).map((r) => r.id);
+}
+
+/**
+ * After a removal / space delete committed (callers wrap it in rt.waitUntil): `kicked{reason}` + 4100 on the user's
+ * sockets of every live doc in the space — or on every socket (userId null, space_deleted; those hubs then refuse new
+ * connections).
+ */
+export async function kickFromSpaceDocs(rt: Runtime, spaceId: string, userId: string | null, reason: "left" | "kicked" | "banned" | "space_deleted"): Promise<void> {
+  const ids = await liveDocIdsOfSpace(rt.env.DB, spaceId);
+  await eachHub(rt, ids, "kick", (hub) => (userId === null ? hub.closeAll(reason) : hub.kick(userId, reason)));
+}
+
+/**
+ * After services/users.ts revokeSessions (callers wrap it in rt.waitUntil): closes the user's document sockets of
+ * those sessions with `code` (4001, 4003 for a suspension) in every live doc of the spaces they are a member of.
+ */
+export async function closeDocSessions(rt: Runtime, userId: string, sessionIds: string[] | "all", code: 4001 | 4003): Promise<void> {
+  const ids = (
+    await all<{ id: string }>(
+      rt.env.DB,
+      "SELECT d.id FROM collab_docs d JOIN space_members m ON m.space_id = d.space_id AND m.user_id = ?1 WHERE d.deleted_at IS NULL",
+      userId,
+    )
+  ).map((r) => r.id);
+  await eachHub(rt, ids, "revokeSession", (hub) => hub.revokeSession(userId, sessionIds, code));
+}
+
+/** After a space role change committed (member role / ownership transfer): the user's doc sockets in that space follow. */
+export async function setDocRole(rt: Runtime, spaceId: string, userId: string, role: "admin" | "member"): Promise<void> {
+  const ids = await liveDocIdsOfSpace(rt.env.DB, spaceId);
+  await eachHub(rt, ids, "setRole", (hub) => hub.setRole(userId, role));
 }

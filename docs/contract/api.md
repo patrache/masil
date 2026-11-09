@@ -1531,6 +1531,7 @@ interface DocComment {
   - 이름 버전은 영구, 문서당 100개(101번째 `422`).
   - 자동 버전과 되돌리기 버전은 **기록 버전**으로 함께 다룬다: 30일 보관, 문서당 합쳐 최근 200개(넘으면 가장 오래된 기록 버전부터 지운다 — 이름 버전은 지우지 않는다). 되돌리기 버전은 이름 버전 100개 한도에 세지 않는다.
   - 버전 본문은 버전마다 정규형 스냅숏 전체(차이 저장 안 함, DO `versions` 표). 위 상한으로 문서당 버전 본문은 최대 300 × `maxDocBytes` 다.
+- 버전 경로의 `{no}` 가 양의 정수가 아니면 없는 버전과 같이 `404`. 복원 응답의 `doc.head_seq` 는 그 `reset` 의 순번이다(D1 반영을 기다리지 않는다). 자동 버전의 `created_at` 은 서버(DO alarm)가 만든 시각이라 편집이 멈춘 때보다 늦을 수 있다.
 - 6장 표의 행은 이 경로들을 만드는 P0 Task 26·28·29 가 그 코드와 같은 커밋에서 더한다.
 
 ## 6. 엔드포인트 요약표
@@ -1627,6 +1628,9 @@ interface DocComment {
 | GET | /v1/ws | ✓ | RL_WS |
 | GET/POST | /v1/spaces/{space_id}/docs | ✓ | RL_DOC(POST) |
 | GET/PATCH/DELETE | /v1/docs/{doc_id} | ✓ | RL_DOC(PATCH/DELETE) |
+| GET/POST | /v1/docs/{doc_id}/versions | ✓ | RL_DOC(POST) |
+| GET | /v1/docs/{doc_id}/versions/{no} | ✓ | |
+| POST | /v1/docs/{doc_id}/versions/{no}/restore | ✓ | RL_DOC |
 | GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)

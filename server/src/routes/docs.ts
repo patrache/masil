@@ -10,7 +10,19 @@ import { err } from "../lib/errors";
 import { idParam } from "../lib/params";
 import { limit } from "../lib/ratelimit";
 import { vJson, vQuery, zText } from "../lib/validate";
-import { collabHub, createDoc, deleteDoc, listDocs, loadDocFor, patchDoc, serializeDocs } from "../services/docs";
+import {
+  collabHub,
+  createDoc,
+  createVersion,
+  deleteDoc,
+  getVersion,
+  listDocs,
+  listVersions,
+  loadDocFor,
+  patchDoc,
+  restoreVersion,
+  serializeDocs,
+} from "../services/docs";
 
 const DocTypeSchema = z.enum(["arch", "apicol"]);
 
@@ -30,6 +42,15 @@ const PatchBody = z.object({
   title: zText(1, 80).optional(),
   locked: z.boolean().optional(),
 });
+
+const VersionBody = z.object({ name: zText(1, 60) });
+
+/** A version number path segment: a positive integer, else 404 (as for an unknown version). */
+function versionNo(raw: string): number {
+  const n = /^[1-9][0-9]{0,8}$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(n)) throw err.notFound("version");
+  return n;
+}
 
 export const docRoutes = new Hono<AppEnv>();
 
@@ -63,6 +84,28 @@ docRoutes.patch("/docs/:doc_id", requireAuth, limit("RL_DOC"), vJson(PatchBody),
 docRoutes.delete("/docs/:doc_id", requireAuth, limit("RL_DOC"), async (c) => {
   await deleteDoc(rt(c), idParam(c, "doc_id", "doc"), getAuth(c).userId);
   return c.body(null, 204);
+});
+
+// ---- versions (api.md 5.24 버전 규칙) ----
+
+docRoutes.get("/docs/:doc_id/versions", requireAuth, async (c) => {
+  const items = await listVersions(c.env.DB, idParam(c, "doc_id", "doc"), getAuth(c).userId);
+  return c.json({ items });
+});
+
+docRoutes.post("/docs/:doc_id/versions", requireAuth, limit("RL_DOC"), vJson(VersionBody), async (c) => {
+  const version = await createVersion(rt(c), idParam(c, "doc_id", "doc"), getAuth(c).userId, c.req.valid("json").name);
+  return c.json({ version }, 201);
+});
+
+docRoutes.get("/docs/:doc_id/versions/:no", requireAuth, async (c) => {
+  const docId = idParam(c, "doc_id", "doc");
+  return c.json(await getVersion(rt(c), docId, getAuth(c).userId, versionNo(c.req.param("no"))));
+});
+
+docRoutes.post("/docs/:doc_id/versions/:no/restore", requireAuth, limit("RL_DOC"), async (c) => {
+  const docId = idParam(c, "doc_id", "doc");
+  return c.json(await restoreVersion(rt(c), docId, getAuth(c).userId, versionNo(c.req.param("no"))));
 });
 
 /**

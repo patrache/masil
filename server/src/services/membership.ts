@@ -10,6 +10,7 @@ import { blockedEitherSql, canDmMany, getChannelAccess, suspendedNowSql } from "
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { loadUserSummaries, serializeChannels, serializeSpaceDetail, serializeSpaceMembers } from "../lib/serialize";
 import { now } from "../lib/time";
+import { kickFromSpaceDocs } from "./docs";
 import { postSystemMessage } from "./messages";
 import type { Channel, SpaceDetail } from "../types/api";
 import type { SpaceRemovalReason } from "../types/events";
@@ -637,7 +638,8 @@ export async function joinSpace(rt: Runtime, spaceId: string, userId: string, vi
  * After commit: space.member_left{space_id, user_id, reason} to the members + the removed user, space.removed to the
  * removed user, channel.member_removed per private channel left to its remaining members, space.invite_removed
  * {invite_id, reason:"canceled"} per canceled direct invite to its invitee + its inviter, then the system message
- * member_left (reason "left") or member_kicked (kicked and banned) in the default channel.
+ * member_left (reason "left") or member_kicked (kicked and banned) in the default channel. In the background: the user's
+ * open document sockets of the space get kicked{reason} and 4100 (v0.1.3, collab.md 4.1).
  */
 export async function removeFromSpace(
   rt: Runtime,
@@ -709,6 +711,8 @@ export async function removeFromSpace(
   if ((results[deleteIdx]!.meta.changes ?? 0) === 0) throw err.notFound("member");
   const leftChannels = (results[0]!.results as Array<{ channel_id: string }>).map((r) => r.channel_id);
   const canceledInvites = results[cancelIdx]!.results as Array<{ id: string; inviter_id: string; invitee_id: string }>;
+  // collab.md 4.1: the removed user's open document sockets of this space get kicked{reason} + 4100
+  rt.waitUntil(kickFromSpaceDocs(rt, spaceId, userId, reason));
 
   await publishEvent(rt, { space: spaceId }, "space.member_left", { space_id: spaceId, user_id: userId, reason }, { includeSelf: userId });
   await publishEvent(rt, { users: [userId] }, "space.removed", { space_id: spaceId, reason });
