@@ -12,6 +12,7 @@ import (
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/uitest"
+	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 	"github.com/patrache/masil/internal/ui/uitest/stub"
 )
 
@@ -222,6 +223,61 @@ func TestSetLocaleEnvWins(t *testing.T) {
 		}
 		if h.Context().Lang != i18n.En {
 			t.Fatalf("MASIL_LANG=en, SetLocale(%q) => Lang %q", choice, h.Context().Lang)
+		}
+	}
+}
+
+// TestSetLocaleReachesUnplaced: the pane-factory panes (rail, sidebar,
+// members) and a cached route instance that is not placed now also get the
+// LocaleChangedMsg exactly once — their row caches would keep the old
+// language otherwise (P5 review).
+func TestSetLocaleReachesUnplaced(t *testing.T) {
+	t.Cleanup(ui.SnapshotRegistryForTest())
+	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
+	t.Setenv("MASIL_LANG", "")
+	panes := map[layout.SlotID]*localeProbe{}
+	for _, s := range []layout.SlotID{layout.SlotRail, layout.SlotSidebar, layout.SlotMembers} {
+		p := &localeProbe{}
+		panes[s] = p
+		ui.RegisterPane(s, func(*ui.Context) ui.Component { return p })
+	}
+	h := uitest.New(t, uitest.WithRoute(devRoute))
+	h.Resize(200, 60)
+	ch := devChat(t, h)
+	var cached []ui.LocaleChangedMsg
+	ch.OnUpdate = func(_ *ui.Context, msg tea.Msg) {
+		if m, ok := msg.(ui.LocaleChangedMsg); ok {
+			cached = append(cached, m)
+		}
+	}
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChGeneral}})
+	for _, r := range h.Model.Frame().Routes {
+		if r.Key() == devRoute.Key() {
+			t.Fatalf("%s is still placed after navigating away", devRoute.Key())
+		}
+	}
+	if h.Instance(devRoute.Key()) != ch {
+		t.Fatalf("%s is not cached after navigating away", devRoute.Key())
+	}
+	var placed []layout.SlotID
+	for s := range panes {
+		if _, ok := h.Model.Frame().Layout.Pane(s); ok {
+			placed = append(placed, s)
+		}
+	}
+	if len(placed) == 0 {
+		t.Fatal("no pane-factory slot placed at 200x60")
+	}
+
+	h.SetLocale("en")
+
+	want := ui.LocaleChangedMsg{From: i18n.Ko, To: i18n.En}
+	if len(cached) != 1 || cached[0] != want {
+		t.Errorf("unplaced cached %s got %v, want one %v", devRoute.Key(), cached, want)
+	}
+	for _, s := range placed {
+		if got := panes[s].got; len(got) != 1 || got[0] != want {
+			t.Errorf("pane %s got %v, want one %v", s, got, want)
 		}
 	}
 }
