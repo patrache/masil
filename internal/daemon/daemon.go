@@ -73,6 +73,7 @@ type daemon struct {
 	xw       *exeWatch
 
 	cfg          *config.Config
+	osLang       i18n.Inputs // MASIL_LANG + OS language, read once at start
 	lang         i18n.Locale // effective language: Accept-Language (config + OS; P5 adds state.json)
 	desktop      atomic.Bool
 	reloadWarned bool
@@ -133,16 +134,18 @@ func run(ctx context.Context, o Options, d deps) error {
 		deviceID: deviceID,
 		xw:       newExeWatch(d.exe),
 		cfg:      o.Config,
-		lang:     resolveLanguage(o.Config),
+		osLang:   i18n.DetectOS(),
 	}
+	dm.lang = resolveLanguage(dm.osLang, o.Config)
 	dm.desktop.Store(o.Config.Notify.Desktop)
 	return dm.loop(ctx)
 }
 
 // resolveLanguage decides the daemon's language from [ui] language and the
-// OS (i18n spec 6.2.2; the TUI-recorded language is P5's).
-func resolveLanguage(cfg *config.Config) i18n.Locale {
-	in := i18n.DetectOS()
+// OS (i18n spec 6.2.2; the TUI-recorded language is P5's). It runs at start
+// and on every config reload, so a changed [ui] language reaches the next
+// session (Accept-Language) without a restart.
+func resolveLanguage(in i18n.Inputs, cfg *config.Config) i18n.Locale {
 	in.Config = cfg.UI.Language
 	return i18n.Resolve(in).Effective
 }
@@ -256,6 +259,10 @@ func (dm *daemon) reloadConfig() {
 	}
 	dm.reloadWarned = false
 	dm.cfg = c
+	if l := resolveLanguage(dm.osLang, c); l != dm.lang {
+		dm.lang = l // read when the next session starts
+		dm.log.Info("language changed", "lang", string(l))
+	}
 	if old := dm.desktop.Swap(c.Notify.Desktop); old != c.Notify.Desktop {
 		dm.log.Info("desktop setting changed", "desktop", c.Notify.Desktop)
 	}

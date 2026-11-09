@@ -13,6 +13,7 @@ import (
 
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/instance"
 	"github.com/patrache/masil/internal/notify"
 )
@@ -185,6 +186,34 @@ func TestRunDialSendsAcceptLanguage(t *testing.T) {
 	saveCreds(t, p, "http://localhost:8787", "msl_test_token_A")
 	if d := waitDial(t, hub); d.Lang != "ko" {
 		t.Fatalf("daemon dial Accept-Language = %q, want ko", d.Lang)
+	}
+}
+
+// [ui] language changed in config.toml reaches the next session's
+// Accept-Language without a daemon restart (i18n spec 6.2.2).
+func TestRunLanguageFollowsConfigReload(t *testing.T) {
+	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
+	t.Setenv("MASIL_LANG", "")
+	t.Setenv("LC_ALL", "")
+	t.Setenv("LC_MESSAGES", "")
+	t.Setenv("LANG", "ko_KR.UTF-8")
+	p, hub, logs := setupRun(t)
+	saveCreds(t, p, "http://localhost:8787", "msl_test_token_A")
+	if d := waitDial(t, hub); d.Lang != "ko" {
+		t.Fatalf("first dial Accept-Language = %q, want ko", d.Lang)
+	}
+	c, err := config.Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.UI.Language = "en"
+	if err := config.Save(p, c); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return strings.Contains(logs.String(), `msg="language changed" lang=en`) })
+	saveCreds(t, p, "http://localhost:8787", "msl_test_token_B") // a new login: next session
+	if d := waitDial(t, hub); d.Lang != "en" {
+		t.Fatalf("dial after [ui] language = en: Accept-Language = %q, want en", d.Lang)
 	}
 }
 
