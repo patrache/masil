@@ -161,6 +161,34 @@ func (r *Relay) Drop(seat uint8) {
 	}
 }
 
+// Remove takes userID out of the share as the REST removal does (DELETE
+// /participants/{user}, the hub's kickUser): its socket closes 4101, the
+// owner hears srv_peer left and its seat leaves the level table. The seat
+// may then go to a new invitee (Invite).
+func (r *Relay) Remove(userID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	seat, ok := r.seatOf(userID)
+	if !ok || seat == wire.SeatOwner {
+		return
+	}
+	if c := r.conns[seat]; c != nil {
+		c.end(websocket.CloseError{Code: websocket.StatusCode(share.CloseKicked), Reason: "kicked"})
+		delete(r.conns, seat)
+		r.peer(seat, userID, wire.PeerLeft)
+	}
+	delete(r.members, seat)
+	delete(r.levels, seat)
+	delete(r.verified, seat)
+}
+
+// Invite gives seat to userID (a new invitee reusing a freed seat).
+func (r *Relay) Invite(seat uint8, userID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.members[seat] = userID
+}
+
 // End ends the share (the REST DELETE or the owner timeout): every
 // connection closes 4100 and later dials get 404.
 func (r *Relay) End() {

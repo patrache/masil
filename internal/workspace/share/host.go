@@ -408,7 +408,7 @@ func (h *Host) handleServer(kind wire.Kind, body []byte) {
 		seen := map[uint8]bool{}
 		for _, s := range m.Seats {
 			if s.Seat >= 1 && s.Seat <= wire.MaxSeat {
-				h.users[s.Seat] = s.UserID
+				h.seatUser(s.Seat, s.UserID)
 				seen[s.Seat] = true
 			}
 		}
@@ -425,7 +425,7 @@ func (h *Host) handleServer(kind wire.Kind, body []byte) {
 		}
 		switch m.State {
 		case wire.PeerJoined:
-			h.users[m.Seat] = m.UserID
+			h.seatUser(m.Seat, m.UserID)
 			h.setOnline(m.Seat, true, now)
 		case wire.PeerLeft:
 			h.setOnline(m.Seat, false, now)
@@ -435,6 +435,28 @@ func (h *Host) handleServer(kind wire.Kind, body []byte) {
 			}
 		}
 	}
+}
+
+// seatUser notes the server's user for seat. A member record or join of
+// another user on that seat is stale: the server gave the seat to a new
+// invitee after a removal the owner only heard as "left".
+func (h *Host) seatUser(seat uint8, user string) {
+	h.users[seat] = user
+	if j := h.joins[seat]; j != nil && j.user != user {
+		delete(h.joins, seat)
+	}
+	if mb := h.members[seat]; mb != nil && mb.user != user {
+		h.retireMember(mb)
+	}
+}
+
+// retireMember forgets a member whose seat is someone else's now.
+func (h *Host) retireMember(mb *member) {
+	delete(h.members, mb.seat)
+	h.reasm.Reset(mb.seat)
+	h.memberRemoved(mb)
+	h.sendLevels()
+	h.membersChanged()
 }
 
 func (h *Host) setOnline(seat uint8, on bool, now time.Time) {
@@ -636,6 +658,10 @@ func (h *Host) onResume(seat uint8) {
 // grant turns a finished key exchange into a member at level.
 func (h *Host) grant(j *joinState, level wire.Level, verified bool) {
 	mb := h.members[j.seat]
+	if mb != nil && mb.user != j.user {
+		h.retireMember(mb) // the seat went to someone else
+		mb = nil
+	}
 	if mb == nil {
 		mb = &member{seat: j.seat, user: j.user}
 		h.members[j.seat] = mb
