@@ -40,6 +40,9 @@ type Surface struct {
 	code *codeCell
 	term *termCell
 	own  *ownerShare // the running share (nil = solo)
+	// guest: the share this instance takes part in (a participant screen,
+	// route Query "join"; no folder of mine)
+	guest *guestShare
 	// starts: shares being started (nil until the first start)
 	starts *shareStarts
 	// spacePick: the open share dialog's space choice (its fetches land here)
@@ -80,7 +83,9 @@ func newSurface(ctx *ui.Context, r ui.Route) *Surface {
 		prefix: termpane.NewPrefix(prefixKeys),
 		tree:   &treeCell{}, code: &codeCell{}, term: &termCell{},
 	}
-	if dir := r.Query["open"]; dir != "" {
+	if id := r.Query["join"]; id != "" {
+		s.guest = newGuest(s, id)
+	} else if dir := r.Query["open"]; dir != "" {
 		s.openFolder(ctx, dir)
 	} else {
 		s.picker = newPicker(ctx, s)
@@ -140,7 +145,12 @@ func (s *Surface) sharing() bool { return s.ownerSharing() }
 func (s *Surface) peopleCount() int { return s.ownerPeople() }
 
 // Init implements ui.Component.
-func (s *Surface) Init(ctx *ui.Context) tea.Cmd { return s.armPump(ctx) }
+func (s *Surface) Init(ctx *ui.Context) tea.Cmd {
+	if s.guest != nil {
+		return s.startGuest(ctx)
+	}
+	return s.armPump(ctx)
+}
 
 // Resize implements ui.Component.
 func (s *Surface) Resize(ctx *ui.Context, size ui.Size) {
@@ -151,7 +161,7 @@ func (s *Surface) Resize(ctx *ui.Context, size ui.Size) {
 
 // relayout places the cells and gives the editor and the terminal their sizes.
 func (s *Surface) relayout(ctx *ui.Context) {
-	p := planLayout(s.mode, s.size, s.zoomed, s.sharing(), false, s.focus)
+	p := planLayout(s.mode, s.size, s.zoomed, s.sharing(), s.guest != nil, s.focus)
 	if s.cellZoom {
 		p = zoomCell(p, s.focus)
 	}
@@ -227,6 +237,8 @@ func (s *Surface) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			s.picker.paste(ctx, m.Content)
 		case s.dlg != nil:
 			s.dlg.paste(ctx, m.Content)
+		case s.guest != nil:
+			s.guestPaste(ctx, m.Content)
 		case s.focus == PaneTerm:
 			if t := s.term.current(); t != nil && t.view != nil {
 				return t.view.Update(ctx, msg)
@@ -252,6 +264,9 @@ func (s *Surface) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	}
 	cmds = append(cmds, s.ownerUpdate(ctx, msg))
+	if s.guest != nil {
+		cmds = append(cmds, s.guestUpdate(ctx, msg))
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -260,6 +275,9 @@ func (s *Surface) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 func (s *Surface) GrabsKeys() bool {
 	if s.picker != nil || s.dlg != nil || s.focus != PaneTerm || s.plan.Tiny {
 		return false
+	}
+	if s.guest != nil {
+		return s.guestGrabs()
 	}
 	t := s.term.current()
 	return t != nil && t.view != nil && t.view.GrabsKeys()
@@ -272,10 +290,14 @@ func (s *Surface) CapturesInput() bool {
 		return true // the path field and the list keys (j/k) are the picker's
 	case s.dlg != nil:
 		return true
+	case s.guest != nil && s.guest.phase != guestIn:
+		return true // q leaves; the rest waits
 	case s.focus == PaneCode:
 		if d := s.code.current(); d != nil {
 			return d.ed.CapturesInput()
 		}
+	case s.focus == PaneTerm && s.guest != nil:
+		return s.guest.composing()
 	}
 	return false
 }
@@ -298,6 +320,9 @@ func (s *Surface) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 			s.relayout(ctx)
 		}
 		return true, cmd
+	}
+	if s.guest != nil {
+		return s.guestKey(ctx, msg)
 	}
 	if s.root == nil {
 		return false, nil
@@ -424,6 +449,8 @@ func (s *Surface) View(ctx *ui.Context, focused bool) string {
 		return strings.Join(s.picker.view(ctx, w, h), "\n")
 	case s.dlg != nil:
 		return strings.Join(s.dlg.view(ctx, w, h), "\n")
+	case s.guest != nil:
+		return s.guestView(ctx, w, h, focused)
 	case s.root == nil:
 		lines := []string{""}
 		for _, l := range textwidth.Wrap(ctx.T.Workspace.OpenFailed(), max(w-2, 1)) {
@@ -434,10 +461,6 @@ func (s *Surface) View(ctx *ui.Context, focused bool) string {
 	p := s.plan
 	if p.Tiny {
 		return strings.Join(textwidth.Fit(s.tinyView(ctx, w, h), w, h), "\n")
-	}
-	type block struct {
-		r     layout.Rect
-		lines []string
 	}
 	var blocks []block
 	add := func(r layout.Rect, lines []string) {
@@ -450,15 +473,34 @@ func (s *Surface) View(ctx *ui.Context, focused bool) string {
 	add(p.Tree, s.tree.view(ctx, s, p.Tree.W, p.Tree.H, focused && s.focus == PaneTree))
 	add(p.Code, s.code.view(ctx, s, p.Code.W, p.Code.H, focused && s.focus == PaneCode))
 	if tr := s.termRect(); tr != p.Term { // side by side: a separator column on its left
-		sep := lipgloss.NewStyle().Foreground(ctx.Theme.P.Line).Render("│")
-		col := make([]string, p.Term.H)
-		for i := range col {
-			col[i] = sep
-		}
-		add(layout.Rect{X: p.Term.X, Y: p.Term.Y, W: 1, H: p.Term.H}, col)
+		add(layout.Rect{X: p.Term.X, Y: p.Term.Y, W: 1, H: p.Term.H}, separatorColumn(ctx, p.Term.H))
 	}
 	add(s.termRect(), s.term.view(ctx, s, s.termRect().W, s.termRect().H, focused && s.focus == PaneTerm))
 	add(p.People, s.peopleView(ctx, p.People.W, p.People.H, focused && s.focus == PanePeople))
+	return strings.Join(drawBlocks(blocks, w, h), "\n")
+}
+
+// rect is a cell's place on the surface.
+type rect = layout.Rect
+
+// block is one cell's lines at its place.
+type block struct {
+	r     layout.Rect
+	lines []string
+}
+
+// separatorColumn is the column between the code and terminal cells.
+func separatorColumn(ctx *ui.Context, h int) []string {
+	sep := lipgloss.NewStyle().Foreground(ctx.Theme.P.Line).Render("│")
+	col := make([]string, h)
+	for i := range col {
+		col[i] = sep
+	}
+	return col
+}
+
+// drawBlocks lays the cells out into exactly h lines of w cells.
+func drawBlocks(blocks []block, w, h int) []string {
 	out := make([]string, h)
 	for y := range h {
 		var row []block
@@ -479,7 +521,7 @@ func (s *Surface) View(ctx *ui.Context, focused bool) string {
 		}
 		out[y] = sb.String()
 	}
-	return strings.Join(textwidth.Fit(out, w, h), "\n")
+	return textwidth.Fit(out, w, h)
 }
 
 // Cursor implements ui.Cursorer.
@@ -489,7 +531,7 @@ func (s *Surface) Cursor() *tea.Cursor {
 		return s.picker.cursor
 	case s.dlg != nil:
 		return s.dlg.cursor
-	case s.plan.Tiny:
+	case s.plan.Tiny, s.guest != nil && s.guest.phase != guestIn:
 		return nil
 	}
 	var c *tea.Cursor
@@ -505,6 +547,11 @@ func (s *Surface) Cursor() *tea.Cursor {
 			c.Y += s.code.top
 		}
 	case PaneTerm:
+		if s.guest != nil {
+			r = s.termRect()
+			c = s.guestTermCursor(r.W, r.H)
+			break
+		}
 		t := s.term.current()
 		if t == nil || t.view == nil {
 			return nil
@@ -524,6 +571,12 @@ func (s *Surface) Cursor() *tea.Cursor {
 
 // Title implements ui.Titled: the folder's name (sanitized).
 func (s *Surface) Title(ctx *ui.Context) (string, ui.Badge) {
+	if s.guest != nil {
+		if title := s.guest.title(); title != "" {
+			return title, ui.Badge{}
+		}
+		return ctx.T.Workspace.JoinConnecting(), ui.Badge{}
+	}
 	if s.picker != nil || s.root == nil {
 		return ctx.T.Workspace.PickFolderTitle(), ui.Badge{}
 	}
@@ -532,6 +585,9 @@ func (s *Surface) Title(ctx *ui.Context) (string, ui.Badge) {
 
 // ToolStatus implements ui.ToolStatuser (the hub's open list).
 func (s *Surface) ToolStatus(ctx *ui.Context) string {
+	if s.guest != nil {
+		return s.guest.title()
+	}
 	if s.root == nil {
 		return ""
 	}
@@ -546,7 +602,7 @@ func (s *Surface) ToolStatus(ctx *ui.Context) string {
 // keyboard, who typed last and the input band (B8.4) in every cell; the
 // terminal's own text while it has the keyboard.
 func (s *Surface) StatusText(ctx *ui.Context) (string, bool) {
-	if s.dlg != nil || s.picker != nil {
+	if s.dlg != nil || s.picker != nil || s.guest != nil {
 		return "", false
 	}
 	kb, kbOK := s.keyboardStatus(ctx)
@@ -580,6 +636,9 @@ func (s *Surface) Help(ctx *ui.Context) []key.Binding {
 	b := func(keyName, help string) key.Binding {
 		return key.NewBinding(key.WithKeys(keyName), key.WithHelp(k+" "+keyName, help))
 	}
+	if s.guest != nil {
+		return []key.Binding{b("1", t.PrefixHelpTree()), b("2", t.PrefixHelpCode()), b("3", t.PrefixHelpTerm()), b("f", t.PrefixHelpFollow())}
+	}
 	if s.own != nil {
 		return []key.Binding{key.NewBinding(key.WithKeys("x"), key.WithHelp(t.KillHint(k), "")), b("4", t.PrefixHelpPeople()), b("1", t.PrefixHelpTree()), b("3", t.PrefixHelpTerm())}
 	}
@@ -588,7 +647,7 @@ func (s *Surface) Help(ctx *ui.Context) []key.Binding {
 
 // HandleMouse implements ui.MouseHandler: a click focuses the cell under it.
 func (s *Surface) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
-	if s.picker != nil || s.dlg != nil || s.root == nil || s.plan.Tiny {
+	if s.picker != nil || s.dlg != nil || s.root == nil && (s.guest == nil || s.guest.phase != guestIn) || s.plan.Tiny {
 		return nil
 	}
 	in := func(r layout.Rect) bool {
@@ -609,7 +668,7 @@ func (s *Surface) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 		case PaneTree:
 			return s.tree.mouse(ctx, s, msg, local.Y-r.Y)
 		case PaneTerm:
-			if t := s.term.current(); t != nil && t.view != nil && local.Y > r.Y {
+			if t := s.term.current(); s.guest == nil && t != nil && t.view != nil && local.Y > r.Y {
 				return t.view.HandleMouse(ctx, msg, ui.Point{X: local.X - r.X, Y: local.Y - r.Y - 1})
 			}
 		}
@@ -626,7 +685,7 @@ func (s *Surface) CloseTool(ctx *ui.Context) tea.Cmd {
 	}
 	s.closed = true
 	dropLive(s)
-	cmd := s.ownerClose(ctx)
+	cmd := tea.Batch(s.ownerClose(ctx), s.guestClose())
 	for _, t := range s.term.terms {
 		t.close()
 	}

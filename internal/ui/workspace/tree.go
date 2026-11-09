@@ -107,20 +107,11 @@ func (c *treeCell) parent(i int) int {
 // treeKey handles a key in the tree cell.
 func (s *Surface) treeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	c := s.tree
+	if c.nav(msg.String()) {
+		return true, nil
+	}
 	n := c.selected()
 	switch msg.String() {
-	case "j", "down":
-		c.sel = min(c.sel+1, len(c.rows)-1)
-	case "k", "up":
-		c.sel = max(c.sel-1, 0)
-	case "g", "home":
-		c.sel = 0
-	case "G", "end":
-		c.sel = len(c.rows) - 1
-	case "pgdown", "ctrl+d":
-		c.sel = min(c.sel+max(c.h/2, 1), len(c.rows)-1)
-	case "pgup", "ctrl+u":
-		c.sel = max(c.sel-max(c.h/2, 1), 0)
 	case "enter", "l", "right", "space":
 		if n == nil || n.moreRow || n.errRow {
 			return true, nil
@@ -158,6 +149,28 @@ func (s *Surface) treeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 	return true, nil
 }
 
+// nav moves the selection (true when k was a move key).
+func (c *treeCell) nav(k string) bool {
+	switch k {
+	case "j", "down":
+		c.sel = min(c.sel+1, len(c.rows)-1)
+	case "k", "up":
+		c.sel = max(c.sel-1, 0)
+	case "g", "home":
+		c.sel = 0
+	case "G", "end":
+		c.sel = len(c.rows) - 1
+	case "pgdown", "ctrl+d":
+		c.sel = min(c.sel+max(c.h/2, 1), len(c.rows)-1)
+	case "pgup", "ctrl+u":
+		c.sel = max(c.sel-max(c.h/2, 1), 0)
+	default:
+		return false
+	}
+	c.sel = max(c.sel, 0)
+	return true
+}
+
 // mouse: a click selects a row; a second click on it opens it.
 func (c *treeCell) mouse(ctx *ui.Context, s *Surface, msg tea.MouseMsg, y int) tea.Cmd {
 	switch m := msg.(type) {
@@ -167,7 +180,11 @@ func (c *treeCell) mouse(ctx *ui.Context, s *Surface, msg tea.MouseMsg, y int) t
 			return nil
 		}
 		if i == c.sel {
-			_, cmd := s.treeKey(ctx, tea.KeyPressMsg{Code: tea.KeyEnter})
+			key := s.treeKey
+			if s.guest != nil {
+				key = s.guestTreeKey
+			}
+			_, cmd := key(ctx, tea.KeyPressMsg{Code: tea.KeyEnter})
 			return cmd
 		}
 		c.sel = i

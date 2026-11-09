@@ -256,6 +256,9 @@ func (h *Host) tickTerms(now time.Time) {
 			if !h.spend(now, termFrameSize(len(snap))) {
 				continue // next second
 			}
+			// The status goes again with every keyframe: a participant who
+			// joined after the last change has never seen it.
+			h.sendStatus(st, true)
 			_, _ = h.broadcast(wire.KindTermKey, wire.FlagGroupStart, snap)
 			st.needKey, st.lastKey = false, now
 			continue

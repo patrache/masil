@@ -17,6 +17,9 @@ type pumpMsg struct{ id string }
 
 // needsPump: documents are open or a share engine runs.
 func (s *Surface) needsPump() bool {
+	if g := s.guest; g != nil {
+		return !s.closed && g.eng != nil && g.phase != guestOver
+	}
 	return !s.closed && s.docs != nil && (len(s.code.docs) > 0 || s.ownerActive())
 }
 
@@ -33,6 +36,9 @@ func (s *Surface) armPump(ctx *ui.Context) tea.Cmd {
 // documents' own Tick unless the engine ticks them (a share with files).
 func (s *Surface) onPump(ctx *ui.Context) tea.Cmd {
 	s.pumping = false
+	if s.guest != nil && !s.closed {
+		return tea.Batch(s.guestPump(ctx), s.armPump(ctx))
+	}
 	if s.closed || s.docs == nil {
 		return nil
 	}

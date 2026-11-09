@@ -64,11 +64,26 @@ other = "● Unsaved"
 [company_code_notice]
 other = "If this is company code, check your company's policy first"
 
+[composer_placeholder]
+other = "Write a proposal and press enter"
+
+[declined_expired]
+other = "The owner did not answer within 5 minutes, so the join request ended"
+
+[declined_owner]
+other = "The owner did not let you in"
+
 [disk_merged]
 other = "Merged changes from disk · u undo · d use the disk version"
 
 [dlg_hint]
 other = "↑↓ choose · enter confirm · esc close"
+
+[dm_hint]
+other = "Do not paste code or secrets"
+
+[dm_unencrypted]
+other = "🔓 Not encrypted"
 
 [end_confirm]
 other = "End sharing"
@@ -94,6 +109,30 @@ other = "Unsaved edits by participants"
 [end_unsaved_prompt]
 other = "Save / discard / keep open (continue alone)"
 
+[ended]
+other = "The share has ended"
+
+[ended_hint]
+other = "Press any key to close"
+
+[follow_off_hint]
+other = "Not following · {key} f to follow"
+
+[guest_band]
+other = "🔴 {title} · {name}'s workspace · me: {level}"
+
+[guest_reconnecting]
+other = "Reconnecting…"
+
+[guest_term_empty]
+other = "No terminal is shared"
+
+[guest_tiny]
+other = "Watching {title} · enlarge the window to see the screen"
+
+[guest_tiny_keys]
+other = "q leave"
+
 [hub_name]
 other = "Workspace"
 
@@ -106,11 +145,32 @@ other = "{folder} · 🔒 Only me · {n} terminals"
 [hub_status_sharing]
 other = "{folder} · 🔴 Sharing with {n}"
 
+[invited_row]
+other = "{owner} · {title} · {when}"
+
+[invited_title]
+other = "Shared with you"
+
+[join_connecting]
+other = "Connecting…"
+
+[join_match]
+other = "Match"
+
+[join_mismatch]
+other = "Different"
+
 [join_pending]
 other = "{n} join requests ({key} to check)"
 
 [join_requesting]
 other = "{name} wants to join"
+
+[join_sas_title]
+other = "Check number · {name}'s workspace"
+
+[join_waiting_owner]
+other = "Waiting for {name} to let you in"
 
 [keyboard_duration]
 other = "Duration"
@@ -205,6 +265,9 @@ other = "Workspace: end sharing"
 [palette_share_start]
 other = "Workspace: start sharing"
 
+[pan_more]
+other = "→ {n} more"
+
 [path_prompt]
 other = "Type a path"
 
@@ -255,6 +318,18 @@ other = "to the terminal cell"
 
 [prefix_help_tree]
 other = "to the tree cell"
+
+[prop_done]
+other = "The owner used your proposal"
+
+[prop_failed]
+other = "Could not send the proposal"
+
+[prop_rejected]
+other = "The owner declined your proposal"
+
+[prop_sent]
+other = "Proposal sent"
 
 [proposal_approve]
 other = "Do it"

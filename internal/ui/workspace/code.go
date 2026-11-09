@@ -323,6 +323,9 @@ func (c *codeCell) paste(ctx *ui.Context, s *Surface, text string) {
 
 // dirty reports whether rel has unsaved edits.
 func (s *Surface) dirty(rel string) bool {
+	if s.docs == nil { // a participant: the owner keeps the unsaved state
+		return false
+	}
 	return slices.Contains(s.docs.Dirty(), rel)
 }
 

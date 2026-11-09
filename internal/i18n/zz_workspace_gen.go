@@ -177,6 +177,28 @@ var areaWorkspace = area{
 				En: {Other: "If this is company code, check your company's policy first"},
 			},
 		},
+		"composer_placeholder": {
+			desc: "참가자 터미널 칸 아래 제안 입력 줄의 빈 칸 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "제안할 글을 쓰고 enter"},
+				En: {Other: "Write a proposal and press enter"},
+			},
+		},
+		"declined_expired": {
+			desc:       "참가 안내: 오너가 5분 안에 답하지 않아 요청이 끝남",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "오너가 5분 안에 답하지 않아 참가 요청이 끝났어요"},
+				En: {Other: "The owner did not answer within 5 minutes, so the join request ended"},
+			},
+		},
+		"declined_owner": {
+			desc: "참가 안내: 오너가 참가를 허용하지 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "오너가 참가를 허용하지 않았어요"},
+				En: {Other: "The owner did not let you in"},
+			},
+		},
 		"disk_merged": {
 			desc:       "코드 칸 알림: 다른 프로그램이 파일을 바꿔서 저장 안 된 편집과 합쳤을 때(무엇을 할 수 있는지)",
 			noTruncate: true,
@@ -190,6 +212,20 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "↑↓ 고르기 · enter 확인 · esc 닫기"},
 				En: {Other: "↑↓ choose · enter confirm · esc close"},
+			},
+		},
+		"dm_hint": {
+			desc: "작업공간 옆 대화 칸 안내 한 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "코드나 비밀값을 붙여 넣지 마세요"},
+				En: {Other: "Do not paste code or secrets"},
+			},
+		},
+		"dm_unencrypted": {
+			desc: "작업공간 옆 대화 칸 제목 표시: 서버에 평문으로 저장됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "🔓 암호화 안 됨"},
+				En: {Other: "🔓 Not encrypted"},
 			},
 		},
 		"end_confirm": {
@@ -250,6 +286,66 @@ var areaWorkspace = area{
 				En: {Other: "Save / discard / keep open (continue alone)"},
 			},
 		},
+		"ended": {
+			desc: "참가자 화면 전체를 덮는 안내: 공유가 끝남",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유가 끝났어요"},
+				En: {Other: "The share has ended"},
+			},
+		},
+		"ended_hint": {
+			desc: "공유 끝·참가 거절 안내 아래 줄: 아무 키나 누르면 닫힘",
+			text: map[Locale]Forms{
+				Ko: {Other: "아무 키나 누르면 닫혀요"},
+				En: {Other: "Press any key to close"},
+			},
+		},
+		"follow_off_hint": {
+			desc:   "참가자 터미널 칸: 커서 따라가기가 꺼짐. key = 빠져나오는 키(번역하지 않음)",
+			params: []Param{{Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "따라가기 꺼짐 · {key} f 로 켜기"},
+				En: {Other: "Not following · {key} f to follow"},
+			},
+		},
+		"guest_band": {
+			desc:   "참가자 화면 상단 띠. title = 공유 이름(사용자 글), name = 오너 표시 이름, level = 내 단계 이름",
+			params: []Param{{Name: "title", Type: "string"}, {Name: "name", Type: "string"}, {Name: "level", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🔴 {title} · {name}님의 작업공간 · 나: {level}"},
+				En: {Other: "🔴 {title} · {name}'s workspace · me: {level}"},
+			},
+		},
+		"guest_reconnecting": {
+			desc: "참가자 화면 띠: 연결이 끊겨 다시 붙는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 연결 중…"},
+				En: {Other: "Reconnecting…"},
+			},
+		},
+		"guest_term_empty": {
+			desc: "참가자 터미널 칸: 오너가 공유한 터미널이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유된 터미널이 없어요"},
+				En: {Other: "No terminal is shared"},
+			},
+		},
+		"guest_tiny": {
+			desc:       "초소형 참가자 화면 안내. title = 공유 이름(사용자 글)",
+			params:     []Param{{Name: "title", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{title|을/를} 보는 중 · 창을 키우면 화면이 보여요"},
+				En: {Other: "Watching {title} · enlarge the window to see the screen"},
+			},
+		},
+		"guest_tiny_keys": {
+			desc: "초소형 참가자 화면 바닥 줄 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "q 나가기"},
+				En: {Other: "q leave"},
+			},
+		},
 		"hub_name": {
 			desc: "도구 허브·탭·팔레트에 보이는 도구 이름",
 			text: map[Locale]Forms{
@@ -281,6 +377,42 @@ var areaWorkspace = area{
 				En: {Other: "{folder} · 🔴 Sharing with {n}"},
 			},
 		},
+		"invited_row": {
+			desc:   "초대받은 공유 한 줄. owner = 오너 표시 이름, title = 공유 이름(사용자 글), when = 지난 시간",
+			params: []Param{{Name: "owner", Type: "string"}, {Name: "title", Type: "string"}, {Name: "when", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{owner}님 · {title} · {when}"},
+				En: {Other: "{owner} · {title} · {when}"},
+			},
+		},
+		"invited_title": {
+			desc: "폴더 고르기 화면 칸 제목: 초대받은 공유 목록",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대받은 공유"},
+				En: {Other: "Shared with you"},
+			},
+		},
+		"join_connecting": {
+			desc: "참가자 화면: 오너에게 연결하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 중…"},
+				En: {Other: "Connecting…"},
+			},
+		},
+		"join_match": {
+			desc: "참가자 확인 숫자 대화상자 단추: 숫자가 같음",
+			text: map[Locale]Forms{
+				Ko: {Other: "일치"},
+				En: {Other: "Match"},
+			},
+		},
+		"join_mismatch": {
+			desc: "참가자 확인 숫자 대화상자 단추: 숫자가 다름(참가를 끊음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "다름"},
+				En: {Other: "Different"},
+			},
+		},
 		"join_pending": {
 			desc:   "띠·초소형 요약: 오너가 아직 열어 보지 않은 참가 요청 수와 확인 숫자 대화상자를 여는 키. n = 수, key = 키(번역하지 않음)",
 			params: []Param{{Name: "n", Type: "int"}, {Name: "key", Type: "string"}},
@@ -295,6 +427,22 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{name}님이 참가하려고 해요"},
 				En: {Other: "{name} wants to join"},
+			},
+		},
+		"join_sas_title": {
+			desc:   "참가자 확인 숫자 대화상자 제목. name = 오너 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "확인 숫자 · {name}님의 작업공간"},
+				En: {Other: "Check number · {name}'s workspace"},
+			},
+		},
+		"join_waiting_owner": {
+			desc:   "참가자 화면: 오너가 허용하기를 기다림. name = 오너 표시 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 허용하기를 기다리는 중이에요"},
+				En: {Other: "Waiting for {name} to let you in"},
 			},
 		},
 		"keyboard_duration": {
@@ -538,6 +686,14 @@ var areaWorkspace = area{
 				En: {Other: "Workspace: start sharing"},
 			},
 		},
+		"pan_more": {
+			desc:   "참가자 터미널 칸 오른쪽 위: 창 오른쪽에 가려진 칸 수. n = 칸 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "→ {n}칸 더"},
+				En: {Other: "→ {n} more"},
+			},
+		},
 		"path_prompt": {
 			desc: "폴더 고르기 화면: 경로를 직접 입력하는 칸의 이름",
 			text: map[Locale]Forms{
@@ -658,6 +814,34 @@ var areaWorkspace = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "트리 칸으로"},
 				En: {Other: "to the tree cell"},
+			},
+		},
+		"prop_done": {
+			desc: "토스트: 오너가 내 제안을 터미널에 넣음",
+			text: map[Locale]Forms{
+				Ko: {Other: "오너가 제안을 넣었어요"},
+				En: {Other: "The owner used your proposal"},
+			},
+		},
+		"prop_failed": {
+			desc: "토스트: 제안이 너무 길거나 대기열이 차서 못 보냄",
+			text: map[Locale]Forms{
+				Ko: {Other: "제안을 보내지 못했어요"},
+				En: {Other: "Could not send the proposal"},
+			},
+		},
+		"prop_rejected": {
+			desc: "토스트: 오너가 내 제안을 거절함",
+			text: map[Locale]Forms{
+				Ko: {Other: "오너가 제안을 거절했어요"},
+				En: {Other: "The owner declined your proposal"},
+			},
+		},
+		"prop_sent": {
+			desc: "토스트: 제안을 오너 대기열에 보냄",
+			text: map[Locale]Forms{
+				Ko: {Other: "제안을 보냈어요"},
+				En: {Other: "Proposal sent"},
 			},
 		},
 		"proposal_approve": {
@@ -1343,6 +1527,21 @@ func (a_ WorkspaceT) CompanyCodeNotice() string {
 	return a_.t.render(&areaWorkspace, "company_code_notice", false, 0)
 }
 
+// ComposerPlaceholder: 참가자 터미널 칸 아래 제안 입력 줄의 빈 칸 안내
+func (a_ WorkspaceT) ComposerPlaceholder() string {
+	return a_.t.render(&areaWorkspace, "composer_placeholder", false, 0)
+}
+
+// DeclinedExpired: 참가 안내: 오너가 5분 안에 답하지 않아 요청이 끝남
+func (a_ WorkspaceT) DeclinedExpired() string {
+	return a_.t.render(&areaWorkspace, "declined_expired", false, 0)
+}
+
+// DeclinedOwner: 참가 안내: 오너가 참가를 허용하지 않음
+func (a_ WorkspaceT) DeclinedOwner() string {
+	return a_.t.render(&areaWorkspace, "declined_owner", false, 0)
+}
+
 // DiskMerged: 코드 칸 알림: 다른 프로그램이 파일을 바꿔서 저장 안 된 편집과 합쳤을 때(무엇을 할 수 있는지)
 func (a_ WorkspaceT) DiskMerged() string {
 	return a_.t.render(&areaWorkspace, "disk_merged", false, 0)
@@ -1351,6 +1550,16 @@ func (a_ WorkspaceT) DiskMerged() string {
 // DlgHint: 작업공간 대화상자 바닥 줄 키 안내
 func (a_ WorkspaceT) DlgHint() string {
 	return a_.t.render(&areaWorkspace, "dlg_hint", false, 0)
+}
+
+// DmHint: 작업공간 옆 대화 칸 안내 한 줄
+func (a_ WorkspaceT) DmHint() string {
+	return a_.t.render(&areaWorkspace, "dm_hint", false, 0)
+}
+
+// DmUnencrypted: 작업공간 옆 대화 칸 제목 표시: 서버에 평문으로 저장됨
+func (a_ WorkspaceT) DmUnencrypted() string {
+	return a_.t.render(&areaWorkspace, "dm_unencrypted", false, 0)
 }
 
 // EndConfirm: 공유 끝 단추: 공유를 끝냄
@@ -1393,6 +1602,46 @@ func (a_ WorkspaceT) EndUnsavedPrompt() string {
 	return a_.t.render(&areaWorkspace, "end_unsaved_prompt", false, 0)
 }
 
+// Ended: 참가자 화면 전체를 덮는 안내: 공유가 끝남
+func (a_ WorkspaceT) Ended() string {
+	return a_.t.render(&areaWorkspace, "ended", false, 0)
+}
+
+// EndedHint: 공유 끝·참가 거절 안내 아래 줄: 아무 키나 누르면 닫힘
+func (a_ WorkspaceT) EndedHint() string {
+	return a_.t.render(&areaWorkspace, "ended_hint", false, 0)
+}
+
+// FollowOffHint: 참가자 터미널 칸: 커서 따라가기가 꺼짐. key = 빠져나오는 키(번역하지 않음)
+func (a_ WorkspaceT) FollowOffHint(key string) string {
+	return a_.t.render(&areaWorkspace, "follow_off_hint", false, 0, "key", key)
+}
+
+// GuestBand: 참가자 화면 상단 띠. title = 공유 이름(사용자 글), name = 오너 표시 이름, level = 내 단계 이름
+func (a_ WorkspaceT) GuestBand(title string, name string, level string) string {
+	return a_.t.render(&areaWorkspace, "guest_band", false, 0, "title", title, "name", name, "level", level)
+}
+
+// GuestReconnecting: 참가자 화면 띠: 연결이 끊겨 다시 붙는 중
+func (a_ WorkspaceT) GuestReconnecting() string {
+	return a_.t.render(&areaWorkspace, "guest_reconnecting", false, 0)
+}
+
+// GuestTermEmpty: 참가자 터미널 칸: 오너가 공유한 터미널이 없음
+func (a_ WorkspaceT) GuestTermEmpty() string {
+	return a_.t.render(&areaWorkspace, "guest_term_empty", false, 0)
+}
+
+// GuestTiny: 초소형 참가자 화면 안내. title = 공유 이름(사용자 글)
+func (a_ WorkspaceT) GuestTiny(title string) string {
+	return a_.t.render(&areaWorkspace, "guest_tiny", false, 0, "title", title)
+}
+
+// GuestTinyKeys: 초소형 참가자 화면 바닥 줄 키 안내
+func (a_ WorkspaceT) GuestTinyKeys() string {
+	return a_.t.render(&areaWorkspace, "guest_tiny_keys", false, 0)
+}
+
 // HubName: 도구 허브·탭·팔레트에 보이는 도구 이름
 func (a_ WorkspaceT) HubName() string {
 	return a_.t.render(&areaWorkspace, "hub_name", false, 0)
@@ -1413,6 +1662,31 @@ func (a_ WorkspaceT) HubStatusSharing(folder string, n int) string {
 	return a_.t.render(&areaWorkspace, "hub_status_sharing", false, 0, "folder", folder, "n", strconv.Itoa(n))
 }
 
+// InvitedRow: 초대받은 공유 한 줄. owner = 오너 표시 이름, title = 공유 이름(사용자 글), when = 지난 시간
+func (a_ WorkspaceT) InvitedRow(owner string, title string, when string) string {
+	return a_.t.render(&areaWorkspace, "invited_row", false, 0, "owner", owner, "title", title, "when", when)
+}
+
+// InvitedTitle: 폴더 고르기 화면 칸 제목: 초대받은 공유 목록
+func (a_ WorkspaceT) InvitedTitle() string {
+	return a_.t.render(&areaWorkspace, "invited_title", false, 0)
+}
+
+// JoinConnecting: 참가자 화면: 오너에게 연결하는 중
+func (a_ WorkspaceT) JoinConnecting() string {
+	return a_.t.render(&areaWorkspace, "join_connecting", false, 0)
+}
+
+// JoinMatch: 참가자 확인 숫자 대화상자 단추: 숫자가 같음
+func (a_ WorkspaceT) JoinMatch() string {
+	return a_.t.render(&areaWorkspace, "join_match", false, 0)
+}
+
+// JoinMismatch: 참가자 확인 숫자 대화상자 단추: 숫자가 다름(참가를 끊음)
+func (a_ WorkspaceT) JoinMismatch() string {
+	return a_.t.render(&areaWorkspace, "join_mismatch", false, 0)
+}
+
 // JoinPending: 띠·초소형 요약: 오너가 아직 열어 보지 않은 참가 요청 수와 확인 숫자 대화상자를 여는 키. n = 수, key = 키(번역하지 않음)
 func (a_ WorkspaceT) JoinPending(n int, key string) string {
 	return a_.t.render(&areaWorkspace, "join_pending", false, 0, "n", strconv.Itoa(n), "key", key)
@@ -1421,6 +1695,16 @@ func (a_ WorkspaceT) JoinPending(n int, key string) string {
 // JoinRequesting: 토스트·대기 줄: 누가 참가를 요청함. name = 표시 이름
 func (a_ WorkspaceT) JoinRequesting(name string) string {
 	return a_.t.render(&areaWorkspace, "join_requesting", false, 0, "name", name)
+}
+
+// JoinSasTitle: 참가자 확인 숫자 대화상자 제목. name = 오너 표시 이름
+func (a_ WorkspaceT) JoinSasTitle(name string) string {
+	return a_.t.render(&areaWorkspace, "join_sas_title", false, 0, "name", name)
+}
+
+// JoinWaitingOwner: 참가자 화면: 오너가 허용하기를 기다림. name = 오너 표시 이름
+func (a_ WorkspaceT) JoinWaitingOwner(name string) string {
+	return a_.t.render(&areaWorkspace, "join_waiting_owner", false, 0, "name", name)
 }
 
 // KeyboardDuration: 키보드 경고: 기간 고르기 제목
@@ -1578,6 +1862,11 @@ func (a_ WorkspaceT) PaletteShareStart() string {
 	return a_.t.render(&areaWorkspace, "palette_share_start", false, 0)
 }
 
+// PanMore: 참가자 터미널 칸 오른쪽 위: 창 오른쪽에 가려진 칸 수. n = 칸 수
+func (a_ WorkspaceT) PanMore(n int) string {
+	return a_.t.render(&areaWorkspace, "pan_more", false, 0, "n", strconv.Itoa(n))
+}
+
 // PathPrompt: 폴더 고르기 화면: 경로를 직접 입력하는 칸의 이름
 func (a_ WorkspaceT) PathPrompt() string {
 	return a_.t.render(&areaWorkspace, "path_prompt", false, 0)
@@ -1661,6 +1950,26 @@ func (a_ WorkspaceT) PrefixHelpTerm() string {
 // PrefixHelpTree: 패널 도움말: 접두키 다음 1 — 트리 칸으로
 func (a_ WorkspaceT) PrefixHelpTree() string {
 	return a_.t.render(&areaWorkspace, "prefix_help_tree", false, 0)
+}
+
+// PropDone: 토스트: 오너가 내 제안을 터미널에 넣음
+func (a_ WorkspaceT) PropDone() string {
+	return a_.t.render(&areaWorkspace, "prop_done", false, 0)
+}
+
+// PropFailed: 토스트: 제안이 너무 길거나 대기열이 차서 못 보냄
+func (a_ WorkspaceT) PropFailed() string {
+	return a_.t.render(&areaWorkspace, "prop_failed", false, 0)
+}
+
+// PropRejected: 토스트: 오너가 내 제안을 거절함
+func (a_ WorkspaceT) PropRejected() string {
+	return a_.t.render(&areaWorkspace, "prop_rejected", false, 0)
+}
+
+// PropSent: 토스트: 제안을 오너 대기열에 보냄
+func (a_ WorkspaceT) PropSent() string {
+	return a_.t.render(&areaWorkspace, "prop_sent", false, 0)
 }
 
 // ProposalApprove: 제안 동작: 파일 이름 바꾸기·지우기 요청을 실행

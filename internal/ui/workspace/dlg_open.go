@@ -20,7 +20,7 @@ func newPicker(ctx *ui.Context, s *Surface) *form {
 		title: func(ctx *ui.Context) string { return ctx.T.Workspace.PickFolderTitle() },
 		build: func(ctx *ui.Context) []row {
 			t := ctx.T.Workspace
-			rows := []row{{kind: rowHead, text: t.RecentFolders()}}
+			rows := append(invitedRows(ctx, s), row{kind: rowHead, text: t.RecentFolders()})
 			if len(recent) == 0 {
 				rows = append(rows, row{kind: rowText, text: t.RecentNone(), dim: true})
 			}

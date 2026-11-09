@@ -1,0 +1,24 @@
+ 채팅  3   DM   피드   알림  3   도구                                           
+ 🤖 민지의 작업공간 ▾                                                           
+╔═ 민지의 작업공간 ════════════════════════════════════════════════════════════╗
+║ 🔴 민지의 작업공간 · 민지님의 작업공간 · 나: 편집                            ║
+║ 트리 · 코드 · 터미널                                                         ║
+║ src/server/hub.ts                                                            ║
+║  1 // Test fixture for the share engine (not real code). ▌minji              ║
+║  2 import { DurableObject } from "cloudflare:workers";                       ║
+║  3                                                                           ║
+║  4 export class Hub extends DurableObject {                                  ║
+║  5   private seats = new Map<number, WebSocket>();                           ║
+║  6                                                                           ║
+║  7   async fetch(req: Request): Promise<Response> {                          ║
+║  8     const url = new URL(req.url);                                         ║
+║  9     if (url.pathname === "/connect") {                                    ║
+║ 10       return this.connect(req);                                           ║
+║ 11     }                                                                     ║
+║ 12     return new Response("not found", { status: 404 });                    ║
+║ 13   }                                                                       ║
+║ 14                                                                           ║
+║ 15   private connect(req: Request): Response {                               ║
+║ 16     const pair = new WebSocketPair();                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+ 위젯  tab 탭 · ctrl+\ 1 트리 칸으로 · ctrl+\ 2 코드 칸으로 · ctrl+\ … ● 온라인 
