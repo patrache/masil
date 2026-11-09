@@ -70,7 +70,7 @@ func TestPrepareBeforeDoubleDash(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	if len(out) != 5 || out[1] != "--settings" || out[3] != "--" || out[4] != "hello" {
+	if len(out) != 7 || out[1] != "--permission-mode" || out[2] != "manual" || out[3] != "--settings" || out[5] != "--" || out[6] != "hello" {
 		t.Errorf("out = %v", out)
 	}
 }

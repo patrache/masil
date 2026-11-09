@@ -77,3 +77,48 @@ func TestPrograms(t *testing.T) {
 		t.Errorf("Programs(no shell) = %+v", ps)
 	}
 }
+
+// A user --settings (file or inline JSON) can set permissions.defaultMode to
+// a mode outside the allowlist, and two --settings are not known to combine,
+// so it blocks; masil's own temp file from Prepare does not.
+func TestCheckUserSettings(t *testing.T) {
+	for _, argv := range [][]string{
+		{"claude", "--settings", `{"permissions":{"defaultMode":"dontAsk"}}`},
+		{"claude", `--settings={"permissions":{"defaultMode":"auto"}}`},
+		{"claude", "--settings", "my.json", "--permission-mode", "plan"},
+		{"claude", "--settings"},
+	} {
+		if v := Check(argv); v.Allowed || v.Reason != ReasonUserSettings {
+			t.Errorf("Check(%q) = %+v, want blocked with ReasonUserSettings", argv, v)
+		}
+	}
+	out, cleanup, err := Prepare([]string{"claude", "-c"}, "http://x", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	if v := Check(out); !v.Allowed || v.Mode != "manual" {
+		t.Errorf("Check(Prepare output %q) = %+v, want allowed manual", out, v)
+	}
+}
+
+// Prepare pins the checked mode on the command line so no settings source
+// (user, project, local) can start claude in another default mode.
+func TestPreparePinsMode(t *testing.T) {
+	out, cleanup, err := Prepare([]string{"claude", "-c"}, "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	if i := slices.Index(out, "--permission-mode"); i < 0 || i+1 >= len(out) || out[i+1] != "manual" {
+		t.Errorf("out = %v, want --permission-mode manual", out)
+	}
+	out2, cleanup2, err := Prepare([]string{"claude", "--permission-mode=plan"}, "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup2()
+	if slices.Contains(out2, "--permission-mode") {
+		t.Errorf("out = %v, the user's own mode flag is kept as is", out2)
+	}
+}

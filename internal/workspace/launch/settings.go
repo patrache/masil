@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"runtime"
+	"strings"
 )
 
 type httpHook struct {
@@ -23,10 +24,24 @@ type claudeSettings struct {
 // hookEvents are the claude hooks the receiver observes.
 var hookEvents = []string{"Notification", "PermissionRequest", "Stop"}
 
+// hasModeFlag reports a --permission-mode flag among args (before "--").
+func hasModeFlag(args []string) bool {
+	for _, a := range args {
+		if flag, _, _ := strings.Cut(a, "="); flag == permissionModeFlag {
+			return true
+		}
+	}
+	return false
+}
+
 // Prepare returns the argv to run. For claude it writes a 0600 settings file
 // in tmpDir that disables the bypass permission mode and points the
 // Notification, PermissionRequest and Stop hooks at hookURL (omitted when
 // hookURL is empty), and appends "--settings <file>" (before a "--", if any).
+// Without a --permission-mode flag it also appends "--permission-mode
+// manual": the command-line mode wins over permissions.defaultMode from any
+// settings file (user, project, local), so the mode Check reported is the
+// one claude starts in.
 // cleanup removes the file; call it when the program exits or the workspace
 // closes. The user's own settings files are not touched. Other programs get
 // argv unchanged and a no-op cleanup.
@@ -45,7 +60,7 @@ func Prepare(argv []string, hookURL, tmpDir string) (out []string, cleanup func(
 	if err != nil {
 		return nil, nil, err
 	}
-	f, err := os.CreateTemp(tmpDir, "masil-claude-*.json")
+	f, err := os.CreateTemp(tmpDir, settingsPrefix+"*"+settingsSuffix)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -73,9 +88,12 @@ func Prepare(argv []string, hookURL, tmpDir string) (out []string, cleanup func(
 			break
 		}
 	}
-	out = make([]string, 0, len(argv)+2)
+	out = make([]string, 0, len(argv)+4)
 	out = append(out, argv[:at]...)
-	out = append(out, "--settings", p)
+	if !hasModeFlag(argv[1:at]) {
+		out = append(out, permissionModeFlag, defaultClaudeMode)
+	}
+	out = append(out, settingsFlag, p)
 	out = append(out, argv[at:]...)
 	return out, func() { _ = os.Remove(p) }, nil
 }

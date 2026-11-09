@@ -20,6 +20,11 @@ const (
 	ReasonModeNotAllowed
 	// ReasonEmpty: no program at all.
 	ReasonEmpty
+	// ReasonUserSettings: a --settings of the user's own (file or inline
+	// JSON). It can set permissions.defaultMode outside ClaudeModes, and how
+	// claude combines it with masil's --settings is not known, so it blocks.
+	// masil's own file from Prepare is recognised and allowed.
+	ReasonUserSettings
 )
 
 // Warning is shown with an allowed program.
@@ -50,7 +55,24 @@ var ClaudeModes = []string{"manual", "plan", "acceptEdits"}
 
 var shells = []string{"sh", "bash", "zsh", "fish", "dash", "ksh", "tcsh", "nu", "pwsh"}
 
-const permissionModeFlag = "--permission-mode"
+const (
+	// defaultClaudeMode is the mode with no --permission-mode flag.
+	defaultClaudeMode  = "manual"
+	permissionModeFlag = "--permission-mode"
+	settingsFlag       = "--settings"
+	// settingsPrefix/settingsSuffix name Prepare's temp file.
+	settingsPrefix = "masil-claude-"
+	settingsSuffix = ".json"
+)
+
+// isMasilSettings reports a --settings value that is Prepare's temp file.
+func isMasilSettings(v string) bool {
+	base := filepath.Base(filepath.ToSlash(v))
+	if i := strings.LastIndexByte(base, '/'); i >= 0 {
+		base = base[i+1:]
+	}
+	return strings.HasPrefix(base, settingsPrefix) && strings.HasSuffix(base, settingsSuffix)
+}
 
 // ProgramName is the lowercased base name of argv[0] without a Windows
 // executable extension.
@@ -82,7 +104,7 @@ func Check(argv []string) Verdict {
 		}
 		return Verdict{Allowed: true, Warnings: []Warning{WarnUnknownProgram}}
 	}
-	mode := "manual"
+	mode := defaultClaudeMode
 	args := argv[1:]
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -95,6 +117,19 @@ func Check(argv []string) Verdict {
 		flag, value, hasValue := strings.Cut(a, "=")
 		if strings.Contains(strings.ToLower(flag), "dangerously") {
 			return Verdict{Reason: ReasonBypassFlag}
+		}
+		if flag == settingsFlag {
+			if !hasValue {
+				if i+1 >= len(args) {
+					return Verdict{Reason: ReasonUserSettings}
+				}
+				i++
+				value = args[i]
+			}
+			if !isMasilSettings(value) {
+				return Verdict{Reason: ReasonUserSettings}
+			}
+			continue
 		}
 		if flag != permissionModeFlag {
 			continue
