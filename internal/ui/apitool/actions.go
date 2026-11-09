@@ -392,6 +392,7 @@ func (t *Tool) secretAnswer(ctx *ui.Context, m dialogMsg) tea.Cmd {
 	val := secrets.New(p.text[p.f.Start:p.f.End])
 	replaced := p.text[:p.f.Start] + "{{" + name + "}}" + p.text[p.f.End:]
 	e := t.ed
+	reqURL := t.req.URL // the URL whose host the secret may go to
 	switch p.target {
 	case "table":
 		if p.tb.CapturesInput() {
@@ -402,19 +403,24 @@ func (t *Tool) secretAnswer(ctx *ui.Context, m dialogMsg) tea.Cmd {
 		if e.url != nil {
 			e.url = newLineInput(replaced)
 		}
+		// The pasted URL is not the request's yet (enter confirms it): its
+		// host is the one meant. The text with the value still in it
+		// expands (the new variable is not declared yet).
+		reqURL = p.text
 	case "body":
 		e.body.set(replaced)
 		e.req.Body.Text = replaced
 	}
-	return t.declareSecret(ctx, name, val)
+	return t.declareSecret(ctx, name, val, reqURL)
 }
 
-// declareSecret makes name a secret variable and stores val for it.
-func (t *Tool) declareSecret(ctx *ui.Context, name string, val secrets.Secret) tea.Cmd {
+// declareSecret makes name a secret variable and stores val for it; its
+// default allowed hosts are reqURL's and base_url's.
+func (t *Tool) declareSecret(ctx *ui.Context, name string, val secrets.Secret, reqURL string) tea.Cmd {
 	sc := t.scope(ctx)
 	d := dyn(ctx)
 	var p *apitool.Prepared
-	if u, _, err := apitool.Expand(t.req.URL, sc, d); err == nil {
+	if u, _, err := apitool.Expand(reqURL, sc, d); err == nil {
 		if !strings.Contains(u, "://") {
 			u = "http://" + u
 		}

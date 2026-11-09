@@ -6,12 +6,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/patrache/masil/internal/apitool"
+	"github.com/patrache/masil/internal/secrets/secrettest"
+	"github.com/patrache/masil/internal/ui/uitest"
 )
 
 // Regression tests for the Task 13–17 review findings.
@@ -174,5 +177,30 @@ func TestRunnerKeepsFewFailedResponses(t *testing.T) {
 	}
 	if tl.req != nil && tl.req.ID == "bad" && tl.focus == paneResponse {
 		t.Fatalf("a not-kept line opened a response")
+	}
+}
+
+// A secret pasted into the URL being edited is bound to the host of that
+// new URL, not to the request's old one.
+func TestURLSecretBindsPastedHost(t *testing.T) {
+	srv, _ := hitServer(t, created)
+	store := secrettest.NewStore(t, true)
+	h := openAPI(t, uitest.WithSecrets(store))
+	seedRequests(h, &apitool.Env{Name: "dev"}, paymentRequest(srv))
+	h.Press("u", "ctrl+u")
+	h.Paste("https://api.newhost.example/v1?token=" + testJWT)
+	if s := h.Screen(); !hasWhole(s, ko.SecretDetected()) {
+		t.Fatalf("no secret_detected dialog:\n%s", s)
+	}
+	h.Press("ctrl+u")
+	h.Type("tok")
+	h.Press("enter")
+	env, err := apitool.OpenLocal(h.Context().Paths).LoadEnv("dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(env.Vars, func(v apitool.Var) bool { return v.Name == "tok" })
+	if i < 0 || !env.Vars[i].Secret || !slices.Equal(env.Vars[i].AllowedHosts, []string{"api.newhost.example"}) {
+		t.Fatalf("env vars = %+v", env.Vars)
 	}
 }
