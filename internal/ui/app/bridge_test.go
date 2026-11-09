@@ -376,9 +376,9 @@ func TestBridgeKeepsPingingWhileUIBlocked(t *testing.T) {
 	conn.push(t, "hello", nil, h)
 	conn.push(t, "ready", nil, readyData(false, false))
 
-	// UI blocked for 1s while the server sends 5 events a second (+ pongs).
+	// UI blocked for 3s (plan Task 10) while the server sends 5 events a second (+ pongs).
 	var want []string
-	blockedUntil := time.Now().Add(time.Second)
+	blockedUntil := time.Now().Add(3 * time.Second)
 	seen := 0
 	for i := 1; time.Now().Before(blockedUntil); i++ {
 		data := map[string]any{"user_id": fixtures.UserMinji, "n": i}
