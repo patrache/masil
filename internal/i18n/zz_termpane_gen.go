@@ -3,10 +3,27 @@
 
 package i18n
 
+import "strconv"
+
 // TermpaneT holds the "termpane" area messages (locales/*/termpane.toml).
 type TermpaneT struct{ t *T }
 
 var areaTermpane = area{
 	name: "termpane",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"exec_return": {
+			desc:   "토스트: 화면 전환(exec)으로 띄운 프로그램에서 masil 로 돌아왔을 때, 그동안 온 남의 새 메시지·멘션 개수. program = 프로그램 이름(lazygit 등, 번역하지 않음)",
+			params: []Param{{Name: "program", Type: "string"}, {Name: "messages", Type: "int"}, {Name: "mentions", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko:     {Other: "{program} 쓰는 동안 · 새 메시지 {messages} · 멘션 {mentions}"},
+				En:     {Other: "While in {program} · {messages} new messages · {mentions} mentions"},
+				ZhHans: {Other: "使用 {program} 期间 · 新消息 {messages} · 提及 {mentions}"},
+			},
+		},
+	},
+}
+
+// ExecReturn: 토스트: 화면 전환(exec)으로 띄운 프로그램에서 masil 로 돌아왔을 때, 그동안 온 남의 새 메시지·멘션 개수. program = 프로그램 이름(lazygit 등, 번역하지 않음)
+func (a_ TermpaneT) ExecReturn(program string, messages int, mentions int) string {
+	return a_.t.render(&areaTermpane, "exec_return", false, 0, "program", program, "messages", strconv.Itoa(messages), "mentions", strconv.Itoa(mentions))
 }

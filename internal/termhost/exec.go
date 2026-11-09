@@ -41,7 +41,7 @@ var newProcessCommand = func(req Request) tea.ExecCommand { return &processComma
 
 // prepareExec returns the ExecCommand and callback Exec hands to tea.Exec.
 func prepareExec(req Request, onExit func(ExitInfo) tea.Msg) (tea.ExecCommand, tea.ExecCallback) {
-	cmd := &exclusiveCommand{inner: newProcessCommand(req)}
+	cmd := &exclusiveCommand{inner: newProcessCommand(req), req: req}
 	cb := func(err error) tea.Msg {
 		info := ExitInfo{Program: req.Program, Title: req.Title, Mode: ModeExec}
 		info.Code, info.Err = exitResult(err)
@@ -66,9 +66,13 @@ func exitResult(err error) (int, error) {
 }
 
 // exclusiveCommand marks the terminal as owned for the duration of Run.
-type exclusiveCommand struct{ inner tea.ExecCommand }
+type exclusiveCommand struct {
+	inner tea.ExecCommand
+	req   Request
+}
 
 func (c *exclusiveCommand) Run() error {
+	setExclusiveRequest(c.req)
 	exclusive.Store(true)
 	defer exclusive.Store(false)
 	return c.inner.Run()
