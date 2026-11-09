@@ -73,10 +73,12 @@ type Keymap struct {
 // spec is one default row: keys, help key label ("" = keys joined by "/") and
 // the help description, read from the catalog when the keymap is built or
 // localized. New rows pass a catalog func (t.Area.Key); 0.1.2 rows are Lit.
+// Desc is exported in name only (CA 5.5): rows are keyed literals such as
+// {keys: ..., Desc: func(t *i18n.T) string { ... }}.
 type spec struct {
 	keys    []string
 	helpKey string
-	desc    func(t *i18n.T) string
+	Desc    func(t *i18n.T) string
 }
 
 // Lit wraps a 0.1.2 Korean description as a row description. Temporary: P5
@@ -137,13 +139,13 @@ var defaults = map[Action]spec{
 
 // descIn is the row description in t (ko when t is nil).
 func (s spec) descIn(t *i18n.T) string {
-	if s.desc == nil {
+	if s.Desc == nil {
 		return ""
 	}
 	if t == nil {
 		t = i18n.KoT()
 	}
-	return s.desc(t)
+	return s.Desc(t)
 }
 
 func newBinding(keys []string, helpKey, desc string) key.Binding {
