@@ -196,6 +196,14 @@ var areaTools = area{
 				En: {Other: "Also forget tool logins on this device"},
 			},
 		},
+		"logout_wipe_failed": {
+			desc:       "로그아웃할 때 '이 기기의 도구 로그인도 지우기'를 골랐는데 저장소가 지우지 못했을 때의 오류 토스트",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 기기의 도구 로그인을 지우지 못했어요"},
+				En: {Other: "Couldn't remove the tool logins on this device"},
+			},
+		},
 		"menu_footer": {
 			desc: "여는 방식 메뉴의 바닥 줄 키 안내",
 			text: map[Locale]Forms{
@@ -422,6 +430,11 @@ func (a_ ToolsT) LoginsSection() string {
 // LogoutWipe: 로그아웃 대화상자의 선택지(기본 꺼짐): 이 기기의 도구 비밀값도 함께 지움
 func (a_ ToolsT) LogoutWipe() string {
 	return a_.t.render(&areaTools, "logout_wipe", false, 0)
+}
+
+// LogoutWipeFailed: 로그아웃할 때 '이 기기의 도구 로그인도 지우기'를 골랐는데 저장소가 지우지 못했을 때의 오류 토스트
+func (a_ ToolsT) LogoutWipeFailed() string {
+	return a_.t.render(&areaTools, "logout_wipe_failed", false, 0)
 }
 
 // MenuFooter: 여는 방식 메뉴의 바닥 줄 키 안내

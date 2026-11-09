@@ -73,6 +73,9 @@ other = "Tool logins"
 [logout_wipe]
 other = "Also forget tool logins on this device"
 
+[logout_wipe_failed]
+other = "Couldn't remove the tool logins on this device"
+
 [menu_footer]
 other = "enter choose · esc cancel"
 

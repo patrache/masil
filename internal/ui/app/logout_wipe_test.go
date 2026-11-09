@@ -98,6 +98,19 @@ func TestLogoutWipeOption(t *testing.T) {
 			t.Error("another account's value was wiped")
 		}
 	})
+	t.Run("checked, the store cannot delete", func(t *testing.T) {
+		// A wipe that fails is told, not only logged: the user believes the logins are gone.
+		t.Setenv("MASIL_FEATURES", "all")
+		h, st, _, _ := logoutWithStore(t)
+		secrettest.FailDeletes(st)
+		h.Press("space", "enter")
+		if !loggedOut(h) {
+			t.Fatalf("not logged out:\n%s", h.Screen())
+		}
+		if !strings.Contains(h.Screen(), "이 기기의 도구 로그인을 지우지 못했어요") {
+			t.Fatalf("no wipe-failure toast:\n%s", h.Screen())
+		}
+	})
 	t.Run("default off", func(t *testing.T) {
 		t.Setenv("MASIL_FEATURES", "all")
 		h, st, mine, _ := logoutWithStore(t)

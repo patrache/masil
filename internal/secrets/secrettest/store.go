@@ -18,6 +18,7 @@ import (
 type fakeOS struct {
 	mu        sync.Mutex
 	available bool
+	failDel   bool              // FailDeletes: every Delete fails
 	vals      map[string]string // account => value
 }
 
@@ -58,7 +59,7 @@ func (f *fakeOS) Delete(ctx context.Context, _, account string) error {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if !f.available {
+	if !f.available || f.failDel {
 		return secrets.ErrUnavailable
 	}
 	if _, ok := f.vals[account]; !ok {
@@ -82,6 +83,17 @@ func NewStore(tb testing.TB, osAvailable bool) *secrets.Store {
 	fakes.Store(s, f)
 	tb.Cleanup(func() { fakes.Delete(s) })
 	return s
+}
+
+// FailDeletes makes every OS Delete of a NewStore store fail from now on (a
+// wipe that cannot finish).
+func FailDeletes(s *secrets.Store) {
+	if v, ok := fakes.Load(s); ok {
+		f := v.(*fakeOS)
+		f.mu.Lock()
+		f.failDel = true
+		f.mu.Unlock()
+	}
 }
 
 // Values is every value s holds — in its OS fake (NewStore stores only), this

@@ -112,6 +112,11 @@ desc = "로그아웃 대화상자의 선택지(기본 꺼짐): 이 기기의 도
 no_truncate = true
 other = "이 기기의 도구 로그인도 지우기"
 
+[logout_wipe_failed]
+desc = "로그아웃할 때 '이 기기의 도구 로그인도 지우기'를 골랐는데 저장소가 지우지 못했을 때의 오류 토스트"
+no_truncate = true
+other = "이 기기의 도구 로그인을 지우지 못했어요"
+
 [menu_footer]
 desc = "여는 방식 메뉴의 바닥 줄 키 안내"
 other = "enter 고르기 · esc 취소"

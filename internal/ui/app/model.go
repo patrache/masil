@@ -420,6 +420,9 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			slog.Debug("logout request failed; logging out locally", "err", msg.err)
 		}
+		if msg.wipeErr != nil { // the user chose to wipe and believes it done: say it is not
+			return m, tea.Batch(m.logout(reasonLogout), ui.Toast(m.ctx.T.Tools.LogoutWipeFailed(), ui.ToastError))
+		}
 		return m, m.logout(reasonLogout)
 	case authui.LoggedInMsg:
 		return m, m.loggedIn(msg)

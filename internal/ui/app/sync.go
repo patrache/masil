@@ -61,8 +61,9 @@ type unauthorizedMsg struct{}
 // upgradeMsg wakes Update after api.WithOnUpgradeRequired fired (the flag does the work).
 type upgradeMsg struct{}
 
-// logoutDoneMsg ends the logout command after POST /v1/auth/logout (any outcome).
-type logoutDoneMsg struct{ err error }
+// logoutDoneMsg ends the logout command after POST /v1/auth/logout (any outcome);
+// wipeErr is a failed "이 기기의 도구 로그인도 지우기" (told to the user after logout).
+type logoutDoneMsg struct{ err, wipeErr error }
 
 // onUnauthorized is the api.WithOnUnauthorized hook. It runs on an HTTP goroutine, so it
 // only sets a flag (read at the start of the next Update) and wakes the program.
@@ -263,16 +264,17 @@ func (m *Model) logoutConfirmed(wipeTools bool) tea.Cmd {
 	return func() tea.Msg {
 		// The wipe first, on its own context: a slow or dead server (the case
 		// where masil logs out locally anyway) must not leave it a spent one.
+		var werr error
 		if wipeTools && scoped && st != nil {
 			wctx, wcancel := context.WithTimeout(context.Background(), wipeTimeout)
-			if werr := st.DeleteAll(wctx, server, user); werr != nil {
+			if werr = st.DeleteAll(wctx, server, user); werr != nil {
 				slog.Warn("wipe tool logins", "err", werr)
 			}
 			wcancel()
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), logoutTimeout)
 		defer cancel()
-		return logoutDoneMsg{err: client.Logout(ctx)}
+		return logoutDoneMsg{err: client.Logout(ctx), wipeErr: werr}
 	}
 }
 
