@@ -22,14 +22,14 @@ func init() {
 	ui.RegisterOverlay(overlayInviteCreate, newInviteCreate)
 	ui.RegisterOverlay(overlayInviteDirect, newInviteDirect)
 	palette.Register(palette.Command{
-		ID: "invite.create", Title: "초대 링크 만들기", Keywords: []string{"invite", "link", "code", "create", "초대", "초대 링크", "초대 코드", "만들기"}, Group: "명령",
+		ID: "invite.create", Title: "초대 링크 만들기", Keywords: []string{"invite", "link", "code", "create", "초대", "초대 링크", "초대 코드", "만들기"}, Group: palette.GroupCommand,
 		Available: canCreateInvite,
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			return ui.OpenRegisteredOverlay(overlayInviteCreate, spaceArg(ctx, args))
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "invite.direct", Title: "친구를 방에 초대", Keywords: []string{"invite", "friend", "direct", "초대", "친구 초대", "직접 초대"}, Group: "명령",
+		ID: "invite.direct", Title: "친구를 방에 초대", Keywords: []string{"invite", "friend", "direct", "초대", "친구 초대", "직접 초대"}, Group: palette.GroupCommand,
 		Available: canDirectInvite,
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			return ui.OpenRegisteredOverlay(overlayInviteDirect, spaceArg(ctx, args))

@@ -224,6 +224,7 @@ func New(o Options) *Model {
 		T:      i18n.For(res.Effective),
 		Lang:   res.Effective,
 	}
+	m.ctx.Keys.Localize(m.ctx.T) // help descriptions in the shown language
 	m.ctx.Clipboard = o.Clipboard
 	if m.ctx.Clipboard == nil {
 		m.ctx.Clipboard = clipboard.System()

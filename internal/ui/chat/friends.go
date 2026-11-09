@@ -24,11 +24,11 @@ func init() {
 	ui.RegisterRoute(ui.RouteFriends, newFriends)
 	ui.RegisterOverlay(overlayFriendAdd, newFriendAdd)
 	palette.Register(palette.Command{
-		ID: "friends", Title: "친구 목록", Keywords: []string{"friends", "친구", "친구 요청"}, Group: "이동",
+		ID: "friends", Title: "친구 목록", Keywords: []string{"friends", "친구", "친구 요청"}, Group: palette.GroupNav,
 		Run: func(*ui.Context, string) tea.Cmd { return ui.Navigate(ui.Route{Kind: ui.RouteFriends}) },
 	})
 	palette.Register(palette.Command{
-		ID: "friend.add", Title: "친구 추가", Keywords: []string{"friend", "add", "친구 요청 보내기"}, Group: "명령",
+		ID: "friend.add", Title: "친구 추가", Keywords: []string{"friend", "add", "친구 요청 보내기"}, Group: palette.GroupCommand,
 		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayFriendAdd, args) },
 	})
 }

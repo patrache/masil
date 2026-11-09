@@ -226,7 +226,7 @@ func (o *overlay) refresh(ctx *ui.Context) {
 	}
 	o.items, o.rows = nil, nil
 	for _, g := range order {
-		o.rows = append(o.rows, row{header: g, item: -1})
+		o.rows = append(o.rows, row{header: GroupTitle(ctxT(ctx), g), item: -1})
 		for _, it := range groups[g] {
 			o.rows = append(o.rows, row{item: len(o.items)})
 			o.items = append(o.items, it)

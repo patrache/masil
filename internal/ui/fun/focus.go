@@ -33,13 +33,13 @@ var (
 
 func init() {
 	palette.Register(palette.Command{
-		ID: "focus.start", Title: "집중 모드 시작", Group: "명령",
+		ID: "focus.start", Title: "집중 모드 시작", Group: palette.GroupCommand,
 		Keywords:  []string{"focus", "집중", "방해금지", "dnd"},
 		Available: func(ctx *ui.Context) bool { return ctx.Store != nil && ctx.Store.Focus == nil },
 		Run:       runFocusStart,
 	})
 	palette.Register(palette.Command{
-		ID: "focus.stop", Title: "집중 모드 끝내기", Group: "명령",
+		ID: "focus.stop", Title: "집중 모드 끝내기", Group: palette.GroupCommand,
 		Keywords:  []string{"focus", "집중", "stop", "off"},
 		Available: func(ctx *ui.Context) bool { return ctx.Store != nil && ctx.Store.Focus != nil },
 		Run:       runFocusStop,

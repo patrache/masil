@@ -11,6 +11,16 @@ func Width(s string) int {
 	return ansi.StringWidth(s)
 }
 
+// MaxWidth is the widest of ss in cells (Width), 0 for none. Size table
+// columns with it instead of fixed numbers: each language is a different width.
+func MaxWidth(ss ...string) int {
+	w := 0
+	for _, s := range ss {
+		w = max(w, Width(s))
+	}
+	return w
+}
+
 // Truncate is grapheme-safe, ANSI-aware and never splits a wide char; result Width <= w.
 // When a wide char does not fit and one cell is left over, a space fills it (CA 8.3).
 func Truncate(s string, w int, tail string) string {

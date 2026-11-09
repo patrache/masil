@@ -23,9 +23,9 @@ func TestRegisterDuplicatePanics(t *testing.T) {
 func TestLookupReturnsCopy(t *testing.T) {
 	t.Cleanup(palette.SnapshotForTest())
 	palette.ResetForTest()
-	palette.Register(palette.Command{ID: "t.x", Title: "x", Keywords: []string{"a", "b"}, Group: "명령"})
+	palette.Register(palette.Command{ID: "t.x", Title: "x", Keywords: []string{"a", "b"}, Group: palette.GroupCommand})
 	got, ok := palette.Lookup("t.x")
-	if !ok || got.ID != "t.x" || got.Title != "x" || got.Group != "명령" || !reflect.DeepEqual(got.Keywords, []string{"a", "b"}) {
+	if !ok || got.ID != "t.x" || got.Title != "x" || got.Group != palette.GroupCommand || !reflect.DeepEqual(got.Keywords, []string{"a", "b"}) {
 		t.Fatalf("Lookup(t.x) = %+v, %v", got, ok)
 	}
 	got.Keywords[0] = "mutated"

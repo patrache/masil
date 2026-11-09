@@ -33,6 +33,30 @@ var areaCommon = area{
 				ZhHans: {Other: "简体中文"},
 			},
 		},
+		"palette_group_command": {
+			desc: "명령 팔레트의 묶음 머리: 명령",
+			text: map[Locale]Forms{
+				Ko:     {Other: "명령"},
+				En:     {Other: "Commands"},
+				ZhHans: {Other: "命令"},
+			},
+		},
+		"palette_group_nav": {
+			desc: "명령 팔레트의 묶음 머리: 이동(채널·DM·화면으로 가기)",
+			text: map[Locale]Forms{
+				Ko:     {Other: "이동"},
+				En:     {Other: "Go to"},
+				ZhHans: {Other: "前往"},
+			},
+		},
+		"palette_group_settings": {
+			desc: "명령 팔레트의 묶음 머리: 설정",
+			text: map[Locale]Forms{
+				Ko:     {Other: "설정"},
+				En:     {Other: "Settings"},
+				ZhHans: {Other: "设置"},
+			},
+		},
 	},
 }
 
@@ -49,4 +73,19 @@ func (a_ CommonT) LangNameKo() string {
 // LangNameZh: 언어 목록의 간체 중국어 이름 — 모든 언어에서 그 언어 자신의 이름
 func (a_ CommonT) LangNameZh() string {
 	return a_.t.render(&areaCommon, "lang_name_zh", false, 0)
+}
+
+// PaletteGroupCommand: 명령 팔레트의 묶음 머리: 명령
+func (a_ CommonT) PaletteGroupCommand() string {
+	return a_.t.render(&areaCommon, "palette_group_command", false, 0)
+}
+
+// PaletteGroupNav: 명령 팔레트의 묶음 머리: 이동(채널·DM·화면으로 가기)
+func (a_ CommonT) PaletteGroupNav() string {
+	return a_.t.render(&areaCommon, "palette_group_nav", false, 0)
+}
+
+// PaletteGroupSettings: 명령 팔레트의 묶음 머리: 설정
+func (a_ CommonT) PaletteGroupSettings() string {
+	return a_.t.render(&areaCommon, "palette_group_settings", false, 0)
 }

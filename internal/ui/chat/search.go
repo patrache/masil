@@ -28,7 +28,7 @@ import (
 func init() {
 	ui.RegisterRoute(ui.RouteSearch, newSearch)
 	palette.Register(palette.Command{
-		ID: "search.messages", Title: "메시지 검색", Keywords: []string{"search", "messages", "검색", "메시지 찾기"}, Group: "이동", KeyHint: "ctrl+f",
+		ID: "search.messages", Title: "메시지 검색", Keywords: []string{"search", "messages", "검색", "메시지 찾기"}, Group: palette.GroupNav, KeyHint: "ctrl+f",
 		Run: func(_ *ui.Context, args string) tea.Cmd {
 			return ui.Navigate(ui.Route{Kind: ui.RouteSearch, Arg: strings.TrimSpace(args)})
 		},

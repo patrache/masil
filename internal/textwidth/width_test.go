@@ -195,3 +195,15 @@ func TestFit(t *testing.T) {
 		}
 	}
 }
+
+func TestMaxWidth(t *testing.T) {
+	if got := textwidth.MaxWidth("알림", "Notifications", "通知"); got != 13 {
+		t.Fatalf("MaxWidth = %d, want 13", got)
+	}
+	if got := textwidth.MaxWidth(); got != 0 {
+		t.Fatalf("textwidth.MaxWidth() = %d, want 0", got)
+	}
+	if got := textwidth.MaxWidth("친구 요청", "好友请求"); got != 9 {
+		t.Fatalf("MaxWidth = %d, want 9", got)
+	}
+}
