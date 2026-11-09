@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"mime"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptrace"
@@ -58,6 +57,7 @@ type Response struct {
 	Spill                          string
 	Binary                         bool
 	Timing                         Timing
+	RedirectBlocked                *RedirectBlock // a redirect stopped for a secret (Status is the 3xx)
 }
 
 // Sender is the only HTTP client to target servers (requests leave from this
@@ -103,6 +103,13 @@ func (s *Sender) Send(ctx context.Context, p *Prepared) (*Response, error) {
 }
 
 func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Response, error) {
+	if err := CheckSecretHosts(p); err != nil {
+		return nil, err
+	}
+	g := newGuard(s, p)
+	if err := g.preflight(g.target); err != nil {
+		return nil, err
+	}
 	set := p.Settings.Effective()
 	ctx, cancel := context.WithTimeout(parent, set.Timeout())
 	defer cancel()
@@ -151,7 +158,7 @@ func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Re
 	}
 	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
 
-	client := s.client(p, set)
+	client := s.client(p, set, g)
 	defer client.CloseIdleConnections()
 	hr, err := client.Do(req)
 	if err != nil {
@@ -160,11 +167,12 @@ func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Re
 	defer hr.Body.Close()
 
 	r := &Response{
-		Status:      hr.StatusCode,
-		StatusText:  strings.TrimSpace(strings.TrimPrefix(hr.Status, strconv.Itoa(hr.StatusCode))),
-		Proto:       hr.Proto,
-		ContentType: hr.Header.Get("Content-Type"),
-		Header:      hr.Header,
+		RedirectBlocked: g.redirectBlock(),
+		Status:          hr.StatusCode,
+		StatusText:      strings.TrimSpace(strings.TrimPrefix(hr.Status, strconv.Itoa(hr.StatusCode))),
+		Proto:           hr.Proto,
+		ContentType:     hr.Header.Get("Content-Type"),
+		Header:          hr.Header,
 	}
 	if err := s.readBody(ctx, hr, r); err != nil {
 		return nil, err
@@ -179,8 +187,9 @@ func (s *Sender) send(parent context.Context, p *Prepared, start time.Time) (*Re
 }
 
 // client builds a client for one send: its own transport (no shared pool, no
-// automatic decompression, proxy from the environment) and redirect policy.
-func (s *Sender) client(p *Prepared, set Settings) *http.Client {
+// automatic decompression, proxy from the environment, the guard's dialer)
+// and redirect policy.
+func (s *Sender) client(p *Prepared, set Settings, g *guard) *http.Client {
 	tc := &tls.Config{}
 	if s.TLS != nil {
 		tc = s.TLS.Clone()
@@ -189,10 +198,10 @@ func (s *Sender) client(p *Prepared, set Settings) *http.Client {
 		tc.InsecureSkipVerify = true
 	}
 	tr := &http.Transport{
-		Proxy:               http.ProxyFromEnvironment,
+		Proxy:               g.proxy,
 		DisableCompression:  true,
 		TLSClientConfig:     tc,
-		DialContext:         s.dialContext(p),
+		DialContext:         g.dial,
 		ForceAttemptHTTP2:   true,
 		TLSHandshakeTimeout: set.Timeout(),
 		MaxIdleConns:        1,
@@ -211,15 +220,9 @@ func (s *Sender) client(p *Prepared, set Settings) *http.Client {
 			if len(via) > set.MaxRedirects {
 				return ErrTooManyRedirects
 			}
-			return nil
+			return g.redirect(req)
 		},
 	}
-}
-
-// dialContext is the plain dialer.
-func (s *Sender) dialContext(p *Prepared) func(ctx context.Context, network, addr string) (net.Conn, error) {
-	d := &net.Dialer{}
-	return d.DialContext
 }
 
 // cleanErr drops the *url.Error wrapper (it prints the URL) and prefers the
