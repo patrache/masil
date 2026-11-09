@@ -106,10 +106,11 @@ require (
 | `golang.org/x/text/language` (기존 모듈의 새 패키지) | `i18n.Parse`·언어 매칭(OS 언어 태그 → ko/en/zh-Hans) |
 | `golang.org/x/sys/windows` (기존) | v0.1.3: `secrets` 의 Windows 자격 증명 관리자(`CredWriteW`/`CredReadW`/`CredDeleteW`) |
 | `godbus/dbus/v5` (기존) | v0.1.3: `secrets` 의 Linux Secret Service(`org.freedesktop.secrets`) |
+| `ebitengine/purego v0.11.2` (Apache-2.0) | v0.1.3: `secrets` 의 macOS 키체인 — `Security.framework` 의 `SecItemAdd`/`SecItemUpdate`/`SecItemCopyMatching`/`SecItemDelete` 를 cgo 없이(`CGO_ENABLED=0`) 프로세스 안에서 부른다. darwin 파일만 import **[오너 결정 2026-11-09 "purego 의존해라"]** |
 
 - 간접 의존(직접 import 안 함) **[검증 2026-11-09 `go list -m`]**: `creack/pty v1.1.24`·`charmbracelet/x/conpty v0.2.0`(xpty), `charmbracelet/x/exp/ordered v0.1.0`(x/vt). `dlclark/regexp2/v2` 는 goeditor 가 요구해 `v2.2.1 → v2.7.1` 로 올라간다(chroma 가 쓰는 간접 의존 — 기존 골든 무변화 확인).
 - **ultraviolet 선택 결과** **[검증]**: x/vt v0.1.0 은 `ultraviolet v0.0.0-20260303162955-0b88c25f3fff`, goeditor 는 `…-20260812204455-68fa937c71be` 를 요구하지만, 최소 버전 선택이 masil(bubbletea v2.1.1 경유)의 더 새 **`v0.0.0-20261008173134-6b8d4baf91b4`** 를 유지한다. 빌드·기존 골든으로 API 차이 없음을 확인.
-- 그 밖의 새 모듈은 쓰지 않는다(v0.1.3 설계서 3장 JX16): 암호는 표준 라이브러리, 키체인은 `x/sys`·`godbus`·`/usr/bin/security`, 시뮬레이션·내보내기·HTTP 는 표준 라이브러리. `go.yaml.in/yaml/v3` 는 계속 **시험 전용**(배포 바이너리에 쓰는 용도 변경은 오너 확인 사항, v0.1.3 설계서 8.5 Q6).
+- 그 밖의 새 모듈은 쓰지 않는다(v0.1.3 설계서 3장 JX16): 암호는 표준 라이브러리, 키체인은 `x/sys`·`godbus`·`purego`(macOS 는 `/usr/bin/security` 대신 `Security.framework` 를 직접 — 그 도구가 만든 항목은 그 도구를 믿어 같은 사용자의 다른 프로그램이 `security find-generic-password -w` 로 창 없이 읽을 수 있었다. masil 이 만든 항목은 masil 을 믿고, 다른 프로그램엔 허용 창이 뜬다. 업그레이드로 바이너리가 바뀌면 masil 에도 창이 다시 뜰 수 있다), 시뮬레이션·내보내기·HTTP 는 표준 라이브러리. `go.yaml.in/yaml/v3` 는 계속 **시험 전용**(배포 바이너리에 쓰는 용도 변경은 오너 확인 사항, v0.1.3 설계서 8.5 Q6).
 - x/vt·x/xpty 는 하위 호환을 약속하지 않는 실험 저장소다. 버전을 올릴 때마다 `termhost` 화면 비교 시험을 다시 돈다.
 - **제3자 고지** (A11.7·JA30): 배포 압축 파일마다 `THIRD_PARTY_NOTICES`(저장소 루트)를 넣는다. 내용은 Go 표준 라이브러리 + go.mod 의 모든 `require` 모듈(직접·간접)에 대해 `== <module> <version> ==` 머리줄과 모듈 폴더의 라이선스 파일(`LICENSE*`·`LICENCE*`·`COPYING*`·`NOTICE*`·`PATENTS*`) 전문. 의존성을 바꾸면 `sh scripts/notices.sh` 로 다시 만든다 — `TestThirdPartyNoticesCoversModules` 가 머리줄 누락과 `.goreleaser.yaml` archives `files` 의 `THIRD_PARTY_NOTICES` 를 강제한다.
 
