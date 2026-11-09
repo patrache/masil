@@ -56,6 +56,7 @@ type leetState struct {
 	Lang         string `json:"lang"`           // the language last picked with l (or on the first run)
 	FirstRunDone bool   `json:"first_run_done"` // the first-run notice was confirmed
 	Username     string `json:"username"`       // the LeetCode user the cookies signed in as (not a secret)
+	Premium      bool   `json:"premium"`        // that user has premium (runs paced 1s instead of 10s)
 }
 
 func init() {
@@ -172,6 +173,9 @@ type memo struct {
 	reported map[string]bool      // dates whose facts were reported to masil
 	mismatch map[string]string    // date -> masil's slug when it differs from mine
 	checked  map[string]time.Time // date -> when the hub last found nothing cached
+
+	creds *leetcode.Credentials // this run's LeetCode cookies (nil = not loaded)
+	pacer *leetcode.Pacer       // runs and submits of this account, paced
 }
 
 var (
@@ -207,6 +211,38 @@ func rememberMe(ctx *ui.Context, me *api.LeetMe) {
 		return
 	}
 	withMemo(ctx, func(m *memo) struct{} { m.me = me; return struct{}{} })
+}
+
+// rememberCreds keeps the cookies for this run (a login or a store read).
+func rememberCreds(ctx *ui.Context, c *leetcode.Credentials, premium bool) {
+	withMemo(ctx, func(m *memo) struct{} {
+		m.creds = c
+		if m.pacer == nil || m.pacer.Interval != leetcode.NewPacer(premium).Interval {
+			m.pacer = leetcode.NewPacer(premium)
+		}
+		return struct{}{}
+	})
+}
+
+// forgetCreds drops the cookies of this run (expired or deleted).
+func forgetCreds(ctx *ui.Context) {
+	withMemo(ctx, func(m *memo) struct{} { m.creds = nil; return struct{}{} })
+}
+
+// knownCreds is this run's cookies (nil = load them first).
+func knownCreds(ctx *ui.Context) *leetcode.Credentials {
+	return withMemo(ctx, func(m *memo) *leetcode.Credentials { return m.creds })
+}
+
+// pacerOf is the account's pacer.
+func pacerOf(ctx *ui.Context) *leetcode.Pacer {
+	premium := loadState(ctx).Premium
+	return withMemo(ctx, func(m *memo) *leetcode.Pacer {
+		if m.pacer == nil {
+			m.pacer = leetcode.NewPacer(premium)
+		}
+		return m.pacer
+	})
 }
 
 // knownMe is the last LeetMe answer (nil = not asked yet).

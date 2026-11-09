@@ -11,6 +11,22 @@ type LeetcodeT struct{ t *T }
 var areaLeetcode = area{
 	name: "leetcode",
 	keys: map[string]*entry{
+		"accepted_line": {
+			desc:   "제출 통과 줄. status = LeetCode 상태 원문(Accepted), pct = 상위 몇 %(실행 시간 기준), runtime = 실행 시간",
+			params: []Param{{Name: "status", Type: "string"}, {Name: "pct", Type: "int"}, {Name: "runtime", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✅ {status} · 상위 {pct}% · {runtime}"},
+				En: {Other: "✅ {status} · top {pct}% · {runtime}"},
+			},
+		},
+		"accepted_line_short": {
+			desc:   "제출 통과 줄(상위 % 를 모를 때). status = Accepted 원문, runtime = 실행 시간",
+			params: []Param{{Name: "status", Type: "string"}, {Name: "runtime", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✅ {status} · {runtime}"},
+				En: {Other: "✅ {status} · {runtime}"},
+			},
+		},
 		"admin_daily_set": {
 			desc:   "운영자 CLI 출력: masil admin leet-daily set 이 그날 사실 정보를 고치고 #daily 루트 카드를 새로 썼을 때. date = UTC 날짜 YYYY-MM-DD, slug = 문제 slug(번역하지 않음)",
 			params: []Param{{Name: "date", Type: "string"}, {Name: "slug", Type: "string"}},
@@ -42,6 +58,13 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "LeetCode 가 지금 이 요청을 막고 있어요 · o 브라우저에서 제출"},
 				En: {Other: "LeetCode is blocking this request right now · o submit in browser"},
+			},
+		},
+		"check_timeout": {
+			desc: "실행·제출 결과를 60초 동안 받지 못했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "결과를 받지 못했어요 · 잠시 뒤 다시 해 주세요"},
+				En: {Other: "No result came back · try again in a moment"},
 			},
 		},
 		"cmd_board": {
@@ -79,6 +102,22 @@ var areaLeetcode = area{
 				En: {Other: "e open the editor"},
 			},
 		},
+		"collapse_hint": {
+			desc: "펼친 오류 전문을 접는 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "v 접기"},
+				En: {Other: "v collapse"},
+			},
+		},
+		"cookie_warning": {
+			desc:       "로그인 대화상자 경고(A10.4·A10.5 — 줄여 쓰지 않음): 쿠키는 LeetCode 계정 전체 권한이고 이 PC(키체인)에만 저장하며 masil 서버로는 보내지 않는다",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 값은 LeetCode 계정 전체 권한이에요. 이 PC(키체인)에만 저장하고 masil 서버로는 보내지 않아요."},
+				En: {Other: "These values grant full access to your LeetCode account. They are kept on this PC (keychain) only and never sent to the masil server."},
+			},
+		},
 		"daily_disabled": {
 			desc:   "토스트: 방의 #daily 를 껐을 때. space = 방 이름",
 			params: []Param{{Name: "space", Type: "string"}},
@@ -100,6 +139,21 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "편집기를 열지 못했어요"},
 				En: {Other: "Couldn't open the editor"},
+			},
+		},
+		"error_line": {
+			desc:   "실행·제출 오류 줄(컴파일·런타임 오류). status = LeetCode 상태 원문",
+			params: []Param{{Name: "status", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✗ {status}"},
+				En: {Other: "✗ {status}"},
+			},
+		},
+		"expand_hint": {
+			desc: "접힌 오류 전문을 펼치는 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "v 펼치기"},
+				En: {Other: "v expand"},
 			},
 		},
 		"file_failed": {
@@ -211,6 +265,13 @@ var areaLeetcode = area{
 				En: {Other: "[image] o open"},
 			},
 		},
+		"judge_failed": {
+			desc: "실행·제출 요청이 실패했을 때(차단·속도 제한·로그인 만료 외)",
+			text: map[Locale]Forms{
+				Ko: {Other: "보내지 못했어요 · 잠시 뒤 다시 해 주세요"},
+				En: {Other: "Couldn't send it · try again in a moment"},
+			},
+		},
 		"link_copied": {
 			desc: "토스트: 브라우저를 열지 못해 문제 링크를 클립보드에 복사했을 때",
 			text: map[Locale]Forms{
@@ -230,6 +291,93 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "문제를 받는 중…"},
 				En: {Other: "Fetching the problem…"},
+			},
+		},
+		"login_checking": {
+			desc: "로그인 대화상자: LeetCode 에 이 쿠키로 누구인지 묻는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "확인하는 중…"},
+				En: {Other: "Checking…"},
+			},
+		},
+		"login_failed": {
+			desc: "로그인 대화상자 오류: LeetCode 에 확인하지 못했을 때(네트워크 등)",
+			text: map[Locale]Forms{
+				Ko: {Other: "로그인을 확인하지 못했어요 · 잠시 뒤 다시 해 주세요"},
+				En: {Other: "Couldn't check the sign-in · try again in a moment"},
+			},
+		},
+		"login_footer": {
+			desc: "로그인 대화상자 맨 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "tab 다음 칸 · enter 확인 · esc 취소"},
+				En: {Other: "tab next · enter confirm · esc cancel"},
+			},
+		},
+		"login_missing": {
+			desc: "로그인 대화상자 오류: 필수 쿠키 둘 중 하나가 비었을 때(쿠키 이름은 번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "LEETCODE_SESSION 과 csrftoken 은 꼭 넣어 주세요"},
+				En: {Other: "LEETCODE_SESSION and csrftoken are both needed"},
+			},
+		},
+		"login_optional": {
+			desc: "로그인 입력 칸이 비었을 때 자리 표시: 넣지 않아도 되는 칸(cf_clearance)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "선택"},
+				En: {Other: "optional"},
+			},
+		},
+		"login_rejected": {
+			desc: "로그인 대화상자 오류: LeetCode 가 이 쿠키로는 로그인되지 않았다고 할 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 값으로는 LeetCode 에 로그인되지 않아요"},
+				En: {Other: "LeetCode doesn't sign in with these values"},
+			},
+		},
+		"login_required": {
+			desc: "로그인 입력 칸이 비었을 때 자리 표시: 꼭 넣어야 하는 칸",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "필수"},
+				En: {Other: "required"},
+			},
+		},
+		"login_save_failed": {
+			desc: "로그인 대화상자 오류: 쿠키를 이 PC 에 저장하지 못했을 때(저장 위치를 고르지 않은 경우 포함)",
+			text: map[Locale]Forms{
+				Ko: {Other: "쿠키를 저장하지 못했어요"},
+				En: {Other: "Couldn't save the cookies"},
+			},
+		},
+		"login_step1": {
+			desc: "로그인 방법 1단계: 브라우저에서 leetcode.com 에 로그인",
+			text: map[Locale]Forms{
+				Ko: {Other: "1. 브라우저에서 leetcode.com 에 로그인해요"},
+				En: {Other: "1. Sign in to leetcode.com in your browser"},
+			},
+		},
+		"login_step2": {
+			desc: "로그인 방법 2단계: 브라우저 개발자 도구의 쿠키 위치. Application · Cookies 는 브라우저 메뉴 이름(번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "2. 개발자 도구 → Application → Cookies → leetcode.com"},
+				En: {Other: "2. Developer tools → Application → Cookies → leetcode.com"},
+			},
+		},
+		"login_step3": {
+			desc: "로그인 방법 3단계: 쿠키 값을 아래 칸에 붙여 넣기(이름=값 모양도 된다)",
+			text: map[Locale]Forms{
+				Ko: {Other: "3. 값을 아래 칸에 붙여 넣어요(이름=값 그대로도 돼요)"},
+				En: {Other: "3. Paste the values below (name=value works too)"},
+			},
+		},
+		"login_title": {
+			desc: "LeetCode 쿠키 로그인 대화상자 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "LeetCode 로그인"},
+				En: {Other: "LeetCode sign-in"},
 			},
 		},
 		"name": {
@@ -301,11 +449,43 @@ var areaLeetcode = area{
 				En: {Other: "{page}/{pages} · ↑↓ page · esc back"},
 			},
 		},
+		"result_expected": {
+			desc: "실행 결과 줄 라벨: 기대하는 출력",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "기대"},
+				En: {Other: "Expected"},
+			},
+		},
+		"result_input": {
+			desc: "실행 결과 줄 라벨: 예제 입력",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "입력"},
+				En: {Other: "Input"},
+			},
+		},
+		"result_output": {
+			desc: "실행 결과 줄 라벨: 내 코드의 출력",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 출력"},
+				En: {Other: "Output"},
+			},
+		},
 		"result_placeholder": {
 			desc: "결과 자리가 아직 비었을 때(실행·제출 전). r 실행, s 제출 키",
 			text: map[Locale]Forms{
 				Ko: {Other: "r 실행 · s 제출 결과가 여기 나와요"},
 				En: {Other: "Results of r run · s submit show here"},
+			},
+		},
+		"run_summary": {
+			desc:   "실행 결과 요약. mark = ✓ 또는 ✗, ok = 맞은 예제 수, n = 예제 수, runtime = LeetCode 가 준 실행 시간(예 0 ms, 번역하지 않음)",
+			params: []Param{{Name: "mark", Type: "string"}, {Name: "ok", Type: "int"}, {Name: "n", Type: "int"}, {Name: "runtime", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{mark} 예제 {ok}/{n} · {runtime}"},
+				En: {Other: "{mark} examples {ok}/{n} · {runtime}"},
 			},
 		},
 		"run_uses_saved": {
@@ -320,6 +500,13 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "저장(:w)한 내용으로 실행해요 · :Run · :Submit · esc esc 나가기"},
 				En: {Other: "Runs what you saved (:w) · :Run · :Submit · esc esc leave"},
+			},
+		},
+		"running": {
+			desc: "LeetCode 에서 예제로 실행하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "실행 중…"},
+				En: {Other: "Running…"},
 			},
 		},
 		"save_failed": {
@@ -408,12 +595,43 @@ var areaLeetcode = area{
 				En: {Other: "Daily problem settings"},
 			},
 		},
+		"signed_in": {
+			desc:   "토스트: 쿠키 로그인 성공(무료 계정). user = LeetCode 사용자 이름(번역하지 않음)",
+			params: []Param{{Name: "user", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{user} 로 로그인됨 · 무료 계정(실행·제출 10초 간격)"},
+				En: {Other: "Signed in as {user} · free account (10s between runs)"},
+			},
+		},
+		"signed_in_premium": {
+			desc:   "토스트: 쿠키 로그인 성공(프리미엄 계정). user = LeetCode 사용자 이름",
+			params: []Param{{Name: "user", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{user} 로 로그인됨 · 프리미엄(실행·제출 1초 간격)"},
+				En: {Other: "Signed in as {user} · premium (1s between runs)"},
+			},
+		},
 		"solved": {
 			desc: "허브·초소형 줄: 오늘 문제를 풀었음(통과)",
 			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "풂"},
 				En: {Other: "solved"},
+			},
+		},
+		"submit_failed": {
+			desc:   "제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수",
+			params: []Param{{Name: "status", Type: "string"}, {Name: "correct", Type: "int"}, {Name: "total", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "✗ {status} · {correct}/{total} · 실패한 입력…"},
+				En: {Other: "✗ {status} · {correct}/{total} · failing input…"},
+			},
+		},
+		"submitting": {
+			desc: "LeetCode 에 제출해 채점하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "제출 중…"},
+				En: {Other: "Submitting…"},
 			},
 		},
 		"tab_code": {
@@ -485,7 +703,25 @@ var areaLeetcode = area{
 				En: {Other: "unsolved"},
 			},
 		},
+		"wait_seconds": {
+			desc:   "실행·제출 간격(무료 10초)이 아직 안 지났을 때. n = 남은 초",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}초 뒤에 다시 보낼 수 있어요"},
+				En: {Other: "You can send again in {n}s"},
+			},
+		},
 	},
+}
+
+// AcceptedLine: 제출 통과 줄. status = LeetCode 상태 원문(Accepted), pct = 상위 몇 %(실행 시간 기준), runtime = 실행 시간
+func (a_ LeetcodeT) AcceptedLine(status string, pct int, runtime string) string {
+	return a_.t.render(&areaLeetcode, "accepted_line", false, 0, "status", status, "pct", strconv.Itoa(pct), "runtime", runtime)
+}
+
+// AcceptedLineShort: 제출 통과 줄(상위 % 를 모를 때). status = Accepted 원문, runtime = 실행 시간
+func (a_ LeetcodeT) AcceptedLineShort(status string, runtime string) string {
+	return a_.t.render(&areaLeetcode, "accepted_line_short", false, 0, "status", status, "runtime", runtime)
 }
 
 // AdminDailySet: 운영자 CLI 출력: masil admin leet-daily set 이 그날 사실 정보를 고치고 #daily 루트 카드를 새로 썼을 때. date = UTC 날짜 YYYY-MM-DD, slug = 문제 slug(번역하지 않음)
@@ -506,6 +742,11 @@ func (a_ LeetcodeT) AutoStatusDesc() string {
 // Blocked: LeetCode 가 Cloudflare 확인 화면을 돌려줄 때(자동 재시도 안 함). o = 브라우저 키
 func (a_ LeetcodeT) Blocked() string {
 	return a_.t.render(&areaLeetcode, "blocked", false, 0)
+}
+
+// CheckTimeout: 실행·제출 결과를 60초 동안 받지 못했을 때
+func (a_ LeetcodeT) CheckTimeout() string {
+	return a_.t.render(&areaLeetcode, "check_timeout", false, 0)
 }
 
 // CmdBoard: 명령 팔레트 항목: 지금 방의 오늘의 문제 순위 보기
@@ -533,6 +774,16 @@ func (a_ LeetcodeT) CodePlaceholder() string {
 	return a_.t.render(&areaLeetcode, "code_placeholder", false, 0)
 }
 
+// CollapseHint: 펼친 오류 전문을 접는 키 안내
+func (a_ LeetcodeT) CollapseHint() string {
+	return a_.t.render(&areaLeetcode, "collapse_hint", false, 0)
+}
+
+// CookieWarning: 로그인 대화상자 경고(A10.4·A10.5 — 줄여 쓰지 않음): 쿠키는 LeetCode 계정 전체 권한이고 이 PC(키체인)에만 저장하며 masil 서버로는 보내지 않는다
+func (a_ LeetcodeT) CookieWarning() string {
+	return a_.t.render(&areaLeetcode, "cookie_warning", false, 0)
+}
+
 // DailyDisabled: 토스트: 방의 #daily 를 껐을 때. space = 방 이름
 func (a_ LeetcodeT) DailyDisabled(space string) string {
 	return a_.t.render(&areaLeetcode, "daily_disabled", false, 0, "space", space)
@@ -546,6 +797,16 @@ func (a_ LeetcodeT) DailyEnabled(space string) string {
 // EditorFailed: 토스트: 편집기를 열지 못했을 때
 func (a_ LeetcodeT) EditorFailed() string {
 	return a_.t.render(&areaLeetcode, "editor_failed", false, 0)
+}
+
+// ErrorLine: 실행·제출 오류 줄(컴파일·런타임 오류). status = LeetCode 상태 원문
+func (a_ LeetcodeT) ErrorLine(status string) string {
+	return a_.t.render(&areaLeetcode, "error_line", false, 0, "status", status)
+}
+
+// ExpandHint: 접힌 오류 전문을 펼치는 키 안내
+func (a_ LeetcodeT) ExpandHint() string {
+	return a_.t.render(&areaLeetcode, "expand_hint", false, 0)
 }
 
 // FileFailed: 토스트: 풀이 파일을 만들거나 읽지 못했을 때
@@ -618,6 +879,11 @@ func (a_ LeetcodeT) ImageLink() string {
 	return a_.t.render(&areaLeetcode, "image_link", false, 0)
 }
 
+// JudgeFailed: 실행·제출 요청이 실패했을 때(차단·속도 제한·로그인 만료 외)
+func (a_ LeetcodeT) JudgeFailed() string {
+	return a_.t.render(&areaLeetcode, "judge_failed", false, 0)
+}
+
 // LinkCopied: 토스트: 브라우저를 열지 못해 문제 링크를 클립보드에 복사했을 때
 func (a_ LeetcodeT) LinkCopied() string {
 	return a_.t.render(&areaLeetcode, "link_copied", false, 0)
@@ -631,6 +897,66 @@ func (a_ LeetcodeT) LoadFailed() string {
 // Loading: 오늘의 문제를 LeetCode(또는 캐시)에서 받는 중
 func (a_ LeetcodeT) Loading() string {
 	return a_.t.render(&areaLeetcode, "loading", false, 0)
+}
+
+// LoginChecking: 로그인 대화상자: LeetCode 에 이 쿠키로 누구인지 묻는 중
+func (a_ LeetcodeT) LoginChecking() string {
+	return a_.t.render(&areaLeetcode, "login_checking", false, 0)
+}
+
+// LoginFailed: 로그인 대화상자 오류: LeetCode 에 확인하지 못했을 때(네트워크 등)
+func (a_ LeetcodeT) LoginFailed() string {
+	return a_.t.render(&areaLeetcode, "login_failed", false, 0)
+}
+
+// LoginFooter: 로그인 대화상자 맨 아래 키 안내
+func (a_ LeetcodeT) LoginFooter() string {
+	return a_.t.render(&areaLeetcode, "login_footer", false, 0)
+}
+
+// LoginMissing: 로그인 대화상자 오류: 필수 쿠키 둘 중 하나가 비었을 때(쿠키 이름은 번역하지 않음)
+func (a_ LeetcodeT) LoginMissing() string {
+	return a_.t.render(&areaLeetcode, "login_missing", false, 0)
+}
+
+// LoginOptional: 로그인 입력 칸이 비었을 때 자리 표시: 넣지 않아도 되는 칸(cf_clearance)
+func (a_ LeetcodeT) LoginOptional() string {
+	return a_.t.render(&areaLeetcode, "login_optional", false, 0)
+}
+
+// LoginRejected: 로그인 대화상자 오류: LeetCode 가 이 쿠키로는 로그인되지 않았다고 할 때
+func (a_ LeetcodeT) LoginRejected() string {
+	return a_.t.render(&areaLeetcode, "login_rejected", false, 0)
+}
+
+// LoginRequired: 로그인 입력 칸이 비었을 때 자리 표시: 꼭 넣어야 하는 칸
+func (a_ LeetcodeT) LoginRequired() string {
+	return a_.t.render(&areaLeetcode, "login_required", false, 0)
+}
+
+// LoginSaveFailed: 로그인 대화상자 오류: 쿠키를 이 PC 에 저장하지 못했을 때(저장 위치를 고르지 않은 경우 포함)
+func (a_ LeetcodeT) LoginSaveFailed() string {
+	return a_.t.render(&areaLeetcode, "login_save_failed", false, 0)
+}
+
+// LoginStep1: 로그인 방법 1단계: 브라우저에서 leetcode.com 에 로그인
+func (a_ LeetcodeT) LoginStep1() string {
+	return a_.t.render(&areaLeetcode, "login_step1", false, 0)
+}
+
+// LoginStep2: 로그인 방법 2단계: 브라우저 개발자 도구의 쿠키 위치. Application · Cookies 는 브라우저 메뉴 이름(번역하지 않음)
+func (a_ LeetcodeT) LoginStep2() string {
+	return a_.t.render(&areaLeetcode, "login_step2", false, 0)
+}
+
+// LoginStep3: 로그인 방법 3단계: 쿠키 값을 아래 칸에 붙여 넣기(이름=값 모양도 된다)
+func (a_ LeetcodeT) LoginStep3() string {
+	return a_.t.render(&areaLeetcode, "login_step3", false, 0)
+}
+
+// LoginTitle: LeetCode 쿠키 로그인 대화상자 제목
+func (a_ LeetcodeT) LoginTitle() string {
+	return a_.t.render(&areaLeetcode, "login_title", false, 0)
 }
 
 // Name: 도구 이름(허브·탭·팔레트·설정 도구 로그인 줄): LeetCode 오늘의 문제 도구
@@ -678,9 +1004,29 @@ func (a_ LeetcodeT) ReadingFooter(page int, pages int) string {
 	return a_.t.render(&areaLeetcode, "reading_footer", false, 0, "page", strconv.Itoa(page), "pages", strconv.Itoa(pages))
 }
 
+// ResultExpected: 실행 결과 줄 라벨: 기대하는 출력
+func (a_ LeetcodeT) ResultExpected() string {
+	return a_.t.render(&areaLeetcode, "result_expected", false, 0)
+}
+
+// ResultInput: 실행 결과 줄 라벨: 예제 입력
+func (a_ LeetcodeT) ResultInput() string {
+	return a_.t.render(&areaLeetcode, "result_input", false, 0)
+}
+
+// ResultOutput: 실행 결과 줄 라벨: 내 코드의 출력
+func (a_ LeetcodeT) ResultOutput() string {
+	return a_.t.render(&areaLeetcode, "result_output", false, 0)
+}
+
 // ResultPlaceholder: 결과 자리가 아직 비었을 때(실행·제출 전). r 실행, s 제출 키
 func (a_ LeetcodeT) ResultPlaceholder() string {
 	return a_.t.render(&areaLeetcode, "result_placeholder", false, 0)
+}
+
+// RunSummary: 실행 결과 요약. mark = ✓ 또는 ✗, ok = 맞은 예제 수, n = 예제 수, runtime = LeetCode 가 준 실행 시간(예 0 ms, 번역하지 않음)
+func (a_ LeetcodeT) RunSummary(mark string, ok int, n int, runtime string) string {
+	return a_.t.render(&areaLeetcode, "run_summary", false, 0, "mark", mark, "ok", strconv.Itoa(ok), "n", strconv.Itoa(n), "runtime", runtime)
 }
 
 // RunUsesSaved: 편집기에 있을 때 맨 아래 안내: 실행·제출은 디스크에 저장(:w)한 파일 내용으로 한다. ctrl+\ r/s 는 키 이름(번역하지 않음)
@@ -691,6 +1037,11 @@ func (a_ LeetcodeT) RunUsesSaved() string {
 // RunUsesSavedGoeditor: masil 안 편집기(goeditor)에 있을 때 맨 아래 안내: 저장한 내용으로 실행, :Run :Submit 명령, esc 두 번이면 편집기에서 나옴. 명령 이름은 번역하지 않음
 func (a_ LeetcodeT) RunUsesSavedGoeditor() string {
 	return a_.t.render(&areaLeetcode, "run_uses_saved_goeditor", false, 0)
+}
+
+// Running: LeetCode 에서 예제로 실행하는 중
+func (a_ LeetcodeT) Running() string {
+	return a_.t.render(&areaLeetcode, "running", false, 0)
 }
 
 // SaveFailed: 토스트: config.toml 에 설정을 저장하지 못했을 때(이번 실행에는 바뀐 값이 쓰임)
@@ -748,9 +1099,29 @@ func (a_ LeetcodeT) SettingsTitle() string {
 	return a_.t.render(&areaLeetcode, "settings_title", false, 0)
 }
 
+// SignedIn: 토스트: 쿠키 로그인 성공(무료 계정). user = LeetCode 사용자 이름(번역하지 않음)
+func (a_ LeetcodeT) SignedIn(user string) string {
+	return a_.t.render(&areaLeetcode, "signed_in", false, 0, "user", user)
+}
+
+// SignedInPremium: 토스트: 쿠키 로그인 성공(프리미엄 계정). user = LeetCode 사용자 이름
+func (a_ LeetcodeT) SignedInPremium(user string) string {
+	return a_.t.render(&areaLeetcode, "signed_in_premium", false, 0, "user", user)
+}
+
 // Solved: 허브·초소형 줄: 오늘 문제를 풀었음(통과)
 func (a_ LeetcodeT) Solved() string {
 	return a_.t.render(&areaLeetcode, "solved", false, 0)
+}
+
+// SubmitFailed: 제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수
+func (a_ LeetcodeT) SubmitFailed(status string, correct int, total int) string {
+	return a_.t.render(&areaLeetcode, "submit_failed", false, 0, "status", status, "correct", strconv.Itoa(correct), "total", strconv.Itoa(total))
+}
+
+// Submitting: LeetCode 에 제출해 채점하는 중
+func (a_ LeetcodeT) Submitting() string {
+	return a_.t.render(&areaLeetcode, "submitting", false, 0)
 }
 
 // TabCode: 위젯 모드 하위 탭 이름: 풀이 코드 편집기
@@ -796,4 +1167,9 @@ func (a_ LeetcodeT) TinyStatus(id string, difficulty string, solved string, stre
 // Unsolved: 허브·초소형 줄: 오늘 문제를 아직 안 풀었음
 func (a_ LeetcodeT) Unsolved() string {
 	return a_.t.render(&areaLeetcode, "unsolved", false, 0)
+}
+
+// WaitSeconds: 실행·제출 간격(무료 10초)이 아직 안 지났을 때. n = 남은 초
+func (a_ LeetcodeT) WaitSeconds(n int) string {
+	return a_.t.render(&areaLeetcode, "wait_seconds", false, 0, "n", strconv.Itoa(n))
 }

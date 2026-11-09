@@ -84,6 +84,7 @@ func TestPrefixRunFromPane(t *testing.T) {
 	e.lc.SetDailyDate("2026-11-05")
 	withNvim(t, true)
 	h := uitest.New(t)
+	signIn(t, e, h)
 	openToday(t, h)
 	h.Press("e")
 	h.Press("ctrl+\\", "r")
@@ -102,6 +103,7 @@ func TestGoeditorFallback(t *testing.T) {
 	e.lc.SetDailyDate("2026-11-05")
 	withNvim(t, false)
 	h := uitest.New(t)
+	signIn(t, e, h)
 	openToday(t, h)
 	h.Press("e")
 	if n := len(e.pane.Started()); n != 0 {

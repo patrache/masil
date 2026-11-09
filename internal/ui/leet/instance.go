@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -61,6 +62,11 @@ type instance struct {
 	edShown  bool
 
 	runReqs, submitReqs int // run / submit requests taken (tests)
+
+	judge     *judgeState // the last run or submit (nil = none yet)
+	judgeSeq  int
+	pending   judgeKind // the run / submit waiting for a login
+	waitUntil time.Time // the pacer said wait until then (zero = no)
 }
 
 var (
@@ -134,6 +140,28 @@ func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			return in.submitRequested(ctx)
 		}
 		return nil
+	case credsLoadedMsg:
+		if m.id == in.id {
+			return in.credsLoaded(ctx, m)
+		}
+		return nil
+	case judgeSentMsg:
+		if m.id == in.id {
+			return in.sent(ctx, m)
+		}
+		return nil
+	case checkTickMsg:
+		if m.id == in.id {
+			return in.tick(ctx, m)
+		}
+		return nil
+	case checkedMsg:
+		if m.id == in.id {
+			return in.checked(ctx, m)
+		}
+		return nil
+	case loginDoneMsg:
+		return in.loginDone(ctx)
 	case termpane.ExitedMsg:
 		switch m.InstanceID {
 		case in.id + execSuffix: // E ended: the slot shows what it wrote
@@ -195,15 +223,15 @@ func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// runRequested / submitRequested: r, ctrl+\ r, :Run (Task 21 runs it).
-func (in *instance) runRequested(*ui.Context) tea.Cmd {
+// runRequested / submitRequested: r, ctrl+\ r, :Run (and s…).
+func (in *instance) runRequested(ctx *ui.Context) tea.Cmd {
 	in.runReqs++
-	return nil
+	return in.startJudge(ctx, kindRun)
 }
 
-func (in *instance) submitRequested(*ui.Context) tea.Cmd {
+func (in *instance) submitRequested(ctx *ui.Context) tea.Cmd {
 	in.submitReqs++
-	return nil
+	return in.startJudge(ctx, kindSubmit)
 }
 
 // loaded takes a load's outcome.
@@ -336,6 +364,11 @@ func (in *instance) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.C
 		return true, emit(submitRequestedMsg{id: in.id})
 	case "l":
 		return true, in.cycleLang(ctx)
+	case "v":
+		if in.judge != nil {
+			in.judge.toggled = !in.judge.toggled
+		}
+		return true, nil
 	case "enter":
 		if sp.Tiny {
 			in.reading, in.page = true, 0
@@ -486,10 +519,13 @@ func (in *instance) hints(ctx *ui.Context, th *theme.Theme, wide string, w int) 
 	return th.S.Dim.Render(textwidth.Truncate(wide, w, "…"))
 }
 
-// resultLines is the result slot (Task 21 fills it).
+// resultLines is the result slot: the last run or submit, or what to press.
 func (in *instance) resultLines(ctx *ui.Context, th *theme.Theme, w, h int) []string {
 	if w <= 0 || h <= 0 {
 		return nil
+	}
+	if b := in.resultBlock(ctx, th, w, false); len(b) > 0 {
+		return b
 	}
 	return []string{th.S.Dim.Render(textwidth.Truncate(ctx.T.Leetcode.ResultPlaceholder(), w, "…"))}
 }
@@ -500,17 +536,29 @@ func (in *instance) viewSplit(ctx *ui.Context, th *theme.Theme, sp split, w, h i
 	if h < 3 {
 		return rows
 	}
-	bodyH := h - 2
+	foot := in.foot(ctx, th, ctx.T.Leetcode.HintsWide(), w)
+	foot = foot[:min(len(foot), h-2)]
+	bodyH := h - 1 - len(foot)
 	if in.phase == phaseLoading || in.phase == phaseFailed { // no problem: the line gets the width
 		for _, l := range in.window(in.problemLines(ctx, th, w), bodyH) {
 			rows = append(rows, l)
 		}
-		for len(rows) < h-1 {
+		for len(rows) < 1+bodyH {
 			rows = append(rows, "")
 		}
-		return append(rows, in.hints(ctx, th, ctx.T.Leetcode.HintsWide(), w))
+		return append(rows, foot...)
 	}
-	left := in.window(in.problemLines(ctx, th, sp.Left), bodyH)
+	// the result sits under the problem: "─ 결과 ─" and up to half the height
+	var res []string
+	if b := in.resultBlock(ctx, th, sp.Left, true); len(b) > 0 && bodyH >= 4 {
+		res = append([]string{th.S.Dim.Render(textwidth.Truncate("─ "+textwidth.Sanitize(ctx.T.Leetcode.TabResult())+" "+strings.Repeat("─", sp.Left), sp.Left, ""))}, b...)
+		res = res[:min(len(res), max(2, bodyH/2))]
+	}
+	left := in.window(in.problemLines(ctx, th, sp.Left), bodyH-len(res))
+	for len(left) < bodyH-len(res) {
+		left = append(left, "")
+	}
+	left = append(left, res...)
 	right := in.editorLines(ctx, th, sp.Right, bodyH)
 	rule := th.S.Dim.Render("│")
 	for i := range bodyH {
@@ -523,7 +571,7 @@ func (in *instance) viewSplit(ctx *ui.Context, th *theme.Theme, sp split, w, h i
 		}
 		rows = append(rows, fitStyled(th, l, sp.Left)+rule+fitStyled(th, r, sp.Right))
 	}
-	return append(rows, in.hints(ctx, th, ctx.T.Leetcode.HintsWide(), w))
+	return append(rows, foot...)
 }
 
 // viewTabbed: the short head, the sub-tabs, the tab's body, the key hints.
@@ -547,7 +595,9 @@ func (in *instance) viewTabbed(ctx *ui.Context, th *theme.Theme, w, h int) []str
 		}
 	}
 	rows = append(rows, tabs.String())
-	bodyH := h - 3
+	foot := in.foot(ctx, th, t.Leetcode.HintsWidget(), w)
+	foot = foot[:min(len(foot), max(1, h-3))]
+	bodyH := h - 2 - len(foot)
 	if bodyH < 1 {
 		return rows
 	}
@@ -567,7 +617,7 @@ func (in *instance) viewTabbed(ctx *ui.Context, th *theme.Theme, w, h int) []str
 		}
 		rows = append(rows, l)
 	}
-	return append(rows, in.hints(ctx, th, t.Leetcode.HintsWidget(), w))
+	return append(rows, foot...)
 }
 
 // viewTiny: the status line and the keys, or the paged problem.
@@ -612,6 +662,7 @@ func (in *instance) viewTiny(ctx *ui.Context, th *theme.Theme, w, h int) []strin
 	for _, s := range []string{t.Leetcode.TinyRead(), t.Leetcode.TinyEdit(), t.Leetcode.TinyActions()} {
 		rows = append(rows, th.S.Dim.Render(textwidth.Truncate(s, w, "…")))
 	}
+	rows = append(rows, in.resultBlock(ctx, th, w, false)...)
 	return rows
 }
 

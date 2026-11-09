@@ -1,3 +1,9 @@
+[accepted_line]
+other = "✅ {status} · top {pct}% · {runtime}"
+
+[accepted_line_short]
+other = "✅ {status} · {runtime}"
+
 [admin_daily_set]
 other = "Set the daily problem of {date} to {slug}."
 
@@ -9,6 +15,9 @@ other = "When on, friends can see that you are solving a problem"
 
 [blocked]
 other = "LeetCode is blocking this request right now · o submit in browser"
+
+[check_timeout]
+other = "No result came back · try again in a moment"
 
 [cmd_board]
 other = "Daily problem ranking"
@@ -25,6 +34,12 @@ other = "Daily problem settings"
 [code_placeholder]
 other = "e open the editor"
 
+[collapse_hint]
+other = "v collapse"
+
+[cookie_warning]
+other = "These values grant full access to your LeetCode account. They are kept on this PC (keychain) only and never sent to the masil server."
+
 [daily_disabled]
 other = "#daily is off in {space}"
 
@@ -33,6 +48,12 @@ other = "#daily is on in {space}"
 
 [editor_failed]
 other = "Couldn't open the editor"
+
+[error_line]
+other = "✗ {status}"
+
+[expand_hint]
+other = "v expand"
 
 [file_failed]
 other = "Couldn't open the solution file"
@@ -76,6 +97,9 @@ other = "{id} · {difficulty}"
 [image_link]
 other = "[image] o open"
 
+[judge_failed]
+other = "Couldn't send it · try again in a moment"
+
 [link_copied]
 other = "Couldn't open a browser; link copied"
 
@@ -84,6 +108,42 @@ other = "Couldn't fetch the problem · o open in browser"
 
 [loading]
 other = "Fetching the problem…"
+
+[login_checking]
+other = "Checking…"
+
+[login_failed]
+other = "Couldn't check the sign-in · try again in a moment"
+
+[login_footer]
+other = "tab next · enter confirm · esc cancel"
+
+[login_missing]
+other = "LEETCODE_SESSION and csrftoken are both needed"
+
+[login_optional]
+other = "optional"
+
+[login_rejected]
+other = "LeetCode doesn't sign in with these values"
+
+[login_required]
+other = "required"
+
+[login_save_failed]
+other = "Couldn't save the cookies"
+
+[login_step1]
+other = "1. Sign in to leetcode.com in your browser"
+
+[login_step2]
+other = "2. Developer tools → Application → Cookies → leetcode.com"
+
+[login_step3]
+other = "3. Paste the values below (name=value works too)"
+
+[login_title]
+other = "LeetCode sign-in"
 
 [name]
 other = "Daily LC"
@@ -112,14 +172,29 @@ other = "Too many LeetCode requests · open it again in a moment"
 [reading_footer]
 other = "{page}/{pages} · ↑↓ page · esc back"
 
+[result_expected]
+other = "Expected"
+
+[result_input]
+other = "Input"
+
+[result_output]
+other = "Output"
+
 [result_placeholder]
 other = "Results of r run · s submit show here"
+
+[run_summary]
+other = "{mark} examples {ok}/{n} · {runtime}"
 
 [run_uses_saved]
 other = "Runs what you saved (:w) · ctrl+\\ r run · ctrl+\\ s submit"
 
 [run_uses_saved_goeditor]
 other = "Runs what you saved (:w) · :Run · :Submit · esc esc leave"
+
+[running]
+other = "Running…"
 
 [save_failed]
 other = "Could not save the setting"
@@ -154,8 +229,20 @@ other = "Share my streak with friends"
 [settings_title]
 other = "Daily problem settings"
 
+[signed_in]
+other = "Signed in as {user} · free account (10s between runs)"
+
+[signed_in_premium]
+other = "Signed in as {user} · premium (1s between runs)"
+
 [solved]
 other = "solved"
+
+[submit_failed]
+other = "✗ {status} · {correct}/{total} · failing input…"
+
+[submitting]
+other = "Submitting…"
 
 [tab_code]
 other = "Code"
@@ -183,3 +270,6 @@ other = "🧩 {id} {difficulty} · {solved} · 🔥{streak}"
 
 [unsolved]
 other = "unsolved"
+
+[wait_seconds]
+other = "You can send again in {n}s"

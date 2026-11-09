@@ -1,6 +1,16 @@
 # Leetcode area: the LeetCode daily problem tool (v0.1.3 spec A10) and the
 # operator command that fixes a day's stored facts.
 
+[accepted_line]
+desc = "제출 통과 줄. status = LeetCode 상태 원문(Accepted), pct = 상위 몇 %(실행 시간 기준), runtime = 실행 시간"
+params = { status = "string", pct = "int", runtime = "string" }
+other = "✅ {status} · 상위 {pct}% · {runtime}"
+
+[accepted_line_short]
+desc = "제출 통과 줄(상위 % 를 모를 때). status = Accepted 원문, runtime = 실행 시간"
+params = { status = "string", runtime = "string" }
+other = "✅ {status} · {runtime}"
+
 [admin_daily_set]
 desc = "운영자 CLI 출력: masil admin leet-daily set 이 그날 사실 정보를 고치고 #daily 루트 카드를 새로 썼을 때. date = UTC 날짜 YYYY-MM-DD, slug = 문제 slug(번역하지 않음)"
 params = { date = "string", slug = "string" }
@@ -22,6 +32,10 @@ desc = "LeetCode 가 Cloudflare 확인 화면을 돌려줄 때(자동 재시도 
 no_truncate = true
 other = "LeetCode 가 지금 이 요청을 막고 있어요 · o 브라우저에서 제출"
 
+[check_timeout]
+desc = "실행·제출 결과를 60초 동안 받지 못했을 때"
+other = "결과를 받지 못했어요 · 잠시 뒤 다시 해 주세요"
+
 [cmd_board]
 desc = "명령 팔레트 항목: 지금 방의 오늘의 문제 순위 보기"
 other = "오늘의 문제 순위"
@@ -42,6 +56,16 @@ other = "오늘의 문제 설정"
 desc = "편집기 자리가 아직 비었을 때. e = 편집기 열기 키"
 other = "e 편집기 열기"
 
+[collapse_hint]
+desc = "펼친 오류 전문을 접는 키 안내"
+other = "v 접기"
+
+[cookie_warning]
+desc = "로그인 대화상자 경고(A10.4·A10.5 — 줄여 쓰지 않음): 쿠키는 LeetCode 계정 전체 권한이고 이 PC(키체인)에만 저장하며 masil 서버로는 보내지 않는다"
+no_truncate = true
+legal = true
+other = "이 값은 LeetCode 계정 전체 권한이에요. 이 PC(키체인)에만 저장하고 masil 서버로는 보내지 않아요."
+
 [daily_disabled]
 desc = "토스트: 방의 #daily 를 껐을 때. space = 방 이름"
 params = { space = "string" }
@@ -55,6 +79,15 @@ other = "{space} 에 #daily 를 켰어요"
 [editor_failed]
 desc = "토스트: 편집기를 열지 못했을 때"
 other = "편집기를 열지 못했어요"
+
+[error_line]
+desc = "실행·제출 오류 줄(컴파일·런타임 오류). status = LeetCode 상태 원문"
+params = { status = "string" }
+other = "✗ {status}"
+
+[expand_hint]
+desc = "접힌 오류 전문을 펼치는 키 안내"
+other = "v 펼치기"
 
 [file_failed]
 desc = "토스트: 풀이 파일을 만들거나 읽지 못했을 때"
@@ -124,6 +157,10 @@ other = "{id} · {difficulty}"
 desc = "문제 본문 속 그림 자리(그림은 그리지 않고 링크만). o = 브라우저에서 문제 열기 키"
 other = "[그림] o 열기"
 
+[judge_failed]
+desc = "실행·제출 요청이 실패했을 때(차단·속도 제한·로그인 만료 외)"
+other = "보내지 못했어요 · 잠시 뒤 다시 해 주세요"
+
 [link_copied]
 desc = "토스트: 브라우저를 열지 못해 문제 링크를 클립보드에 복사했을 때"
 other = "브라우저를 열지 못해 링크를 복사했어요"
@@ -135,6 +172,58 @@ other = "문제를 받지 못했어요 · o 브라우저에서 열기"
 [loading]
 desc = "오늘의 문제를 LeetCode(또는 캐시)에서 받는 중"
 other = "문제를 받는 중…"
+
+[login_checking]
+desc = "로그인 대화상자: LeetCode 에 이 쿠키로 누구인지 묻는 중"
+other = "확인하는 중…"
+
+[login_failed]
+desc = "로그인 대화상자 오류: LeetCode 에 확인하지 못했을 때(네트워크 등)"
+other = "로그인을 확인하지 못했어요 · 잠시 뒤 다시 해 주세요"
+
+[login_footer]
+desc = "로그인 대화상자 맨 아래 키 안내"
+other = "tab 다음 칸 · enter 확인 · esc 취소"
+
+[login_missing]
+desc = "로그인 대화상자 오류: 필수 쿠키 둘 중 하나가 비었을 때(쿠키 이름은 번역하지 않음)"
+other = "LEETCODE_SESSION 과 csrftoken 은 꼭 넣어 주세요"
+
+[login_optional]
+desc = "로그인 입력 칸이 비었을 때 자리 표시: 넣지 않아도 되는 칸(cf_clearance)"
+max = 12
+other = "선택"
+
+[login_rejected]
+desc = "로그인 대화상자 오류: LeetCode 가 이 쿠키로는 로그인되지 않았다고 할 때"
+other = "이 값으로는 LeetCode 에 로그인되지 않아요"
+
+[login_required]
+desc = "로그인 입력 칸이 비었을 때 자리 표시: 꼭 넣어야 하는 칸"
+max = 12
+other = "필수"
+
+[login_save_failed]
+desc = "로그인 대화상자 오류: 쿠키를 이 PC 에 저장하지 못했을 때(저장 위치를 고르지 않은 경우 포함)"
+other = "쿠키를 저장하지 못했어요"
+
+[login_step1]
+desc = "로그인 방법 1단계: 브라우저에서 leetcode.com 에 로그인"
+other = "1. 브라우저에서 leetcode.com 에 로그인해요"
+
+[login_step2]
+desc = "로그인 방법 2단계: 브라우저 개발자 도구의 쿠키 위치. Application · Cookies 는 브라우저 메뉴 이름(번역하지 않음)"
+other = "2. 개발자 도구 → Application → Cookies → leetcode.com"
+
+[login_step3]
+desc = "로그인 방법 3단계: 쿠키 값을 아래 칸에 붙여 넣기(이름=값 모양도 된다)"
+other = "3. 값을 아래 칸에 붙여 넣어요(이름=값 그대로도 돼요)"
+
+# The cookie login (v0.1.3 A10.4 로그인).
+[login_title]
+desc = "LeetCode 쿠키 로그인 대화상자 제목"
+max = 30
+other = "LeetCode 로그인"
 
 # The tool entry (v0.1.3 A10.4): hub row, palette, first run, settings.
 [name]
@@ -179,9 +268,29 @@ desc = "초소형 모드 문제 읽기(쪽 넘김) 맨 아래 키 안내. page =
 params = { page = "int", pages = "int" }
 other = "{page}/{pages} · ↑↓ 넘기기 · esc 돌아가기"
 
+[result_expected]
+desc = "실행 결과 줄 라벨: 기대하는 출력"
+max = 8
+other = "기대"
+
+[result_input]
+desc = "실행 결과 줄 라벨: 예제 입력"
+max = 8
+other = "입력"
+
+[result_output]
+desc = "실행 결과 줄 라벨: 내 코드의 출력"
+max = 8
+other = "내 출력"
+
 [result_placeholder]
 desc = "결과 자리가 아직 비었을 때(실행·제출 전). r 실행, s 제출 키"
 other = "r 실행 · s 제출 결과가 여기 나와요"
+
+[run_summary]
+desc = "실행 결과 요약. mark = ✓ 또는 ✗, ok = 맞은 예제 수, n = 예제 수, runtime = LeetCode 가 준 실행 시간(예 0 ms, 번역하지 않음)"
+params = { mark = "string", ok = "int", n = "int", runtime = "string" }
+other = "{mark} 예제 {ok}/{n} · {runtime}"
 
 # The editor slot (v0.1.3 A10.4).
 [run_uses_saved]
@@ -191,6 +300,10 @@ other = "저장(:w)한 내용으로 실행해요 · ctrl+\\ r 실행 · ctrl+\\ 
 [run_uses_saved_goeditor]
 desc = "masil 안 편집기(goeditor)에 있을 때 맨 아래 안내: 저장한 내용으로 실행, :Run :Submit 명령, esc 두 번이면 편집기에서 나옴. 명령 이름은 번역하지 않음"
 other = "저장(:w)한 내용으로 실행해요 · :Run · :Submit · esc esc 나가기"
+
+[running]
+desc = "LeetCode 에서 예제로 실행하는 중"
+other = "실행 중…"
 
 [save_failed]
 desc = "토스트: config.toml 에 설정을 저장하지 못했을 때(이번 실행에는 바뀐 값이 쓰임)"
@@ -245,10 +358,29 @@ desc = "오늘의 문제 설정 대화상자 제목(테두리)"
 max = 24
 other = "오늘의 문제 설정"
 
+[signed_in]
+desc = "토스트: 쿠키 로그인 성공(무료 계정). user = LeetCode 사용자 이름(번역하지 않음)"
+params = { user = "string" }
+other = "{user} 로 로그인됨 · 무료 계정(실행·제출 10초 간격)"
+
+[signed_in_premium]
+desc = "토스트: 쿠키 로그인 성공(프리미엄 계정). user = LeetCode 사용자 이름"
+params = { user = "string" }
+other = "{user} 로 로그인됨 · 프리미엄(실행·제출 1초 간격)"
+
 [solved]
 desc = "허브·초소형 줄: 오늘 문제를 풀었음(통과)"
 max = 12
 other = "풂"
+
+[submit_failed]
+desc = "제출 실패 줄. status = LeetCode 상태 원문(Wrong Answer 등), correct = 맞은 시험 수, total = 전체 시험 수"
+params = { status = "string", correct = "int", total = "int" }
+other = "✗ {status} · {correct}/{total} · 실패한 입력…"
+
+[submitting]
+desc = "LeetCode 에 제출해 채점하는 중"
+other = "제출 중…"
 
 [tab_code]
 desc = "위젯 모드 하위 탭 이름: 풀이 코드 편집기"
@@ -291,3 +423,9 @@ other = "🧩 {id} {difficulty} · {solved} · 🔥{streak}"
 desc = "허브·초소형 줄: 오늘 문제를 아직 안 풀었음"
 max = 12
 other = "아직 안 풂"
+
+# Run and submit (v0.1.3 A10.4 실행 결과).
+[wait_seconds]
+desc = "실행·제출 간격(무료 10초)이 아직 안 지났을 때. n = 남은 초"
+params = { n = "int" }
+other = "{n}초 뒤에 다시 보낼 수 있어요"
