@@ -91,6 +91,7 @@ type Model struct {
 	overlays []ui.Overlay                                     // open overlays, bottom -> top (CA 5.3.7)
 	ovSizes  []ui.Size                                        // inner size last given to overlays[i].Resize
 	ovSized  []bool                                           // overlays[i] has been Resize'd
+	ovIDs    []string                                         // overlays[i]'s registered id ("" = pushed as a value)
 	palette  ui.Overlay                                       // the palette instance opened by palette.open (nil = none)
 	openPal  func(ctx *ui.Context, initial string) ui.Overlay // palette.Open (tests swap it)
 
@@ -661,4 +662,8 @@ type FrameInfo struct {
 type Box struct {
 	Rect     layout.Rect
 	Bordered bool
+	// ID names an overlay box (P5 Task 4, the x-pseudo region key
+	// "overlay/<ID>"): the id it was opened by (ui.OpenOverlayMsg.ID), else its
+	// Go type ("palette.Model"). Empty for the toast.
+	ID string
 }

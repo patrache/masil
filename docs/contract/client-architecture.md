@@ -2997,6 +2997,11 @@ func (h *Harness) Flush()                                  // ctx.Post 로 게�
 func (h *Harness) WaitPosted(n int, timeout time.Duration) // 고루틴이 n 개를 게시할 때까지 기다림
 func (h *Harness) SetLocale(choice string)                 // P5: Send(ui.SetLocaleMsg{Choice}) — 실행 중 언어 바꾸기(열린 언어 관문을 지남, i18n.SetOpenForTest 로 먼저 연다)
 var Tiny = Size{40, 14}                                    // P5: 언어 검사(x-pseudo·언어별 무결성)의 가장 작은 크기
+func PseudoRegions(h *Harness) map[string]string           // P5: Screen() 을 Frame() 상자로 나눈 영역 키 => 글 — pane/<SlotID>/<RouteKind>(경로 없는 판 pane/<SlotID>), status, overlay/<app.Box.ID>(열 때 쓴 등록 id, 없으면 Go 타입 이름), toast, screen(상자 밖)
+func AssertPseudoWrapped(tb testing.TB, region, text string, allow []string) // P5: x-pseudo 에서 ⟦⟧ 밖에 두 글자 이상 낱말(allow 의 낱말 제외)이 남으면 Errorf(영역·낱말)
+func PseudoAllow(h *Harness) []string                     // P5: fixtures.UserData() + 키 이름 + 슬래시 명령 이름 + "masil"
+// fixtures.UserData() []string — 픽스처의 사용자 글(이름·handle·@handle·채널 #이름·본문·투표·해시태그·미리보기), 원문과 Sanitize 결과
+// e2e: TestPseudoSweep·TestPseudoAfterSwitch·TestPseudoPendingNoStale, 대기 목록 internal/ui/e2e/testdata/pseudo_pending.txt(이관 작업이 자기 영역 키를 지운다)
 // 하네스 기본: ctx.ToolState = t.TempDir() 의 빈 tools-state.json, 기능 플래그 꺼짐(MASIL_FEATURES 없음)
 ```
 
