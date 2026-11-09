@@ -644,6 +644,9 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 		}
 		return handled, cmd
 	}
+	if v.pane.escDrag(ctx, msg) {
+		return true, nil
+	}
 	if ctx.Keys.Matches(msg, keymap.ComposeFocus) {
 		if v.inputBlocked(ctx) {
 			return false, nil
@@ -706,6 +709,23 @@ func (v *channelView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Po
 	v.syncOpen(ctx)
 	return tea.Batch(cmd, v.maybeArmRead(ctx))
 }
+
+// HandleDrag (ui.DragHandler): the drag selection of the message list (the
+// composer below it never takes part: the list clamps there).
+func (v *channelView) HandleDrag(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
+	if v.gone(ctx) {
+		return nil
+	}
+	cmd := v.pane.handleDrag(ctx, msg, local)
+	if _, release := msg.(tea.MouseReleaseMsg); !release {
+		return cmd
+	}
+	v.syncOpen(ctx)
+	return tea.Batch(cmd, v.maybeArmRead(ctx))
+}
+
+// ClearDrag (ui.DragHandler) drops the list's drag selection.
+func (v *channelView) ClearDrag() { v.pane.clearDrag() }
 
 // afterSend follows a send: the list shows the new pending row at the bottom
 // (the latest page is fetched first when an older page is shown).

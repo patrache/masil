@@ -415,6 +415,24 @@ func TestHelpOverlay(t *testing.T) {
 	h.Check()
 }
 
+// TestHelpMentionsDragCopy: the help says that a drag in the message list
+// copies lines and how to reach the terminal's own selection.
+func TestHelpMentionsDragCopy(t *testing.T) {
+	h := uitest.New(t)
+	h.Press("?")
+	var seen strings.Builder
+	for range 80 {
+		seen.WriteString(overlayText(h))
+		h.Press("j")
+	}
+	all := squash(seen.String())
+	for _, want := range []string{"드래그", "끈 줄 복사", "⌥/fn/Shift+드래그"} {
+		if !strings.Contains(all, squash(want)) {
+			t.Fatalf("help lacks %q", want)
+		}
+	}
+}
+
 func TestHelpGolden(t *testing.T) {
 	uitest.ForEachSize(t, uitest.AllSizes(), func(t *testing.T, h *uitest.Harness) { h.Press("?"); h.Golden("help") })
 }

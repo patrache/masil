@@ -109,6 +109,8 @@ masil join <코드>     # 초대 코드로 방에 들어가기
 | `?` (`f1`) | 도움말 |
 | `f` | 피드 열기/닫기 |
 | `t` / `enter` | 선택한 메시지의 스레드 열기 |
+| `y` | 선택한 메시지 복사 |
+| 마우스 드래그 | 채팅에서 끈 줄 복사 (`esc` 로 강조 해제) |
 | `i` (`a`) | 입력창으로 |
 | `enter` / `shift+enter` | 보내기 / 줄바꿈 |
 | `esc` | 뒤로 (입력창에서는 입력창 나가기) |
@@ -169,6 +171,9 @@ theme = "amber"            # charm | midnight | cream | amber
 
 [notify]
 desktop = true             # OS 데스크톱 알림 (masil 과 알림 데몬 모두)
+
+[ui]
+mouse = true               # 마우스 클릭·휠·드래그 복사 (false 면 터미널 자체 선택)
 ```
 
 서버 주소는 `MASIL_SERVER` 환경변수 > `config.toml` 의 `server` > 내장 기본값 순서로 정합니다.
@@ -186,6 +191,13 @@ desktop = true             # OS 데스크톱 알림 (masil 과 알림 데몬 모
 - **macOS 에서 알림이 안 뜸**: masil 은 `/usr/bin/osascript`(AppleScript)로만 알림을 띄웁니다(`terminal-notifier` 등 다른 도구는 쓰지 않음). 알림은 **"스크립트 편집기"** 이름으로 뜨므로 시스템 설정 → 알림 에서 "스크립트 편집기" 알림을 허용하세요.
 - **Linux 에서 알림이 안 뜸**: masil 은 D-Bus 세션 버스로 데스크톱 알림 데몬(`org.freedesktop.Notifications`, GNOME·KDE 등에 기본 포함)에 직접 알림을 보냅니다. `notify-send` 등 다른 프로그램으로 대신 시도하지 않고, 세션 버스를 새로 띄우지도(`dbus-launch`) 않습니다 — 알림 데몬과 세션 버스(`DBUS_SESSION_BUS_ADDRESS`)가 있어야 합니다. 화면 없는 서버에서는 알림이 뜨지 않습니다.
 - **알림이 전혀 안 옴**: `masil daemon status` 를 보세요. 로그인한 서버와 데몬이 쓰는 서버가 다르다는 `⚠` 경고가 있으면 같은 서버로 다시 로그인하거나 `config.toml` 의 `server` 를 맞추세요([설정](#설정) 참고). `알림 꺼짐` 이면 `config.toml` 의 `[notify] desktop` 을 `true` 로 바꾸세요.
+- **드래그로 글자 선택이 안 됨 / 복사가 안 됨**: masil 은 마우스를 직접 받으므로(클릭·휠·드래그), 터미널 자체의 드래그 선택이 막힙니다. 방법은 넷입니다.
+  - 채팅(채널·스레드)에서 **드래그**하면 끈 줄이 강조되고, 손을 떼면 그 줄들이 화면에 보이는 그대로 복사됩니다(`esc` 나 다른 곳 클릭으로 강조 해제).
+  - 메시지를 고르고 **`y`** 를 누르면 그 메시지 본문이 복사됩니다.
+  - 글자 단위로 고르려면 터미널 자체 선택을 쓰세요: iTerm2 는 **⌥ Option**, macOS 터미널(Terminal.app)은 **fn** 을 누른 채 드래그(또는 보기 → "마우스 보고 허용" ⌘R 끄기), 대부분의 Linux 터미널·Windows Terminal 은 **Shift** 를 누른 채 드래그합니다.
+  - 아예 마우스를 끄려면 설정(`ctrl+k` → 설정) → 화면 → **마우스** 를 끄거나 `config.toml` 의 `[ui] mouse = false` 로 두세요(`ui.mouse`). 그러면 클릭·휠·드래그 복사 대신 터미널 자체 선택이 됩니다.
+
+  복사는 두 길로 보냅니다: 터미널에 OSC 52 를 보내고(SSH 너머에서도 됨), 같은 기기의 클립보드 프로그램에도 직접 씁니다 — macOS `pbcopy`, Linux Wayland `wl-copy` · X11 `xclip`/`xsel`, Windows `clip.exe`. Linux 에서 "클립보드에 못 넣었어요" 가 뜨면 `wl-clipboard` 나 `xclip` 을 설치하세요. SSH 로 접속했을 때는 OSC 52 만 쓰므로 터미널이 OSC 52 를 허용해야 합니다: iTerm2 는 Settings → General → Selection → "Applications in terminal may access clipboard", tmux 는 `set -g set-clipboard on`. macOS 터미널(Terminal.app)은 OSC 52 를 지원하지 않습니다.
 - **테두리가 어긋나거나 한글·상자 문자가 겹침**: iTerm2 의 "Ambiguous characters are double-width"(Profiles → Text)를 끄세요. 모호 폭 문자를 2칸으로 그리는 터미널 설정은 지원하지 않습니다.
 
 ## 로컬 개발

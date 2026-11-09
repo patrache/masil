@@ -43,6 +43,7 @@ type List[T any] struct {
 
 	size     ui.Size // last View size
 	rows     []int   // last View: item index per visible row (-1 = blank)
+	lines    []int   // last View: line inside that item per visible row
 	shownSel string  // last View: the selected item's ID when it was on screen, else ""
 }
 
@@ -136,6 +137,24 @@ func (l *List[T]) At(y int) (T, bool) {
 	return zero, false
 }
 
+// RowAt is the item drawn at row y of the last View and the line of it drawn
+// there (0 = its first line), false for a blank row or one outside the view.
+func (l *List[T]) RowAt(y int) (T, int, bool) {
+	if y >= 0 && y < len(l.rows) && y < len(l.lines) {
+		if i := l.rows[y]; i >= 0 && i < len(l.items) {
+			return l.items[i], l.lines[y], true
+		}
+	}
+	var zero T
+	return zero, 0, false
+}
+
+// ScrollBy moves the view by delta lines (negative = up) without moving the
+// selection; it takes effect on the next View.
+func (l *List[T]) ScrollBy(ctx *ui.Context, delta int) {
+	l.scrollBy(ctx, delta)
+}
+
 // Select selects by ID (unknown IDs are ignored) and scrolls it into view.
 func (l *List[T]) Select(id string) {
 	if i, ok := l.index[id]; ok {
@@ -216,6 +235,7 @@ func (l *List[T]) View(ctx *ui.Context, size ui.Size) string {
 	}
 	l.size = size
 	l.rows = l.rows[:0]
+	l.lines = l.lines[:0]
 	l.shownSel = ""
 	if size.W <= 0 || size.H <= 0 {
 		l.keepSel = false
@@ -226,18 +246,20 @@ func (l *List[T]) View(ctx *ui.Context, size ui.Size) string {
 	out := make([]string, 0, size.H)
 	for i := idx; i < len(l.items) && len(out) < size.H; i++ {
 		lines := l.linesOf(ctx, i, size.W)
-		for _, ln := range lines[off:] {
+		for j, ln := range lines[off:] {
 			if len(out) == size.H {
 				break
 			}
 			out = append(out, fitLine(t, ln, size.W))
 			l.rows = append(l.rows, i)
+			l.lines = append(l.lines, off+j)
 		}
 		off = 0
 	}
 	for len(out) < size.H {
 		out = append(out, pad(t, size.W))
 		l.rows = append(l.rows, -1)
+		l.lines = append(l.lines, 0)
 	}
 	for _, i := range l.rows {
 		if i >= 0 && i == l.sel {

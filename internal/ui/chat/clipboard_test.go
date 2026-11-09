@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,6 +48,10 @@ func TestCopyMessageSanitized(t *testing.T) {
 		t.Fatalf("one clipboard write, got %q", c)
 	}
 	clipboardClean(t, "message", c[0])
+	// the system clipboard gets the same text as OSC 52
+	if sys := h.Clipboards(); !slices.Equal(sys, c) {
+		t.Fatalf("system clipboard %q, OSC 52 %q", sys, c)
+	}
 	// what is copied is what is shown: the hidden OSC payload is gone; only
 	// line breaks (U+2028 here) may differ from the one-line Sanitize
 	if !strings.HasPrefix(c[0], "echo hi") || strings.ReplaceAll(c[0], "\n", "") != textwidth.Sanitize(pasteJack) {
@@ -67,12 +72,15 @@ func TestCopyMessageSanitized(t *testing.T) {
 func TestCopyInviteSanitized(t *testing.T) {
 	// the invites tab's y (copyInviteCmd)
 	h := devChannel(t, uitest.Size{W: 120, H: 40})
-	h.Send(runCmdMsg(copyInviteCmd(pasteJack)))
+	h.Send(runCmdMsg(copyInviteCmd(h.Context(), pasteJack)))
 	c := clipboards(h)
 	if len(c) != 1 {
 		t.Fatalf("one clipboard write, got %q", c)
 	}
 	clipboardClean(t, "invite row", c[0])
+	if sys := h.Clipboards(); !slices.Equal(sys, c) {
+		t.Fatalf("system clipboard %q, OSC 52 %q", sys, c)
+	}
 	if c[0] != "masil join "+textwidth.Sanitize(pasteJack) || strings.Contains(c[0], "\n") {
 		t.Fatalf("invite row clipboard %q", c[0])
 	}
@@ -87,6 +95,9 @@ func TestCopyInviteSanitized(t *testing.T) {
 		t.Fatalf("one clipboard write, got %q", c)
 	}
 	clipboardClean(t, "invite overlay", c[0])
+	if sys := g.Clipboards(); !slices.Equal(sys, c) {
+		t.Fatalf("system clipboard %q, OSC 52 %q", sys, c)
+	}
 	if c[0] != "masil join "+textwidth.Sanitize(pasteJack) || strings.Contains(c[0], "\n") {
 		t.Fatalf("invite overlay clipboard %q", c[0])
 	}

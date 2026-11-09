@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/store"
@@ -58,6 +59,27 @@ type msgPane struct {
 	head         func(ctx *ui.Context) []row
 	dens         func(ctx *ui.Context) ui.Density
 	rootExpanded bool
+
+	// sel is the mouse drag selection (nil = none): highlighted while shown,
+	// copied on the release. pressOpen is the row whose open (a click on the
+	// selected row) waits for a release without motion.
+	sel       *textSel
+	pressOpen string
+}
+
+// lineRef is one drawn line: a row and the line inside it. It survives
+// scrolling and new rows (ordered by the row's index, then the line).
+type lineRef struct {
+	id   string
+	line int
+}
+
+// textSel is a line-granular selection from anchor (the press) to head.
+type textSel struct {
+	anchor, head lineRef
+	x0, y0       int  // press cell (a click that wobbles one column is no drag)
+	dragging     bool // the button is still held
+	moved        bool // the pointer moved: the release copies instead of clicking
 }
 
 // newMsgPane creates the list of a channel (rootID "") or of a thread's replies.
@@ -344,6 +366,9 @@ func (p *msgPane) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 		}
 		return tea.Batch(cmd, more)
 	case tea.MouseClickMsg:
+		if m.Button == tea.MouseLeft {
+			p.clearDrag() // a new press drops the last selection
+		}
 		if m.Button != tea.MouseLeft && m.Button != tea.MouseRight {
 			return nil
 		}
@@ -353,6 +378,9 @@ func (p *msgPane) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 		}
 		r := p.rows[p.index[id]]
 		if !r.selectable() {
+			if m.Button == tea.MouseLeft {
+				p.startDrag(id, line, local)
+			}
 			return nil
 		}
 		// a reaction chip (left = toggle, right = who reacted) or a poll bar (left = vote)
@@ -363,8 +391,12 @@ func (p *msgPane) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 		if m.Button != tea.MouseLeft {
 			return nil
 		}
-		if cur, ok := p.selected(); ok && cur.ID == id && p.open != nil {
-			return p.open(r)
+		p.startDrag(id, line, local)
+		if cur, ok := p.selected(); ok && cur.ID == id {
+			if p.open != nil {
+				p.pressOpen = id // opened by the release unless the pointer moves
+			}
+			return nil
 		}
 		p.selectID(id)
 	}
@@ -373,27 +405,218 @@ func (p *msgPane) handleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point)
 
 // lineAt maps a row y of the last list view to the row drawn there and the line
 // inside it.
-func (p *msgPane) lineAt(ctx *ui.Context, y int) (rowID string, line int, ok bool) {
-	w, h := p.listSize.W, p.listSize.H
-	if y < 0 || y >= h || w <= 0 || len(p.rows) == 0 {
+func (p *msgPane) lineAt(_ *ui.Context, y int) (rowID string, line int, ok bool) {
+	r, line, ok := p.list.RowAt(y)
+	if !ok {
 		return "", 0, false
 	}
-	a := p.list.Anchor()
-	i, found := p.index[a.ItemID]
-	if !found {
-		return "", 0, false
+	return r.ID, line, true
+}
+
+// ---- drag selection ----
+
+// startDrag starts a selection at line of row id (the press).
+func (p *msgPane) startDrag(id string, line int, at ui.Point) {
+	ref := lineRef{id: id, line: line}
+	p.sel = &textSel{anchor: ref, head: ref, x0: at.X, y0: at.Y, dragging: true}
+}
+
+// clearDrag drops the selection and a pending click (esc, a press elsewhere).
+func (p *msgPane) clearDrag() {
+	p.sel, p.pressOpen = nil, ""
+}
+
+// escDrag: esc with a selection shown only clears it.
+func (p *msgPane) escDrag(ctx *ui.Context, msg tea.KeyPressMsg) bool {
+	if p.sel == nil || !ctx.Keys.Matches(msg, keymap.NavBack) {
+		return false
 	}
-	sel, _ := p.selected()
-	off := a.LineOffset
-	for ; i < len(p.rows); i++ {
-		n := max(1, len(p.render(ctx, p.rows[i], p.rows[i].ID == sel.ID, w)))
-		if y < n-off {
-			return p.rows[i].ID, y + off, true
+	p.clearDrag()
+	return true
+}
+
+// handleDrag follows the held button (local is unclipped: above or below the
+// list scrolls it by a line and holds the edge line). The release copies the
+// selected lines (ui.Copy, "복사했어요") once the pointer moved; without motion it
+// is a click and runs the pending open.
+func (p *msgPane) handleDrag(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
+	s := p.sel
+	if s == nil || !s.dragging {
+		return nil
+	}
+	_, release := msg.(tea.MouseReleaseMsg)
+	if at, ok := p.dragRef(ctx, local.Y, !release); ok {
+		s.head = at
+	}
+	if s.head != s.anchor || local.Y != s.y0 || abs(local.X-s.x0) > 1 {
+		s.moved = true
+	}
+	if !release {
+		return nil
+	}
+	s.dragging = false
+	open := p.pressOpen
+	p.pressOpen = ""
+	if !s.moved {
+		p.sel = nil
+		if cur, ok := p.selected(); ok && open != "" && cur.ID == open && p.open != nil {
+			return p.open(cur)
 		}
-		y -= n - off
-		off = 0
+		return nil
 	}
-	return "", 0, false
+	text := p.selText(ctx)
+	if text == "" {
+		return nil
+	}
+	return ui.Copy(ctx, text, msgCopied)
+}
+
+// dragRef is the line under list row y, clamped into the list (scrolling one
+// line first when scroll and y is past an edge); below the last row it is the
+// last line drawn.
+func (p *msgPane) dragRef(ctx *ui.Context, y int, scroll bool) (lineRef, bool) {
+	h := p.listSize.H
+	if h <= 0 {
+		return lineRef{}, false
+	}
+	if y < 0 || y >= h {
+		if scroll {
+			p.list.ScrollBy(ctx, min(max(y, -1), 1))
+			p.list.View(ctx, p.listSize) // refresh RowAt for the new top
+		}
+		y = min(max(y, 0), h-1)
+	}
+	for ; y >= 0; y-- {
+		if id, line, ok := p.lineAt(ctx, y); ok {
+			return lineRef{id: id, line: line}, true
+		}
+	}
+	return lineRef{}, false
+}
+
+// selRange is the selection in row order (ai <= bi); false once a row of it
+// is gone.
+func (p *msgPane) selRange() (a, b lineRef, ai, bi int, ok bool) {
+	if p.sel == nil {
+		return lineRef{}, lineRef{}, 0, 0, false
+	}
+	a, b = p.sel.anchor, p.sel.head
+	ai, okA := p.index[a.id]
+	bi, okB := p.index[b.id]
+	if !okA || !okB {
+		return lineRef{}, lineRef{}, 0, 0, false
+	}
+	if bi < ai || (bi == ai && b.line < a.line) {
+		a, b, ai, bi = b, a, bi, ai
+	}
+	return a, b, ai, bi, true
+}
+
+// copyable: line of r is message text (not a divider, a notice or the thread
+// root's "더 보기").
+func (p *msgPane) copyable(r row, line int) bool {
+	if !r.selectable() {
+		return false
+	}
+	return p.rootID == "" || r.ID != p.rootID || p.rootExpanded || line != rootMaxLines
+}
+
+// inSel reports whether line of row id is inside the selection.
+func (p *msgPane) inSel(id string, line int) bool {
+	a, b, ai, bi, ok := p.selRange()
+	i, has := p.index[id]
+	if !ok || !has || i < ai || i > bi {
+		return false
+	}
+	return (i != ai || line >= a.line) && (i != bi || line <= b.line)
+}
+
+// selText is the selection as plain text: each selected line as drawn (no
+// escapes, trailing blanks dropped), a message's own indent (full indent,
+// bubble padding, right alignment) removed, one line per screen line.
+// Folded and deleted messages copy only what they show.
+func (p *msgPane) selText(ctx *ui.Context) string {
+	a, b, ai, bi, ok := p.selRange()
+	if !ok || p.listSize.W <= 0 {
+		return ""
+	}
+	var out []string
+	for i := ai; i <= bi; i++ {
+		r := p.rows[i]
+		if !r.selectable() {
+			continue
+		}
+		lines := p.render(ctx, r, false, p.listSize.W)
+		from, to := 0, len(lines)-1
+		if i == ai {
+			from = a.line
+		}
+		if i == bi {
+			to = min(to, b.line)
+		}
+		var got []string
+		for j := from; j <= to; j++ {
+			if p.copyable(r, j) {
+				got = append(got, strings.TrimRight(ansi.Strip(lines[j]), " "))
+			}
+		}
+		out = append(out, dedent(got, from == 0)...)
+	}
+	return strings.Join(out, "\n")
+}
+
+// dedent drops a message's own indent: the first line entirely when it is the
+// row's first (a header or a one-line row), the indent the other lines share
+// from the rest.
+func dedent(lines []string, head bool) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	rest := lines
+	if head {
+		lines[0] = strings.TrimLeft(lines[0], " ")
+		rest = lines[1:]
+	}
+	ind := -1
+	for _, l := range rest {
+		if l == "" {
+			continue
+		}
+		n := len(l) - len(strings.TrimLeft(l, " "))
+		if ind < 0 || n < ind {
+			ind = n
+		}
+	}
+	for i, l := range rest {
+		if ind > 0 && len(l) >= ind {
+			rest[i] = l[ind:]
+		}
+	}
+	return lines
+}
+
+// paintSel repaints the selected list lines in S.TextSelect (plain text, so
+// links and colors give way to the selection while it shows).
+func (p *msgPane) paintSel(t *theme.Theme, out []string, width int) {
+	if _, _, _, _, ok := p.selRange(); !ok {
+		p.sel = nil
+		return
+	}
+	for y := range out {
+		r, line, ok := p.list.RowAt(y)
+		if !ok || !p.copyable(r, line) || !p.inSel(r.ID, line) {
+			continue
+		}
+		plain := ansi.Strip(out[y])
+		out[y] = t.S.TextSelect.Render(plain + strings.Repeat(" ", max(0, width-textwidth.Width(plain))))
+	}
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // startFade highlights a newly arrived message.
@@ -532,6 +755,9 @@ func (p *msgPane) view(ctx *ui.Context, size ui.Size, focused bool) string {
 	}
 	p.listSize = ui.Size{W: size.W, H: lh}
 	out := strings.Split(p.list.View(ctx, p.listSize), "\n")
+	if p.sel != nil {
+		p.paintSel(t, out, size.W)
+	}
 	if banner != "" {
 		out = append(out, centerLine(t, t.S.Warning, textwidth.Truncate(banner, size.W, "…"), size.W))
 	}

@@ -445,6 +445,43 @@ func TestListAt(t *testing.T) {
 	}
 }
 
+// RowAt also reports which line of the item a row shows, from a scrolled top
+// too (ScrollBy), and nothing for blank rows.
+func TestListRowAt(t *testing.T) {
+	ctx := newCtx(nil, false)
+	l := newTestList()
+	l.SetItems(items(5, func(int) int { return 2 }, "")) // 3 lines each
+	l.View(ctx, ui.Size{W: 20, H: 4})
+	type at struct {
+		id   string
+		line int
+	}
+	check := func(want map[int]at) {
+		t.Helper()
+		for y, w := range want {
+			it, line, ok := l.RowAt(y)
+			if !ok || it.id != w.id || line != w.line {
+				t.Fatalf("RowAt(%d) = %s/%d %v, want %s/%d", y, it.id, line, ok, w.id, w.line)
+			}
+		}
+	}
+	check(map[int]at{0: {"m0", 0}, 2: {"m0", 2}, 3: {"m1", 0}})
+	l.ScrollBy(ctx, 2)
+	l.View(ctx, ui.Size{W: 20, H: 4})
+	check(map[int]at{0: {"m0", 2}, 1: {"m1", 0}, 3: {"m1", 2}})
+	for _, y := range []int{-1, 4} {
+		if _, _, ok := l.RowAt(y); ok {
+			t.Fatalf("RowAt(%d) outside the view", y)
+		}
+	}
+	short := newTestList()
+	short.SetItems(items(1, nil, ""))
+	short.View(ctx, ui.Size{W: 20, H: 3})
+	if _, _, ok := short.RowAt(2); ok {
+		t.Fatal("RowAt on a blank row")
+	}
+}
+
 // A list at the bottom with a selection a few items above the last one keeps that
 // selection on screen when the view shrinks (a narrower or shorter pane): bottom
 // pinning must not push a selection that was visible out of view (r, t and the

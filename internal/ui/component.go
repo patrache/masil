@@ -80,3 +80,16 @@ type Badge struct {
 	Mention bool
 	Dot     bool
 }
+
+// DragHandler is a MouseHandler that follows left-button drags (text
+// selection). After a left press it got through HandleMouse, the app sends it
+// every MouseMotionMsg and the MouseReleaseMsg of that gesture through
+// HandleDrag, wherever the pointer is: local is relative to its inner rect and
+// may lie outside it (above, below, on the border). ClearDrag drops the drag
+// and any selection: the app calls it when a later press lands outside the
+// pane or the gesture is cut short (an overlay opened, the layout changed).
+type DragHandler interface {
+	MouseHandler
+	HandleDrag(ctx *Context, msg tea.MouseMsg, local Point) tea.Cmd
+	ClearDrag()
+}

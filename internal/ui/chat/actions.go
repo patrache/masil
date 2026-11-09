@@ -304,7 +304,7 @@ func copyText(m api.Message) string {
 	return clipboardText(m.Body)
 }
 
-// clipboardText is someone else's text made safe to hand to tea.SetClipboard
+// clipboardText is someone else's text made safe to hand to the clipboard
 // (pending-fixes 0-b): the server keeps control characters in bodies, and the
 // screen (Sanitize) drops escape sequences with their contents, so the raw text
 // could copy a bracketed-paste end, CRs and a hidden command that the screen
@@ -317,8 +317,9 @@ func clipboardText(s string) string { return textwidth.SanitizeInput(s) }
 // server can never paste as a second command line.
 func clipboardLine(s string) string { return textwidth.Sanitize(s) }
 
-func copyCmd(m api.Message) tea.Cmd {
-	return tea.Batch(tea.SetClipboard(copyText(m)), ui.Toast(msgCopied, ui.ToastSuccess))
+// copyCmd copies m (msg.copy) through ui.Copy: OSC 52 and the system clipboard.
+func copyCmd(ctx *ui.Context, m api.Message) tea.Cmd {
+	return ui.Copy(ctx, copyText(m), msgCopied)
 }
 
 // ---- rules ----
@@ -438,7 +439,7 @@ func (p *msgPane) actionKey(ctx *ui.Context, msg tea.KeyPressMsg, edit func(api.
 		if folded(ctx, m) {
 			return true, nil
 		}
-		return true, copyCmd(m)
+		return true, copyCmd(ctx, m)
 	}
 	return false, nil
 }
@@ -507,8 +508,8 @@ func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem 
 		}})
 	}
 	if live && !folded(ctx, m) {
-		items = append(items, menuItem{Label: itemCopy, Hint: "y", Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
-			return copyCmd(m), nil
+		items = append(items, menuItem{Label: itemCopy, Hint: "y", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			return copyCmd(ctx, m), nil
 		}})
 	}
 	if !m.Deleted && m.Kind != "system" && canDelete(ctx, ch, m) {

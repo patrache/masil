@@ -13,6 +13,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/clipboard"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
@@ -40,6 +41,7 @@ type Options struct {
 	Notifier        *notify.Notifier // nil => notify.New(NewOSBackend("masil"), OpenLedger(paths), log)
 	API             *api.Client      // nil => api.New(config.ServerURL(), WithToken(...))
 	Timers          ui.Timers        // nil => ui.RealTimers(); uitest passes its FakeClock
+	Clipboard       clipboard.Writer // nil => clipboard.System(); uitest passes a clipboard.Recorder
 }
 
 // Model implements tea.Model.
@@ -70,6 +72,9 @@ type Model struct {
 	cache *instanceCache
 	panes map[layout.SlotID]*instance // pane-factory slots, built once
 	tabs  *widgets.Tabs               // SlotTabs bar (Hit for clicks)
+
+	grab      dragGrab       // the pane following the held left button (mouse.go)
+	dragOwner ui.DragHandler // the component a press last grabbed (its selection is cleared by a press elsewhere)
 
 	initCmds []tea.Cmd // emitted by Init (New cannot return Cmds)
 	frame    FrameInfo // geometry of the last View
@@ -207,6 +212,10 @@ func New(o Options) *Model {
 		Now:    now,
 		Timers: timers,
 		Loc:    loc,
+	}
+	m.ctx.Clipboard = o.Clipboard
+	if m.ctx.Clipboard == nil {
+		m.ctx.Clipboard = clipboard.System()
 	}
 
 	m.bp = layout.FromConfig(cfg.Layout)
