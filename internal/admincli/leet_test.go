@@ -73,7 +73,9 @@ func TestAdminLeetDailyNoTagsSendsEmptyList(t *testing.T) {
 
 func TestAdminLeetDailyUsage(t *testing.T) {
 	ok := []string{"--id", "1606", "--slug", "two-sum", "--title", "Two Sum", "--difficulty", "Easy"}
-	with := func(date string, flags ...string) []string { return append([]string{"leet-daily", "set", date}, flags...) }
+	with := func(date string, flags ...string) []string {
+		return append([]string{"leet-daily", "set", date}, flags...)
+	}
 	replace := func(name, v string) []string {
 		out := append([]string(nil), ok...)
 		for i := 0; i+1 < len(out); i += 2 {
