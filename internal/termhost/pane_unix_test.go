@@ -178,15 +178,15 @@ func TestPaneSurvivesZeroSize(t *testing.T) {
 }
 
 func TestPaneNoBytesLogged(t *testing.T) {
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&lockedWriter{w: &buf}, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	lw := &lockedWriter{w: &bytes.Buffer{}}
+	logger := slog.New(slog.NewTextHandler(lw, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	p := startSh(t, "printf 'SECRET-123'; read x; printf 'SECRET-456'", Size{W: 40, H: 4}, PaneOptions{Logger: logger})
 	waitFor(t, 3*time.Second, "secret", screenHas(p, "SECRET-123"))
 	p.SendKey(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	p.SendPaste("TYPED-789")
 	p.SendKey(enter())
 	waitExited(t, p, 5*time.Second)
-	out := buf.String()
+	out := lw.String()
 	for _, s := range []string{"SECRET-123", "SECRET-456", "TYPED-789"} {
 		if strings.Contains(out, s) {
 			t.Fatalf("log contains pane bytes %q:\n%s", s, out)
@@ -206,6 +206,12 @@ func (l *lockedWriter) Write(b []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.w.Write(b)
+}
+
+func (l *lockedWriter) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.String()
 }
 
 func TestPaneExitCode(t *testing.T) {

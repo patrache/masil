@@ -98,6 +98,7 @@ type Pane struct {
 	events     []paneEvent
 	lastCwd    string
 	lastNotify map[string]time.Time
+	taps       []*tapSink
 
 	in           chan []byte       // bytes for the child (writeLoop)
 	ops          chan func(screen) // input operations (inputLoop)
@@ -204,6 +205,7 @@ func (p *Pane) readLoop(done chan<- struct{}) {
 			}
 			chunk := buf[:n]
 			p.scr.Write(chunk)
+			p.feedTaps(chunk) // same lock as the screen: AttachTap's snapshot never misses bytes
 			ev := p.events
 			p.events = nil
 			p.mu.Unlock()
@@ -229,6 +231,7 @@ func (p *Pane) waitLoop(readerDone <-chan struct{}) {
 	}
 	p.mu.Lock()
 	p.closed = true
+	p.closeTapsLocked()
 	p.mu.Unlock()
 	p.scr.stop()
 	close(p.stopWriter)
