@@ -98,6 +98,10 @@ func helpRows(km *keymap.Keymap) []helpRow {
 			}
 			add(helpRow{kind: helpKey, key: b.Key, text: desc})
 		}
+		if g.name == "전역" {
+			tabs := km.Binding(keymap.TabPrev).Help().Key + " " + km.Binding(keymap.TabNext).Help().Key
+			add(helpRow{kind: helpKey, key: tabs, text: "탭 순환: 채팅 · DM · 피드 · 알림 (컴팩트: 열린 탭 · DM · 피드 · 알림)"})
+		}
 		if g.name == "창" {
 			for _, r := range [][2]string{
 				{prefix + " h/j/k/l", "그 방향의 창으로"},

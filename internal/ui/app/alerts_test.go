@@ -69,6 +69,12 @@ func hasAlertToast(h *uitest.Harness) bool {
 // navShows reports whether nav now shows r on the surface navigate put it on.
 func navShows(n app.NavState, r ui.Route) bool {
 	t := n.Tabs[n.Active]
+	if n.InDM { // DMs open on the DM surface: Stack[1] is the DM
+		t = n.DM
+		if r.Kind == ui.RouteChannel {
+			return n.Front == app.FrontTab && len(t.Stack) >= 2 && reflect.DeepEqual(t.Stack[1], r)
+		}
+	}
 	switch r.Kind {
 	case ui.RouteNotifications:
 		return n.Front == app.FrontNotifications

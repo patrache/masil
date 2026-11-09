@@ -28,11 +28,13 @@ const (
 	sideLabel                   // "─ 채널", "─ DM"
 	sideNotice                  // one wrapped line of the no-space notice
 	sideChannel                 // a text channel, DM or group DM
+	sideDMs                     // standard: "DM" (the DM list entry, the rail's DM)
 )
 
 // Sidebar row ids.
 const (
 	sideHeaderID     = "header"
+	sideDMsID        = "dms"
 	sideChanPrefix   = "ch:"
 	sideNoticePrefix = "notice:"
 )
@@ -51,9 +53,9 @@ type sideItem struct {
 	Ch       *api.Channel // sideChannel
 }
 
-// selectable: channel rows and the standard-mode dropdown header.
+// selectable: channel rows, the DM list entry and the standard-mode dropdown header.
 func (it sideItem) selectable() bool {
-	return it.Kind == sideChannel || (it.Kind == sideHeader && it.Dropdown)
+	return it.Kind == sideChannel || it.Kind == sideDMs || (it.Kind == sideHeader && it.Dropdown)
 }
 
 // sidebarPane is the channel / DM list (SlotSidebar, command and standard): the
@@ -80,8 +82,8 @@ func newSidebar(ctx *ui.Context) ui.Component {
 }
 
 // sideItems builds the rows. Command: title, "─ 채널", channels, "─ DM", DMs.
-// Standard: "이름 ▾" (replacing the rail and the section label), channels, "─ DM",
-// DMs. Without a space the channel section is the dim notice (wrapped to cw cells
+// Standard: "이름 ▾" (replacing the rail and the section label), "DM" (the rail's DM
+// entry: the DM list, with the DM unread badge), channels, "─ DM", DMs. Without a space the channel section is the dim notice (wrapped to cw cells
 // when cw > 0). DMs are visibleDMs: a blocked peer's 1:1 DM leaves at once.
 func sideItems(ctx *ui.Context, cw int) []sideItem {
 	if ctx == nil || ctx.Store == nil {
@@ -101,7 +103,8 @@ func sideItems(ctx *ui.Context, cw int) []sideItem {
 		if name == "" {
 			name = "방"
 		}
-		items = append(items, sideItem{ID: sideHeaderID, Kind: sideHeader, Text: name, Dropdown: true})
+		items = append(items, sideItem{ID: sideHeaderID, Kind: sideHeader, Text: name, Dropdown: true},
+			sideItem{ID: sideDMsID, Kind: sideDMs, Text: dmsTitle})
 	case sd != nil:
 		items = append(items, sideItem{ID: sideHeaderID, Kind: sideHeader, Text: name})
 	}
@@ -222,6 +225,8 @@ func (p *sidebarPane) render(ctx *ui.Context, it sideItem, selected bool, width 
 		body = cell(t.S.Dim.Render, it.Text, cw)
 	case sideChannel:
 		body = channelRow(ctx, t, it.Ch, cw)
+	case sideDMs:
+		body = entryRow(t, it.Text, dmUnreadBadge(ctx), mainShows(ctx, ui.RouteDMs), cw)
 	}
 	return []string{cur + body}
 }
@@ -271,6 +276,30 @@ func channelRow(ctx *ui.Context, t *theme.Theme, ch *api.Channel, cw int) string
 	name = textwidth.Truncate(name, max(nameW, 0), "…")
 	gap := room - textwidth.Width(name) - bw
 	return lead + st.Render(name+strings.Repeat(" ", max(gap, 0))) + badge
+}
+
+// entryRow is a navigation entry row in exactly cw cells: the label (S.Selected when
+// current) then the right-aligned badge.
+func entryRow(t *theme.Theme, label string, b ui.Badge, current bool, cw int) string {
+	st := t.S.Base
+	switch {
+	case current:
+		st = t.S.Selected
+	case b.Count > 0 || b.Mention:
+		st = t.S.Bold
+	}
+	badge := widgets.Badge(t, b)
+	bw := textwidth.Width(ansi.Strip(badge))
+	if bw > 0 && cw-bw < 3 {
+		badge, bw = "", 0
+	}
+	nameW := cw
+	if bw > 0 {
+		nameW = cw - bw - 1
+	}
+	label = textwidth.Truncate(label, max(nameW, 0), "…")
+	gap := cw - textwidth.Width(label) - bw
+	return st.Render(label+strings.Repeat(" ", max(gap, 0))) + badge
 }
 
 func (p *sidebarPane) Init(*ui.Context) tea.Cmd { return nil }
@@ -414,6 +443,8 @@ func (p *sidebarPane) open(ctx *ui.Context, it sideItem) tea.Cmd {
 	switch it.Kind {
 	case sideHeader:
 		return ui.OpenOverlay(newSpaceSwitchMenu(ctx))
+	case sideDMs:
+		return goDMs()
 	case sideChannel:
 		if it.Ch == nil {
 			return nil
@@ -428,10 +459,13 @@ func (p *sidebarPane) open(ctx *ui.Context, it sideItem) tea.Cmd {
 	return nil
 }
 
-// newSpaceSwitchMenu is the standard-mode space switcher (chat.space_switch): 홈,
+// newSpaceSwitchMenu is the standard-mode space switcher (chat.space_switch): 홈, DM,
 // the spaces in SpaceOrder, 방 만들기, 초대 코드로 참여.
 func newSpaceSwitchMenu(ctx *ui.Context) ui.Overlay {
-	items := []menuItem{{Label: "홈", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return goHome(ctx), nil }}}
+	items := []menuItem{
+		{Label: "홈", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return goHome(ctx), nil }},
+		{Label: dmsTitle, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) { return goDMs(), nil }},
+	}
 	if ctx != nil && ctx.Store != nil {
 		for _, id := range ctx.Store.SpaceOrder {
 			sd := ctx.Store.Spaces[id]

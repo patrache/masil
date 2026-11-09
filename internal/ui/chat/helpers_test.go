@@ -753,9 +753,14 @@ func hostileOpen(t *testing.T, sz uitest.Size) *uitest.Harness {
 	return open(t, sz, ui.Route{Kind: ui.RouteChannel, ID: hostileChannel(t, s)}, uitest.WithSeed(seed))
 }
 
-// top is the top route of the active tab's stack.
+// top is the top route of the chat surface's stack: the active tab's, or the DM
+// surface's (DMs open there).
 func top(h *uitest.Harness) ui.Route {
 	nav := h.Nav()
+	if nav.InDM {
+		st := nav.DM.Stack
+		return st[len(st)-1]
+	}
 	if nav.Active < 0 || nav.Active >= len(nav.Tabs) || len(nav.Tabs[nav.Active].Stack) == 0 {
 		return ui.Route{}
 	}

@@ -357,6 +357,56 @@ func (s *Store) TotalUnread() (unread, mentions int) {
 	return unread, mentions
 }
 
+// IsDM reports whether id is a known 1:1 or group DM channel.
+func (s *Store) IsDM(id string) bool {
+	ch := s.Channels[id]
+	return ch != nil && (ch.Kind == api.ChannelDM || ch.Kind == api.ChannelGroupDM)
+}
+
+// HiddenDM reports a 1:1 DM whose other member I blocked: it is hidden on my side
+// (api.md 3.2), also before a resync drops it. Group DMs are never hidden.
+func (s *Store) HiddenDM(ch *api.Channel) bool {
+	if ch == nil || ch.Kind != api.ChannelDM {
+		return false
+	}
+	for _, m := range ch.Members {
+		if !s.IsMe(m.ID) {
+			return s.IsBlocked(m.ID)
+		}
+	}
+	return false
+}
+
+// DMUnread is TotalUnread over the DMs and group DMs that are not hidden
+// (HiddenDM): the DM tab / rail entry badge.
+func (s *Store) DMUnread() (unread, mentions int) {
+	for _, ch := range s.Channels {
+		if (ch.Kind != api.ChannelDM && ch.Kind != api.ChannelGroupDM) || s.HiddenDM(ch) {
+			continue
+		}
+		if !ch.My.Muted {
+			unread += ch.My.UnreadCount
+		}
+		mentions += ch.My.MentionCount
+	}
+	return unread, mentions
+}
+
+// ChannelUnread is TotalUnread over the text channels only (the 채팅 tab badge;
+// DMs count on the DM tab).
+func (s *Store) ChannelUnread() (unread, mentions int) {
+	for _, ch := range s.Channels {
+		if ch.Kind == api.ChannelDM || ch.Kind == api.ChannelGroupDM {
+			continue
+		}
+		if !ch.My.Muted {
+			unread += ch.My.UnreadCount
+		}
+		mentions += ch.My.MentionCount
+	}
+	return unread, mentions
+}
+
 // FocusEnded sets Focus=nil, LastFocusSummary=&sum (focus.ended event and EndFocus result both call this; never opens UI).
 func (s *Store) FocusEnded(sum api.FocusSummary) {
 	s.Focus = nil

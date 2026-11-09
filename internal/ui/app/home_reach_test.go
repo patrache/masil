@@ -54,7 +54,7 @@ func TestPaletteEmptyQueryListsHome(t *testing.T) {
 func TestCompactNeverEvictsHomeTab(t *testing.T) {
 	h := uitest.New(t)
 	h.Resize(120, 30)
-	ids := []string{fixtures.ChGeneral, fixtures.ChChat, fixtures.ChDev, fixtures.ChDeploy, fixtures.DMMinji, fixtures.DMJunho}
+	ids := []string{fixtures.ChGeneral, fixtures.ChChat, fixtures.ChDev, fixtures.ChDeploy} // DMs open on the DM surface, never as tabs
 	for i := len(ids); i < 9; i++ {
 		ids = append(ids, fmt.Sprintf("01JB0000000000000000000XC%d", i))
 	}

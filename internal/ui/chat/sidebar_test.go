@@ -216,7 +216,12 @@ func TestSidebarDropdownOpensSwitcher(t *testing.T) {
 	}
 
 	h.Send(ui.OpenOverlayMsg{Overlay: newSpaceSwitchMenu(h.Context())})
-	h.Press("j", "enter") // 노바 개발방
+	h.Press("j", "enter") // DM
+	if r := top(h); r.Kind != ui.RouteDMs || !h.Nav().InDM {
+		t.Fatalf("DM: %+v", r)
+	}
+	h.Send(ui.OpenOverlayMsg{Overlay: newSpaceSwitchMenu(h.Context())})
+	h.Press("j", "j", "enter") // 노바 개발방
 	s := h.Context().Store
 	sid := spaceByName(t, s, "노바 개발방")
 	if r := top(h); r.Kind != ui.RouteChannel || r.ID != s.Spaces[sid].DefaultChannelID || chatOf(h.Context()).SelectedSpace() != sid {

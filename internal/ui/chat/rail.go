@@ -22,9 +22,10 @@ func init() {
 // overlaySpaceAdd is the registered rail "+" menu.
 const overlaySpaceAdd = "chat.space_add"
 
-// Rail item ids: home, one per space ("space:<id>"), and the add button.
+// Rail item ids: home, the DM list, one per space ("space:<id>"), and the add button.
 const (
 	railHome        = "home"
+	railDM          = "dm"
 	railAdd         = "add"
 	railSpacePrefix = "space:"
 )
@@ -34,7 +35,7 @@ const railGlyphW = 3
 
 // railItem is one rail entry (rebuilt from the Store on every View).
 type railItem struct {
-	ID      string // railHome | railAdd | railSpacePrefix+space id
+	ID      string // railHome | railDM | railAdd | railSpacePrefix+space id
 	Glyph   string // sanitized, one grapheme
 	Unread  bool
 	Mention bool
@@ -42,8 +43,8 @@ type railItem struct {
 	Last    bool // no blank separator line below
 }
 
-// railPane is the command-mode space rail (SlotRail): 홈, the spaces in
-// SpaceOrder (icon emoji, else the name's first grapheme), +.
+// railPane is the command-mode space rail (SlotRail): 홈, DM (the DM list), the
+// spaces in SpaceOrder (icon emoji, else the name's first grapheme), +.
 type railPane struct {
 	list    *widgets.List[railItem]
 	size    ui.Size
@@ -65,19 +66,22 @@ func newRail(ctx *ui.Context) ui.Component {
 	return p
 }
 
-// railCurrent is the rail entry to highlight: the viewed channel's space (a viewed
-// DM or group DM = 홈), else the rail's selected space, else 홈 (chatstore: "" =
-// home / DMs).
+// railCurrent is the rail entry to highlight: DM while Main shows the DM list, the
+// viewed channel's space (a viewed DM or group DM = DM), else the rail's selected
+// space, else 홈 (chatstore: "" = home / DMs).
 func railCurrent(ctx *ui.Context) string {
 	if ctx == nil || ctx.Store == nil {
 		return railHome
+	}
+	if mainShows(ctx, ui.RouteDMs) {
+		return railDM
 	}
 	if ch := viewedChannel(ctx); ch != nil {
 		if sd := spaceOf(ctx, ch); sd != nil {
 			return railSpacePrefix + sd.ID
 		}
 		if ch.Kind == api.ChannelDM || ch.Kind == api.ChannelGroupDM {
-			return railHome
+			return railDM
 		}
 	}
 	if c := chatOf(ctx); c != nil {
@@ -88,9 +92,16 @@ func railCurrent(ctx *ui.Context) string {
 	return railHome
 }
 
-// railItems builds the rail entries with their unread markers. Home sums the
-// visible DMs (a blocked peer's 1:1 DM never counts); a space sums its channels.
-// Muted channels add no unread, their mentions still count (Store.TotalUnread).
+// mainShows reports whether SlotMain shows a route of kind k this frame.
+func mainShows(ctx *ui.Context, k ui.RouteKind) bool {
+	r, ok := ctx.Routes[layout.SlotMain]
+	return ok && r.Kind == k
+}
+
+// railItems builds the rail entries with their unread markers. DM sums the visible
+// DMs (a blocked peer's 1:1 DM never counts); a space sums its channels; 홈 has
+// none (its DMs count on DM). Muted channels add no unread, their mentions still
+// count (Store.TotalUnread).
 func railItems(ctx *ui.Context) []railItem {
 	cur := railCurrent(ctx)
 	add := func(its []railItem, it railItem, chs []*api.Channel) []railItem {
@@ -105,7 +116,8 @@ func railItems(ctx *ui.Context) []railItem {
 		it.Current = it.ID == cur
 		return append(its, it)
 	}
-	items := add(nil, railItem{ID: railHome, Glyph: "홈"}, visibleDMs(ctx))
+	items := add(nil, railItem{ID: railHome, Glyph: "홈"}, nil)
+	items = add(items, railItem{ID: railDM, Glyph: "DM"}, visibleDMs(ctx))
 	if ctx != nil && ctx.Store != nil {
 		s := ctx.Store
 		for _, id := range s.SpaceOrder {
@@ -251,12 +263,14 @@ func (p *railPane) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 	return tea.Batch(cmd, p.run(ctx, it))
 }
 
-// run activates an entry: 홈 → RouteHome, a space → select it + its default
-// channel, + → the space add menu.
+// run activates an entry: 홈 → RouteHome, DM → RouteDMs (the DM list in Main), a
+// space → select it + its default channel, + → the space add menu.
 func (p *railPane) run(ctx *ui.Context, it railItem) tea.Cmd {
 	switch {
 	case it.ID == railHome:
 		return goHome(ctx)
+	case it.ID == railDM:
+		return goDMs()
 	case it.ID == railAdd:
 		return ui.OpenOverlay(newSpaceAddMenu())
 	case strings.HasPrefix(it.ID, railSpacePrefix):

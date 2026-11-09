@@ -14,10 +14,10 @@
    ctrl+o/alt+←    이전 위치                                                                       
    alt+→           다음 위치                                                                       
    ctrl+c          종료 (두 번)                                                                    
+   [ ]             탭 순환: 채팅 · DM · 피드 · 알림 (컴팩트: 열린 탭 · DM · 피드 · 알림)           
                                                                                                    
  창                                                                                                
    tab             다음 패널                                                                       
    shift+tab       이전 패널                                                                       
    ctrl+w h/j/k/l  그 방향의 창으로                                                                
-   ctrl+w w        다음 창                                                                         
  초소형                                                                                          ● 

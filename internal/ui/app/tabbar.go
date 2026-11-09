@@ -13,35 +13,31 @@ import (
 // tabItems returns the SlotTabs entries for the current mode and the active index
 // (CA 5.4 "탭"):
 //   - compact: every NavState tab root (home "홈", channel label + its My badge), then
-//     the fixed 피드 and 알림 (NotifUnread);
-//   - widget: 채팅 (TotalUnread, Mention when any) / 피드 / 알림;
-//   - tiny: the same three as 챗 / 피 / 알.
+//     the fixed DM (Store.DMUnread), 피드 and 알림 (NotifUnread);
+//   - widget: 채팅 (Store.ChannelUnread, Mention when any) / DM / 피드 / 알림;
+//   - tiny: the same four as 챗 / DM / 피 / 알.
 //
-// The active entry is Tabs[Active] (Front==FrontTab) or the feed/notifications entry.
+// The active entry is Tabs[Active] (FrontTab), DM (FrontTab on the DM surface), or
+// the feed/notifications entry.
 func (m *Model) tabItems() ([]widgets.Tab, int) {
 	st := m.ctx.Store
 	notif := widgets.Tab{Label: "알림", Badge: ui.Badge{Count: st.NotifUnread}}
 	feed := widgets.Tab{Label: "피드"}
+	du, dm := st.DMUnread()
+	dms := widgets.Tab{Label: "DM", Badge: ui.Badge{Count: du, Mention: dm > 0}}
 	if m.lay.Mode == layout.ModeCompact {
 		var items []widgets.Tab
 		for _, t := range m.nav.Tabs {
 			items = append(items, m.rootTab(t.Stack[0]))
 		}
-		active := m.nav.Active
-		switch m.nav.Front {
-		case FrontFeed:
-			active = len(items)
-		case FrontNotifications:
-			active = len(items) + 1
-		}
-		return append(items, feed, notif), active
+		return append(items, dms, feed, notif), m.nav.clone().barPos()
 	}
-	unread, mentions := st.TotalUnread()
+	unread, mentions := st.ChannelUnread()
 	chat := widgets.Tab{Label: "채팅", Badge: ui.Badge{Count: unread, Mention: mentions > 0}}
 	if m.lay.Mode == layout.ModeTiny {
 		chat.Label, feed.Label, notif.Label = "챗", "피", "알"
 	}
-	return []widgets.Tab{chat, feed, notif}, int(m.nav.Front)
+	return []widgets.Tab{chat, dms, feed, notif}, m.nav.widgetPos()
 }
 
 // rootTab is the compact tab of a tab root.
@@ -64,8 +60,9 @@ func (m *Model) tabBar(w int) string {
 	return m.tabs.View(m.ctx.Theme, w)
 }
 
-// contextLine renders the widget SlotContext: the active tab root's title, " · " and
-// the space name for a space channel, then " ▾" (CA 5.4).
+// contextLine renders the widget SlotContext: the chat surface's title — the active
+// tab root's title, " · " and the space name for a space channel; on the DM surface
+// the open DM's label, else "DM" — then " ▾" (CA 5.4).
 func (m *Model) contextLine(w int) string {
 	th := m.ctx.Theme
 	if w <= 0 {
@@ -74,6 +71,9 @@ func (m *Model) contextLine(w int) string {
 	text := ""
 	if t, ok := m.nav.activeTab(); ok {
 		root := t.Stack[0]
+		if root.Kind == ui.RouteDMs && len(t.Stack) >= 2 && t.Stack[1].Kind == ui.RouteChannel {
+			root = t.Stack[1]
+		}
 		text = m.routeTitle(root)
 		if root.Kind == ui.RouteChannel {
 			if name := m.spaceName(root.ID); name != "" {

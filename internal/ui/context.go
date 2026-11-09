@@ -18,6 +18,7 @@ type Context struct {
 	Theme  *theme.Theme
 	Mode   layout.Mode
 	Layout layout.Layout
+	Routes map[layout.SlotID]Route // what each route slot shows this frame (app.Project; set with Layout, read-only)
 	Keys   *keymap.Keymap
 	Store  *store.Store
 	API    *api.Client
