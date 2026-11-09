@@ -9,10 +9,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	goeditor "github.com/ionut-t/goeditor"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/leetcode"
+	"github.com/patrache/masil/internal/third_party/goeditor"
 	"github.com/patrache/masil/internal/ui"
 )
 

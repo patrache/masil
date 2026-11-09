@@ -3,16 +3,14 @@ package leet
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	goeditor "github.com/ionut-t/goeditor"
 	"github.com/ionut-t/goeditor/core"
 
 	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/third_party/goeditor"
 	"github.com/patrache/masil/internal/ui"
 )
 
@@ -36,27 +34,15 @@ type goEditor struct {
 
 var _ codeEditor = (*goEditor)(nil)
 
-// newEditorMu serializes goeditor.New's os.Stdin swap.
-var newEditorMu sync.Mutex
-
-// newGoEditor opens path (it must exist) in a goeditor buffer.
-func newGoEditor(path string) (codeEditor, error) {
+// newGoEditor opens path (it must exist) in a goeditor buffer, colored for
+// a dark or light background as masil's theme is (goeditor would ask the
+// terminal itself, racing Bubble Tea for its input: third_party/goeditor).
+func newGoEditor(path string, dark bool) (codeEditor, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	newEditorMu.Lock()
-	// goeditor.New asks the terminal for its background through os.Stdin: with
-	// Bubble Tea reading the terminal that would race for the reply bytes. A
-	// nil stdin is "not a terminal" (dark assumed) on Unix; Windows opens the
-	// console itself (owner check).
-	if runtime.GOOS != "windows" {
-		saved := os.Stdin
-		os.Stdin = nil
-		defer func() { os.Stdin = saved }()
-	}
-	m := goeditor.New(80, 20)
-	newEditorMu.Unlock()
+	m := goeditor.New(80, 20, goeditor.WithDarkBackground(dark))
 	m.SetContent(string(b))
 	m.Focus()
 	e := &goEditor{m: m, path: path}
