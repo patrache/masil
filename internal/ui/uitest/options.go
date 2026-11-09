@@ -3,6 +3,7 @@ package uitest
 import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/theme"
@@ -25,6 +26,7 @@ type config struct {
 	credsSet bool // WithCredentials was given (nil => logged out)
 	keys     map[string][]string
 	locale   i18n.Locale // "" => i18n.Ko
+	collab   *collabtest.Hub
 }
 
 // WithLocale shows the harness in l (ctx.T, ctx.Lang, Accept-Language). Like
@@ -72,4 +74,11 @@ func WithUnicodeCore(on bool) Option {
 // nil means logged out.
 func WithCredentials(cr *auth.Credentials) Option {
 	return func(c *config) { c.creds, c.credsSet = cr, true }
+}
+
+// WithCollab serves room documents from hub: ctx.CollabDial = hub.Dial, and
+// hub.Register on the harness's apitest server (after WithAPI's routes), with
+// the harness credentials' token read as their user.
+func WithCollab(hub *collabtest.Hub) Option {
+	return func(c *config) { c.collab = hub }
 }

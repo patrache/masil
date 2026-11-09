@@ -21,6 +21,7 @@ const (
 	rlUpload  = "RL_UPLOAD"  // POST /v1/uploads
 	rlSocial  = "RL_SOCIAL"  // friend request, follow, block, DM create, channel member add, invites, space create, report
 	rlSearch  = "RL_SEARCH"  // /v1/search/*, /v1/users/search, /v1/hashtags/search
+	rlDoc     = "RL_DOC"     // room document / version / comment writes (v0.1.3, api.md 5.24)
 	rlWS      = "RL_WS"      // GET /v1/ws (used by realtime, listed for completeness)
 	rlAPI     = "RL_API"     // every authenticated request
 )

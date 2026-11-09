@@ -131,19 +131,7 @@ func loadContractLimiters(t *testing.T) map[string][]string {
 // client method that exercises them. Each entry names the Task that adds the
 // client method and its endpoint case; once a case covers the row the test
 // fails until the entry is removed, so the waiver cannot outlive its Task.
-var pendingLimiterRows = map[string]string{
-	// Room-document REST (server P0 Task 26/28); internal/api/ep_docs.go and
-	// its cases are P0 Task 30.
-	"POST /v1/spaces/*/docs":             "P0 Task 30",
-	"PATCH /v1/docs/*":                   "P0 Task 30",
-	"DELETE /v1/docs/*":                  "P0 Task 30",
-	"POST /v1/docs/*/versions":           "P0 Task 30",
-	"POST /v1/docs/*/versions/*/restore": "P0 Task 30",
-	// Doc comments (server P0 Task 29).
-	"POST /v1/docs/*/comments":     "P0 Task 30",
-	"PATCH /v1/docs/*/comments/*":  "P0 Task 30",
-	"DELETE /v1/docs/*/comments/*": "P0 Task 30",
-}
+var pendingLimiterRows = map[string]string{}
 
 // uncoveredLimiterRows reports every row that names a request limiter but no
 // case exercises (so checkLimiter, which proves request.Limiter, runs against
@@ -176,6 +164,7 @@ func uncoveredLimiterRows(doc map[string][]string, covered map[string]bool, pend
 func TestEndpointLimitersMatchContractTable(t *testing.T) {
 	doc := loadContractLimiters(t)
 	cases := append(endpointsACases(t), endpointsBCases(t)...)
+	cases = append(cases, docEndpointCases(t)...)
 	covered := map[string]bool{}
 	var wrong []string
 	for _, c := range cases {

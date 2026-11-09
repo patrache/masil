@@ -57,6 +57,14 @@ func (c coderConn) Close(code int, reason string) error {
 // handshake. A non-101 handshake response is decoded from the api.md error
 // envelope into *api.Error.
 func coderDial(ctx context.Context, url string, h http.Header) (Conn, error) {
+	return DialConn(ctx, url, h, readLimit)
+}
+
+// DialConn opens a text-frame socket like the realtime client's own dial,
+// reading frames of up to limit bytes (a bigger one closes the socket with
+// 1009). The room document socket (internal/collab, collab.md 4) uses it with
+// its own limit. A non-101 handshake response is an *api.Error.
+func DialConn(ctx context.Context, url string, h http.Header, limit int64) (Conn, error) {
 	c, resp, err := websocket.Dial(ctx, url, &websocket.DialOptions{HTTPHeader: h})
 	if err != nil {
 		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
@@ -64,7 +72,7 @@ func coderDial(ctx context.Context, url string, h http.Header) (Conn, error) {
 		}
 		return nil, err
 	}
-	c.SetReadLimit(readLimit)
+	c.SetReadLimit(limit)
 	return coderConn{c}, nil
 }
 
