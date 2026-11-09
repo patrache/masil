@@ -48,3 +48,46 @@ func detLog(x float64) float64 {
 	hfsq := float64(0.5 * f * f)
 	return float64(k*ln2Hi) - ((hfsq - (float64(s*(hfsq+r)) + float64(k*ln2Lo))) - f)
 }
+
+// detExp is e**x with the same result on every architecture: the pure-Go
+// algorithm of Go's math/exp.go (same origin and notices as detLog), every
+// product wrapped in float64() so it cannot fuse.
+func detExp(x float64) float64 {
+	const (
+		ln2Hi     = 6.93147180369123816490e-01
+		ln2Lo     = 1.90821492927058770002e-10
+		log2e     = 1.44269504088896338700e+00
+		overflow  = 7.09782712893383973096e+02
+		underflow = -7.45133219101941108420e+02
+		nearZero  = 1.0 / (1 << 28)
+		p1        = 1.66666666666666657415e-01  /* 0x3FC55555; 0x55555555 */
+		p2        = -2.77777777770155933842e-03 /* 0xBF66C16C; 0x16BEBD93 */
+		p3        = 6.61375632143793436117e-05  /* 0x3F11566A; 0xAF25DE2C */
+		p4        = -1.65339022054652515390e-06 /* 0xBEBBBD41; 0xC5D26BF1 */
+		p5        = 4.13813679705723846039e-08  /* 0x3E663769; 0x72BEA4D0 */
+	)
+	switch {
+	case math.IsNaN(x):
+		return x
+	case x > overflow:
+		return math.Inf(1)
+	case x < underflow:
+		return 0
+	case -nearZero < x && x < nearZero:
+		return 1 + x
+	}
+	var k int
+	switch {
+	case x < 0:
+		k = int(float64(log2e*x) - 0.5)
+	case x > 0:
+		k = int(float64(log2e*x) + 0.5)
+	}
+	hi := x - float64(float64(k)*ln2Hi)
+	lo := float64(float64(k) * ln2Lo)
+	r := hi - lo
+	t := float64(r * r)
+	c := r - float64(t*(p1+float64(t*(p2+float64(t*(p3+float64(t*(p4+float64(t*p5)))))))))
+	y := 1 - ((lo - float64(r*c)/(2-c)) - hi)
+	return math.Ldexp(y, k)
+}
