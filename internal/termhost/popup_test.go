@@ -17,11 +17,21 @@ import (
 // anything else writes its arguments (one per line) to a file and exits with code.
 func fakeTmux(t *testing.T, version string, code int) (argsFile string) {
 	t.Helper()
+	return fakeTmuxSlow(t, version, code, 0)
+}
+
+// fakeTmuxSlow is fakeTmux whose `tmux -V` first sleeps delay.
+func fakeTmuxSlow(t *testing.T, version string, code int, delay time.Duration) (argsFile string) {
+	t.Helper()
 	dir := t.TempDir()
 	argsFile = filepath.Join(dir, "args")
 	script := filepath.Join(dir, "tmux")
+	sleep := ""
+	if delay > 0 {
+		sleep = "sleep " + strconv.FormatFloat(delay.Seconds(), 'f', 3, 64) + "; "
+	}
 	body := "#!/bin/sh\n" +
-		"if [ \"$1\" = \"-V\" ]; then echo \"tmux " + version + "\"; exit 0; fi\n" +
+		"if [ \"$1\" = \"-V\" ]; then " + sleep + "echo \"tmux " + version + "\"; exit 0; fi\n" +
 		"for a in \"$@\"; do printf '%s\\n' \"$a\" >> '" + argsFile + "'; done\n" +
 		"exit " + strconv.Itoa(code) + "\n"
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
@@ -30,9 +40,9 @@ func fakeTmux(t *testing.T, version string, code int) (argsFile string) {
 	// macOS scans a freshly written executable on its first run (hundreds of
 	// ms), which would trip TmuxVersion's 300ms limit: run it once first.
 	_ = exec.Command(script, "-V").Run()
-	restore := tmuxPath
-	tmuxPath = script
-	t.Cleanup(func() { tmuxPath = restore })
+	restore, restoreTimeout := tmuxPath, tmuxVersionTimeout
+	tmuxPath, tmuxVersionTimeout = script, 5*time.Second
+	t.Cleanup(func() { tmuxPath, tmuxVersionTimeout = restore, restoreTimeout })
 	t.Setenv("TMUX", "/tmp/tmux-501/default,1234,0")
 	return argsFile
 }
@@ -172,6 +182,22 @@ func TestTmuxVersion(t *testing.T) {
 	tmuxPath = filepath.Join(t.TempDir(), "missing")
 	if got := TmuxVersion(); got != "" {
 		t.Fatalf("missing tmux = %q, want empty", got)
+	}
+}
+
+// TestFakeTmuxToleratesSlowStart: under heavy machine load a fake tmux can
+// take longer than the real 300ms version limit to start, which dropped -T
+// from TestPopupTitleSanitizedOrOmitted. The fake raises the limit for tests;
+// TestTmuxVersionTimeout still checks the real one.
+func TestFakeTmuxToleratesSlowStart(t *testing.T) {
+	args := fakeTmuxSlow(t, "3.4", 0, 500*time.Millisecond)
+	ch, err := Popup(Request{Program: "nvim", Title: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitExit(t, ch)
+	if got := strings.Join(readArgs(t, args), " "); got != "display-popup -E -w 90% -h 90% -T t -- env nvim" {
+		t.Fatalf("args = %s", got)
 	}
 }
 

@@ -17,8 +17,9 @@ var ErrNoTmux = errors.New("termhost: not inside tmux")
 // tmuxPath is the tmux binary (a seam for tests).
 var tmuxPath = "tmux"
 
-// tmuxVersionTimeout bounds `tmux -V`.
-const tmuxVersionTimeout = 300 * time.Millisecond
+// tmuxVersionTimeout bounds `tmux -V`. A variable only so the fake tmux in
+// tests can outlast a loaded machine's process start.
+var tmuxVersionTimeout = 300 * time.Millisecond
 
 func init() { detectTmuxVersion = TmuxVersion }
 
