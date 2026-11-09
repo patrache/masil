@@ -239,7 +239,7 @@ export const DOC_TYPES: Record<"arch" | "apicol", DocTypeSpec>;
 | `req:` 객체 수(삭제 안 된 것) | 1,000 | `{limit_exceeded, limit_requests}` (새 `req:` 의 `put`·`undel` 이 1,001번째일 때) |
 | `col` 객체 수 | 1 | `{invalid, invalid_op}` (`col` 이외 id 에 `type: "col"`) |
 | 요청 본문 `body` (UTF-8 바이트) | 65,536 | `{too_large, body_too_large}` |
-| `envvar` 에 `secret: true` 와 비지 않은 `value` (같은 op 이든 이미 있는 상태와의 조합이든) | — | `{invalid, secret_value}` |
+| `envvar` 에 `secret: true` 와 비지 않은 `value` (같은 op 이든 이미 있는 상태와의 조합이든), `col.vars` 의 원소가 `secret: true` 와 비지 않은 `value` | — | `{invalid, secret_value}` |
 | 필드 값 하나 (JSON 바이트, 5장 공통) | 61,440 | `{too_large}` |
 | 문서 전체 (5장 공통) | 2,097,152 | `{too_large}` |
 

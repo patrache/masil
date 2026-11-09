@@ -143,9 +143,11 @@ describe("per-type limits (collab.md 3.3 step 3, 5)", () => {
 
   it("apicol: up to 2,097,152 bytes passes, one more byte is too_large", () => {
     const st = sized(2_097_152 - 9, "request", 61_440);
-    expect(applyFrame(st, DOC_TYPES.apicol, 1, [{ op: "set", id: "o00000", field: "g", value: "xx" }]).ok).toBe(true);
+    // the common limits alone: the filler ids / fields are not apicol objects (its validateOp is P4's, collab.md 7)
+    const limits = { ...DOC_TYPES.apicol, validateOp: () => null };
+    expect(applyFrame(st, limits, 1, [{ op: "set", id: "o00000", field: "g", value: "xx" }]).ok).toBe(true);
     expect(st.bytes()).toBe(2_097_152);
-    expect(applyFrame(st, DOC_TYPES.apicol, 2, [{ op: "set", id: "o00000", field: "g", value: "xxx" }])).toEqual({ ok: false, reason: { code: "too_large" } });
+    expect(applyFrame(st, limits, 2, [{ op: "set", id: "o00000", field: "g", value: "xxx" }])).toEqual({ ok: false, reason: { code: "too_large" } });
   });
 
   it("a field over maxFieldBytes -> too_large; exactly at it passes", () => {
