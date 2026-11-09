@@ -82,11 +82,31 @@ func summary(user string) api.UserSummary {
 }
 
 // Seed creates document docID at snapshot s (seq = s.Seq), with REST metadata
-// (type arch, title = docID, space "") for Register's routes.
+// (type arch, title = docID, space "", no creator) for Register's routes. A
+// test that lists a space's documents (ListDocs) seeds with SeedDoc.
 func (h *Hub) Seed(docID string, s collab.Snapshot) {
+	h.SeedDoc(api.Doc{ID: docID}, s)
+}
+
+// SeedDoc is Seed with the REST metadata meta (SpaceID, Type, Title,
+// CreatedBy ...). Empty Type = arch, Title = ID, zero times = Clock; HeadSeq
+// is s.Seq.
+func (h *Hub) SeedDoc(meta api.Doc, s collab.Snapshot) {
+	if meta.Type == "" {
+		meta.Type = "arch"
+	}
+	if meta.Title == "" {
+		meta.Title = meta.ID
+	}
+	if meta.CreatedAt.IsZero() {
+		meta.CreatedAt = Clock
+	}
+	if meta.UpdatedAt.IsZero() {
+		meta.UpdatedAt = Clock
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.seed(api.Doc{ID: docID, Type: "arch", Title: docID, CreatedAt: Clock, UpdatedAt: Clock}, s)
+	h.seed(meta, s)
 }
 
 func (h *Hub) seed(meta api.Doc, s collab.Snapshot) *doc {

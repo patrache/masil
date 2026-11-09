@@ -237,10 +237,10 @@ func connected(ev collab.Event) bool {
 	return ok && s.Connected
 }
 
-// TestHubSessions: two real Sessions converge through the hub; Inject reaches
+// TestHubKickAndOffline: two real Sessions converge through the hub; Inject reaches
 // them; SetOnline drops and later readmits a user (the session reconnects
 // and resends); Kick ends a session with its pending ops.
-func TestHubSessions(t *testing.T) {
+func TestHubKickAndOffline(t *testing.T) {
 	defer collab.SetBackoffForTest(func() float64 { return 0 })()
 	h := New(t)
 	h.Seed("D1", collab.Snapshot{})
@@ -385,4 +385,33 @@ func TestHubREST(t *testing.T) {
 func isStatus(err error, status int) bool {
 	var ae *api.Error
 	return errors.As(err, &ae) && ae.Status == status
+}
+
+// TestHubSeedDoc: a seeded document with REST metadata (space, creator) is
+// listed by the space's docs route and opens by socket.
+func TestHubSeedDoc(t *testing.T) {
+	h := New(t)
+	srv := apitest.New(t)
+	h.Register(srv)
+	h.SeedDoc(api.Doc{ID: "D9", SpaceID: "S1", Type: "arch", CreatedBy: summary("U1")},
+		collab.Snapshot{Seq: 3, Objects: []collab.Object{{ID: "n1", Type: "node", Fields: map[string]json.RawMessage{}}}})
+	ctx := context.Background()
+	list, err := srv.Client().ListDocs(ctx, "S1", "arch", api.PageOpts{})
+	if err != nil || len(list.Items) != 1 {
+		t.Fatalf("ListDocs: %+v %v", list, err)
+	}
+	if d := list.Items[0]; d.ID != "D9" || d.Title != "D9" || d.CreatedBy.ID != "U1" || d.HeadSeq != 3 || d.CreatedAt.IsZero() {
+		t.Fatalf("seeded doc = %+v", d)
+	}
+	c, err := h.Dial(ctx, "ws://hub.test/v1/docs/D9/ws", hdr("U1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close(1000, "")
+	if err := c.Write(ctx, []byte(`{"t":"hello","since":null}`)); err != nil {
+		t.Fatal(err)
+	}
+	if m := read(t, c); string(m["seq"]) != "3" {
+		t.Fatalf("hello = %v", m)
+	}
 }
