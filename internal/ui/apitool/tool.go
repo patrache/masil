@@ -110,6 +110,10 @@ type Tool struct {
 
 	envCur int               // the environments screen's selected row
 	masks  map[string]string // secret rows "e:<name>" -> "••••1234"
+
+	run        *runState       // the last runner run
+	pendingRun *pendingRun     // a shared run waiting for its host list answer
+	shared     map[string]bool // collection name -> a shared collection (P4 Task 18)
 }
 
 var (
@@ -140,6 +144,7 @@ func New(ctx *ui.Context, r ui.Route) ui.Component {
 
 		foreign:   map[string]foreignInfo{},
 		privateOK: map[string]bool{},
+		shared:    map[string]bool{},
 	}
 	cfg := apiConfig{History: true}
 	if ctx.Config != nil {

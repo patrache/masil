@@ -825,6 +825,77 @@ var areaApitest = area{
 				En: {Other: "Raw"},
 			},
 		},
+		"run_bad_iterations": {
+			desc: "반복 횟수가 1~1000 밖일 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "반복은 1~1000번이에요"},
+				En: {Other: "Iterations are 1 to 1000"},
+			},
+		},
+		"run_delay": {
+			desc:   "실행기 창: 요청 사이 대기 줄(ms = 밀리초)",
+			params: []Param{{Name: "ms", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 사이 대기 {ms}ms"},
+				En: {Other: "Delay between requests {ms}ms"},
+			},
+		},
+		"run_done_hint": {
+			desc: "실행이 끝난 뒤 진행 표 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "⏎ 실패한 줄의 응답 열기 · esc 닫기"},
+				En: {Other: "⏎ open a failed line's response · esc close"},
+			},
+		},
+		"run_env": {
+			desc:   "실행기 창: 환경 고르기 줄(name = 환경 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "환경 ‹ {name} › · h/l"},
+				En: {Other: "Environment ‹ {name} › · h/l"},
+			},
+		},
+		"run_failed_net": {
+			desc:   "실행기 표에서 응답 없이 실패한 줄의 상태 칸(reason = 실패 이유 코드)",
+			params: []Param{{Name: "reason", Type: "string"}},
+			max:    16,
+			text: map[Locale]Forms{
+				Ko: {Other: "실패 {reason}"},
+				En: {Other: "failed {reason}"},
+			},
+		},
+		"run_hosts_body": {
+			desc:       "공유 컬렉션 실행 전 호스트 목록 창 본문(줄여 쓰지 않음)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "동료가 바꾼 요청이 있을 수 있어요. 이번 실행은 아래 호스트로 요청을 보내요:"},
+				En: {Other: "A teammate may have changed requests. This run sends requests to these hosts:"},
+			},
+		},
+		"run_hosts_title": {
+			desc: "공유 컬렉션 실행 전 호스트 목록 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "이번 실행이 보낼 곳"},
+				En: {Other: "Where this run sends"},
+			},
+		},
+		"run_iterations": {
+			desc:   "실행기 창: 반복 횟수 줄(n = 횟수, 최대 1,000)",
+			params: []Param{{Name: "n", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "반복 {n}번 (최대 1000)"},
+				En: {Other: "Iterations {n} (at most 1000)"},
+			},
+		},
+		"run_progress": {
+			desc:   "실행기 진행 표 머리 줄(i = 끝난 요청, n = 전체, ok = 통과, fail = 실패)",
+			params: []Param{{Name: "i", Type: "int"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "실행 {i}/{n} · 통과 {ok} · 실패 {fail}"},
+				En: {Other: "Run {i}/{n} · passed {ok} · failed {fail}"},
+			},
+		},
 		"run_progress_short": {
 			desc:   "초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)",
 			params: []Param{{Name: "i", Type: "int"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}},
@@ -832,6 +903,45 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "실행 {i}/{n} ✓{ok} ✕{fail}"},
 				En: {Other: "Run {i}/{n} ✓{ok} ✕{fail}"},
+			},
+		},
+		"run_running_hint": {
+			desc: "실행 중 진행 표 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 실행 멈춤"},
+				En: {Other: "esc stop the run"},
+			},
+		},
+		"run_start": {
+			desc: "실행기 창의 시작 단추",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "[실행 ⏎]"},
+				En: {Other: "[Run ⏎]"},
+			},
+		},
+		"run_stop_on_fail": {
+			desc:   "실행기 창: 실패 시 멈춤 줄(state = 켬/끔)",
+			params: []Param{{Name: "state", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "실패 시 멈춤 {state} · space"},
+				En: {Other: "Stop on failure {state} · space"},
+			},
+		},
+		"run_target": {
+			desc:   "실행기 창: 돌릴 범위(name = 컬렉션 또는 폴더 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "범위 {name}"},
+				En: {Other: "Scope {name}"},
+			},
+		},
+		"run_title": {
+			desc: "실행기 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "실행기"},
+				En: {Other: "Runner"},
 			},
 		},
 		"save_body_path": {
@@ -1718,9 +1828,79 @@ func (a_ ApitestT) RespRaw() string {
 	return a_.t.render(&areaApitest, "resp_raw", false, 0)
 }
 
+// RunBadIterations: 반복 횟수가 1~1000 밖일 때의 토스트
+func (a_ ApitestT) RunBadIterations() string {
+	return a_.t.render(&areaApitest, "run_bad_iterations", false, 0)
+}
+
+// RunDelay: 실행기 창: 요청 사이 대기 줄(ms = 밀리초)
+func (a_ ApitestT) RunDelay(ms string) string {
+	return a_.t.render(&areaApitest, "run_delay", false, 0, "ms", ms)
+}
+
+// RunDoneHint: 실행이 끝난 뒤 진행 표 아래 키 안내
+func (a_ ApitestT) RunDoneHint() string {
+	return a_.t.render(&areaApitest, "run_done_hint", false, 0)
+}
+
+// RunEnv: 실행기 창: 환경 고르기 줄(name = 환경 이름)
+func (a_ ApitestT) RunEnv(name string) string {
+	return a_.t.render(&areaApitest, "run_env", false, 0, "name", name)
+}
+
+// RunFailedNet: 실행기 표에서 응답 없이 실패한 줄의 상태 칸(reason = 실패 이유 코드)
+func (a_ ApitestT) RunFailedNet(reason string) string {
+	return a_.t.render(&areaApitest, "run_failed_net", false, 0, "reason", reason)
+}
+
+// RunHostsBody: 공유 컬렉션 실행 전 호스트 목록 창 본문(줄여 쓰지 않음)
+func (a_ ApitestT) RunHostsBody() string {
+	return a_.t.render(&areaApitest, "run_hosts_body", false, 0)
+}
+
+// RunHostsTitle: 공유 컬렉션 실행 전 호스트 목록 창 제목
+func (a_ ApitestT) RunHostsTitle() string {
+	return a_.t.render(&areaApitest, "run_hosts_title", false, 0)
+}
+
+// RunIterations: 실행기 창: 반복 횟수 줄(n = 횟수, 최대 1,000)
+func (a_ ApitestT) RunIterations(n string) string {
+	return a_.t.render(&areaApitest, "run_iterations", false, 0, "n", n)
+}
+
+// RunProgress: 실행기 진행 표 머리 줄(i = 끝난 요청, n = 전체, ok = 통과, fail = 실패)
+func (a_ ApitestT) RunProgress(i int, n int, ok int, fail int) string {
+	return a_.t.render(&areaApitest, "run_progress", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
+}
+
 // RunProgressShort: 초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)
 func (a_ ApitestT) RunProgressShort(i int, n int, ok int, fail int) string {
 	return a_.t.render(&areaApitest, "run_progress_short", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
+}
+
+// RunRunningHint: 실행 중 진행 표 아래 키 안내
+func (a_ ApitestT) RunRunningHint() string {
+	return a_.t.render(&areaApitest, "run_running_hint", false, 0)
+}
+
+// RunStart: 실행기 창의 시작 단추
+func (a_ ApitestT) RunStart() string {
+	return a_.t.render(&areaApitest, "run_start", false, 0)
+}
+
+// RunStopOnFail: 실행기 창: 실패 시 멈춤 줄(state = 켬/끔)
+func (a_ ApitestT) RunStopOnFail(state string) string {
+	return a_.t.render(&areaApitest, "run_stop_on_fail", false, 0, "state", state)
+}
+
+// RunTarget: 실행기 창: 돌릴 범위(name = 컬렉션 또는 폴더 이름)
+func (a_ ApitestT) RunTarget(name string) string {
+	return a_.t.render(&areaApitest, "run_target", false, 0, "name", name)
+}
+
+// RunTitle: 실행기 창 제목
+func (a_ ApitestT) RunTitle() string {
+	return a_.t.render(&areaApitest, "run_title", false, 0)
 }
 
 // SaveBodyPath: 응답 본문 저장 창: 경로 칸 위 안내

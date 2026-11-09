@@ -135,6 +135,9 @@ func (t *Tool) send(ctx *ui.Context) tea.Cmd {
 		return nil
 	}
 	t.ed.store()
+	if t.run != nil {
+		t.run.tiny = false // the tiny view shows this send now
+	}
 	req := cloneRequest(t.req)
 	key := t.respKey()
 	sc := t.snapshot(ctx)

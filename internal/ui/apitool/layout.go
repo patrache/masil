@@ -244,6 +244,10 @@ type dialog struct {
 	prefW       int
 	size        ui.Size
 	cursor      *tea.Cursor
+	// chain, when set, may turn the dialog into the next one on ⏎ (a
+	// non-nil result replaces it in place: no close-then-open between
+	// Cmds, whose order is not fixed).
+	chain func(choice int) *dialog
 }
 
 var (
@@ -319,6 +323,14 @@ func (d *dialog) HandleKey(_ *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	case "esc":
 		return true, d.answer(-1)
 	case "enter":
+		if d.chain != nil {
+			if nd := d.chain(d.sel); nd != nil {
+				size := d.size
+				*d = *nd
+				d.size = size
+				return true, nil
+			}
+		}
 		if len(d.choices) == 0 {
 			return true, d.answer(0)
 		}

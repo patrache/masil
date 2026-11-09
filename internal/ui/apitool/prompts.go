@@ -88,6 +88,8 @@ func registerOverlays() {
 // onDialog follows a closed dialog of this instance.
 func (t *Tool) onDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 	switch m.Kind {
+	case dkRunHosts:
+		return t.runHostsAnswer(ctx, m)
 	case dkEnvAdd, dkEnvValue, dkEnvHosts, dkEnvNew:
 		return t.envDialog(ctx, m)
 	case dkSecret:
@@ -358,8 +360,23 @@ func (t *Tool) openExport(ctx *ui.Context) tea.Cmd {
 		return nil
 	}
 	a := ctx.T.Apitest
-	return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkExport, title: a.ExportTitle(), prefW: 56,
-		choices: []string{a.ExportCurl(), a.ExportCurlPlain(), a.ExportPostman()}})
+	d := &dialog{inst: t.route.ID, kind: dkExport, title: a.ExportTitle(), prefW: 56,
+		choices: []string{a.ExportCurl(), a.ExportCurlPlain(), a.ExportPostman()}}
+	if t.collection(t.colName) != nil {
+		d.chain = func(choice int) *dialog {
+			if choice != 2 {
+				return nil
+			}
+			dir, err := os.UserHomeDir()
+			if err != nil {
+				dir = "."
+			}
+			def := filepath.Join(dir, safeFileName(t.colName)+".postman_collection.json")
+			return &dialog{inst: t.route.ID, kind: dkExportPath, title: a.ExportTitle(), prefW: 72,
+				body: []string{a.ExportPath()}, input: newLineInput(def)}
+		}
+	}
+	return ui.OpenOverlay(d)
 }
 
 // exportChoice runs the chosen export.
@@ -384,17 +401,8 @@ func (t *Tool) exportChoice(ctx *ui.Context, choice int) tea.Cmd {
 			}
 			return ui.Copy(ctx, s, ok)()
 		}
-	case 2:
-		if t.collection(t.colName) == nil {
-			return ui.Toast(a.SaveFirst(), ui.ToastInfo)
-		}
-		dir, err := os.UserHomeDir()
-		if err != nil {
-			dir = "."
-		}
-		def := filepath.Join(dir, safeFileName(t.colName)+".postman_collection.json")
-		return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkExportPath, title: a.ExportTitle(), prefW: 72,
-			body: []string{a.ExportPath()}, input: newLineInput(def)})
+	case 2: // a saved collection chains into the path dialog (openExport)
+		return ui.Toast(a.SaveFirst(), ui.ToastInfo)
 	}
 	return nil
 }

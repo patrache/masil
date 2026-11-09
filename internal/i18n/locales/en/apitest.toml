@@ -314,8 +314,50 @@ other = "Headers {n}"
 [resp_raw]
 other = "Raw"
 
+[run_bad_iterations]
+other = "Iterations are 1 to 1000"
+
+[run_delay]
+other = "Delay between requests {ms}ms"
+
+[run_done_hint]
+other = "⏎ open a failed line's response · esc close"
+
+[run_env]
+other = "Environment ‹ {name} › · h/l"
+
+[run_failed_net]
+other = "failed {reason}"
+
+[run_hosts_body]
+other = "A teammate may have changed requests. This run sends requests to these hosts:"
+
+[run_hosts_title]
+other = "Where this run sends"
+
+[run_iterations]
+other = "Iterations {n} (at most 1000)"
+
+[run_progress]
+other = "Run {i}/{n} · passed {ok} · failed {fail}"
+
 [run_progress_short]
 other = "Run {i}/{n} ✓{ok} ✕{fail}"
+
+[run_running_hint]
+other = "esc stop the run"
+
+[run_start]
+other = "[Run ⏎]"
+
+[run_stop_on_fail]
+other = "Stop on failure {state} · space"
+
+[run_target]
+other = "Scope {name}"
+
+[run_title]
+other = "Runner"
 
 [save_body_path]
 other = "File to save to (this PC only, readable by me)"
