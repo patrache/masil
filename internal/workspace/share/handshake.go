@@ -35,7 +35,8 @@ type queued struct {
 // window.
 //
 // Lock order: the owner's state lock (Host.mu / Guest.mu) -> DocManager.mu ->
-// outMu / evMu. sendMu is only ever taken alone (flush).
+// Host.peerMu -> outMu / evMu. sendMu is only ever taken alone (flush). No
+// state lock is held across a dial (redial releases it).
 type link struct {
 	shareID string
 	dial    DialFunc

@@ -645,7 +645,12 @@ func (h *Host) Docs() *DocManager { return h.docs }
 // a participant's edit, its doc_ack right behind it, sealed under one outbox
 // lock so no other edit can come between. Participant edits are only
 // submitted by the host itself with h.mu held, so h.members may be read.
+// Documents no participant has open (the owner's own files, deny-listed
+// ones such as .env included) are never relayed (spec B7.3, B7.7).
 func (h *Host) onDocSequenced(rel string, seq int64, author int, clientOpID string, op ot.Op) {
+	if !h.peerVisible(rel) {
+		return
+	}
 	var ackTo *member
 	if author >= 1 && author <= int(wire.MaxSeat) {
 		ackTo = h.members[uint8(author)]
@@ -673,6 +678,26 @@ func (h *Host) pathViolation(seat uint8, rel string, err error) string {
 		h.record(audit.EvPathViolation, int(seat), h.users[seat], map[string]any{"rel": rel, "reason": pe.Reason.String()})
 	}
 	return code
+}
+
+// peerVisible reports whether some participant has rel open. peerMu is a
+// leaf lock: it is taken under h.mu or under DocManager.mu (the seq hook,
+// which also runs for the owner's own edits without h.mu).
+func (h *Host) peerVisible(rel string) bool {
+	h.peerMu.Lock()
+	defer h.peerMu.Unlock()
+	return h.peerDocs[rel] > 0
+}
+
+// peerOpen counts one participant's open of rel (delta +1 / -1).
+func (h *Host) peerOpen(rel string, delta int) {
+	h.peerMu.Lock()
+	defer h.peerMu.Unlock()
+	if n := h.peerDocs[rel] + delta; n > 0 {
+		h.peerDocs[rel] = n
+	} else {
+		delete(h.peerDocs, rel)
+	}
 }
 
 func (h *Host) seatOpens(seat uint8) map[string]bool {
@@ -705,6 +730,7 @@ func (h *Host) onDocOpen(seat uint8, m wire.DocOpen) {
 		}
 		clean = v.Rel
 		opens[clean] = true
+		h.peerOpen(clean, 1)
 	}
 	// The state goes out under the manager's lock: no edit can be broadcast
 	// between reading seq and queueing doc_state.
@@ -722,6 +748,7 @@ func (h *Host) onDocOpen(seat uint8, m wire.DocOpen) {
 func (h *Host) onDocClose(seat uint8, m wire.DocClose) {
 	if h.docs != nil && h.opens[seat][m.Doc] {
 		delete(h.opens[seat], m.Doc)
+		h.peerOpen(m.Doc, -1)
 		h.docs.Close(m.Doc)
 	}
 }
@@ -729,6 +756,7 @@ func (h *Host) onDocClose(seat uint8, m wire.DocClose) {
 // closeSeatDocs drops every document seat had open.
 func (h *Host) closeSeatDocs(seat uint8) {
 	for rel := range h.opens[seat] {
+		h.peerOpen(rel, -1)
 		h.docs.Close(rel)
 	}
 	delete(h.opens, seat)
@@ -799,17 +827,21 @@ func (h *Host) onDocPresence(seat uint8, m wire.DocPresence) {
 // Presence shows the owner's cursor in rel to the participants.
 func (h *Host) Presence(rel string, cursor, selFrom, selTo int) {
 	h.mu.Lock()
-	if !h.over {
+	if !h.over && h.peerVisible(rel) {
 		_, _ = h.broadcast(wire.KindDocPresence, 0, mustJSON(wire.DocPresence{Doc: rel, Seat: wire.SeatOwner, Cursor: cursor, SelFrom: selFrom, SelTo: selTo}))
 	}
 	h.mu.Unlock()
 	h.flushManual()
 }
 
-// pumpDocEvents hands document events to the UI and tells the participants.
+// pumpDocEvents hands document events to the UI and tells the participants
+// about the documents they have open.
 func (h *Host) pumpDocEvents(evs []DocEvent) {
 	for _, ev := range evs {
 		h.emit(EventDoc{DocEvent: ev})
+		if !h.peerVisible(docEventRel(ev)) {
+			continue
+		}
 		var n wire.Notice
 		switch e := ev.(type) {
 		case DocDiskMerged:
@@ -825,6 +857,20 @@ func (h *Host) pumpDocEvents(evs []DocEvent) {
 		}
 		_, _ = h.broadcast(wire.KindNotice, 0, mustJSON(n))
 	}
+}
+
+func docEventRel(ev DocEvent) string {
+	switch e := ev.(type) {
+	case DocDiskMerged:
+		return e.Rel
+	case DocDeletedOnDisk:
+		return e.Rel
+	case DocSaved:
+		return e.Rel
+	case DocRecreated:
+		return e.Rel
+	}
+	return ""
 }
 
 // tickDocs runs the document timers and keeps the unsaved count current.

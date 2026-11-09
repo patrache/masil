@@ -113,6 +113,10 @@ type Host struct {
 
 	docs  *DocManager
 	opens map[uint8]map[string]bool // documents each seat has open
+	// peerDocs counts the participants that have each document open (only
+	// those are relayed); under peerMu, a leaf lock.
+	peerMu   sync.Mutex
+	peerDocs map[string]int
 
 	props     []*proposal
 	propSeq   int
@@ -162,7 +166,7 @@ func NewHost(cfg HostConfig) *Host {
 		cfg:  cfg, users: map[uint8]string{}, online: map[uint8]bool{},
 		joins: map[uint8]*joinState{}, members: map[uint8]*member{},
 		propTimes: map[uint8][]time.Time{}, rate: map[uint8]*peerRate{},
-		opens: map[uint8]map[string]bool{},
+		opens: map[uint8]map[string]bool{}, peerDocs: map[string]int{},
 	}
 	h.docs = cfg.Docs
 	if h.docs == nil && cfg.Root != nil {
