@@ -10,7 +10,8 @@ import (
 
 const (
 	darwinPbcopy = "/usr/bin/pbcopy" // absolute: $PATH cannot swap it
-	// wslClip is Windows' clip.exe as WSL mounts it.
+	// wslClip is Windows' clip.exe as WSL mounts it by default (else
+	// clip.exe is looked up on $PATH).
 	wslClip = "/mnt/c/Windows/System32/clip.exe"
 	// wslInterop exists under WSL (with WSL_DISTRO_NAME, the detection).
 	wslInterop = "/proc/sys/fs/binfmt_misc/WSLInterop"
@@ -57,7 +58,7 @@ func remote(h host) bool {
 //   - darwin: /usr/bin/pbcopy with a UTF-8 locale;
 //   - windows: clip.exe from the system directory, UTF-16LE with a BOM;
 //   - other unixes: wl-copy (Wayland), else xclip / xsel (X11), else WSL's
-//     clip.exe; ErrUnavailable when none applies.
+//     clip.exe (/mnt/c, else on $PATH); ErrUnavailable when none applies.
 func commandFor(h host, text string) (command, error) {
 	if remote(h) {
 		return command{}, ErrRemote
@@ -91,8 +92,15 @@ func unixCommand(h host, text string) (command, error) {
 			return command{name: p, args: []string{"--clipboard", "--input"}, input: []byte(text)}, nil
 		}
 	}
-	if h.goos == "linux" && (h.getenv("WSL_DISTRO_NAME") != "" || h.exists(wslInterop)) && h.exists(wslClip) {
-		return command{name: wslClip, input: windowsText(text)}, nil
+	if h.goos == "linux" && (h.getenv("WSL_DISTRO_NAME") != "" || h.exists(wslInterop)) {
+		if h.exists(wslClip) {
+			return command{name: wslClip, input: windowsText(text)}, nil
+		}
+		// another automount root or system drive: WSL appends the Windows
+		// PATH by default
+		if p, err := h.look("clip.exe"); err == nil {
+			return command{name: p, input: windowsText(text)}, nil
+		}
 	}
 	return command{}, ErrUnavailable
 }

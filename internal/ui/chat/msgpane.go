@@ -436,23 +436,34 @@ func (p *msgPane) escDrag(ctx *ui.Context, msg tea.KeyPressMsg) bool {
 }
 
 // handleDrag follows the held button (local is unclipped: above or below the
-// list scrolls it by a line and holds the edge line). The release copies the
-// selected lines (ui.Copy, "복사했어요") once the pointer moved; without motion it
-// is a click and runs the pending open.
+// list scrolls it by a line and holds the edge line; at the first loaded line
+// it loads the older page). The release copies the selected lines (ui.Copy,
+// "복사했어요") once the pointer moved; without motion it is a click and runs
+// the pending open.
 func (p *msgPane) handleDrag(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
 	s := p.sel
 	if s == nil || !s.dragging {
 		return nil
 	}
 	_, release := msg.(tea.MouseReleaseMsg)
-	if at, ok := p.dragRef(ctx, local.Y, !release); ok {
-		s.head = at
-	}
-	if s.head != s.anchor || local.Y != s.y0 || abs(local.X-s.x0) > 1 {
+	// moved is pointer motion only: the rows under a still pointer shift
+	// (a new message while following the bottom, the typing line, the banner),
+	// and a click must stay a click
+	if !release && (local.Y != s.y0 || abs(local.X-s.x0) > 1) {
 		s.moved = true
 	}
+	var more tea.Cmd
+	if s.moved {
+		at, ok, top := p.dragRef(ctx, local.Y, !release)
+		if ok {
+			s.head = at
+		}
+		if top && p.older != nil {
+			more = p.older(ctx) // past the first loaded line: the older page, as the wheel
+		}
+	}
 	if !release {
-		return nil
+		return more
 	}
 	s.dragging = false
 	open := p.pressOpen
@@ -473,14 +484,19 @@ func (p *msgPane) handleDrag(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) 
 
 // dragRef is the line under list row y, clamped into the list (scrolling one
 // line first when scroll and y is past an edge); below the last row it is the
-// last line drawn.
-func (p *msgPane) dragRef(ctx *ui.Context, y int, scroll bool) (lineRef, bool) {
+// last line drawn. top reports a scroll up that found the first loaded line
+// already at the top (the caller loads the older page).
+func (p *msgPane) dragRef(ctx *ui.Context, y int, scroll bool) (ref lineRef, ok, top bool) {
 	h := p.listSize.H
 	if h <= 0 {
-		return lineRef{}, false
+		return lineRef{}, false, false
 	}
 	if y < 0 || y >= h {
 		if scroll {
+			if y < 0 {
+				a := p.list.Anchor()
+				top = len(p.rows) > 0 && a.ItemID == p.rows[0].ID && a.LineOffset == 0
+			}
 			p.list.ScrollBy(ctx, min(max(y, -1), 1))
 			p.list.View(ctx, p.listSize) // refresh RowAt for the new top
 		}
@@ -488,10 +504,10 @@ func (p *msgPane) dragRef(ctx *ui.Context, y int, scroll bool) (lineRef, bool) {
 	}
 	for ; y >= 0; y-- {
 		if id, line, ok := p.lineAt(ctx, y); ok {
-			return lineRef{id: id, line: line}, true
+			return lineRef{id: id, line: line}, true, top
 		}
 	}
-	return lineRef{}, false
+	return lineRef{}, false, top
 }
 
 // selRange is the selection in row order (ai <= bi); false once a row of it
@@ -755,7 +771,7 @@ func (p *msgPane) view(ctx *ui.Context, size ui.Size, focused bool) string {
 	}
 	p.listSize = ui.Size{W: size.W, H: lh}
 	out := strings.Split(p.list.View(ctx, p.listSize), "\n")
-	if p.sel != nil {
+	if p.sel != nil && p.sel.moved { // a press alone (a click) paints nothing
 		p.paintSel(t, out, size.W)
 	}
 	if banner != "" {

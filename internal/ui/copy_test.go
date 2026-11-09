@@ -53,7 +53,9 @@ func TestCopyWritesBothPaths(t *testing.T) {
 	}{
 		{"system ok", nil, ui.ToastMsg{Text: "복사했어요", Kind: ui.ToastSuccess}},
 		{"ssh: OSC 52 is the path", clipboard.ErrRemote, ui.ToastMsg{Text: "복사했어요", Kind: ui.ToastSuccess}},
-		{"no program", clipboard.ErrUnavailable, ui.ToastMsg{Text: ui.CopyHint, Kind: ui.ToastInfo}},
+		// no program: OSC 52 alone may well have worked (kitty, foot, WezTerm…),
+		// so neither a success nor a failure is claimed
+		{"no program", clipboard.ErrUnavailable, ui.ToastMsg{Text: ui.CopySentHint, Kind: ui.ToastInfo}},
 		{"program failed", errors.New("exit status 1"), ui.ToastMsg{Text: ui.CopyHint, Kind: ui.ToastInfo}},
 	}
 	for _, c := range cases {

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"strconv"
@@ -245,6 +246,12 @@ func TestDragCopyFailureHints(t *testing.T) {
 	if tt := toastText(t, h); strings.Contains(tt, msgCopied) {
 		t.Fatalf("toast %q", tt)
 	}
+	// a clipboard program that failed says so outright (the newest toast is on top)
+	h.Clip.Fail(errors.New("exit status 1"))
+	h.Press("y")
+	if tt := toastText(t, h); !strings.HasPrefix(tt, ui.CopyHint) {
+		t.Fatalf("toast %q, want %q", tt, ui.CopyHint)
+	}
 }
 
 // TestDragThread: the thread pane copies root and replies the same way, and
@@ -342,4 +349,113 @@ func TestDragPastTheTopScrolls(t *testing.T) {
 	if n := strings.Count(got, "\n") + 1; n != 6 {
 		t.Fatalf("5 lines scrolled into the selection plus the press line, got %d: %q", n, got)
 	}
+}
+
+// busyDev is #dev with 40 more messages ("줄0".."줄39"), the list following
+// the bottom.
+func busyDev(t *testing.T) *uitest.Harness {
+	t.Helper()
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	dev, minji := devID(t, h), userBy(t, h.Context().Store, "minji")
+	for i := range 40 {
+		h.Event("message.created", realtime.MessageEvent{Message: mkMsg(dev, 900+i, minji, "줄"+strconv.Itoa(i), h.Context().Now())})
+	}
+	return h
+}
+
+// TestClickWhileContentShifts: a press and a release on the same cell are a
+// click even when the rows under the pointer move in between (a new message
+// while following the bottom, the typing line): nothing is copied, the
+// selected row's thread opens, the first click only selects.
+func TestClickWhileContentShifts(t *testing.T) {
+	shifts := map[string]func(h *uitest.Harness, i int){
+		"message.created": func(h *uitest.Harness, i int) {
+			dev, junho := devID(t, h), userBy(t, h.Context().Store, "junho")
+			h.Event("message.created", realtime.MessageEvent{Message: mkMsg(dev, 990+i, junho, "새것"+strconv.Itoa(i), h.Context().Now())})
+		},
+		"typing": func(h *uitest.Harness, _ int) {
+			junho := userBy(t, h.Context().Store, "junho")
+			h.Event("typing", realtime.Typing{ChannelID: devID(t, h), UserID: junho.ID, ExpiresInMS: 6000})
+		},
+	}
+	for name, shift := range shifts {
+		t.Run(name, func(t *testing.T) {
+			h := busyDev(t)
+			want := channelOf(t, h).pane.rows[channelOf(t, h).pane.index[selectIDOf(t, h, "줄38")]].ID
+			for i := range 2 { // the selecting click, then the opening click
+				x, y := posOf(t, h, layout.SlotMain, "줄38")
+				h.Send(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+				shift(h, i)
+				h.Screen()
+				h.Send(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+				if c := h.Clipboards(); len(c) != 0 || len(clipboards(h)) != 0 {
+					t.Fatalf("click %d copied %q", i, c)
+				}
+				if i == 0 {
+					if got := selectedID(t, h); got != want {
+						t.Fatalf("the first click selects 줄38, got %q", got)
+					}
+					if _, ok := threadRoute(h); ok {
+						t.Fatal("the first click opens nothing")
+					}
+				}
+			}
+			if r, ok := threadRoute(h); !ok || r.ID != want {
+				t.Fatalf("the second click opens 줄38's thread: %+v", h.Model.Frame().Routes)
+			}
+		})
+	}
+}
+
+// selectIDOf is the row ID of the message whose body is body.
+func selectIDOf(t *testing.T, h *uitest.Harness, body string) string {
+	t.Helper()
+	for _, r := range channelOf(t, h).pane.rows {
+		if r.Msg != nil && r.Msg.Body == body {
+			return r.ID
+		}
+	}
+	t.Fatalf("no message %q", body)
+	return ""
+}
+
+// TestPressDoesNotFlash: a press alone paints no highlight (a click must not
+// blink its row inverse); the first motion does.
+func TestPressDoesNotFlash(t *testing.T) {
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	x, y := posOf(t, h, layout.SlotMain, "민지 11:02")
+	h.Send(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	if hl := highlighted(h); len(hl) != 0 {
+		t.Fatalf("a press paints %q", hl)
+	}
+	h.Send(tea.MouseMotionMsg{X: x + 1, Y: y, Button: tea.MouseLeft}) // a one-column wobble
+	if hl := highlighted(h); len(hl) != 0 {
+		t.Fatalf("a wobble paints %q", hl)
+	}
+	h.Send(tea.MouseMotionMsg{X: x, Y: y + 1, Button: tea.MouseLeft})
+	if hl := highlighted(h); len(hl) != 2 {
+		t.Fatalf("a drag paints its lines, got %q", hl)
+	}
+}
+
+// TestDragPastTheTopLoadsOlder: held above the list at the first loaded line,
+// the drag fetches the older page as the wheel does.
+func TestDragPastTheTopLoadsOlder(t *testing.T) {
+	h := busyDev(t)
+	dev := devID(t, h)
+	w := chatOf(h.Context()).Window(dev)
+	w.Replace(w.Items(), true, false) // more history before the loaded page
+	path := "/v1/channels/" + dev + "/messages"
+	before := len(reqs(h.API, "GET", path))
+	p, _ := h.Model.Frame().Layout.Pane(layout.SlotMain)
+	in := p.Rect.Inner()
+	h.Send(tea.MouseClickMsg{X: in.X + 3, Y: in.Y + 1, Button: tea.MouseLeft})
+	for range 200 { // enough motions to scroll through the page
+		h.Send(tea.MouseMotionMsg{X: in.X + 3, Y: in.Y - 2, Button: tea.MouseLeft})
+	}
+	got := reqs(h.API, "GET", path)[before:]
+	if len(got) != 1 || !strings.Contains(got[0].Query, "before=") {
+		t.Fatalf("one older-page fetch, got %+v", got)
+	}
+	h.Send(tea.MouseReleaseMsg{X: in.X + 3, Y: in.Y - 2, Button: tea.MouseLeft})
 }
