@@ -63,7 +63,11 @@ type ownerShare struct {
 	sasSeat uint8               // the seat whose check-number dialog is open
 	people  int                 // selected row of the people list
 	tinySel int                 // selected proposal in the tiny summary
-	audit   *audit.Log
+	// cursors: the participants' cursors by document; sentCursor: the
+	// owner's, as last sent
+	cursors    map[string][]peerCursor
+	sentCursor wire.DocPresence
+	audit      *audit.Log
 }
 
 // peerInfo is a participant as the screens name them.
@@ -374,7 +378,10 @@ func (s *Surface) ownerEvent(ctx *ui.Context, ev share.Event) tea.Cmd {
 	case share.EventPeerJoined:
 		s.dropAsked(e.Seat)
 		return ui.Toast(t.PeerJoined(s.peer(ctx, e.Seat, e.UserID).name), ui.ToastInfo)
+	case share.EventPresence:
+		s.onPresence(ctx, e.DocPresence)
 	case share.EventPeerLeft:
+		s.dropCursors(e.Seat)
 		return ui.Toast(t.PeerLeft(s.peer(ctx, e.Seat, e.UserID).name), ui.ToastInfo)
 	case share.EventMITMWarning:
 		s.dropAsked(e.Seat)
@@ -410,6 +417,7 @@ func (s *Surface) shareEnded(ctx *ui.Context) tea.Cmd {
 	}
 	s.own.release()
 	s.own = nil
+	s.clearPeers()
 	if s.docs != nil {
 		s.docs.SetAutosave(false)
 	}

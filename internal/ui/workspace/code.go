@@ -99,6 +99,7 @@ func (s *Surface) attachDoc(ctx *ui.Context, v share.DocView) tea.Cmd {
 	d := &openDoc{rel: v.Rel, seq: v.Seq, base: []rune(v.Text), readOnly: v.ReadOnly, reason: v.Reason}
 	d.ed = editor.New(ctx.Theme, v.Text, v.ReadOnly)
 	s.code.docs = append(s.code.docs, d)
+	s.showPeers(d.rel) // cursors that arrived before the owner opened it
 	s.code.cur = len(s.code.docs) - 1
 	s.code.msg = ""
 	s.setFocus(ctx, PaneCode)
@@ -165,6 +166,7 @@ func (s *Surface) submit(d *openDoc, op ot.Op) bool {
 		return false
 	}
 	d.seq, d.base = seq, after
+	s.shiftCursors(d.rel, applied)
 	return true
 }
 
@@ -185,6 +187,7 @@ func (s *Surface) applyRemote(d *openDoc, seq int64, op ot.Op) {
 	d.ed.ApplyRemote(op)
 	d.undo.Remote(op)
 	d.seq, d.base = seq, after
+	s.shiftCursors(d.rel, op)
 }
 
 // docEvents applies what happened to the open documents on their own.
@@ -247,6 +250,7 @@ func (s *Surface) codeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 	}
 	handled, cmd := d.ed.HandleKey(msg)
 	s.flushOps(d)
+	s.sendPresence(d)
 	if !handled {
 		return msg.String() == "esc", nil // esc stays in the cell (no accidental leave)
 	}

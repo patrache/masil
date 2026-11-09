@@ -13,6 +13,7 @@ import (
 	"github.com/patrache/masil/internal/ui/palette"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/workspace/share"
+	"github.com/patrache/masil/internal/workspace/wire"
 )
 
 // A file delete request in the tiny summary is named as one and needs its
@@ -293,5 +294,45 @@ func TestPaletteCommandsFollowSharing(t *testing.T) {
 	r.shareFriends()
 	if avail("ws.share.start") || !avail("ws.share.end") || !avail("ws.proposals") {
 		t.Fatalf("sharing: start %v end %v proposals %v", avail("ws.share.start"), avail("ws.share.end"), avail("ws.proposals"))
+	}
+}
+
+// The owner sees a participant's cursor with its name in the open file, and
+// the participant sees the owner's cursor move.
+func TestOwnerSeesAndSendsCursors(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	h.Resize(200, 60)
+	r, _, g := sharedTermRig(t, h, fake, "편집", true)
+	if err := g.OpenDoc("README.md"); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	r.s.openDoc(h.Context(), "README.md") // the share's pump is already running
+	if d := r.s.code.current(); d == nil || d.rel != "README.md" {
+		t.Fatalf("README.md not open:\n%s", h.Screen())
+	}
+	g.Presence("README.md", 3, 0, 0)
+	r.settle()
+	if !strings.Contains(h.Screen(), "▌minji") {
+		t.Fatalf("no peer cursor:\n%s", h.Screen())
+	}
+	r.gEv[1] = nil
+	h.Press("l", "l")
+	r.settle()
+	got := -1
+	for _, ev := range r.gEv[1] {
+		if p, ok := ev.(share.EventPresence); ok && p.Doc == "README.md" && p.Seat == wire.SeatOwner {
+			got = p.Cursor
+		}
+	}
+	if got != 2 {
+		t.Fatalf("the participant saw the owner's cursor at %d", got)
+	}
+	// a participant leaving takes their cursor away
+	g.Leave()
+	r.settle()
+	if strings.Contains(h.Screen(), "▌minji") {
+		t.Fatalf("the cursor stayed after leaving:\n%s", h.Screen())
 	}
 }
