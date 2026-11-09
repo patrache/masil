@@ -418,8 +418,9 @@ func TestAlertOSNotificationOffUpdate(t *testing.T) {
 
 // An alert whose target type core does not know asks ui.AlertTargetCmd (P2-P4
 // register "workspace_share", "doc:arch", "doc:apicol"); enter on its toast
-// runs the registered Cmd instead of opening the inbox. Unregistered types and
-// a registered func returning nil keep the 0.1.2 inbox fallback.
+// runs the registered Cmd instead of opening the inbox. A registered func
+// returning nil (its tool's flag is off) opens nothing (CA 5.3.6); an
+// unregistered type keeps the 0.1.2 inbox fallback.
 func TestAlertEnterUsesRegistry(t *testing.T) {
 	t.Cleanup(ui.SnapshotRegistryForTest())
 	var opened []string
@@ -450,13 +451,25 @@ func TestAlertEnterUsesRegistry(t *testing.T) {
 		t.Fatal("the opened toast is dismissed")
 	}
 
-	// doc_type apicol falls to "doc", whose func returns nil => inbox (as before).
+	// doc_type apicol falls to "doc", whose func returns nil => nothing opens.
 	api2 := arch
 	api2.ID, api2.Target.DocType = "RD2", "apicol"
 	sendAlert(h, api2)
 	h.Press("enter")
+	if n := h.Nav(); !reflect.DeepEqual(n, before) || len(opened) != 1 {
+		t.Fatalf("nil Cmd: nav = %+v opened = %v, want nothing opened", n, opened)
+	}
+	if hasAlertToast(h) {
+		t.Fatal("the nil-Cmd toast is dismissed")
+	}
+
+	// An unregistered unknown type keeps the inbox fallback.
+	share := arch
+	share.ID, share.Target = "RD5", api.AlertTarget{Type: "workspace_share", ID: "WS1"}
+	sendAlert(h, share)
+	h.Press("enter")
 	if n := h.Nav(); !navShows(n, app.NotifRoute) || len(opened) != 1 {
-		t.Fatalf("nil Cmd: nav = %+v opened = %v, want the inbox", n, opened)
+		t.Fatalf("unregistered: nav = %+v opened = %v, want the inbox", n, opened)
 	}
 
 	// A click on the toast takes the same path.
@@ -470,6 +483,21 @@ func TestAlertEnterUsesRegistry(t *testing.T) {
 	h2.Click(box.Rect.X+2, box.Rect.Y+1)
 	if !reflect.DeepEqual(opened, []string{"DOC1", "DOC1"}) {
 		t.Fatalf("click: opened = %v", opened)
+	}
+	// A click on a nil-Cmd toast opens nothing either.
+	before2 := h2.Nav()
+	api2.ID = "RD4"
+	sendAlert(h2, api2)
+	box = h2.Model.Frame().Toast
+	if box == nil {
+		t.Fatalf("no toast box\n%s", h2.Screen())
+	}
+	h2.Click(box.Rect.X+2, box.Rect.Y+1)
+	if n := h2.Nav(); !reflect.DeepEqual(n, before2) || len(opened) != 2 {
+		t.Fatalf("click nil Cmd: nav = %+v opened = %v, want nothing opened", n, opened)
+	}
+	if hasAlertToast(h2) {
+		t.Fatal("the clicked nil-Cmd toast is dismissed")
 	}
 }
 

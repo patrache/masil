@@ -14,7 +14,7 @@
 
 - 내 판단: 생성기 param 규칙은 `alerts` 영역만 완화했다 — 언어마다 쓰는 param ⊆ 선언, 모든 언어의 합집합 = 선언(서버 Task 8 규칙과 같음, ko `doc.comment_mention` 은 `{space}` 를 뺌). `internal/i18n/gen` 은 Files 목록 밖이다.
 - 내 판단: 계획의 "알림함 enter" 는 ToastAlert 의 enter·클릭으로 옮겼다 — 알림함 목록은 `api.Notification` 이라 alert 가 아니다.
-- 내 판단: 등록 안 된 target, 또는 등록된 함수가 nil Cmd 를 돌려주면 지금의 알림함 경로로 간다(기존 시험·골든 그대로).
+- 내 판단: 등록 안 된 target 은 지금의 알림함 경로로 간다(기존 시험·골든 그대로). 등록된 함수가 nil Cmd 를 돌려주면 토스트만 닫고 아무 화면도 열지 않는다(계획·CA 5.3.6 그대로 — 처음엔 알림함으로 보냈다가 리뷰 뒤 고침).
 - 내 판단: 본문 출처는 카탈로그에 `<id>_body` 키가 있으면 템플릿, 없으면 서버 `a.Body`(Sanitize). Go 쪽에 body 종류 표를 따로 두지 않았다.
 - 내 판단: zh-Hans alerts 문구는 서버 초안을 그대로 옮겼다.
 - 내 판단: 데몬 `ledgerSink` 의 언어는 시작할 때와 설정 다시 읽기 때 `setLang` 으로 따라간다.

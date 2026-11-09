@@ -125,7 +125,8 @@ func (m *Model) alertUI(ev realtime.Event, a api.Alert, viewing bool, now time.T
 
 // coreKnowsTarget reports whether alertTargetRoute resolves a's target itself; the
 // others (doc, workspace_share, ...) open through ui.AlertTargetCmd when a screen
-// registered them, and fall back to the inbox route otherwise.
+// registered them (nothing opens when its opener gives nil), and fall back to the
+// inbox route otherwise.
 func coreKnowsTarget(a api.Alert) bool {
 	switch a.Kind {
 	case api.AlertFocusSummary, api.AlertFriendRequest:
@@ -139,10 +140,11 @@ func coreKnowsTarget(a api.Alert) bool {
 }
 
 // openToastTarget is what opening an alert toast does: the registered opener of an
-// unknown target when it gives a Cmd, else navigating to the toast's route.
+// unknown target (a nil Cmd — its tool's flag is off — opens nothing, CA 5.3.6),
+// else navigating to the toast's route.
 func (m *Model) openToastTarget(it toastItem) tea.Cmd {
 	if it.alert != nil {
-		if cmd, ok := ui.AlertTargetCmd(m.ctx, *it.alert); ok && cmd != nil {
+		if cmd, ok := ui.AlertTargetCmd(m.ctx, *it.alert); ok {
 			return cmd
 		}
 	}

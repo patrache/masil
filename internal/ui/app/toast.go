@@ -188,8 +188,8 @@ func (m *Model) clickToast(msg tea.MouseClickMsg) (tea.Cmd, bool) {
 		return nil, true
 	}
 	if open.alert != nil {
-		if cmd, ok := ui.AlertTargetCmd(m.ctx, *open.alert); ok && cmd != nil {
-			return cmd, true
+		if cmd, ok := ui.AlertTargetCmd(m.ctx, *open.alert); ok {
+			return cmd, true // nil when its tool's flag is off: nothing opens
 		}
 	}
 	return ui.Navigate(*open.msg.Route), true
