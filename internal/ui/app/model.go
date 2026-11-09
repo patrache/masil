@@ -407,7 +407,7 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case unauthorizedMsg, upgradeMsg: // the flags were taken at the start of Update
 		return m, nil
 	case logoutConfirmedMsg:
-		return m, m.logoutConfirmed()
+		return m, m.logoutConfirmed(msg.wipeTools)
 	case logoutDoneMsg:
 		if msg.err != nil {
 			slog.Debug("logout request failed; logging out locally", "err", msg.err)

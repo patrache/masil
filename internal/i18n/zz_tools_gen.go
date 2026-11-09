@@ -11,6 +11,73 @@ type ToolsT struct{ t *T }
 var areaTools = area{
 	name: "tools",
 	keys: map[string]*entry{
+		"backend_credman": {
+			desc: "비밀값 보관 위치: Windows 자격 증명 관리자(설정 도구 로그인 줄·API 환경 화면)",
+			text: map[Locale]Forms{
+				Ko: {Other: "자격 증명 관리자"},
+				En: {Other: "Credential Manager"},
+			},
+		},
+		"backend_file": {
+			desc:       "비밀값 보관 위치: 0600 일반 파일 — 같은 PC 에 접근할 수 있는 사람은 볼 수 있다는 경고(줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "일반 파일(권한 600) — 이 PC 에 접근할 수 있는 사람은 볼 수 있어요"},
+				En: {Other: "Plain file (mode 600) — anyone with access to this PC can read it"},
+			},
+		},
+		"backend_keychain": {
+			desc: "비밀값 보관 위치: macOS 키체인",
+			text: map[Locale]Forms{
+				Ko: {Other: "키체인"},
+				En: {Other: "Keychain"},
+			},
+		},
+		"backend_memory": {
+			desc: "비밀값 보관 위치: 이번 실행 동안만 메모리에(끝내면 사라짐)",
+			text: map[Locale]Forms{
+				Ko: {Other: "이번 실행만"},
+				En: {Other: "This run only"},
+			},
+		},
+		"backend_secret_service": {
+			desc: "비밀값 보관 위치: Linux Secret Service(제품 이름, 번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "Secret Service"},
+				En: {Other: "Secret Service"},
+			},
+		},
+		"consent_file": {
+			desc: "키체인을 쓸 수 없을 때의 동의 대화상자 선택지 ①",
+			text: map[Locale]Forms{
+				Ko: {Other: "① 파일에 저장"},
+				En: {Other: "① Save to a file"},
+			},
+		},
+		"consent_footer": {
+			desc: "동의 대화상자 바닥 줄 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "1·2 고르기 · enter 확인 · esc 취소"},
+				En: {Other: "1·2 choose · enter confirm · esc cancel"},
+			},
+		},
+		"consent_question": {
+			desc:       "키체인을 쓸 수 없을 때 저장 직전에 묻는 문장(두 선택지 설명 포함, 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "키체인을 쓸 수 없어요. ① 파일에 저장(이 PC 의 내 계정만 읽을 수 있어요) ② 이번 실행 동안만 기억"},
+				En: {Other: "The keychain is unavailable. ① Save to a file (only your account on this PC can read it) ② Remember for this run only"},
+			},
+		},
+		"consent_session": {
+			desc: "키체인을 쓸 수 없을 때의 동의 대화상자 선택지 ②(기본)",
+			text: map[Locale]Forms{
+				Ko: {Other: "② 이번 실행 동안만 기억"},
+				En: {Other: "② Remember for this run only"},
+			},
+		},
 		"help_group": {
 			desc: "도움말 화면의 묶음 머리: 도구 표면 키",
 			text: map[Locale]Forms{
@@ -68,6 +135,65 @@ var areaTools = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "도구는 {max}개까지 열 수 있어요 · 허브에서 하나를 닫아 주세요"},
 				En: {Other: "Up to {max} tools can be open · close one in the hub"},
+			},
+		},
+		"logins_forget": {
+			desc: "설정 도구 로그인 줄 끝의 지우기 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "[지우기]"},
+				En: {Other: "[Forget]"},
+			},
+		},
+		"logins_forget_body": {
+			desc:       "도구 로그인 지우기 확인 대화상자 본문(무엇을 하는지, 줄여 쓰지 않음)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 기기에 저장한 로그인 정보를 지워요. 다시 쓰려면 다시 로그인해야 해요."},
+				En: {Other: "Removes the login saved on this device. You will need to sign in again to use it."},
+			},
+		},
+		"logins_forget_failed": {
+			desc: "도구 로그인 지우기가 실패했을 때 줄 아래 오류",
+			text: map[Locale]Forms{
+				Ko: {Other: "지우지 못했어요"},
+				En: {Other: "Couldn't forget it"},
+			},
+		},
+		"logins_forget_no": {
+			desc: "도구 로그인 지우기 확인 대화상자의 취소 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
+		"logins_forget_title": {
+			desc:   "도구 로그인 지우기 확인 대화상자 제목(tool = 도구 이름)",
+			params: []Param{{Name: "tool", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{tool} 로그인을 지울까요?"},
+				En: {Other: "Forget the {tool} login?"},
+			},
+		},
+		"logins_forget_yes": {
+			desc: "도구 로그인 지우기 확인 대화상자의 지우기 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "지우기"},
+				En: {Other: "Forget"},
+			},
+		},
+		"logins_section": {
+			desc: "설정 화면 묶음 이름: 도구마다 저장한 로그인과 보관 위치",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 로그인"},
+				En: {Other: "Tool logins"},
+			},
+		},
+		"logout_wipe": {
+			desc:       "로그아웃 대화상자의 선택지(기본 꺼짐): 이 기기의 도구 비밀값도 함께 지움",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 기기의 도구 로그인도 지우기"},
+				En: {Other: "Also forget tool logins on this device"},
 			},
 		},
 		"menu_footer": {
@@ -148,6 +274,13 @@ var areaTools = area{
 				En: {Other: "Wide tool view"},
 			},
 		},
+		"prompt_footer": {
+			desc: "비밀값 입력 대화상자 바닥 줄 키 안내(값은 가림표로만 보임)",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 저장 · esc 취소"},
+				En: {Other: "enter save · esc cancel"},
+			},
+		},
 		"slash_desc": {
 			desc: "입력창 /tools 자동 완성·도움말 설명",
 			text: map[Locale]Forms{
@@ -164,6 +297,51 @@ var areaTools = area{
 			},
 		},
 	},
+}
+
+// BackendCredman: 비밀값 보관 위치: Windows 자격 증명 관리자(설정 도구 로그인 줄·API 환경 화면)
+func (a_ ToolsT) BackendCredman() string {
+	return a_.t.render(&areaTools, "backend_credman", false, 0)
+}
+
+// BackendFile: 비밀값 보관 위치: 0600 일반 파일 — 같은 PC 에 접근할 수 있는 사람은 볼 수 있다는 경고(줄여 쓰지 않음)
+func (a_ ToolsT) BackendFile() string {
+	return a_.t.render(&areaTools, "backend_file", false, 0)
+}
+
+// BackendKeychain: 비밀값 보관 위치: macOS 키체인
+func (a_ ToolsT) BackendKeychain() string {
+	return a_.t.render(&areaTools, "backend_keychain", false, 0)
+}
+
+// BackendMemory: 비밀값 보관 위치: 이번 실행 동안만 메모리에(끝내면 사라짐)
+func (a_ ToolsT) BackendMemory() string {
+	return a_.t.render(&areaTools, "backend_memory", false, 0)
+}
+
+// BackendSecretService: 비밀값 보관 위치: Linux Secret Service(제품 이름, 번역하지 않음)
+func (a_ ToolsT) BackendSecretService() string {
+	return a_.t.render(&areaTools, "backend_secret_service", false, 0)
+}
+
+// ConsentFile: 키체인을 쓸 수 없을 때의 동의 대화상자 선택지 ①
+func (a_ ToolsT) ConsentFile() string {
+	return a_.t.render(&areaTools, "consent_file", false, 0)
+}
+
+// ConsentFooter: 동의 대화상자 바닥 줄 키 안내
+func (a_ ToolsT) ConsentFooter() string {
+	return a_.t.render(&areaTools, "consent_footer", false, 0)
+}
+
+// ConsentQuestion: 키체인을 쓸 수 없을 때 저장 직전에 묻는 문장(두 선택지 설명 포함, 줄여 쓰지 않음)
+func (a_ ToolsT) ConsentQuestion() string {
+	return a_.t.render(&areaTools, "consent_question", false, 0)
+}
+
+// ConsentSession: 키체인을 쓸 수 없을 때의 동의 대화상자 선택지 ②(기본)
+func (a_ ToolsT) ConsentSession() string {
+	return a_.t.render(&areaTools, "consent_session", false, 0)
 }
 
 // HelpGroup: 도움말 화면의 묶음 머리: 도구 표면 키
@@ -204,6 +382,46 @@ func (a_ ToolsT) KeyZoom() string {
 // LimitToast: 도구 표면에 더 열 수 없을 때의 토스트(허브 포함 개수)
 func (a_ ToolsT) LimitToast(max int) string {
 	return a_.t.render(&areaTools, "limit_toast", false, 0, "max", strconv.Itoa(max))
+}
+
+// LoginsForget: 설정 도구 로그인 줄 끝의 지우기 단추
+func (a_ ToolsT) LoginsForget() string {
+	return a_.t.render(&areaTools, "logins_forget", false, 0)
+}
+
+// LoginsForgetBody: 도구 로그인 지우기 확인 대화상자 본문(무엇을 하는지, 줄여 쓰지 않음)
+func (a_ ToolsT) LoginsForgetBody() string {
+	return a_.t.render(&areaTools, "logins_forget_body", false, 0)
+}
+
+// LoginsForgetFailed: 도구 로그인 지우기가 실패했을 때 줄 아래 오류
+func (a_ ToolsT) LoginsForgetFailed() string {
+	return a_.t.render(&areaTools, "logins_forget_failed", false, 0)
+}
+
+// LoginsForgetNo: 도구 로그인 지우기 확인 대화상자의 취소 단추
+func (a_ ToolsT) LoginsForgetNo() string {
+	return a_.t.render(&areaTools, "logins_forget_no", false, 0)
+}
+
+// LoginsForgetTitle: 도구 로그인 지우기 확인 대화상자 제목(tool = 도구 이름)
+func (a_ ToolsT) LoginsForgetTitle(tool string) string {
+	return a_.t.render(&areaTools, "logins_forget_title", false, 0, "tool", tool)
+}
+
+// LoginsForgetYes: 도구 로그인 지우기 확인 대화상자의 지우기 단추
+func (a_ ToolsT) LoginsForgetYes() string {
+	return a_.t.render(&areaTools, "logins_forget_yes", false, 0)
+}
+
+// LoginsSection: 설정 화면 묶음 이름: 도구마다 저장한 로그인과 보관 위치
+func (a_ ToolsT) LoginsSection() string {
+	return a_.t.render(&areaTools, "logins_section", false, 0)
+}
+
+// LogoutWipe: 로그아웃 대화상자의 선택지(기본 꺼짐): 이 기기의 도구 비밀값도 함께 지움
+func (a_ ToolsT) LogoutWipe() string {
+	return a_.t.render(&areaTools, "logout_wipe", false, 0)
 }
 
 // MenuFooter: 여는 방식 메뉴의 바닥 줄 키 안내
@@ -259,6 +477,11 @@ func (a_ ToolsT) PaletteToggle() string {
 // PaletteZoom: 명령 팔레트: 활성 도구의 넓게 보기 켜고 끄기
 func (a_ ToolsT) PaletteZoom() string {
 	return a_.t.render(&areaTools, "palette_zoom", false, 0)
+}
+
+// PromptFooter: 비밀값 입력 대화상자 바닥 줄 키 안내(값은 가림표로만 보임)
+func (a_ ToolsT) PromptFooter() string {
+	return a_.t.render(&areaTools, "prompt_footer", false, 0)
 }
 
 // SlashDesc: 입력창 /tools 자동 완성·도움말 설명

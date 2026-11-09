@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/features"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -29,7 +30,8 @@ const (
 type helpMsg struct{}
 
 // logoutConfirmedMsg is sent when the logout Confirm is accepted (logoutConfirmed, sync.go).
-type logoutConfirmedMsg struct{}
+// wipeTools: the dialog's "이 기기의 도구 로그인도 지우기" was checked (v0.1.3 A9.4).
+type logoutConfirmedMsg struct{ wipeTools bool }
 
 // reconnectMsg restarts the realtime client (the "reconnect" command, bridge.go).
 type reconnectMsg struct{}
@@ -108,10 +110,7 @@ func init() {
 	palette.Register(palette.Command{
 		ID: "logout", Title: "로그아웃", Group: palette.GroupCommand,
 		Keywords: []string{"logout", "sign out"},
-		Run: func(*ui.Context, string) tea.Cmd {
-			return ui.OpenOverlay(widgets.Confirm("로그아웃할까요?", "이 기기에서 로그아웃해요.", "로그아웃", "취소",
-				msgCmd(logoutConfirmedMsg{})))
-		},
+		Run:      func(ctx *ui.Context, _ string) tea.Cmd { return logoutDialog(ctx) },
 	})
 	palette.Register(palette.Command{
 		ID: "quit", Title: "종료", Group: palette.GroupCommand, KeyHint: "ctrl+c ctrl+c",
@@ -186,4 +185,17 @@ func (m *Model) setTheme(n theme.Name) tea.Cmd {
 	}
 	cmds = append(cmds, m.broadcast(ui.ThemeChangedMsg{Theme: t}))
 	return tea.Batch(cmds...)
+}
+
+// logoutDialog is the logout Confirm. With a tool feature on it carries the
+// "이 기기의 도구 로그인도 지우기" option (off at first, v0.1.3 A9.4); with every
+// flag off it is the 0.1.2 dialog unchanged.
+func logoutDialog(ctx *ui.Context) tea.Cmd {
+	const title, body, yes, no = "로그아웃할까요?", "이 기기에서 로그아웃해요.", "로그아웃", "취소"
+	if !features.Any() {
+		return ui.OpenOverlay(widgets.Confirm(title, body, yes, no, msgCmd(logoutConfirmedMsg{})))
+	}
+	return ui.OpenOverlay(widgets.ConfirmCheck(title, body, ctx.T.Tools.LogoutWipe(), yes, no, func(wipe bool) tea.Cmd {
+		return msgCmd(logoutConfirmedMsg{wipeTools: wipe})
+	}))
 }

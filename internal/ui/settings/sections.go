@@ -15,6 +15,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -56,7 +57,20 @@ var sections = []section{
 	{secBlocks, "차단 목록"},
 	{secSessions, "기기·세션"},
 	{secPassword, "비밀번호"},
+	{secTools, ""}, // "도구 로그인" (catalog; drawn only with rows, toollogins.go)
 	{secLogout, "로그아웃"},
+}
+
+// sectionTitle is sec's title in the shown language where it comes from the
+// catalog (the tool logins section), else its Korean title.
+func sectionTitle(ctx *ui.Context, sec section) string {
+	if sec.id == secTools {
+		if ctx != nil && ctx.T != nil {
+			return ctx.T.Tools.LoginsSection()
+		}
+		return i18n.KoT().Tools.LoginsSection()
+	}
+	return sec.title
 }
 
 // sectionIndex is the index of section id in sections (-1 = unknown).
@@ -204,6 +218,9 @@ type row struct {
 	info  string // kindInfo / state rows: the text
 	bad   bool   // info is an error (Error style, enter retries)
 	field *field // number / password: the edited field
+	// wrapSub: a sub that does not fit after the label wraps on its own lines
+	// instead of being cut (tool login rows: the storage warning is never cut).
+	wrapSub bool
 }
 
 // passwordRows are the password field rows, in order.
@@ -297,6 +314,10 @@ func (s *screen) rows(ctx *ui.Context) []row {
 		submit.sub = textPwBusy
 	}
 	add(submit)
+	// tool logins (v0.1.3 A9.4)
+	for _, r := range s.toolLoginRows(ctx) {
+		add(r)
+	}
 	// logout
 	add(row{id: rowLogout, sec: secLogout, kind: kindAction, label: "로그아웃", sub: textLogoutHint})
 	return out
@@ -448,6 +469,8 @@ func (s *screen) act(ctx *ui.Context, r row) tea.Cmd {
 	switch {
 	case r.id == rowLogout:
 		return ui.RunCommand("logout", "") // the same Confirm as the palette command
+	case strings.HasPrefix(r.id, rowToolPrefix):
+		return s.confirmForget(ctx, r)
 	case r.id == rowSettingsErr:
 		s.settingsErr = ""
 		return s.fetchSettings(ctx)

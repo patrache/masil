@@ -3,6 +3,7 @@ package settings
 
 import (
 	"image/color"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -254,6 +255,10 @@ func (s *screen) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		case m.Tag == tagPassword:
 			return s.onPassword(ctx, m)
 		}
+	case toolLoginForgetMsg:
+		return s.forget(ctx, m.tool)
+	case toolLoginForgotMsg:
+		s.onToolLoginForgot(ctx, m)
 	case ui.EventMsg:
 		switch m.Event.Type {
 		case "block.updated":
@@ -445,7 +450,7 @@ func (s *screen) View(ctx *ui.Context, focused bool) string {
 	if w >= wideMin && len(rows) > 0 {
 		s.navCols = navW
 		cur := rows[s.selIdx].sec
-		left := s.navLines(t, cur, h)
+		left := s.navLines(ctx, t, rows, cur, h)
 		sep := t.S.Base.Foreground(t.P.Line).Render("│")
 		right := s.column(ctx, t, rows, cur, w-navW-1, h, focused, navW+1)
 		for y := range out {
@@ -458,22 +463,27 @@ func (s *screen) View(ctx *ui.Context, focused bool) string {
 }
 
 // navLines is the left section list (exactly h lines of navW cells), scrolled so the
-// current section stays visible.
-func (s *screen) navLines(t *theme.Theme, cur string, h int) []string {
-	ci := max(sectionIndex(cur), 0)
+// current section stays visible. The tool logins section is listed only while it
+// has rows.
+func (s *screen) navLines(ctx *ui.Context, t *theme.Theme, rows []row, cur string, h int) []string {
+	shown := sections
+	if !slices.ContainsFunc(rows, func(r row) bool { return r.sec == secTools }) {
+		shown = slices.DeleteFunc(slices.Clone(sections), func(sec section) bool { return sec.id == secTools })
+	}
+	ci := max(slices.IndexFunc(shown, func(sec section) bool { return sec.id == cur }), 0)
 	start := 0
-	if len(sections) > h {
-		start = min(max(ci-h/2, 0), len(sections)-h)
+	if len(shown) > h {
+		start = min(max(ci-h/2, 0), len(shown)-h)
 	}
 	out := make([]string, h)
 	for y := range out {
 		i := start + y
-		if i >= len(sections) {
+		if i >= len(shown) {
 			out[y] = pad(t, navW)
 			continue
 		}
-		sec := sections[i]
-		text := textwidth.PadRight(" "+sec.title, navW)
+		sec := shown[i]
+		text := textwidth.PadRight(" "+sectionTitle(ctx, sec), navW)
 		if sec.id == cur {
 			out[y] = t.S.Selected.Render(text)
 		} else {
@@ -495,7 +505,7 @@ func (s *screen) column(ctx *ui.Context, t *theme.Theme, rows []row, sec string,
 	cw := max(1, w-2*padX)
 	var head []string
 	if sec != "" && h >= 6 {
-		title := sections[max(sectionIndex(sec), 0)].title
+		title := sectionTitle(ctx, sections[max(sectionIndex(sec), 0)])
 		head = []string{t.S.Title.Render(title), ""}
 	}
 	labelW := labelWidths(rows, cw)
@@ -513,7 +523,7 @@ func (s *screen) column(ctx *ui.Context, t *theme.Theme, rows []row, sec string,
 				lines = append(lines, line{cursor: -1})
 			}
 			a = len(lines)
-			lines = append(lines, line{text: t.S.Title.Render(sections[max(sectionIndex(r.sec), 0)].title), cursor: -1})
+			lines = append(lines, line{text: t.S.Title.Render(sectionTitle(ctx, sections[max(sectionIndex(r.sec), 0)])), cursor: -1})
 		}
 		prevSec = r.sec
 		selected := r.id == s.sel
@@ -709,6 +719,11 @@ func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, la
 	switch {
 	case value == "" && headW+tailW <= cw:
 		lines = append(lines, head+tail)
+	case value == "" && r.wrapSub:
+		lines = append(lines, head)
+		for _, l := range textwidth.Wrap(textwidth.Sanitize(r.sub), max(1, cw-valueIndent)) {
+			lines = append(lines, indent+t.S.Dim.Render(l))
+		}
 	case value == "":
 		lines = append(lines, head, indent+tailOwn)
 	case headW+1+valW+tailW <= cw:

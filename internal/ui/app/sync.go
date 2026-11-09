@@ -245,16 +245,26 @@ func (n NavState) pruneChannels(known func(id string) bool) NavState {
 
 // logoutConfirmed is the confirmed "logout" command: POST /v1/auth/logout with the
 // current token, then the local logout whatever the outcome (logoutDoneMsg).
-func (m *Model) logoutConfirmed() tea.Cmd {
+// wipeTools also removes this masil account's tool secrets on this device
+// (secrets.DeleteAll; the scope is read now, before the session ends).
+func (m *Model) logoutConfirmed(wipeTools bool) tea.Cmd {
 	if m.login != nil || m.loggingOut {
 		return nil
 	}
 	m.loggingOut = true
 	client := m.ctx.API
+	st := m.ctx.Secrets
+	server, user, scoped := m.ctx.SecretScope()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), logoutTimeout)
 		defer cancel()
-		return logoutDoneMsg{err: client.Logout(ctx)}
+		err := client.Logout(ctx)
+		if wipeTools && scoped && st != nil {
+			if werr := st.DeleteAll(ctx, server, user); werr != nil {
+				slog.Warn("wipe tool logins", "err", werr)
+			}
+		}
+		return logoutDoneMsg{err: err}
 	}
 }
 
