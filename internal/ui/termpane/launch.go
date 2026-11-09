@@ -21,7 +21,7 @@ import (
 type Launched struct {
 	Mode termhost.Mode
 	Pane *termhost.Pane // pane mode only
-	View *Pane          // pane mode only: the tool shows it (a ui.Component; the app Inits it)
+	View *Pane          // pane mode only: the tool shows it (a ui.Component; Init is not needed)
 }
 
 // CwdMsg reports the program's working folder (OSC 7) — pane mode only.
@@ -57,8 +57,9 @@ func init() {
 //
 //   - pane: StartPane at 80x24 (the first draw resizes it) and New(pane,
 //     opts). Its screen changes are posted coalesced as DirtyMsg, OSC 7 as
-//     CwdMsg, bells and OSC 9/777 as NotifyMsg; the view posts ExitedMsg once
-//     the program ends (after the app Inits it) and calls opts.OnExit.
+//     CwdMsg, bells and OSC 9/777 as NotifyMsg; ExitedMsg is posted once the
+//     program ends (Launch watches it: the view needs no Init), and the view
+//     calls opts.OnExit when that msg reaches its Update.
 //   - exec: the returned Cmd is termhost.Exec; its end is ExitedMsg.
 //   - window: termhost.Popup; a goroutine posts ExitedMsg when it closes.
 //
@@ -102,7 +103,9 @@ func launch(ctx *ui.Context, req termhost.Request, opts Options) (Launched, tea.
 		if err != nil {
 			return Launched{}, toast, err
 		}
-		return Launched{Mode: termhost.ModePane, Pane: p, View: New(p, opts)}, toast, nil
+		view := New(p, opts)
+		view.watchExit(post) // the tool need not Init the view for its end to arrive
+		return Launched{Mode: termhost.ModePane, Pane: p, View: view}, toast, nil
 	case termhost.ModeWindow:
 		ch, err := popupProgram(req)
 		if err != nil {

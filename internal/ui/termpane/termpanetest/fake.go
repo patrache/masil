@@ -76,7 +76,8 @@ func (f *Fake) Keys(instanceID string) []string {
 	return h.gotKeys()
 }
 
-// Exit ends instance instanceID's program with code: the msg to Send. A
+// Exit ends instance instanceID's program with code: the msg to Send (the
+// real Launch posts it by itself; neither needs the view to be Init'd). A
 // pane stops counting toward the limit.
 func (f *Fake) Exit(instanceID string, code int) tea.Msg {
 	f.mu.Lock()

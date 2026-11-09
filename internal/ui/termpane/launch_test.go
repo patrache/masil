@@ -241,7 +241,6 @@ func TestLaunchExitedMsgAllModes(t *testing.T) {
 	if err != nil || l.View == nil {
 		t.Fatalf("pane launch: %+v %v", l, err)
 	}
-	l.View.Init(ctx)
 	if m := post.wait(t, isExited("git:pane")).(termpane.ExitedMsg); m.Info.Code != 3 {
 		t.Errorf("pane exit = %+v", m)
 	}
@@ -273,6 +272,28 @@ func TestLaunchExitedMsgAllModes(t *testing.T) {
 		if n := post.count(isExited(id)); n != 1 {
 			t.Errorf("%s: %d ExitedMsg, want 1", id, n)
 		}
+	}
+}
+
+// A tool keeps Launched.View inside its own component and may never Init it:
+// the end still arrives as ExitedMsg (Launch watches the pane itself), once,
+// and a later Init does not start a second watcher.
+func TestLaunchPaneExitedWithoutInit(t *testing.T) {
+	needPTY(t)
+	fakeEnv(t, darwin)
+	ctx, post := launchCtx(layout.ModeStandard)
+	l, _, err := termpane.Launch(ctx, termhost.Request{Program: "/bin/sh", Args: []string{"-c", "exit 4"}, ToolID: ui.ToolGit},
+		termpane.Options{ToolID: ui.ToolGit, InstanceID: "git:noinit"})
+	if err != nil || l.View == nil {
+		t.Fatalf("pane launch: %+v %v", l, err)
+	}
+	if m := post.wait(t, isExited("git:noinit")).(termpane.ExitedMsg); m.Info.Code != 4 {
+		t.Errorf("exit = %+v", m)
+	}
+	l.View.Init(ctx)
+	time.Sleep(50 * time.Millisecond)
+	if n := post.count(isExited("git:noinit")); n != 1 {
+		t.Errorf("%d ExitedMsg, want 1", n)
 	}
 }
 

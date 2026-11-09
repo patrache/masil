@@ -124,15 +124,25 @@ func (p *Pane) Exited() (termhost.ExitInfo, bool) { return p.info, p.exited }
 // not left it (ctrl+\ esc), every key goes to it.
 func (p *Pane) GrabsKeys() bool { return !p.exited && p.grab }
 
-// Init starts the exit watcher: when the program ends, ExitedMsg is posted.
+// Init starts the exit watcher (once; Launch already started it for its
+// views): when the program ends, ExitedMsg is posted.
 func (p *Pane) Init(ctx *ui.Context) tea.Cmd {
-	if p.started || ctx == nil || ctx.Post == nil {
-		return nil
+	if ctx != nil && ctx.Post != nil {
+		p.watchExit(ctx.Post)
+	}
+	return nil
+}
+
+// watchExit posts ExitedMsg through post when the program ends; only the
+// first call starts the watcher.
+func (p *Pane) watchExit(post ui.Poster) {
+	if p.started {
+		return
 	}
 	p.started = true
-	post, id, done := ctx.Post, p.opts.InstanceID, p.h.Done()
+	id, done := p.opts.InstanceID, p.h.Done()
 	if done == nil {
-		return nil
+		return
 	}
 	go func() {
 		info, ok := <-done
@@ -140,7 +150,6 @@ func (p *Pane) Init(ctx *ui.Context) tea.Cmd {
 			post.Post(ExitedMsg{InstanceID: id, Info: info})
 		}
 	}()
-	return nil
 }
 
 // Update implements ui.Component.

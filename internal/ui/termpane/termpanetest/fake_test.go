@@ -62,11 +62,18 @@ func TestFakeRecordsRequests(t *testing.T) {
 func TestFakeExitAndCwd(t *testing.T) {
 	f := termpanetest.Install(t)
 	ctx := ctxFor(layout.ModeStandard)
-	if _, _, err := termpane.Launch(ctx, termhost.Request{Program: "nvim"}, termpane.Options{InstanceID: "leet:1"}); err != nil {
+	l, _, err := termpane.Launch(ctx, termhost.Request{Program: "nvim"}, termpane.Options{InstanceID: "leet:1"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if m := f.Exit("leet:1", 2); m != (termpane.ExitedMsg{InstanceID: "leet:1", Info: termhost.ExitInfo{Mode: termhost.ModePane, Code: 2}}) {
+	m := f.Exit("leet:1", 2)
+	if m != (termpane.ExitedMsg{InstanceID: "leet:1", Info: termhost.ExitInfo{Mode: termhost.ModePane, Code: 2}}) {
 		t.Errorf("Exit = %#v", m)
+	}
+	// Like the real Launch, the view needs no Init: the msg alone ends it.
+	l.View.Update(ctx, m)
+	if _, done := l.View.Exited(); !done || l.View.GrabsKeys() {
+		t.Error("the view (never Init'd) did not end on Exit's msg")
 	}
 	if m := f.Cwd("leet:1", "/tmp"); m != (termpane.CwdMsg{InstanceID: "leet:1", Dir: "/tmp"}) {
 		t.Errorf("Cwd = %#v", m)
