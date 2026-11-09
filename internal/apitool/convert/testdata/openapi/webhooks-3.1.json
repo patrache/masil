@@ -1,0 +1,20 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "Hooks", "version": "1"},
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "listItems",
+        "parameters": [{"name": "q", "in": "query", "schema": {"type": ["string", "null"], "examples": ["shoes"]}}]
+      },
+      "post": {
+        "operationId": "createItem",
+        "requestBody": {"content": {"application/vnd.item+json": {"schema": {"type": ["object", "null"], "example": {"id": null}}}}}
+      }
+    }
+  },
+  "webhooks": {
+    "newItem": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}}},
+    "deleted": {"post": {}}
+  }
+}

@@ -6,8 +6,11 @@
 package convert
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/patrache/masil/internal/apitool"
 )
@@ -79,4 +82,132 @@ func suggest(r *apitool.Request) []Suggestion {
 		add("form:"+f.Key, f.Key, f.Value)
 	}
 	return out
+}
+
+// object is a JSON object that keeps its key order (imports keep the order
+// of the source document).
+type object struct {
+	keys []string
+	vals map[string]any
+}
+
+func (o *object) get(k string) any {
+	if o == nil {
+		return nil
+	}
+	return o.vals[k]
+}
+
+// decodeJSON decodes one JSON value: objects as *object (ordered), arrays
+// as []any, numbers as json.Number. Nesting deeper than MaxDepth is
+// ErrTooDeep; data after the value is an error.
+func decodeJSON(data []byte) (any, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	v, err := decodeValue(dec, 0)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, fmt.Errorf("convert: data after the JSON value")
+	}
+	return v, nil
+}
+
+func decodeValue(dec *json.Decoder, depth int) (any, error) {
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, fmt.Errorf("convert: bad JSON: %w", err)
+	}
+	d, ok := tok.(json.Delim)
+	if !ok {
+		return tok, nil
+	}
+	if depth+1 > MaxDepth {
+		return nil, ErrTooDeep
+	}
+	switch d {
+	case '{':
+		o := &object{vals: map[string]any{}}
+		for dec.More() {
+			kt, err := dec.Token()
+			if err != nil {
+				return nil, fmt.Errorf("convert: bad JSON: %w", err)
+			}
+			k, _ := kt.(string)
+			v, err := decodeValue(dec, depth+1)
+			if err != nil {
+				return nil, err
+			}
+			if _, dup := o.vals[k]; !dup {
+				o.keys = append(o.keys, k)
+			}
+			o.vals[k] = v
+		}
+		if _, err := dec.Token(); err != nil {
+			return nil, fmt.Errorf("convert: bad JSON: %w", err)
+		}
+		return o, nil
+	case '[':
+		arr := []any{}
+		for dec.More() {
+			v, err := decodeValue(dec, depth+1)
+			if err != nil {
+				return nil, err
+			}
+			arr = append(arr, v)
+		}
+		if _, err := dec.Token(); err != nil {
+			return nil, fmt.Errorf("convert: bad JSON: %w", err)
+		}
+		return arr, nil
+	}
+	return nil, fmt.Errorf("convert: bad JSON")
+}
+
+// encodeJSON writes a decoded value back as JSON, keys in their order,
+// indented by two spaces when indent is set; HTML is not escaped.
+func encodeJSON(v any, indent bool) string {
+	var b bytes.Buffer
+	writeJSON(&b, v)
+	if !indent {
+		return b.String()
+	}
+	var out bytes.Buffer
+	if err := json.Indent(&out, b.Bytes(), "", "  "); err != nil {
+		return b.String()
+	}
+	return out.String()
+}
+
+func writeJSON(b *bytes.Buffer, v any) {
+	switch t := v.(type) {
+	case *object:
+		b.WriteByte('{')
+		for i, k := range t.keys {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			writeJSON(b, k)
+			b.WriteByte(':')
+			writeJSON(b, t.vals[k])
+		}
+		b.WriteByte('}')
+	case []any:
+		b.WriteByte('[')
+		for i, e := range t {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			writeJSON(b, e)
+		}
+		b.WriteByte(']')
+	case json.Number:
+		b.WriteString(t.String())
+	default:
+		enc := json.NewEncoder(b)
+		enc.SetEscapeHTML(false)
+		_ = enc.Encode(t)
+		b.Truncate(b.Len() - 1) // Encode's newline
+	}
 }

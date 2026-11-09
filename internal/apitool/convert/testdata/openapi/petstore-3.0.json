@@ -1,0 +1,72 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Petstore", "version": "1.0.0"},
+  "servers": [
+    {"url": "https://{env}.petstore.test/v1/", "variables": {"env": {"default": "api", "enum": ["api", "staging"]}}},
+    {"url": "https://other.test"}
+  ],
+  "tags": [{"name": "pets"}, {"name": "store"}],
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/pets": {
+      "parameters": [{"name": "X-Request-Id", "in": "header", "schema": {"type": "string"}}],
+      "get": {
+        "tags": ["pets"], "summary": "List pets", "operationId": "listPets",
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "example": 20}},
+          {"$ref": "#/components/parameters/Page"},
+          {"name": "Accept", "in": "header", "schema": {"type": "string"}},
+          {"name": "session", "in": "cookie", "schema": {"type": "string"}}
+        ]
+      },
+      "post": {
+        "tags": ["pets"], "operationId": "createPet",
+        "requestBody": {"$ref": "#/components/requestBodies/Pet"}
+      }
+    },
+    "/pets/{petId}": {
+      "get": {
+        "tags": ["pets", "store"], "summary": "Show a pet",
+        "parameters": [{"name": "petId", "in": "path", "required": true, "schema": {"type": "string"}, "example": "42"}]
+      },
+      "delete": {
+        "tags": ["pets"],
+        "parameters": [{"name": "petId", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "security": []
+      }
+    },
+    "/store/inventory": {
+      "get": {"tags": ["store"], "operationId": "getInventory", "security": [{"apiKey": []}]}
+    },
+    "/health": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/login": {
+      "post": {
+        "summary": "Login", "security": [{"basicAuth": []}],
+        "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"type": "object", "properties": {
+          "user": {"type": "string", "example": "me"}, "pass": {"type": "string"}}}}}}
+      }
+    },
+    "/upload": {
+      "put": {
+        "summary": "Upload", "tags": ["store"],
+        "requestBody": {"content": {"multipart/form-data": {"schema": {"$ref": "#/components/schemas/Upload"}}}}
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Page": {"name": "page", "in": "query", "required": true, "schema": {"type": "integer", "default": 1}}
+    },
+    "requestBodies": {
+      "Pet": {"content": {"application/json": {"examples": {"cat": {"value": {"name": "Tom", "tag": "cat", "age": 3}}, "dog": {"value": {}}}}}}
+    },
+    "schemas": {
+      "Upload": {"type": "object", "properties": {"title": {"type": "string"}, "file": {"type": "string", "format": "binary"}}}
+    },
+    "securitySchemes": {
+      "bearerAuth": {"type": "http", "scheme": "bearer"},
+      "basicAuth": {"type": "http", "scheme": "basic"},
+      "apiKey": {"type": "apiKey", "in": "header", "name": "X-Api-Key"}
+    }
+  }
+}

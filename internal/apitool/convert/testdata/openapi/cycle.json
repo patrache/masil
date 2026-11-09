@@ -1,0 +1,25 @@
+{
+  "openapi": "3.0.1",
+  "info": {"title": "Cycle", "version": "1"},
+  "paths": {
+    "/nodes": {
+      "post": {
+        "parameters": [{"$ref": "#/components/parameters/P1"}],
+        "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Node"}}}}
+      },
+      "put": {
+        "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Loop"}}}}
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "P1": {"$ref": "#/components/parameters/P2"},
+      "P2": {"$ref": "#/components/parameters/P1"}
+    },
+    "schemas": {
+      "Node": {"type": "object", "properties": {"child": {"$ref": "#/components/schemas/Node"}, "name": {"type": "string"}}},
+      "Loop": {"$ref": "#/components/schemas/Loop"}
+    }
+  }
+}
