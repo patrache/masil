@@ -113,7 +113,7 @@ func (g *Guest) Tick(now time.Time) {
 		}
 	}
 	if !g.over {
-		if ok, reason := g.redial(now); reason != "" {
+		if ok, reason := g.redial(now, g.mu.Unlock, g.mu.Lock, func() bool { return g.over }); reason != "" {
 			g.endLocked(reason)
 		} else if ok {
 			g.recvAll(g.handle)

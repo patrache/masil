@@ -251,15 +251,21 @@ func (h *Host) Tick(now time.Time) {
 		}
 		h.emit(EventReconnecting{})
 	}
-	if ok, reason := h.redial(now); reason != "" {
+	if ok, reason := h.redial(now, h.mu.Unlock, h.mu.Lock, h.stopped); reason != "" {
 		h.finishLocked(reason, "remote")
 	} else if ok {
 		h.recvAll(h.handle)
 	}
-	h.tickTimers(now)
+	if !h.stopped() {
+		h.tickTimers(now)
+	}
 	h.mu.Unlock()
 	h.flush()
 }
+
+// stopped reports whether the share ended or the kill switch was used
+// (h.mu held).
+func (h *Host) stopped() bool { return h.over || h.killed.Load() }
 
 // Drain returns the events since the last call. It never blocks on the
 // engine.

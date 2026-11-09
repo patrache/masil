@@ -16,6 +16,8 @@ const (
 	// reconnectMin and reconnectMax bound the exponential redial backoff.
 	reconnectMin = time.Second
 	reconnectMax = 30 * time.Second
+	// dialTimeout bounds one redial (a connect that hangs).
+	dialTimeout = 10 * time.Second
 	// rateLimitedWait is the redial delay after a 4008 close.
 	rateLimitedWait = 10 * time.Second
 	// JoinTimeout is how long a join request waits for the owner.

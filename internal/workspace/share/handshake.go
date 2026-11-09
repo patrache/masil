@@ -61,6 +61,7 @@ type link struct {
 	tickNow  time.Time
 	started  bool
 	down     bool // waiting to redial
+	dialing  bool // a redial runs (with the state lock released)
 	nextDial time.Time
 	backoff  time.Duration
 	reasm    wire.Reassembler
@@ -296,13 +297,29 @@ func (l *link) connGone(now time.Time) (gone bool, endReason string) {
 	return true, ""
 }
 
-// redial dials when the backoff has passed. It returns an end reason when
+// redial dials when the backoff has passed. The dial runs with the owner's
+// state lock released (unlock / lock are that lock) and bounded by
+// dialTimeout, so a hanging connect never stalls the UI's calls or the kill
+// switch; stopped reports, once the lock is back, whether the share ended
+// meanwhile (the new socket is then closed). It returns an end reason when
 // the share is gone (404), "" otherwise; ok reports a new socket.
-func (l *link) redial(now time.Time) (ok bool, endReason string) {
-	if !l.down || now.Before(l.nextDial) {
+func (l *link) redial(now time.Time, unlock, lock func(), stopped func() bool) (ok bool, endReason string) {
+	if !l.down || l.dialing || now.Before(l.nextDial) {
 		return false, ""
 	}
-	c, err := l.dial(l.ctx, l.shareID)
+	l.dialing = true
+	unlock()
+	ctx, cancel := context.WithTimeout(l.ctx, dialTimeout)
+	c, err := l.dial(ctx, l.shareID)
+	cancel()
+	lock()
+	l.dialing = false
+	if stopped() {
+		if c != nil {
+			go c.Close(1000, "")
+		}
+		return false, ""
+	}
 	if err != nil {
 		var ae *api.Error
 		if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
