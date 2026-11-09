@@ -654,5 +654,324 @@
         }
       ]
     }
+  },
+  {
+    "name": "proto_field_name_is_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "__proto__",
+            "value": {
+              "secret": "x"
+            }
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "node",
+            "fields": {
+              "__proto__": {
+                "x": 1
+              }
+            }
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "reserved_names_are_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "constructor",
+            "value": 1
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "prototype",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "constructor",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "del",
+            "id": "__proto__"
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "non_ascii_names_are_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "노드",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "메모",
+            "value": "x"
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "no de",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "name_length_is_1_to_64_bytes",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "",
+            "value": 1
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "put",
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "type": "node",
+            "fields": {}
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "type": "node",
+          "fields": {}
+        },
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "name_punctuation_is_allowed",
+    "start": {
+      "seq": 0,
+      "objects": []
+    },
+    "batches": [
+      {
+        "seq": 1,
+        "ops": [
+          {
+            "op": "put",
+            "id": "N-1.a:b_C",
+            "type": "db.primary",
+            "fields": {
+              "net:in_mbps": 100,
+              "x.y": {
+                "__proto__": 1
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "N-1.a:b_C",
+          "type": "db.primary",
+          "fields": {
+            "net:in_mbps": 100,
+            "x.y": {
+              "__proto__": 1
+            }
+          }
+        }
+      ]
+    }
   }
 ]

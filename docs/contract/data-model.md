@@ -700,7 +700,7 @@ CREATE INDEX idx_collab_comments_doc ON collab_comments(doc_id, created_at);
 ```
 
 - 문서 **내용**(편집 기록·최신 스냅숏·버전 스냅숏 본문·잠금/삭제 표시)은 D1 이 아니라 문서마다 `CollabHub` DO 의 SQLite 에 있다: `ops(seq INTEGER PRIMARY KEY, author TEXT, ts INTEGER, client_op_id TEXT UNIQUE, ops TEXT)`, `snapshot(id INTEGER PRIMARY KEY CHECK(id=1), seq, body)`, `versions(no INTEGER PRIMARY KEY, seq, body)`, `meta(k PRIMARY KEY, v)`. 접속자 커서·선택(presence)은 메모리에만. 형식은 `docs/contract/collab.md`.
-- 문서 삭제는 소프트(`deleted_at`). 방 삭제는 `ON DELETE CASCADE` 를 따른다(기존 방 삭제 규칙 1.4 와 같은 시점). 30일 지난 자동 버전 정리는 DO alarm 이 하고 D1 `collab_versions` 행도 함께 지운다.
+- 문서 삭제는 소프트(`deleted_at`). 방 삭제도 소프트(`spaces.deleted_at`, api.md 5.7)라 `ON DELETE CASCADE` 는 실행되지 않고 문서 행은 `deleted_at IS NULL` 로 남는다. 그래서 삭제된 방의 문서는 모든 문서 경로(REST·`/ws`)가 `spaces.deleted_at` 을 보고 `404` 로 숨기고(api.md 5.24), 열린 소켓은 방 삭제 batch 커밋 뒤 `kickFromSpaceDocs(…, "space_deleted")` 로 닫는다(collab.md 4.1). `ON DELETE CASCADE` 는 행을 실제로 지울 때(운영자 정리 등)만 작동한다. 기록 버전(자동·되돌리기)의 보관 정리(30일·문서당 200개, api.md 5.24)는 DO alarm 이 하고 D1 `collab_versions` 행도 함께 지운다.
 - R2 는 쓰지 않는다(JC2 — 문서 한도가 작아 DO SQLite 로 충분).
 
 ## 4. 검색 — `0002_search.sql` (FTS5)

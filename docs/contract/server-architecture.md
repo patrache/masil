@@ -138,7 +138,7 @@ server/
 
 - 평문을 저장·병합하는 DO(`CollabHub`)와 내용을 못 봐야 하는 DO(`WorkspaceHub`)를 한 클래스에 두지 않는다 — "서버는 작업공간을 못 본다"는 약속을 코드 구조로 지키기 위해(v0.1.3 설계서 C1.1).
 - `server/wrangler.jsonc` 의 DO 마이그레이션 태그 `v2` 가 `new_sqlite_classes: ["CollabHub", "WorkspaceHub"]` 를 더한다(P0 Task 26). 새 DO 클래스·태그의 원격 적용·배포는 오너 건별 승인이다.
-- Worker → CollabHub: `requireAuth` → `limit("RL_WS")` → 방 멤버 확인 → 클라이언트가 보낸 `X-Masil-Doc-Auth` 를 지우고 서버가 만든 값으로 `COLLAB_HUB.getByName("doc:" + id)` 에 업그레이드를 넘긴다. RPC: `init(snapshot)`, `kick(userId, reason)`, `closeAll(reason)`, `setLocked(locked)`, `head()`.
+- Worker → CollabHub: `requireAuth` → `limit("RL_WS")` → 방 멤버 확인 → 클라이언트가 보낸 `X-Masil-Doc-Auth` 를 지우고 서버가 만든 값으로 `COLLAB_HUB.getByName("doc:" + id)` 에 업그레이드를 넘긴다. RPC: `init(snapshot)`, `kick(userId, reason)`, `closeAll(reason)`, `setLocked(locked)`, `head()`, `revokeSession(userId, sessionIds | "all", code)`(4001/4003), `setRole(userId, role)` — 부르는 곳과 뜻은 `collab.md` 4.1. 연결 첨부는 `{ userId, sessionId, role }`. `services/users.ts` 의 `revokeSessions` 는 UserHub 와 함께 그 사용자가 멤버인 방들의 삭제 안 된 문서마다 `revokeSession` 을, 방 역할을 바꾸는 경로는 그 방 문서마다 `setRole` 을 `rt.waitUntil` 로 보낸다.
 
 ```
             ┌──────────── Worker (Hono) ────────────┐

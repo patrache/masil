@@ -574,7 +574,7 @@ interface Alert {                    // desktop-notification candidate (events.m
     thread_root_id: ID | null;
     post_id: ID | null;
     space_id: ID | null;
-    doc_type?: "arch" | "apicol";    // v0.1.3: present only when type == "doc"
+    doc_type?: "arch" | "apicol";    // v0.1.3: present only when type == "doc" — exception to the "response fields always present" rule (header): other targets keep their 0.1.2 shape byte for byte; a missing key = no doc type
   };
   created_at: Timestamp;
   suppressed: boolean;               // true during focus/dnd: do not pop an OS notification
@@ -1503,9 +1503,11 @@ interface DocComment {
 // Snapshot: collab.md "Snapshot" ({ seq, objects: [...] })
 ```
 
-**권한**: 방 멤버는 읽기·편집·댓글. 방 멤버가 아니면 모든 문서 경로가 `404`(3.5 와 같음, 존재를 숨김). 삭제·잠금 바꾸기는 만든 사람과 그 방 owner·admin(그 밖 멤버 → `403 forbidden`). 잠긴 문서는 만든 사람·owner·admin 만 편집·복원(그 밖 멤버의 op 는 소켓에서 `reject{code:"locked"}`, 복원 REST 는 `403 forbidden`).
+**권한**: 방 멤버는 읽기·편집·댓글. 방 멤버가 아니거나 방이 삭제됐으면(`spaces.deleted_at` — 방 삭제는 소프트라 `collab_docs` 행이 남는다) 모든 문서 경로(REST·`/ws` 업그레이드)가 `404`(3.5 와 같음, 존재를 숨김). 서버의 문서 권한 확인(`docRole`)은 `space_members` 와 함께 `spaces.deleted_at IS NULL` 을 본다. 삭제·잠금 바꾸기는 만든 사람과 그 방 owner·admin(그 밖 멤버 → `403 forbidden`). 잠긴 문서는 만든 사람·owner·admin 만 편집·복원(그 밖 멤버의 op 는 소켓에서 `reject{code:"locked"}`, 복원 REST 는 `403 forbidden`).
 
 **탈퇴·강퇴·방 삭제·문서 삭제**: 기존 정리 batch 가 커밋된 뒤 서버가 그 방의 열린 문서 소켓에 `kicked{reason: "left"|"kicked"|"banned"|"space_deleted"|"doc_deleted"}` 를 보내고 4100 으로 닫는다(collab.md). 강퇴된 사람이 열어 둔 소켓으로 계속 보는 일이 없다.
+
+**세션 폐기·계정 정지·역할 변경**: 문서 소켓은 접속 때의 세션·역할을 첨부로 들고 있다(collab.md 2장). `revokeSessions`(로그아웃·세션 끊기·비밀번호 변경·정지)는 UserHub 와 함께 그 사용자가 멤버인 방들의 열린 문서 소켓을 4001(정지는 4003)로 닫고, 방 역할이 바뀌면(멤버 역할 변경·소유권 이전) 그 방 문서 소켓의 역할을 고친다(collab.md 4.1 `revokeSession`·`setRole`).
 
 | 경로 | 요청 | 응답·부수효과 |
 |---|---|---|
@@ -1514,10 +1516,10 @@ interface DocComment {
 | `GET /v1/docs/{doc_id}` | — | `200 { doc }` |
 | `PATCH /v1/docs/{doc_id}` | `{ title?, locked? }` | `200 { doc }` + `doc.updated`. `locked` 는 만든 사람·owner·admin · `RL_DOC` |
 | `DELETE /v1/docs/{doc_id}` | — | `204` + `doc.updated{deleted:true}`, 열린 소켓 `kicked{doc_deleted}`. 만든 사람·owner·admin · `RL_DOC` |
-| `GET /v1/docs/{doc_id}/versions` | — | `200 { items: DocVersion[] }` — 새것 먼저; 이름 버전·되돌리기 버전 전부 + 30일 안의 자동 버전 |
-| `GET /v1/docs/{doc_id}/versions/{no}` | — | `200 { version: DocVersion, snapshot: Snapshot }` — 미리보기·두 버전 차이용. 없는 `no`·30일 지나 지운 자동 버전 → `404` |
+| `GET /v1/docs/{doc_id}/versions` | — | `200 { items: DocVersion[] }` — 새것 먼저; 이름 버전 전부 + 남아 있는 자동·되돌리기 버전(아래 버전 규칙 — 합쳐 최대 300개라 페이지 없음) |
+| `GET /v1/docs/{doc_id}/versions/{no}` | — | `200 { version: DocVersion, snapshot: Snapshot }` — 미리보기·두 버전 차이용. 없는 `no`·보관 규칙으로 지운 자동·되돌리기 버전 → `404` |
 | `POST /v1/docs/{doc_id}/versions` | `{ name }` (1..60) | `201 { version }` — 지금 `head_seq` 의 이름 버전(`auto:false`). 이름 버전 101번째 → `422 limit_exceeded {what:"named_versions", limit:100}` · `RL_DOC` |
-| `POST /v1/docs/{doc_id}/versions/{no}/restore` | — | `200 { doc, version }` — 그 버전 스냅숏으로 되돌리고 접속자 모두에게 `op{ops:[{op:"reset", …}]}`. 기록은 지우지 않는다: 되돌린 상태를 **새 버전**(`auto:false`, `name:null`, `restored_from: no`, 이름 버전 100개 한도에 세지 않음)으로 만들어 돌려준다 · `RL_DOC` |
+| `POST /v1/docs/{doc_id}/versions/{no}/restore` | — | `200 { doc, version }` — 그 버전 스냅숏으로 되돌리고 접속자 모두에게 `op{ops:[{op:"reset", …}]}`(순번 하나, `author` = 요청한 사용자, collab.md 1.1·3.2). 기록은 지우지 않는다: 되돌린 상태를 **새 버전**(`auto:false`, `name:null`, `restored_from: no`, 이름 버전 100개 한도에 세지 않음)으로 만들어 돌려준다 · `RL_DOC` |
 | `GET /v1/docs/{doc_id}/comments?cursor&limit` | — | `200 { items: DocComment[], next_cursor }` — `created_at` 오래된 것부터 |
 | `POST /v1/docs/{doc_id}/comments` | `{ anchor, body, root_id? }` | `201 { comment }` + `doc.comment_created`. 본문의 `@handle`(그 방 멤버, 차단 관계 제외)마다 alert `kind:"mention"`, `template {id:"doc.comment_mention", params:{actor, doc, space}}`, `body` = 댓글 앞부분, `target {type:"doc", id, space_id, doc_type}`. 알림함 행은 만들지 않는다 · `RL_DOC` |
 | `PATCH /v1/docs/{doc_id}/comments/{comment_id}` | `{ body?, resolved? }` | `200 { comment }`. `body` 는 작성자만(그 밖 `403 forbidden`), `resolved` 는 방 멤버 누구나 · `RL_DOC` |
@@ -1525,7 +1527,10 @@ interface DocComment {
 | `GET /v1/docs/{doc_id}/ws` | WebSocket 업그레이드 | `docs/contract/collab.md`. 인증·멤버 확인 뒤 CollabHub 로 · `RL_WS` |
 
 - 검증 오류: `title` 1..80(`fields.title = "too_long"|"required"`), 버전 `name` 1..60, 댓글 `body` 1..2000, `anchor` 1..128, `type` 이 둘 중 하나가 아니면 `fields.type = "invalid"`, `root_id` 가 같은 문서의 댓글이 아니면 `fields.root_id = "invalid"`.
-- **버전 규칙 (C2.11)**: 자동 버전 — 마지막 버전 뒤 op 가 있고 (편집이 멈춘 지 5분) 또는 (마지막 버전 뒤 op 200개)이면 서버가 `auto:true` 버전을 만든다(DO alarm). 자동 버전은 30일 보관 뒤 지우고, 이름 버전·되돌리기 버전은 영구. 이름 버전은 문서당 100개.
+- **버전 규칙 (C2.11)**: 자동 버전 — 마지막 버전 뒤 순번이 있고 (편집이 멈춘 지 5분) 또는 (마지막 버전 뒤 순번 200개 — op **프레임** 단위, `head_seq` 차이)이면 서버가 `auto:true` 버전을 만든다(DO alarm). 다만 자동 버전끼리는 5분 이상 떨어진다(200개 조건도 마지막 자동 버전 뒤 5분이 지나야 선다).
+  - 이름 버전은 영구, 문서당 100개(101번째 `422`).
+  - 자동 버전과 되돌리기 버전은 **기록 버전**으로 함께 다룬다: 30일 보관, 문서당 합쳐 최근 200개(넘으면 가장 오래된 기록 버전부터 지운다 — 이름 버전은 지우지 않는다). 되돌리기 버전은 이름 버전 100개 한도에 세지 않는다.
+  - 버전 본문은 버전마다 정규형 스냅숏 전체(차이 저장 안 함, DO `versions` 표). 위 상한으로 문서당 버전 본문은 최대 300 × `maxDocBytes` 다.
 - 6장 표의 행은 이 경로들을 만드는 P0 Task 26·28·29 가 그 코드와 같은 커밋에서 더한다.
 
 ## 6. 엔드포인트 요약표
