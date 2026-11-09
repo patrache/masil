@@ -129,3 +129,32 @@ func TestReceiverTokensDiffer(t *testing.T) {
 	}
 	_ = a.Close()
 }
+
+// claude puts hook_event_name before the tool input, so a PermissionRequest
+// for a large Write still raises the alert even though the body is cut at
+// 64 KiB. Only the top-level key counts.
+func TestReceiverLargeBodyNameFirst(t *testing.T) {
+	r, err := Listen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	u := r.URL("t1")
+	pad := strings.Repeat("x", 100<<10)
+	cases := map[string]bool{
+		`{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Write","tool_input":{"content":"` + pad + `"}}`: true,
+		`{"session_id":"s","pad":{"a":[1,2,"` + strings.Repeat("y", 10<<10) + `"]},"hook_event_name":"Notification"}`:         true,
+		`{"tool_input":{"hook_event_name":"Stop"},"x":1}`:                                                                     false,
+		`{"pad":"` + pad + `","hook_event_name":"Stop"}`:                                                                      false,
+		`["hook_event_name","Stop"]`: false,
+	}
+	for body, want := range cases {
+		if code, _ := post(t, u, body); code != 200 {
+			t.Errorf("code = %d", code)
+		}
+		ev, ok := nextEvent(t, r)
+		if ok != want || (ok && ev.Kind != EventAttention) {
+			t.Errorf("body %.80q: event %+v, %v; want event %v", body, ev, ok, want)
+		}
+	}
+}

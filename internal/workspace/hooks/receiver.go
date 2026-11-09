@@ -107,19 +107,43 @@ func (r *Receiver) serve(w http.ResponseWriter, req *http.Request) {
 		http.NotFound(w, req)
 		return
 	}
-	var body struct {
-		Name string `json:"hook_event_name"`
-	}
-	data, _ := io.ReadAll(io.LimitReader(req.Body, maxBody))
-	if json.Unmarshal(data, &body) == nil {
-		switch body.Name {
-		case "Notification", "PermissionRequest":
-			r.deliver(Event{Term: term, Kind: EventAttention})
-		case "Stop":
-			r.deliver(Event{Term: term, Kind: EventStop})
-		}
+	switch eventName(io.LimitReader(req.Body, maxBody)) {
+	case "Notification", "PermissionRequest":
+		r.deliver(Event{Term: term, Kind: EventAttention})
+	case "Stop":
+		r.deliver(Event{Term: term, Kind: EventStop})
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// eventName streams the top-level object up to its hook_event_name key and
+// returns that string, skipping the values before it. The body is cut at
+// 64 KiB, so a whole-body parse would fail for a large tool input; claude
+// sends the name before it. "" when the key is missing, not a string, or
+// past the cut.
+func eventName(body io.Reader) string {
+	dec := json.NewDecoder(body)
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return ""
+	}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return ""
+		}
+		key, _ := tok.(string)
+		if key == "hook_event_name" {
+			var name string
+			if dec.Decode(&name) != nil {
+				return ""
+			}
+			return name
+		}
+		if dec.Decode(&json.RawMessage{}) != nil {
+			return ""
+		}
+	}
+	return ""
 }
 
 func (r *Receiver) route(req *http.Request) (string, bool) {
