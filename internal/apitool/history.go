@@ -119,6 +119,11 @@ func (h *History) Add(r *Request, p *Prepared, resp *Response) error {
 		return nil
 	}
 	sv := secretTexts(p)
+	if r != nil && r.Auth.Kind == AuthAPIKey && r.Auth.In == "query" && literalCredential(r.Auth.Value) {
+		// A typed-in key under a name that does not look secret (appid=…)
+		// is masked in the expanded URL as it is in Request.Auth.
+		sv = append(sv, r.Auth.Value)
+	}
 	e := HistoryEntry{Kind: HistoryRequest}
 	if r != nil {
 		e.Request = RedactRequest(r, sv)
@@ -426,17 +431,15 @@ func RedactRequest(r *Request, secretValues []string) Request {
 }
 
 // redactHead is the first n bytes of body after redaction (a secret on the
-// cut is hidden whole). Text is cut on a rune boundary.
+// cut is hidden whole). The whole body (at most MaxViewBody in memory) is
+// redacted before the cut: Mask is shorter than most secrets, so cutting
+// first could pull the unreplaced start of a secret on the first cut into
+// the head. Text is cut on a rune boundary.
 func redactHead(body []byte, secretValues []string, n int, text bool) []byte {
 	if len(body) == 0 {
 		return nil
 	}
-	slack := 0
-	for _, v := range secretValues {
-		slack = max(slack, 3*len(v))
-	}
-	head := body[:min(len(body), n+slack)]
-	out := []byte(newRedactor(secretValues).replace(string(head)))
+	out := []byte(newRedactor(secretValues).replace(string(body)))
 	if len(out) > n {
 		cut := n
 		if text {

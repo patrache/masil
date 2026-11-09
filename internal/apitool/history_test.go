@@ -330,3 +330,51 @@ func TestRedactRequestTemplate(t *testing.T) {
 		t.Fatal("RedactRequest changed its input")
 	}
 }
+
+// A secret that shrinks to Mask several times before the cut must not leave
+// its unreplaced start inside the head (review: P4 history).
+func TestRedactHeadSecretOnCutAfterShrink(t *testing.T) {
+	secret := strings.Repeat("S", 80) + "TOPSECRETTAIL" + strings.Repeat("Q", 7) // 100 bytes
+	n := 1000
+	var b strings.Builder
+	for range 8 {
+		b.WriteString(secret + "..")
+	}
+	for b.Len() < n+250 { // the 9th copy straddles n+3*len
+		b.WriteByte('x')
+	}
+	body := []byte(b.String() + secret + strings.Repeat("y", 400))
+	head := redactHead(body, []string{secret}, n, true)
+	if bytes.Contains(head, []byte("SSSSSSSSSS")) || bytes.Contains(head, []byte("TOPSECRET")) {
+		t.Fatalf("head keeps part of the secret: %q", head[max(len(head)-200, 0):])
+	}
+	if len(head) > n {
+		t.Fatalf("head %d > %d", len(head), n)
+	}
+}
+
+// An API key sent in the query under a name that does not look secret is
+// masked in the expanded URL like it is in Request.Auth (review: P4 history).
+func TestHistoryMasksAPIKeyQueryInURL(t *testing.T) {
+	h, dir, _ := testHistory(t, DefaultHistoryOptions())
+	key := "9f8e7d6c5b4a39281706f5e4d3c2b1a0"
+	r := &Request{ID: "r1", Method: "GET", URL: "https://api.test/weather?q=Seoul",
+		Auth: Auth{Kind: AuthAPIKey, Name: "appid", Value: key, In: "query"}}
+	p, err := Prepare(r, "c", &Scope{}, fixedDyn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(p.URL, key) {
+		t.Fatalf("prepared URL = %q", p.URL)
+	}
+	if err := h.Add(r, p, plainResp(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	if all := readAll(t, dir); bytes.Contains(all, []byte(key)) {
+		t.Fatalf("history contains the api key:\n%s", all)
+	}
+	es, _ := h.List(1)
+	if !strings.Contains(es[0].URL, "appid="+Mask) || !strings.Contains(es[0].URL, "q=Seoul") {
+		t.Fatalf("URL = %q", es[0].URL)
+	}
+}
