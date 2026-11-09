@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -334,5 +335,32 @@ func TestOwnerSeesAndSendsCursors(t *testing.T) {
 	r.settle()
 	if strings.Contains(h.Screen(), "▌minji") {
 		t.Fatalf("the cursor stayed after leaving:\n%s", h.Screen())
+	}
+}
+
+// While someone holds the keyboard the status line shows who typed last
+// (to the second) and the input band, whichever cell has the focus.
+func TestKeyboardInputBandOnStatusLine(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r, _, g := sharedTermRig(t, h, fake, "편집", true)
+	if err := r.s.own.host.GrantKeyboard(1, share.DefaultKeyboard); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	h.Press("ctrl+\\", "2")
+	if err := g.Input(1, []byte("ls -la\x1b[A\r")); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	h.Advance(3 * time.Second)
+	scr := h.Screen()
+	lines := strings.Split(scr, "\n")
+	status := lines[len(lines)-1]
+	if !strings.Contains(status, "마지막 입력: minji · 3초 전") || !strings.Contains(status, "ls -la") {
+		t.Fatalf("status line = %q", status)
+	}
+	if strings.Contains(status, "\x1b[A") || strings.Contains(status, "[A") {
+		t.Fatalf("control bytes in the band: %q", status)
 	}
 }

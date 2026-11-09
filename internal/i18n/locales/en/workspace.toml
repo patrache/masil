@@ -4,6 +4,9 @@ other = "{n} min ago"
 [ago_now]
 other = "just now"
 
+[ago_seconds]
+other = "{n}s ago"
+
 [attention_toast]
 other = "{name} · ⏳ waiting for approval"
 

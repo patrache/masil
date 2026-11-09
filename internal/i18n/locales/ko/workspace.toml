@@ -10,6 +10,11 @@ other = "{n}분 전"
 desc = "지난 시간: 1분 안"
 other = "방금"
 
+[ago_seconds]
+desc = "지난 시간(초, 1분 안). n = 초"
+params = { n = "int" }
+other = "{n}초 전"
+
 [attention_toast]
 desc = "토스트: 터미널 프로그램이 승인을 기다림. name = 프로그램 이름(번역하지 않음)"
 params = { name = "string" }

@@ -26,6 +26,14 @@ var areaWorkspace = area{
 				En: {Other: "just now"},
 			},
 		},
+		"ago_seconds": {
+			desc:   "지난 시간(초, 1분 안). n = 초",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}초 전"},
+				En: {Other: "{n}s ago"},
+			},
+		},
 		"attention_toast": {
 			desc:   "토스트: 터미널 프로그램이 승인을 기다림. name = 프로그램 이름(번역하지 않음)",
 			params: []Param{{Name: "name", Type: "string"}},
@@ -1212,6 +1220,11 @@ func (a_ WorkspaceT) AgoMinutes(n int) string {
 // AgoNow: 지난 시간: 1분 안
 func (a_ WorkspaceT) AgoNow() string {
 	return a_.t.render(&areaWorkspace, "ago_now", false, 0)
+}
+
+// AgoSeconds: 지난 시간(초, 1분 안). n = 초
+func (a_ WorkspaceT) AgoSeconds(n int) string {
+	return a_.t.render(&areaWorkspace, "ago_seconds", false, 0, "n", strconv.Itoa(n))
 }
 
 // AttentionToast: 토스트: 터미널 프로그램이 승인을 기다림. name = 프로그램 이름(번역하지 않음)

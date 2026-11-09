@@ -259,10 +259,13 @@ func (s *Surface) peopleView(ctx *ui.Context, w, h int, focused bool) []string {
 	return out
 }
 
-// ago is a short "how long ago".
+// ago is a short "how long ago" (to the second under a minute: "3초 전").
 func ago(ctx *ui.Context, d time.Duration) string {
-	if d < time.Minute {
+	switch {
+	case d < time.Second:
 		return ctx.T.Workspace.AgoNow()
+	case d < time.Minute:
+		return ctx.T.Workspace.AgoSeconds(int(d / time.Second))
 	}
 	return ctx.T.Workspace.AgoMinutes(int(d / time.Minute))
 }

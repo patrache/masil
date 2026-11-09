@@ -67,7 +67,10 @@ type ownerShare struct {
 	// owner's, as last sent
 	cursors    map[string][]peerCursor
 	sentCursor wire.DocPresence
-	audit      *audit.Log
+	// inputBand: what keyboard participants typed, printable only, the
+	// last inputBandCells cells (B8.4)
+	inputBand string
+	audit     *audit.Log
 }
 
 // peerInfo is a participant as the screens name them.
@@ -380,6 +383,8 @@ func (s *Surface) ownerEvent(ctx *ui.Context, ev share.Event) tea.Cmd {
 		return ui.Toast(t.PeerJoined(s.peer(ctx, e.Seat, e.UserID).name), ui.ToastInfo)
 	case share.EventPresence:
 		s.onPresence(ctx, e.DocPresence)
+	case share.EventInput:
+		o.inputBand = appendInputBand(o.inputBand, e.Data)
 	case share.EventPeerLeft:
 		s.dropCursors(e.Seat)
 		return ui.Toast(t.PeerLeft(s.peer(ctx, e.Seat, e.UserID).name), ui.ToastInfo)

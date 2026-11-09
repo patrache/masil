@@ -540,14 +540,25 @@ func (s *Surface) ToolStatus(ctx *ui.Context) string {
 	return t.HubStatusPrivate(textwidth.Sanitize(s.name), s.term.count())
 }
 
-// StatusText implements ui.StatusTexter: the terminal's while it has the keyboard.
+// StatusText implements ui.StatusTexter: while a participant holds the
+// keyboard, who typed last and the input band (B8.4) in every cell; the
+// terminal's own text while it has the keyboard.
 func (s *Surface) StatusText(ctx *ui.Context) (string, bool) {
-	if s.focus == PaneTerm && s.dlg == nil && s.picker == nil {
+	if s.dlg != nil || s.picker != nil {
+		return "", false
+	}
+	kb, kbOK := s.keyboardStatus(ctx)
+	if s.focus == PaneTerm {
 		if t := s.term.current(); t != nil && t.view != nil {
-			return t.view.StatusText(ctx)
+			if text, ok := t.view.StatusText(ctx); ok {
+				if kbOK {
+					return kb + " · " + text, true
+				}
+				return text, true
+			}
 		}
 	}
-	return "", false
+	return kb, kbOK
 }
 
 // Help implements ui.Helper: the cell keys after ctrl+\.

@@ -171,6 +171,16 @@ type EventNotice struct{ wire.Notice }
 // EventFsResult (Guest): the answer to my file request.
 type EventFsResult struct{ wire.FsResult }
 
+// EventInput is what a keyboard-level participant typed into terminal Term,
+// as delivered (the owner's input band, spec B8.4). Memory only: never log
+// it.
+type EventInput struct {
+	Seat, Term uint8
+	Data       []byte
+}
+
+func (EventInput) shareEvent() {}
+
 func (EventDoc) shareEvent()         {}
 func (EventDocApplied) shareEvent()  {}
 func (EventPresence) shareEvent()    {}

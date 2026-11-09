@@ -326,6 +326,7 @@ func (h *Host) deliverInput(seat, term uint8, b []byte) {
 		return
 	}
 	_ = st.t.Inject(b)
+	h.emit(EventInput{Seat: seat, Term: term, Data: append([]byte(nil), b...)})
 }
 
 // Input sends my keystrokes to the owner's terminal term (keyboard level
