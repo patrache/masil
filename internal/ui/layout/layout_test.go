@@ -407,6 +407,16 @@ func TestComputeExhaustive(t *testing.T) {
 							checkFormula(t, m, c, r, st, l)
 						}
 					}
+					// CA 10.3: tool states keep the same strict tiling in
+					// every in-domain size (formula facts differ, so only
+					// the tiling and inner >= 1x1 are checked here).
+					for _, st := range toolStates {
+						l := Compute(m, c, r, st)
+						checked++
+						if err := checkTiling(l, true); err != nil {
+							t.Fatalf("Compute(%s,%d,%d,%+v): %v", m.ID(), c, r, st, err)
+						}
+					}
 				}
 			}
 			if checked == 0 {
