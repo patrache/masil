@@ -14,6 +14,7 @@ import (
 // panelDesign is client → api → db in a row.
 func panelDesign() *archdoc.Design {
 	d := archdoc.New("panel")
+	d.Seed = 42
 	node := func(id string, k archdoc.NodeKind, x int) archdoc.Node {
 		n := archdoc.Defaults(k)
 		n.ID, n.Label, n.Pos = id, id, [2]int{x, 0}

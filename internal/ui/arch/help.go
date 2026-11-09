@@ -39,6 +39,7 @@ var helpKeys = []helpKey{
 	{"/", func(t *i18n.T) string { return t.Archcanvas.KeyFind() }},
 	{"space", func(t *i18n.T) string { return t.Archcanvas.KeyRun() }},
 	{"< >", func(t *i18n.T) string { return t.Archcanvas.KeySpeed() }},
+	{"← →", func(t *i18n.T) string { return t.Archcanvas.KeyTime() }},
 	{"!", func(t *i18n.T) string { return t.Archcanvas.KeyChecks() }},
 	{"?", func(t *i18n.T) string { return t.Archcanvas.KeyHelp() }},
 }

@@ -98,8 +98,95 @@ other = "Instant analysis"
 [engine_mismatch]
 other = "Another engine version made these numbers; they may differ slightly"
 
+[engine_paused]
+other = "Timed run paused {t}/{total}"
+
+[engine_running]
+other = "Running the timed run"
+
+[engine_timed]
+other = "Timed run {t}/{total} ×{speed}"
+
 [estimate_disclaimer]
 other = "Estimates; actual bills may differ"
+
+[ev_box_off]
+other = "{target} down"
+
+[ev_failover_done]
+other = "{target} promoted"
+
+[ev_failover_start]
+other = "{target} failover {s}s"
+
+[ev_fault_end]
+other = "{target} recovered"
+
+[ev_fault_start]
+other = "{target} fault starts"
+
+[ev_instances_off]
+other = "{target} {n} instances off"
+
+[ev_latency]
+other = "{target} latency +{ms}ms"
+
+[ev_lb_reroute]
+other = "{target} reroutes to {n} left"
+
+[ev_node_off]
+other = "{target} off"
+
+[ev_queue_drop]
+other = "{target} queue full · {n} dropped"
+
+[ev_scale_in]
+other = "{target} scales in to {n}"
+
+[ev_scale_out]
+other = "{target} scales out to {n}"
+
+[ev_writes_failing]
+other = "{target} writes failing 100%"
+
+[fault_add_ms]
+other = "Added latency ms"
+
+[fault_at]
+other = "At {t} of the run"
+
+[fault_at_hint]
+other = "Type mm:ss (00:00 to 10:00)"
+
+[fault_az_off]
+other = "Turn off AZ · {target}"
+
+[fault_count]
+other = "Instances to turn off"
+
+[fault_instances_off]
+other = "Turn off n instances · {target}"
+
+[fault_latency]
+other = "Add latency · {target}"
+
+[fault_menu_title]
+other = "Add a fault"
+
+[fault_node_off]
+other = "Turn off · {target}"
+
+[fault_none]
+other = "Select a node, AZ, region or connection first"
+
+[fault_now]
+other = "Now"
+
+[fault_region_off]
+other = "Turn off region · {target}"
+
+[fault_when]
+other = "When"
 
 [field_autoscale]
 other = "Autoscale"
@@ -344,6 +431,9 @@ other = "Speed"
 [key_step]
 other = "Nudge"
 
+[key_time]
+other = "±1s"
+
 [key_toggle]
 other = "Toggle"
 
@@ -558,6 +648,9 @@ other = "A number from {min} to {max}"
 [read_only_copy]
 other = "Copy · read-only"
 
+[run_failed]
+other = "The timed run failed"
+
 [save_failed]
 other = "Save failed"
 
@@ -591,6 +684,9 @@ other = "Enlarge the window to edit"
 
 [tiny_run]
 other = "space timed run"
+
+[tiny_running]
+other = "space stop · {t} ×{speed}"
 
 [tiny_summary]
 other = "📐 {title} · p99 {p99} · errors {err}%"

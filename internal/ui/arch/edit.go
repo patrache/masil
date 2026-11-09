@@ -42,6 +42,7 @@ func (m *canvasModel) commit(ctx *ui.Context, ch []archdoc.Change) tea.Cmd {
 	}
 	cmd := m.sink.Apply(ch)
 	m.undo.Record(before, ch)
+	m.designChanged()
 	m.rebuild(ctx)
 	return tea.Batch(cmd, m.settleLater(ctx))
 }
@@ -86,6 +87,7 @@ func (m *canvasModel) replay(ctx *ui.Context, ch []archdoc.Change) tea.Cmd {
 		return nil
 	}
 	cmd := m.sink.Apply(ch)
+	m.designChanged()
 	m.rebuild(ctx)
 	return tea.Batch(cmd, m.settleLater(ctx))
 }

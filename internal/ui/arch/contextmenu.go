@@ -75,8 +75,11 @@ func (m *canvasModel) runMenu(ctx *ui.Context, a menuAction) tea.Cmd {
 			return cmd
 		}
 		return m.remove(ctx, []string{target})
+	case menuFault:
+		m.sel = target
+		return m.openFaults(ctx, target)
 	}
-	return nil // fault (Task 19) and comment (Task 25) arrive later
+	return nil // comment (Task 25) arrives later
 }
 
 // menuKey: j/k move, enter runs, esc closes; the rest is swallowed.

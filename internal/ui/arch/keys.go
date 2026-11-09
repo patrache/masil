@@ -64,7 +64,7 @@ func gridStep(d archdraw.Dir) (int, int) {
 
 // CapturesInput: typing a find query never reaches the soft globals.
 func (m *canvasModel) CapturesInput() bool {
-	return m.mode == modeFind || (m.mode == modePanel && (m.panel.editing || m.panel.pick != nil))
+	return m.mode == modeFind || m.faults != nil || (m.mode == modePanel && (m.panel.editing || m.panel.pick != nil))
 }
 
 // HandleKey is the canvas keyboard (spec C2.7). Keys it does not use
@@ -76,6 +76,9 @@ func (m *canvasModel) HandleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.C
 	s := k.String()
 	if m.regs.View == viewSummary {
 		return m.tinyKey(ctx, s)
+	}
+	if m.faults != nil {
+		return m.faultKey(ctx, k, s)
 	}
 	if m.menu != nil {
 		return m.menuKey(ctx, s)
@@ -126,6 +129,8 @@ func (m *canvasModel) tinyKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 	switch {
 	case s == "space":
 		return true, m.toggleRun(ctx)
+	case s == "<" || s == ">":
+		return true, m.speed(s == ">")
 	case slices.Contains(editKeys, s):
 		return true, ui.Toast(ctx.T.Archcanvas.TooSmallEdit(), ui.ToastInfo)
 	}
@@ -133,6 +138,15 @@ func (m *canvasModel) tinyKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 }
 
 func (m *canvasModel) normalKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
+	if (s == "left" || s == "right") && m.pb.tl != nil && !m.pb.running {
+		// a paused run: the arrows move along its time bar (h l still select)
+		if s == "left" {
+			m.stepTime(-1)
+		} else {
+			m.stepTime(1)
+		}
+		return true, nil
+	}
 	if d, ok := dirOf(s); ok {
 		m.stepSelection(d)
 		return true, nil
@@ -219,7 +233,10 @@ func (m *canvasModel) normalKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 		}
 		return false, nil
 	case "x":
-		return true, nil // the fault menu (P3 Task 19)
+		if m.sel == "" {
+			return true, ui.Toast(ctx.T.Archcanvas.FaultNone(), ui.ToastInfo)
+		}
+		return true, m.openFaults(ctx, m.sel)
 	case "ctrl+left", "ctrl+right", "ctrl+up", "ctrl+down":
 		d, _ := dirOf(strings.TrimPrefix(s, "ctrl+"))
 		m.pan(d)
@@ -572,12 +589,7 @@ func (m *canvasModel) zoom(in bool) {
 	m.vp.Y += cy - ny
 }
 
-// toggleRun and speed are the timed run's keys (the run itself is P3 Task 19).
-func (m *canvasModel) toggleRun(*ui.Context) tea.Cmd {
-	m.running = !m.running
-	return nil
-}
-
+// speeds are the playback speeds < > step through.
 var speeds = []int{1, 2, 4, 8, 16}
 
 func (m *canvasModel) speed(up bool) tea.Cmd {

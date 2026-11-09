@@ -15,11 +15,12 @@ func (m *canvasModel) drawSummary(ctx *ui.Context, b *buf, r layout.Rect) {
 	}
 	t := ctx.T.Archcanvas
 	res := m.result
+	_, _, p99, errP := m.totals()
 	lines := []struct {
 		s  string
 		st sty
 	}{
-		{t.TinySummary(m.tinyTitle(ctx, r.W), archdraw.FormatMs(res.P99Ms), pct1(res.ErrorPermille)), sBase},
+		{t.TinySummary(m.tinyTitle(ctx, r.W), archdraw.FormatMs(p99), pct1(errP)), sBase},
 		{m.costShort(ctx, res.Cost.TotalUSDMonth), sBase},
 	}
 	if bn := res.Bottleneck; bn != nil && res.RPS > 0 {
@@ -28,10 +29,16 @@ func (m *canvasModel) drawSummary(ctx *ui.Context, b *buf, r layout.Rect) {
 			st sty
 		}{t.TinyBottleneck(m.label(bn.Target), limitName(ctx.T, bn.Limit), max(bn.UtilPermille, 0)/10), sWarn})
 	}
+	last := t.TinyRun() + " · " + t.TinyEditHint()
+	if m.pb.computing {
+		last = t.EngineRunning()
+	} else if m.pb.tl != nil && m.pb.running {
+		last = t.TinyRunning(mmss(m.frameSec()), m.speedOf())
+	}
 	lines = append(lines, struct {
 		s  string
 		st sty
-	}{t.TinyRun() + " · " + t.TinyEditHint(), sDim})
+	}{last, sDim})
 	for i, l := range lines {
 		if i >= r.H {
 			break
@@ -42,7 +49,7 @@ func (m *canvasModel) drawSummary(ctx *ui.Context, b *buf, r layout.Rect) {
 
 // tinyTitle cuts the title so the summary's "· p99 … · 에러 …" stays whole.
 func (m *canvasModel) tinyTitle(ctx *ui.Context, w int) string {
-	res := m.result
-	rest := textwidth.Width(ctx.T.Archcanvas.TinySummary("", archdraw.FormatMs(res.P99Ms), pct1(res.ErrorPermille)))
+	_, _, p99, errP := m.totals()
+	rest := textwidth.Width(ctx.T.Archcanvas.TinySummary("", archdraw.FormatMs(p99), pct1(errP)))
 	return textwidth.Truncate(m.title(ctx), max(w-rest, 2), "…")
 }

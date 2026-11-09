@@ -205,7 +205,7 @@ func (m *canvasModel) drawHeader(ctx *ui.Context, b *buf, r layout.Rect) {
 		right = t.TrafficSummary(countShort(ctx, rps), max(tr.ReadPermille, 0)/10, max(tr.ReqKB, 0))
 	}
 	title := m.title(ctx)
-	rest := " · " + state + " · ▶ " + t.EngineInstant()
+	rest := " · " + state + " · ▶ " + m.engineText(ctx.T)
 	rw := textwidth.Width(right)
 	if rw+textwidth.Width(rest)+12 > r.W {
 		right, rw = "", 0
@@ -229,14 +229,19 @@ func (m *canvasModel) drawMetrics(ctx *ui.Context, b *buf, r layout.Rect) {
 	res := m.result
 	cost := m.costShort(ctx, res.Cost.TotalUSDMonth)
 	bn := m.bottleneckText(ctx.T)
+	rps, p50, p99, errP := m.totals()
+	last := m.checksLine(ctx.T)
+	if ev := m.eventLine(ctx.T); ev != "" {
+		last = ev // a playing run: its latest event instead of the checks
+	}
 	if r.H >= 3 {
 		var row0 string
-		if res.RPS == 0 {
+		if rps == 0 && m.frame() == nil {
 			row0 = t.MetricsTotal() + "  " + t.MetricNoTraffic()
 		} else {
-			row0 = t.MetricsTotal() + "  p50 " + archdraw.FormatMs(res.P50Ms) + "  p99 " + archdraw.FormatMs(res.P99Ms) +
-				"  " + t.MetricErr(pct1(res.ErrorPermille)) + "  " + t.MetricThroughput(countShort(ctx, res.RPS))
-			if res.Overloaded {
+			row0 = t.MetricsTotal() + "  p50 " + archdraw.FormatMs(p50) + "  p99 " + archdraw.FormatMs(p99) +
+				"  " + t.MetricErr(pct1(errP)) + "  " + t.MetricThroughput(countShort(ctx, rps))
+			if res.Overloaded && m.frame() == nil {
 				row0 += "  ✕ " + t.MetricOverloaded()
 			}
 		}
@@ -248,21 +253,23 @@ func (m *canvasModel) drawMetrics(ctx *ui.Context, b *buf, r layout.Rect) {
 		if bn != "" {
 			b.text(x, r.Y+1, textwidth.Truncate("  ·  "+bn, max(r.X+r.W-1-x, 0), "…"), max(r.X+r.W-1-x, 0), m.bottleneckStyle())
 		}
-		b.line(r.X+1, r.Y+2, r.W-2, m.checksLine(ctx.T), sDim)
+		b.line(r.X+1, r.Y+2, r.W-2, last, sDim)
 		return
 	}
 	// one line: the cost first so it is never cut, then what fits
 	x := r.X + 1 + b.text(r.X+1, r.Y, cost, r.W-2, sBase)
 	tail := ""
-	if res.RPS > 0 {
-		tail = " · p99 " + archdraw.FormatMs(res.P99Ms) + " · " + t.MetricErr(pct1(res.ErrorPermille))
-		if res.Bottleneck != nil {
+	if rps > 0 || m.frame() != nil {
+		tail = " · p99 " + archdraw.FormatMs(p99) + " · " + t.MetricErr(pct1(errP))
+		if ev := m.eventLine(ctx.T); ev != "" {
+			tail += " · " + ev
+		} else if res.Bottleneck != nil {
 			tail += " · ⚠ " + m.label(res.Bottleneck.Target)
 		}
 	}
 	b.text(x, r.Y, textwidth.Truncate(tail, max(r.X+r.W-1-x, 0), "…"), max(r.X+r.W-1-x, 0), sDim)
 	if r.H >= 2 {
-		b.line(r.X+1, r.Y+1, r.W-2, m.checksLine(ctx.T), sDim)
+		b.line(r.X+1, r.Y+1, r.W-2, last, sDim)
 	}
 }
 

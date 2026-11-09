@@ -268,13 +268,14 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 	m.drawMetrics(ctx, b, r.Metrics)
 	m.drawPaletteGhost(ctx, b)
 	m.drawMenu(ctx, b)
+	m.drawFaults(ctx, b)
 	return b.render(ctx.Theme)
 }
 
 // overlay is what the canvas draws on top of the design: the selection, the
 // move ghost (m) and the connect line (c).
 func (m *canvasModel) overlay() archdraw.Overlay {
-	ov := archdraw.Overlay{Badges: m.badges, Buttons: true, Selected: map[string]bool{}, RouteLimit: archdraw.FrameRouteLimit}
+	ov := archdraw.Overlay{Badges: m.shownBadges(), Buttons: true, Selected: map[string]bool{}, RouteLimit: archdraw.FrameRouteLimit}
 	for _, id := range m.selection() {
 		ov.Selected[id] = true
 	}

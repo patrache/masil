@@ -60,6 +60,10 @@ func (m *canvasModel) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, p ui.Point)
 	case tea.MouseClickMsg:
 		switch msg.Button {
 		case tea.MouseLeft:
+			if m.faults != nil {
+				m.faults = nil // a click leaves the fault menu
+				return nil
+			}
 			if m.menu != nil {
 				return m.menuClick(ctx, p)
 			}

@@ -248,12 +248,236 @@ var areaArchcanvas = area{
 				En: {Other: "Another engine version made these numbers; they may differ slightly"},
 			},
 		},
+		"engine_paused": {
+			desc:   "머리 줄 엔진 상태: 시간 실행 멈춤. t·total = mm:ss",
+			params: []Param{{Name: "t", Type: "string"}, {Name: "total", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행 멈춤 {t}/{total}"},
+				En: {Other: "Timed run paused {t}/{total}"},
+			},
+		},
+		"engine_running": {
+			desc: "머리 줄 엔진 상태: 시간 실행을 계산하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행 계산 중"},
+				En: {Other: "Running the timed run"},
+			},
+		},
+		"engine_timed": {
+			desc:   "머리 줄 엔진 상태: 시간 실행 재생 중. t·total = mm:ss, speed = 배속",
+			params: []Param{{Name: "t", Type: "string"}, {Name: "total", Type: "string"}, {Name: "speed", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행 {t}/{total} ×{speed}"},
+				En: {Other: "Timed run {t}/{total} ×{speed}"},
+			},
+		},
 		"estimate_disclaimer": {
 			desc:  "비용·숫자가 추정이라는 고지(법적 문구)",
 			legal: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "추정치이며 실제 청구액과 다를 수 있음"},
 				En: {Other: "Estimates; actual bills may differ"},
+			},
+		},
+		"ev_box_off": {
+			desc:   "시간 실행 이벤트: AZ·리전 중단",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 중단"},
+				En: {Other: "{target} down"},
+			},
+		},
+		"ev_failover_done": {
+			desc:   "시간 실행 이벤트: replica 승격 끝",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 승격"},
+				En: {Other: "{target} promoted"},
+			},
+		},
+		"ev_failover_start": {
+			desc:   "시간 실행 이벤트: 장애 조치 시작. s = 걸리는 초",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "s", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 장애 조치 {s}초"},
+				En: {Other: "{target} failover {s}s"},
+			},
+		},
+		"ev_fault_end": {
+			desc:   "시간 실행 이벤트: 장애 끝",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 복구"},
+				En: {Other: "{target} recovered"},
+			},
+		},
+		"ev_fault_start": {
+			desc:   "시간 실행 이벤트: 장애 시작(종류 모름). target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 장애 시작"},
+				En: {Other: "{target} fault starts"},
+			},
+		},
+		"ev_instances_off": {
+			desc:   "시간 실행 이벤트: 인스턴스 n대 꺼짐",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} {n}대 꺼짐"},
+				En: {Other: "{target} {n} instances off"},
+			},
+		},
+		"ev_latency": {
+			desc:   "시간 실행 이벤트: 지연 증가",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 지연 +{ms}ms"},
+				En: {Other: "{target} latency +{ms}ms"},
+			},
+		},
+		"ev_lb_reroute": {
+			desc:   "시간 실행 이벤트: LB 가 남은 대상으로 돌림. n = 남은 대상 수",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 남은 {n}곳으로 돌림"},
+				En: {Other: "{target} reroutes to {n} left"},
+			},
+		},
+		"ev_node_off": {
+			desc:   "시간 실행 이벤트: 노드 꺼짐",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 꺼짐"},
+				En: {Other: "{target} off"},
+			},
+		},
+		"ev_queue_drop": {
+			desc:   "시간 실행 이벤트: 대기열이 넘쳐 버림",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 대기열 넘침 · {n}건 버림"},
+				En: {Other: "{target} queue full · {n} dropped"},
+			},
+		},
+		"ev_scale_in": {
+			desc:   "시간 실행 이벤트: 자동 확장으로 줄임",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} {n}대로 줄임"},
+				En: {Other: "{target} scales in to {n}"},
+			},
+		},
+		"ev_scale_out": {
+			desc:   "시간 실행 이벤트: 자동 확장으로 늘림",
+			params: []Param{{Name: "target", Type: "string"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} {n}대로 늘림"},
+				En: {Other: "{target} scales out to {n}"},
+			},
+		},
+		"ev_writes_failing": {
+			desc:   "시간 실행 이벤트: 쓰기 실패(장애 조치 대상 없음)",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{target} 쓰기 실패 100%"},
+				En: {Other: "{target} writes failing 100%"},
+			},
+		},
+		"fault_add_ms": {
+			desc: "장애 메뉴: 더할 지연 ms 입력 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "더할 지연 ms"},
+				En: {Other: "Added latency ms"},
+			},
+		},
+		"fault_at": {
+			desc:   "장애 메뉴: 시간 실행의 그 시각에. t = mm:ss 입력",
+			params: []Param{{Name: "t", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행의 {t} 에"},
+				En: {Other: "At {t} of the run"},
+			},
+		},
+		"fault_at_hint": {
+			desc: "장애 메뉴: 시각을 잘못 적었을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "mm:ss 로 적으세요 (00:00~10:00)"},
+				En: {Other: "Type mm:ss (00:00 to 10:00)"},
+			},
+		},
+		"fault_az_off": {
+			desc:   "장애 메뉴: AZ 끄기. target = AZ 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "AZ 끄기 · {target}"},
+				En: {Other: "Turn off AZ · {target}"},
+			},
+		},
+		"fault_count": {
+			desc: "장애 메뉴: 끌 인스턴스 수 입력 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "끌 대수"},
+				En: {Other: "Instances to turn off"},
+			},
+		},
+		"fault_instances_off": {
+			desc:   "장애 메뉴: 인스턴스 몇 대 끄기. target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "인스턴스 n대 끄기 · {target}"},
+				En: {Other: "Turn off n instances · {target}"},
+			},
+		},
+		"fault_latency": {
+			desc:   "장애 메뉴: 지연 더하기. target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "지연 +ms · {target}"},
+				En: {Other: "Add latency · {target}"},
+			},
+		},
+		"fault_menu_title": {
+			desc: "장애 메뉴 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애 넣기"},
+				En: {Other: "Add a fault"},
+			},
+		},
+		"fault_node_off": {
+			desc:   "장애 메뉴: 노드 끄기. target = 대상 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 끄기 · {target}"},
+				En: {Other: "Turn off · {target}"},
+			},
+		},
+		"fault_none": {
+			desc: "고른 것에 넣을 장애가 없을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드·AZ·리전·연결을 고른 뒤 장애를 넣으세요"},
+				En: {Other: "Select a node, AZ, region or connection first"},
+			},
+		},
+		"fault_now": {
+			desc: "장애 메뉴: 시간 실행 시작부터",
+			text: map[Locale]Forms{
+				Ko: {Other: "지금"},
+				En: {Other: "Now"},
+			},
+		},
+		"fault_region_off": {
+			desc:   "장애 메뉴: 리전 끄기. target = 리전 라벨",
+			params: []Param{{Name: "target", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "리전 끄기 · {target}"},
+				En: {Other: "Turn off region · {target}"},
+			},
+		},
+		"fault_when": {
+			desc: "장애 메뉴: 언제 넣을지 고르는 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "언제"},
+				En: {Other: "When"},
 			},
 		},
 		"field_autoscale": {
@@ -827,6 +1051,13 @@ var areaArchcanvas = area{
 				En: {Other: "Nudge"},
 			},
 		},
+		"key_time": {
+			desc: "키 안내: 시간 실행이 멈췄을 때 ←/→ 로 1초씩",
+			text: map[Locale]Forms{
+				Ko: {Other: "1초 앞뒤"},
+				En: {Other: "±1s"},
+			},
+		},
 		"key_toggle": {
 			desc: "키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기",
 			text: map[Locale]Forms{
@@ -1342,6 +1573,13 @@ var areaArchcanvas = area{
 				En: {Other: "Copy · read-only"},
 			},
 		},
+		"run_failed": {
+			desc: "시간 실행이 실패했을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행을 하지 못했어요"},
+				En: {Other: "The timed run failed"},
+			},
+		},
 		"save_failed": {
 			desc: "머리 줄 저장 상태: 저장 실패",
 			text: map[Locale]Forms{
@@ -1422,6 +1660,14 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "space 시간실행"},
 				En: {Other: "space timed run"},
+			},
+		},
+		"tiny_running": {
+			desc:   "초소형 요약 마지막 줄: 시간 실행 중. t = mm:ss, speed = 배속",
+			params: []Param{{Name: "t", Type: "string"}, {Name: "speed", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "space 정지 · {t} ×{speed}"},
+				En: {Other: "space stop · {t} ×{speed}"},
 			},
 		},
 		"tiny_summary": {
@@ -1660,9 +1906,154 @@ func (a_ ArchcanvasT) EngineMismatch() string {
 	return a_.t.render(&areaArchcanvas, "engine_mismatch", false, 0)
 }
 
+// EnginePaused: 머리 줄 엔진 상태: 시간 실행 멈춤. t·total = mm:ss
+func (a_ ArchcanvasT) EnginePaused(t string, total string) string {
+	return a_.t.render(&areaArchcanvas, "engine_paused", false, 0, "t", t, "total", total)
+}
+
+// EngineRunning: 머리 줄 엔진 상태: 시간 실행을 계산하는 중
+func (a_ ArchcanvasT) EngineRunning() string {
+	return a_.t.render(&areaArchcanvas, "engine_running", false, 0)
+}
+
+// EngineTimed: 머리 줄 엔진 상태: 시간 실행 재생 중. t·total = mm:ss, speed = 배속
+func (a_ ArchcanvasT) EngineTimed(t string, total string, speed int) string {
+	return a_.t.render(&areaArchcanvas, "engine_timed", false, 0, "t", t, "total", total, "speed", strconv.Itoa(speed))
+}
+
 // EstimateDisclaimer: 비용·숫자가 추정이라는 고지(법적 문구)
 func (a_ ArchcanvasT) EstimateDisclaimer() string {
 	return a_.t.render(&areaArchcanvas, "estimate_disclaimer", false, 0)
+}
+
+// EvBoxOff: 시간 실행 이벤트: AZ·리전 중단
+func (a_ ArchcanvasT) EvBoxOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_box_off", false, 0, "target", target)
+}
+
+// EvFailoverDone: 시간 실행 이벤트: replica 승격 끝
+func (a_ ArchcanvasT) EvFailoverDone(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_failover_done", false, 0, "target", target)
+}
+
+// EvFailoverStart: 시간 실행 이벤트: 장애 조치 시작. s = 걸리는 초
+func (a_ ArchcanvasT) EvFailoverStart(target string, s int) string {
+	return a_.t.render(&areaArchcanvas, "ev_failover_start", false, 0, "target", target, "s", strconv.Itoa(s))
+}
+
+// EvFaultEnd: 시간 실행 이벤트: 장애 끝
+func (a_ ArchcanvasT) EvFaultEnd(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_fault_end", false, 0, "target", target)
+}
+
+// EvFaultStart: 시간 실행 이벤트: 장애 시작(종류 모름). target = 대상 라벨
+func (a_ ArchcanvasT) EvFaultStart(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_fault_start", false, 0, "target", target)
+}
+
+// EvInstancesOff: 시간 실행 이벤트: 인스턴스 n대 꺼짐
+func (a_ ArchcanvasT) EvInstancesOff(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_instances_off", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvLatency: 시간 실행 이벤트: 지연 증가
+func (a_ ArchcanvasT) EvLatency(target string, ms int) string {
+	return a_.t.render(&areaArchcanvas, "ev_latency", false, 0, "target", target, "ms", strconv.Itoa(ms))
+}
+
+// EvLbReroute: 시간 실행 이벤트: LB 가 남은 대상으로 돌림. n = 남은 대상 수
+func (a_ ArchcanvasT) EvLbReroute(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_lb_reroute", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvNodeOff: 시간 실행 이벤트: 노드 꺼짐
+func (a_ ArchcanvasT) EvNodeOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_node_off", false, 0, "target", target)
+}
+
+// EvQueueDrop: 시간 실행 이벤트: 대기열이 넘쳐 버림
+func (a_ ArchcanvasT) EvQueueDrop(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_queue_drop", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvScaleIn: 시간 실행 이벤트: 자동 확장으로 줄임
+func (a_ ArchcanvasT) EvScaleIn(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_scale_in", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvScaleOut: 시간 실행 이벤트: 자동 확장으로 늘림
+func (a_ ArchcanvasT) EvScaleOut(target string, n int) string {
+	return a_.t.render(&areaArchcanvas, "ev_scale_out", false, 0, "target", target, "n", strconv.Itoa(n))
+}
+
+// EvWritesFailing: 시간 실행 이벤트: 쓰기 실패(장애 조치 대상 없음)
+func (a_ ArchcanvasT) EvWritesFailing(target string) string {
+	return a_.t.render(&areaArchcanvas, "ev_writes_failing", false, 0, "target", target)
+}
+
+// FaultAddMs: 장애 메뉴: 더할 지연 ms 입력 머리
+func (a_ ArchcanvasT) FaultAddMs() string {
+	return a_.t.render(&areaArchcanvas, "fault_add_ms", false, 0)
+}
+
+// FaultAt: 장애 메뉴: 시간 실행의 그 시각에. t = mm:ss 입력
+func (a_ ArchcanvasT) FaultAt(t string) string {
+	return a_.t.render(&areaArchcanvas, "fault_at", false, 0, "t", t)
+}
+
+// FaultAtHint: 장애 메뉴: 시각을 잘못 적었을 때
+func (a_ ArchcanvasT) FaultAtHint() string {
+	return a_.t.render(&areaArchcanvas, "fault_at_hint", false, 0)
+}
+
+// FaultAzOff: 장애 메뉴: AZ 끄기. target = AZ 라벨
+func (a_ ArchcanvasT) FaultAzOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_az_off", false, 0, "target", target)
+}
+
+// FaultCount: 장애 메뉴: 끌 인스턴스 수 입력 머리
+func (a_ ArchcanvasT) FaultCount() string {
+	return a_.t.render(&areaArchcanvas, "fault_count", false, 0)
+}
+
+// FaultInstancesOff: 장애 메뉴: 인스턴스 몇 대 끄기. target = 대상 라벨
+func (a_ ArchcanvasT) FaultInstancesOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_instances_off", false, 0, "target", target)
+}
+
+// FaultLatency: 장애 메뉴: 지연 더하기. target = 대상 라벨
+func (a_ ArchcanvasT) FaultLatency(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_latency", false, 0, "target", target)
+}
+
+// FaultMenuTitle: 장애 메뉴 머리
+func (a_ ArchcanvasT) FaultMenuTitle() string {
+	return a_.t.render(&areaArchcanvas, "fault_menu_title", false, 0)
+}
+
+// FaultNodeOff: 장애 메뉴: 노드 끄기. target = 대상 라벨
+func (a_ ArchcanvasT) FaultNodeOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_node_off", false, 0, "target", target)
+}
+
+// FaultNone: 고른 것에 넣을 장애가 없을 때 토스트
+func (a_ ArchcanvasT) FaultNone() string {
+	return a_.t.render(&areaArchcanvas, "fault_none", false, 0)
+}
+
+// FaultNow: 장애 메뉴: 시간 실행 시작부터
+func (a_ ArchcanvasT) FaultNow() string {
+	return a_.t.render(&areaArchcanvas, "fault_now", false, 0)
+}
+
+// FaultRegionOff: 장애 메뉴: 리전 끄기. target = 리전 라벨
+func (a_ ArchcanvasT) FaultRegionOff(target string) string {
+	return a_.t.render(&areaArchcanvas, "fault_region_off", false, 0, "target", target)
+}
+
+// FaultWhen: 장애 메뉴: 언제 넣을지 고르는 머리
+func (a_ ArchcanvasT) FaultWhen() string {
+	return a_.t.render(&areaArchcanvas, "fault_when", false, 0)
 }
 
 // FieldAutoscale: 설정 칸: 자동 확장 켬/끔
@@ -2070,6 +2461,11 @@ func (a_ ArchcanvasT) KeyStep() string {
 	return a_.t.render(&areaArchcanvas, "key_step", false, 0)
 }
 
+// KeyTime: 키 안내: 시간 실행이 멈췄을 때 ←/→ 로 1초씩
+func (a_ ArchcanvasT) KeyTime() string {
+	return a_.t.render(&areaArchcanvas, "key_time", false, 0)
+}
+
 // KeyToggle: 키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기
 func (a_ ArchcanvasT) KeyToggle() string {
 	return a_.t.render(&areaArchcanvas, "key_toggle", false, 0)
@@ -2425,6 +2821,11 @@ func (a_ ArchcanvasT) ReadOnlyCopy() string {
 	return a_.t.render(&areaArchcanvas, "read_only_copy", false, 0)
 }
 
+// RunFailed: 시간 실행이 실패했을 때 토스트
+func (a_ ArchcanvasT) RunFailed() string {
+	return a_.t.render(&areaArchcanvas, "run_failed", false, 0)
+}
+
 // SaveFailed: 머리 줄 저장 상태: 저장 실패
 func (a_ ArchcanvasT) SaveFailed() string {
 	return a_.t.render(&areaArchcanvas, "save_failed", false, 0)
@@ -2478,6 +2879,11 @@ func (a_ ArchcanvasT) TinyEditHint() string {
 // TinyRun: 초소형 요약 마지막 줄 앞: 시간 실행 키
 func (a_ ArchcanvasT) TinyRun() string {
 	return a_.t.render(&areaArchcanvas, "tiny_run", false, 0)
+}
+
+// TinyRunning: 초소형 요약 마지막 줄: 시간 실행 중. t = mm:ss, speed = 배속
+func (a_ ArchcanvasT) TinyRunning(t string, speed int) string {
+	return a_.t.render(&areaArchcanvas, "tiny_running", false, 0, "t", t, "speed", strconv.Itoa(speed))
 }
 
 // TinySummary: 초소형 요약 첫 줄. title = 설계 제목, p99 = 짧은 시간, err = 소수 한 자리 %

@@ -143,10 +143,147 @@ other = "즉시분석"
 desc = "카드·사본의 엔진 버전이 지금과 다를 때 안내"
 other = "엔진 버전이 달라 숫자가 조금 다를 수 있어요"
 
+[engine_paused]
+desc = "머리 줄 엔진 상태: 시간 실행 멈춤. t·total = mm:ss"
+params = { t = "string", total = "string" }
+other = "시간 실행 멈춤 {t}/{total}"
+
+[engine_running]
+desc = "머리 줄 엔진 상태: 시간 실행을 계산하는 중"
+other = "시간 실행 계산 중"
+
+[engine_timed]
+desc = "머리 줄 엔진 상태: 시간 실행 재생 중. t·total = mm:ss, speed = 배속"
+params = { t = "string", total = "string", speed = "int" }
+other = "시간 실행 {t}/{total} ×{speed}"
+
 [estimate_disclaimer]
 desc = "비용·숫자가 추정이라는 고지(법적 문구)"
 legal = true
 other = "추정치이며 실제 청구액과 다를 수 있음"
+
+[ev_box_off]
+desc = "시간 실행 이벤트: AZ·리전 중단"
+params = { target = "string" }
+other = "{target} 중단"
+
+[ev_failover_done]
+desc = "시간 실행 이벤트: replica 승격 끝"
+params = { target = "string" }
+other = "{target} 승격"
+
+[ev_failover_start]
+desc = "시간 실행 이벤트: 장애 조치 시작. s = 걸리는 초"
+params = { target = "string", s = "int" }
+other = "{target} 장애 조치 {s}초"
+
+[ev_fault_end]
+desc = "시간 실행 이벤트: 장애 끝"
+params = { target = "string" }
+other = "{target} 복구"
+
+[ev_fault_start]
+desc = "시간 실행 이벤트: 장애 시작(종류 모름). target = 대상 라벨"
+params = { target = "string" }
+other = "{target} 장애 시작"
+
+[ev_instances_off]
+desc = "시간 실행 이벤트: 인스턴스 n대 꺼짐"
+params = { target = "string", n = "int" }
+other = "{target} {n}대 꺼짐"
+
+[ev_latency]
+desc = "시간 실행 이벤트: 지연 증가"
+params = { target = "string", ms = "int" }
+other = "{target} 지연 +{ms}ms"
+
+[ev_lb_reroute]
+desc = "시간 실행 이벤트: LB 가 남은 대상으로 돌림. n = 남은 대상 수"
+params = { target = "string", n = "int" }
+other = "{target} 남은 {n}곳으로 돌림"
+
+[ev_node_off]
+desc = "시간 실행 이벤트: 노드 꺼짐"
+params = { target = "string" }
+other = "{target} 꺼짐"
+
+[ev_queue_drop]
+desc = "시간 실행 이벤트: 대기열이 넘쳐 버림"
+params = { target = "string", n = "int" }
+other = "{target} 대기열 넘침 · {n}건 버림"
+
+[ev_scale_in]
+desc = "시간 실행 이벤트: 자동 확장으로 줄임"
+params = { target = "string", n = "int" }
+other = "{target} {n}대로 줄임"
+
+[ev_scale_out]
+desc = "시간 실행 이벤트: 자동 확장으로 늘림"
+params = { target = "string", n = "int" }
+other = "{target} {n}대로 늘림"
+
+[ev_writes_failing]
+desc = "시간 실행 이벤트: 쓰기 실패(장애 조치 대상 없음)"
+params = { target = "string" }
+other = "{target} 쓰기 실패 100%"
+
+[fault_add_ms]
+desc = "장애 메뉴: 더할 지연 ms 입력 머리"
+other = "더할 지연 ms"
+
+[fault_at]
+desc = "장애 메뉴: 시간 실행의 그 시각에. t = mm:ss 입력"
+params = { t = "string" }
+other = "시간 실행의 {t} 에"
+
+[fault_at_hint]
+desc = "장애 메뉴: 시각을 잘못 적었을 때"
+other = "mm:ss 로 적으세요 (00:00~10:00)"
+
+[fault_az_off]
+desc = "장애 메뉴: AZ 끄기. target = AZ 라벨"
+params = { target = "string" }
+other = "AZ 끄기 · {target}"
+
+[fault_count]
+desc = "장애 메뉴: 끌 인스턴스 수 입력 머리"
+other = "끌 대수"
+
+[fault_instances_off]
+desc = "장애 메뉴: 인스턴스 몇 대 끄기. target = 대상 라벨"
+params = { target = "string" }
+other = "인스턴스 n대 끄기 · {target}"
+
+[fault_latency]
+desc = "장애 메뉴: 지연 더하기. target = 대상 라벨"
+params = { target = "string" }
+other = "지연 +ms · {target}"
+
+[fault_menu_title]
+desc = "장애 메뉴 머리"
+other = "장애 넣기"
+
+[fault_node_off]
+desc = "장애 메뉴: 노드 끄기. target = 대상 라벨"
+params = { target = "string" }
+other = "노드 끄기 · {target}"
+
+[fault_none]
+desc = "고른 것에 넣을 장애가 없을 때 토스트"
+other = "노드·AZ·리전·연결을 고른 뒤 장애를 넣으세요"
+
+[fault_now]
+desc = "장애 메뉴: 시간 실행 시작부터"
+other = "지금"
+
+[fault_region_off]
+desc = "장애 메뉴: 리전 끄기. target = 리전 라벨"
+params = { target = "string" }
+other = "리전 끄기 · {target}"
+
+[fault_when]
+desc = "장애 메뉴: 언제 넣을지 고르는 머리"
+other = "언제"
 
 [field_autoscale]
 desc = "설정 칸: 자동 확장 켬/끔"
@@ -476,6 +613,10 @@ other = "배속"
 desc = "키 안내: 선택한 것을 격자 한 칸씩 옮기기"
 other = "한 칸 옮기기"
 
+[key_time]
+desc = "키 안내: 시간 실행이 멈췄을 때 ←/→ 로 1초씩"
+other = "1초 앞뒤"
+
 [key_toggle]
 desc = "키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기"
 other = "넣고 빼기"
@@ -778,6 +919,10 @@ other = "{min}~{max} 사이 숫자"
 desc = "머리 줄: 카드에서 연 읽기 전용 사본"
 other = "사본 · 읽기 전용"
 
+[run_failed]
+desc = "시간 실행이 실패했을 때 토스트"
+other = "시간 실행을 하지 못했어요"
+
 [save_failed]
 desc = "머리 줄 저장 상태: 저장 실패"
 other = "저장 실패"
@@ -826,6 +971,11 @@ other = "창을 키우면 편집"
 [tiny_run]
 desc = "초소형 요약 마지막 줄 앞: 시간 실행 키"
 other = "space 시간실행"
+
+[tiny_running]
+desc = "초소형 요약 마지막 줄: 시간 실행 중. t = mm:ss, speed = 배속"
+params = { t = "string", speed = "int" }
+other = "space 정지 · {t} ×{speed}"
 
 [tiny_summary]
 desc = "초소형 요약 첫 줄. title = 설계 제목, p99 = 짧은 시간, err = 소수 한 자리 %"

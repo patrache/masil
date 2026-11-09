@@ -92,7 +92,8 @@ func (m *canvasModel) listText(ctx *ui.Context, r listRow) (string, sty) {
 	}
 	s := pad + m.label(r.id)
 	st := sBase
-	if bd, ok := m.badges[r.id]; ok {
+	if _, ok := m.badges[r.id]; ok {
+		bd := m.badgeOf(r.id)
 		s += bd.Text + " · " + pctText(bd.BarPermille) + " · p99 " + archdraw.FormatMs(bd.P99Ms)
 		switch {
 		case bd.Danger:

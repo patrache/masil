@@ -485,6 +485,7 @@ func utilLine(ctx *ui.Context, permille int, down, over bool) panelLine {
 // refresh redraws from the sink after someone else's change: a panel whose
 // node is gone closes with a note (the typed value is dropped, not sent).
 func (m *canvasModel) refresh(ctx *ui.Context) tea.Cmd {
+	m.designChanged()
 	m.rebuild(ctx)
 	if m.panelGone {
 		m.panelGone = false

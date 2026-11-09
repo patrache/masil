@@ -54,8 +54,13 @@ type canvasModel struct {
 	pickBoxes      bool            // g: box kinds only
 	pickOpened     bool            // the palette drawer was pulled out for the pick
 	find           string          // /: the query typed so far
-	running        bool            // space: the timed run (P3 Task 19)
 	speedX         int             // < >: the timed run's speed
+
+	// the fault menu and the timed run (faults.go, playback.go); runGen
+	// counts design changes so an old run's result is dropped
+	faults *faultMenu
+	pb     playback
+	runGen int
 
 	// the settings panel (panel.go); panelGone: its node was deleted by
 	// someone else in the last rebuild (refresh turns it into a note)
@@ -184,6 +189,14 @@ func (m *canvasModel) rebuild(ctx *ui.Context) {
 		m.sel = ""
 	}
 	m.gestureGone()
+	if m.faults != nil {
+		for _, o := range m.faults.opts {
+			if !m.exists(o.target) {
+				m.faults = nil
+				break
+			}
+		}
+	}
 	if !m.placed {
 		m.fit()
 	}
@@ -261,6 +274,14 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if msg.instance == m.route.ID {
 			return m.runCommand(ctx, msg.id)
 		}
+	case timedDoneMsg:
+		if msg.instance == m.route.ID {
+			return m.runDone(ctx, msg)
+		}
+	case playTickMsg:
+		if msg.instance == m.route.ID {
+			return m.playStep(ctx, msg)
+		}
 	case settleMsg:
 		if msg.instance == m.route.ID && m.scene != nil {
 			if sc, _ := m.visibleScene(); !sc.Settle(m.vp, archdraw.FrameRouteLimit) {
@@ -302,7 +323,13 @@ func (m *canvasModel) settleLater(ctx *ui.Context) tea.Cmd {
 
 // runCommand runs an arch.* palette command on this canvas (the later tasks
 // fill in share, export, versions, send_card and run).
-func (m *canvasModel) runCommand(*ui.Context, string) tea.Cmd { return nil }
+func (m *canvasModel) runCommand(ctx *ui.Context, id string) tea.Cmd {
+	switch id {
+	case "arch.run":
+		return m.toggleRun(ctx)
+	}
+	return nil
+}
 
 func (m *canvasModel) Resize(ctx *ui.Context, size ui.Size) {
 	m.size, m.layMode = size, ctx.Mode
