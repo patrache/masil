@@ -210,6 +210,12 @@ func (r *Root) follow(rel, clean string) (string, error) {
 			}
 			return joinRel(done), nil
 		}
+		name, ok := r.diskName(done, seg, fi)
+		if !ok {
+			return "", reject(rel, ReasonInvalid)
+		}
+		seg = name
+		cand = joinRel(append(done[:len(done):len(done)], seg))
 		if fi.Mode()&fs.ModeSymlink == 0 {
 			done = append(done, seg)
 			continue
@@ -235,6 +241,40 @@ func (r *Root) follow(rel, clean string) (string, error) {
 		segs = append(strings.Split(filepath.ToSlash(target), "/"), segs...)
 	}
 	return joinRel(done), nil
+}
+
+// diskName returns the name stored on disk for the existing element seg of
+// the folder done (fi is seg's Lstat). Case-insensitive or folding file
+// systems (APFS, NTFS: "SECRETS.JSON", U+017F "ſ" for "s", 8.3 short names,
+// trailing dots or spaces) open a file under spellings the deny list and
+// the ignore rules never see, so every check runs on the stored name: an
+// exact entry match keeps seg, otherwise the one entry that is the same file
+// replaces it. No match, more than one (hard links) or an unreadable folder
+// is false (fail closed).
+func (r *Root) diskName(done []string, seg string, fi fs.FileInfo) (string, bool) {
+	dir := joinRel(done)
+	f, err := r.root.Open(osPath(dir))
+	if err != nil {
+		return "", false
+	}
+	names, err := f.Readdirnames(-1)
+	_ = f.Close()
+	if err != nil {
+		return "", false
+	}
+	for _, n := range names {
+		if n == seg {
+			return seg, true
+		}
+	}
+	match, count := "", 0
+	for _, n := range names {
+		efi, err := r.root.Lstat(osPath(joinRel(append(done[:len(done):len(done)], n))))
+		if err == nil && os.SameFile(fi, efi) {
+			match, count = n, count+1
+		}
+	}
+	return match, count == 1
 }
 
 // insideAbs maps an absolute link target to a raw (uncleaned) slash path

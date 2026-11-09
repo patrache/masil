@@ -51,10 +51,16 @@ func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err
 		if clean != "." {
 			child = clean + "/" + name
 		}
-		e := Entry{Name: name, Dir: de.IsDir(), Denied: Denied(child)}
+		// realChild uses the stored names and resolved links of the folder,
+		// so a peer's other spelling of dirRel cannot dodge the rules.
+		realChild := name
+		if real != "." {
+			realChild = real + "/" + name
+		}
+		e := Entry{Name: name, Dir: de.IsDir(), Denied: Denied(child) || Denied(realChild)}
 		if de.Type()&fs.ModeSymlink != 0 {
 			e.Dir = false
-			if target, ferr := r.follow(child, child); ferr != nil {
+			if target, ferr := r.follow(child, realChild); ferr != nil {
 				e.Denied = true
 			} else {
 				if Denied(target) {
@@ -63,7 +69,7 @@ func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err
 				if fi, serr := r.root.Stat(osPath(target)); serr == nil {
 					e.Dir, e.Size = fi.IsDir(), sizeOf(fi)
 				}
-				if target != child {
+				if target != child && target != realChild {
 					qRels, qDirs, qIdx = append(qRels, target), append(qDirs, e.Dir), append(qIdx, len(all))
 				}
 			}
@@ -74,6 +80,9 @@ func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err
 			e.Ignored = true
 		}
 		qRels, qDirs, qIdx = append(qRels, child), append(qDirs, e.Dir), append(qIdx, len(all))
+		if realChild != child {
+			qRels, qDirs, qIdx = append(qRels, realChild), append(qDirs, e.Dir), append(qIdx, len(all))
+		}
 		all = append(all, e)
 	}
 	if ig := r.ignorer(); ig != nil && len(qRels) > 0 {
