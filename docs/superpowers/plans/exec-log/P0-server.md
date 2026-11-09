@@ -56,3 +56,15 @@
 ## 마무리 확인에서 드러난 것 — Go `TestEndpointLimitersMatchContractTable`
 
 - 내 판단: `go test ./...` 에서 `internal/api` 의 `TestEndpointLimitersMatchContractTable` 이 실패한다. api.md 6장의 새 `RL_DOC` 행 5개(POST spaces/*/docs, PATCH·DELETE docs/*, POST docs/*/versions, POST docs/*/versions/*/restore)를 시험하는 Go 엔드포인트 case 가 아직 없어서다. 계획은 행을 경로를 만드는 Task 와 같은 커밋에 더하라고 하고(서버 `contract-limiters` 시험이 그것을 강제), Go 쪽 문서 메서드와 harness case 는 P0 Task 30(`internal/api/ep_docs.go`, 다른 batch 몫)이 만든다. 이 batch 는 서버만 맡으므로 Go 파일은 고치지 않았다. Task 30 이 들어오면 풀린다. 그 전에 이 브랜치를 먼저 합치면 dev 에서 Go 시험이 잠시 깨지므로, 통합 순서(Task 30 과 함께 합치기)는 오너·통합 담당이 정한다. 다른 Go 패키지 38개는 통과.
+
+## 리뷰 반영 (P0 review)
+
+- 내 판단: 문서 소켓 연결 경합(잠금·역할·강퇴·세션)은 묘비(tombstone)나 시각 비교 대신 "DO 가 소켓을 먼저 받아 둔 뒤 D1 을 한 번 더 읽는다" 로 막았다. 소켓을 먼저 받으므로 그 뒤의 `kick`·`setRole`·`revokeSession`·`setLocked` RPC 는 그 소켓을 보고, 그 앞에 끝난 변경은 다시 읽은 D1 에 보인다. 읽는 동안 `setLocked`·`setRole` 이 들어오면 RPC 쪽 값을 남긴다(메모리 세대 번호). Worker 와 DO 사이 시계 차이에 기대지 않는다. 연결마다 D1 읽기 하나가 는다(RL_WS 가 연결 수를 묶는다). 실패하면 503.
+- 내 판단: 위 때문에 Task 27 의 "잠금 표시는 연결 때 헤더 값으로 덮는다", "연결 때 세션을 D1 에서 다시 확인하지 않는다" 두 판단은 뒤집었다. 거절 코드: 멤버 아님·문서 없음 404, 세션 폐기·만료 401. collab.md 2·3.4 에 적었다.
+- 내 판단: 두 번째 `hello` 는 닫지 않고 조용히 버린다(3.4 "모르는 프레임은 버린다" 와 같은 결). 다시 따라잡으려면 다시 연결한다.
+- 내 판단: 버전 D1 쓰기 실패 때 `last_version_seq`·`last_auto_at` 은 "원래 값으로 되돌리기" 가 아니라 남은 `versions` 표에서 다시 계산한다(await 동안 다른 `addVersion` 이 돌았을 수 있음). `version_no` 는 되돌리지 않는다(건너뛴 번호는 해가 없고, 다시 쓰면 겹칠 수 있음).
+- 내 판단: alert 문구의 인자 규칙을 "언어별 ⊆ 선언, 세 언어 합집합 = 선언" 으로 계획 Task 8 Step 2·Task 9 Step 1 과 api.md alert 템플릿 문단에 적었다. Task 9(Go 카탈로그 시험)·Task 29 를 맡은 batch 는 이 규칙을 따라야 한다 — 통합 담당이 알려야 한다.
+- 내 판단: collab.md 4.1 표의 `init` 서명을 `init(docType, snapshot) → {seq} | {error}` 로 고치고, 3.3 2단계에 "`validateOp` 의 state 는 같은 프레임의 앞 op 들을 적용한 상태, 거절이면 프레임 전체 되돌림" 을 적었다(구현 `applyFrame` 그대로).
+- 미룸: Go `TestEndpointLimitersMatchContractTable` 실패(위 "마무리 확인" 절)는 그대로다. Go 쪽 case 는 Task 30 의 `ep_docs.go` 몫이라 이 batch 에서 고치지 않는다. 이 브랜치는 Task 30 과 함께, 또는 Task 30 바로 뒤에 dev 에 합쳐야 한다 — 머지 순서는 오너·통합 담당이 정한다.
+- 미룸: 커밋 96ec3a0(Task 28 뒤 exec-log 커밋)을 6d69fb6 에 합치는 squash 는 이력 고쳐 쓰기라 오너 승인 없이 하지 않았다.
+- 확인: reducer 벡터 시험은 공유 파일 `docs/contract/collab-vectors.json` 의 `want` 로만 판정한다. 21개 중 18개는 Task 2(구현 전)에 쓰인 것이고, 이 batch 가 더한 3개는 모두 거절 벡터(`parseOps` 가 null 인지만 봄)라 구현에 맞춰 쓴 기대값이 아니다.

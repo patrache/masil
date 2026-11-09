@@ -101,7 +101,7 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 ### 3.3 검사 순서 (op 프레임마다, 원자적)
 
 1. 공통: 프레임 모양, `client_op_id` 모양(3.1), `ops` 1..200, 각 op 의 모양(알려진 `op` 다섯 중 `reset` 이외, 필수 필드, 이름 규칙 1.2), 잠금(문서가 잠겨 있고(`locked`) 보낸 사람의 첨부 `role` 이 `creator`·`admin` 이 아니면 `reject locked` — 잠기지 않은 문서는 방 멤버 누구나 편집), 속도(4장).
-2. 문서 종류의 `validateOp(op, state)` 를 op 마다(첫 거절에서 멈추고 그 `{code, detail}` 로 `reject`).
+2. 문서 종류의 `validateOp(op, state)` 를 op 마다(첫 거절에서 멈추고 그 `{code, detail}` 로 `reject`). `state` 는 **같은 프레임의 앞 op 들을 적용한 상태**다(검사와 적용을 op 마다 번갈아 한다 — 같은 프레임의 `put node` 뒤 `put edge` 는 그 node 를 본다). 어느 단계에서든 거절하면 프레임 전체를 되돌린다.
 3. 적용한 뒤 한도: `maxDocBytes`(→ `too_large`), `maxObjects`(삭제 안 된 것, → `limit_exceeded`, `detail` 은 `limit_<type>`), `maxFieldBytes`(→ `too_large`). 넘으면 되돌리고 거절.
 
 모르는 `op` 값·`reset` 은 1단계에서 `reject invalid`. 거절된 프레임은 순번·상태·`client_op_id` 기록을 남기지 않는다.
@@ -158,7 +158,9 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 | `closeAll(reason)` | 방 삭제(`space_deleted`, 그 방 문서마다)·문서 삭제(`doc_deleted`) | 모든 소켓에 `kicked{reason}` 뒤 4100 |
 | `revokeSession(userId, sessionIds \| "all", code)` | `services/users.ts` `revokeSessions`(로그아웃·세션 끊기·비밀번호 변경 = 4001, 계정 정지 = 4003) — 그 사용자가 멤버인 방들의 삭제 안 된 문서마다 | 첨부 `sessionId` 가 맞는 소켓(`"all"` = 그 사용자 전부)을 `code` 로 닫는다. `kicked` 프레임은 보내지 않는다 |
 | `setRole(userId, role)` | 방 역할 바뀜(멤버 역할 변경·소유권 이전 — `space.member_updated` 를 내는 경로, 그 방 문서마다) | 그 사용자 소켓들의 첨부 `role` 을 고친다(`creator` 는 그대로 둔다). 다음 op 부터 3.3 잠금 검사가 새 값을 본다 |
-| `setLocked(locked)`·`init(snapshot)`·`head()` | 문서 REST(api.md 5.24) | 잠금 표시·처음 상태·지금 순번 |
+| `setLocked(locked)` | 문서 REST `PATCH {locked}`(api.md 5.24) | 잠금 표시 |
+| `init(docType, snapshot) → {seq} \| {error: "invalid" \| "too_long"}` | 문서 REST `POST …/docs {snapshot}` | 처음 상태(3.4). 거절이면 REST 가 `400 fields.snapshot` |
+| `head() → number` | 문서 REST | 지금 순번 |
 
 - 세션 만료(폐기 없이 시간이 지남)는 열린 소켓을 닫지 않는다 — 세션은 쓰는 동안 늘어나고(`last_used_at`), 다음 연결의 `requireAuth` 가 막는다.
 - RPC 가 실패해도 D1 이 진실이다: 다음 연결은 Worker 의 세션·멤버 확인에서 막힌다. 실패는 기록만 한다(`revokeSessions` 의 UserHub 호출과 같음).

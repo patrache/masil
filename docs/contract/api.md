@@ -662,7 +662,7 @@ interface AdminAction {
 | `api.result` | 1 | 사용자(P4) | P4 |
 | `api.run` | 1 | 사용자(P4) | P4 |
 
-- **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
+- **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. `template.params` 는 그 id 에 선언된 인자를 모두 싣지만, 언어별 문구는 그 가운데 일부만 써도 된다(세 언어 문구가 쓰는 인자의 합집합 = 선언 — 예 `doc.comment_mention` 의 ko 제목은 `{space}` 를 쓰지 않는다). 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
 - **문서 대상 (`target.type:"doc"`)**: 모양 `{ type: "doc", id: <doc_id>, space_id, doc_type: "arch" | "apicol", channel_id: null, message_id: null, thread_root_id: null, post_id: null }`. 클라이언트는 `doc_type` 으로 어느 도구가 열지 고른다(CA 5.3.6 `RegisterAlertTarget` 의 `"doc:<doc_type>"` 키). 0.1.2 클라이언트는 모르는 대상의 alert 를 OS 알림으로만 보이고 이동하지 않는다.
 
 ### 2.1 본문 문법 (메시지·글 공통)
