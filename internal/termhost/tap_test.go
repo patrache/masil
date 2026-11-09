@@ -214,3 +214,26 @@ func TestSnapshotRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestTapReplayFollowsSource: snapshot + every tap byte after it rebuilds the
+// pane's screen even when the later output depends on state set before the
+// tap (pen, scroll region, autowrap off).
+func TestTapReplayFollowsSource(t *testing.T) {
+	size := Size{W: 20, H: 6}
+	script := `printf '1\n2\n3\n4\n5\033[2;4r\033[4;1H\033[?7l\033[31m'; read x; printf 'RED\n\nwrap-off-0123456789abcdef'; printf '\033[6;1Hdone'; sleep 30`
+	p := startSh(t, script, size, PaneOptions{})
+	waitFor(t, 3*time.Second, "5", screenHas(p, "5"))
+	time.Sleep(50 * time.Millisecond)
+	tap := &recTap{}
+	snap, detach := p.AttachTap(tap)
+	defer detach()
+	p.SendKey(enter())
+	waitFor(t, 3*time.Second, "done through the tap", func() bool { return strings.Contains(tap.String(), "done") })
+	waitFor(t, 3*time.Second, "done on the pane", screenHas(p, "done"))
+	r := NewReplay(size, 0)
+	r.Write(snap)
+	r.Write([]byte(tap.String()))
+	if got, want := r.Render(), p.Render(); got != want {
+		t.Fatalf("replay differs\n got %q\nwant %q", got, want)
+	}
+}

@@ -84,9 +84,11 @@ func (s *tapSink) close() {
 }
 
 // AttachTap starts copying the program's output to t. snapshot redraws the
-// current screen (feed it to NewReplay of the same size); every byte after it
-// goes to t, with nothing lost or repeated in between. detach stops the copy
-// (idempotent). Taps are off unless a sharing feature attaches one.
+// current screen and restores the state later output depends on (feed it to
+// NewReplay of the same size, then the tap bytes; see screen.Snapshot for the
+// few things it cannot carry); every byte after it goes to t, with nothing
+// lost or repeated in between. detach stops the copy (idempotent). Taps are
+// off unless a sharing feature attaches one.
 func (p *Pane) AttachTap(t Tap) (snapshot []byte, detach func()) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
