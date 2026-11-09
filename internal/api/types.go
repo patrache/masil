@@ -388,7 +388,7 @@ type Message struct {
 	ID           string            `json:"id"`
 	ChannelID    string            `json:"channel_id"`
 	Author       UserSummary       `json:"author"`
-	Kind         string            `json:"kind"` // text|me|roll|poll|system
+	Kind         string            `json:"kind"` // text|me|roll|poll|system|card
 	Body         string            `json:"body"`
 	Mentions     []MentionRef      `json:"mentions"`
 	MentionHere  bool              `json:"mention_here"`
@@ -399,10 +399,23 @@ type Message struct {
 	Poll         *Poll             `json:"poll"`
 	Roll         *RollResult       `json:"roll"`
 	System       *SystemEvent      `json:"system"`
+	Card         *Card             `json:"card"` // v0.1.3: set iff Kind == MessageKindCard
 	ClientNonce  *string           `json:"client_nonce"`
 	CreatedAt    time.Time         `json:"created_at"`
 	EditedAt     *time.Time        `json:"edited_at"`
 	Deleted      bool              `json:"deleted"`
+}
+
+// MessageKindCard is Message.kind "card" (v0.1.3, C1.2): one kind for every
+// tool card; Card.Type tells them apart and Body is the fallback summary.
+const MessageKindCard = "card"
+
+// Card is Message.card (api.md 2): a tool card's type, schema version and
+// per-type data (kept raw; each tool's renderer decodes its own shape).
+type Card struct {
+	Type string          `json:"type"`
+	V    int             `json:"v"`
+	Data json.RawMessage `json:"data"`
 }
 
 // QuotedPost is a union discriminated by "available".

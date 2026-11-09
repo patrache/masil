@@ -84,6 +84,8 @@ func Messages(channelID string) []api.Message {
 		}
 	case ChHostile, chHostileCtrl, dmHostile:
 		return HostileMessages(channelID)
+	case ChCards:
+		return cardMessages()
 	}
 	return nil
 }
@@ -99,7 +101,7 @@ func threadOf(rootID string) (root api.Message, replies []api.Message, ok bool) 
 			return devRoot(), devThread(), true
 		}
 	}
-	for _, id := range []string{ChGeneral, ChChat, ChDev, ChDeploy, DMMinji, DMJunho, ChHostile, chHostileCtrl, dmHostile} {
+	for _, id := range []string{ChGeneral, ChChat, ChDev, ChDeploy, DMMinji, DMJunho, ChHostile, chHostileCtrl, dmHostile, ChCards} {
 		for _, m := range Messages(id) {
 			if m.ID == rootID {
 				return m, []api.Message{}, true
