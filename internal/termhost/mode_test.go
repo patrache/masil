@@ -50,6 +50,10 @@ func TestChooseRules(t *testing.T) {
 		{"req window windows", Request{Mode: ModeWindow}, with(func(e *Env) { e.GOOS = "windows"; e.TMUX = "x"; e.TmuxVersion = "3.4" }), ModeExec, true},
 		{"req exec windows", Request{Mode: ModeExec}, with(func(e *Env) { e.GOOS = "windows" }), ModeExec, false},
 		{"req pane embedded off", Request{Mode: ModePane}, with(func(e *Env) { e.Embedded = false }), ModeExec, true},
+		// embedded = false turns off panes only; the external window stays (CA 3.2).
+		{"config window embedded off", Request{}, with(func(e *Env) { *e = tmux("3.4"); e.Embedded = false }), ModeWindow, false},
+		{"config window embedded off no tmux", Request{}, with(func(e *Env) { e.Embedded = false; e.ToolOpen = ModeWindow }), ModeExec, true},
+		{"req window embedded off", Request{Mode: ModeWindow}, with(func(e *Env) { *e = tmux("3.4"); e.Embedded = false }), ModeWindow, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

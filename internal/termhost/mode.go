@@ -71,7 +71,9 @@ func CurrentEnv(cfg *config.Config, toolID string, tiny bool) Env {
 // Choose picks the mode for req in env (spec A7.2, first match wins):
 //
 //  1. Windows -> exec.
-//  2. [terminal] embedded = false or TERM=dumb -> exec.
+//  2. [terminal] embedded = false or TERM=dumb -> exec. embedded = false
+//     only turns panes off (CA 3.2: tools then use exec or the external
+//     window), so with tool config open = "window" it falls to rule 4.
 //  3. tiny layout -> exec.
 //  4. tool config open = "window" and inside tmux >= 3.2 -> window
 //     (otherwise exec, downgraded).
@@ -105,7 +107,7 @@ func Choose(req Request, env Env) (m Mode, downgraded bool) {
 		return ModeExec, false
 	case env.GOOS == "windows":
 		return ModeExec, false
-	case !env.Embedded || env.TERM == "dumb":
+	case env.TERM == "dumb", !env.Embedded && env.ToolOpen != ModeWindow:
 		return ModeExec, false
 	case env.Tiny:
 		return ModeExec, false
