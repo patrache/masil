@@ -5,8 +5,10 @@ import "time"
 // ---- 5.25 LeetCode daily problem (v0.1.3 P1, A10.3) ----
 //
 // The masil server never calls LeetCode: it keeps only the facts clients
-// report and each user's solve records. Links are always built from Slug on
-// the fixed host (leetcode.LeetLink / ValidSlug in internal/leetcode).
+// report and each user's solve records. The link is always
+// https://leetcode.com/problems/<slug>/ on that fixed host, built by the
+// client from Slug only after it passes the slug check (leetcode.ValidSlug /
+// SlugRe, P1 Task 8).
 
 // Card types of the two server-only leet cards (api.md 2 card table).
 const (
