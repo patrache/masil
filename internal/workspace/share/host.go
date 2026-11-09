@@ -96,7 +96,54 @@ type Host struct {
 
 	lastOwner time.Time // last owner activity (OwnerActivity, owner actions)
 	paused    bool      // keyboard input paused for owner idleness
-	terms     map[uint8]*sharedTerm
+
+	terms    map[uint8]*sharedTerm
+	tapMu    sync.Mutex   // terminal output buffers (sharedTerm.buf…)
+	tapNow   atomic.Int64 // engine time for output callbacks (UnixNano)
+	unsaved  int
+	outStart time.Time // own terminal output budget window
+	outBytes int
+	outFull  bool // this second's budget ran out
+
+	props     []*proposal
+	propSeq   int
+	propTimes map[uint8][]time.Time
+	rate      map[uint8]*peerRate
+}
+
+// peerRate counts one seat's frames per second (the owner keeps the hub's
+// limits too).
+type peerRate struct {
+	start            time.Time
+	termInput, docOp int
+}
+
+// Per-seat limits the owner enforces itself (workspace.md 9).
+const (
+	termInputPerSecond = 50
+	docOpPerSecond     = 30
+)
+
+// overRate counts a frame of kind from seat and reports whether it is over
+// this second's limit.
+func (h *Host) overRate(seat uint8, kind wire.Kind, now time.Time) bool {
+	if kind != wire.KindTermInput && kind != wire.KindDocOp {
+		return false
+	}
+	r := h.rate[seat]
+	if r == nil {
+		r = &peerRate{}
+		h.rate[seat] = r
+	}
+	if now.Sub(r.start) >= time.Second {
+		*r = peerRate{start: now}
+	}
+	if kind == wire.KindTermInput {
+		r.termInput++
+		return r.termInput > termInputPerSecond
+	}
+	r.docOp++
+	return r.docOp > docOpPerSecond
 }
 
 // NewHost prepares a host; Start connects.
@@ -105,6 +152,7 @@ func NewHost(cfg HostConfig) *Host {
 		link: newLink(cfg.ShareID, cfg.Dial, cfg.Clock, cfg.ManualTick),
 		cfg:  cfg, users: map[uint8]string{}, online: map[uint8]bool{},
 		joins: map[uint8]*joinState{}, members: map[uint8]*member{},
+		propTimes: map[uint8][]time.Time{}, rate: map[uint8]*peerRate{},
 	}
 }
 
@@ -166,6 +214,7 @@ func (h *Host) loop() {
 func (h *Host) Tick(now time.Time) {
 	h.mu.Lock()
 	h.tickNow = now
+	h.tapNow.Store(now.UnixNano())
 	if !h.started || h.over {
 		h.mu.Unlock()
 		return
@@ -460,6 +509,10 @@ func (h *Host) handleSealed(seat uint8, kind wire.Kind, frame []byte) {
 			h.rejectFrame(seat, kind, "level", false)
 			return
 		}
+		if h.overRate(seat, kind, h.now()) {
+			h.rejectFrame(seat, kind, "rate", false)
+			return
+		}
 	}
 	full, done, err := h.reasm.Add(hd, pt)
 	if err != nil {
@@ -666,16 +719,33 @@ func (h *Host) dispatchMore(seat uint8, kind wire.Kind, p []byte) {
 		}
 	case wire.KindTermInput:
 		h.onTermInput(seat, p)
+	case wire.KindPropSubmit:
+		var m wire.PropSubmit
+		if unmarshal(p, &m) {
+			h.onPropSubmit(seat, m)
+		}
 	}
 }
 
 func (h *Host) tickMore(now time.Time) {
 	h.tickLadder(now)
+	h.tickTerms(now)
 }
 
 // Hooks later parts of the engine fill in.
 
-func (h *Host) afterReconnect()       {}
-func (h *Host) afterGrant(*member)    {}
-func (h *Host) peerResumed(*member)   {}
-func (h *Host) memberRemoved(*member) {}
+// afterReconnect: the participants missed output while the owner was away.
+func (h *Host) afterReconnect() { h.keyframeAll() }
+
+// afterGrant: a new participant needs the current screen.
+func (h *Host) afterGrant(*member) { h.keyframeAll() }
+
+// peerResumed: a participant back from a drop missed output.
+func (h *Host) peerResumed(*member) { h.keyframeAll() }
+
+// memberRemoved: a kicked participant's waiting proposals go.
+func (h *Host) memberRemoved(mb *member) {
+	h.dropProposals(mb.seat)
+	delete(h.propTimes, mb.seat)
+	delete(h.rate, mb.seat)
+}

@@ -100,6 +100,36 @@ const (
 	NoticeResumed = "resumed"
 )
 
+// EventTermOut (Guest): output bytes of shared terminal Term.
+type EventTermOut struct {
+	Term  uint8
+	Bytes []byte
+}
+
+// EventTermKeyframe (Guest): a full redraw of terminal Term; reset the
+// replay screen and write Bytes.
+type EventTermKeyframe struct {
+	Term  uint8
+	Bytes []byte
+}
+
+// EventTermStatus (Guest): terminal title, size, attention or unsaved count
+// changed.
+type EventTermStatus struct{ wire.TermStatus }
+
+// EventProposal (Host): a participant proposal joined the queue.
+type EventProposal struct{ Proposal }
+
+// EventPropResult (Guest): what the owner did with my proposal (Action is
+// queued, insert, insert_send, edit, reject, too_long, full, rate_limited).
+type EventPropResult struct{ wire.PropResult }
+
+func (EventTermOut) shareEvent()      {}
+func (EventTermKeyframe) shareEvent() {}
+func (EventTermStatus) shareEvent()   {}
+func (EventProposal) shareEvent()     {}
+func (EventPropResult) shareEvent()   {}
+
 func (EventKeyboardPaused) shareEvent()  {}
 func (EventKeyboardResumed) shareEvent() {}
 func (EventKeyboardEnded) shareEvent()   {}

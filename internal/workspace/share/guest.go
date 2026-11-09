@@ -432,6 +432,18 @@ func (g *Guest) dispatchMore(kind wire.Kind, p []byte) {
 			return
 		}
 		g.onNotice(m)
+	case wire.KindTermOut, wire.KindTermKey:
+		g.onTerm(kind, p)
+	case wire.KindTermStatus:
+		var m wire.TermStatus
+		if unmarshal(p, &m) {
+			g.emit(EventTermStatus{TermStatus: m})
+		}
+	case wire.KindPropResult:
+		var m wire.PropResult
+		if unmarshal(p, &m) {
+			g.emit(EventPropResult{PropResult: m})
+		}
 	}
 }
 
