@@ -25,12 +25,14 @@ const (
 // box label spans, bucketed for fast lookup.
 type obstacles struct {
 	buckets map[[2]int][]rect
+	all     []rect
 }
 
 func (o *obstacles) add(r rect) {
 	if r.w <= 0 || r.h <= 0 {
 		return
 	}
+	o.all = append(o.all, r)
 	for bx := floorDiv(r.x, bucketW); bx <= floorDiv(r.x+r.w-1, bucketW); bx++ {
 		for by := floorDiv(r.y, bucketH); by <= floorDiv(r.y+r.h-1, bucketH); by++ {
 			k := [2]int{bx, by}
@@ -101,33 +103,127 @@ func routeArea(a, b rect) rect {
 	return rect{x0, y0, x1 - x0, y1 - y0}
 }
 
+// tested is the cells one search tested for an obstacle: a bitmap over area.
+type tested struct {
+	area rect
+	bits []uint64
+}
+
+// cachedRoute is a routed path and what it was computed from: its two end
+// rectangles and the cells its searches tested. The searches are deterministic
+// and read nothing else, so while no obstacle on a tested cell changes the
+// same ends give the same path.
+type cachedRoute struct {
+	pts  []Point
+	a, b rect
+	deps []tested
+}
+
+// stillValid reports whether no rect of changed covers a cell c tested.
+func (c *cachedRoute) stillValid(changed []rect) bool {
+	for _, t := range c.deps {
+		for _, r := range changed {
+			if !r.intersects(t.area) {
+				continue
+			}
+			for y := max(r.y, t.area.y); y < min(r.y+r.h, t.area.y+t.area.h); y++ {
+				row := (y - t.area.y) * t.area.w
+				for x := max(r.x, t.area.x); x < min(r.x+r.w, t.area.x+t.area.w); x++ {
+					if i := row + x - t.area.x; t.bits[i>>6]&(1<<(i&63)) != 0 {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return true
+}
+
+// maxSearchCells is the largest area astar searches; a larger one is skipped.
+const maxSearchCells = 200_000
+
+// searchArea is the rectangle astar searches between start and end.
+func searchArea(start, end Point, margin int) rect {
+	return rect{
+		min(start.X, end.X) - margin, min(start.Y, end.Y) - margin,
+		abs(start.X-end.X) + 2*margin + 1, abs(start.Y-end.Y) + 2*margin + 1,
+	}
+}
+
+// changedAt lists the obstacle rects at zoom z that differ between the
+// previous scene (BuildFrom) and this one: the moved, added and removed nodes'
+// rectangles and box label spans, old and new. Call with s.mu held.
+func (s *Scene) changedAt(z Zoom) []rect {
+	if s.changedDone[z] {
+		return s.changed[z]
+	}
+	s.changedDone[z] = true
+	cnt := map[rect]int{}
+	for _, r := range s.prevShape.obstaclesAt(z).all {
+		cnt[r]++
+	}
+	for _, r := range s.obstaclesAt(z).all {
+		cnt[r]--
+	}
+	for r, n := range cnt {
+		if n != 0 {
+			s.changed[z] = append(s.changed[z], r)
+		}
+	}
+	return s.changed[z]
+}
+
 // Route returns edge e's path at zoom z as corner points in the zoom's cell
 // space (first = the cell next to the source, last = the arrow cell next to the
 // target); nil when an end is missing. Paths are orthogonal, never cross a node
-// or a box label, and depend only on the edge's ends — not on other edges or
-// their order. Results are cached per scene.
+// or a box label, and depend only on the edge's ends and the obstacles near
+// them — not on other edges or their order. Results are cached per scene and
+// carried over to a scene made with BuildFrom while their inputs stay equal.
 func (s *Scene) Route(e archdoc.Edge, z Zoom) []Point {
-	z = z.valid()
+	p, _ := s.route(e, z.valid(), nil)
+	return p
+}
+
+// route is Route with an optional budget of new searches: when *budget is
+// used up, an edge whose ends did not move gets its previous scene's (stale)
+// route instead, uncached, and stale is true.
+func (s *Scene) route(e archdoc.Edge, z Zoom, budget *int) (_ []Point, stale bool) {
 	ia, okA := s.nodeIdx[e.From]
 	ib, okB := s.nodeIdx[e.To]
 	if !okA || !okB || ia == ib {
-		return nil
+		return nil, false
 	}
 	key := e.From + "\x00" + e.To
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.routes[z] == nil {
-		s.routes[z] = map[string][]Point{}
+		s.routes[z] = map[string]*cachedRoute{}
 	}
-	if p, ok := s.routes[z][key]; ok {
-		return p
+	if c, ok := s.routes[z][key]; ok {
+		return c.pts, false
 	}
 	a, b := s.nodeRect(&s.nodes[ia], z), s.nodeRect(&s.nodes[ib], z)
+	if c, ok := s.prev[z][key]; ok && c.a == a && c.b == b {
+		if c.stillValid(s.changedAt(z)) {
+			s.routes[z][key] = c
+			return c.pts, false
+		}
+		if budget != nil && *budget <= 0 {
+			return c.pts, true
+		}
+	}
+	if budget != nil {
+		*budget--
+	}
 	start, end, out, in := ports(a, b)
 	o := s.obstaclesAt(z)
-	path, capped := s.rt.astar(o, start, end, out, in, routeMargin)
+	s.searches[z]++
+	c := &cachedRoute{a: a, b: b}
+	path, capped, t := s.rt.astar(o, start, end, out, in, routeMargin)
+	c.deps = append(c.deps, t...)
 	if path == nil && !capped { // walled in nearby: look further around
-		path, _ = s.rt.astar(o, start, end, out, in, routeWideMargin)
+		path, _, t = s.rt.astar(o, start, end, out, in, routeWideMargin)
+		c.deps = append(c.deps, t...)
 	}
 	if path == nil { // boxed in: a plain elbow
 		path = []Point{start, {end.X, start.Y}, end}
@@ -135,8 +231,21 @@ func (s *Scene) Route(e archdoc.Edge, z Zoom) []Point {
 			path = []Point{start, end}
 		}
 	}
-	s.routes[z][key] = path
-	return path
+	c.pts = path
+	s.routes[z][key] = c
+	return path, false
+}
+
+// FrameRouteLimit is the RouteLimit a frame that must stay within budget
+// uses: about 3ms of searches on a dense 300-node design (M1).
+const FrameRouteLimit = 16
+
+// Settle routes up to limit stale edges of viewport v (see
+// Overlay.RouteLimit) and reports whether none is left; limit <= 0 routes all.
+func (s *Scene) Settle(v Viewport, limit int) bool {
+	z := v.Zoom.valid()
+	_, _, stale := s.visibleRoutes(z, rect{z.sx(v.X), z.sy(v.Y), max(v.W, 0), max(v.H, 0)}, limit)
+	return !stale
 }
 
 // hnode is one A* frontier entry.
@@ -217,12 +326,22 @@ const maxExpand = 1500
 // astar finds the cheapest orthogonal path (1 per step, bendCost per bend) from
 // start to end inside their bounding box grown by margin, and returns its
 // corner points (nil = none). The path leaves start heading startDir and
-// reaches end heading endDir.
-func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin int) (_ []Point, capped bool) {
-	x0, y0 := min(start.X, end.X)-margin, min(start.Y, end.Y)-margin
-	w, h := abs(start.X-end.X)+2*margin+1, abs(start.Y-end.Y)+2*margin+1
-	if w*h > 200_000 {
-		return nil, true
+// reaches end heading endDir. looked holds the cells the search tested for an
+// obstacle (nil or one entry): the result depends on no other cell.
+func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin int) (_ []Point, capped bool, looked []tested) {
+	area := searchArea(start, end, margin)
+	x0, y0, w, h := area.x, area.y, area.w, area.h
+	if w*h > maxSearchCells {
+		return nil, true, nil
+	}
+	// the path must reach end heading endDir, so from the cell before it: when
+	// that cell is a wall no search can succeed (the same nil, found at once)
+	if pre := (Point{end.X - dirDX[endDir], end.Y - dirDY[endDir]}); start != end && pre != start &&
+		(!area.contains(pre.X, pre.Y) || o.blocked(pre.X, pre.Y)) {
+		if !area.contains(pre.X, pre.Y) {
+			return nil, false, nil
+		}
+		return nil, false, []tested{{rect{pre.X, pre.Y, 1, 1}, []uint64{1}}}
 	}
 	n := w * h
 	if len(r.blocked) < n {
@@ -240,15 +359,16 @@ func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin 
 	// rasterize the obstacles of the area once
 	blocked := r.blocked[:n]
 	clear(blocked)
-	area := rect{x0, y0, w, h}
-	seen := map[rect]bool{}
 	for bx := floorDiv(x0, bucketW); bx <= floorDiv(x0+w-1, bucketW); bx++ {
 		for by := floorDiv(y0, bucketH); by <= floorDiv(y0+h-1, bucketH); by++ {
 			for _, ob := range o.buckets[[2]int{bx, by}] {
-				if seen[ob] || !ob.intersects(area) {
+				if !ob.intersects(area) {
 					continue
 				}
-				seen[ob] = true
+				// once per rect: in the bucket of its first cell in the area
+				if floorDiv(max(ob.x, x0), bucketW) != bx || floorDiv(max(ob.y, y0), bucketH) != by {
+					continue
+				}
 				for y := max(ob.y, y0); y < min(ob.y+ob.h, y0+h); y++ {
 					row := (y - y0) * w
 					for x := max(ob.x, x0); x < min(ob.x+ob.w, x0+w); x++ {
@@ -260,6 +380,9 @@ func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin 
 	}
 	blocked[(start.Y-y0)*w+start.X-x0] = false
 	blocked[(end.Y-y0)*w+end.X-x0] = false
+	// the tested cells, returned whatever the outcome
+	bits := make([]uint64, (n+63)/64)
+	defer func() { looked = []tested{{area, bits}} }()
 	idx := func(x, y, d int) int { return ((y-y0)*w+(x-x0))*4 + d }
 	get := func(i int) int32 {
 		if r.stamp[i] != r.gen {
@@ -303,7 +426,12 @@ func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin 
 				continue
 			}
 			nx, ny := cx+dirDX[d], cy+dirDY[d]
-			if nx < x0 || ny < y0 || nx >= x0+w || ny >= y0+h || blocked[(ny-y0)*w+nx-x0] {
+			if nx < x0 || ny < y0 || nx >= x0+w || ny >= y0+h {
+				continue
+			}
+			ti := (ny-y0)*w + nx - x0
+			bits[ti>>6] |= 1 << (ti & 63)
+			if blocked[ti] {
 				continue
 			}
 			g := c.g + 1
@@ -319,7 +447,7 @@ func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin 
 		}
 	}
 	if goal < 0 {
-		return nil, expanded >= maxExpand
+		return nil, expanded >= maxExpand, nil
 	}
 	var rev []Point
 	for i := goal; ; i = int(r.prev[i]) {
@@ -341,7 +469,7 @@ func (r *router) astar(o *obstacles, start, end Point, startDir, endDir, margin 
 		}
 		pts = append(pts, p)
 	}
-	return pts, false
+	return pts, false, nil
 }
 
 // cells expands a route's corner points into every cell it passes (tests
@@ -488,24 +616,30 @@ func EdgeLabel(e archdoc.Edge) string {
 	return p + " · " + ms
 }
 
-// visibleRoutes returns the routes of the edges that may show on screen.
-func (s *Scene) visibleRoutes(z Zoom, screen rect) ([]archdoc.Edge, [][]Point) {
+// visibleRoutes returns the routes of the edges that may show on screen;
+// limit > 0 bounds the new searches (stale: some old route stood in).
+func (s *Scene) visibleRoutes(z Zoom, screen rect, limit int) (_ []archdoc.Edge, _ [][]Point, stale bool) {
 	var es []archdoc.Edge
 	var rs [][]Point
+	var budget *int
+	if limit > 0 {
+		budget = &limit
+	}
 	for _, e := range s.edges {
 		a := s.nodeRect(&s.nodes[s.nodeIdx[e.From]], z)
 		b := s.nodeRect(&s.nodes[s.nodeIdx[e.To]], z)
 		if !routeArea(a, b).intersects(screen) {
 			continue
 		}
-		p := s.Route(e, z)
+		p, old := s.route(e, z, budget)
+		stale = stale || old
 		if len(p) == 0 {
 			continue
 		}
 		es = append(es, e)
 		rs = append(rs, p)
 	}
-	return es, rs
+	return es, rs, stale
 }
 
 // drawEdges draws every visible edge: heavy lines merged per cell (so crossings
@@ -516,7 +650,7 @@ func (s *Scene) drawEdges(g *Grid, z Zoom, ox, oy int, ov Overlay) {
 		return
 	}
 	screen := rect{ox, oy, g.W, g.H}
-	es, rs := s.visibleRoutes(z, screen)
+	es, rs, _ := s.visibleRoutes(z, screen, ov.RouteLimit)
 	bits := make([]uint8, g.W*g.H)
 	sel := make([]bool, g.W*g.H)
 	type arrow struct {
@@ -599,7 +733,7 @@ func (s *Scene) drawEdges(g *Grid, z Zoom, ox, oy int, ov Overlay) {
 
 // edgeAt returns the edge drawn at absolute zoom cell (px, py) ("" = none).
 func (s *Scene) edgeAt(z Zoom, px, py int) string {
-	es, rs := s.visibleRoutes(z, rect{px, py, 1, 1})
+	es, rs, _ := s.visibleRoutes(z, rect{px, py, 1, 1}, 0)
 	for i := range es {
 		if onRoute(rs[i], px, py) {
 			return es[i].ID

@@ -8,6 +8,7 @@ package archdraw
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -145,9 +146,17 @@ type Scene struct {
 	edges   []archdoc.Edge // by ID; both ends exist, not a self loop
 
 	mu     sync.Mutex
-	routes [3]map[string][]Point // per zoom, filled lazily
+	routes [3]map[string]*cachedRoute // per zoom, filled lazily
 	blocks [3]*obstacles
-	rt     router
+	// BuildFrom: the previous scene's routes, its shape (nodes and boxes only,
+	// so scenes never chain) and, per zoom, the obstacles that changed since
+	prev        [3]map[string]*cachedRoute
+	prevShape   *Scene
+	changed     [3][]rect
+	changedDone [3]bool
+	rt          router
+	// searches counts the A* routings per zoom (tests check route reuse)
+	searches [3]int
 }
 
 // cleanLabel makes user text one safe line for drawing.
@@ -211,6 +220,25 @@ func Build(d *archdoc.Design) *Scene {
 	}
 	slices.SortFunc(s.edges, func(a, b archdoc.Edge) int { return cmp.Compare(a.ID, b.ID) })
 	s.edges = slices.CompactFunc(s.edges, func(a, b archdoc.Edge) bool { return a.ID == b.ID })
+	return s
+}
+
+// BuildFrom is Build for a changed design: the new scene reuses prev's route
+// for every edge whose two ends and whose nearby obstacles (everything its
+// search could see) did not change, so the first frame after an edit routes
+// only the edges near what moved. The result is the same as Build(d); prev is
+// only read and may be nil.
+func BuildFrom(prev *Scene, d *archdoc.Design) *Scene {
+	s := Build(d)
+	if prev == nil {
+		return s
+	}
+	prev.mu.Lock()
+	for z := range s.prev {
+		s.prev[z] = maps.Clone(prev.routes[z])
+	}
+	prev.mu.Unlock()
+	s.prevShape = &Scene{nodes: prev.nodes, boxes: prev.boxes, boxIdx: prev.boxIdx}
 	return s
 }
 

@@ -166,6 +166,11 @@ type Overlay struct {
 	ConnectFrom string         // node a connection is being drawn from
 	ConnectTo   [2]int         // world point the connection line ends at
 	Buttons     bool           // draw the "＋－" zoom buttons at the top-right
+	// RouteLimit > 0 bounds the frame's work after an edit: at most that many
+	// edges are routed anew; an edge past the limit whose ends did not move
+	// but whose old route (BuildFrom) a change nearby made stale draws that old
+	// line, and Settled reports false until Settle has routed it.
+	RouteLimit int
 }
 
 const (

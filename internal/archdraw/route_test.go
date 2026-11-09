@@ -159,6 +159,71 @@ func median(ds []time.Duration) time.Duration {
 	return ds[len(ds)/2]
 }
 
+// movedOne is d with node id moved right by dx world cells.
+func movedOne(d *archdoc.Design, id string, dx int) *archdoc.Design {
+	d2 := *d
+	d2.Nodes = slices.Clone(d.Nodes)
+	for i := range d2.Nodes {
+		if d2.Nodes[i].ID == id {
+			d2.Nodes[i].Pos[0] += dx
+		}
+	}
+	return &d2
+}
+
+// TestRouteReuseAcrossBuilds: a scene built from the previous one keeps the
+// routes nothing touched — the first frame after a one-node edit routes only
+// the edges near that node — and draws exactly what a fresh Build draws. With
+// a RouteLimit the frame routes at most that many and Settle finishes the rest.
+func TestRouteReuseAcrossBuilds(t *testing.T) {
+	d := bigDesign()
+	prev := Build(d)
+	for _, z := range Zooms() {
+		prev.Render(Viewport{W: 200, H: 60, Zoom: z}, Overlay{})
+	}
+	d2 := movedOne(d, "n150", 2)
+	next, fresh, limited := BuildFrom(prev, d2), Build(d2), BuildFrom(prev, d2)
+	for _, z := range Zooms() {
+		v := Viewport{W: 200, H: 60, Zoom: z}
+		want := strings.Join(fresh.Render(v, Overlay{}).Plain(), "\n")
+		got := strings.Join(next.Render(v, Overlay{}).Plain(), "\n")
+		if got != want {
+			t.Errorf("zoom %d: reused routes draw differently from a fresh build:\n%s\n---\n%s", z, got, want)
+		}
+		if n, all := next.searches[z], fresh.searches[z]; all == 0 || n*4 > all {
+			t.Errorf("zoom %d: %d searches after a one-node edit (a fresh build: %d)", z, n, all)
+		}
+		if !next.Settle(v, 0) {
+			t.Errorf("zoom %d: a full render left stale routes", z)
+		}
+		// the limited frame (the moved node's own edges always route), then
+		// Settle in steps of the same size
+		own := 0
+		for _, e := range d2.Edges {
+			if e.From == "n150" || e.To == "n150" {
+				own++
+			}
+		}
+		limited.Render(v, Overlay{RouteLimit: 8})
+		if n := limited.searches[z]; n > 8+own {
+			t.Errorf("zoom %d: %d searches in a frame limited to 8 (+%d own edges)", z, n, own)
+		}
+		steps := 0
+		for !limited.Settle(v, 8) {
+			if steps++; steps > 100 {
+				t.Fatalf("zoom %d: Settle never finishes", z)
+			}
+		}
+		if got := strings.Join(limited.Render(v, Overlay{RouteLimit: 8}).Plain(), "\n"); got != want {
+			t.Errorf("zoom %d: settled routes draw differently from a fresh build:\n%s\n---\n%s", z, got, want)
+		}
+	}
+	// prev == nil is a plain Build
+	if s := BuildFrom(nil, d2); len(s.nodes) != 300 {
+		t.Errorf("BuildFrom(nil): %d nodes", len(s.nodes))
+	}
+}
+
 func TestRenderBudget(t *testing.T) {
 	if os.Getenv("MASIL_PERF") != "1" {
 		t.Skip("MASIL_PERF=1 runs the frame budget")
@@ -173,6 +238,38 @@ func TestRenderBudget(t *testing.T) {
 	}
 	if m := median(ds); m > 8*time.Millisecond {
 		t.Errorf("median frame %v > 8ms", m)
+	}
+	// the first frame after an edit (a new scene from the previous one), per zoom
+	for _, z := range Zooms() {
+		v := Viewport{W: 200, H: 60, Zoom: z}
+		d := bigDesign()
+		prev := Build(d)
+		prev.Render(v, Overlay{})
+		ds = ds[:0]
+		var settle []time.Duration
+		for i := range 20 {
+			d = movedOne(d, fmt.Sprintf("n%03d", 100+i), 2)
+			t0 := time.Now()
+			next := BuildFrom(prev, d)
+			next.Render(v, Overlay{RouteLimit: FrameRouteLimit})
+			ds = append(ds, time.Since(t0))
+			for {
+				t0 = time.Now()
+				done := next.Settle(v, FrameRouteLimit)
+				settle = append(settle, time.Since(t0))
+				if done {
+					break
+				}
+			}
+			prev = next
+		}
+		t.Logf("zoom %d: median first frame after an edit %v, slowest Settle step %v", z, median(ds), slices.Max(settle))
+		if m := median(ds); m > 8*time.Millisecond {
+			t.Errorf("zoom %d: median first frame after an edit %v > 8ms", z, m)
+		}
+		if m := slices.Max(settle); m > 16*time.Millisecond {
+			t.Errorf("zoom %d: slowest Settle step %v > 16ms", z, m)
+		}
 	}
 	// a drag frame on a 50-node design: only the ghost moves
 	d := bigDesign()

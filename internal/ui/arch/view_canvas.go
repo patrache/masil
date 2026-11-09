@@ -269,7 +269,7 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 // overlay is what the canvas draws on top of the design: the selection, the
 // move ghost (m) and the connect line (c).
 func (m *canvasModel) overlay() archdraw.Overlay {
-	ov := archdraw.Overlay{Badges: m.badges, Buttons: true, Selected: map[string]bool{}}
+	ov := archdraw.Overlay{Badges: m.badges, Buttons: true, Selected: map[string]bool{}, RouteLimit: archdraw.FrameRouteLimit}
 	for _, id := range m.selection() {
 		ov.Selected[id] = true
 	}
@@ -328,7 +328,7 @@ func (m *canvasModel) visibleScene() (*archdraw.Scene, bool) {
 			d.Nodes = append(d.Nodes, n)
 		}
 	}
-	sc := archdraw.Build(&d)
+	sc := archdraw.BuildFrom(m.oldHide[z], &d)
 	m.hidden[z] = sc
 	return sc, true
 }

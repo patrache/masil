@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -25,6 +26,7 @@ type canvasModel struct {
 	design  *archdoc.Design
 	scene   *archdraw.Scene
 	hidden  map[archdraw.Zoom]*archdraw.Scene // the scene without overlapping nodes, per zoom
+	oldHide map[archdraw.Zoom]*archdraw.Scene // hidden before the last rebuild (route reuse)
 	result  *archsim.Result
 	badges  map[string]archdraw.NodeBadge
 	labels  map[string]string // node and box id → sanitized label
@@ -135,8 +137,10 @@ func (m *canvasModel) rebuild(ctx *ui.Context) {
 		d = archdoc.New("")
 	}
 	m.design = d
-	m.scene = archdraw.Build(d)
-	m.hidden = map[archdraw.Zoom]*archdraw.Scene{}
+	// the routes nothing touched carry over: the first frame after an edit
+	// routes only the edges near the change (spec C2.7 frame budget)
+	m.scene = archdraw.BuildFrom(m.scene, d)
+	m.oldHide, m.hidden = m.hidden, map[archdraw.Zoom]*archdraw.Scene{}
 	m.result = archsim.Analyze(d, archsim.Options{})
 	m.badges = archexport.Badges(d, m.result)
 	m.labels = map[string]string{}
@@ -233,6 +237,12 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if msg.instance == m.route.ID {
 			return m.runCommand(ctx, msg.id)
 		}
+	case settleMsg:
+		if msg.instance == m.route.ID && m.scene != nil {
+			if sc, _ := m.visibleScene(); !sc.Settle(m.vp, archdraw.FrameRouteLimit) {
+				return m.settleLater(ctx)
+			}
+		}
 	case ui.LocaleChangedMsg:
 		m.rebuild(ctx)
 	case ui.ModeChangedMsg:
@@ -244,6 +254,20 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// settleMsg asks instance to route the edges its last frames left stale
+// (archdraw.Overlay.RouteLimit) — a few per tick, so no frame blows its budget.
+type settleMsg struct{ instance string }
+
+// settleDelay is the pause between settle steps (about two frames).
+const settleDelay = 30 * time.Millisecond
+
+func (m *canvasModel) settleLater(ctx *ui.Context) tea.Cmd {
+	if ctx == nil || ctx.Timers == nil {
+		return nil
+	}
+	return ctx.Timers.After(settleDelay, settleMsg{instance: m.route.ID})
 }
 
 // runCommand runs an arch.* palette command on this canvas (the later tasks

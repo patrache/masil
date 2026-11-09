@@ -38,7 +38,7 @@ func (m *canvasModel) commit(ctx *ui.Context, ch []archdoc.Change) tea.Cmd {
 	cmd := m.sink.Apply(ch)
 	m.undo.Record(before, ch)
 	m.rebuild(ctx)
-	return cmd
+	return tea.Batch(cmd, m.settleLater(ctx))
 }
 
 // replay applies undo or redo changes (not recorded again).
@@ -48,7 +48,7 @@ func (m *canvasModel) replay(ctx *ui.Context, ch []archdoc.Change) tea.Cmd {
 	}
 	cmd := m.sink.Apply(ch)
 	m.rebuild(ctx)
-	return cmd
+	return tea.Batch(cmd, m.settleLater(ctx))
 }
 
 func (m *canvasModel) undoStep(ctx *ui.Context, redo bool) tea.Cmd {
