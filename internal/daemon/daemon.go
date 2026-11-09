@@ -17,6 +17,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/instance"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
@@ -72,6 +73,7 @@ type daemon struct {
 	xw       *exeWatch
 
 	cfg          *config.Config
+	lang         i18n.Locale // effective language: Accept-Language (config + OS; P5 adds state.json)
 	desktop      atomic.Bool
 	reloadWarned bool
 
@@ -131,9 +133,18 @@ func run(ctx context.Context, o Options, d deps) error {
 		deviceID: deviceID,
 		xw:       newExeWatch(d.exe),
 		cfg:      o.Config,
+		lang:     resolveLanguage(o.Config),
 	}
 	dm.desktop.Store(o.Config.Notify.Desktop)
 	return dm.loop(ctx)
+}
+
+// resolveLanguage decides the daemon's language from [ui] language and the
+// OS (i18n spec 6.2.2; the TUI-recorded language is P5's).
+func resolveLanguage(cfg *config.Config) i18n.Locale {
+	in := i18n.DetectOS()
+	in.Config = cfg.UI.Language
+	return i18n.Resolve(in).Effective
 }
 
 // acquire takes daemon.lock, retrying briefly so a `masil daemon status` probe
@@ -350,8 +361,10 @@ func (dm *daemon) session(ctx context.Context, creds *auth.Credentials, server s
 			cancel()
 		}
 	}
+	rest := api.New(server, api.WithToken(creds.Token))
+	rest.SetLanguage(string(dm.lang))
 	client = realtime.New(realtime.Options{
-		API:      api.New(server, api.WithToken(creds.Token)),
+		API:      rest,
 		DeviceID: dm.deviceID,
 		Mode:     realtime.ModeNotify,
 		Resume:   resumePoint(st, creds.UserID),

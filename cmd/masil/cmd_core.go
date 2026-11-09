@@ -15,6 +15,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/app"
@@ -128,8 +129,20 @@ func tuiOptions(env *Env) app.Options {
 	return o
 }
 
+// resolveLocale decides the UI language (i18n spec 6.2): MASIL_LANG, [ui]
+// language, the OS; closed languages fall back (0.1.3 shows ko).
+func resolveLocale(env *Env) i18n.Resolution {
+	in := i18n.DetectOS()
+	in.Config = env.Config.UI.Language
+	return i18n.Resolve(in)
+}
+
 // startTUI runs the app and explains a failure on stderr.
 func startTUI(ctx context.Context, env *Env, o app.Options) error {
+	if o.Locale == nil {
+		res := resolveLocale(env)
+		o.Locale = &res
+	}
 	if err := runTUI(ctx, o); err != nil {
 		fmt.Fprintf(env.Stderr, "masil을 실행하지 못했어요: %s\n", errText(err))
 		return err
@@ -195,6 +208,7 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 
 	server := env.Config.ServerURL()
 	client := api.New(server)
+	client.SetLanguage(string(resolveLocale(env).Effective))
 	c, cancel := context.WithTimeout(ctx, loginTimeout)
 	defer cancel()
 	res, err := client.Login(c, api.LoginRequest{Handle: handle, Password: password, Client: clientName, DeviceName: deviceName()})

@@ -178,6 +178,16 @@ func TestRunWaitsForCredentials(t *testing.T) {
 	}
 }
 
+func TestRunDialSendsAcceptLanguage(t *testing.T) {
+	t.Setenv("MASIL_LANG", "")
+	t.Setenv("LANG", "en_US.UTF-8") // 0.1.3 opens ko only => ko
+	p, hub, _ := setupRun(t)
+	saveCreds(t, p, "http://localhost:8787", "msl_test_token_A")
+	if d := waitDial(t, hub); d.Lang != "ko" {
+		t.Fatalf("daemon dial Accept-Language = %q, want ko", d.Lang)
+	}
+}
+
 func TestRunServerMismatchStaysOffline(t *testing.T) {
 	p, hub, logs := setupRun(t)
 	saveCreds(t, p, "http://127.0.0.1:9999", "msl_test_token_A") // config server is http://localhost:8787

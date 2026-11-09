@@ -15,6 +15,7 @@ import (
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/clipboard"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
@@ -42,6 +43,7 @@ type Options struct {
 	API             *api.Client      // nil => api.New(config.ServerURL(), WithToken(...))
 	Timers          ui.Timers        // nil => ui.RealTimers(); uitest passes its FakeClock
 	Clipboard       clipboard.Writer // nil => clipboard.System(); uitest passes a clipboard.Recorder
+	Locale          *i18n.Resolution // nil => i18n.Resolve(i18n.DetectOS() + [ui] language)
 }
 
 // Model implements tea.Model.
@@ -199,6 +201,12 @@ func New(o Options) *Model {
 		m.notifier = notify.New(notify.NewOSBackend("masil"), notify.OpenLedger(o.Paths), slog.Default())
 	}
 
+	// ⑦ Language: the effective (gated) language drives ctx.T, the API's
+	// Accept-Language and OS notifications.
+	res := resolveLocale(o.Locale, cfg)
+	client.SetLanguage(string(res.Effective))
+	m.notifier.SetLocale(res.Effective)
+
 	m.offRT = noopRealtime{state: realtime.State{Phase: realtime.PhaseLive}}
 	m.ctx = &ui.Context{
 		Theme:  theme.Get(name),
@@ -213,6 +221,8 @@ func New(o Options) *Model {
 		Now:    now,
 		Timers: timers,
 		Loc:    loc,
+		T:      i18n.For(res.Effective),
+		Lang:   res.Effective,
 	}
 	m.ctx.Clipboard = o.Clipboard
 	if m.ctx.Clipboard == nil {
@@ -220,7 +230,7 @@ func New(o Options) *Model {
 	}
 
 	m.bp = layout.FromConfig(cfg.Layout)
-	// ⑦ state.json (CA 3.5): restored only for the logged-in user; the start pin is
+	// ⑧ state.json (CA 3.5): restored only for the logged-in user; the start pin is
 	// state.pinned_mode (≠ auto) > config layout.pin (≠ auto) > none.
 	var saved *SavedState
 	if o.Credentials != nil {
@@ -248,6 +258,17 @@ func New(o Options) *Model {
 		}
 	}
 	return m
+}
+
+// resolveLocale is o.Locale, or the i18n spec 6.2 decision from the
+// environment, the OS and [ui] language.
+func resolveLocale(r *i18n.Resolution, cfg *config.Config) i18n.Resolution {
+	if r != nil {
+		return *r
+	}
+	in := i18n.DetectOS()
+	in.Config = cfg.UI.Language
+	return i18n.Resolve(in)
 }
 
 // Init implements tea.Model. With credentials and realtime enabled it starts the

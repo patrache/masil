@@ -3,6 +3,7 @@ package uitest
 import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -23,6 +24,13 @@ type config struct {
 	creds    *auth.Credentials
 	credsSet bool // WithCredentials was given (nil => logged out)
 	keys     map[string][]string
+	locale   i18n.Locale // "" => i18n.Ko
+}
+
+// WithLocale shows the harness in l (ctx.T, ctx.Lang, Accept-Language). Like
+// MASIL_LANG it skips the open-language gate. Default i18n.Ko.
+func WithLocale(l i18n.Locale) Option {
+	return func(c *config) { c.locale = l }
 }
 
 // WithKeys sets config.toml [keys] overrides (action id => keys).

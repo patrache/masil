@@ -6,6 +6,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/clipboard"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/termcaps"
@@ -34,6 +35,11 @@ type Context struct {
 	// production, a clipboard.Recorder in uitest, nil = OSC 52 only.
 	Clipboard clipboard.Writer
 	Debug     bool
+	// T is the message catalog of the shown language — never nil. Read every
+	// screen string from it at draw time (never cache it in package variables).
+	T *i18n.T
+	// Lang is the effective (shown) language; 0.1.3 = ko.
+	Lang i18n.Locale
 }
 
 // Realtime is the UI-facing subset of realtime.Client.
