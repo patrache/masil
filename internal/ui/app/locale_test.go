@@ -77,6 +77,7 @@ func observed(h *uitest.Harness) *[]ui.LocaleChangedMsg {
 }
 
 func TestSetLocaleSwapsContext(t *testing.T) {
+	t.Setenv("MASIL_LANG", "") // MASIL_LANG beats a switch
 	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
 	h := uitest.New(t)
 	h.Resize(200, 60)
@@ -128,6 +129,7 @@ func TestSetLocaleClosedLanguage(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			i18n.SetOpenForTest(t, tc.open...)
+			t.Setenv("MASIL_LANG", "")
 			h := uitest.New(t)
 			h.SetLocale("zh-Hans")
 			if ctx := h.Context(); ctx.Lang != tc.want || ctx.T.Locale() != tc.want {
@@ -142,6 +144,7 @@ func TestSetLocaleClosedLanguage(t *testing.T) {
 }
 
 func TestSetLocaleKeepsState(t *testing.T) {
+	t.Setenv("MASIL_LANG", "") // MASIL_LANG beats a switch
 	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
 	h := uitest.New(t, uitest.WithRoute(devRoute))
 	h.Resize(200, 60)
@@ -189,6 +192,7 @@ func TestSetLocaleKeepsState(t *testing.T) {
 }
 
 func TestWithLocaleThenSetLocale(t *testing.T) {
+	t.Setenv("MASIL_LANG", "") // MASIL_LANG beats a switch
 	h := uitest.New(t, uitest.WithLocale(i18n.En))
 	if h.Context().Lang != i18n.En {
 		t.Fatalf("WithLocale(en): Lang = %q", h.Context().Lang)
@@ -201,5 +205,23 @@ func TestWithLocaleThenSetLocale(t *testing.T) {
 	}
 	if h.Context().Lang != i18n.Ko || h.Context().T != i18n.KoT() {
 		t.Fatalf("Lang = %q after SetLocale(ko)", h.Context().Lang)
+	}
+}
+
+// TestSetLocaleEnvWins: MASIL_LANG stays a one-time override for the whole run
+// (i18n spec 6.2: MASIL_LANG > config) — a switch in the app (config=choice)
+// does not beat it (P5 review).
+func TestSetLocaleEnvWins(t *testing.T) {
+	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
+	t.Setenv("MASIL_LANG", "en")
+	h := uitest.New(t) // starts in ko (the harness's Options.Locale)
+	for _, choice := range []string{"ko", "auto"} {
+		h.SetLocale(choice)
+		if got := h.Model.Locale(); got.Effective != i18n.En || got.Source != i18n.SourceEnv {
+			t.Fatalf("MASIL_LANG=en, SetLocale(%q) => %+v, want en from MASIL_LANG", choice, got)
+		}
+		if h.Context().Lang != i18n.En {
+			t.Fatalf("MASIL_LANG=en, SetLocale(%q) => Lang %q", choice, h.Context().Lang)
+		}
 	}
 }

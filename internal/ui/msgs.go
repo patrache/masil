@@ -27,7 +27,7 @@ type SetThemeMsg struct{ Name theme.Name }
 // SetLocaleMsg asks the app to switch the shown language (P5): Choice is
 // "auto" or a locale code ("ko", "en", "zh-Hans", "x-pseudo"). The app
 // resolves it like [ui] language (closed languages fall back, unknown values
-// mean auto), swaps ctx.T and ctx.Lang and broadcasts LocaleChangedMsg. It is
+// mean auto; MASIL_LANG still wins), swaps ctx.T and ctx.Lang and broadcasts LocaleChangedMsg. It is
 // consumed, never broadcast. Saving the choice is the caller's.
 type SetLocaleMsg struct{ Choice string }
 

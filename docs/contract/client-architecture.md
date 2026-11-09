@@ -2155,7 +2155,7 @@ type LoggedOutMsg struct{ Reason string }
 type ResyncStartedMsg struct{}
 type ResyncDoneMsg struct{ Err error }
 type FriendRequestsChangedMsg struct{} // my sent friend requests changed outside the friends screen (profile menu, v0.1.1 C2): the friends screen fetches 보낸 요청 again
-type SetLocaleMsg struct{ Choice string }          // P5: "auto" or a locale code; consumed by the app (never broadcast) — resolved like [ui] language (closed => fallback, unknown => auto, wins over a start-time MASIL_LANG) => ctx.T, ctx.Lang, API Accept-Language, Notifier.SetLocale, Keys.Localize, then LocaleChangedMsg
+type SetLocaleMsg struct{ Choice string }          // P5: "auto" or a locale code; consumed by the app (never broadcast) — resolved like [ui] language (closed => fallback, unknown => auto; MASIL_LANG still wins, spec 6.2) => ctx.T, ctx.Lang, API Accept-Language, Notifier.SetLocale, Keys.Localize, then LocaleChangedMsg
 type LocaleChangedMsg struct{ From, To i18n.Locale } // P5: broadcast to every live component and overlay after the shown language changed (only when From != To); nothing is rebuilt — drafts, scroll, selection, open overlays stay; drop text cached in the old language
 
 func Toast(text string, kind ToastKind) tea.Cmd
@@ -2996,7 +2996,7 @@ func WithSecrets(s *secrets.Store) Option  // ctx.Secrets; 기본 secrettest.New
 func WithCollab(h *collabtest.Hub) Option  // ctx.CollabDial = h.Dial, h.Register(하네스의 apitest 서버)
 func (h *Harness) Flush()                                  // ctx.Post 로 게시된 msg 를 순서대로 Send (Send 가 끝나도 자동으로 비우지 않음)
 func (h *Harness) WaitPosted(n int, timeout time.Duration) // 고루틴이 n 개를 게시할 때까지 기다림
-func (h *Harness) SetLocale(choice string)                 // P5: Send(ui.SetLocaleMsg{Choice}) — 실행 중 언어 바꾸기(열린 언어 관문을 지남, i18n.SetOpenForTest 로 먼저 연다)
+func (h *Harness) SetLocale(choice string)                 // P5: Send(ui.SetLocaleMsg{Choice}) — 실행 중 언어 바꾸기(열린 언어 관문을 지남, i18n.SetOpenForTest 로 먼저 연다; 환경에 MASIL_LANG 이 있으면 그것이 이김)
 var Tiny = Size{40, 14}                                    // P5: 언어 검사(x-pseudo·언어별 무결성)의 가장 작은 크기
 func PseudoRegions(h *Harness) map[string]string           // P5: Screen() 을 Frame() 상자로 나눈 영역 키 => 글 — pane/<SlotID>/<RouteKind>(경로 없는 판 pane/<SlotID>), status, overlay/<app.Box.ID>(열 때 쓴 등록 id, 없으면 Go 타입 이름), toast, screen(상자 밖)
 func AssertPseudoWrapped(tb testing.TB, region, text string, allow []string) // P5: x-pseudo 에서 ⟦⟧ 밖에 두 글자 이상 낱말(allow 의 낱말 제외)이 남으면 Errorf(영역·낱말)

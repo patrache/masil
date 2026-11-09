@@ -86,6 +86,7 @@ func pseudoRun(t *testing.T, switched bool) map[string][]string {
 	t.Helper()
 	if switched {
 		i18n.SetOpenForTest(t, i18n.Ko, i18n.Pseudo)
+		t.Setenv("MASIL_LANG", "") // MASIL_LANG beats a switch
 	}
 	seen := map[string][]string{}
 	for _, st := range pseudoStates() {
