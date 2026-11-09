@@ -261,7 +261,7 @@ func TestInboxBadgeCountsConversations(t *testing.T) {
 		t.Fatalf("title badge = %d, want 3 (2 notifications + #일반)", b.Count)
 	}
 	s := h.Context().Store
-	setUnread(s, fixtures.ChDeploy, 1, 1, "") // mentions-only: its message_mention row already counts
+	setUnread(s, fixtures.ChChat, 1, 1, "") // only a mention, and its unread message_mention row already counts
 	if got := s.InboxBadge(); got != 3 {
 		t.Fatalf("InboxBadge = %d, want 3", got)
 	}
@@ -299,4 +299,164 @@ func TestInboxBadgeInPaletteAndTabs(t *testing.T) {
 		}
 	}
 	t.Fatalf("palette shows no 알림함:\n%s", h.Screen())
+}
+
+// threadReplyID is notificationsAll's unread thread_reply (in #개발).
+func threadReplyID(t *testing.T) string {
+	t.Helper()
+	for _, x := range notificationsAll() {
+		if x.Type == "thread_reply" {
+			return x.ID
+		}
+	}
+	t.Fatal("notificationsAll has no thread_reply")
+	return ""
+}
+
+// A thread reply grouped into a 안 읽은 대화 thread row is not listed again
+// under 알림; once read it is back there as history.
+func TestInboxThreadReplyShownOnce(t *testing.T) {
+	devRoot := fixtures.Messages(fixtures.ChDev)[0].ID
+	reply := threadReplyID(t)
+	h := uitest.New(t, notifOpts(t, false, nil)...)
+	h.Resize(200, 49)
+	scr := h.Screen()
+	ids := rowIDs(h)
+	if !hasRow(ids, "conv:thread:"+devRoot) {
+		t.Fatalf("no thread row: %v", ids)
+	}
+	if hasRow(ids, reply) {
+		t.Fatalf("thread reply listed twice (thread row and notification): %v", ids)
+	}
+	if c := strings.Count(scr, "넵 2시에 할게요"); c != 1 {
+		t.Fatalf("reply preview drawn %d times, want 1:\n%s", c, scr)
+	}
+	h.Event("notifications.read", map[string]any{"ids": []string{reply}, "unread_count": 15})
+	ids = rowIDs(h)
+	if hasRow(ids, "conv:thread:"+devRoot) || !hasRow(ids, reply) {
+		t.Fatalf("after read: thread row must go and the notification come back: %v", ids)
+	}
+}
+
+// When every shown notification is grouped into the section, the "알림" part
+// still draws its header and state line under the section.
+func TestInboxAllNotificationsGrouped(t *testing.T) {
+	devRoot := fixtures.Messages(fixtures.ChDev)[0].ID
+	n := api.Notification{ID: sid(70), Type: "thread_reply", Actor: ptr(userOf("minji")),
+		Subject: api.NotificationSubject{Type: "message", ID: devThreadReply3}, Preview: "넵 2시에 할게요",
+		Context: api.NotificationContext{ChannelID: ptr(fixtures.ChDev), MessageID: ptr(devThreadReply3), ThreadRootID: ptr(devRoot),
+			SpaceID: ptr(fixtures.SpaceNova)}, CreatedAt: at(9)}
+	h := uitest.New(t, notifOptsWith(convSrv(t, []api.Notification{n}), false, nil)...)
+	h.Resize(120, 40)
+	scr := h.Screen()
+	if hasRow(rowIDs(h), n.ID) {
+		t.Fatalf("grouped notification listed: %v", rowIDs(h))
+	}
+	if !strings.Contains(scr, "새 알림이 없어요") {
+		t.Fatalf("no 알림 state line under the section:\n%s", scr)
+	}
+}
+
+// The preview never shows a deleted message or one at or before the read
+// pointer, even when a stored alert still carries its text.
+func TestInboxConversationPreviewSkipsStaleAlerts(t *testing.T) {
+	h := uitest.New(t, notifOptsWith(convSrv(t, nil), false, nil)...)
+	h.Resize(160, 40)
+	s := h.Context().Store
+	addGroup(s, at(30))
+	setUnread(s, groupLunch, 0, 0, "")
+	alert := func(id, body string) map[string]any {
+		return map[string]any{"alert": api.Alert{ID: "AL" + id, Kind: "message", Title: "점심팟", Body: body, Actor: ptr(userOf("minji")),
+			Target: api.AlertTarget{Type: "message", ID: id, ChannelID: ptr(groupLunch), MessageID: ptr(id)}, CreatedAt: at(1)}}
+	}
+	msgAt := func(id, body string, minAgo int) api.Message {
+		return api.Message{ID: id, ChannelID: groupLunch, Author: userOf("minji"), Kind: "text", Body: body, CreatedAt: at(minAgo)}
+	}
+	mB := msgAt("01JDGRP0000000000000000011", "비빔밥 어때요", 4)
+	mC := msgAt("01JDGRP0000000000000000012", "아니면 국수", 3)
+	mD := msgAt("01JDGRP0000000000000000013", "지워질 메시지", 2)
+	for _, m := range []api.Message{mB, mC, mD} {
+		h.Event("message.created", map[string]any{"message": m})
+		h.Event("alert", alert(m.ID, m.Body))
+	}
+	h.Event("message.deleted", map[string]any{"channel_id": groupLunch, "message_id": mD.ID, "tombstone": true})
+	preview := func() string {
+		h.Screen()
+		body, ok := NotifConvPreview(notifInstance(h), "conv:"+groupLunch)
+		if !ok {
+			t.Fatalf("no 점심팟 row: %v", rowIDs(h))
+		}
+		return body
+	}
+	if got := preview(); got != mC.Body {
+		t.Fatalf("preview = %q, want the newest remaining unread message %q (not the deleted one)", got, mC.Body)
+	}
+	// read up to C (the count still says unread): no alert at or before the pointer
+	setUnread(s, groupLunch, 1, 0, mC.ID)
+	if got := preview(); got != "" {
+		t.Fatalf("preview = %q, want the 새 메시지 fallback (alerts at or before the read pointer, or deleted)", got)
+	}
+}
+
+// A conversation listed only for its mentions counts in the badge unless an
+// unread message_mention row for it is loaded: x (all read) or a missing row
+// (mention notifications off) leaves it counted.
+func TestInboxBadgeMentionsWithoutRows(t *testing.T) {
+	gm := api.Notification{ID: sid(70), Type: "message_mention", Actor: ptr(userOf("minji")),
+		Subject: api.NotificationSubject{Type: "message", ID: "01JDGRP0000000000000000011"}, Preview: "@sam 점심?",
+		Context: api.NotificationContext{ChannelID: ptr(groupLunch), MessageID: ptr("01JDGRP0000000000000000011")}, CreatedAt: at(3)}
+	h := uitest.New(t, notifOptsWith(convSrv(t, []api.Notification{gm}), false, nil)...)
+	h.Resize(120, 40)
+	s := h.Context().Store
+	setUnread(s, fixtures.ChGeneral, 0, 0, "")
+	addGroup(s, at(3))
+	setUnread(s, groupLunch, 1, 1, "")
+	h.Screen()
+	if got := s.InboxBadge(); got != 1 {
+		t.Fatalf("InboxBadge = %d, want 1 (the mention row covers the group DM)", got)
+	}
+	h.Press("x")
+	h.Screen()
+	if !hasRow(rowIDs(h), "conv:"+groupLunch) {
+		t.Fatalf("group DM left the section after x: %v", rowIDs(h))
+	}
+	if got := s.InboxBadge(); got != 1 {
+		t.Fatalf("InboxBadge after x = %d, want 1 (the listed group DM)", got)
+	}
+	if _, b := notifInstance(h).(ui.Titled).Title(h.Context()); b.Count != 1 {
+		t.Fatalf("title badge after x = %d, want 1", b.Count)
+	}
+	// a mentions-only channel with a mention but no row (mention notifications off)
+	setUnread(s, fixtures.ChDeploy, 1, 1, "")
+	if got := s.InboxBadge(); got != 2 {
+		t.Fatalf("InboxBadge = %d, want 2 with #배포알림 (no mention row loaded)", got)
+	}
+}
+
+// Threads in muted or notify-none channels get no 안 읽은 대화 row; their
+// notifications stay in the 알림 list.
+func TestInboxThreadRowSkipsQuietChannels(t *testing.T) {
+	devRoot := fixtures.Messages(fixtures.ChDev)[0].ID
+	reply := threadReplyID(t)
+	for _, c := range []struct {
+		name string
+		set  func(ch *api.Channel)
+	}{
+		{"muted", func(ch *api.Channel) { ch.My.Muted = true }},
+		{"notify none", func(ch *api.Channel) { ch.My.Notify = "none" }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h := uitest.New(t, notifOpts(t, false, nil)...)
+			h.Resize(120, 40)
+			c.set(h.Context().Store.Channels[fixtures.ChDev])
+			h.Screen()
+			ids := rowIDs(h)
+			if hasRow(ids, "conv:thread:"+devRoot) {
+				t.Fatalf("thread of a %s channel listed: %v", c.name, ids)
+			}
+			if !hasRow(ids, reply) {
+				t.Fatalf("its notification left the 알림 list: %v", ids)
+			}
+		})
+	}
 }

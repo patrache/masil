@@ -18,10 +18,45 @@ type UnreadConv struct {
 	Mentions  int       // My.MentionCount
 	LastAt    time.Time // last_message_at (created_at when none)
 	Anchor    string    // My.LastReadMessageID: the jump lands just after it ("" = never read)
-	// Badged: the conversation adds one to InboxBadge. A text channel listed
-	// only for its mentions is already counted by its message_mention rows.
+	// Badged: the conversation adds one to InboxBadge. One listed only for
+	// its mentions is left out while an unread message_mention row for it
+	// counts it already (MentionCoverer).
 	Badged bool
 }
+
+// MentionCoverer is optionally implemented by the Reducer that holds the
+// notification inbox (feedstore).
+type MentionCoverer interface {
+	// CoversMentions reports whether an unread message_mention notification
+	// for the channel is counted in NotifUnread: one is loaded, or the inbox
+	// was never fetched (the server's row is assumed).
+	CoversMentions(channelID string) bool
+}
+
+// mentionsCovered reports whether the channel's unread mentions already count
+// in NotifUnread (nothing does once NotifUnread is 0, e.g. after x).
+func (s *Store) mentionsCovered(channelID string) bool {
+	if s.NotifUnread <= 0 {
+		return false
+	}
+	for _, r := range s.reducerOrder {
+		if c, ok := r.(MentionCoverer); ok {
+			return c.CoversMentions(channelID)
+		}
+	}
+	return true // no inbox holder: trust the server's message_mention row
+}
+
+// Quiet reports whether the channel is muted or its notify pref is "none":
+// the 알림함's 안 읽은 대화 section leaves such conversations (and their
+// threads) out.
+func Quiet(ch *api.Channel) bool {
+	return ch.My.Muted || notifyOf(ch) == "none"
+}
+
+// MessageDeleted reports whether message.deleted removed this message this
+// session (a stored alert about it must not be previewed).
+func (s *Store) MessageDeleted(id string) bool { return s.deleted.Has(id) }
 
 // notifyOf is the channel's notify pref, with the server default when unset
 // (dm / group_dm "all", text "mentions"; 0001_init.sql channel_prefs).
@@ -39,7 +74,7 @@ func notifyOf(ch *api.Channel) string {
 func (s *Store) unreadConv(ch *api.Channel) (UnreadConv, bool) {
 	my := ch.My
 	notify := notifyOf(ch)
-	if my.Muted || notify == "none" || (my.UnreadCount <= 0 && my.MentionCount <= 0) {
+	if Quiet(ch) || (my.UnreadCount <= 0 && my.MentionCount <= 0) {
 		return UnreadConv{}, false
 	}
 	c := UnreadConv{ChannelID: ch.ID, Kind: ch.Kind, Unread: my.UnreadCount, Mentions: my.MentionCount, LastAt: dmKey(ch)}
@@ -53,13 +88,13 @@ func (s *Store) unreadConv(ch *api.Channel) (UnreadConv, bool) {
 		}
 		c.Badged = true // a 1:1 dm has no mention rows
 	case api.ChannelGroupDM:
-		c.Badged = my.UnreadCount > my.MentionCount
+		c.Badged = my.UnreadCount > my.MentionCount || !s.mentionsCovered(ch.ID)
 	case api.ChannelText:
 		all := notify == "all" && my.UnreadCount > 0
 		if !all && my.MentionCount <= 0 {
 			return UnreadConv{}, false
 		}
-		c.Badged = all && my.UnreadCount > my.MentionCount
+		c.Badged = (all && my.UnreadCount > my.MentionCount) || (my.MentionCount > 0 && !s.mentionsCovered(ch.ID))
 	default:
 		return UnreadConv{}, false
 	}

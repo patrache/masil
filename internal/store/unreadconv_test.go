@@ -50,6 +50,7 @@ func TestUnreadConversationsPicks(t *testing.T) {
 	unread(s, "C1DEV", 4, 0, "M20") // notify all
 	unread(s, "C2DEP", 3, 1, "M30") // mentions-only with a mention
 	unread(s, "C0GEN", 0, 0, "")    // read
+	s.NotifUnread = 2               // C2DEP's mention row is among them (no inbox holder: assumed)
 	got := s.UnreadConversations()
 	want := []UnreadConv{
 		{ChannelID: "G1", Kind: api.ChannelGroupDM, Unread: 1, LastAt: testTS.Add(5 * time.Minute), Badged: true},
@@ -66,9 +67,40 @@ func TestUnreadConversationsPicks(t *testing.T) {
 		t.Fatalf("mentions-only channel without a mention listed: %v", ids)
 	}
 	// InboxBadge: notifications + the conversations no notification row covers
-	s.NotifUnread = 2
 	if got := s.InboxBadge(); got != 2+3 {
 		t.Fatalf("InboxBadge = %d, want 5 (2 notifications + G1, D1MJ, C1DEV)", got)
+	}
+	// every notification read (x): nothing covers C2DEP's mention any more
+	unread(s, "C2DEP", 3, 1, "")
+	if got := s.InboxBadge(); got != 2+3 {
+		t.Fatalf("InboxBadge = %d, want 5 (C2DEP's mention row assumed among the 2)", got)
+	}
+	s.NotifUnread = 0
+	if got := s.InboxBadge(); got != 4 {
+		t.Fatalf("InboxBadge = %d, want 4 (G1, D1MJ, C2DEP, C1DEV)", got)
+	}
+}
+
+func TestQuietAndMessageDeleted(t *testing.T) {
+	s := convStore(t)
+	ch := s.Channels["C1DEV"]
+	if Quiet(ch) {
+		t.Fatal("C1DEV quiet before mute")
+	}
+	ch.My.Muted = true
+	if !Quiet(ch) {
+		t.Fatal("muted channel not quiet")
+	}
+	ch.My.Muted, ch.My.Notify = false, "none"
+	if !Quiet(ch) {
+		t.Fatal("notify none not quiet")
+	}
+	if s.MessageDeleted("M600") {
+		t.Fatal("M600 deleted before message.deleted")
+	}
+	s.Apply(ev(t, "message.deleted", map[string]any{"channel_id": "D1MJ", "message_id": "M600", "tombstone": true}))
+	if !s.MessageDeleted("M600") {
+		t.Fatal("message.deleted not remembered")
 	}
 }
 

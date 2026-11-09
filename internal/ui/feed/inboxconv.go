@@ -9,6 +9,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/markup"
+	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -71,22 +72,32 @@ func (r inboxRow) id() string {
 }
 
 // joinRows is the section (header on its first row) then the notifications
-// (with the "알림" header only when the section is shown).
+// (with the "알림" header only when the section is shown). A notification a
+// thread row groups is shown there only; once read it is back in the list.
 func joinRows(ctx *ui.Context, convs []convRow, items []api.Notification) []inboxRow {
 	out := make([]inboxRow, 0, len(convs)+len(items))
 	heads := len(convs) > 0 && ctx.Density() != ui.DensityMinimal
+	grouped := map[string]bool{}
 	for i := range convs {
 		r := inboxRow{conv: &convs[i]}
 		if i == 0 && heads {
 			r.head = textConvHeader
 		}
 		out = append(out, r)
+		for _, id := range convs[i].notifs {
+			grouped[id] = true
+		}
 	}
-	for i, x := range items {
+	first := true
+	for _, x := range items {
+		if grouped[x.ID] {
+			continue
+		}
 		r := inboxRow{n: x}
-		if i == 0 && heads {
+		if first && heads {
 			r.head = textNotifHeader
 		}
+		first = false
 		out = append(out, r)
 	}
 	return out
@@ -120,7 +131,7 @@ func buildConvs(ctx *ui.Context, items []api.Notification) []convRow {
 			if !m.CreatedAt.IsZero() && m.CreatedAt.After(r.at) {
 				r.at = m.CreatedAt
 			}
-		} else if a, ok := convAlert(ctx, ch.ID); ok {
+		} else if a, ok := convAlert(ctx, ch.ID, c.Anchor); ok {
 			if a.Actor != nil {
 				r.author = convAuthor(ctx, ch, *a.Actor)
 			}
@@ -134,7 +145,9 @@ func buildConvs(ctx *ui.Context, items []api.Notification) []convRow {
 }
 
 // threadConvs groups the unread thread notifications (thread_reply, and
-// message_mention inside a thread) by thread root.
+// message_mention inside a thread) by thread root. Threads of muted or
+// notify-"none" channels are left out like those channels (store.Quiet); the
+// server writes their rows regardless, so they stay in the 알림 list.
 func threadConvs(ctx *ui.Context, items []api.Notification) []convRow {
 	s := ctx.Store
 	var out []convRow
@@ -142,6 +155,9 @@ func threadConvs(ctx *ui.Context, items []api.Notification) []convRow {
 	for _, x := range items { // newest first
 		root, chID := deref(x.Context.ThreadRootID), deref(x.Context.ChannelID)
 		if x.Read || root == "" || chID == "" || (x.Type != "thread_reply" && x.Type != "message_mention") {
+			continue
+		}
+		if ch := s.Channels[chID]; ch != nil && store.Quiet(ch) {
 			continue
 		}
 		key := convThreadIDPre + root
@@ -268,16 +284,18 @@ func convLast(ctx *ui.Context, ch *api.Channel, anchor string) (api.Message, boo
 }
 
 // convAlert is the newest alert about a top-level message of the channel (a
-// message that arrived while the window was not loaded).
-func convAlert(ctx *ui.Context, channelID string) (api.Alert, bool) {
+// message that arrived while the window was not loaded) that is still unread
+// (after the read pointer anchor) and not deleted since.
+func convAlert(ctx *ui.Context, channelID, anchor string) (api.Alert, bool) {
 	s := ctx.Store
 	if s.Alerts == nil {
 		return api.Alert{}, false
 	}
-	items := s.Alerts.Items()
-	for i := len(items) - 1; i >= 0; i-- {
-		a := items[i]
+	for _, a := range s.Alerts.Items() { // newest first
 		if deref(a.Target.ChannelID) != channelID || a.Target.ThreadRootID != nil {
+			continue
+		}
+		if id := deref(a.Target.MessageID); id != "" && ((anchor != "" && id <= anchor) || s.MessageDeleted(id)) {
 			continue
 		}
 		if a.Actor != nil && s.IsBlocked(a.Actor.ID) {

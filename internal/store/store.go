@@ -40,6 +40,7 @@ type Store struct {
 	mentioned  *idSet                 // message IDs whose mention was already counted (direct or @here notification)
 	removedInv *idSet                 // direct invite IDs already dropped by space.invite_removed (a late invite_received is ignored)
 	lastMsg    map[string]api.Message // channel id -> newest top-level message seen this session (LastMessage)
+	deleted    *idSet                 // message IDs message.deleted removed this session (MessageDeleted)
 	now        func() time.Time
 
 	flight       *flight           // open while a bootstrap is in flight (flight.go)
@@ -104,6 +105,7 @@ func (s *Store) clear() {
 	s.mentioned = newIDSet(dedupeIDs)
 	s.removedInv = newIDSet(dedupeIDs)
 	s.lastMsg = map[string]api.Message{}
+	s.deleted = newIDSet(dedupeIDs)
 	s.flight, s.replaying, s.applying, s.snapshotLast = nil, false, false, nil
 }
 

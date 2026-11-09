@@ -465,3 +465,15 @@ func (f *FeedStore) SetOpen(key string, open bool) {
 
 // IsOpen reports whether key is open (see SetOpen).
 func (f *FeedStore) IsOpen(key string) bool { return f.open[key] }
+
+// CoversMentions implements store.MentionCoverer: an unread message_mention
+// row for the channel is loaded, or the inbox was never fetched (the server's
+// row is assumed until a page shows otherwise).
+func (f *FeedStore) CoversMentions(channelID string) bool {
+	for _, n := range f.notifs.Items() {
+		if !n.Read && n.Type == "message_mention" && n.Context.ChannelID != nil && *n.Context.ChannelID == channelID {
+			return true
+		}
+	}
+	return !f.notifsLoaded
+}

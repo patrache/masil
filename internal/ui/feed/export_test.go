@@ -113,3 +113,18 @@ func SelectNotifRow(c ui.Component, id string) bool {
 	}
 	return false
 }
+
+// NotifConvPreview is the 안 읽은 대화 row's preview body ("" = the 새 메시지
+// fallback) and whether the row exists.
+func NotifConvPreview(c ui.Component, id string) (string, bool) {
+	n, ok := c.(*notifications)
+	if !ok {
+		return "", false
+	}
+	for _, r := range n.convs {
+		if r.key == id {
+			return r.body, true
+		}
+	}
+	return "", false
+}

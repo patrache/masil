@@ -676,7 +676,7 @@ func (n *notifications) View(ctx *ui.Context, focused bool) string {
 		out = strings.Split(widgets.Empty(t, n.size, "⚠", retryHint(ctx, textNotifLoadFail), ""), "\n")
 	case len(n.rows) == 0:
 		out = strings.Split(widgets.Empty(t, n.size, iconNotifEmpty, textNotifEmpty, ""), "\n")
-	case len(n.items) == 0:
+	case !n.listsNotifs():
 		// the section alone: the notifications' state (loading / failed / none) right under it
 		foot := n.sectionFoot(ctx, w)
 		n.listY, n.listH = 0, min(max(h-len(foot), 0), n.contentLines())
@@ -701,6 +701,17 @@ func (n *notifications) View(ctx *ui.Context, focused bool) string {
 		}
 	}
 	return blankRows(t, out, w, h)
+}
+
+// listsNotifs reports whether any notification row is shown (the section may
+// group every unread one).
+func (n *notifications) listsNotifs() bool {
+	for _, r := range n.rows {
+		if r.conv == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // contentLines is how many lines the rows take (one each, plus section headers).

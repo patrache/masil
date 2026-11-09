@@ -41,6 +41,7 @@ func (s *Store) applyCore(ev realtime.Event, v any) {
 			s.updateLastMessage(d.Message)
 		}
 	case realtime.MessageDeleted:
+		s.deleted.Add(d.MessageID)
 		s.forgetLastMessage(d.ChannelID, d.MessageID)
 
 	// ---- read state ----
