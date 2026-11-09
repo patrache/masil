@@ -139,7 +139,7 @@ func (in *instance) credsLoaded(ctx *ui.Context, m credsLoadedMsg) tea.Cmd {
 func (in *instance) send(ctx *ui.Context, kind judgeKind, c *leetcode.Credentials) tea.Cmd {
 	now := nowFunc(ctx)()
 	p := pacerOf(ctx)
-	if rem := p.Remaining(now); rem > 0 {
+	if rem := waitBeforeSend(ctx, now); rem > 0 {
 		in.waitUntil = now.Add(rem)
 		return nil
 	}
@@ -229,7 +229,7 @@ func (in *instance) checked(ctx *ui.Context, m checkedMsg) tea.Cmd {
 
 // judgeErr maps a LeetCode error (A10.4): sign-in → the login dialog again
 // (the same action goes on after it); a block page or anything else is
-// shown; a rate limit pushes the pacer.
+// shown; a rate limit holds the account's runs and submits 10 seconds.
 func (in *instance) judgeErr(ctx *ui.Context, err error) tea.Cmd {
 	j := in.judge
 	switch {
@@ -240,11 +240,11 @@ func (in *instance) judgeErr(ctx *ui.Context, err error) tea.Cmd {
 			in.judge = nil
 		}
 		return ui.OpenRegisteredOverlay(OverlayLogin, "")
-	case errors.Is(err, leetcode.ErrRateLimited):
+	case errors.Is(err, leetcode.ErrRateLimited): // 10 seconds, premium or not
 		now := nowFunc(ctx)()
-		p := pacerOf(ctx)
-		p.Mark(now)
-		in.waitUntil = now.Add(p.Interval)
+		pacerOf(ctx).Mark(now)
+		holdUntil(ctx, now.Add(leetcode.FreeInterval))
+		in.waitUntil = now.Add(leetcode.FreeInterval)
 	}
 	if j != nil {
 		j.phase, j.err = jFailed, err

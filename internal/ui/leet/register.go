@@ -184,6 +184,7 @@ type memo struct {
 	creds *leetcode.Credentials // this run's LeetCode cookies (nil = not loaded)
 	pacer *leetcode.Pacer       // runs and submits of this account, paced
 	lc    *lcAccount            // who this run signed in as (nil = see tools-state)
+	hold  time.Time             // a 429 holds runs and submits until then
 }
 
 var (
@@ -286,6 +287,25 @@ func pacerOf(ctx *ui.Context) *leetcode.Pacer {
 		}
 		return m.pacer
 	})
+}
+
+// holdUntil makes the account wait until t before the next run or submit
+// (a 429), whatever its pacing.
+func holdUntil(ctx *ui.Context, t time.Time) {
+	withMemo(ctx, func(m *memo) struct{} {
+		if t.After(m.hold) {
+			m.hold = t
+		}
+		return struct{}{}
+	})
+}
+
+// waitBeforeSend is how long the account must still wait at now: its pacer
+// or a 429's hold, whichever is longer.
+func waitBeforeSend(ctx *ui.Context, now time.Time) time.Duration {
+	rem := pacerOf(ctx).Remaining(now)
+	hold := withMemo(ctx, func(m *memo) time.Time { return m.hold })
+	return max(rem, hold.Sub(now))
 }
 
 // knownMe is the last LeetMe answer (nil = not asked yet).

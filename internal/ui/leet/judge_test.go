@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/leetcode"
 	"github.com/patrache/masil/internal/leetcode/leetcodetest"
 	"github.com/patrache/masil/internal/secrets"
+	"github.com/patrache/masil/internal/ui/leet"
 	"github.com/patrache/masil/internal/ui/uitest"
 )
 
@@ -214,4 +215,32 @@ func TestResultGoldens(t *testing.T) {
 			h.Golden("leet_result_submit")
 		})
 	})
+}
+
+// A 429 waits 10 seconds even for a premium account (paced 1s otherwise).
+func TestRateLimitedWaitsTenSecondsPremium(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	h := uitest.New(t)
+	signIn(t, e, h)
+	openToday(t, h)
+	leet.SetLoginAccountForTest(h.Context(), "sam_lc", true)
+	if d := leet.PacerIntervalForTest(h.Context()); d != time.Second {
+		t.Fatalf("pacer = %v, want premium 1s", d)
+	}
+	e.lc.Fail("/problems/"+slug1606+"/interpret_solution/", http.StatusTooManyRequests, "application/json", `{}`)
+	h.Press("r")
+	if s := h.Screen(); !strings.Contains(s, "10초") {
+		t.Fatalf("no 10s wait shown:\n%s", s)
+	}
+	h.Advance(2 * time.Second)
+	h.Press("r")
+	if n := len(sent(e, "interpret_solution")); n != 1 {
+		t.Fatalf("interpret requests = %d, want 1 (still waiting after a 429)", n)
+	}
+	h.Advance(9 * time.Second)
+	h.Press("r")
+	if n := len(sent(e, "interpret_solution")); n != 2 {
+		t.Fatalf("interpret requests = %d, want 2 after 10s", n)
+	}
 }
