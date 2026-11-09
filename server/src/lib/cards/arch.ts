@@ -24,17 +24,21 @@ const codePoints = (s: string): number => {
 const zDrawn = (min: number, max: number) =>
   z.string().refine((s) => !FORBIDDEN.test(s) && !LONE_SURROGATE.test(s) && codePoints(s) >= min && codePoints(s) <= max);
 
-// Two-cell code points (East Asian Wide / Fullwidth and emoji): the client measures with x/ansi, these ranges are
-// the ones it draws two cells wide. Everything else (box drawing, Latin, ⚠ ✕ ▊) counts one.
-const WIDE = /[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]|[\u{1f300}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{1f900}-\u{1f9ff}\u{20000}-\u{3fffd}]/u;
-const COMBINING = /\p{M}|\u200d|[\ufe00-\ufe0f]/u;
+// A lower bound of the client's cells (x/ansi `textwidth.Width`), never above it: the server must never refuse a
+// line the client cut to 60 cells, and the client re-cuts on draw anyway. One grapheme cluster is 2 cells only for a
+// Hangul syllable (always wide), 0 when it is only marks, format characters or Hangul fillers (zero-width to the
+// client or narrower), else 1 — emoji are left at 1 since text-presentation ones (🖥 🌡) are 1 cell to the client and
+// the two sides' emoji tables may differ.
+const HANGUL_SYLLABLE = /^[\uac00-\ud7a3]/;
+const ZERO_WIDTH = /^[\p{M}\p{Cf}\u115f\u1160\u3164\uffa0]+$/u;
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-/** Terminal cells of s (approximate, never under what the client draws for these ranges). */
+/** Terminal cells of s, at most what the client measures. */
 export function cells(s: string): number {
   let n = 0;
-  for (const ch of s) {
-    if (COMBINING.test(ch)) continue;
-    n += WIDE.test(ch) ? 2 : 1;
+  for (const { segment } of graphemes.segment(s)) {
+    if (ZERO_WIDTH.test(segment)) continue;
+    n += HANGUL_SYLLABLE.test(segment) ? 2 : 1;
   }
   return n;
 }

@@ -134,6 +134,19 @@ describe("arch cards", () => {
     bad("arch.sim", simData({ mini }));
   });
 
+  it("a mini line the Go client measures at 60 cells is never refused (the server is never stricter)", async () => {
+    const send = await sender();
+    // textwidth.Width (x/ansi) of each is exactly 60: text-presentation emoji (🖥 🗄 🛡 🌡) are 1 cell, a skin-tone
+    // or ZWJ sequence is one 2-cell grapheme, a combining accent adds nothing
+    const go60 = [
+      "🖥 web─🗄 db─🛡 waf─🌡 temp─👍🏽 ok─👨\u200d👩\u200d👧 fam─한글─e\u0301" + "━".repeat(17),
+      "🌡".repeat(60),
+      "👨\u200d👩\u200d👧".repeat(30),
+    ];
+    expect(check("arch.design", designData({ mini: go60 }))).toEqual({});
+    expect((await send("arch.design", designData({ mini: go60 }))).status).toBe(201);
+  });
+
   it("unknown future v (2) → 400", async () => {
     const send = await sender();
     expect(fieldsOf(await send("arch.design", designData(), 2))).toEqual({ "card.v": "invalid" });

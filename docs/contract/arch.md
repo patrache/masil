@@ -204,7 +204,7 @@ CollabHub 는 op 프레임마다 op 하나씩 이 검사를 거친 뒤 적용한
 
 ### 3.2 type 별 필드
 
-- `arch.design`: `node_count` 정수 0..300, `mini` 문자열 배열 ≤ 8(각 ≤ 60칸, 1.3 금지 문자 없음 — `archexport.Mini`; 서버의 칸 계산은 동아시아 넓은 글자·이모지 범위만 2칸으로 보는 근사).
+- `arch.design`: `node_count` 정수 0..300, `mini` 문자열 배열 ≤ 8(각 ≤ 60칸, 1.3 금지 문자 없음 — `archexport.Mini`; 서버의 칸 계산은 클라이언트 `textwidth.Width` 의 **하한** — 그래핌 묶음마다 한글 음절 2칸, 결합 문자·서식 문자·한글 채움 문자만인 묶음 0칸, 나머지(이모지 포함) 1칸 — 이라 클라이언트가 60칸으로 자른 줄을 서버가 거절하는 일은 없다. 정확한 60칸 자르기는 클라이언트 몫이고 그릴 때 다시 자른다).
 - `arch.sim`: `seed` uint64 10진 문자열(`^(0|[1-9][0-9]{0,19})$`, ≤ 2^64−1), `max_rps`(분석의 클라이언트 초당 요청), `read_permille` 0..1000(첫 클라이언트의 읽기 비율), `p50_ms`·`p99_ms`, `error_permille` 0..1000 — 모두 정수 ≥ 0. `bottleneck` `{ target_label: 1..80, limit: cpu|iops|nic|pool|ext_limit|queue|link, util_permille ≥ 0 }` \| `null`. `challenge` `{ date: YYYY-MM-DD, scenario: ^[a-z0-9_-]{1,64}$, score ≥ 0 }` \| `null`(일일 도전, Task 28).
 
 ### 3.3 클라이언트
