@@ -135,7 +135,8 @@ var (
 )
 
 // New is the RouteTool factory of the API tool (ToolSpec.New). Query "col"
-// and "req" pick what to open; without them the last collection opens.
+// and "req" pick what to open ("doc" is P4 Task 18's); without them the last
+// collection opens.
 func New(ctx *ui.Context, r ui.Route) ui.Component {
 	t := &Tool{
 		route:   r,
@@ -182,8 +183,8 @@ func New(ctx *ui.Context, r ui.Route) ui.Component {
 	}
 	t.reload(ctx)
 	col, req := st.Collection, st.Request
-	if c := r.Query["col"]; c != "" {
-		col, req = c, r.Query["req"]
+	if c := r.Query[queryCol]; c != "" {
+		col, req = c, r.Query[queryReq]
 	}
 	t.selectEnv(ctx, st.Env)
 	t.openFirst(col, req)
@@ -419,9 +420,9 @@ func (t *Tool) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 // onRoute follows a reused instance's new query (a palette command, a card).
 func (t *Tool) onRoute(ctx *ui.Context, r ui.Route) tea.Cmd {
 	t.route = r
-	if c := r.Query["col"]; c != "" {
+	if c := r.Query[queryCol]; c != "" {
 		t.reload(ctx)
-		t.openFirst(c, r.Query["req"])
+		t.openFirst(c, r.Query[queryReq])
 		t.tree.follow(ctx, t)
 	}
 	return t.command(ctx, r.Query[queryCmd])

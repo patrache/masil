@@ -333,7 +333,7 @@ ui/termpane ─▶ ui, termhost, keymap, i18n, textwidth
 ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate, secrets, i18n
 도구 패키지(P1~P4) ─▶ ui, ui/termpane, termhost, secrets, collab, api, … (자기 줄기 계획)
 apitool, apitool/convert ─▶ secrets, collab(타입), config, ids, textwidth (api·ui·realtime·store 금지 — 직접 import 금지, 전이도 금지. 예외는 collab 을 거쳐서만 닿는 경로 하나: import 그래프에서 collab 으로 들어가지 않는 경로로 닿으면 위반)
-ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keymap, apitool, apitool/convert, collab, secrets, api, i18n, textwidth, humanize (ui/termpane 금지)
+ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keymap, ui/layout, apitool, apitool/convert, collab, secrets, api, errtext, features, i18n, termhost(Mode 타입 — ToolSpec.Open), theme, textwidth, humanize (ui/termpane 금지)
 ```
 
 - `internal/api` 는 `internal/secrets`·`internal/termhost`·`internal/collab`·`internal/ui/...`·도구 패키지를 **전이로도** import 하지 않는다 — 도구 비밀값(쿠키·토큰)이 구조적으로 masil 서버 요청에 실릴 수 없게(v0.1.3 설계서 A9.3).
@@ -2543,7 +2543,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | P1 LeetCode·lazygit | `leet.*`, `git.*` |
 | P2 작업공간 | `ws.*` |
 | P3 아키텍처 설계 | `arch.*` |
-| P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd` 로 인스턴스 `api:main` 에 전달(`ui.OpenTool`) |
+| P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd`(+ `n` nonce)로 인스턴스 `api:main` 에 전달(`ui.OpenTool`). 여는 대상은 Query 개인 컬렉션 `col`·`req`(이름·요청 ID), 공유 컬렉션 `doc`·`req`(인스턴스 `api:doc:<doc_id>`, P4 Task 18·20) |
 
 - 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).
 

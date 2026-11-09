@@ -19,12 +19,18 @@ import (
 // instanceID is the API tool's one instance on the tool surface.
 const instanceID = ui.ToolAPI + ":main"
 
-// queryCmd is the route query key carrying a palette command to the
+// Route query keys (CA 5.6). queryCmd carries a palette command to the
 // instance ("new", "import", "env", "runner", "send"); queryNonce makes a
-// repeated command a new query (RouteUpdatedMsg).
+// repeated command a new query (RouteUpdatedMsg). queryCol + queryReq open a
+// personal collection's request; queryDoc + queryReq a shared collection's
+// (instance "api:doc:<doc_id>", resolved by P4 Task 18 — until then the
+// last personal collection opens).
 const (
 	queryCmd   = "cmd"
 	queryNonce = "n"
+	queryCol   = "col"
+	queryReq   = "req"
+	queryDoc   = "doc"
 )
 
 var nonce atomic.Int64
