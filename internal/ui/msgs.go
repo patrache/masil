@@ -3,6 +3,7 @@ package ui
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -22,6 +23,18 @@ type ThemeChangedMsg struct{ Theme *theme.Theme }
 
 // SetThemeMsg asks the app to switch theme.
 type SetThemeMsg struct{ Name theme.Name }
+
+// SetLocaleMsg asks the app to switch the shown language (P5): Choice is
+// "auto" or a locale code ("ko", "en", "zh-Hans", "x-pseudo"). The app
+// resolves it like [ui] language (closed languages fall back, unknown values
+// mean auto), swaps ctx.T and ctx.Lang and broadcasts LocaleChangedMsg. It is
+// consumed, never broadcast. Saving the choice is the caller's.
+type SetLocaleMsg struct{ Choice string }
+
+// LocaleChangedMsg is broadcast after the shown language changed (From != To):
+// ctx.T and ctx.Lang already hold To. Components drop text they cached in the
+// old language (row caches, titles); state such as drafts and scroll is kept.
+type LocaleChangedMsg struct{ From, To i18n.Locale }
 
 // FocusChangedMsg is broadcast when focus moves.
 type FocusChangedMsg struct {

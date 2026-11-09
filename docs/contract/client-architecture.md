@@ -2155,6 +2155,8 @@ type LoggedOutMsg struct{ Reason string }
 type ResyncStartedMsg struct{}
 type ResyncDoneMsg struct{ Err error }
 type FriendRequestsChangedMsg struct{} // my sent friend requests changed outside the friends screen (profile menu, v0.1.1 C2): the friends screen fetches 보낸 요청 again
+type SetLocaleMsg struct{ Choice string }          // P5: "auto" or a locale code; consumed by the app (never broadcast) — resolved like [ui] language (closed => fallback, unknown => auto, wins over a start-time MASIL_LANG) => ctx.T, ctx.Lang, API Accept-Language, Notifier.SetLocale, Keys.Localize, then LocaleChangedMsg
+type LocaleChangedMsg struct{ From, To i18n.Locale } // P5: broadcast to every live component and overlay after the shown language changed (only when From != To); nothing is rebuilt — drafts, scroll, selection, open overlays stay; drop text cached in the old language
 
 func Toast(text string, kind ToastKind) tea.Cmd
 func RunCommand(id, args string) tea.Cmd
@@ -2993,6 +2995,8 @@ func WithSecrets(s *secrets.Store) Option  // ctx.Secrets; 기본 secrettest.New
 func WithCollab(h *collabtest.Hub) Option  // ctx.CollabDial = h.Dial, h.Register(하네스의 apitest 서버)
 func (h *Harness) Flush()                                  // ctx.Post 로 게시된 msg 를 순서대로 Send (Send 가 끝나도 자동으로 비우지 않음)
 func (h *Harness) WaitPosted(n int, timeout time.Duration) // 고루틴이 n 개를 게시할 때까지 기다림
+func (h *Harness) SetLocale(choice string)                 // P5: Send(ui.SetLocaleMsg{Choice}) — 실행 중 언어 바꾸기(열린 언어 관문을 지남, i18n.SetOpenForTest 로 먼저 연다)
+var Tiny = Size{40, 14}                                    // P5: 언어 검사(x-pseudo·언어별 무결성)의 가장 작은 크기
 // 하네스 기본: ctx.ToolState = t.TempDir() 의 빈 tools-state.json, 기능 플래그 꺼짐(MASIL_FEATURES 없음)
 ```
 

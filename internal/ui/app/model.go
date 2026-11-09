@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -140,6 +141,10 @@ type Model struct {
 
 	// state.json (Task 32, state.go).
 	lastSpaceID string // space remembered from state.json (savedState falls back to it)
+
+	// Language (P5 Task 2, locale.go).
+	locale   i18n.Resolution    // the start decision, then the last ui.SetLocaleMsg
+	detectOS func() i18n.Inputs // i18n.DetectOS, memoized (the inputs a switch re-resolves from)
 }
 
 var _ tea.Model = (*Model)(nil)
@@ -158,6 +163,7 @@ func New(o Options) *Model {
 		routes:  map[layout.SlotID]ui.Route{},
 		openPal: palette.Open,
 	}
+	m.detectOS = sync.OnceValue(i18n.DetectOS) // a language switch asks the OS at most once per run
 
 	// ① Config.
 	cfg := o.Config
@@ -211,6 +217,7 @@ func New(o Options) *Model {
 	// ⑦ Language: the effective (gated) language drives ctx.T, the API's
 	// Accept-Language and OS notifications.
 	res := resolveLocale(o.Locale, cfg)
+	m.locale = res
 	client.SetLanguage(string(res.Effective))
 	m.notifier.SetLocale(res.Effective)
 
@@ -349,6 +356,8 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.runCommand(msg)
 	case ui.SetThemeMsg:
 		return m, m.setTheme(msg.Name)
+	case ui.SetLocaleMsg: // consumed, never broadcast (locale.go)
+		return m, m.applyLocale(msg.Choice)
 	case helpMsg:
 		return m, m.openHelp()
 	case reconnectMsg:
