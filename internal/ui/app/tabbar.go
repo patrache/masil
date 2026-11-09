@@ -43,12 +43,32 @@ func (m *Model) tabItems() ([]widgets.Tab, int) {
 	if m.lay.Mode == layout.ModeTiny {
 		chat.Label, feed.Label, notif.Label = "챗", "피", "알"
 		tools.Label = m.ctx.T.Tools.TabLabelShort()
+		tools.Badge = m.toolsTabBadge()
 	}
 	items := []widgets.Tab{chat, dms, feed, notif}
 	if m.nav.toolTabs() > 0 { // the tool tab exists while a tool is open (A8.3)
 		items = append(items, tools)
 	}
 	return items, m.nav.widgetPos()
+}
+
+// toolsTabBadge is the tiny tool cell's mark: a dot while an open tool
+// instance's Titled badge has one — a shared pane (A7.7: tiny has no border,
+// so the share mark is on the tab line).
+func (m *Model) toolsTabBadge() ui.Badge {
+	for _, r := range m.nav.Tools {
+		if r.Kind != ui.RouteTool {
+			continue
+		}
+		if in := m.cache.lookup(r.Key()); in != nil {
+			if t, ok := in.comp.(ui.Titled); ok {
+				if _, b := t.Title(m.ctx); b.Dot {
+					return ui.Badge{Dot: true}
+				}
+			}
+		}
+	}
+	return ui.Badge{}
 }
 
 // rootTab is the compact tab of a tab root.

@@ -31,7 +31,7 @@ type CwdMsg struct{ InstanceID, Dir string }
 // or "osc777" — pane mode only (P2 shows "승인 대기" with it).
 type NotifyMsg struct{ InstanceID, Kind string }
 
-// paneStartSize is the size a pane starts at; the first draw resizes it to
+// paneStartSize is the size a pane starts at; the view's first Resize gives it
 // the real inner size.
 var paneStartSize = termhost.Size{W: 80, H: 24}
 
@@ -55,7 +55,7 @@ func init() {
 
 // Launch starts req for instance opts.InstanceID in the mode Choose picks:
 //
-//   - pane: StartPane at 80x24 (the first draw resizes it) and New(pane,
+//   - pane: StartPane at 80x24 (the first Resize fixes it) and New(pane,
 //     opts). Its screen changes are posted coalesced as DirtyMsg, OSC 7 as
 //     CwdMsg, bells and OSC 9/777 as NotifyMsg; ExitedMsg is posted once the
 //     program ends (Launch watches it: the view needs no Init), and the view

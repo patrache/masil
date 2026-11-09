@@ -104,6 +104,12 @@ func (f *fakeHandle) gotKeys() []string {
 	return slices.Clone(f.keys)
 }
 
+func (f *fakeHandle) gotFocus() []bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.focus)
+}
+
 func (f *fakeHandle) gotSizes() []termhost.Size {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -403,6 +409,24 @@ func TestPaneSharedBadge(t *testing.T) {
 			if rig.h.Model.Frame().Layout.Mode == layout.ModeTooSmall {
 				return // nothing but the too-small notice is drawn
 			}
+			if rig.h.Model.Frame().Layout.Mode == layout.ModeTiny {
+				// No border: the mark is on the tab line's tool cell, and the
+				// program keeps the whole body (no row taken for a badge).
+				tabs := func() string { return strings.Split(rig.h.Screen(), "\n")[0] }
+				if !strings.Contains(tabs(), "●") {
+					t.Fatalf("no share mark on the tiny tab line:\n%s", s)
+				}
+				in := paneInner(t, rig.h)
+				if sizes := rig.f.gotSizes(); sizes[len(sizes)-1] != (termhost.Size{W: in.W, H: in.H}) {
+					t.Fatalf("program size %v, want the whole %dx%d", sizes[len(sizes)-1], in.W, in.H)
+				}
+				rig.f.shared = false
+				if strings.Contains(tabs(), "●") {
+					t.Fatal("share mark still on the tab line after sharing ended")
+				}
+				rig.h.Check()
+				return
+			}
 			if !strings.Contains(s, badge) {
 				t.Fatalf("no %q:\n%s", badge, s)
 			}
@@ -411,6 +435,63 @@ func TestPaneSharedBadge(t *testing.T) {
 				t.Fatalf("badge still shown after sharing ended:\n%s", s)
 			}
 			rig.h.Check()
+		})
+	}
+}
+
+// The program hears focus-out when the pane is hidden (ctrl+\ t to the chat)
+// and focus-in when it is back; terminal focus changes while it is hidden
+// tell it nothing.
+func TestPaneFocusFollowsShell(t *testing.T) {
+	rig := newRig(t, termpane.Options{})
+	rig.h.Screen()
+	if got := rig.f.gotFocus(); !slices.Equal(got, []bool{true}) {
+		t.Fatalf("focus reports on open = %v, want [true]", got)
+	}
+	rig.h.Press("ctrl+\\", "t")
+	if rig.h.Nav().Front == app.FrontTools {
+		t.Fatal("ctrl+\\ t did not leave the tool surface")
+	}
+	rig.h.Screen()
+	if got := rig.f.gotFocus(); !slices.Equal(got, []bool{true, false}) {
+		t.Fatalf("focus reports after hiding = %v, want [true false]", got)
+	}
+	rig.h.Send(tea.BlurMsg{})
+	rig.h.Send(tea.FocusMsg{})
+	rig.h.Screen()
+	if got := rig.f.gotFocus(); !slices.Equal(got, []bool{true, false}) {
+		t.Fatalf("a hidden pane got %v after blur+focus, want [true false]", got)
+	}
+	rig.h.Press("ctrl+t")
+	rig.h.Screen()
+	if got := rig.f.gotFocus(); !slices.Equal(got, []bool{true, false, true}) {
+		t.Fatalf("focus reports after coming back = %v, want [true false true]", got)
+	}
+}
+
+// Drawing has no effect on the program: no focus report, no resize — however
+// often the pane is drawn and whatever it is drawn with (contract: View is pure).
+func TestPaneViewIsPure(t *testing.T) {
+	for _, sz := range []uitest.Size{{W: 120, H: 40}, {W: 40, H: 14}} {
+		t.Run(fmt.Sprintf("%dx%d", sz.W, sz.H), func(t *testing.T) {
+			rig := newRig(t, termpane.Options{})
+			rig.h.Resize(sz.W, sz.H)
+			rig.h.Screen()
+			focus, sizes := rig.f.gotFocus(), rig.f.gotSizes()
+			ctx := rig.h.Context()
+			rig.pane.View(ctx, false)
+			rig.pane.View(ctx, true)
+			rig.f.shared = true
+			rig.h.Screen()
+			rig.h.Screen()
+			rig.f.shared = false
+			rig.h.Screen()
+			if got := rig.f.gotFocus(); !slices.Equal(got, focus) {
+				t.Errorf("drawing sent focus reports: %v -> %v", focus, got)
+			}
+			if got := rig.f.gotSizes(); !slices.Equal(got, sizes) {
+				t.Errorf("drawing resized the program: %v -> %v", sizes, got)
+			}
 		})
 	}
 }

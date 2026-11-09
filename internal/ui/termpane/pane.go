@@ -85,8 +85,11 @@ type Pane struct {
 	sent termhost.Size // last size given to the program
 	tiny bool          // drawn without a border (tiny mode)
 
-	focused, termBlur bool
-	sentFocus         int // 0 = never sent, 1 = false, 2 = true
+	// Focus reports (syncFocus): the app's focus is on this pane's tool
+	// instance (ui.FocusChangedMsg), the tool's own focus is on this cell
+	// (SetCellFocus), the terminal has focus (tea.FocusMsg/BlurMsg).
+	appFocus, cellFocus, termBlur bool
+	sentFocus                     int // 0 = never sent, 1 = false, 2 = true
 
 	scroll scrollView
 }
@@ -114,7 +117,8 @@ func New(h Handle, opts Options) *Pane {
 	for i, k := range extra {
 		keys[i] = k.Key
 	}
-	return &Pane{h: h, opts: opts, prefix: NewPrefix(keys), extra: extra, grab: true}
+	// A pane opens where the user is (focused) until the app says otherwise.
+	return &Pane{h: h, opts: opts, prefix: NewPrefix(keys), extra: extra, grab: true, appFocus: true, cellFocus: true}
 }
 
 // Handle is the program the pane shows.
@@ -172,6 +176,9 @@ func (p *Pane) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if p.GrabsKeys() && !p.scroll.on {
 			p.h.SendPaste(msg.Content)
 		}
+	case ui.FocusChangedMsg: // the pane is hidden or shown, focused or not
+		p.appFocus = msg.RouteKey == p.routeKey()
+		p.syncFocus()
 	case tea.BlurMsg:
 		p.termBlur = true
 		p.syncFocus()
@@ -184,12 +191,27 @@ func (p *Pane) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// routeKey is the route of the tool instance the pane belongs to (the key
+// ui.FocusChangedMsg names when the app focuses it).
+func (p *Pane) routeKey() string {
+	return ui.Route{Kind: ui.RouteTool, ID: p.opts.InstanceID, Arg: p.opts.ToolID}.Key()
+}
+
+// SetCellFocus is for a tool whose instance shows several cells (a workspace:
+// tree, code, terminal): it tells the pane whether the tool's own focus is on
+// it. A pane that is the whole instance never needs it (default true).
+func (p *Pane) SetCellFocus(on bool) {
+	p.cellFocus = on
+	p.syncFocus()
+}
+
 // syncFocus tells the program whether it has the keyboard (focus reports).
+// It runs from Update and the key/mouse handlers, never from View.
 func (p *Pane) syncFocus() {
 	if p.exited {
 		return
 	}
-	on := p.focused && p.grab && !p.termBlur
+	on := p.appFocus && p.cellFocus && p.grab && !p.termBlur
 	v := 1
 	if on {
 		v = 2
@@ -200,10 +222,12 @@ func (p *Pane) syncFocus() {
 	}
 }
 
-// header is the rows above the program: tiny mode has no border, so the
-// shared badge and the exit title get a line of their own there.
+// header is the rows above the program: tiny mode has no border, so the exit
+// title gets a line of its own there once the program ended (it no longer
+// needs the room). The shared mark in tiny mode is on the tab line (Title's
+// badge), so the program's size never depends on sharing.
 func (p *Pane) header() int {
-	if p.tiny && (p.h.Shared() || p.exited) {
+	if p.tiny && p.exited {
 		return 1
 	}
 	return 0
@@ -231,12 +255,9 @@ func (p *Pane) Resize(ctx *ui.Context, size ui.Size) {
 	p.applySize()
 }
 
-// View implements ui.Component.
-func (p *Pane) View(ctx *ui.Context, focused bool) string {
-	p.focused = focused
-	p.tiny = ctx.Mode == layout.ModeTiny
-	p.syncFocus()
-	p.applySize() // the header may have come or gone (sharing)
+// View implements ui.Component. It only reads: the program's size comes from
+// Resize and its focus from Update (focused is the app's frame highlight).
+func (p *Pane) View(ctx *ui.Context, _ bool) string {
 	w, h := p.size.W, p.size.H
 	if w <= 0 || h <= 0 {
 		return ""
@@ -254,14 +275,10 @@ func (p *Pane) View(ctx *ui.Context, focused bool) string {
 	return strings.Join(textwidth.Fit(lines, w, h), "\n")
 }
 
-// headerLine is the tiny-mode title line: the title, cut first, then the
-// badge or the exit note, never cut.
+// headerLine is the tiny-mode exit line: the title, cut first, then the exit
+// note, never cut.
 func (p *Pane) headerLine(ctx *ui.Context, w int) string {
-	tail := ctx.T.Termpane.SharedBadge()
-	if p.exited {
-		tail = ctx.T.Termpane.Exited(p.info.Code)
-	}
-	return joinTail(p.baseTitle(), tail, w)
+	return joinTail(p.baseTitle(), ctx.T.Termpane.Exited(p.info.Code), w)
 }
 
 // joinTail is "<title> · <tail>" in w cells: the title is cut, the tail kept.
@@ -287,12 +304,15 @@ func (p *Pane) program() string { return filepath.Base(p.h.Program()) }
 
 // Title implements ui.Titled: "<title> · <shared badge>" while shared (the
 // title is cut first so the badge always shows), "<title> · 끝남 · 종료 코드 n"
-// once the program ended.
+// once the program ended. In tiny mode (no border) sharing is a dot badge
+// instead, which the app puts on the tab line's tool cell (A7.7).
 func (p *Pane) Title(ctx *ui.Context) (string, ui.Badge) {
 	title := p.baseTitle()
 	switch {
 	case p.exited:
 		return title + " · " + ctx.T.Termpane.Exited(p.info.Code), ui.Badge{}
+	case p.h.Shared() && ctx.Mode == layout.ModeTiny:
+		return title, ui.Badge{Dot: true}
 	case p.h.Shared():
 		// The frame shows at most inner width - 4 cells of title; the tool
 		// surface's context line adds the tool icon and " ▾" too.
