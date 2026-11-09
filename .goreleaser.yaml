@@ -64,6 +64,8 @@ archives:
     files:
       - README.md
       - LICENSE
+      # A11.7 / JA30: notices of every bundled Go module (scripts/notices.sh).
+      - THIRD_PARTY_NOTICES
 
 checksum:
   name_template: checksums.txt

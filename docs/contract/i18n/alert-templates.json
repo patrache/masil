@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "templates": {
+    "social.friend_request": { "params": ["actor"], "body": "none" },
+    "social.follow": { "params": ["actor"], "body": "none" },
+    "social.follow_request": { "params": ["actor"], "body": "none" },
+    "social.follow_accepted": { "params": ["actor"], "body": "none" },
+    "social.guestbook": { "params": ["actor"], "body": "verbatim" },
+    "invite.space": { "params": ["actor", "space"], "body": "none" },
+    "post.reply": { "params": ["actor"], "body": "verbatim" },
+    "post.quote": { "params": ["actor"], "body": "verbatim" },
+    "post.mention": { "params": ["actor"], "body": "verbatim" },
+    "post.like": { "params": ["actor"], "body": "verbatim" },
+    "post.repost": { "params": ["actor"], "body": "verbatim" },
+    "message.channel": { "params": ["actor", "space", "channel"], "body": "verbatim" },
+    "message.dm": { "params": ["actor"], "body": "verbatim" },
+    "message.group": { "params": ["actor", "group"], "body": "verbatim" },
+    "focus.summary": { "params": ["mention", "dm", "thread_reply", "invite", "friend_request", "other"], "body": "template" },
+    "doc.comment_mention": { "params": ["actor", "doc", "space"], "body": "verbatim" }
+  }
+}
