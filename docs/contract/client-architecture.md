@@ -1669,7 +1669,7 @@ const (DensityFull Density = iota /*command, standard*/; DensityLine /*compact: 
 ```go
 type RouteKind string
 const (
-	RouteHome          RouteKind = "home"          // chat: DM·친구·피드 진입 목록 (레일 "홈")
+	RouteHome          RouteKind = "home"          // chat: 받은 초대·친구 요청·피드·친구·방 만들기/참여 진입 + DM·접속 친구 목록 (레일 "홈")
 	RouteChannel       RouteKind = "channel"       // chat: ID=channel id (text|dm|group_dm), Anchor=message id
 	RouteThread        RouteKind = "thread"        // chat: ID=root message id, Arg=channel id
 	RouteSearch        RouteKind = "search"        // chat: Arg=query, ID=channel|space scope ("" global)
@@ -2036,7 +2036,7 @@ func RegisterSource(s Source)
 func Open(ctx *ui.Context, initial string) ui.Overlay // ctrl+k
 func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Korean initial-consonant search key)
 ```
-- 검색: `sahilm/fuzzy` 로 후보를 각각 맞춰 최고 점수. 채널·DM·방·사람 항목은 제목·`Chosung`·이름·핸들을 퍼지로 맞춘다. **명령(과 `홈`)은 [결정, 2026-11-09]** `Title`·`Chosung(Title)`·한글이 든 `Keywords`(예: `새 채널`)만 퍼지로 맞추고, 영문 `Keywords` 와 명령 `ID` 는 소문자로 바꾼 입력(2글자 이상)이 키워드·ID 전체나 그 낱말(키워드는 공백, ID 는 `.` `_` `-` 로 나눔)의 **앞부분**일 때만 맞는다(점수는 그 낱말에 대한 퍼지 점수) — 영문 낱말에 부분열 퍼지를 걸면 `a` 하나로 거의 모든 명령이 걸렸다. 예: `cre` → 채널 만들기·방 만들기·초대 링크 만들기, `ch` → 채널 명령, `ㅊㄴ` → 채널 만들기, `a` → 친구 추가 아님.
+- 검색: `sahilm/fuzzy` 로 후보를 각각 맞춰 최고 점수. 채널·DM·방·사람 항목은 제목·`Chosung`·이름·핸들을 퍼지로 맞춘다. **명령(과 `홈`)은 [결정, 2026-11-09]** `Title`·`Chosung(Title)`·한글이 든 `Keywords`(예: `새 채널`)만 퍼지로 맞추고, 영문 `Keywords` 와 명령 `ID` 는 소문자로 바꾼 입력(2글자 이상)이 키워드·ID 전체나 그 낱말(키워드는 공백, ID 는 `.` `_` `-` 로 나눔), 또는 ID 의 낱말 경계부터의 꼬리(`layout.pin.command` 의 `pin.command`·`command`)의 **앞부분**일 때만 맞는다(점수는 그 낱말에 대한 퍼지 점수) — 영문 낱말에 부분열 퍼지를 걸면 `a` 하나로 거의 모든 명령이 걸렸다. 예: `cre` → 채널 만들기·방 만들기·초대 링크 만들기, `ch` → 채널 명령, `ㅊㄴ` → 채널 만들기, `pin.command` → 레이아웃 고정: 지휘소, `a` → 친구 추가 아님.
 - 입력이 비면: 안 읽은 채널(방 순서, 그다음 DM) → 최근 이동 8개 → `홈` → `Available(ctx)` 가 참인 **모든 명령**(그룹 `이동` → `명령` → `설정` 순, 그룹 안은 제목 순 — 빈 입력이 아닐 때 동점의 정렬과 같다). 명령 이름을 몰라도 팔레트만 열어 찾을 수 있게 한다. 목록이 창보다 길면 선택 행을 따라 스크롤한다. 보여 줄 것이 하나도 없을 때만 `검색어를 입력해 이동하거나 명령을 실행하세요` 를 띄운다.
 - core 기본 소스: 채널·DM·방(Store), 친구, 명령. 2글자 이상이면 `SearchUsers` 를 300ms 디바운스로 불러 사람 항목 추가.
 - 팔레트 입력은 `textinput`(실제 커서, `ctrl+k` 를 `DeleteAfterCursor` 에서 뺌, 5.3.7). 팔레트가 열린 상태의 `ctrl+k` = 닫기.
@@ -2045,7 +2045,7 @@ func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Ko
 
 | 등록 패키지 | 명령 id |
 |---|---|
-| core `ui/app` | `theme.cycle`, `theme.set.<name>`, `layout.pin.<mode>`, `layout.auto`, `help`, `settings`, `blocks`(설정의 차단 목록 섹션으로), `logout`, `quit`, `reconnect` |
+| core `ui/app` | `theme.cycle`, `theme.set.<name>`, `layout.pin.<mode>`, `layout.auto`, `help`, `settings`, `blocks`(설정의 차단 목록 섹션으로), `logout`, `quit`(둘 다 확인 대화상자를 먼저 연다 — 빈 입력의 명령 목록에서 `enter` 한 번으로 끝나지 않게), `reconnect` |
 | chat `ui/chat` | `space.create`, `space.join`, `space.leave`, `space.settings`, `channel.create`, `channel.prefs`, `dm.new`, `friends`, `friend.add`, `invite.create`, `invite.direct`, `invites.inbox`(받은 방 초대 목록), `search.messages`, `pins.show` |
 | sns-fun `ui/feed` | `post.new`, `story.new`, `feed.following`, `feed.discover`, `trends`, `notifications`, `profile.me`, `profile.edit`, `follow_requests` |
 | sns-fun `ui/fun` | `status.set`, `status.clear`, `presence.set`, `focus.start`, `focus.stop` |
@@ -2164,10 +2164,11 @@ type PendingMessage struct{ Nonce, Body, Kind string; ThreadRootID *string; Fail
 
 `internal/ui/chat` 의 `init()` 등록:
 - `RegisterPane(SlotRail, …)` — 방 레일: `홈`, 방 이니셜(아이콘 이모지 있으면 그것), `+`. 폭 6(내부 4).
-- `RegisterPane(SlotSidebar, …)` — 선택된 방의 채널(`# 이름` + 배지) + `─ DM` 목록(접속 점). 표준 모드에서는 맨 위에 방 이름 `▾` 드롭다운(레일 대체).
+- `RegisterPane(SlotSidebar, …)` — 선택된 방의 채널(`# 이름` + 배지) + `─ DM` 목록(접속 점). 표준 모드에서는 맨 위에 방 이름 `▾` 드롭다운(레일 대체). 그 방의 소유자·관리자(`canManageSpace`)에게는 채널 목록 끝에 선택할 수 있는 `＋ 새 채널` 줄이 붙고, `enter`·두 번째 클릭은 그 방의 채널 만들기 대화상자(`chat.channel_create`, args = 방 id — 팔레트의 `channel.create` 와 같은 것)를 연다.
 - `RegisterPane(SlotMembers, …)` — 지휘소 오른쪽 위(스레드 닫혔을 때): 채널 멤버 + 접속 상태(60초마다 `GetPresence`).
 - `RegisterRoute(RouteHome|RouteChannel|RouteThread|RouteSearch|RouteInvite|RouteSpaceSettings|RouteFriends, …)`.
-- `RouteInvite` 두 갈래: `ID=<code>` 는 초대 링크 미리보기·수락(`GetInvite`/`AcceptInvite`), `Arg="direct"` 는 **직접 초대**(`ID=<invite id>` 면 그 초대의 수락·거절 화면 `AcceptDirectInvite`/`DeclineDirectInvite`, `ID=""` 면 `Store.DirectInvites` 전체 목록). `RouteHome` 에도 받은 방 초대가 있으면 "받은 방 초대 N" 줄을 보이고 `enter` 로 목록으로 간다. 알림함(sns-fun)의 `space_invite` 알림(`subject.type="space_direct_invite"`, `subject.id`=초대 id)과 `alert{kind:"invite"}` 토스트(앱이 `target.space_id` 로 `Store.DirectInvites` 에서 초대 id 를 찾고, 없으면 `ID=""`)는 이 경로로 이동한다.
+- `RouteInvite` 두 갈래: `ID=<code>` 는 초대 링크 미리보기·수락(`GetInvite`/`AcceptInvite`), `Arg="direct"` 는 **직접 초대**(`ID=<invite id>` 면 그 초대의 수락·거절 화면 `AcceptDirectInvite`/`DeclineDirectInvite`, `ID=""` 면 `Store.DirectInvites` 전체 목록). `RouteHome` 에도 받은 방 초대가 있으면 "받은 방 초대 N" 줄을 보이고 `enter` 로 목록으로 간다.
+- `RouteHome` 의 줄 순서: (있을 때만) `받은 방 초대 N`·`친구 요청 N` → `피드 보기` → `친구 목록` → `＋ 방 만들기`·`초대 코드로 방 참여`(`enter`·두 번째 클릭이 `chat.space_create`/`chat.space_join` 대화상자를 연다 — 팔레트의 `space.create`/`space.join` 과 같은 것) → `─ DM` + DM 목록 → `─ 접속 중인 친구` + 접속·자리 비움 친구. 진입 줄은 대화할 거리가 하나도 없는 새 사용자에게도 보이므로, 부트스트랩이 끝난 홈에는 늘 줄이 있다. 첫 부트스트랩 전에 대화할 거리가 없으면 `불러오는 중…`(동기화 오류면 `서버에 연결할 수 없어요`)을 띄우고, `아직 대화가 없어요` 빈 화면은 Store 가 없을 때만 나온다. 알림함(sns-fun)의 `space_invite` 알림(`subject.type="space_direct_invite"`, `subject.id`=초대 id)과 `alert{kind:"invite"}` 토스트(앱이 `target.space_id` 로 `Store.DirectInvites` 에서 초대 id 를 찾고, 없으면 `ID=""`)는 이 경로로 이동한다.
 - `RegisterOverlay("chat.reaction_users", …)` — 리액션 누른 사람 목록(`ListReactionUsers`, 페이지네이션), args = `"<messageID> <emoji>"`. `msg.actions` 메뉴의 "리액션 누른 사람"과 리액션 칩 우클릭으로 연다.
 - 차단·신고(5.8 소유 규칙): `msg.actions` 메뉴에 "신고"(`widgets.ReportDialog("message", id, …)`), "작성자 차단"; 멤버 목록·작성자 메뉴에 "사용자 신고"(`"user"`)·"차단"; 방 설정·초대 미리보기에 "방 신고"(`"space"`).
 - 대화 화면 밀도: `DensityFull`(이름·시간 줄 + 본문 + 리액션/답글 줄, 날짜 구분선), `DensityLine`(`11:02 민지 오늘 배포… 💬3` 한 줄), `DensityBubble`(이름·시간 위, 말풍선, **내 메시지 오른쪽 정렬**), `DensityMinimal`(한 줄, 이름 축약).

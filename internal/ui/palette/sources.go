@@ -106,10 +106,20 @@ func matchTitle(query, title string, keywords ...string) (int, bool) {
 // ids: a single Latin letter starts a word of most commands.
 const minWordPrefix = 2
 
+func isIDSep(r rune) bool { return r == '.' || r == '_' || r == '-' }
+
 // idWords splits a command id into its words ("theme.set.retro_amber" => theme,
-// set, retro, amber).
+// set, retro, amber) followed by its tails from each word boundary, separators
+// kept (set.retro_amber, retro_amber, amber), so "pin.command" finds
+// layout.pin.command as fuzzy over the whole id did.
 func idWords(id string) []string {
-	return strings.FieldsFunc(id, func(r rune) bool { return r == '.' || r == '_' || r == '-' })
+	out := strings.FieldsFunc(id, isIDSep)
+	for i, r := range id {
+		if isIDSep(r) && i+1 < len(id) && !isIDSep(rune(id[i+1])) {
+			out = append(out, id[i+1:])
+		}
+	}
+	return out
 }
 
 func hasHangul(s string) bool {
@@ -119,7 +129,8 @@ func hasHangul(s string) bool {
 // matchCommand matches a command (or a fixed route such as 홈): Title, Chosung(Title)
 // and Hangul keywords fuzzily (sahilm/fuzzy); English keywords and the id only when
 // the lowercased query (2+ runes) prefixes the whole keyword/id or one of its words
-// (keywords split on spaces, ids on '.', '_', '-'), scored by fuzzy over those words.
+// (keywords split on spaces, ids on '.', '_', '-', plus the id's tails from a word
+// boundary — idWords), scored by fuzzy over those words.
 // Subsequence matching over English words made "a" list nearly every command.
 func matchCommand(query, title, id string, keywords ...string) (int, bool) {
 	cands := []string{title, Chosung(title)}

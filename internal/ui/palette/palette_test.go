@@ -219,10 +219,17 @@ func subseq(s, q string) bool {
 	return true
 }
 
-// hasWordPrefix: q (lowercased) prefixes the id, an English keyword, or one of their words.
+// hasWordPrefix: q (lowercased) prefixes the id, an id tail from a word boundary
+// ("pin.command" of layout.pin.command), an English keyword, or one of their words.
 func hasWordPrefix(c *palette.Command, q string) bool {
 	q = strings.ToLower(q)
-	cands := append([]string{c.ID}, strings.FieldsFunc(c.ID, func(r rune) bool { return r == '.' || r == '_' || r == '-' })...)
+	cands := []string{c.ID}
+	for i, r := range c.ID {
+		if r == '.' || r == '_' || r == '-' {
+			cands = append(cands, c.ID[i+1:])
+		}
+	}
+	cands = append(cands, strings.FieldsFunc(c.ID, func(r rune) bool { return r == '.' || r == '_' || r == '-' })...)
 	for _, k := range c.Keywords {
 		cands = append(cands, k)
 		cands = append(cands, strings.Fields(k)...)
@@ -243,7 +250,7 @@ func TestCommandMatching(t *testing.T) {
 	t.Cleanup(palette.ResetRecentForTest())
 	ctx := uitest.New(t).Context()
 
-	for _, q := range []string{"a", "o", "e", "co", "CO", "lay", "au", "theme", "sign o"} {
+	for _, q := range []string{"a", "o", "e", "co", "CO", "lay", "au", "theme", "sign o", "pin.command", "set.amber", "n.c", "t.a"} {
 		for _, it := range palette.ItemsForTest(ctx, q) {
 			if it.Command != nil && !subseq(it.Title, q) && (len([]rune(q)) < 2 || !hasWordPrefix(it.Command, q)) {
 				t.Errorf("query %q: %s (%q) matches neither its title nor a word prefix", q, it.Command.ID, it.Title)
@@ -256,10 +263,14 @@ func TestCommandMatching(t *testing.T) {
 		"CO":     {"layout.pin.command", "theme.cycle", "reconnect"},
 		"lay":    {"layout.auto", "layout.pin.widget", "layout.pin.tiny"},
 		"sign o": {"logout"}, // a whole multi-word keyword prefix
-		"ㄷㅇㅁ":    {"help"},
-		"ㄹㅇㅇ ㅈㄷ": {"layout.auto"},
-		"단축키":    {"help"},   // Hangul keyword
-		"차단해제":   {"blocks"}, // Hangul keyword "차단 해제" stays fuzzy
+		// a dotted id tail from a word boundary (fuzzy over the id matched these on main)
+		"pin.command": {"layout.pin.command"},
+		"pin.tiny":    {"layout.pin.tiny"},
+		"set.amber":   {"theme.set.amber"},
+		"ㄷㅇㅁ":         {"help"},
+		"ㄹㅇㅇ ㅈㄷ":      {"layout.auto"},
+		"단축키":         {"help"},   // Hangul keyword
+		"차단해제":        {"blocks"}, // Hangul keyword "차단 해제" stays fuzzy
 	} {
 		ids := commandIDs(palette.ItemsForTest(ctx, q))
 		for _, id := range want {
@@ -268,7 +279,8 @@ func TestCommandMatching(t *testing.T) {
 			}
 		}
 	}
-	for q, not := range map[string]string{"a": "layout.auto", "e": "help", "co": "help", "ut": "logout", "nf": "settings"} {
+	for q, not := range map[string]string{"a": "layout.auto", "e": "help", "co": "help", "ut": "logout", "nf": "settings",
+		"n.c": "layout.pin.command", "t.a": "layout.auto"} { // a tail starts at a word, not mid-word
 		if ids := commandIDs(palette.ItemsForTest(ctx, q)); slices.Contains(ids, not) {
 			t.Errorf("query %q: unrelated %s listed (%q)", q, not, ids)
 		}
