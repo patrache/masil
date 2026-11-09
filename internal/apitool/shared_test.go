@@ -6,8 +6,10 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/patrache/masil/internal/collab"
 	"github.com/patrache/masil/internal/config"
@@ -414,5 +416,49 @@ func TestGateHoldsLiteralAuth(t *testing.T) {
 	c.Requests["r-get"].Auth = Auth{Kind: AuthBasic, User: "admin", Pass: "{{pw}}"}
 	if _, held := Gate(Diff(nil, c)); len(held) != 0 {
 		t.Fatalf("placeholders held: %+v", held)
+	}
+}
+
+// A peer's long chain of folders reads in linear time (a 2 MB document holds
+// ~24k folders; every change rebuilds the collection on the UI goroutine).
+// A folder in a cycle or under a missing one goes to the root.
+func TestCollectionFromDocFolderChain(t *testing.T) {
+	const n = 10_000
+	objs := []collab.Object{{ID: "col", Type: ObjCol, Fields: map[string]json.RawMessage{"name": mustRaw("deep")}}}
+	for i := range n {
+		p := ""
+		if i > 0 {
+			p = "f" + strconv.Itoa(i-1)
+		}
+		objs = append(objs, collab.Object{ID: "folder:f" + strconv.Itoa(i), Type: ObjFolder, Fields: map[string]json.RawMessage{"name": mustRaw("x"), "parent": mustRaw(p)}})
+	}
+	for _, f := range [][2]string{{"c1", "c2"}, {"c2", "c1"}, {"lost", "nope"}, {"under", "lost"}} {
+		objs = append(objs, collab.Object{ID: "folder:" + f[0], Type: ObjFolder, Fields: map[string]json.RawMessage{"name": mustRaw(f[0]), "parent": mustRaw(f[1])}})
+	}
+	start := time.Now()
+	c, err := CollectionFromDoc(collab.Snapshot{Objects: objs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("CollectionFromDoc took %v for %d chained folders", d, n)
+	}
+	var top []string
+	for _, it := range c.Root.Items {
+		top = append(top, it.Folder.ID)
+	}
+	slices.Sort(top)
+	if !slices.Equal(top, []string{"c1", "c2", "f0", "lost", "under"}) {
+		t.Fatalf("root folders = %v", top)
+	}
+	depth := 0
+	for f := c.Root.Items[slices.IndexFunc(c.Root.Items, func(it Node) bool { return it.Folder.ID == "f0" })].Folder; ; depth++ {
+		if len(f.Items) == 0 {
+			break
+		}
+		f = f.Items[0].Folder
+	}
+	if depth != n-1 {
+		t.Fatalf("chain depth = %d", depth)
 	}
 }

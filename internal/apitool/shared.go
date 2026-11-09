@@ -398,16 +398,52 @@ func CollectionFromDoc(s collab.Snapshot) (*Collection, error) {
 			folders[id] = fieldReader(o.Fields)
 		}
 	}
-	parentOf := func(id string) string {
-		seen := map[string]bool{id: true}
-		p := folders[id].str("parent")
-		for cur := p; cur != ""; cur = folders[cur].str("parent") {
-			if _, ok := folders[cur]; !ok || seen[cur] {
-				return ""
+	// Each folder's parent is read once; a chain is walked once (memoised),
+	// so a peer's deep chain costs linear time. A folder whose chain meets a
+	// missing folder or a cycle goes to the root.
+	parent := make(map[string]string, len(folders))
+	for id, f := range folders {
+		parent[id] = f.str("parent")
+	}
+	const (
+		visiting = iota + 1
+		rooted
+		broken
+	)
+	state := make(map[string]int8, len(folders))
+	var path []string
+	for id := range folders {
+		path = path[:0]
+		res := int8(0)
+		for cur := id; res == 0; {
+			switch state[cur] {
+			case rooted, broken:
+				res = state[cur]
+				continue
+			case visiting:
+				res = broken // a cycle
+				continue
 			}
-			seen[cur] = true
+			state[cur] = visiting
+			path = append(path, cur)
+			p := parent[cur]
+			if p == "" {
+				res = rooted
+			} else if _, ok := folders[p]; !ok {
+				res = broken
+			} else {
+				cur = p
+			}
 		}
-		return p
+		for _, x := range path {
+			state[x] = res
+		}
+	}
+	parentOf := func(id string) string {
+		if state[id] != rooted {
+			return ""
+		}
+		return parent[id]
 	}
 	children := map[string][]docItem{} // parent folder id -> items ("f:"/"r:" + id)
 	for id, f := range folders {
