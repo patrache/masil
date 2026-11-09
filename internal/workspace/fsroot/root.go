@@ -171,8 +171,13 @@ func joinRel(els []string) string {
 func osPath(clean string) string { return filepath.FromSlash(clean) }
 
 // follow resolves every symlink along clean and returns the real slash path
-// inside the folder. Missing elements end the walk: the rest is appended as
-// is (a file that does not exist yet cannot be a link).
+// inside the folder, the way the OS walks it: a link's target is spliced in
+// raw in front of the remaining elements, and a ".." in it drops one element
+// of the path resolved so far (Escape above the folder) — never a textual
+// clean before the links in the target are followed. Missing elements end
+// the walk: the rest is appended as is (a file that does not exist yet
+// cannot be a link; a ".." after a missing element is Invalid, the OS cannot
+// walk it either).
 func (r *Root) follow(rel, clean string) (string, error) {
 	segs := split(clean)
 	var done []string
@@ -180,12 +185,30 @@ func (r *Root) follow(rel, clean string) (string, error) {
 	for len(segs) > 0 {
 		seg := segs[0]
 		segs = segs[1:]
+		switch seg {
+		case "", ".":
+			continue
+		case "..":
+			if len(done) == 0 {
+				return "", reject(rel, ReasonEscape)
+			}
+			done = done[:len(done)-1]
+			continue
+		}
 		cand := joinRel(append(done[:len(done):len(done)], seg))
 		fi, err := r.root.Lstat(osPath(cand))
 		if err != nil {
 			done = append(done, seg)
-			done = append(done, segs...)
-			break
+			for _, s := range segs {
+				switch s {
+				case "", ".":
+				case "..":
+					return "", reject(rel, ReasonInvalid)
+				default:
+					done = append(done, s)
+				}
+			}
+			return joinRel(done), nil
 		}
 		if fi.Mode()&fs.ModeSymlink == 0 {
 			done = append(done, seg)
@@ -199,36 +222,32 @@ func (r *Root) follow(rel, clean string) (string, error) {
 		if err != nil {
 			return "", reject(rel, ReasonInvalid)
 		}
-		var next string
 		if filepath.IsAbs(target) || strings.HasPrefix(filepath.ToSlash(target), "/") {
 			in, ok := r.insideAbs(target)
 			if !ok {
 				return "", reject(rel, ReasonEscape)
 			}
-			next = in
-		} else {
-			next = path.Clean(path.Join(joinRel(done), filepath.ToSlash(target)))
-			if escapes(next) {
-				return "", reject(rel, ReasonEscape)
-			}
+			segs = append(strings.Split(in, "/"), segs...)
+			done = nil
+			continue
 		}
-		segs = append(split(next), segs...)
-		done = nil
+		// Relative target: resolved from the link's folder (done as is).
+		segs = append(strings.Split(filepath.ToSlash(target), "/"), segs...)
 	}
 	return joinRel(done), nil
 }
 
-// insideAbs maps an absolute link target to a slash path inside the folder.
+// insideAbs maps an absolute link target to a raw (uncleaned) slash path
+// inside the folder: the target must start with the folder path as opened
+// or with its real path. Its ".." elements are left for follow to walk.
 func (r *Root) insideAbs(target string) (string, bool) {
-	target = filepath.Clean(target)
 	for _, base := range []string{r.dir, r.real} {
-		rel, err := filepath.Rel(base, target)
-		if err != nil {
-			continue
+		base = strings.TrimSuffix(base, string(filepath.Separator))
+		if target == base {
+			return "", true
 		}
-		rel = filepath.ToSlash(rel)
-		if !escapes(rel) && !filepath.IsAbs(rel) {
-			return path.Clean(rel), true
+		if rest, ok := strings.CutPrefix(target, base+string(filepath.Separator)); ok {
+			return filepath.ToSlash(rest), true
 		}
 	}
 	return "", false

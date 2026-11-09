@@ -170,3 +170,55 @@ func TestPathErrorHasNoPath(t *testing.T) {
 		}
 	}
 }
+
+// A ".." inside a link target is resolved after the links before it, the
+// way the OS does: d -> s/.. with s -> .ssh/keys lands in .ssh.
+func TestCheckLinkDotDotFollowsOS(t *testing.T) {
+	proj := t.TempDir()
+	writeFile(t, proj, ".ssh/keys/k", "k")
+	writeFile(t, proj, ".ssh/config", "SECRET")
+	symlink(t, proj, ".ssh/keys", "s")
+	symlink(t, proj, "s/..", "d")
+	r := openRoot(t, proj)
+	for _, rel := range []string{"d/config", "d"} {
+		_, err := r.Check(rel, true)
+		if reason, ok := reasonOf(err); !ok || reason != ReasonDenied {
+			t.Errorf("Check(%q) err = %v, want Denied", rel, err)
+		}
+	}
+	if err := r.Rename("d/config", "visible.txt"); err == nil {
+		t.Errorf("Rename through d/.. into .ssh succeeded")
+	}
+	if err := r.Create("d/new"); err == nil {
+		t.Errorf("Create through d/.. into .ssh succeeded")
+	}
+}
+
+func TestReadTextLinkDotDotReadsOSTarget(t *testing.T) {
+	proj := t.TempDir()
+	writeFile(t, proj, "config", "root")
+	writeFile(t, proj, "sub/config", "sub")
+	writeFile(t, proj, "sub/inner/x", "x")
+	symlink(t, proj, "sub/inner", "s")
+	symlink(t, proj, "s/../config", "a")
+	symlink(t, proj, proj+string(filepath.Separator)+filepath.FromSlash("s/../config"), "abs") // raw, not cleaned
+	r := openRoot(t, proj)
+	for _, rel := range []string{"a", "abs"} {
+		text, _, err := r.ReadText(rel)
+		if err != nil || text != "sub" {
+			t.Errorf("ReadText(%s) = %q, %v; want %q (the file the OS opens)", rel, text, err, "sub")
+		}
+	}
+}
+
+func TestCheckLinkDotDotAboveRoot(t *testing.T) {
+	proj := t.TempDir()
+	writeFile(t, proj, "sub/x", "x")
+	symlink(t, proj, "sub", "s")
+	symlink(t, proj, "s/../..", "up")
+	r := openRoot(t, proj)
+	_, err := r.Check("up", true)
+	if reason, ok := reasonOf(err); !ok || reason != ReasonEscape {
+		t.Errorf("Check(up) err = %v, want Escape", err)
+	}
+}
