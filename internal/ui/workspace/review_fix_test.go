@@ -257,3 +257,18 @@ func TestCloseDuringShareStartEndsIt(t *testing.T) {
 		})
 	}
 }
+
+// The band names the share (its server-visible title, sanitized).
+func TestBandShowsShareTitle(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r := newShareRig(t, h, fake, nil)
+	r.shareFriends()
+	if !strings.Contains(h.Screen(), "🔴 공유 중 · 0명 · sam의 작업공간") {
+		t.Fatalf("band:\n%s", h.Screen())
+	}
+	r.s.own.title = "evil\x1b[31m‮title"
+	if scr := h.Screen(); strings.Contains(scr, "‮") || !strings.Contains(scr, "title") {
+		t.Fatalf("title not sanitized:\n%q", scr)
+	}
+}

@@ -465,7 +465,7 @@ func openKey(ctx *ui.Context) string {
 	return ctx.Keys.Binding(keymap.TermhostEscape).Help().Key + " enter"
 }
 
-// ownerBand is the sharing band: 🔴 공유 중 · n명 · who and how (B6.7).
+// ownerBand is the sharing band: 🔴 공유 중 · n명 · title · who and how (B6.7).
 func (s *Surface) ownerBand(ctx *ui.Context) (string, lipgloss.Style, bool) {
 	o := s.own
 	if o == nil {
@@ -474,6 +474,9 @@ func (s *Surface) ownerBand(ctx *ui.Context) (string, lipgloss.Style, bool) {
 	t := ctx.T.Workspace
 	ms := o.host.Members()
 	parts := []string{t.BandSharing(len(ms))}
+	if title := textwidth.Sanitize(o.title); title != "" { // the server-visible name
+		parts = append(parts, title)
+	}
 	var tags []string
 	now := nowClock(ctx).Now()
 	for _, m := range ms {
