@@ -164,7 +164,7 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 
 ### 4.2 버전·복원 (P0 Task 28)
 
-- 버전 본문(정규형 스냅숏)은 DO `versions` 표에, 메타는 D1 `collab_versions` 에 같은 `no` 로 둔다. 둘 다 CollabHub 가 쓴다: `createVersion`(이름 버전)·`restoreVersion`(되돌리기) RPC 와 alarm(자동 버전·보관 정리). `no` 는 DO 의 카운터라 겹치지 않고, D1 쓰기가 실패하면 본문도 지우고 실패를 돌려준다(자동 버전은 다음 alarm 이 다시 한다). 정리는 D1 행을 먼저 지운다.
+- 버전 본문(정규형 스냅숏)은 DO `versions` 표에, 메타는 D1 `collab_versions` 에 같은 `no` 로 둔다. 둘 다 CollabHub 가 쓴다: `createVersion`(이름 버전)·`restoreVersion`(되돌리기) RPC 와 alarm(자동 버전·보관 정리). `no` 는 DO 의 카운터라 겹치지 않고, D1 쓰기가 실패하면 본문도 지우고 `last_version_seq`·`last_auto_at` 을 남은 버전에 맞춰 되돌린 뒤 실패를 돌려준다(그래서 실패한 버전은 "마지막 버전" 으로 치지 않고, 자동 버전은 다음 alarm 이 다시 한다. 건너뛴 `no` 는 다시 쓰지 않는다). 정리는 D1 행을 먼저 지운다.
 - 복원: 그 버전 본문으로 `[{op:"reset", snapshot}]` 프레임 하나(순번 하나, `author` = 요청한 사용자, `client_op_id` 없음)를 3.3 의 2·3단계(`validateOp`·한도)에 통과시켜 적용하고 `hello` 를 보낸 모든 소켓(요청한 사람의 소켓 포함)에 `op` 로 보낸 뒤, 결과 상태를 되돌리기 버전으로 남긴다. 잠금·권한 검사는 Worker(REST)가 한다.
 - 자동 버전의 시각 판정은 DO 의 시계로 한다: `last_op_at`(마지막 op 시각), `last_version_seq`(어떤 종류든 마지막 버전의 순번), `last_auto_at`. alarm 은 D1 반영(첫 미반영 op + 30초)·다음 자동 버전·가장 오래된 기록 버전의 30일 만료 가운데 가장 이른 때로 맞추고, 울릴 때마다 다시 맞춘다.
 - 이름 버전·되돌리기 버전도 "마지막 버전" 이다 — 그 뒤 순번이 없으면 자동 버전을 만들지 않는다.

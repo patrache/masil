@@ -12,6 +12,29 @@ async function setClock(docId: string, clock: () => number): Promise<void> {
   });
 }
 
+/** The hub's next INSERT INTO collab_versions fails (a transient D1 error); returns how many failed so far. */
+async function failNextVersionInsert(docId: string): Promise<() => number> {
+  let failures = 0;
+  await runInDurableObject(hub(docId), (inst) => {
+    const realEnv = (inst as any).env;
+    const db = new Proxy(realEnv.DB as D1Database, {
+      get(target, k) {
+        if (k !== "prepare") return Reflect.get(target, k);
+        return (q: string) => {
+          if (failures === 0 && q.includes("INSERT INTO collab_versions")) {
+            failures++;
+            const fail = { bind: () => fail, run: async () => Promise.reject(new Error("injected D1 failure")) };
+            return fail;
+          }
+          return target.prepare(q);
+        };
+      },
+    });
+    (inst as any).env = new Proxy(realEnv, { get: (target, k) => (k === "DB" ? db : Reflect.get(target, k)) });
+  });
+  return () => failures;
+}
+
 let opNo = 0;
 async function edit(c: DocClient, ops: unknown[]): Promise<number> {
   const id = `v${++opNo}`;
@@ -151,6 +174,40 @@ describe("automatic versions and retention (DO alarm)", () => {
     expect(await runDurableObjectAlarm(hub(doc.id))).toBe(true); // the expiry itself keeps an alarm armed
     expect((await versionsOf(owner.token, doc.id)).map((v) => v.no)).toEqual([1]);
     expect((await api(owner.token).get(`/v1/docs/${doc.id}/versions/2`)).status).toBe(404);
+  });
+
+  it("a D1 failure while writing a version leaves no trace: the next alarm makes the auto version (collab.md 4.2)", async () => {
+    const { owner, space } = await room();
+    const doc = await makeDoc(owner, space.id, "arch", N1);
+    const a = await connectDoc(owner.token, doc.id);
+    let t = Date.now();
+    await setClock(doc.id, () => t);
+    await edit(a, [{ op: "set", id: "n1", field: "cpu", value: 5 }]);
+    // the next INSERT INTO collab_versions (the named POST below) fails once
+    const failures = await failNextVersionInsert(doc.id);
+    expect((await api(owner.token).post(`/v1/docs/${doc.id}/versions`, { name: "실패" })).status).toBe(500);
+    expect(failures()).toBe(1);
+    expect(await versionsOf(owner.token, doc.id)).toEqual([]);
+    // the failed named version must not count as "the last version": idle 5 minutes -> an auto version of seq 2
+    t += 5 * 60_000;
+    await runDurableObjectAlarm(hub(doc.id));
+    expect((await versionsOf(owner.token, doc.id)).map((v) => [v.auto, v.seq])).toEqual([[true, 2]]);
+  });
+
+  it("a failed automatic version is made again by the next alarm", async () => {
+    const { owner, space } = await room();
+    const doc = await makeDoc(owner, space.id, "arch", N1);
+    const a = await connectDoc(owner.token, doc.id);
+    let t = Date.now();
+    await setClock(doc.id, () => t);
+    await edit(a, [{ op: "set", id: "n1", field: "cpu", value: 5 }]);
+    const failures = await failNextVersionInsert(doc.id);
+    t += 5 * 60_000;
+    await runDurableObjectAlarm(hub(doc.id));
+    expect(failures()).toBe(1);
+    t += 1000;
+    await runDurableObjectAlarm(hub(doc.id)); // may already have run on its own; either way the version exists now
+    await expect.poll(async () => (await versionsOf(owner.token, doc.id)).map((v) => [v.auto, v.seq]), { timeout: 3000 }).toEqual([[true, 2]]);
   });
 
   it("the 201st record version drops the oldest record version; named versions stay", async () => {

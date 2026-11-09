@@ -451,7 +451,14 @@ export class CollabHub extends DurableObject<Cloudflare.Env> {
         .bind(docId, no, seq, name, kind === "auto" ? 1 : 0, restoredFrom, createdBy, t)
         .run();
     } catch (e) {
-      this.sql.exec("DELETE FROM versions WHERE no = ?", no);
+      // no trace of the failed version: last_version_seq / last_auto_at again follow the versions that exist, so the
+      // next alarm still sees the automatic version as due (collab.md 4.2). Recomputed rather than restored, because
+      // another addVersion may have run during the await. version_no stays: a skipped no is harmless, a reused one is not.
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec("DELETE FROM versions WHERE no = ?", no);
+        this.setMeta("last_version_seq", this.sql.exec<{ s: number | null }>("SELECT MAX(seq) AS s FROM versions").toArray()[0]?.s ?? 0);
+        this.setMeta("last_auto_at", this.sql.exec<{ a: number | null }>("SELECT MAX(created_at) AS a FROM versions WHERE kind = 'auto'").toArray()[0]?.a ?? 0);
+      });
       throw e;
     }
     return { no, seq };
