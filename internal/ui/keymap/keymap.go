@@ -67,6 +67,11 @@ const (
 	// feature flag is on (features.Any); off, ctrl+t reaches the composer.
 	ToolsToggle Action = "tools.toggle" // ctrl+t: tool surface <-> chat (hard)
 	ToolsZoom   Action = "tools.zoom"   // the key after ctrl+w (z): the active tool's wide view
+	// TermhostEscape is the embedded pane's prefix key (A7.5, P0 Task 16):
+	// ctrl+\ — the same byte 0x1c some terminals report as ctrl+4 (both
+	// bound; MatchesEscape also takes the raw code). It is read only by a
+	// focused pane, and by the shell while a kill switch is active.
+	TermhostEscape Action = "termhost.escape"
 )
 
 // Keymap maps actions to bindings.
@@ -142,7 +147,8 @@ var defaults = map[Action]spec{
 	ToolsToggle:       {keys: []string{"ctrl+t"}, Desc: func(t *i18n.T) string { return t.Tools.KeyToggle() }},
 	// tools.zoom is matched on the key after the ctrl+w prefix (like its digits),
 	// so its help label names the prefix too.
-	ToolsZoom: {keys: []string{"z"}, helpKey: "ctrl+w z", Desc: func(t *i18n.T) string { return t.Tools.KeyZoom() }},
+	ToolsZoom:      {keys: []string{"z"}, helpKey: "ctrl+w z", Desc: func(t *i18n.T) string { return t.Tools.KeyZoom() }},
+	TermhostEscape: {keys: []string{"ctrl+\\", "ctrl+4"}, helpKey: "ctrl+\\", Desc: func(t *i18n.T) string { return t.Termpane.HelpEscape() }},
 }
 
 // descIn is the row description in t (ko when t is nil).
@@ -296,6 +302,24 @@ func (k *Keymap) Binding(a Action) key.Binding {
 func (k *Keymap) Matches(msg tea.KeyPressMsg, a Action) bool {
 	b, ok := k.lookup(a)
 	return ok && key.Matches(msg, b)
+}
+
+// rawFS is the byte ctrl+\ sends (0x1c, ASCII FS). A decoder that does not map
+// it to ctrl+\ hands it over as the bare code.
+const rawFS = 0x1c
+
+// MatchesEscape reports whether msg is termhost.escape (A7.5): one of its keys
+// — by default ctrl+\ and ctrl+4, the same byte — or, while ctrl+\ is bound,
+// the raw 0x1c code a terminal may deliver for it.
+func (k *Keymap) MatchesEscape(msg tea.KeyPressMsg) bool {
+	if k.Matches(msg, TermhostEscape) {
+		return true
+	}
+	if msg.Code != rawFS || msg.Mod&^tea.ModShift != 0 {
+		return false
+	}
+	b, _ := k.lookup(TermhostEscape)
+	return slices.Contains(b.Keys(), "ctrl+\\")
 }
 
 // Bound reports whether msg triggers any action (a nil Keymap behaves like Default).

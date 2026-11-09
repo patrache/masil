@@ -62,7 +62,8 @@ type Model struct {
 	focus     FocusIntent // focus resolved for the current layout
 	sentFocus FocusIntent // focus of the last FocusChangedMsg broadcast
 
-	prefix    prefixState // pending ctrl+w prefix (CA 5.3.4 2.2)
+	prefix    prefixState // pending ctrl+w prefix (CA 5.3.4 2.2) or ctrl+\ while sharing
+	escGen    int         // generation of the pending escapeArmMsg
 	quitArmed bool        // the first ctrl+c armed quitting (CA 5.5 app.quit)
 	quitGen   int         // generation of the pending quitArmMsg
 
@@ -308,6 +309,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // dispatch handles one message (CA 5.3.4 steps).
 func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if cmd, ok := m.toolMsg(msg); ok { // the tool surface's msgs (tools.go)
+		return m, cmd
+	}
+	if cmd, ok := m.grabMsg(msg); ok { // key grabbing: ctrl+\ timeout, shell actions (keys.go)
 		return m, cmd
 	}
 	switch msg := msg.(type) {

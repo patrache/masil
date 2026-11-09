@@ -11,6 +11,13 @@ type TermpaneT struct{ t *T }
 var areaTermpane = area{
 	name: "termpane",
 	keys: map[string]*entry{
+		"enter_hint": {
+			desc: "상태줄 키 설명: 패널에서 나온 뒤 enter 로 다시 패널에 입력하기",
+			text: map[Locale]Forms{
+				Ko: {Other: "패널에 입력"},
+				En: {Other: "type in the pane"},
+			},
+		},
 		"exec_return": {
 			desc:   "토스트: 화면 전환(exec)으로 띄운 프로그램에서 masil 로 돌아왔을 때, 그동안 온 남의 새 메시지·멘션 개수. program = 프로그램 이름(lazygit 등, 번역하지 않음)",
 			params: []Param{{Name: "program", Type: "string"}, {Name: "messages", Type: "int"}, {Name: "mentions", Type: "int"}},
@@ -20,10 +27,299 @@ var areaTermpane = area{
 				ZhHans: {Other: "使用 {program} 期间 · 新消息 {messages} · 提及 {mentions}"},
 			},
 		},
+		"exit_confirm": {
+			desc:       "대화상자 본문: 패널 안 프로그램을 끝낼지 묻기(무엇을 하는지). program = 프로그램 이름(번역하지 않음)",
+			params:     []Param{{Name: "program", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{program} 프로그램을 끝낼까요? 저장하지 않은 내용은 사라질 수 있어요."},
+				En: {Other: "End {program}? Anything not saved may be lost."},
+			},
+		},
+		"exit_no": {
+			desc: "대화상자 단추: 끝내지 않고 닫기",
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
+		"exit_title": {
+			desc: "대화상자 제목: 패널 안 프로그램 끝내기 확인",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로그램 끝내기"},
+				En: {Other: "End program"},
+			},
+		},
+		"exit_yes": {
+			desc: "대화상자 단추: 프로그램을 끝냄",
+			text: map[Locale]Forms{
+				Ko: {Other: "끝내기"},
+				En: {Other: "End"},
+			},
+		},
+		"exited": {
+			desc:   "탭·테두리 제목 끝: 패널 안 프로그램이 스스로 끝났을 때. code = 종료 코드",
+			params: []Param{{Name: "code", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "끝남 · 종료 코드 {code}"},
+				En: {Other: "Ended · exit code {code}"},
+			},
+		},
+		"help_close": {
+			desc: "패널 도움말 창 바닥 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "아무 키나 누르면 닫혀요"},
+				En: {Other: "Press any key to close"},
+			},
+		},
+		"help_escape": {
+			desc: "도움말 키 설명: 패널에서 쓰는 접두키(ctrl+\\) — 다음 키로 나가기·확대·끝내기 등",
+			text: map[Locale]Forms{
+				Ko: {Other: "패널 접두키"},
+				En: {Other: "pane prefix key"},
+			},
+		},
+		"help_focus": {
+			desc: "패널 도움말: 접두키 다음 h/j/k/l·화살표 — 그 방향 창으로 포커스 이동",
+			text: map[Locale]Forms{
+				Ko: {Other: "그 방향의 창으로"},
+				En: {Other: "Move to the pane in that direction"},
+			},
+		},
+		"help_help": {
+			desc: "패널 도움말: 접두키 다음 ? — 이 도움말",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 도움말"},
+				En: {Other: "This help"},
+			},
+		},
+		"help_kill": {
+			desc: "패널 도움말: 접두키 다음 x — 프로그램 끝내기(확인), 공유 중이면 공유부터 바로 끊기",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로그램 끝내기 · 공유 중이면 공유 먼저 끊기"},
+				En: {Other: "End the program · while sharing, stop sharing first"},
+			},
+		},
+		"help_leave": {
+			desc: "패널 도움말: 접두키 다음 esc — 키보드를 masil 로 돌려줌, 프로그램은 계속 돎",
+			text: map[Locale]Forms{
+				Ko: {Other: "패널에서 나가기 (프로그램은 계속 돎)"},
+				En: {Other: "Leave the pane (the program keeps running)"},
+			},
+		},
+		"help_literal": {
+			desc: "패널 도움말: 접두키를 두 번 — 접두키 자체를 프로그램에 보냄",
+			text: map[Locale]Forms{
+				Ko: {Other: "접두키 자체를 프로그램에 보내기"},
+				En: {Other: "Send the prefix key itself to the program"},
+			},
+		},
+		"help_palette": {
+			desc: "패널 도움말: 접두키 다음 p — 명령 팔레트",
+			text: map[Locale]Forms{
+				Ko: {Other: "명령 팔레트"},
+				En: {Other: "Command palette"},
+			},
+		},
+		"help_scroll": {
+			desc: "패널 도움말: 접두키 다음 [ — 지난 줄 보기(휠·pgup/pgdn, esc 끝)",
+			text: map[Locale]Forms{
+				Ko: {Other: "보기 스크롤 (휠·pgup/pgdn, esc 끝)"},
+				En: {Other: "Scroll back (wheel/pgup/pgdn, esc done)"},
+			},
+		},
+		"help_surface": {
+			desc: "패널 도움말: 접두키 다음 t — 도구 표면과 채팅 오가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "도구 ↔ 채팅"},
+				En: {Other: "Tools ↔ chat"},
+			},
+		},
+		"help_title": {
+			desc: "패널 도움말 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "패널 키"},
+				En: {Other: "Pane keys"},
+			},
+		},
+		"help_zoom": {
+			desc: "패널 도움말: 접두키 다음 z — 확대(넓게 보기)",
+			text: map[Locale]Forms{
+				Ko: {Other: "확대"},
+				En: {Other: "Zoom"},
+			},
+		},
+		"input_hint": {
+			desc:   "상태줄: 패널이 키보드를 쥐고 있을 때 늘 보임. program = 프로그램 이름(번역하지 않음), key = 접두키(ctrl+\\ 등, 키맵에서)",
+			params: []Param{{Name: "program", Type: "string"}, {Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "⌨ {program} 에 입력 중 · {key} esc 나가기"},
+				En: {Other: "⌨ Typing in {program} · {key} esc to leave"},
+			},
+		},
+		"kbd_limits": {
+			desc: "패널 도움말·안내 한 줄(A7.6): 패널 안에서는 확장 키가 안 감, Claude Code 줄바꿈 대신 ctrl+j",
+			text: map[Locale]Forms{
+				Ko: {Other: "패널 안에서는 shift+enter 같은 확장 키가 가지 않아요 · Claude Code 줄바꿈은 ctrl+j"},
+				En: {Other: "Extended keys like shift+enter do not reach a pane · for a Claude Code newline use ctrl+j"},
+			},
+		},
+		"kbd_nvim": {
+			desc:   "패널 도움말·안내 한 줄(A7.5): nvim 터미널 모드 나가기 키를 패널에서 누르는 법. key = 접두키(ctrl+\\ 등)",
+			params: []Param{{Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "nvim 터미널 모드의 {key} ctrl+n 은 {key} {key} ctrl+n 으로 눌러요"},
+				En: {Other: "In nvim terminal mode, press {key} ctrl+n as {key} {key} ctrl+n"},
+			},
+		},
+		"prefix_hint": {
+			desc:   "상태줄: 접두키를 누른 뒤 2초 동안 다음 키를 기다릴 때. key = 접두키(ctrl+\\ 등)",
+			params: []Param{{Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{key} 다음: esc 나가기 · z 확대 · x 끝내기 · p 팔레트 · ? 도움말"},
+				En: {Other: "{key} then: esc leave · z zoom · x end · p palette · ? help"},
+			},
+		},
+		"scroll_hint": {
+			desc: "상태줄: 패널의 보기 스크롤(지난 줄 보기) 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "보기 스크롤 · 휠·pgup/pgdn 이동 · esc 끝"},
+				En: {Other: "Scrolling back · wheel/pgup/pgdn move · esc done"},
+			},
+		},
+		"shared_badge": {
+			desc:       "패널 테두리 제목 끝(초소형은 패널 첫 줄)에 붙는 표시: 이 패널 화면을 다른 사람에게 공유하는 중. 자르지 않는다(제목이 먼저 잘림)",
+			max:        9,
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "● 공유 중"},
+				En: {Other: "● Shared"},
+			},
+		},
 	},
+}
+
+// EnterHint: 상태줄 키 설명: 패널에서 나온 뒤 enter 로 다시 패널에 입력하기
+func (a_ TermpaneT) EnterHint() string {
+	return a_.t.render(&areaTermpane, "enter_hint", false, 0)
 }
 
 // ExecReturn: 토스트: 화면 전환(exec)으로 띄운 프로그램에서 masil 로 돌아왔을 때, 그동안 온 남의 새 메시지·멘션 개수. program = 프로그램 이름(lazygit 등, 번역하지 않음)
 func (a_ TermpaneT) ExecReturn(program string, messages int, mentions int) string {
 	return a_.t.render(&areaTermpane, "exec_return", false, 0, "program", program, "messages", strconv.Itoa(messages), "mentions", strconv.Itoa(mentions))
+}
+
+// ExitConfirm: 대화상자 본문: 패널 안 프로그램을 끝낼지 묻기(무엇을 하는지). program = 프로그램 이름(번역하지 않음)
+func (a_ TermpaneT) ExitConfirm(program string) string {
+	return a_.t.render(&areaTermpane, "exit_confirm", false, 0, "program", program)
+}
+
+// ExitNo: 대화상자 단추: 끝내지 않고 닫기
+func (a_ TermpaneT) ExitNo() string {
+	return a_.t.render(&areaTermpane, "exit_no", false, 0)
+}
+
+// ExitTitle: 대화상자 제목: 패널 안 프로그램 끝내기 확인
+func (a_ TermpaneT) ExitTitle() string {
+	return a_.t.render(&areaTermpane, "exit_title", false, 0)
+}
+
+// ExitYes: 대화상자 단추: 프로그램을 끝냄
+func (a_ TermpaneT) ExitYes() string {
+	return a_.t.render(&areaTermpane, "exit_yes", false, 0)
+}
+
+// Exited: 탭·테두리 제목 끝: 패널 안 프로그램이 스스로 끝났을 때. code = 종료 코드
+func (a_ TermpaneT) Exited(code int) string {
+	return a_.t.render(&areaTermpane, "exited", false, 0, "code", strconv.Itoa(code))
+}
+
+// HelpClose: 패널 도움말 창 바닥 줄
+func (a_ TermpaneT) HelpClose() string {
+	return a_.t.render(&areaTermpane, "help_close", false, 0)
+}
+
+// HelpEscape: 도움말 키 설명: 패널에서 쓰는 접두키(ctrl+\) — 다음 키로 나가기·확대·끝내기 등
+func (a_ TermpaneT) HelpEscape() string {
+	return a_.t.render(&areaTermpane, "help_escape", false, 0)
+}
+
+// HelpFocus: 패널 도움말: 접두키 다음 h/j/k/l·화살표 — 그 방향 창으로 포커스 이동
+func (a_ TermpaneT) HelpFocus() string {
+	return a_.t.render(&areaTermpane, "help_focus", false, 0)
+}
+
+// HelpHelp: 패널 도움말: 접두키 다음 ? — 이 도움말
+func (a_ TermpaneT) HelpHelp() string {
+	return a_.t.render(&areaTermpane, "help_help", false, 0)
+}
+
+// HelpKill: 패널 도움말: 접두키 다음 x — 프로그램 끝내기(확인), 공유 중이면 공유부터 바로 끊기
+func (a_ TermpaneT) HelpKill() string {
+	return a_.t.render(&areaTermpane, "help_kill", false, 0)
+}
+
+// HelpLeave: 패널 도움말: 접두키 다음 esc — 키보드를 masil 로 돌려줌, 프로그램은 계속 돎
+func (a_ TermpaneT) HelpLeave() string {
+	return a_.t.render(&areaTermpane, "help_leave", false, 0)
+}
+
+// HelpLiteral: 패널 도움말: 접두키를 두 번 — 접두키 자체를 프로그램에 보냄
+func (a_ TermpaneT) HelpLiteral() string {
+	return a_.t.render(&areaTermpane, "help_literal", false, 0)
+}
+
+// HelpPalette: 패널 도움말: 접두키 다음 p — 명령 팔레트
+func (a_ TermpaneT) HelpPalette() string {
+	return a_.t.render(&areaTermpane, "help_palette", false, 0)
+}
+
+// HelpScroll: 패널 도움말: 접두키 다음 [ — 지난 줄 보기(휠·pgup/pgdn, esc 끝)
+func (a_ TermpaneT) HelpScroll() string {
+	return a_.t.render(&areaTermpane, "help_scroll", false, 0)
+}
+
+// HelpSurface: 패널 도움말: 접두키 다음 t — 도구 표면과 채팅 오가기
+func (a_ TermpaneT) HelpSurface() string {
+	return a_.t.render(&areaTermpane, "help_surface", false, 0)
+}
+
+// HelpTitle: 패널 도움말 창 제목
+func (a_ TermpaneT) HelpTitle() string {
+	return a_.t.render(&areaTermpane, "help_title", false, 0)
+}
+
+// HelpZoom: 패널 도움말: 접두키 다음 z — 확대(넓게 보기)
+func (a_ TermpaneT) HelpZoom() string {
+	return a_.t.render(&areaTermpane, "help_zoom", false, 0)
+}
+
+// InputHint: 상태줄: 패널이 키보드를 쥐고 있을 때 늘 보임. program = 프로그램 이름(번역하지 않음), key = 접두키(ctrl+\ 등, 키맵에서)
+func (a_ TermpaneT) InputHint(program string, key string) string {
+	return a_.t.render(&areaTermpane, "input_hint", false, 0, "program", program, "key", key)
+}
+
+// KbdLimits: 패널 도움말·안내 한 줄(A7.6): 패널 안에서는 확장 키가 안 감, Claude Code 줄바꿈 대신 ctrl+j
+func (a_ TermpaneT) KbdLimits() string {
+	return a_.t.render(&areaTermpane, "kbd_limits", false, 0)
+}
+
+// KbdNvim: 패널 도움말·안내 한 줄(A7.5): nvim 터미널 모드 나가기 키를 패널에서 누르는 법. key = 접두키(ctrl+\ 등)
+func (a_ TermpaneT) KbdNvim(key string) string {
+	return a_.t.render(&areaTermpane, "kbd_nvim", false, 0, "key", key)
+}
+
+// PrefixHint: 상태줄: 접두키를 누른 뒤 2초 동안 다음 키를 기다릴 때. key = 접두키(ctrl+\ 등)
+func (a_ TermpaneT) PrefixHint(key string) string {
+	return a_.t.render(&areaTermpane, "prefix_hint", false, 0, "key", key)
+}
+
+// ScrollHint: 상태줄: 패널의 보기 스크롤(지난 줄 보기) 중
+func (a_ TermpaneT) ScrollHint() string {
+	return a_.t.render(&areaTermpane, "scroll_hint", false, 0)
+}
+
+// SharedBadge: 패널 테두리 제목 끝(초소형은 패널 첫 줄)에 붙는 표시: 이 패널 화면을 다른 사람에게 공유하는 중. 자르지 않는다(제목이 먼저 잘림)
+func (a_ TermpaneT) SharedBadge() string {
+	return a_.t.render(&areaTermpane, "shared_badge", false, 0)
 }

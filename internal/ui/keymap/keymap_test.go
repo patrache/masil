@@ -335,3 +335,33 @@ func TestKeymapLocalize(t *testing.T) {
 		t.Fatalf("Lit = %q", got)
 	}
 }
+
+// termhost.escape (P0 Task 16): ctrl+\ arrives as ctrl+\, ctrl+4 or the raw
+// 0x1c depending on the terminal; all three match while ctrl+\ is bound.
+func TestMatchesEscapeVariants(t *testing.T) {
+	variants := []tea.KeyPressMsg{{Code: '\\', Mod: tea.ModCtrl}, {Code: '4', Mod: tea.ModCtrl}, {Code: 0x1c}}
+	km := keymap.Default()
+	for _, v := range variants {
+		if !km.MatchesEscape(v) {
+			t.Errorf("default: %q (code %#x) is not the escape", v.String(), v.Code)
+		}
+	}
+	if km.MatchesEscape(tea.KeyPressMsg{Code: ']', Mod: tea.ModCtrl}) {
+		t.Error("ctrl+] matches by default")
+	}
+	if got := km.Binding(keymap.TermhostEscape).Help().Key; got != "ctrl+\\" {
+		t.Errorf("help key = %q", got)
+	}
+	km, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+]"}})
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	if !km.MatchesEscape(tea.KeyPressMsg{Code: ']', Mod: tea.ModCtrl}) {
+		t.Error("override ctrl+] does not match")
+	}
+	for _, v := range variants {
+		if km.MatchesEscape(v) {
+			t.Errorf("override: %q still matches", v.String())
+		}
+	}
+}

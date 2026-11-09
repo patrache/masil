@@ -216,6 +216,11 @@ func (m *Model) hints() (out []string, base int) {
 	if in := m.focusedInstance(); in != nil {
 		comp = in.comp
 	}
+	if st, ok := comp.(ui.StatusTexter); ok { // a termpane: where the keys go and how to leave
+		if text, ok := st.StatusText(m.ctx); ok {
+			return []string{text}, 1
+		}
+	}
 	if c, ok := comp.(ui.InputCapturer); ok && c.CapturesInput() {
 		defaults = inputHints
 	}
