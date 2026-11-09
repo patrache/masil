@@ -5,12 +5,15 @@ import * as z from "zod";
 import { rt, type AppEnv } from "../env";
 import { getAuth, requireAdmin, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from "../lib/db";
-import { err } from "../lib/errors";
+import { ApiError, err } from "../lib/errors";
 import { isId, newId } from "../lib/ids";
+import { isValidDate, LeetDailyFacts, leetLink } from "../lib/leet";
 import { serializeAdminActions, serializeAdminUsers, serializeReports } from "../lib/serialize";
 import { now } from "../lib/time";
 import { vJson, vQuery, zId, zText } from "../lib/validate";
 import { removeContent, resolveReports } from "../services/content";
+import { dailyCardData, loadDaily, serializeLeetDaily } from "../services/leet";
+import { updateCardMessage } from "../services/messages";
 import { suspendUser, unsuspendUser } from "../services/users";
 import type { Report } from "../types/api";
 import type { AdminActionRow, ReportRow, UserRow } from "../types/rows";
@@ -218,4 +221,50 @@ adminRoutes.get("/admin/actions", vQuery(ActionsQuery), async (c) => {
   );
   const page = rows.slice(0, n);
   return c.json({ items: await serializeAdminActions(db, page), next_cursor: nextIdCursor(rows, n) });
+});
+
+/**
+ * An operator fixes the facts of a LeetCode day (A10.3 "operator CLI"; api.md 5.22). Any real calendar day: a stored
+ * day is overwritten (first_reporter kept), a day nobody reported is stored with no first reporter. mismatch_count
+ * goes back to 0 and every live #daily root of that day gets the new facts and link (updateCardMessage ->
+ * message.updated). Not written to admin_actions (its target_type set stays as it is). 200 { daily: LeetDaily }.
+ */
+adminRoutes.put("/admin/leet/daily/:date", vJson(LeetDailyFacts), async (c) => {
+  const db = c.env.DB;
+  const date = c.req.param("date");
+  if (!isValidDate(date)) throw err.invalid({ date: "invalid" });
+  const f = c.req.valid("json");
+  await stmt(
+    db,
+    `INSERT INTO leet_daily (date, frontend_id, slug, title, difficulty, tags_json, is_paid_only, first_reporter_id, first_reported_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, ?8)
+     ON CONFLICT (date) DO UPDATE SET frontend_id = excluded.frontend_id, slug = excluded.slug, title = excluded.title,
+       difficulty = excluded.difficulty, tags_json = excluded.tags_json, is_paid_only = excluded.is_paid_only, mismatch_count = 0`,
+    date,
+    f.frontend_id,
+    f.slug,
+    f.title,
+    f.difficulty,
+    JSON.stringify(f.tags),
+    f.is_paid_only ? 1 : 0,
+    now(),
+  ).run();
+  const row = await loadDaily(db, date);
+  if (row === null) throw new Error(`leet_daily ${date} missing after upsert`);
+  const roots = await all<{ message_id: string }>(
+    db,
+    `SELECT r.message_id FROM leet_daily_roots r JOIN messages m ON m.id = r.message_id AND m.deleted_at IS NULL
+      WHERE r.date = ?1 ORDER BY r.message_id`,
+    date,
+  );
+  const card = { type: "leet.daily" as const, v: 1, data: dailyCardData(row) };
+  for (const r of roots) {
+    try {
+      await updateCardMessage(rt(c), r.message_id, card, leetLink(row.slug));
+    } catch (e) {
+      // deleted between the query and the rewrite: nothing to fix there
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+    }
+  }
+  return c.json({ daily: await serializeLeetDaily(db, row) });
 });

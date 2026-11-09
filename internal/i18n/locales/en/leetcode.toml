@@ -1,0 +1,5 @@
+[admin_daily_set]
+other = "Set the daily problem of {date} to {slug}."
+
+[admin_usage]
+other = "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"

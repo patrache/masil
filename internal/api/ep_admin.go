@@ -147,3 +147,14 @@ func (c *Client) AdminListActions(ctx context.Context, q AdminActionQuery) (*Pag
 	setIf(query, "target_id", q.TargetID)
 	return page[AdminAction](ctx, c, request{Method: "GET", Path: "/v1/admin/actions", Query: q.PageOpts.values(query), Auth: true})
 }
+
+// AdminSetLeetDaily: PUT /v1/admin/leet/daily/{date} — an operator fixes a
+// day's stored LeetCode facts; the server resets mismatch_count and rewrites
+// that day's #daily roots (v0.1.3 P1, api.md 5.22).
+func (c *Client) AdminSetLeetDaily(ctx context.Context, date string, f LeetDailyFacts) (*LeetDaily, error) {
+	if f.Tags == nil {
+		f.Tags = []string{}
+	}
+	v, _, err := one[LeetDaily](ctx, c, request{Method: "PUT", Path: escPath("v1", "admin", "leet", "daily", date), Body: f, Auth: true}, "daily")
+	return v, err
+}

@@ -93,6 +93,8 @@ var subs = map[string]sub{
 	"unsuspend": {1, (*runner).unsuspend},
 	"users":     {0, (*runner).users},
 	"actions":   {0, (*runner).actions},
+	// leet-daily parses its own "set <date>" words and flags (leet.go)
+	"leet-daily": {0, (*runner).leetDaily},
 }
 
 // runner carries one Run call's client and IO.

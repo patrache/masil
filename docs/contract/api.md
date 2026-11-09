@@ -1455,6 +1455,11 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `GET /v1/admin/actions?target_type=&target_id=&cursor=&limit=`
 - `200 { "items": AdminAction[], "next_cursor": string | null }`
 
+#### `PUT /v1/admin/leet/daily/{date}` (v0.1.3 P1)
+- 요청: `LeetDailyFacts`(5.25, 엄격 — 다른 키 `400`). `date` 는 실제 달력 날짜(오늘·어제 제한 없음), 아니면 `400 fields.date = "invalid"`.
+- 그날 사실 정보를 덮어쓴다(`first_reporter` 는 그대로, 아무도 보고하지 않은 날이면 `first_reporter: null` 로 새로 둔다). `mismatch_count = 0`. 그날 메시지가 살아 있는 #daily 루트(`leet.daily` 카드)마다 `card.data` 를 새 사실 정보 + `date` 로, `body` 를 새 링크로 바꾼다 — 이벤트 `message.updated`(지워진 루트는 그대로 둔다). `admin_actions` 에는 남기지 않는다.
+- `200 { "daily": LeetDaily }` · CLI: `masil admin leet-daily set <date> --id <frontend_id> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]`
+
 ### 5.23 WebSocket
 
 #### `GET /v1/ws`
@@ -1699,6 +1704,7 @@ interface LeetFriendStreak { user: UserSummary; current: number; best: number }
 | POST | /v1/admin/content/remove | admin | |
 | POST | /v1/admin/users/{user}/suspend, /unsuspend | admin | |
 | GET | /v1/admin/users, /v1/admin/actions | admin | |
+| PUT | /v1/admin/leet/daily/{date} | admin | |
 | GET | /v1/ws | ✓ | RL_WS |
 | GET/POST | /v1/spaces/{space_id}/docs | ✓ | RL_DOC(POST) |
 | GET/PATCH/DELETE | /v1/docs/{doc_id} | ✓ | RL_DOC(PATCH/DELETE) |

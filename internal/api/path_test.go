@@ -235,7 +235,11 @@ var pathCalls = map[string]func(c *api.Client, v string) error{
 		return err
 	},
 	"DeleteLeetSolve": func(c *api.Client, v string) error { return c.DeleteLeetSolve(ctx, v) },
-	"LeetSpaceBoard":  func(c *api.Client, v string) error { _, err := c.LeetSpaceBoard(ctx, v, ""); return err },
+	"AdminSetLeetDaily": func(c *api.Client, v string) error {
+		_, err := c.AdminSetLeetDaily(ctx, v, api.LeetDailyFacts{})
+		return err
+	},
+	"LeetSpaceBoard": func(c *api.Client, v string) error { _, err := c.LeetSpaceBoard(ctx, v, ""); return err },
 	// FetchMedia takes a server-supplied URL (Media.URL) instead of a segment.
 	"FetchMedia": func(c *api.Client, v string) error { _, err := c.FetchMedia(ctx, "/v1/media/"+v, ""); return err },
 	"FetchMedia/abs": func(c *api.Client, v string) error {

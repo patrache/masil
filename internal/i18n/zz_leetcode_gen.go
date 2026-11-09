@@ -8,5 +8,32 @@ type LeetcodeT struct{ t *T }
 
 var areaLeetcode = area{
 	name: "leetcode",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"admin_daily_set": {
+			desc:   "운영자 CLI 출력: masil admin leet-daily set 이 그날 사실 정보를 고치고 #daily 루트 카드를 새로 썼을 때. date = UTC 날짜 YYYY-MM-DD, slug = 문제 slug(번역하지 않음)",
+			params: []Param{{Name: "date", Type: "string"}, {Name: "slug", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{date} 오늘의 문제를 {slug} 로 고쳤습니다."},
+				En: {Other: "Set the daily problem of {date} to {slug}."},
+			},
+		},
+		"admin_usage": {
+			desc:       "운영자 CLI 사용법 한 줄: masil admin leet-daily set. 명령·플래그 이름·Easy/Medium/Hard 는 번역하지 않는다",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "사용법: masil admin leet-daily set <YYYY-MM-DD> --id <번호> --slug <slug> --title <제목> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"},
+				En: {Other: "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"},
+			},
+		},
+	},
+}
+
+// AdminDailySet: 운영자 CLI 출력: masil admin leet-daily set 이 그날 사실 정보를 고치고 #daily 루트 카드를 새로 썼을 때. date = UTC 날짜 YYYY-MM-DD, slug = 문제 slug(번역하지 않음)
+func (a_ LeetcodeT) AdminDailySet(date string, slug string) string {
+	return a_.t.render(&areaLeetcode, "admin_daily_set", false, 0, "date", date, "slug", slug)
+}
+
+// AdminUsage: 운영자 CLI 사용법 한 줄: masil admin leet-daily set. 명령·플래그 이름·Easy/Medium/Hard 는 번역하지 않는다
+func (a_ LeetcodeT) AdminUsage() string {
+	return a_.t.render(&areaLeetcode, "admin_usage", false, 0)
 }
