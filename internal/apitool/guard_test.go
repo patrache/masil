@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -313,5 +314,51 @@ func TestRedirectKeepsHostOverrideChecked(t *testing.T) {
 	}
 	if b := g.redirectBlock(); b == nil || b.To != "attacker.example" || b.Var != "key" {
 		t.Fatalf("block = %+v", b)
+	}
+}
+
+// withProxy routes every request through proxyURL for the test.
+func withProxy(t *testing.T, proxyURL string) {
+	t.Helper()
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := proxyFromEnv
+	proxyFromEnv = func(*http.Request) (*url.URL, error) { return u, nil }
+	t.Cleanup(func() { proxyFromEnv = old })
+}
+
+func TestForeignProxiedNameResolvingPrivateAsks(t *testing.T) {
+	proxy, proxyHits := countServer(t, nil)
+	withProxy(t, proxy.URL)
+	s := newSender(t)
+	s.Resolver = func(ctx context.Context, host string) ([]netip.Addr, error) {
+		switch host {
+		case "internal.example":
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34"), netip.MustParseAddr("10.0.0.5")}, nil
+		case "public.example":
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		case "127.0.0.1":
+			return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+		}
+		return nil, errors.New("no such host")
+	}
+	_, err := foreignSend(t, s, "http://internal.example/admin", false)
+	var pe *PrivateTargetError
+	if !errors.As(err, &pe) || pe.Host != "internal.example" || pe.IP != netip.MustParseAddr("10.0.0.5") {
+		t.Fatalf("err = %v (%+v), want PrivateTargetError 10.0.0.5", err, pe)
+	}
+	if proxyHits.Load() != 0 {
+		t.Fatalf("proxy got %d requests", proxyHits.Load())
+	}
+	// consented, public, or not resolvable here: through the proxy
+	for i, c := range []struct {
+		url string
+		ok  bool
+	}{{"http://internal.example/admin", true}, {"http://public.example/", false}, {"http://only-proxy-knows.example/", false}} {
+		if resp, err := foreignSend(t, s, c.url, c.ok); err != nil || resp.Status != 200 || proxyHits.Load() != int32(i+1) {
+			t.Fatalf("%s: %v hits=%d", c.url, err, proxyHits.Load())
+		}
 	}
 }

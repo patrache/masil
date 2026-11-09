@@ -201,20 +201,44 @@ func (g *guard) preflight(host string) error {
 	return g.privateErr(host, ip)
 }
 
+// proxyFromEnv picks the proxy (tests replace it: net/http reads the
+// environment only once per process).
+var proxyFromEnv = http.ProxyFromEnvironment
+
 // proxy is http.ProxyFromEnvironment that remembers the proxy host and checks
-// a proxied target's literal host.
+// a proxied target: its literal host, then (best effort, the proxy resolves
+// the name itself) a local lookup of a checked name — any private address
+// asks. A failed local lookup lets the request go to the proxy.
 func (g *guard) proxy(req *http.Request) (*url.URL, error) {
-	u, err := http.ProxyFromEnvironment(req)
+	u, err := proxyFromEnv(req)
 	if err != nil || u == nil {
 		return u, err
 	}
-	if err := g.preflight(req.URL.Hostname()); err != nil {
+	host := req.URL.Hostname()
+	if err := g.preflight(host); err != nil {
 		return nil, err
+	}
+	if _, perr := netip.ParseAddr(normHost(host)); perr != nil && g.checks(host) {
+		if ips, rerr := g.resolve(req.Context(), host); rerr == nil {
+			for _, ip := range ips {
+				if IsPrivateAddr(ip) {
+					return nil, g.privateErr(host, ip.Unmap())
+				}
+			}
+		}
 	}
 	g.mu.Lock()
 	g.proxies[normHost(u.Hostname())] = true
 	g.mu.Unlock()
 	return u, nil
+}
+
+// resolve looks host up with Sender.Resolver, else the system resolver.
+func (g *guard) resolve(ctx context.Context, host string) ([]netip.Addr, error) {
+	if g.s.Resolver != nil {
+		return g.s.Resolver(ctx, host)
+	}
+	return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 }
 
 // dial connects to addr. A checked host (Foreign, not consented) is refused
@@ -244,13 +268,7 @@ func (g *guard) dial(ctx context.Context, network, addr string) (net.Conn, error
 	if !check && g.s.Resolver == nil {
 		return d.DialContext(ctx, network, addr)
 	}
-	resolve := g.s.Resolver
-	if resolve == nil {
-		resolve = func(ctx context.Context, h string) ([]netip.Addr, error) {
-			return net.DefaultResolver.LookupNetIP(ctx, "ip", h)
-		}
-	}
-	ips, err := resolve(ctx, host)
+	ips, err := g.resolve(ctx, host)
 	if err != nil {
 		return nil, err
 	}
