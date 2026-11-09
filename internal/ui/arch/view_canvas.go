@@ -253,6 +253,10 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 	default:
 		m.drawCanvas(ctx, b, r.Canvas)
 	}
+	if m.mode == modeHelp {
+		m.drawHelp(ctx, b, r.Canvas)
+	}
+	m.drawFind(b, r.Canvas)
 	m.drawHeader(ctx, b, r.Header)
 	m.drawPalette(ctx, b, r.Palette)
 	m.drawPanel(ctx, b, r.Panel)
@@ -260,13 +264,43 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 	return b.render(ctx.Theme)
 }
 
-// overlay is what the canvas draws on top of the design.
+// overlay is what the canvas draws on top of the design: the selection, the
+// move ghost (m) and the connect line (c).
 func (m *canvasModel) overlay() archdraw.Overlay {
-	ov := archdraw.Overlay{Badges: m.badges, Buttons: true}
-	if m.sel != "" {
-		ov.Selected = map[string]bool{m.sel: true}
+	ov := archdraw.Overlay{Badges: m.badges, Buttons: true, Selected: map[string]bool{}}
+	for _, id := range m.selection() {
+		ov.Selected[id] = true
+	}
+	switch m.mode {
+	case modeConnect:
+		if n := m.node(m.cursor); n != nil && m.cursor != m.sel {
+			ov.Selected[m.cursor] = true
+			ov.ConnectFrom = m.sel
+			ov.ConnectTo = [2]int{n.Pos[0] + archdoc.NodeW/2, n.Pos[1] + archdoc.NodeH/2}
+		}
+	case modeMove:
+		if m.moveDX != 0 || m.moveDY != 0 {
+			if n := m.node(m.sel); n != nil {
+				x, y := n.Pos[0]+m.moveDX, n.Pos[1]+m.moveDY
+				ov.Ghost = &archdraw.Ghost{ID: n.ID, X: x, Y: y, IntoBox: m.boxUnder(n.ID, x, y)}
+			} else if bx := m.box(m.sel); bx != nil {
+				ov.Ghost = &archdraw.Ghost{ID: bx.ID, X: bx.Rect[0] + m.moveDX, Y: bx.Rect[1] + m.moveDY}
+			}
+		}
 	}
 	return ov
+}
+
+// boxUnder is the box node id would land in at (x, y) ("" = none).
+func (m *canvasModel) boxUnder(id string, x, y int) string {
+	d := *m.design
+	d.Nodes = nil
+	for _, n := range m.design.Nodes {
+		if n.ID != id {
+			d.Nodes = append(d.Nodes, n)
+		}
+	}
+	return boxAround(&d, x, y)
 }
 
 // visibleScene is the scene to draw at the current zoom: nodes that overlap

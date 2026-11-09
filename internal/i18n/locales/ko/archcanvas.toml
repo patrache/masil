@@ -62,6 +62,10 @@ other = "{targets}: VPC 가 리전 밖"
 desc = "지표 줄의 점검 머리"
 other = "점검"
 
+[connect_exists]
+desc = "연결하려는 두 노드가 이미 이어져 있을 때 토스트"
+other = "이미 연결돼 있어요"
+
 [cost_long]
 desc = "월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월"
 params = { usd = "string", asof = "string" }
@@ -108,10 +112,123 @@ desc = "비용·숫자가 추정이라는 고지(법적 문구)"
 legal = true
 other = "추정치이며 실제 청구액과 다를 수 있음"
 
+[find_none]
+desc = "찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말"
+params = { q = "string" }
+other = "'{q}' 에 맞는 노드가 없어요"
+
 [help_model_intro]
 desc = "도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)"
 no_truncate = true
 other = "이 숫자는 줄서기 공식으로 만든 근사입니다. 설계끼리 비교하는 데 쓰세요. 실제 서비스는 부하 시험으로 확인하세요"
+
+[help_title]
+desc = "도움말 첫 줄 제목"
+other = "아키텍처 설계 도움말"
+
+[key_add]
+desc = "키 안내: 부품 팔레트에서 추가"
+other = "추가"
+
+[key_arrange]
+desc = "키 안내: 자동 정리"
+other = "자동 정리"
+
+[key_cancel]
+desc = "키 안내: 취소"
+other = "취소"
+
+[key_checks]
+desc = "키 안내: 점검 줄 펼치기"
+other = "점검"
+
+[key_confirm]
+desc = "키 안내: 확정"
+other = "확정"
+
+[key_connect]
+desc = "키 안내: 연결 모드"
+other = "연결"
+
+[key_delete]
+desc = "키 안내: 삭제(확인 없음)"
+other = "삭제"
+
+[key_fault]
+desc = "키 안내: 장애 메뉴"
+other = "장애"
+
+[key_find]
+desc = "키 안내: 노드 찾기"
+other = "찾기"
+
+[key_fit]
+desc = "키 안내: 선택한 것으로 화면 맞춤"
+other = "맞춤"
+
+[key_help]
+desc = "키 안내: 이 도구의 도움말"
+other = "도움말"
+
+[key_move]
+desc = "키 안내: 선택한 것을 옮기기(옮기기 모드)"
+other = "옮기기"
+
+[key_multi]
+desc = "키 안내: 여러 개 선택"
+other = "여러 개 선택"
+
+[key_pan]
+desc = "키 안내: 화면 이동"
+other = "화면 이동"
+
+[key_panel]
+desc = "키 안내: 설정 패널로"
+other = "설정"
+
+[key_pick]
+desc = "키 안내: 목록에서 고르기"
+other = "고르기"
+
+[key_redo]
+desc = "키 안내: 다시하기"
+other = "다시하기"
+
+[key_run]
+desc = "키 안내: 시간 실행 시작·정지"
+other = "시간 실행"
+
+[key_select]
+desc = "키 안내: 가장 가까운 노드로 선택 이동"
+other = "선택"
+
+[key_speed]
+desc = "키 안내: 시간 실행 배속"
+other = "배속"
+
+[key_step]
+desc = "키 안내: 선택한 것을 격자 한 칸씩 옮기기"
+other = "한 칸 옮기기"
+
+[key_toggle]
+desc = "키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기"
+other = "넣고 빼기"
+
+[key_undo]
+desc = "키 안내: 되돌리기"
+other = "되돌리기"
+
+[key_view]
+desc = "키 안내: 캔버스·목록 보기 바꾸기"
+other = "보기"
+
+[key_wrap]
+desc = "키 안내: 선택한 노드를 새 상자로 감싸기"
+other = "상자로 감싸기"
+
+[key_zoom]
+desc = "키 안내: 확대 단계"
+other = "확대"
 
 [kind_api]
 desc = "부품 이름: api(팔레트·패널·새 노드의 기본 라벨)"

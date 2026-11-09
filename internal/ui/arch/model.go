@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/archdoc"
@@ -37,11 +36,23 @@ type canvasModel struct {
 	placed  bool // the viewport was fitted to the design once
 	drawer  drawerState
 	size    ui.Size
-	mode    layout.Mode
+	layMode layout.Mode
 	regs    regions
 	listSel int // the selected row of the list view
 
 	undo archdoc.UndoLog // my own edits (P3 Task 16)
+
+	// keyboard editing (keys.go)
+	mode           editMode
+	multi          map[string]bool // v: the multi-selection (nil = off)
+	cursor         string          // the connect target (c) or the multi cursor (v)
+	moveDX, moveDY int             // m: the ghost's offset in world cells
+	pick           int             // a / g: the palette cursor (paletteItems index)
+	pickBoxes      bool            // g: box kinds only
+	pickOpened     bool            // the palette drawer was pulled out for the pick
+	find           string          // /: the query typed so far
+	running        bool            // space: the timed run (P3 Task 19)
+	speedX         int             // < >: the timed run's speed
 }
 
 var (
@@ -228,17 +239,17 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 func (m *canvasModel) runCommand(*ui.Context, string) tea.Cmd { return nil }
 
 func (m *canvasModel) Resize(ctx *ui.Context, size ui.Size) {
-	m.size, m.mode = size, ctx.Mode
+	m.size, m.layMode = size, ctx.Mode
 	m.layout()
 }
 
 // layout recomputes the regions and the viewport size.
 func (m *canvasModel) layout() {
-	m.regs = computeRegions(m.mode, m.size.W, m.size.H, m.drawer)
+	m.regs = computeRegions(m.layMode, m.size.W, m.size.H, m.drawer)
 	m.vp.W, m.vp.H = m.regs.Canvas.W, m.regs.Canvas.H
 	if !m.zoomSet {
 		m.vp.Zoom = archdraw.ZoomDetail
-		if m.mode == layout.ModeWidget || m.regs.Canvas.W < listBelow {
+		if m.layMode == layout.ModeWidget || m.regs.Canvas.W < listBelow {
 			m.vp.Zoom = archdraw.ZoomNormal
 		}
 	}
@@ -273,9 +284,6 @@ func (m *canvasModel) ToolStatus(ctx *ui.Context) string {
 	}
 	return t.StatusPersonal(m.title(ctx))
 }
-
-// Help is the status line's key hints (filled in by P3 Task 16).
-func (m *canvasModel) Help(*ui.Context) []key.Binding { return nil }
 
 // cleanText makes user text one safe line.
 func cleanText(s string) string {

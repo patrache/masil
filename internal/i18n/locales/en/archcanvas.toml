@@ -41,6 +41,9 @@ other = "{targets}: VPC outside a region"
 [checks_label]
 other = "Checks"
 
+[connect_exists]
+other = "Already connected"
+
 [cost_long]
 other = "About ${usd}/mo (estimate · {asof} prices · on-demand · excludes tax, discounts and free tiers)"
 
@@ -71,8 +74,92 @@ other = "Another engine version made these numbers; they may differ slightly"
 [estimate_disclaimer]
 other = "Estimates; actual bills may differ"
 
+[find_none]
+other = "No node matches '{q}'"
+
 [help_model_intro]
 other = "These numbers are approximations from queueing formulas. Use them to compare designs. Confirm a real service with a load test"
+
+[help_title]
+other = "Architecture design help"
+
+[key_add]
+other = "Add"
+
+[key_arrange]
+other = "Arrange"
+
+[key_cancel]
+other = "Cancel"
+
+[key_checks]
+other = "Checks"
+
+[key_confirm]
+other = "Confirm"
+
+[key_connect]
+other = "Connect"
+
+[key_delete]
+other = "Delete"
+
+[key_fault]
+other = "Faults"
+
+[key_find]
+other = "Find"
+
+[key_fit]
+other = "Fit"
+
+[key_help]
+other = "Help"
+
+[key_move]
+other = "Move"
+
+[key_multi]
+other = "Multi-select"
+
+[key_pan]
+other = "Pan"
+
+[key_panel]
+other = "Settings"
+
+[key_pick]
+other = "Choose"
+
+[key_redo]
+other = "Redo"
+
+[key_run]
+other = "Run"
+
+[key_select]
+other = "Select"
+
+[key_speed]
+other = "Speed"
+
+[key_step]
+other = "Nudge"
+
+[key_toggle]
+other = "Toggle"
+
+[key_undo]
+other = "Undo"
+
+[key_view]
+other = "View"
+
+[key_wrap]
+other = "Wrap in a box"
+
+[key_zoom]
+other = "Zoom"
 
 [kind_api]
 other = "API server"

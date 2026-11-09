@@ -110,6 +110,13 @@ var areaArchcanvas = area{
 				En: {Other: "Checks"},
 			},
 		},
+		"connect_exists": {
+			desc: "연결하려는 두 노드가 이미 이어져 있을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미 연결돼 있어요"},
+				En: {Other: "Already connected"},
+			},
+		},
 		"cost_long": {
 			desc:       "월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월",
 			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
@@ -186,12 +193,209 @@ var areaArchcanvas = area{
 				En: {Other: "Estimates; actual bills may differ"},
 			},
 		},
+		"find_none": {
+			desc:   "찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말",
+			params: []Param{{Name: "q", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "'{q}' 에 맞는 노드가 없어요"},
+				En: {Other: "No node matches '{q}'"},
+			},
+		},
 		"help_model_intro": {
 			desc:       "도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)",
 			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "이 숫자는 줄서기 공식으로 만든 근사입니다. 설계끼리 비교하는 데 쓰세요. 실제 서비스는 부하 시험으로 확인하세요"},
 				En: {Other: "These numbers are approximations from queueing formulas. Use them to compare designs. Confirm a real service with a load test"},
+			},
+		},
+		"help_title": {
+			desc: "도움말 첫 줄 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계 도움말"},
+				En: {Other: "Architecture design help"},
+			},
+		},
+		"key_add": {
+			desc: "키 안내: 부품 팔레트에서 추가",
+			text: map[Locale]Forms{
+				Ko: {Other: "추가"},
+				En: {Other: "Add"},
+			},
+		},
+		"key_arrange": {
+			desc: "키 안내: 자동 정리",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 정리"},
+				En: {Other: "Arrange"},
+			},
+		},
+		"key_cancel": {
+			desc: "키 안내: 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
+		"key_checks": {
+			desc: "키 안내: 점검 줄 펼치기",
+			text: map[Locale]Forms{
+				Ko: {Other: "점검"},
+				En: {Other: "Checks"},
+			},
+		},
+		"key_confirm": {
+			desc: "키 안내: 확정",
+			text: map[Locale]Forms{
+				Ko: {Other: "확정"},
+				En: {Other: "Confirm"},
+			},
+		},
+		"key_connect": {
+			desc: "키 안내: 연결 모드",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결"},
+				En: {Other: "Connect"},
+			},
+		},
+		"key_delete": {
+			desc: "키 안내: 삭제(확인 없음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
+			},
+		},
+		"key_fault": {
+			desc: "키 안내: 장애 메뉴",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애"},
+				En: {Other: "Faults"},
+			},
+		},
+		"key_find": {
+			desc: "키 안내: 노드 찾기",
+			text: map[Locale]Forms{
+				Ko: {Other: "찾기"},
+				En: {Other: "Find"},
+			},
+		},
+		"key_fit": {
+			desc: "키 안내: 선택한 것으로 화면 맞춤",
+			text: map[Locale]Forms{
+				Ko: {Other: "맞춤"},
+				En: {Other: "Fit"},
+			},
+		},
+		"key_help": {
+			desc: "키 안내: 이 도구의 도움말",
+			text: map[Locale]Forms{
+				Ko: {Other: "도움말"},
+				En: {Other: "Help"},
+			},
+		},
+		"key_move": {
+			desc: "키 안내: 선택한 것을 옮기기(옮기기 모드)",
+			text: map[Locale]Forms{
+				Ko: {Other: "옮기기"},
+				En: {Other: "Move"},
+			},
+		},
+		"key_multi": {
+			desc: "키 안내: 여러 개 선택",
+			text: map[Locale]Forms{
+				Ko: {Other: "여러 개 선택"},
+				En: {Other: "Multi-select"},
+			},
+		},
+		"key_pan": {
+			desc: "키 안내: 화면 이동",
+			text: map[Locale]Forms{
+				Ko: {Other: "화면 이동"},
+				En: {Other: "Pan"},
+			},
+		},
+		"key_panel": {
+			desc: "키 안내: 설정 패널로",
+			text: map[Locale]Forms{
+				Ko: {Other: "설정"},
+				En: {Other: "Settings"},
+			},
+		},
+		"key_pick": {
+			desc: "키 안내: 목록에서 고르기",
+			text: map[Locale]Forms{
+				Ko: {Other: "고르기"},
+				En: {Other: "Choose"},
+			},
+		},
+		"key_redo": {
+			desc: "키 안내: 다시하기",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시하기"},
+				En: {Other: "Redo"},
+			},
+		},
+		"key_run": {
+			desc: "키 안내: 시간 실행 시작·정지",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간 실행"},
+				En: {Other: "Run"},
+			},
+		},
+		"key_select": {
+			desc: "키 안내: 가장 가까운 노드로 선택 이동",
+			text: map[Locale]Forms{
+				Ko: {Other: "선택"},
+				En: {Other: "Select"},
+			},
+		},
+		"key_speed": {
+			desc: "키 안내: 시간 실행 배속",
+			text: map[Locale]Forms{
+				Ko: {Other: "배속"},
+				En: {Other: "Speed"},
+			},
+		},
+		"key_step": {
+			desc: "키 안내: 선택한 것을 격자 한 칸씩 옮기기",
+			text: map[Locale]Forms{
+				Ko: {Other: "한 칸 옮기기"},
+				En: {Other: "Nudge"},
+			},
+		},
+		"key_toggle": {
+			desc: "키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기",
+			text: map[Locale]Forms{
+				Ko: {Other: "넣고 빼기"},
+				En: {Other: "Toggle"},
+			},
+		},
+		"key_undo": {
+			desc: "키 안내: 되돌리기",
+			text: map[Locale]Forms{
+				Ko: {Other: "되돌리기"},
+				En: {Other: "Undo"},
+			},
+		},
+		"key_view": {
+			desc: "키 안내: 캔버스·목록 보기 바꾸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "보기"},
+				En: {Other: "View"},
+			},
+		},
+		"key_wrap": {
+			desc: "키 안내: 선택한 노드를 새 상자로 감싸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자로 감싸기"},
+				En: {Other: "Wrap in a box"},
+			},
+		},
+		"key_zoom": {
+			desc: "키 안내: 확대 단계",
+			text: map[Locale]Forms{
+				Ko: {Other: "확대"},
+				En: {Other: "Zoom"},
 			},
 		},
 		"kind_api": {
@@ -818,6 +1022,11 @@ func (a_ ArchcanvasT) ChecksLabel() string {
 	return a_.t.render(&areaArchcanvas, "checks_label", false, 0)
 }
 
+// ConnectExists: 연결하려는 두 노드가 이미 이어져 있을 때 토스트
+func (a_ ArchcanvasT) ConnectExists() string {
+	return a_.t.render(&areaArchcanvas, "connect_exists", false, 0)
+}
+
 // CostLong: 월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월
 func (a_ ArchcanvasT) CostLong(usd string, asof string) string {
 	return a_.t.render(&areaArchcanvas, "cost_long", false, 0, "usd", usd, "asof", asof)
@@ -868,9 +1077,149 @@ func (a_ ArchcanvasT) EstimateDisclaimer() string {
 	return a_.t.render(&areaArchcanvas, "estimate_disclaimer", false, 0)
 }
 
+// FindNone: 찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말
+func (a_ ArchcanvasT) FindNone(q string) string {
+	return a_.t.render(&areaArchcanvas, "find_none", false, 0, "q", q)
+}
+
 // HelpModelIntro: 도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)
 func (a_ ArchcanvasT) HelpModelIntro() string {
 	return a_.t.render(&areaArchcanvas, "help_model_intro", false, 0)
+}
+
+// HelpTitle: 도움말 첫 줄 제목
+func (a_ ArchcanvasT) HelpTitle() string {
+	return a_.t.render(&areaArchcanvas, "help_title", false, 0)
+}
+
+// KeyAdd: 키 안내: 부품 팔레트에서 추가
+func (a_ ArchcanvasT) KeyAdd() string {
+	return a_.t.render(&areaArchcanvas, "key_add", false, 0)
+}
+
+// KeyArrange: 키 안내: 자동 정리
+func (a_ ArchcanvasT) KeyArrange() string {
+	return a_.t.render(&areaArchcanvas, "key_arrange", false, 0)
+}
+
+// KeyCancel: 키 안내: 취소
+func (a_ ArchcanvasT) KeyCancel() string {
+	return a_.t.render(&areaArchcanvas, "key_cancel", false, 0)
+}
+
+// KeyChecks: 키 안내: 점검 줄 펼치기
+func (a_ ArchcanvasT) KeyChecks() string {
+	return a_.t.render(&areaArchcanvas, "key_checks", false, 0)
+}
+
+// KeyConfirm: 키 안내: 확정
+func (a_ ArchcanvasT) KeyConfirm() string {
+	return a_.t.render(&areaArchcanvas, "key_confirm", false, 0)
+}
+
+// KeyConnect: 키 안내: 연결 모드
+func (a_ ArchcanvasT) KeyConnect() string {
+	return a_.t.render(&areaArchcanvas, "key_connect", false, 0)
+}
+
+// KeyDelete: 키 안내: 삭제(확인 없음)
+func (a_ ArchcanvasT) KeyDelete() string {
+	return a_.t.render(&areaArchcanvas, "key_delete", false, 0)
+}
+
+// KeyFault: 키 안내: 장애 메뉴
+func (a_ ArchcanvasT) KeyFault() string {
+	return a_.t.render(&areaArchcanvas, "key_fault", false, 0)
+}
+
+// KeyFind: 키 안내: 노드 찾기
+func (a_ ArchcanvasT) KeyFind() string {
+	return a_.t.render(&areaArchcanvas, "key_find", false, 0)
+}
+
+// KeyFit: 키 안내: 선택한 것으로 화면 맞춤
+func (a_ ArchcanvasT) KeyFit() string {
+	return a_.t.render(&areaArchcanvas, "key_fit", false, 0)
+}
+
+// KeyHelp: 키 안내: 이 도구의 도움말
+func (a_ ArchcanvasT) KeyHelp() string {
+	return a_.t.render(&areaArchcanvas, "key_help", false, 0)
+}
+
+// KeyMove: 키 안내: 선택한 것을 옮기기(옮기기 모드)
+func (a_ ArchcanvasT) KeyMove() string {
+	return a_.t.render(&areaArchcanvas, "key_move", false, 0)
+}
+
+// KeyMulti: 키 안내: 여러 개 선택
+func (a_ ArchcanvasT) KeyMulti() string {
+	return a_.t.render(&areaArchcanvas, "key_multi", false, 0)
+}
+
+// KeyPan: 키 안내: 화면 이동
+func (a_ ArchcanvasT) KeyPan() string {
+	return a_.t.render(&areaArchcanvas, "key_pan", false, 0)
+}
+
+// KeyPanel: 키 안내: 설정 패널로
+func (a_ ArchcanvasT) KeyPanel() string {
+	return a_.t.render(&areaArchcanvas, "key_panel", false, 0)
+}
+
+// KeyPick: 키 안내: 목록에서 고르기
+func (a_ ArchcanvasT) KeyPick() string {
+	return a_.t.render(&areaArchcanvas, "key_pick", false, 0)
+}
+
+// KeyRedo: 키 안내: 다시하기
+func (a_ ArchcanvasT) KeyRedo() string {
+	return a_.t.render(&areaArchcanvas, "key_redo", false, 0)
+}
+
+// KeyRun: 키 안내: 시간 실행 시작·정지
+func (a_ ArchcanvasT) KeyRun() string {
+	return a_.t.render(&areaArchcanvas, "key_run", false, 0)
+}
+
+// KeySelect: 키 안내: 가장 가까운 노드로 선택 이동
+func (a_ ArchcanvasT) KeySelect() string {
+	return a_.t.render(&areaArchcanvas, "key_select", false, 0)
+}
+
+// KeySpeed: 키 안내: 시간 실행 배속
+func (a_ ArchcanvasT) KeySpeed() string {
+	return a_.t.render(&areaArchcanvas, "key_speed", false, 0)
+}
+
+// KeyStep: 키 안내: 선택한 것을 격자 한 칸씩 옮기기
+func (a_ ArchcanvasT) KeyStep() string {
+	return a_.t.render(&areaArchcanvas, "key_step", false, 0)
+}
+
+// KeyToggle: 키 안내: 여러 개 선택에서 지금 노드를 넣고 빼기
+func (a_ ArchcanvasT) KeyToggle() string {
+	return a_.t.render(&areaArchcanvas, "key_toggle", false, 0)
+}
+
+// KeyUndo: 키 안내: 되돌리기
+func (a_ ArchcanvasT) KeyUndo() string {
+	return a_.t.render(&areaArchcanvas, "key_undo", false, 0)
+}
+
+// KeyView: 키 안내: 캔버스·목록 보기 바꾸기
+func (a_ ArchcanvasT) KeyView() string {
+	return a_.t.render(&areaArchcanvas, "key_view", false, 0)
+}
+
+// KeyWrap: 키 안내: 선택한 노드를 새 상자로 감싸기
+func (a_ ArchcanvasT) KeyWrap() string {
+	return a_.t.render(&areaArchcanvas, "key_wrap", false, 0)
+}
+
+// KeyZoom: 키 안내: 확대 단계
+func (a_ ArchcanvasT) KeyZoom() string {
+	return a_.t.render(&areaArchcanvas, "key_zoom", false, 0)
 }
 
 // KindApi: 부품 이름: api(팔레트·패널·새 노드의 기본 라벨)

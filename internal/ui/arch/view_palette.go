@@ -52,7 +52,11 @@ func paletteRows(t *i18n.T) (texts []string, items []int) {
 // drawPalette draws the parts palette in r (its right column is the divider).
 // sel is the highlighted item (-1 = none).
 func (m *canvasModel) drawPalette(ctx *ui.Context, b *buf, r layout.Rect) {
-	m.drawPaletteSel(ctx, b, r, -1)
+	sel := -1
+	if m.mode == modePick {
+		sel = m.pick
+	}
+	m.drawPaletteSel(ctx, b, r, sel)
 }
 
 func (m *canvasModel) drawPaletteSel(ctx *ui.Context, b *buf, r layout.Rect, sel int) {

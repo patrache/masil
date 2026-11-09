@@ -251,7 +251,8 @@ func (s *Scene) Render(v Viewport, ov Overlay) *Grid {
 			b := s.boxes[i]
 			b.x, b.y = gh.X, gh.Y
 			r := s.boxRect(&b, z)
-			drawDashed(g, rect{r.x - ox, r.y - oy, r.w, r.h}, b.label, st)
+			// only the outline: the box's own nodes stay visible inside it
+			drawBox(g, rect{r.x - ox, r.y - oy, r.w, r.h}, b.label, st, true)
 		}
 	}
 	for i := range ov.Remote {
