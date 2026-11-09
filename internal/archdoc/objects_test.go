@@ -3,6 +3,7 @@ package archdoc
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"math/rand/v2"
 	"reflect"
 	"slices"
@@ -117,17 +118,21 @@ func TestFromObjectsDanglingAndCycles(t *testing.T) {
 	if !hasIssue(is1, "e:x", IssueDanglingRef) {
 		t.Fatalf("issues = %v", is1)
 	}
-	roots := 0
+	// The cycle is cut at the smaller ID X; Y (a vpc under a vpc) then breaks
+	// the kind rule and moves to the top level as well.
+	if !hasIssue(is1, "b:X.parent", IssueDepth) || hasIssue(is1, "b:Y.parent", IssueDepth) {
+		t.Fatalf("cycle cut wrong: %v", is1)
+	}
+	if !hasIssue(is1, "b:Y.parent", IssueParentKind) {
+		t.Fatalf("issues = %v", is1)
+	}
 	for _, b := range d1.Boxes {
-		if (b.ID == "X" || b.ID == "Y") && b.Parent == "" {
-			roots++
-			if b.ID != "X" {
-				t.Fatalf("cycle cut at %s, want the smaller ID X", b.ID)
-			}
+		if (b.ID == "X" || b.ID == "Y") && b.Parent != "" {
+			t.Fatalf("boxes = %+v, want X and Y at top", d1.Boxes)
 		}
 	}
-	if roots != 1 {
-		t.Fatalf("boxes = %+v, want exactly one of X/Y at top", d1.Boxes)
+	if v := d1.Validate(); len(v) != 0 {
+		t.Fatalf("repaired design invalid: %v", v)
 	}
 	if d1.Title != "t" || d1.Seed != 3 || d1.DurationS != 120 {
 		t.Fatalf("meta = %q %d %d", d1.Title, d1.Seed, d1.DurationS)
@@ -234,5 +239,101 @@ func TestFromObjectsBadFieldValue(t *testing.T) {
 	d, is = FromObjects(o, nil)
 	if d.Nodes[0].Autoscale.Min > d.Nodes[0].Autoscale.Max || !hasIssue(is, "n:a.autoscale.max", IssueRange) {
 		t.Fatalf("autoscale = %+v, issues %v", d.Nodes[0].Autoscale, is)
+	}
+}
+
+// TestFromObjectsCrossKindIDs: "n:x" and "b:x" are different collab keys but the
+// same design ID; the later kind in the order node, box, edge, fault is dropped
+// so the result validates and a fault target is never ambiguous (P3 review).
+func TestFromObjectsCrossKindIDs(t *testing.T) {
+	e := DefaultEdge()
+	e.ID, e.From, e.To = "x", "x", "y"
+	o := Objects{
+		"n:x": node(t, KindAPI, nil),
+		"n:y": node(t, KindAPI, nil),
+		"b:x": box(t, BoxRegion, ""),
+		"b:r": box(t, BoxRegion, ""),
+		"e:x": (&Design{Edges: []Edge{e}}).ToObjects()["e:x"],
+		"e:y": (&Design{Edges: []Edge{{ID: "y", From: "x", To: "y", Protocol: ProtoHTTP1, LatencyMicros: -1}}}).ToObjects()["e:y"],
+		"f:y": (&Design{Faults: []Fault{{ID: "y", Kind: FaultLatency, Target: "x", AddMs: 5}}}).ToObjects()["f:y"],
+		"f:q": (&Design{Faults: []Fault{{ID: "q", Kind: FaultRegionOff, Target: "r"}}}).ToObjects()["f:q"],
+	}
+	d, is := FromObjects(o, nil)
+	if v := d.Validate(); len(v) != 0 {
+		t.Fatalf("FromObjects result invalid: %v (issues %v)", v, is)
+	}
+	if len(d.Nodes) != 2 || len(d.Boxes) != 1 || d.Boxes[0].ID != "r" || len(d.Edges) != 0 || len(d.Faults) != 1 {
+		t.Fatalf("nodes %d boxes %+v edges %+v faults %+v", len(d.Nodes), d.Boxes, d.Edges, d.Faults)
+	}
+	for _, key := range []string{"b:x", "e:x", "e:y", "f:y"} {
+		if !hasIssue(is, key, IssueDuplicateID) {
+			t.Errorf("missing %s duplicate_id in %v", key, is)
+		}
+	}
+}
+
+// TestFromObjectsParentKind: a box under a parent of the wrong kind moves to the
+// top level, so Save, export and cards accept the result (P3 review).
+func TestFromObjectsParentKind(t *testing.T) {
+	o := Objects{
+		"b:r":  box(t, BoxRegion, ""),
+		"b:r2": box(t, BoxRegion, "r"),
+		"b:v":  box(t, BoxVPC, "r"),
+		"b:v2": box(t, BoxVPC, "v"),
+		"b:a":  box(t, BoxAZ, "r"),
+	}
+	d, is := FromObjects(o, nil)
+	if v := d.Validate(); len(v) != 0 {
+		t.Fatalf("FromObjects result invalid: %v", v)
+	}
+	parent := map[string]string{}
+	for _, b := range d.Boxes {
+		parent[b.ID] = b.Parent
+	}
+	if parent["v"] != "r" || parent["r2"] != "" || parent["v2"] != "" || parent["a"] != "" {
+		t.Fatalf("parents = %v", parent)
+	}
+	for _, key := range []string{"b:r2.parent", "b:v2.parent", "b:a.parent"} {
+		if !hasIssue(is, key, IssueParentKind) {
+			t.Errorf("missing %s parent_kind in %v", key, is)
+		}
+	}
+}
+
+// TestFromObjectsAlwaysValid: whatever a shared document holds, the loaded
+// design passes Validate.
+func TestFromObjectsAlwaysValid(t *testing.T) {
+	r := rand.New(rand.NewPCG(1, 2))
+	ids := []string{"a", "b", "c", "d", "e", "f"}
+	pick := func(s []string) string { return s[r.IntN(len(s))] }
+	ref := func() string { return `"` + pick(append(ids, "", "zz")) + `"` }
+	nodeKinds := append(slices.Clone(nodeKindNames), "bogus")
+	boxKinds := append(slices.Clone(boxKindNames), "bogus")
+	faultKinds := append(slices.Clone(faultKindNames), "bogus")
+	values := []string{`0`, `-1`, `1`, `3`, `1000`, `99999999`, `1.5`, `"s"`, `true`, `null`, `[1,2]`, `[1,2,3,4]`, `{}`}
+	for iter := range 3000 {
+		o := Objects{}
+		for range 1 + r.IntN(14) {
+			id := pick(ids)
+			switch r.IntN(4) {
+			case 0:
+				m := map[string]json.RawMessage{"kind": raw(`"` + pick(nodeKinds) + `"`), "parent": raw(ref()), "params.failover_to": raw(ref())}
+				for range r.IntN(4) {
+					m[pick(fieldNames(nodeFields))] = raw(pick(values))
+				}
+				o["n:"+id] = m
+			case 1:
+				o["b:"+id] = map[string]json.RawMessage{"kind": raw(`"` + pick(boxKinds) + `"`), "parent": raw(ref()), "rect": raw(pick(values))}
+			case 2:
+				o["e:"+id] = map[string]json.RawMessage{"from": raw(ref()), "to": raw(ref()), "mbps": raw(pick(values))}
+			case 3:
+				o["f:"+id] = map[string]json.RawMessage{"kind": raw(`"` + pick(faultKinds) + `"`), "target": raw(ref()), "count": raw(pick(values))}
+			}
+		}
+		d, _ := FromObjects(o, nil)
+		if v := d.Validate(); len(v) != 0 {
+			keys := slices.Sorted(maps.Keys(o))
+			t.Fatalf("iteration %d: invalid result %v from %v", iter, v, keys)
+		}
 	}
 }

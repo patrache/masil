@@ -125,9 +125,11 @@ func rawString(r json.RawMessage) (string, bool) {
 // map order. Rules (arch.md 2.3): unknown fields are ignored; a bad value resets
 // that field to its default; an object of unknown kind is dropped; references to
 // missing or deleted objects are cleared (parents) or the referrer is dropped
-// (edges, faults); a box parent cycle is cut at its smallest ID; a box deeper than
-// MaxDepth moves to its grandparent; over-limit items are dropped from the end in
-// ID order. deleted may be nil.
+// (edges, faults); an ID already used by another kind is dropped (node, box,
+// edge, fault order); a box parent cycle is cut at its smallest ID; a box deeper
+// than MaxDepth moves to its grandparent; a box under a parent of the wrong kind
+// moves to the top level; over-limit items are dropped from the end in ID order.
+// The result always passes Validate. deleted may be nil.
 func FromObjects(o Objects, deleted func(obj string) bool) (*Design, []Issue) {
 	gone := func(key string) bool { return deleted != nil && deleted(key) }
 	var is []Issue
@@ -205,6 +207,16 @@ func FromObjects(o Objects, deleted func(obj string) bool) (*Design, []Issue) {
 		}
 	}
 
+	// IDs are unique across kinds (arch.md 1.3) but "n:x" and "b:x" are two
+	// collab keys: keep the first in the order node, box, edge, fault.
+	ids := make(map[string]bool, len(keys))
+	for _, n := range d.Nodes {
+		ids[n.ID] = true
+	}
+	d.Boxes = dropTaken(d.Boxes, 'b', ids, add)
+	d.Edges = dropTaken(d.Edges, 'e', ids, add)
+	d.Faults = dropTaken(d.Faults, 'f', ids, add)
+
 	d.Boxes = capList(d.Boxes, MaxBoxes, "boxes", IssueTooManyBoxes, add)
 	d.Nodes = capList(d.Nodes, MaxNodes, "nodes", IssueTooManyNodes, add)
 	repairBoxes(d.Boxes, add)
@@ -257,6 +269,20 @@ func FromObjects(o Objects, deleted func(obj string) bool) (*Design, []Issue) {
 	return d, is
 }
 
+// dropTaken removes the items whose ID is already in ids (duplicate_id at the
+// object key) and adds the rest.
+func dropTaken[T identified](s []T, prefix byte, ids map[string]bool, add func(string, IssueCode)) []T {
+	return slices.DeleteFunc(s, func(v T) bool {
+		id := *idOf(&v)
+		if ids[id] {
+			add(ObjKey(prefix, id), IssueDuplicateID)
+			return true
+		}
+		ids[id] = true
+		return false
+	})
+}
+
 func capList[T any](s []T, limit int, path string, code IssueCode, add func(string, IssueCode)) []T {
 	if len(s) <= limit {
 		return s
@@ -272,7 +298,8 @@ func nilIfEmpty[T any](s []T) []T {
 	return s
 }
 
-// repairBoxes makes the box parent graph a forest no deeper than MaxDepth.
+// repairBoxes makes the box parent graph a forest no deeper than MaxDepth that
+// follows the parent kind rule.
 // boxes must be sorted by ID.
 func repairBoxes(boxes []Box, add func(string, IssueCode)) {
 	idx := make(map[string]*Box, len(boxes))
@@ -298,6 +325,16 @@ func repairBoxes(boxes []Box, add func(string, IssueCode)) {
 		}
 		if lifted {
 			add(ObjKey('b', b.ID)+".parent", IssueDepth)
+		}
+	}
+	// Last, the kind rule (region top-level, vpc in region, az in vpc): a box
+	// under a parent of the wrong kind moves to the top level. Clearing a parent
+	// never makes a cycle or a deeper box.
+	for i := range boxes {
+		b := &boxes[i]
+		if b.Parent != "" && !parentKindOK(b.Kind, idx[b.Parent].Kind) {
+			b.Parent = ""
+			add(ObjKey('b', b.ID)+".parent", IssueParentKind)
 		}
 	}
 }
