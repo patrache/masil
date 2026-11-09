@@ -30,6 +30,7 @@ function alertFrom(actor: UserSummary | null, kind: Alert["kind"] = "mention"): 
     created_at: new Date().toISOString(),
     suppressed: false,
     suppressed_reason: null,
+    template: null,
   };
 }
 

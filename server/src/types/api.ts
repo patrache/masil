@@ -1,5 +1,6 @@
 // api.md section 2 object schemas, field-for-field. These are the return types of lib/serialize.ts.
 // Response fields always exist (null when absent, [] for empty lists).
+import type { AlertTemplate } from "../lib/i18n";
 
 export type ID = string; // ULID
 export type Timestamp = string; // RFC 3339 UTC, ms precision
@@ -422,7 +423,11 @@ export interface Alert {
   created_at: Timestamp;
   suppressed: boolean;
   suppressed_reason: "focus" | "dnd" | null;
+  template: AlertTemplate | null; // v0.1.3 (i18n 7.3): null = stored by an older server (fallback text only)
 }
+
+/** v0.1.3: what an alert says, as data (docs/contract/i18n/alert-templates.json). title/body are fallback text. */
+export type { AlertTemplate } from "../lib/i18n";
 
 export interface FocusSummary {
   started_at: Timestamp;

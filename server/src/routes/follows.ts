@@ -6,6 +6,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
+import { alertSpec } from "../lib/alerts";
 import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, parseLimit, stmt } from "../lib/db";
 import { err } from "../lib/errors";
@@ -129,12 +130,11 @@ followRoutes.post("/me/follow-requests/:user/accept", requireAuth, async (c) => 
     actorId: me,
     subject: { type: "user", id: me },
     preview: "",
-    alert: {
-      kind: "social",
-      title: `${name}님이 팔로우 요청을 수락했어요`,
-      body: "",
-      target: { type: "user", id: me, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
-    },
+    alert: alertSpec(
+      "social",
+      { id: "social.follow_accepted", params: { actor: name } },
+      { type: "user", id: me, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
+    ),
   });
   return c.body(null, 204);
 });

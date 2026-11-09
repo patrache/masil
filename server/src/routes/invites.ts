@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
+import { alertSpec } from "../lib/alerts";
 import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, first, stmt } from "../lib/db";
 import { err } from "../lib/errors";
@@ -236,12 +237,11 @@ inviteRoutes.post("/spaces/:space_id/direct-invites", requireAuth, limit("RL_SOC
       context: { space_id: spaceId, space_name: space.name },
       preview: "",
       dedupeKey: `space_invite:${row.id}`,
-      alert: {
-        kind: "invite",
-        title: `${name}님이 ${space.name} 방에 초대했어요`,
-        body: "",
-        target: { type: "space", id: spaceId, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: spaceId },
-      },
+      alert: alertSpec(
+        "invite",
+        { id: "invite.space", params: { actor: name, space: space.name } },
+        { type: "space", id: spaceId, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: spaceId },
+      ),
     }),
   ]);
   return c.json({ invite }, 201);

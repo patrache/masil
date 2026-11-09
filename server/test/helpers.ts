@@ -174,12 +174,18 @@ export interface WsClient {
 /** Opens /v1/ws via fetch with Upgrade header, accepts, waits for hello, sends resume, waits for ready. */
 export async function connectWs(
   token: string,
-  opts: { mode?: "full" | "notify"; deviceId?: string; resume?: { epoch: string | null; last_seq: number | null } } = {},
+  opts: {
+    mode?: "full" | "notify";
+    deviceId?: string;
+    resume?: { epoch: string | null; last_seq: number | null };
+    /** extra upgrade request headers (e.g. Accept-Language, v0.1.3) */
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<WsClient> {
   const mode = opts.mode ?? "full";
   const deviceId = opts.deviceId ?? newId();
   const res = await api(token).raw(`/v1/ws?mode=${mode}&device_id=${encodeURIComponent(deviceId)}`, {
-    headers: { Upgrade: "websocket" },
+    headers: { ...opts.headers, Upgrade: "websocket" },
   });
   const ws = res.webSocket;
   if (res.status !== 101 || !ws) throw new Error(`ws upgrade failed: ${res.status} ${await res.text()}`);

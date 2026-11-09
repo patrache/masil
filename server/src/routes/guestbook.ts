@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
+import { alertSpec } from "../lib/alerts";
 import { getAuth, isSuspendedNow, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, decodeCursor, encodeCursor, first, parseLimit, run } from "../lib/db";
 import { err } from "../lib/errors";
@@ -116,12 +117,12 @@ guestbookRoutes.post("/users/:user/guestbook", requireAuth, limit("RL_POST"), vJ
       subject: { type: "guestbook_entry", id: row.id },
       preview: plainSnippet(row.body, 100),
       dedupeKey: `guestbook_entry:${row.id}`,
-      alert: {
-        kind: "social",
-        title: `${name}님의 방명록`,
-        body: plainSnippet(row.body, 200),
-        target: { type: "user", id: owner.id, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
-      },
+      alert: alertSpec(
+        "social",
+        { id: "social.guestbook", params: { actor: name } },
+        { type: "user", id: owner.id, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null },
+        plainSnippet(row.body, 200),
+      ),
     });
   }
   return c.json({ entry: entry! }, 201);
