@@ -1,0 +1,209 @@
+// Package fsroot is the owner-side gate to the shared folder: every file
+// access goes through an os.Root, peer paths are cleaned and checked (links
+// followed to their real target) against the secret deny list and the
+// ignore rules, and text files are classified, saved atomically and watched
+// for outside changes.
+package fsroot
+
+import (
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+)
+
+// maxLinkHops bounds symlink resolution in Check (like the kernel's ELOOP).
+const maxLinkHops = 40
+
+// Root is an opened shared folder.
+type Root struct {
+	dir  string // absolute path as opened
+	real string // dir with symlinks evaluated (for absolute link targets)
+	root *os.Root
+}
+
+// Open opens dir (made absolute) as the folder root.
+func Open(dir string) (*Root, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(abs)
+	if err != nil {
+		return nil, err
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		real = abs
+	}
+	return &Root{dir: abs, real: real, root: root}, nil
+}
+
+// Close releases the root.
+func (r *Root) Close() error { return r.root.Close() }
+
+// Dir is the absolute folder path.
+func (r *Root) Dir() string { return r.dir }
+
+// Check validates a peer- or UI-supplied slash path and returns it cleaned.
+// Order: empty/NUL/backslash -> Invalid; absolute -> Absolute; leaves the
+// folder after path.Clean -> Escape; on the deny list -> Denied; links are
+// then followed element by element (at most 40 hops): a real target outside
+// the folder -> Escape, a denied real target -> Denied, a loop -> Invalid.
+// With forPeer the ignore rules apply too (-> Ignored).
+func (r *Root) Check(rel string, forPeer bool) (string, error) {
+	clean, err := cleanRel(rel)
+	if err != nil {
+		return "", err
+	}
+	if Denied(clean) {
+		return "", reject(rel, ReasonDenied)
+	}
+	real, err := r.follow(rel, clean)
+	if err != nil {
+		return "", err
+	}
+	if Denied(real) {
+		return "", reject(rel, ReasonDenied)
+	}
+	if forPeer {
+		if err := r.checkIgnored(rel, clean, real); err != nil {
+			return "", err
+		}
+	}
+	return clean, nil
+}
+
+// resolve is the owner-side gate used by the file operations: syntax and
+// escape checks without the deny list. It returns the cleaned path and the
+// real path after links.
+func (r *Root) resolve(rel string) (clean, real string, err error) {
+	clean, err = cleanRel(rel)
+	if err != nil {
+		return "", "", err
+	}
+	real, err = r.follow(rel, clean)
+	if err != nil {
+		return "", "", err
+	}
+	return clean, real, nil
+}
+
+// Lstat stats rel without following a final link. Escapes are refused both
+// here and by the os.Root itself.
+func (r *Root) Lstat(rel string) (fs.FileInfo, error) {
+	clean, err := cleanRel(rel)
+	if err != nil {
+		return nil, err
+	}
+	return r.root.Lstat(osPath(clean))
+}
+
+func cleanRel(rel string) (string, error) {
+	if rel == "" || strings.ContainsRune(rel, 0) || strings.ContainsRune(rel, '\\') {
+		return "", reject(rel, ReasonInvalid)
+	}
+	if strings.HasPrefix(rel, "/") || hasDrive(rel) {
+		return "", reject(rel, ReasonAbsolute)
+	}
+	clean := path.Clean(rel)
+	if escapes(clean) {
+		return "", reject(rel, ReasonEscape)
+	}
+	return clean, nil
+}
+
+func hasDrive(p string) bool {
+	if len(p) < 2 || p[1] != ':' {
+		return false
+	}
+	c := p[0] | 0x20
+	return c >= 'a' && c <= 'z'
+}
+
+func escapes(clean string) bool { return clean == ".." || strings.HasPrefix(clean, "../") }
+
+func split(clean string) []string {
+	if clean == "." || clean == "" {
+		return nil
+	}
+	return strings.Split(clean, "/")
+}
+
+func joinRel(els []string) string {
+	if len(els) == 0 {
+		return "."
+	}
+	return strings.Join(els, "/")
+}
+
+func osPath(clean string) string { return filepath.FromSlash(clean) }
+
+// follow resolves every symlink along clean and returns the real slash path
+// inside the folder. Missing elements end the walk: the rest is appended as
+// is (a file that does not exist yet cannot be a link).
+func (r *Root) follow(rel, clean string) (string, error) {
+	segs := split(clean)
+	var done []string
+	hops := 0
+	for len(segs) > 0 {
+		seg := segs[0]
+		segs = segs[1:]
+		cand := joinRel(append(done[:len(done):len(done)], seg))
+		fi, err := r.root.Lstat(osPath(cand))
+		if err != nil {
+			done = append(done, seg)
+			done = append(done, segs...)
+			break
+		}
+		if fi.Mode()&fs.ModeSymlink == 0 {
+			done = append(done, seg)
+			continue
+		}
+		hops++
+		if hops > maxLinkHops {
+			return "", reject(rel, ReasonInvalid)
+		}
+		target, err := r.root.Readlink(osPath(cand))
+		if err != nil {
+			return "", reject(rel, ReasonInvalid)
+		}
+		var next string
+		if filepath.IsAbs(target) || strings.HasPrefix(filepath.ToSlash(target), "/") {
+			in, ok := r.insideAbs(target)
+			if !ok {
+				return "", reject(rel, ReasonEscape)
+			}
+			next = in
+		} else {
+			next = path.Clean(path.Join(joinRel(done), filepath.ToSlash(target)))
+			if escapes(next) {
+				return "", reject(rel, ReasonEscape)
+			}
+		}
+		segs = append(split(next), segs...)
+		done = nil
+	}
+	return joinRel(done), nil
+}
+
+// insideAbs maps an absolute link target to a slash path inside the folder.
+func (r *Root) insideAbs(target string) (string, bool) {
+	target = filepath.Clean(target)
+	for _, base := range []string{r.dir, r.real} {
+		rel, err := filepath.Rel(base, target)
+		if err != nil {
+			continue
+		}
+		rel = filepath.ToSlash(rel)
+		if !escapes(rel) && !filepath.IsAbs(rel) {
+			return path.Clean(rel), true
+		}
+	}
+	return "", false
+}
+
+// checkIgnored is filled in by the ignore rules (Task 8); with no ignorer
+// configured nothing is ignored.
+func (r *Root) checkIgnored(rel, clean, real string) error { return nil }
