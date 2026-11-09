@@ -500,8 +500,12 @@ func (t *Tool) heldAnswer(ctx *ui.Context, m dialogMsg) tea.Cmd {
 	he := sd.held
 	sd.held = nil
 	switch m.Choice {
-	case 1: // share anyway
-		t.sendOps(sd, he.ops)
+	case 1: // share the shown field anyway; the next one is asked about
+		t.sendOps(sd, he.ops[:1])
+		if len(he.ops) > 1 {
+			sd.held = &heldEdit{ops: he.ops[1:], held: he.held[1:]}
+			return t.heldDialog(ctx, sd)
+		}
 		return nil
 	case 0: // make it a variable
 		name := strings.TrimSpace(m.Input)

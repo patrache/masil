@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/patrache/masil/internal/apitool"
+	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
@@ -103,4 +104,33 @@ func TestSaveOverwriteDoesNotFollowSymlink(t *testing.T) {
 	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %v", fi.Mode().Perm())
 	}
+}
+
+// "Share anyway" on the held question shares only the field it shows; a
+// second held field is asked about next and stays here until answered.
+func TestHeldShareAnywayOnlyShown(t *testing.T) {
+	const key2 = "q8Zr3Kp9Lm2Xw7Tb5Nc4Vh6Jd1Fs0Gy"
+	hub := collabtest.New(t)
+	seedShared(hub, sharedCollection("https://api.example.com"))
+	h := openAPI(t, uitest.WithCollab(hub))
+	tl := openShared(t, h, "r-get")
+	tl.req.Headers = []apitool.KV{{Key: "Authorization", Value: "Bearer " + testJWT}}
+	tl.req.Query = []apitool.KV{{Key: "api_key", Value: key2}}
+	tl.ed.load(tl.req)
+	h.Send(syncNowMsg{t: tl})
+	waitFor(t, h, "the held question", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	settle(h)
+	h.Press("down", "enter") // 그래도 올리기
+	waitFor(t, h, "one secret on the hub", func() bool {
+		return strings.Contains(opsText(hub), testJWT) || strings.Contains(opsText(hub), key2)
+	})
+	waitFor(t, h, "the question about the other field", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	settle(h)
+	if strings.Contains(opsText(hub), testJWT) && strings.Contains(opsText(hub), key2) {
+		t.Fatalf("share anyway sent a field it never showed: %s", opsText(hub))
+	}
+	h.Press("down", "enter")
+	waitFor(t, h, "both secrets on the hub", func() bool {
+		return strings.Contains(opsText(hub), testJWT) && strings.Contains(opsText(hub), key2)
+	})
 }
