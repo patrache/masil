@@ -139,4 +139,15 @@ describe("leet boards", () => {
     expect((await api(f1.token).get<any>("/v1/leet/friends/board")).body.items.map((x: any) => x.user.id)).toContain(f1.user.id);
     expect((await api(f1.token).patch<any>("/v1/me/settings", { leet_share_with_friends: "no" })).status).toBe(400);
   });
+
+  // review: api.md 5.25 — #daily means enabled = 1; turned off, the board is empty even though channel_id is kept
+  it("space board: #daily turned off -> items []", async () => {
+    const [o, a] = await Promise.all([signup(), signup()]);
+    const s = await dailySpace(o, [a]);
+    await report(o);
+    await solve(a, today(), [s.spaceId]);
+    expect((await board(o, s.spaceId)).body.items).toHaveLength(1);
+    expect((await api(o.token).put<any>(`/v1/spaces/${s.spaceId}/leet`, { enabled: false })).status).toBe(200);
+    expect((await board(o, s.spaceId)).body).toEqual({ period: "all", items: [] });
+  });
 });

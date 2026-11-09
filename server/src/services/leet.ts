@@ -453,7 +453,7 @@ export interface LeetBoardEntry {
 /**
  * The space's board: current members, not suspended now, with live leet.solve cards of their own in the space's #daily
  * channel whose data.date is in the period. solved = distinct card days; streak = the member's current streak over
- * all their records. Order: solved desc, streak desc, handle asc. No #daily channel -> [].
+ * all their records. Order: solved desc, streak desc, handle asc. No #daily (off, or its channel deleted) -> [].
  */
 export async function spaceBoard(db: D1Database, spaceId: string, period: BoardPeriod): Promise<LeetBoardEntry[]> {
   const t = now();
@@ -467,7 +467,7 @@ export async function spaceBoard(db: D1Database, spaceId: string, period: BoardP
                       AND m.card_json IS NOT NULL AND json_extract(m.card_json, '$.type') = 'leet.solve'
        JOIN space_members sm ON sm.space_id = ls.space_id AND sm.user_id = m.author_id
        JOIN users u ON u.id = m.author_id
-      WHERE ls.space_id = ?1
+      WHERE ls.space_id = ?1 AND ls.enabled = 1
         AND (?2 IS NULL OR json_extract(m.card_json, '$.data.date') >= ?2)
         AND NOT (u.suspended_at IS NOT NULL AND (u.suspended_until IS NULL OR u.suspended_until > ?3))
       GROUP BY m.author_id`,
