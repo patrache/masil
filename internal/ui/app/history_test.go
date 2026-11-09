@@ -174,6 +174,50 @@ func TestPlaceExists(t *testing.T) {
 	}
 }
 
+// One-shot screens (the sns editor, the story viewer) are never recorded; a space
+// whose settings were open is gone once it left the Store.
+func TestHistoryOneShotAndGoneSpace(t *testing.T) {
+	for _, r := range []ui.Route{{Kind: ui.RouteCompose, Arg: "post"}, {Kind: ui.RouteStories, ID: "U1"}} {
+		for _, l := range []histLoc{{Front: FrontFeed, Route: r}, tabLoc(homeR, r)} {
+			if !l.oneShot() {
+				t.Errorf("%s must be one-shot", l.key())
+			}
+		}
+	}
+	for _, l := range []histLoc{tabLoc(homeR, homeR), tabLoc(ch("C1"), thr("R", "C1")), {Front: FrontFeed, Route: post("P")}} {
+		if l.oneShot() {
+			t.Errorf("%s must be a place", l.key())
+		}
+	}
+	// back from an unrecorded one-shot screen lands on the place it was opened from
+	var h history
+	dm, feed := tabLoc(ch("D1"), ch("D1")), histLoc{Front: FrontFeed, Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}}
+	h.note(dm)
+	h.note(feed)
+	compose := histLoc{Front: FrontFeed, Route: ui.Route{Kind: ui.RouteCompose, Arg: "post"}}
+	if i := h.target(-1, compose, always); i != 1 {
+		t.Fatalf("back from compose: %d, want 1 (the feed)", i)
+	}
+	if i := h.target(-1, feed, always); i != 0 {
+		t.Fatalf("back from the feed: %d, want 0", i)
+	}
+	st := store.New()
+	st.Spaces["S1"] = &api.SpaceDetail{}
+	settings := func(id string) histLoc {
+		return tabLoc(homeR, ui.Route{Kind: ui.RouteSpaceSettings, ID: id})
+	}
+	if !placeExists(st, settings("S9")) {
+		t.Error("not bootstrapped yet: an unknown space is not gone")
+	}
+	st.Sync.Bootstrapped = true
+	if placeExists(st, settings("S9")) {
+		t.Error("settings of a space I left must be gone")
+	}
+	if !placeExists(st, settings("S1")) {
+		t.Error("settings of my space must exist")
+	}
+}
+
 // The ? help lists the history keys (전역) and thread.channel (메시지) as bound.
 func TestHelpRowsHistory(t *testing.T) {
 	km, _ := keymap.Load(map[string][]string{"nav.history_forward": {"L"}})

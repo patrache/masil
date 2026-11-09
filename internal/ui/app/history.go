@@ -55,6 +55,17 @@ func (n NavState) loc() histLoc {
 	return histLoc{Front: FrontTab, Root: root, Route: plain(r)}
 }
 
+// oneShot reports whether l shows a screen that closes itself once done (the sns
+// editor after posting or a discard, the story viewer at its end): it is no place,
+// so a walk never reopens it.
+func (l histLoc) oneShot() bool {
+	switch l.Route.Kind {
+	case ui.RouteCompose, ui.RouteStories:
+		return true
+	}
+	return false
+}
+
 // history is the recorded places and the index of the current one.
 type history struct {
 	locs []histLoc
@@ -82,9 +93,15 @@ func (h *history) note(l histLoc) {
 func (h *history) reset() { h.locs, h.cur = nil, 0 }
 
 // target is the index the next walk in direction delta (-1 back, +1 forward) lands
-// on: the nearest place that still exists and differs from now; -1 when none.
+// on: the nearest place that still exists and differs from now; -1 when none. When
+// now is not the current entry (a one-shot screen, never recorded) going back starts
+// at the current entry: the place it was opened from.
 func (h *history) target(delta int, now histLoc, exists func(histLoc) bool) int {
-	for i := h.cur + delta; i >= 0 && i < len(h.locs); i += delta {
+	start := h.cur + delta
+	if delta < 0 && h.cur < len(h.locs) && h.locs[h.cur].key() != now.key() {
+		start = h.cur
+	}
+	for i := start; i >= 0 && i < len(h.locs); i += delta {
 		if l := h.locs[i]; l.key() != now.key() && exists(l) {
 			return i
 		}
@@ -94,7 +111,8 @@ func (h *history) target(delta int, now histLoc, exists func(histLoc) bool) int 
 
 // placeExists reports whether the conversations l needs are still there: a channel
 // root or thread whose channel left the Store after bootstrap (deleted, the space
-// left) or a DM with someone I blocked is gone. Other places always exist.
+// left), a DM with someone I blocked, or the settings of a space that left the Store
+// is gone. Other places always exist.
 func placeExists(st *store.Store, l histLoc) bool {
 	if l.Front != FrontTab {
 		return true
@@ -115,6 +133,9 @@ func placeExists(st *store.Store, l histLoc) bool {
 	}
 	if l.Root.Kind == ui.RouteChannel && !known(l.Root.ID) {
 		return false
+	}
+	if l.Route.Kind == ui.RouteSpaceSettings {
+		return st.Spaces[l.Route.ID] != nil || !st.Sync.Bootstrapped
 	}
 	return l.Route.Kind != ui.RouteThread || known(l.Route.Arg)
 }
@@ -168,13 +189,15 @@ func (n NavState) restore(l histLoc, mode layout.Mode) (NavState, FocusIntent) {
 }
 
 // noteHistory records the place shown after an Update (CA 5.3.3 "기록"); logged out
-// there is no history.
+// there is no history, and a one-shot screen is no place.
 func (m *Model) noteHistory() {
 	if m.login != nil || m.creds == nil {
 		m.hist.reset()
 		return
 	}
-	m.hist.note(m.nav.loc())
+	if l := m.nav.loc(); !l.oneShot() {
+		m.hist.note(l)
+	}
 }
 
 // historyTarget is m.hist.target for the current state and Store.

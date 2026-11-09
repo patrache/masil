@@ -271,6 +271,51 @@ func TestHistoryChainAcrossSurfaces(t *testing.T) {
 	})
 }
 
+// The sns editor is no place (it closes itself after posting or a discard): back from
+// the feed after it goes to the place before the feed, never into the closed editor.
+func TestHistorySkipsCompose(t *testing.T) {
+	forHistorySizes(t, func(t *testing.T, sz uitest.Size) {
+		h := newHistoryHarness(t, sz)
+		openDM(h)
+		h.Press("f")
+		feed := mainKey(h)
+		r := ui.Route{Kind: ui.RouteCompose, Arg: "post"}
+		h.Send(ui.NavigateMsg{Route: r})
+		mustMain(t, h, "open", r.Key())
+		h.Send(ui.BackMsg{}) // what compose sends after posting
+		mustMain(t, h, "closed", feed)
+		h.Press("ctrl+o")
+		mustMain(t, h, "back", dmKey)
+		h.Press("alt+right")
+		mustMain(t, h, "forward", feed)
+	})
+}
+
+// 지휘소: a tab switch after opening a post in the feed column is a place, so back
+// returns through the tabs visited.
+func TestHistoryCommandTabSwitch(t *testing.T) {
+	h := uitest.New(t, historyAPI(t), uitest.WithSeed(productSeed))
+	h.Resize(200, 60)
+	if got := h.Model.Frame().Layout.Mode; got != layout.ModeCommand {
+		t.Fatalf("mode %v, want command", got)
+	}
+	openDM(h)
+	openDev(h)
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteProfile, ID: "@dev_kim"}, Target: ui.TargetSide})
+	h.Press("]")
+	first := mainKey(h)
+	if first == devKey {
+		t.Fatal("] did not switch tabs")
+	}
+	h.Press("]")
+	second := mainKey(h)
+	if second == first {
+		t.Fatal("] did not switch tabs again")
+	}
+	h.Press("ctrl+o")
+	mustMain(t, h, "back", first)
+}
+
 // Places that are gone (deleted channel, blocked DM) are skipped.
 func TestHistorySkipsGonePlaces(t *testing.T) {
 	forHistorySizes(t, func(t *testing.T, sz uitest.Size) {
@@ -302,17 +347,27 @@ func TestHistorySkipsGonePlaces(t *testing.T) {
 	})
 }
 
-// esc in a reply box with nothing typed leaves the input and the thread at once; with
-// a draft the first esc only leaves the input (the draft is kept).
+// esc in a reply box only leaves the input (empty, right after sending, or with a
+// draft, which is kept); the thread stays open so j/k and reactions work there, and a
+// second esc goes back to the conversation.
 func TestHistoryEscFromReplyBox(t *testing.T) {
 	forHistorySizes(t, func(t *testing.T, sz uitest.Size) {
 		thread := devThreadKey(t)
+		escTwice := func(t *testing.T, h *uitest.Harness) {
+			t.Helper()
+			h.Press("esc")
+			mustMain(t, h, "esc 1", thread)
+			if c, ok := h.Instance(thread).(ui.InputCapturer); ok && c.CapturesInput() {
+				t.Fatal("esc 1 must leave the reply box")
+			}
+			h.Press("esc")
+			mustMain(t, h, "esc 2", devKey)
+		}
 		t.Run("empty", func(t *testing.T) {
 			h := newHistoryHarness(t, sz)
 			openDevThread(h)
 			h.Press("i")
-			h.Press("esc")
-			mustMain(t, h, "esc", devKey)
+			escTwice(t, h)
 		})
 		t.Run("after sending", func(t *testing.T) {
 			h := newHistoryHarness(t, sz)
@@ -320,20 +375,32 @@ func TestHistoryEscFromReplyBox(t *testing.T) {
 			h.Press("i")
 			h.Type("ok")
 			h.Press("enter")
-			h.Press("esc")
-			mustMain(t, h, "esc", devKey)
+			escTwice(t, h)
 		})
 		t.Run("draft", func(t *testing.T) {
 			h := newHistoryHarness(t, sz)
 			openDevThread(h)
 			h.Press("i")
 			h.Type("초안")
-			h.Press("esc")
-			mustMain(t, h, "esc 1", thread)
-			h.Press("esc")
-			mustMain(t, h, "esc 2", devKey)
+			escTwice(t, h)
 		})
 	})
+}
+
+// Standard (a thread pane): esc in an empty reply box leaves the input only, the
+// thread pane stays open.
+func TestHistoryEscFromReplyBoxStandard(t *testing.T) {
+	h := uitest.New(t, historyAPI(t), uitest.WithSeed(productSeed))
+	h.Resize(120, 40)
+	openDevThread(h)
+	h.Press("i")
+	h.Press("esc")
+	if th := h.Nav().Tabs[h.Nav().Active].Thread; th == nil {
+		t.Fatal("esc in an empty reply box must keep the thread pane open")
+	}
+	if h.Model.Focus().Slot != layout.SlotThread {
+		t.Fatalf("focus %v, want the thread pane", h.Model.Focus().Slot)
+	}
 }
 
 // ctrl+o goes back while a chat message is being typed (the draft is kept);

@@ -539,13 +539,9 @@ func (v *threadView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.
 	v.syncComposer(ctx)
 	if v.composer.focused() {
 		wasEmpty := v.composer.c.Value() == ""
-		leave := ctx.Keys.Matches(msg, keymap.ComposeLeave) && wasEmpty && v.composer.editing == nil && !v.composer.completing()
 		handled, cmd := v.composer.handleKey(ctx, msg)
 		if ctx.Keys.Matches(msg, keymap.ComposeSend) && !wasEmpty && v.composer.editing == nil && v.composer.c.Value() == "" {
 			cmd = tea.Batch(cmd, v.afterSend(ctx))
-		}
-		if leave { // nothing typed: one esc leaves the reply box and the thread (CA 5.3.3)
-			cmd = tea.Batch(cmd, ui.Back())
 		}
 		return handled, cmd
 	}
