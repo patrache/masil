@@ -114,7 +114,55 @@ func (m *canvasModel) bottleneckText(t *i18n.T) string {
 		return ""
 	}
 	bn := r.Bottleneck
-	return t.Archcanvas.MetricBottleneck(m.label(bn.Target), limitName(t, bn.Limit), max(bn.UtilPermille, 0)/10)
+	return t.Archcanvas.MetricBottleneck(m.label(bn.Target), limitName(t, bn.Limit), max(bn.UtilPermille, 0)/10,
+		humanize.Grouped(int64(max(bn.Demand, 0))), unitText(bn.Limit, bn.PerUnitMilli))
+}
+
+// milliDec is a thousandth as a decimal with no trailing zeros ("1250" → "1.25").
+func milliDec(milli int) string {
+	milli = max(milli, 0)
+	s := humanize.Grouped(int64(milli / 1000))
+	if f := milli % 1000; f != 0 {
+		s += "." + strings.TrimRight(strconv.Itoa(1000 + f)[1:], "0")
+	}
+	return s
+}
+
+// unitText is what one request uses of the limited resource ("8ms",
+// "1.25 IOPS", "18KB", "1"): archsim.Bottleneck.PerUnitMilli in its unit.
+func unitText(l archsim.LimitKind, perUnitMilli int) string {
+	switch l {
+	case archsim.LimitCPU, archsim.LimitPool:
+		return milliDec(perUnitMilli) + "ms" // CPU µs = milli-ms
+	case archsim.LimitIOPS:
+		return milliDec(perUnitMilli) + " IOPS"
+	case archsim.LimitNIC, archsim.LimitLink:
+		return milliDec(perUnitMilli) + "KB"
+	}
+	return milliDec(perUnitMilli)
+}
+
+// bottleneckStyle: danger from 100%, else warning.
+func (m *canvasModel) bottleneckStyle() sty {
+	if r := m.result; r != nil && r.Bottleneck != nil && r.Bottleneck.UtilPermille >= 1000 {
+		return sErr
+	}
+	return sWarn
+}
+
+// topCosts is "비용 상위 결제 API 41% · 주 DB 28%" — each node's share of
+// the total ("" = no costs). The share keeps "$" to the one estimated total.
+func (m *canvasModel) topCosts(t *i18n.T) string {
+	r := m.result
+	if r == nil || r.Cost.TotalUSDMonth <= 0 || len(r.Cost.Top3) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, id := range r.Cost.Top3 {
+		share := r.Cost.ByNode[id] * 100 / r.Cost.TotalUSDMonth
+		parts = append(parts, m.label(id)+" "+strconv.Itoa(share)+"%")
+	}
+	return t.Archcanvas.TopCosts(strings.Join(parts, " · "))
 }
 
 // traffic is the summed client traffic and the first client's model.
@@ -192,10 +240,13 @@ func (m *canvasModel) drawMetrics(ctx *ui.Context, b *buf, r layout.Rect) {
 				row0 += "  ✕ " + t.MetricOverloaded()
 			}
 		}
+		if tc := m.topCosts(ctx.T); tc != "" {
+			row0 += "  ·  " + tc
+		}
 		b.line(r.X+1, r.Y, r.W-2, row0, sBase)
 		x := r.X + 1 + b.text(r.X+1, r.Y+1, cost, r.W-2, sBase)
 		if bn != "" {
-			b.text(x, r.Y+1, textwidth.Truncate("  ·  "+bn, max(r.X+r.W-1-x, 0), "…"), max(r.X+r.W-1-x, 0), sWarn)
+			b.text(x, r.Y+1, textwidth.Truncate("  ·  "+bn, max(r.X+r.W-1-x, 0), "…"), max(r.X+r.W-1-x, 0), m.bottleneckStyle())
 		}
 		b.line(r.X+1, r.Y+2, r.W-2, m.checksLine(ctx.T), sDim)
 		return

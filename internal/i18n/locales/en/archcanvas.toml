@@ -41,8 +41,26 @@ other = "{targets}: VPC outside a region"
 [checks_label]
 other = "Checks"
 
+[choice_custom]
+other = "Custom"
+
+[choice_none]
+other = "None"
+
+[choice_off]
+other = "Off"
+
+[choice_on]
+other = "On"
+
+[choice_region_box]
+other = "From box"
+
 [connect_exists]
 other = "Already connected"
+
+[connect_pick]
+other = "Connect to…"
 
 [cost_long]
 other = "About ${usd}/mo (estimate · {asof} prices · on-demand · excludes tax, discounts and free tiers)"
@@ -62,6 +80,15 @@ other = "spike"
 [curve_wave]
 other = "wave"
 
+[disk_hdd]
+other = "HDD"
+
+[disk_ssd]
+other = "General SSD"
+
+[disk_ssd_fast]
+other = "Fast SSD"
+
 [empty_canvas]
 other = "Press a to add a component"
 
@@ -74,6 +101,168 @@ other = "Another engine version made these numbers; they may differ slightly"
 [estimate_disclaimer]
 other = "Estimates; actual bills may differ"
 
+[field_autoscale]
+other = "Autoscale"
+
+[field_autoscale_max]
+other = "Max instances"
+
+[field_autoscale_min]
+other = "Min instances"
+
+[field_autoscale_target]
+other = "Target CPU %"
+
+[field_cooldown]
+other = "Cool-down s"
+
+[field_cpu_cores]
+other = "CPU cores"
+
+[field_cpu_per_req]
+other = "CPU µs per request"
+
+[field_curve]
+other = "Shape"
+
+[field_custom_hourly]
+other = "Hourly price ¢"
+
+[field_disk_iops]
+other = "Disk IOPS"
+
+[field_disk_size]
+other = "Disk GB"
+
+[field_disk_type]
+other = "Disk type"
+
+[field_duration]
+other = "Run length s"
+
+[field_edge_read]
+other = "Read share %"
+
+[field_edge_write]
+other = "Write share %"
+
+[field_error_rate]
+other = "Error rate ‰"
+
+[field_failover_s]
+other = "Failover s"
+
+[field_failover_to]
+other = "Failover to"
+
+[field_fixed_latency]
+other = "Fixed latency ms"
+
+[field_health]
+other = "Health check s"
+
+[field_hit]
+other = "Hit rate %"
+
+[field_index_write]
+other = "Index writes ‰"
+
+[field_instance_type]
+other = "Type"
+
+[field_instances]
+other = "Instances"
+
+[field_label]
+other = "Label"
+
+[field_latency]
+other = "Latency µs"
+
+[field_lb_algo]
+other = "Balancing"
+
+[field_max_rps]
+other = "Max per second"
+
+[field_mbps]
+other = "Bandwidth Mbps"
+
+[field_memory]
+other = "Memory GiB"
+
+[field_nic]
+other = "Bandwidth Mbps"
+
+[field_pool]
+other = "Pool size"
+
+[field_protocol]
+other = "Protocol"
+
+[field_provider]
+other = "Provider"
+
+[field_queue_cap]
+other = "Queue cap"
+
+[field_read_iops]
+other = "Read IOPS‰"
+
+[field_read_pct]
+other = "Reads %"
+
+[field_region]
+other = "Region"
+
+[field_region_code]
+other = "Region code"
+
+[field_repl_lag]
+other = "Replica lag ms"
+
+[field_req_kb]
+other = "Request KB"
+
+[field_resp_kb]
+other = "Response KB"
+
+[field_retention]
+other = "Retention"
+
+[field_retries]
+other = "Retries"
+
+[field_rps]
+other = "Requests/s"
+
+[field_seed]
+other = "Seed"
+
+[field_spike_at]
+other = "Spike at s"
+
+[field_spike_dur]
+other = "Spike length s"
+
+[field_spike_mult]
+other = "Spike ×"
+
+[field_timeout]
+other = "Timeout ms"
+
+[field_ttl]
+other = "TTL s"
+
+[field_warmup]
+other = "Warm-up s"
+
+[field_working_set]
+other = "Working set MiB"
+
+[field_write_iops]
+other = "Write IOPS‰"
+
 [find_none]
 other = "No node matches '{q}'"
 
@@ -82,6 +271,12 @@ other = "These numbers are approximations from queueing formulas. Use them to co
 
 [help_title]
 other = "Architecture design help"
+
+[hourly_price]
+other = "~${usd}/h (estimate · {asof} prices)"
+
+[invalid_value]
+other = "That value cannot be used"
 
 [key_add]
 other = "Add"
@@ -103,6 +298,9 @@ other = "Connect"
 
 [key_delete]
 other = "Delete"
+
+[key_edit]
+other = "edit"
 
 [key_fault]
 other = "Faults"
@@ -197,6 +395,12 @@ other = "search"
 [kind_worker]
 other = "worker"
 
+[lb_least_conn]
+other = "Least connections"
+
+[lb_round_robin]
+other = "Round robin"
+
 [limit_cpu]
 other = "CPU"
 
@@ -243,7 +447,7 @@ other = "Fault"
 other = "Settings"
 
 [metric_bottleneck]
-other = "bottleneck ⚠ {label} {limit} {util}%"
+other = "bottleneck ⚠ {label} · {limit} {util}% ({demand}/s × {unit})"
 
 [metric_err]
 other = "errors {pct}%"
@@ -262,6 +466,9 @@ other = "Total"
 
 [narrow_no_drag]
 other = "Dragging needs 60 columns or more · edit in the list"
+
+[node_deleted]
+other = "Someone deleted it, so its settings closed"
 
 [palette_boxes]
 other = "Boxes"
@@ -342,6 +549,12 @@ other = "Traffic model"
 [panel_util]
 other = "utilization {pct}%"
 
+[proto_async]
+other = "Async queue"
+
+[range_hint]
+other = "A number from {min} to {max}"
+
 [read_only_copy]
 other = "Copy · read-only"
 
@@ -387,6 +600,9 @@ other = "Please enlarge the window"
 
 [tool_name]
 other = "Architecture design"
+
+[top_costs]
+other = "Top costs {list}"
 
 [traffic_hint]
 other = "A client is where traffic starts"

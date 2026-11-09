@@ -2,7 +2,6 @@ package arch
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/patrache/masil/internal/archdoc"
 	"github.com/patrache/masil/internal/archdraw"
@@ -48,10 +47,14 @@ func (m *canvasModel) panelLines(ctx *ui.Context) []panelLine {
 		ls := []panelLine{{s: title, st: sAccBold}, {s: kindName(ctx.T, n.Kind), st: sDim}}
 		if n.Provider != "" {
 			typ := cleanText(n.InstanceType)
-			if typ == "" || n.CustomHourlyMicroUSD > 0 {
-				typ = t.PanelCustomType()
+			switch {
+			case n.Provider == "custom":
+				ls = append(ls, panelLine{s: t.PanelCustomType()})
+			case typ == "" || typ == "custom":
+				ls = append(ls, panelLine{s: providerName(ctx.T, n.Provider) + " " + t.PanelCustomType()})
+			default:
+				ls = append(ls, panelLine{s: providerName(ctx.T, n.Provider) + " " + typ})
 			}
-			ls = append(ls, panelLine{s: strings.ToUpper(cleanText(n.Provider)) + " " + typ})
 		}
 		inst := t.PanelInstances(n.Instances)
 		if n.Autoscale.Enabled {
@@ -62,25 +65,7 @@ func (m *canvasModel) panelLines(ctx *ui.Context) []panelLine {
 			panelLine{s: inst},
 			panelLine{s: t.PanelNic(gbps(n.NICMbps))},
 		)
-		if nr, ok := m.result.Nodes[n.ID]; ok {
-			util := t.PanelUtil(max(nr.UtilPermille, 0) / 10)
-			st := sBase
-			switch {
-			case nr.Down:
-				util, st = "✕ "+t.PanelDown(), sErr
-			case nr.Overloaded:
-				util, st = util+" ✕ "+t.MetricOverloaded(), sErr
-			case nr.UtilPermille >= 800:
-				st = sWarn
-			}
-			ls = append(ls, rule(t.PanelResult()),
-				panelLine{s: util, st: st},
-				panelLine{s: t.PanelLatency(archdraw.FormatMs(nr.P50Ms), archdraw.FormatMs(nr.P99Ms))},
-				panelLine{s: t.MetricErr(pct1(nr.ErrPermille))},
-				panelLine{s: m.costShort(ctx, nr.CostUSDMonth), wrap: true},
-			)
-		}
-		return ls
+		return append(ls, m.resultLines(ctx, selection{obj: archdoc.ObjKey('n', n.ID), node: n})...)
 	}
 	if bx := m.box(m.sel); bx != nil {
 		count := 0
@@ -150,6 +135,10 @@ func (m *canvasModel) drawPanel(ctx *ui.Context, b *buf, r layout.Rect) {
 		b.set(r.X, y, "│", 1, sLine)
 	}
 	inner := r.W - 3
+	if m.mode == modePanel {
+		m.drawForm(ctx, b, r, r.X+2, inner)
+		return
+	}
 	y := r.Y
 	for _, l := range m.panelLines(ctx) {
 		parts := []string{l.s}

@@ -69,11 +69,7 @@ func (m *canvasModel) runMenu(ctx *ui.Context, a menuAction) tea.Cmd {
 	switch a {
 	case menuSettings:
 		m.sel = target
-		m.mode = modePanel
-		if m.regs.PanelDrawer {
-			m.drawer.panel = true
-			m.layout()
-		}
+		m.openPanel()
 	case menuDelete:
 		if ro, cmd := m.readOnly(ctx); ro {
 			return cmd

@@ -27,6 +27,7 @@ type canvasModel struct {
 	scene   *archdraw.Scene
 	hidden  map[archdraw.Zoom]*archdraw.Scene // the scene without overlapping nodes, per zoom
 	oldHide map[archdraw.Zoom]*archdraw.Scene // hidden before the last rebuild (route reuse)
+	objs    archdoc.Objects                   // the design as objects (the panel reads its fields)
 	result  *archsim.Result
 	badges  map[string]archdraw.NodeBadge
 	labels  map[string]string // node and box id → sanitized label
@@ -55,6 +56,11 @@ type canvasModel struct {
 	find           string          // /: the query typed so far
 	running        bool            // space: the timed run (P3 Task 19)
 	speedX         int             // < >: the timed run's speed
+
+	// the settings panel (panel.go); panelGone: its node was deleted by
+	// someone else in the last rebuild (refresh turns it into a note)
+	panel     panelState
+	panelGone bool
 
 	// mouse (mouse.go, contextmenu.go)
 	gest *gesture // the drag in progress
@@ -150,6 +156,7 @@ func (m *canvasModel) rebuild(ctx *ui.Context) {
 		d = archdoc.New("")
 	}
 	m.design = d
+	m.objs = d.ToObjects()
 	// the routes nothing touched carry over: the first frame after an edit
 	// routes only the edges near the change (spec C2.7 frame budget)
 	m.scene = archdraw.BuildFrom(m.scene, d)
@@ -168,6 +175,10 @@ func (m *canvasModel) rebuild(ctx *ui.Context) {
 		if m.labels[b.ID] == "" {
 			m.labels[b.ID] = boxKindName(ctx.T, b.Kind)
 		}
+	}
+	if m.mode == modePanel && m.panel.target != "" && !m.exists(m.panel.target) {
+		m.closePanel()
+		m.panelGone = true
 	}
 	if m.sel != "" && !m.exists(m.sel) {
 		m.sel = ""
@@ -264,6 +275,12 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.FocusChangedMsg:
 		if msg.RouteKey != m.route.Key() {
 			m.cancelGesture()
+			if m.mode == modePanel && m.panel.editing {
+				// leaving the box commits the value (a bad one is dropped)
+				cmd := m.commitInput(ctx)
+				m.panel.editing, m.panel.input, m.panel.hint = false, "", ""
+				return cmd
+			}
 		}
 	}
 	return nil

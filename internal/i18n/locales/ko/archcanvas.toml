@@ -62,9 +62,33 @@ other = "{targets}: VPC 가 리전 밖"
 desc = "지표 줄의 점검 머리"
 other = "점검"
 
+[choice_custom]
+desc = "사업자 선택지: 직접 입력(가격표 없이 시간당 가격을 적음)"
+other = "직접 입력"
+
+[choice_none]
+desc = "선택지: 없음"
+other = "없음"
+
+[choice_off]
+desc = "켬/끔 칸의 끔"
+other = "끔"
+
+[choice_on]
+desc = "켬/끔 칸의 켬"
+other = "켬"
+
+[choice_region_box]
+desc = "리전 선택지: 감싼 리전 상자를 따름"
+other = "상자 따름"
+
 [connect_exists]
 desc = "연결하려는 두 노드가 이미 이어져 있을 때 토스트"
 other = "이미 연결돼 있어요"
+
+[connect_pick]
+desc = "설정 폼의 줄: 이 노드에서 이을 대상을 목록에서 고름"
+other = "연결 대상 고르기"
 
 [cost_long]
 desc = "월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월"
@@ -95,6 +119,18 @@ other = "급증"
 desc = "트래픽 모양 이름: wave"
 other = "물결"
 
+[disk_hdd]
+desc = "디스크 종류: HDD"
+other = "HDD"
+
+[disk_ssd]
+desc = "디스크 종류: 범용 SSD"
+other = "범용 SSD"
+
+[disk_ssd_fast]
+desc = "디스크 종류: 고성능 SSD"
+other = "고성능 SSD"
+
 [empty_canvas]
 desc = "빈 캔버스 안내 첫 줄"
 other = "a 로 부품을 추가하세요"
@@ -112,6 +148,222 @@ desc = "비용·숫자가 추정이라는 고지(법적 문구)"
 legal = true
 other = "추정치이며 실제 청구액과 다를 수 있음"
 
+[field_autoscale]
+desc = "설정 칸: 자동 확장 켬/끔"
+other = "자동 확장"
+
+[field_autoscale_max]
+desc = "설정 칸: 자동 확장 최대 대수"
+other = "최대 대수"
+
+[field_autoscale_min]
+desc = "설정 칸: 자동 확장 최소 대수"
+other = "최소 대수"
+
+[field_autoscale_target]
+desc = "설정 칸: 자동 확장 목표 CPU 사용률 %"
+other = "목표 CPU %"
+
+[field_cooldown]
+desc = "설정 칸: 자동 확장 쉬는 시간(초)"
+other = "쉬는 시간 초"
+
+[field_cpu_cores]
+desc = "설정 칸: 인스턴스 하나의 vCPU 수"
+other = "CPU 코어"
+
+[field_cpu_per_req]
+desc = "설정 칸: 요청 하나에 드는 CPU 시간(코어 1개 기준, 마이크로초)"
+other = "요청당 CPU µs"
+
+[field_curve]
+desc = "트래픽 칸: 시간에 따른 모양"
+other = "모양"
+
+[field_custom_hourly]
+desc = "설정 칸: 직접 입력 사업자의 시간당 가격(센트)"
+other = "시간당 가격 ¢"
+
+[field_disk_iops]
+desc = "설정 칸: 디스크 IOPS"
+other = "디스크 IOPS"
+
+[field_disk_size]
+desc = "설정 칸: 디스크 크기 GB"
+other = "디스크 GB"
+
+[field_disk_type]
+desc = "설정 칸: 디스크 종류"
+other = "디스크 종류"
+
+[field_duration]
+desc = "설정 칸: 시간 실행 길이(초)"
+other = "실행 시간 초"
+
+[field_edge_read]
+desc = "연결 칸: 읽기 경로 비율 %"
+other = "읽기 비율 %"
+
+[field_edge_write]
+desc = "연결 칸: 쓰기 경로 비율 %"
+other = "쓰기 비율 %"
+
+[field_error_rate]
+desc = "설정 칸: 외부 서비스 에러율 ‰"
+other = "에러율 ‰"
+
+[field_failover_s]
+desc = "설정 칸: 장애 조치 시간(초)"
+other = "장애 조치 초"
+
+[field_failover_to]
+desc = "설정 칸: 장애 조치 대상(replica)"
+other = "장애 조치 대상"
+
+[field_fixed_latency]
+desc = "설정 칸: 외부 서비스 고정 지연 ms"
+other = "고정 지연 ms"
+
+[field_health]
+desc = "설정 칸: 건강 검사 간격(초)"
+other = "건강 검사 초"
+
+[field_hit]
+desc = "설정 칸: 적중률 %"
+other = "적중률 %"
+
+[field_index_write]
+desc = "설정 칸: search 인덱싱 쓰기 비율 ‰"
+other = "인덱싱 쓰기 ‰"
+
+[field_instance_type]
+desc = "설정 칸: 인스턴스 종류"
+other = "종류"
+
+[field_instances]
+desc = "설정 칸: 인스턴스 수"
+other = "인스턴스 수"
+
+[field_label]
+desc = "설정 칸: 라벨"
+other = "라벨"
+
+[field_latency]
+desc = "연결 칸: 기본 지연 µs(-1 = 위치에 따른 기본값)"
+other = "기본 지연 µs"
+
+[field_lb_algo]
+desc = "설정 칸: LB 분산 방식"
+other = "분산 방식"
+
+[field_max_rps]
+desc = "설정 칸: 초당 처리 한도"
+other = "초당 한도"
+
+[field_mbps]
+desc = "연결 칸: 대역폭 Mbps(0 = 양 끝 NIC)"
+other = "대역폭 Mbps"
+
+[field_memory]
+desc = "설정 칸: 인스턴스 하나의 메모리(GiB 정수로 입력)"
+other = "메모리 GiB"
+
+[field_nic]
+desc = "설정 칸: 인스턴스 하나의 네트워크 대역폭 Mbps"
+other = "대역폭 Mbps"
+
+[field_pool]
+desc = "설정 칸: DB 연결 풀 상한"
+other = "연결 풀 상한"
+
+[field_protocol]
+desc = "연결 칸: 프로토콜"
+other = "프로토콜"
+
+[field_provider]
+desc = "설정 칸: 사업자"
+other = "사업자"
+
+[field_queue_cap]
+desc = "설정 칸: 대기열 상한(이보다 길면 버림)"
+other = "대기열 상한"
+
+[field_read_iops]
+desc = "설정 칸: 읽기 요청 하나가 쓰는 IOPS × 1000"
+other = "읽기 IOPS‰"
+
+[field_read_pct]
+desc = "트래픽 칸: 읽기 비율 %"
+other = "읽기 %"
+
+[field_region]
+desc = "설정 칸: 리전"
+other = "리전"
+
+[field_region_code]
+desc = "상자 칸: 리전 코드"
+other = "리전 코드"
+
+[field_repl_lag]
+desc = "설정 칸: 복제 지연 ms"
+other = "복제 지연 ms"
+
+[field_req_kb]
+desc = "트래픽 칸: 요청 크기 KB"
+other = "요청 KB"
+
+[field_resp_kb]
+desc = "트래픽 칸: 응답 크기 KB"
+other = "응답 KB"
+
+[field_retention]
+desc = "설정 칸: queue 보관 한도(메시지 수)"
+other = "보관 한도"
+
+[field_retries]
+desc = "설정 칸: 실패 시 재시도 횟수"
+other = "재시도"
+
+[field_rps]
+desc = "트래픽 칸: 초당 요청 수"
+other = "초당 요청"
+
+[field_seed]
+desc = "설정 칸: 설계의 난수 시드"
+other = "시드"
+
+[field_spike_at]
+desc = "트래픽 칸: 급증 시작 초"
+other = "급증 시작 초"
+
+[field_spike_dur]
+desc = "트래픽 칸: 급증 길이 초"
+other = "급증 길이 초"
+
+[field_spike_mult]
+desc = "트래픽 칸: 급증 배수"
+other = "급증 배수"
+
+[field_timeout]
+desc = "설정 칸: 타임아웃 ms"
+other = "타임아웃 ms"
+
+[field_ttl]
+desc = "설정 칸: 만료 초"
+other = "만료 초"
+
+[field_warmup]
+desc = "설정 칸: 새 인스턴스 준비 시간(초)"
+other = "준비 시간 초"
+
+[field_working_set]
+desc = "설정 칸: 작업 데이터 MiB"
+other = "작업 데이터 MiB"
+
+[field_write_iops]
+desc = "설정 칸: 쓰기 요청 하나가 쓰는 IOPS × 1000"
+other = "쓰기 IOPS‰"
+
 [find_none]
 desc = "찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말"
 params = { q = "string" }
@@ -125,6 +377,16 @@ other = "이 숫자는 줄서기 공식으로 만든 근사입니다. 설계끼�
 [help_title]
 desc = "도움말 첫 줄 제목"
 other = "아키텍처 설계 도움말"
+
+[hourly_price]
+desc = "설정 패널: 인스턴스 종류의 시간당 가격. usd = 달러(소수), asof = 가격표 기준 연월"
+params = { usd = "string", asof = "string" }
+no_truncate = true
+other = "시간당 ~${usd} (추정 · {asof} 가격표)"
+
+[invalid_value]
+desc = "설정 칸 값을 설계가 받지 않을 때(라벨 너무 김·금지 문자·최소 > 최대)"
+other = "이 값은 쓸 수 없어요"
 
 [key_add]
 desc = "키 안내: 부품 팔레트에서 추가"
@@ -153,6 +415,10 @@ other = "연결"
 [key_delete]
 desc = "키 안내: 삭제(확인 없음)"
 other = "삭제"
+
+[key_edit]
+desc = "키 안내: 설정 칸 고치기"
+other = "고치기"
 
 [key_fault]
 desc = "키 안내: 장애 메뉴"
@@ -278,6 +544,14 @@ other = "search"
 desc = "부품 이름: worker(팔레트·패널·새 노드의 기본 라벨)"
 other = "worker"
 
+[lb_least_conn]
+desc = "분산 방식: 최소 연결"
+other = "최소 연결"
+
+[lb_round_robin]
+desc = "분산 방식: 균등"
+other = "균등"
+
 [limit_cpu]
 desc = "병목 자원 이름: cpu"
 other = "CPU"
@@ -340,9 +614,9 @@ desc = "오른쪽 클릭 메뉴: 설정 패널 열기"
 other = "설정"
 
 [metric_bottleneck]
-desc = "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %"
-params = { label = "string", limit = "string", util = "int" }
-other = "병목 ⚠ {label} {limit} {util}%"
+desc = "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %, demand = 초당 수요(천 단위 쉼표), unit = 요청 하나가 쓰는 양(8ms, 1.25 IOPS, 18KB)"
+params = { label = "string", limit = "string", util = "int", demand = "string", unit = "string" }
+other = "병목 ⚠ {label} · {limit} {util}% ({demand}/s × {unit})"
 
 [metric_err]
 desc = "지표: 에러율. pct = 소수 한 자리 %"
@@ -369,6 +643,10 @@ other = "전체"
 [narrow_no_drag]
 desc = "60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트"
 other = "60칸보다 좁으면 끌어다 놓을 수 없어요 · 목록에서 편집하세요"
+
+[node_deleted]
+desc = "설정 중이던 노드를 다른 사람이 지워 설정 패널을 닫을 때 토스트"
+other = "다른 사람이 지워서 설정을 닫았어요"
 
 [palette_boxes]
 desc = "부품 팔레트의 상자 묶음 머리"
@@ -487,6 +765,15 @@ desc = "결과: 사용률 %"
 params = { pct = "int" }
 other = "사용률 {pct}%"
 
+[proto_async]
+desc = "연결 프로토콜: 비동기 큐"
+other = "비동기 큐"
+
+[range_hint]
+desc = "설정 칸에 범위 밖이거나 숫자가 아닌 값을 넣었을 때. min·max = 범위"
+params = { min = "string", max = "string" }
+other = "{min}~{max} 사이 숫자"
+
 [read_only_copy]
 desc = "머리 줄: 카드에서 연 읽기 전용 사본"
 other = "사본 · 읽기 전용"
@@ -552,6 +839,11 @@ other = "창을 키워 주세요"
 [tool_name]
 desc = "도구 이름(허브·팔레트·탭)"
 other = "아키텍처 설계"
+
+[top_costs]
+desc = "지표 줄: 비용 상위 3개. list = \"라벨 41%\" 를 \" · \" 로 이은 것(전체 비용 중 몫)"
+params = { list = "string" }
+other = "비용 상위 {list}"
 
 [traffic_hint]
 desc = "빈 캔버스 안내 둘째 줄: client 가 트래픽의 출발점"

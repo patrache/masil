@@ -63,7 +63,9 @@ func gridStep(d archdraw.Dir) (int, int) {
 }
 
 // CapturesInput: typing a find query never reaches the soft globals.
-func (m *canvasModel) CapturesInput() bool { return m.mode == modeFind }
+func (m *canvasModel) CapturesInput() bool {
+	return m.mode == modeFind || (m.mode == modePanel && (m.panel.editing || m.panel.pick != nil))
+}
 
 // HandleKey is the canvas keyboard (spec C2.7). Keys it does not use
 // (ctrl+k, tab, ctrl+t, [ ], the last esc …) go on to the app's globals.
@@ -93,9 +95,12 @@ func (m *canvasModel) HandleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.C
 		}
 		return !reservedGlobal(s), nil
 	case modePanel:
-		if s == "esc" {
-			m.mode = modeNormal
-			return true, nil
+		if handled, cmd, ok := m.panelKey(ctx, k, s); ok {
+			return handled, cmd
+		}
+		if s == "d" || s == "delete" {
+			// the form's delete leaves the form (its item goes)
+			m.closePanel()
 		}
 	case modeMulti:
 		if handled, cmd, ok := m.multiKey(ctx, s); ok {
@@ -204,12 +209,15 @@ func (m *canvasModel) normalKey(ctx *ui.Context, s string) (bool, tea.Cmd) {
 			}
 			return true, nil
 		}
-		m.mode = modePanel
-		if m.regs.PanelDrawer {
-			m.drawer.panel = true
-			m.layout()
-		}
+		m.openPanel()
 		return true, nil
+	case "enter":
+		if m.regs.View == viewList && m.sel != "" {
+			// the list view edits with a stacked form (the canvas keeps enter global)
+			m.openPanel()
+			return true, nil
+		}
+		return false, nil
 	case "x":
 		return true, nil // the fault menu (P3 Task 19)
 	case "ctrl+left", "ctrl+right", "ctrl+up", "ctrl+down":

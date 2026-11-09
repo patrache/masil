@@ -110,11 +110,53 @@ var areaArchcanvas = area{
 				En: {Other: "Checks"},
 			},
 		},
+		"choice_custom": {
+			desc: "사업자 선택지: 직접 입력(가격표 없이 시간당 가격을 적음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "직접 입력"},
+				En: {Other: "Custom"},
+			},
+		},
+		"choice_none": {
+			desc: "선택지: 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "없음"},
+				En: {Other: "None"},
+			},
+		},
+		"choice_off": {
+			desc: "켬/끔 칸의 끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "끔"},
+				En: {Other: "Off"},
+			},
+		},
+		"choice_on": {
+			desc: "켬/끔 칸의 켬",
+			text: map[Locale]Forms{
+				Ko: {Other: "켬"},
+				En: {Other: "On"},
+			},
+		},
+		"choice_region_box": {
+			desc: "리전 선택지: 감싼 리전 상자를 따름",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자 따름"},
+				En: {Other: "From box"},
+			},
+		},
 		"connect_exists": {
 			desc: "연결하려는 두 노드가 이미 이어져 있을 때 토스트",
 			text: map[Locale]Forms{
 				Ko: {Other: "이미 연결돼 있어요"},
 				En: {Other: "Already connected"},
+			},
+		},
+		"connect_pick": {
+			desc: "설정 폼의 줄: 이 노드에서 이을 대상을 목록에서 고름",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 대상 고르기"},
+				En: {Other: "Connect to…"},
 			},
 		},
 		"cost_long": {
@@ -164,6 +206,27 @@ var areaArchcanvas = area{
 				En: {Other: "wave"},
 			},
 		},
+		"disk_hdd": {
+			desc: "디스크 종류: HDD",
+			text: map[Locale]Forms{
+				Ko: {Other: "HDD"},
+				En: {Other: "HDD"},
+			},
+		},
+		"disk_ssd": {
+			desc: "디스크 종류: 범용 SSD",
+			text: map[Locale]Forms{
+				Ko: {Other: "범용 SSD"},
+				En: {Other: "General SSD"},
+			},
+		},
+		"disk_ssd_fast": {
+			desc: "디스크 종류: 고성능 SSD",
+			text: map[Locale]Forms{
+				Ko: {Other: "고성능 SSD"},
+				En: {Other: "Fast SSD"},
+			},
+		},
 		"empty_canvas": {
 			desc: "빈 캔버스 안내 첫 줄",
 			text: map[Locale]Forms{
@@ -193,6 +256,384 @@ var areaArchcanvas = area{
 				En: {Other: "Estimates; actual bills may differ"},
 			},
 		},
+		"field_autoscale": {
+			desc: "설정 칸: 자동 확장 켬/끔",
+			text: map[Locale]Forms{
+				Ko: {Other: "자동 확장"},
+				En: {Other: "Autoscale"},
+			},
+		},
+		"field_autoscale_max": {
+			desc: "설정 칸: 자동 확장 최대 대수",
+			text: map[Locale]Forms{
+				Ko: {Other: "최대 대수"},
+				En: {Other: "Max instances"},
+			},
+		},
+		"field_autoscale_min": {
+			desc: "설정 칸: 자동 확장 최소 대수",
+			text: map[Locale]Forms{
+				Ko: {Other: "최소 대수"},
+				En: {Other: "Min instances"},
+			},
+		},
+		"field_autoscale_target": {
+			desc: "설정 칸: 자동 확장 목표 CPU 사용률 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "목표 CPU %"},
+				En: {Other: "Target CPU %"},
+			},
+		},
+		"field_cooldown": {
+			desc: "설정 칸: 자동 확장 쉬는 시간(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "쉬는 시간 초"},
+				En: {Other: "Cool-down s"},
+			},
+		},
+		"field_cpu_cores": {
+			desc: "설정 칸: 인스턴스 하나의 vCPU 수",
+			text: map[Locale]Forms{
+				Ko: {Other: "CPU 코어"},
+				En: {Other: "CPU cores"},
+			},
+		},
+		"field_cpu_per_req": {
+			desc: "설정 칸: 요청 하나에 드는 CPU 시간(코어 1개 기준, 마이크로초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청당 CPU µs"},
+				En: {Other: "CPU µs per request"},
+			},
+		},
+		"field_curve": {
+			desc: "트래픽 칸: 시간에 따른 모양",
+			text: map[Locale]Forms{
+				Ko: {Other: "모양"},
+				En: {Other: "Shape"},
+			},
+		},
+		"field_custom_hourly": {
+			desc: "설정 칸: 직접 입력 사업자의 시간당 가격(센트)",
+			text: map[Locale]Forms{
+				Ko: {Other: "시간당 가격 ¢"},
+				En: {Other: "Hourly price ¢"},
+			},
+		},
+		"field_disk_iops": {
+			desc: "설정 칸: 디스크 IOPS",
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크 IOPS"},
+				En: {Other: "Disk IOPS"},
+			},
+		},
+		"field_disk_size": {
+			desc: "설정 칸: 디스크 크기 GB",
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크 GB"},
+				En: {Other: "Disk GB"},
+			},
+		},
+		"field_disk_type": {
+			desc: "설정 칸: 디스크 종류",
+			text: map[Locale]Forms{
+				Ko: {Other: "디스크 종류"},
+				En: {Other: "Disk type"},
+			},
+		},
+		"field_duration": {
+			desc: "설정 칸: 시간 실행 길이(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "실행 시간 초"},
+				En: {Other: "Run length s"},
+			},
+		},
+		"field_edge_read": {
+			desc: "연결 칸: 읽기 경로 비율 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 비율 %"},
+				En: {Other: "Read share %"},
+			},
+		},
+		"field_edge_write": {
+			desc: "연결 칸: 쓰기 경로 비율 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "쓰기 비율 %"},
+				En: {Other: "Write share %"},
+			},
+		},
+		"field_error_rate": {
+			desc: "설정 칸: 외부 서비스 에러율 ‰",
+			text: map[Locale]Forms{
+				Ko: {Other: "에러율 ‰"},
+				En: {Other: "Error rate ‰"},
+			},
+		},
+		"field_failover_s": {
+			desc: "설정 칸: 장애 조치 시간(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애 조치 초"},
+				En: {Other: "Failover s"},
+			},
+		},
+		"field_failover_to": {
+			desc: "설정 칸: 장애 조치 대상(replica)",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애 조치 대상"},
+				En: {Other: "Failover to"},
+			},
+		},
+		"field_fixed_latency": {
+			desc: "설정 칸: 외부 서비스 고정 지연 ms",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정 지연 ms"},
+				En: {Other: "Fixed latency ms"},
+			},
+		},
+		"field_health": {
+			desc: "설정 칸: 건강 검사 간격(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "건강 검사 초"},
+				En: {Other: "Health check s"},
+			},
+		},
+		"field_hit": {
+			desc: "설정 칸: 적중률 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "적중률 %"},
+				En: {Other: "Hit rate %"},
+			},
+		},
+		"field_index_write": {
+			desc: "설정 칸: search 인덱싱 쓰기 비율 ‰",
+			text: map[Locale]Forms{
+				Ko: {Other: "인덱싱 쓰기 ‰"},
+				En: {Other: "Index writes ‰"},
+			},
+		},
+		"field_instance_type": {
+			desc: "설정 칸: 인스턴스 종류",
+			text: map[Locale]Forms{
+				Ko: {Other: "종류"},
+				En: {Other: "Type"},
+			},
+		},
+		"field_instances": {
+			desc: "설정 칸: 인스턴스 수",
+			text: map[Locale]Forms{
+				Ko: {Other: "인스턴스 수"},
+				En: {Other: "Instances"},
+			},
+		},
+		"field_label": {
+			desc: "설정 칸: 라벨",
+			text: map[Locale]Forms{
+				Ko: {Other: "라벨"},
+				En: {Other: "Label"},
+			},
+		},
+		"field_latency": {
+			desc: "연결 칸: 기본 지연 µs(-1 = 위치에 따른 기본값)",
+			text: map[Locale]Forms{
+				Ko: {Other: "기본 지연 µs"},
+				En: {Other: "Latency µs"},
+			},
+		},
+		"field_lb_algo": {
+			desc: "설정 칸: LB 분산 방식",
+			text: map[Locale]Forms{
+				Ko: {Other: "분산 방식"},
+				En: {Other: "Balancing"},
+			},
+		},
+		"field_max_rps": {
+			desc: "설정 칸: 초당 처리 한도",
+			text: map[Locale]Forms{
+				Ko: {Other: "초당 한도"},
+				En: {Other: "Max per second"},
+			},
+		},
+		"field_mbps": {
+			desc: "연결 칸: 대역폭 Mbps(0 = 양 끝 NIC)",
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭 Mbps"},
+				En: {Other: "Bandwidth Mbps"},
+			},
+		},
+		"field_memory": {
+			desc: "설정 칸: 인스턴스 하나의 메모리(GiB 정수로 입력)",
+			text: map[Locale]Forms{
+				Ko: {Other: "메모리 GiB"},
+				En: {Other: "Memory GiB"},
+			},
+		},
+		"field_nic": {
+			desc: "설정 칸: 인스턴스 하나의 네트워크 대역폭 Mbps",
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭 Mbps"},
+				En: {Other: "Bandwidth Mbps"},
+			},
+		},
+		"field_pool": {
+			desc: "설정 칸: DB 연결 풀 상한",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 풀 상한"},
+				En: {Other: "Pool size"},
+			},
+		},
+		"field_protocol": {
+			desc: "연결 칸: 프로토콜",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로토콜"},
+				En: {Other: "Protocol"},
+			},
+		},
+		"field_provider": {
+			desc: "설정 칸: 사업자",
+			text: map[Locale]Forms{
+				Ko: {Other: "사업자"},
+				En: {Other: "Provider"},
+			},
+		},
+		"field_queue_cap": {
+			desc: "설정 칸: 대기열 상한(이보다 길면 버림)",
+			text: map[Locale]Forms{
+				Ko: {Other: "대기열 상한"},
+				En: {Other: "Queue cap"},
+			},
+		},
+		"field_read_iops": {
+			desc: "설정 칸: 읽기 요청 하나가 쓰는 IOPS × 1000",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 IOPS‰"},
+				En: {Other: "Read IOPS‰"},
+			},
+		},
+		"field_read_pct": {
+			desc: "트래픽 칸: 읽기 비율 %",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 %"},
+				En: {Other: "Reads %"},
+			},
+		},
+		"field_region": {
+			desc: "설정 칸: 리전",
+			text: map[Locale]Forms{
+				Ko: {Other: "리전"},
+				En: {Other: "Region"},
+			},
+		},
+		"field_region_code": {
+			desc: "상자 칸: 리전 코드",
+			text: map[Locale]Forms{
+				Ko: {Other: "리전 코드"},
+				En: {Other: "Region code"},
+			},
+		},
+		"field_repl_lag": {
+			desc: "설정 칸: 복제 지연 ms",
+			text: map[Locale]Forms{
+				Ko: {Other: "복제 지연 ms"},
+				En: {Other: "Replica lag ms"},
+			},
+		},
+		"field_req_kb": {
+			desc: "트래픽 칸: 요청 크기 KB",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 KB"},
+				En: {Other: "Request KB"},
+			},
+		},
+		"field_resp_kb": {
+			desc: "트래픽 칸: 응답 크기 KB",
+			text: map[Locale]Forms{
+				Ko: {Other: "응답 KB"},
+				En: {Other: "Response KB"},
+			},
+		},
+		"field_retention": {
+			desc: "설정 칸: queue 보관 한도(메시지 수)",
+			text: map[Locale]Forms{
+				Ko: {Other: "보관 한도"},
+				En: {Other: "Retention"},
+			},
+		},
+		"field_retries": {
+			desc: "설정 칸: 실패 시 재시도 횟수",
+			text: map[Locale]Forms{
+				Ko: {Other: "재시도"},
+				En: {Other: "Retries"},
+			},
+		},
+		"field_rps": {
+			desc: "트래픽 칸: 초당 요청 수",
+			text: map[Locale]Forms{
+				Ko: {Other: "초당 요청"},
+				En: {Other: "Requests/s"},
+			},
+		},
+		"field_seed": {
+			desc: "설정 칸: 설계의 난수 시드",
+			text: map[Locale]Forms{
+				Ko: {Other: "시드"},
+				En: {Other: "Seed"},
+			},
+		},
+		"field_spike_at": {
+			desc: "트래픽 칸: 급증 시작 초",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증 시작 초"},
+				En: {Other: "Spike at s"},
+			},
+		},
+		"field_spike_dur": {
+			desc: "트래픽 칸: 급증 길이 초",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증 길이 초"},
+				En: {Other: "Spike length s"},
+			},
+		},
+		"field_spike_mult": {
+			desc: "트래픽 칸: 급증 배수",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증 배수"},
+				En: {Other: "Spike ×"},
+			},
+		},
+		"field_timeout": {
+			desc: "설정 칸: 타임아웃 ms",
+			text: map[Locale]Forms{
+				Ko: {Other: "타임아웃 ms"},
+				En: {Other: "Timeout ms"},
+			},
+		},
+		"field_ttl": {
+			desc: "설정 칸: 만료 초",
+			text: map[Locale]Forms{
+				Ko: {Other: "만료 초"},
+				En: {Other: "TTL s"},
+			},
+		},
+		"field_warmup": {
+			desc: "설정 칸: 새 인스턴스 준비 시간(초)",
+			text: map[Locale]Forms{
+				Ko: {Other: "준비 시간 초"},
+				En: {Other: "Warm-up s"},
+			},
+		},
+		"field_working_set": {
+			desc: "설정 칸: 작업 데이터 MiB",
+			text: map[Locale]Forms{
+				Ko: {Other: "작업 데이터 MiB"},
+				En: {Other: "Working set MiB"},
+			},
+		},
+		"field_write_iops": {
+			desc: "설정 칸: 쓰기 요청 하나가 쓰는 IOPS × 1000",
+			text: map[Locale]Forms{
+				Ko: {Other: "쓰기 IOPS‰"},
+				En: {Other: "Write IOPS‰"},
+			},
+		},
 		"find_none": {
 			desc:   "찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말",
 			params: []Param{{Name: "q", Type: "string"}},
@@ -214,6 +655,22 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "아키텍처 설계 도움말"},
 				En: {Other: "Architecture design help"},
+			},
+		},
+		"hourly_price": {
+			desc:       "설정 패널: 인스턴스 종류의 시간당 가격. usd = 달러(소수), asof = 가격표 기준 연월",
+			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "시간당 ~${usd} (추정 · {asof} 가격표)"},
+				En: {Other: "~${usd}/h (estimate · {asof} prices)"},
+			},
+		},
+		"invalid_value": {
+			desc: "설정 칸 값을 설계가 받지 않을 때(라벨 너무 김·금지 문자·최소 > 최대)",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 값은 쓸 수 없어요"},
+				En: {Other: "That value cannot be used"},
 			},
 		},
 		"key_add": {
@@ -263,6 +720,13 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "삭제"},
 				En: {Other: "Delete"},
+			},
+		},
+		"key_edit": {
+			desc: "키 안내: 설정 칸 고치기",
+			text: map[Locale]Forms{
+				Ko: {Other: "고치기"},
+				En: {Other: "edit"},
 			},
 		},
 		"key_fault": {
@@ -482,6 +946,20 @@ var areaArchcanvas = area{
 				En: {Other: "worker"},
 			},
 		},
+		"lb_least_conn": {
+			desc: "분산 방식: 최소 연결",
+			text: map[Locale]Forms{
+				Ko: {Other: "최소 연결"},
+				En: {Other: "Least connections"},
+			},
+		},
+		"lb_round_robin": {
+			desc: "분산 방식: 균등",
+			text: map[Locale]Forms{
+				Ko: {Other: "균등"},
+				En: {Other: "Round robin"},
+			},
+		},
 		"limit_cpu": {
 			desc: "병목 자원 이름: cpu",
 			text: map[Locale]Forms{
@@ -589,11 +1067,11 @@ var areaArchcanvas = area{
 			},
 		},
 		"metric_bottleneck": {
-			desc:   "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %",
-			params: []Param{{Name: "label", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "int"}},
+			desc:   "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %, demand = 초당 수요(천 단위 쉼표), unit = 요청 하나가 쓰는 양(8ms, 1.25 IOPS, 18KB)",
+			params: []Param{{Name: "label", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "int"}, {Name: "demand", Type: "string"}, {Name: "unit", Type: "string"}},
 			text: map[Locale]Forms{
-				Ko: {Other: "병목 ⚠ {label} {limit} {util}%"},
-				En: {Other: "bottleneck ⚠ {label} {limit} {util}%"},
+				Ko: {Other: "병목 ⚠ {label} · {limit} {util}% ({demand}/s × {unit})"},
+				En: {Other: "bottleneck ⚠ {label} · {limit} {util}% ({demand}/s × {unit})"},
 			},
 		},
 		"metric_err": {
@@ -638,6 +1116,13 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "60칸보다 좁으면 끌어다 놓을 수 없어요 · 목록에서 편집하세요"},
 				En: {Other: "Dragging needs 60 columns or more · edit in the list"},
+			},
+		},
+		"node_deleted": {
+			desc: "설정 중이던 노드를 다른 사람이 지워 설정 패널을 닫을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "다른 사람이 지워서 설정을 닫았어요"},
+				En: {Other: "Someone deleted it, so its settings closed"},
 			},
 		},
 		"palette_boxes": {
@@ -835,6 +1320,21 @@ var areaArchcanvas = area{
 				En: {Other: "utilization {pct}%"},
 			},
 		},
+		"proto_async": {
+			desc: "연결 프로토콜: 비동기 큐",
+			text: map[Locale]Forms{
+				Ko: {Other: "비동기 큐"},
+				En: {Other: "Async queue"},
+			},
+		},
+		"range_hint": {
+			desc:   "설정 칸에 범위 밖이거나 숫자가 아닌 값을 넣었을 때. min·max = 범위",
+			params: []Param{{Name: "min", Type: "string"}, {Name: "max", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{min}~{max} 사이 숫자"},
+				En: {Other: "A number from {min} to {max}"},
+			},
+		},
 		"read_only_copy": {
 			desc: "머리 줄: 카드에서 연 읽기 전용 사본",
 			text: map[Locale]Forms{
@@ -944,6 +1444,14 @@ var areaArchcanvas = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "아키텍처 설계"},
 				En: {Other: "Architecture design"},
+			},
+		},
+		"top_costs": {
+			desc:   "지표 줄: 비용 상위 3개. list = \"라벨 41%\" 를 \" · \" 로 이은 것(전체 비용 중 몫)",
+			params: []Param{{Name: "list", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "비용 상위 {list}"},
+				En: {Other: "Top costs {list}"},
 			},
 		},
 		"traffic_hint": {
@@ -1057,9 +1565,39 @@ func (a_ ArchcanvasT) ChecksLabel() string {
 	return a_.t.render(&areaArchcanvas, "checks_label", false, 0)
 }
 
+// ChoiceCustom: 사업자 선택지: 직접 입력(가격표 없이 시간당 가격을 적음)
+func (a_ ArchcanvasT) ChoiceCustom() string {
+	return a_.t.render(&areaArchcanvas, "choice_custom", false, 0)
+}
+
+// ChoiceNone: 선택지: 없음
+func (a_ ArchcanvasT) ChoiceNone() string {
+	return a_.t.render(&areaArchcanvas, "choice_none", false, 0)
+}
+
+// ChoiceOff: 켬/끔 칸의 끔
+func (a_ ArchcanvasT) ChoiceOff() string {
+	return a_.t.render(&areaArchcanvas, "choice_off", false, 0)
+}
+
+// ChoiceOn: 켬/끔 칸의 켬
+func (a_ ArchcanvasT) ChoiceOn() string {
+	return a_.t.render(&areaArchcanvas, "choice_on", false, 0)
+}
+
+// ChoiceRegionBox: 리전 선택지: 감싼 리전 상자를 따름
+func (a_ ArchcanvasT) ChoiceRegionBox() string {
+	return a_.t.render(&areaArchcanvas, "choice_region_box", false, 0)
+}
+
 // ConnectExists: 연결하려는 두 노드가 이미 이어져 있을 때 토스트
 func (a_ ArchcanvasT) ConnectExists() string {
 	return a_.t.render(&areaArchcanvas, "connect_exists", false, 0)
+}
+
+// ConnectPick: 설정 폼의 줄: 이 노드에서 이을 대상을 목록에서 고름
+func (a_ ArchcanvasT) ConnectPick() string {
+	return a_.t.render(&areaArchcanvas, "connect_pick", false, 0)
 }
 
 // CostLong: 월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월
@@ -1092,6 +1630,21 @@ func (a_ ArchcanvasT) CurveWave() string {
 	return a_.t.render(&areaArchcanvas, "curve_wave", false, 0)
 }
 
+// DiskHdd: 디스크 종류: HDD
+func (a_ ArchcanvasT) DiskHdd() string {
+	return a_.t.render(&areaArchcanvas, "disk_hdd", false, 0)
+}
+
+// DiskSsd: 디스크 종류: 범용 SSD
+func (a_ ArchcanvasT) DiskSsd() string {
+	return a_.t.render(&areaArchcanvas, "disk_ssd", false, 0)
+}
+
+// DiskSsdFast: 디스크 종류: 고성능 SSD
+func (a_ ArchcanvasT) DiskSsdFast() string {
+	return a_.t.render(&areaArchcanvas, "disk_ssd_fast", false, 0)
+}
+
 // EmptyCanvas: 빈 캔버스 안내 첫 줄
 func (a_ ArchcanvasT) EmptyCanvas() string {
 	return a_.t.render(&areaArchcanvas, "empty_canvas", false, 0)
@@ -1112,6 +1665,276 @@ func (a_ ArchcanvasT) EstimateDisclaimer() string {
 	return a_.t.render(&areaArchcanvas, "estimate_disclaimer", false, 0)
 }
 
+// FieldAutoscale: 설정 칸: 자동 확장 켬/끔
+func (a_ ArchcanvasT) FieldAutoscale() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale", false, 0)
+}
+
+// FieldAutoscaleMax: 설정 칸: 자동 확장 최대 대수
+func (a_ ArchcanvasT) FieldAutoscaleMax() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale_max", false, 0)
+}
+
+// FieldAutoscaleMin: 설정 칸: 자동 확장 최소 대수
+func (a_ ArchcanvasT) FieldAutoscaleMin() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale_min", false, 0)
+}
+
+// FieldAutoscaleTarget: 설정 칸: 자동 확장 목표 CPU 사용률 %
+func (a_ ArchcanvasT) FieldAutoscaleTarget() string {
+	return a_.t.render(&areaArchcanvas, "field_autoscale_target", false, 0)
+}
+
+// FieldCooldown: 설정 칸: 자동 확장 쉬는 시간(초)
+func (a_ ArchcanvasT) FieldCooldown() string {
+	return a_.t.render(&areaArchcanvas, "field_cooldown", false, 0)
+}
+
+// FieldCpuCores: 설정 칸: 인스턴스 하나의 vCPU 수
+func (a_ ArchcanvasT) FieldCpuCores() string {
+	return a_.t.render(&areaArchcanvas, "field_cpu_cores", false, 0)
+}
+
+// FieldCpuPerReq: 설정 칸: 요청 하나에 드는 CPU 시간(코어 1개 기준, 마이크로초)
+func (a_ ArchcanvasT) FieldCpuPerReq() string {
+	return a_.t.render(&areaArchcanvas, "field_cpu_per_req", false, 0)
+}
+
+// FieldCurve: 트래픽 칸: 시간에 따른 모양
+func (a_ ArchcanvasT) FieldCurve() string {
+	return a_.t.render(&areaArchcanvas, "field_curve", false, 0)
+}
+
+// FieldCustomHourly: 설정 칸: 직접 입력 사업자의 시간당 가격(센트)
+func (a_ ArchcanvasT) FieldCustomHourly() string {
+	return a_.t.render(&areaArchcanvas, "field_custom_hourly", false, 0)
+}
+
+// FieldDiskIops: 설정 칸: 디스크 IOPS
+func (a_ ArchcanvasT) FieldDiskIops() string {
+	return a_.t.render(&areaArchcanvas, "field_disk_iops", false, 0)
+}
+
+// FieldDiskSize: 설정 칸: 디스크 크기 GB
+func (a_ ArchcanvasT) FieldDiskSize() string {
+	return a_.t.render(&areaArchcanvas, "field_disk_size", false, 0)
+}
+
+// FieldDiskType: 설정 칸: 디스크 종류
+func (a_ ArchcanvasT) FieldDiskType() string {
+	return a_.t.render(&areaArchcanvas, "field_disk_type", false, 0)
+}
+
+// FieldDuration: 설정 칸: 시간 실행 길이(초)
+func (a_ ArchcanvasT) FieldDuration() string {
+	return a_.t.render(&areaArchcanvas, "field_duration", false, 0)
+}
+
+// FieldEdgeRead: 연결 칸: 읽기 경로 비율 %
+func (a_ ArchcanvasT) FieldEdgeRead() string {
+	return a_.t.render(&areaArchcanvas, "field_edge_read", false, 0)
+}
+
+// FieldEdgeWrite: 연결 칸: 쓰기 경로 비율 %
+func (a_ ArchcanvasT) FieldEdgeWrite() string {
+	return a_.t.render(&areaArchcanvas, "field_edge_write", false, 0)
+}
+
+// FieldErrorRate: 설정 칸: 외부 서비스 에러율 ‰
+func (a_ ArchcanvasT) FieldErrorRate() string {
+	return a_.t.render(&areaArchcanvas, "field_error_rate", false, 0)
+}
+
+// FieldFailoverS: 설정 칸: 장애 조치 시간(초)
+func (a_ ArchcanvasT) FieldFailoverS() string {
+	return a_.t.render(&areaArchcanvas, "field_failover_s", false, 0)
+}
+
+// FieldFailoverTo: 설정 칸: 장애 조치 대상(replica)
+func (a_ ArchcanvasT) FieldFailoverTo() string {
+	return a_.t.render(&areaArchcanvas, "field_failover_to", false, 0)
+}
+
+// FieldFixedLatency: 설정 칸: 외부 서비스 고정 지연 ms
+func (a_ ArchcanvasT) FieldFixedLatency() string {
+	return a_.t.render(&areaArchcanvas, "field_fixed_latency", false, 0)
+}
+
+// FieldHealth: 설정 칸: 건강 검사 간격(초)
+func (a_ ArchcanvasT) FieldHealth() string {
+	return a_.t.render(&areaArchcanvas, "field_health", false, 0)
+}
+
+// FieldHit: 설정 칸: 적중률 %
+func (a_ ArchcanvasT) FieldHit() string {
+	return a_.t.render(&areaArchcanvas, "field_hit", false, 0)
+}
+
+// FieldIndexWrite: 설정 칸: search 인덱싱 쓰기 비율 ‰
+func (a_ ArchcanvasT) FieldIndexWrite() string {
+	return a_.t.render(&areaArchcanvas, "field_index_write", false, 0)
+}
+
+// FieldInstanceType: 설정 칸: 인스턴스 종류
+func (a_ ArchcanvasT) FieldInstanceType() string {
+	return a_.t.render(&areaArchcanvas, "field_instance_type", false, 0)
+}
+
+// FieldInstances: 설정 칸: 인스턴스 수
+func (a_ ArchcanvasT) FieldInstances() string {
+	return a_.t.render(&areaArchcanvas, "field_instances", false, 0)
+}
+
+// FieldLabel: 설정 칸: 라벨
+func (a_ ArchcanvasT) FieldLabel() string {
+	return a_.t.render(&areaArchcanvas, "field_label", false, 0)
+}
+
+// FieldLatency: 연결 칸: 기본 지연 µs(-1 = 위치에 따른 기본값)
+func (a_ ArchcanvasT) FieldLatency() string {
+	return a_.t.render(&areaArchcanvas, "field_latency", false, 0)
+}
+
+// FieldLbAlgo: 설정 칸: LB 분산 방식
+func (a_ ArchcanvasT) FieldLbAlgo() string {
+	return a_.t.render(&areaArchcanvas, "field_lb_algo", false, 0)
+}
+
+// FieldMaxRps: 설정 칸: 초당 처리 한도
+func (a_ ArchcanvasT) FieldMaxRps() string {
+	return a_.t.render(&areaArchcanvas, "field_max_rps", false, 0)
+}
+
+// FieldMbps: 연결 칸: 대역폭 Mbps(0 = 양 끝 NIC)
+func (a_ ArchcanvasT) FieldMbps() string {
+	return a_.t.render(&areaArchcanvas, "field_mbps", false, 0)
+}
+
+// FieldMemory: 설정 칸: 인스턴스 하나의 메모리(GiB 정수로 입력)
+func (a_ ArchcanvasT) FieldMemory() string {
+	return a_.t.render(&areaArchcanvas, "field_memory", false, 0)
+}
+
+// FieldNic: 설정 칸: 인스턴스 하나의 네트워크 대역폭 Mbps
+func (a_ ArchcanvasT) FieldNic() string {
+	return a_.t.render(&areaArchcanvas, "field_nic", false, 0)
+}
+
+// FieldPool: 설정 칸: DB 연결 풀 상한
+func (a_ ArchcanvasT) FieldPool() string {
+	return a_.t.render(&areaArchcanvas, "field_pool", false, 0)
+}
+
+// FieldProtocol: 연결 칸: 프로토콜
+func (a_ ArchcanvasT) FieldProtocol() string {
+	return a_.t.render(&areaArchcanvas, "field_protocol", false, 0)
+}
+
+// FieldProvider: 설정 칸: 사업자
+func (a_ ArchcanvasT) FieldProvider() string {
+	return a_.t.render(&areaArchcanvas, "field_provider", false, 0)
+}
+
+// FieldQueueCap: 설정 칸: 대기열 상한(이보다 길면 버림)
+func (a_ ArchcanvasT) FieldQueueCap() string {
+	return a_.t.render(&areaArchcanvas, "field_queue_cap", false, 0)
+}
+
+// FieldReadIops: 설정 칸: 읽기 요청 하나가 쓰는 IOPS × 1000
+func (a_ ArchcanvasT) FieldReadIops() string {
+	return a_.t.render(&areaArchcanvas, "field_read_iops", false, 0)
+}
+
+// FieldReadPct: 트래픽 칸: 읽기 비율 %
+func (a_ ArchcanvasT) FieldReadPct() string {
+	return a_.t.render(&areaArchcanvas, "field_read_pct", false, 0)
+}
+
+// FieldRegion: 설정 칸: 리전
+func (a_ ArchcanvasT) FieldRegion() string {
+	return a_.t.render(&areaArchcanvas, "field_region", false, 0)
+}
+
+// FieldRegionCode: 상자 칸: 리전 코드
+func (a_ ArchcanvasT) FieldRegionCode() string {
+	return a_.t.render(&areaArchcanvas, "field_region_code", false, 0)
+}
+
+// FieldReplLag: 설정 칸: 복제 지연 ms
+func (a_ ArchcanvasT) FieldReplLag() string {
+	return a_.t.render(&areaArchcanvas, "field_repl_lag", false, 0)
+}
+
+// FieldReqKb: 트래픽 칸: 요청 크기 KB
+func (a_ ArchcanvasT) FieldReqKb() string {
+	return a_.t.render(&areaArchcanvas, "field_req_kb", false, 0)
+}
+
+// FieldRespKb: 트래픽 칸: 응답 크기 KB
+func (a_ ArchcanvasT) FieldRespKb() string {
+	return a_.t.render(&areaArchcanvas, "field_resp_kb", false, 0)
+}
+
+// FieldRetention: 설정 칸: queue 보관 한도(메시지 수)
+func (a_ ArchcanvasT) FieldRetention() string {
+	return a_.t.render(&areaArchcanvas, "field_retention", false, 0)
+}
+
+// FieldRetries: 설정 칸: 실패 시 재시도 횟수
+func (a_ ArchcanvasT) FieldRetries() string {
+	return a_.t.render(&areaArchcanvas, "field_retries", false, 0)
+}
+
+// FieldRps: 트래픽 칸: 초당 요청 수
+func (a_ ArchcanvasT) FieldRps() string {
+	return a_.t.render(&areaArchcanvas, "field_rps", false, 0)
+}
+
+// FieldSeed: 설정 칸: 설계의 난수 시드
+func (a_ ArchcanvasT) FieldSeed() string {
+	return a_.t.render(&areaArchcanvas, "field_seed", false, 0)
+}
+
+// FieldSpikeAt: 트래픽 칸: 급증 시작 초
+func (a_ ArchcanvasT) FieldSpikeAt() string {
+	return a_.t.render(&areaArchcanvas, "field_spike_at", false, 0)
+}
+
+// FieldSpikeDur: 트래픽 칸: 급증 길이 초
+func (a_ ArchcanvasT) FieldSpikeDur() string {
+	return a_.t.render(&areaArchcanvas, "field_spike_dur", false, 0)
+}
+
+// FieldSpikeMult: 트래픽 칸: 급증 배수
+func (a_ ArchcanvasT) FieldSpikeMult() string {
+	return a_.t.render(&areaArchcanvas, "field_spike_mult", false, 0)
+}
+
+// FieldTimeout: 설정 칸: 타임아웃 ms
+func (a_ ArchcanvasT) FieldTimeout() string {
+	return a_.t.render(&areaArchcanvas, "field_timeout", false, 0)
+}
+
+// FieldTtl: 설정 칸: 만료 초
+func (a_ ArchcanvasT) FieldTtl() string {
+	return a_.t.render(&areaArchcanvas, "field_ttl", false, 0)
+}
+
+// FieldWarmup: 설정 칸: 새 인스턴스 준비 시간(초)
+func (a_ ArchcanvasT) FieldWarmup() string {
+	return a_.t.render(&areaArchcanvas, "field_warmup", false, 0)
+}
+
+// FieldWorkingSet: 설정 칸: 작업 데이터 MiB
+func (a_ ArchcanvasT) FieldWorkingSet() string {
+	return a_.t.render(&areaArchcanvas, "field_working_set", false, 0)
+}
+
+// FieldWriteIops: 설정 칸: 쓰기 요청 하나가 쓰는 IOPS × 1000
+func (a_ ArchcanvasT) FieldWriteIops() string {
+	return a_.t.render(&areaArchcanvas, "field_write_iops", false, 0)
+}
+
 // FindNone: 찾기에 맞는 노드가 없을 때 토스트. q = 찾은 말
 func (a_ ArchcanvasT) FindNone(q string) string {
 	return a_.t.render(&areaArchcanvas, "find_none", false, 0, "q", q)
@@ -1125,6 +1948,16 @@ func (a_ ArchcanvasT) HelpModelIntro() string {
 // HelpTitle: 도움말 첫 줄 제목
 func (a_ ArchcanvasT) HelpTitle() string {
 	return a_.t.render(&areaArchcanvas, "help_title", false, 0)
+}
+
+// HourlyPrice: 설정 패널: 인스턴스 종류의 시간당 가격. usd = 달러(소수), asof = 가격표 기준 연월
+func (a_ ArchcanvasT) HourlyPrice(usd string, asof string) string {
+	return a_.t.render(&areaArchcanvas, "hourly_price", false, 0, "usd", usd, "asof", asof)
+}
+
+// InvalidValue: 설정 칸 값을 설계가 받지 않을 때(라벨 너무 김·금지 문자·최소 > 최대)
+func (a_ ArchcanvasT) InvalidValue() string {
+	return a_.t.render(&areaArchcanvas, "invalid_value", false, 0)
 }
 
 // KeyAdd: 키 안내: 부품 팔레트에서 추가
@@ -1160,6 +1993,11 @@ func (a_ ArchcanvasT) KeyConnect() string {
 // KeyDelete: 키 안내: 삭제(확인 없음)
 func (a_ ArchcanvasT) KeyDelete() string {
 	return a_.t.render(&areaArchcanvas, "key_delete", false, 0)
+}
+
+// KeyEdit: 키 안내: 설정 칸 고치기
+func (a_ ArchcanvasT) KeyEdit() string {
+	return a_.t.render(&areaArchcanvas, "key_edit", false, 0)
 }
 
 // KeyFault: 키 안내: 장애 메뉴
@@ -1317,6 +2155,16 @@ func (a_ ArchcanvasT) KindWorker() string {
 	return a_.t.render(&areaArchcanvas, "kind_worker", false, 0)
 }
 
+// LbLeastConn: 분산 방식: 최소 연결
+func (a_ ArchcanvasT) LbLeastConn() string {
+	return a_.t.render(&areaArchcanvas, "lb_least_conn", false, 0)
+}
+
+// LbRoundRobin: 분산 방식: 균등
+func (a_ ArchcanvasT) LbRoundRobin() string {
+	return a_.t.render(&areaArchcanvas, "lb_round_robin", false, 0)
+}
+
 // LimitCpu: 병목 자원 이름: cpu
 func (a_ ArchcanvasT) LimitCpu() string {
 	return a_.t.render(&areaArchcanvas, "limit_cpu", false, 0)
@@ -1392,9 +2240,9 @@ func (a_ ArchcanvasT) MenuSettings() string {
 	return a_.t.render(&areaArchcanvas, "menu_settings", false, 0)
 }
 
-// MetricBottleneck: 지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %
-func (a_ ArchcanvasT) MetricBottleneck(label string, limit string, util int) string {
-	return a_.t.render(&areaArchcanvas, "metric_bottleneck", false, 0, "label", label, "limit", limit, "util", strconv.Itoa(util))
+// MetricBottleneck: 지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %, demand = 초당 수요(천 단위 쉼표), unit = 요청 하나가 쓰는 양(8ms, 1.25 IOPS, 18KB)
+func (a_ ArchcanvasT) MetricBottleneck(label string, limit string, util int, demand string, unit string) string {
+	return a_.t.render(&areaArchcanvas, "metric_bottleneck", false, 0, "label", label, "limit", limit, "util", strconv.Itoa(util), "demand", demand, "unit", unit)
 }
 
 // MetricErr: 지표: 에러율. pct = 소수 한 자리 %
@@ -1425,6 +2273,11 @@ func (a_ ArchcanvasT) MetricsTotal() string {
 // NarrowNoDrag: 60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트
 func (a_ ArchcanvasT) NarrowNoDrag() string {
 	return a_.t.render(&areaArchcanvas, "narrow_no_drag", false, 0)
+}
+
+// NodeDeleted: 설정 중이던 노드를 다른 사람이 지워 설정 패널을 닫을 때 토스트
+func (a_ ArchcanvasT) NodeDeleted() string {
+	return a_.t.render(&areaArchcanvas, "node_deleted", false, 0)
 }
 
 // PaletteBoxes: 부품 팔레트의 상자 묶음 머리
@@ -1557,6 +2410,16 @@ func (a_ ArchcanvasT) PanelUtil(pct int) string {
 	return a_.t.render(&areaArchcanvas, "panel_util", false, 0, "pct", strconv.Itoa(pct))
 }
 
+// ProtoAsync: 연결 프로토콜: 비동기 큐
+func (a_ ArchcanvasT) ProtoAsync() string {
+	return a_.t.render(&areaArchcanvas, "proto_async", false, 0)
+}
+
+// RangeHint: 설정 칸에 범위 밖이거나 숫자가 아닌 값을 넣었을 때. min·max = 범위
+func (a_ ArchcanvasT) RangeHint(min string, max string) string {
+	return a_.t.render(&areaArchcanvas, "range_hint", false, 0, "min", min, "max", max)
+}
+
 // ReadOnlyCopy: 머리 줄: 카드에서 연 읽기 전용 사본
 func (a_ ArchcanvasT) ReadOnlyCopy() string {
 	return a_.t.render(&areaArchcanvas, "read_only_copy", false, 0)
@@ -1630,6 +2493,11 @@ func (a_ ArchcanvasT) TooSmallEdit() string {
 // ToolName: 도구 이름(허브·팔레트·탭)
 func (a_ ArchcanvasT) ToolName() string {
 	return a_.t.render(&areaArchcanvas, "tool_name", false, 0)
+}
+
+// TopCosts: 지표 줄: 비용 상위 3개. list = "라벨 41%" 를 " · " 로 이은 것(전체 비용 중 몫)
+func (a_ ArchcanvasT) TopCosts(list string) string {
+	return a_.t.render(&areaArchcanvas, "top_costs", false, 0, "list", list)
 }
 
 // TrafficHint: 빈 캔버스 안내 둘째 줄: client 가 트래픽의 출발점

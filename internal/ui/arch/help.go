@@ -66,7 +66,12 @@ func (m *canvasModel) Help(ctx *ui.Context) []key.Binding {
 		return []key.Binding{bind("j k", a.KeyPick(), "j", "k"), confirm, cancel}
 	case modeFind:
 		return []key.Binding{bind("enter", a.KeyFind(), "enter"), cancel}
-	case modeHelp, modePanel:
+	case modePanel:
+		if m.panel.editing || m.panel.pick != nil {
+			return []key.Binding{confirm, cancel}
+		}
+		return []key.Binding{bind("j k", a.KeySelect(), "j", "k"), bind("enter", a.KeyEdit(), "enter"), cancel}
+	case modeHelp:
 		return []key.Binding{cancel}
 	}
 	if ro := m.sink == nil || isReadOnly(m.sink); ro {
@@ -131,6 +136,9 @@ func (m *canvasModel) drawFind(b *buf, r layout.Rect) {
 
 // Cursor is the real cursor at the end of the find query (IME input).
 func (m *canvasModel) Cursor() *tea.Cursor {
+	if m.mode == modePanel && m.panel.editing && m.panel.curY >= 0 {
+		return tea.NewCursor(m.panel.curX, m.panel.curY)
+	}
 	if m.mode != modeFind {
 		return nil
 	}

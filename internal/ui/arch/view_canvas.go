@@ -249,7 +249,12 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 		m.drawSummary(ctx, b, r.Canvas)
 		return b.render(ctx.Theme)
 	case viewList:
-		m.drawList(ctx, b, r.Canvas, focused)
+		if m.mode == modePanel {
+			b.fill(r.Canvas, sBase)
+			m.drawForm(ctx, b, r.Canvas, r.Canvas.X+1, r.Canvas.W-2)
+		} else {
+			m.drawList(ctx, b, r.Canvas, focused)
+		}
 	default:
 		m.drawCanvas(ctx, b, r.Canvas)
 	}
