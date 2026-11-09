@@ -22,6 +22,12 @@ type config struct {
 	unicode  *bool
 	creds    *auth.Credentials
 	credsSet bool // WithCredentials was given (nil => logged out)
+	keys     map[string][]string
+}
+
+// WithKeys sets config.toml [keys] overrides (action id => keys).
+func WithKeys(keys map[string][]string) Option {
+	return func(c *config) { c.keys = keys }
 }
 
 // WithTheme selects the theme.

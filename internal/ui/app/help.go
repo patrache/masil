@@ -40,14 +40,15 @@ var helpGroups = []struct {
 	actions []keymap.Action
 }{
 	{"전역", []keymap.Action{keymap.PaletteOpen, keymap.SearchGlobal, keymap.NotificationsOpen, keymap.HelpToggle,
-		keymap.FeedToggle, keymap.TabPrev, keymap.TabNext, keymap.NavBack, keymap.AppQuit}},
+		keymap.FeedToggle, keymap.TabPrev, keymap.TabNext, keymap.NavBack, keymap.NavHistoryBack, keymap.NavHistoryForward,
+		keymap.AppQuit}},
 	{"창", []keymap.Action{keymap.FocusNext, keymap.FocusPrev}},
 	{"목록", []keymap.Action{keymap.ListUp, keymap.ListDown, keymap.ListTop, keymap.ListBottom,
 		keymap.ListPageUp, keymap.ListPageDown, keymap.ListOpen}},
 	{"입력", []keymap.Action{keymap.ComposeFocus, keymap.ComposeSend, keymap.ComposeNewline,
 		keymap.ComposeComplete, keymap.ComposeEditLast, keymap.ComposeLeave}},
 	{"메시지", []keymap.Action{keymap.MsgThread, keymap.MsgReact, keymap.MsgEdit, keymap.MsgDelete,
-		keymap.MsgPin, keymap.MsgCopy, keymap.MsgActions, keymap.ChannelSearch}},
+		keymap.MsgPin, keymap.MsgCopy, keymap.MsgActions, keymap.ChannelSearch, keymap.ThreadChannel}},
 	{"글", []keymap.Action{keymap.PostLike, keymap.PostRepost, keymap.PostQuote, keymap.PostReply,
 		keymap.PostOpenMedia, keymap.PostAuthor, keymap.PostCompose}},
 }

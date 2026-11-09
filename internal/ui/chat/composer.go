@@ -115,7 +115,8 @@ func (cc *chatComposer) setDraft(s string) {
 }
 
 // handleKey handles a key while the composer has the focus. Everything is
-// consumed except ctrl+c on an empty input (it reaches the app's quit arming).
+// consumed except ctrl+c on an empty input (it reaches the app's quit arming) and a
+// history key that is no edit key (ctrl+o: the app walks the history).
 // An open completion popup takes its keys first; any text change refreshes it.
 func (cc *chatComposer) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if cc.completing() && cc.popupKey(ctx, msg) {
@@ -150,6 +151,8 @@ func (cc *chatComposer) key(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 			cc.startEdit(m)
 		}
 		return true, nil
+	case (km.Matches(msg, keymap.NavHistoryBack) || km.Matches(msg, keymap.NavHistoryForward)) && !cc.c.Edits(msg):
+		return false, nil // ctrl+o walks the history while typing (the app's soft global)
 	}
 	return true, cc.input(ctx, msg)
 }

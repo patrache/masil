@@ -107,6 +107,9 @@ func New(tb testing.TB, opts ...Option) *Harness {
 	if c.pin != nil {
 		cfg.Layout.Pin = c.pin.ID()
 	}
+	if c.keys != nil {
+		cfg.Keys = c.keys
+	}
 	loc, err := time.LoadLocation("Asia/Seoul")
 	if err != nil {
 		tb.Fatalf("uitest: load Asia/Seoul: %v", err)

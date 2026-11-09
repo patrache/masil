@@ -13,11 +13,11 @@ import (
 var allActions = []keymap.Action{
 	keymap.AppQuit, keymap.PaletteOpen, keymap.SearchGlobal, keymap.NotificationsOpen, keymap.WindowPrefix,
 	keymap.FocusNext, keymap.FocusPrev, keymap.HelpToggle, keymap.FeedToggle, keymap.TabPrev, keymap.TabNext,
-	keymap.NavBack, keymap.ListUp, keymap.ListDown, keymap.ListTop, keymap.ListBottom, keymap.ListPageUp,
+	keymap.NavBack, keymap.NavHistoryBack, keymap.NavHistoryForward, keymap.ListUp, keymap.ListDown, keymap.ListTop, keymap.ListBottom, keymap.ListPageUp,
 	keymap.ListPageDown, keymap.ListOpen, keymap.ComposeFocus, keymap.ComposeSend, keymap.ComposeNewline,
 	keymap.ComposeComplete, keymap.ComposeEditLast, keymap.ComposeLeave, keymap.MsgThread, keymap.MsgReact,
 	keymap.MsgEdit, keymap.MsgDelete, keymap.MsgPin, keymap.MsgCopy, keymap.MsgActions, keymap.ChannelSearch,
-	keymap.PostLike, keymap.PostRepost, keymap.PostQuote, keymap.PostReply, keymap.PostOpenMedia,
+	keymap.ThreadChannel, keymap.PostLike, keymap.PostRepost, keymap.PostQuote, keymap.PostReply, keymap.PostOpenMedia,
 	keymap.PostAuthor, keymap.PostCompose,
 }
 
@@ -35,6 +35,8 @@ func TestDefaultBindings(t *testing.T) {
 		keymap.TabPrev:           {"["},
 		keymap.TabNext:           {"]"},
 		keymap.NavBack:           {"esc"},
+		keymap.NavHistoryBack:    {"ctrl+o", "alt+left", "alt+b"},
+		keymap.NavHistoryForward: {"alt+right", "alt+f"},
 		keymap.ListUp:            {"k", "up"},
 		keymap.ListDown:          {"j", "down"},
 		keymap.ListTop:           {"home"}, // "g g" is a two-key sequence handled by widgets.List
@@ -56,6 +58,7 @@ func TestDefaultBindings(t *testing.T) {
 		keymap.MsgCopy:           {"y"},
 		keymap.MsgActions:        {"m"},
 		keymap.ChannelSearch:     {"/"},
+		keymap.ThreadChannel:     {"c"},
 		keymap.PostLike:          {"l"},
 		keymap.PostRepost:        {"b"},
 		keymap.PostQuote:         {"q"},
@@ -82,6 +85,12 @@ func TestDefaultBindings(t *testing.T) {
 	}
 	if h := km.Binding(keymap.ListTop).Help().Key; h != "gg/home" {
 		t.Errorf("list.top help key = %q, want gg/home", h)
+	}
+	if h := km.Binding(keymap.NavHistoryBack).Help().Key; h != "ctrl+o/alt+←" {
+		t.Errorf("nav.history_back help key = %q, want ctrl+o/alt+←", h)
+	}
+	if h := km.Binding(keymap.NavHistoryForward).Help().Key; h != "alt+→" {
+		t.Errorf("nav.history_forward help key = %q, want alt+→", h)
 	}
 	if h := km.Binding(keymap.ListUp).Help().Key; h != "k/up" {
 		t.Errorf("list.up help key = %q, want k/up", h)
@@ -208,6 +217,7 @@ func TestHelpKorean(t *testing.T) {
 		keymap.AppQuit: "종료", keymap.PaletteOpen: "이동", keymap.SearchGlobal: "검색", keymap.NotificationsOpen: "알림",
 		keymap.WindowPrefix: "창", keymap.FocusNext: "다음 패널", keymap.FocusPrev: "이전 패널", keymap.HelpToggle: "도움말",
 		keymap.FeedToggle: "피드", keymap.TabPrev: "이전 탭", keymap.TabNext: "다음 탭", keymap.NavBack: "뒤로",
+		keymap.NavHistoryBack: "이전 위치", keymap.NavHistoryForward: "다음 위치", keymap.ThreadChannel: "스레드에서 채널로",
 		keymap.ListUp: "위", keymap.ListDown: "아래", keymap.ListTop: "맨 위", keymap.ListBottom: "맨 아래",
 		keymap.ListPageUp: "한 쪽 위", keymap.ListPageDown: "한 쪽 아래", keymap.ListOpen: "열기",
 		keymap.ComposeFocus: "입력", keymap.ComposeSend: "보내기", keymap.ComposeNewline: "줄바꿈",
@@ -233,5 +243,41 @@ func TestHelpKorean(t *testing.T) {
 	// Unknown actions are skipped.
 	if hs := km.Help(keymap.Action("nope"), keymap.HelpToggle); len(hs) != 1 {
 		t.Errorf("Help with unknown = %d bindings, want 1", len(hs))
+	}
+}
+
+// The history and thread actions are rebindable like any other: an override replaces
+// every default key and keeps the Korean description.
+func TestLoadOverridesHistory(t *testing.T) {
+	km, errs := keymap.Load(map[string][]string{
+		"nav.history_back":    {"H"},
+		"nav.history_forward": {"L"},
+		"thread.channel":      {"u"},
+	})
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+	if !km.Matches(press('H', "H", 0), keymap.NavHistoryBack) || km.Matches(press('o', "", tea.ModCtrl), keymap.NavHistoryBack) {
+		t.Error("nav.history_back = [H] must replace ctrl+o/alt+left/alt+b")
+	}
+	if !km.Matches(press('L', "L", 0), keymap.NavHistoryForward) || km.Matches(press(tea.KeyRight, "", tea.ModAlt), keymap.NavHistoryForward) {
+		t.Error("nav.history_forward = [L] must replace alt+right/alt+f")
+	}
+	if !km.Matches(press('u', "u", 0), keymap.ThreadChannel) || km.Matches(press('c', "c", 0), keymap.ThreadChannel) {
+		t.Error("thread.channel = [u] must replace c")
+	}
+	if h := km.Binding(keymap.NavHistoryBack).Help(); h.Key != "H" || h.Desc != "이전 위치" {
+		t.Errorf("override help = %+v", h)
+	}
+	def := keymap.Default()
+	for _, k := range []tea.KeyPressMsg{press('o', "", tea.ModCtrl), press(tea.KeyLeft, "", tea.ModAlt), press('b', "", tea.ModAlt)} {
+		if !def.Matches(k, keymap.NavHistoryBack) {
+			t.Errorf("default nav.history_back must match %s", k.String())
+		}
+	}
+	for _, k := range []tea.KeyPressMsg{press(tea.KeyRight, "", tea.ModAlt), press('f', "", tea.ModAlt)} {
+		if !def.Matches(k, keymap.NavHistoryForward) {
+			t.Errorf("default nav.history_forward must match %s", k.String())
+		}
 	}
 }

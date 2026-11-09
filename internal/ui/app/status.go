@@ -15,6 +15,7 @@ import (
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 )
 
@@ -59,6 +60,8 @@ type statusItem struct {
 type statusInput struct {
 	Mode  layout.Mode
 	Hints []string     // rendered hint items, in order
+	Back  string       // the history back hint: it outranks the hints after the first Keep ones (component hints)
+	Keep  int          // leading hints (pin notice, mode defaults) the back hint never displaces
 	Right []statusItem // right side, in order
 }
 
@@ -83,9 +86,29 @@ func (m *Model) statusLine(w int) string {
 		if m.pinFell && m.pin != nil {
 			in.Hints = append(in.Hints, pinFallbackNotice(*m.pin, m.lay.Mode))
 		}
-		in.Hints = append(in.Hints, m.hints()...)
+		hs, base := m.hints()
+		in.Keep = len(in.Hints) + base
+		in.Hints = append(in.Hints, hs...)
+		in.Back = m.backHint()
+	default:
+		in.Back = m.backHint()
 	}
 	return renderStatus(m.ctx, w, in)
+}
+
+// backHint is "ctrl+o 이전 위치" (nav.history_back's first key) in widget and tiny —
+// the single-pane modes without a sidebar to go back by — while there is a place to go
+// back to, no overlay is open and the focused component does not capture input.
+func (m *Model) backHint() string {
+	if (m.lay.Mode != layout.ModeWidget && m.lay.Mode != layout.ModeTiny) || len(m.overlays) > 0 ||
+		capturing(m.focusedComponent()) || m.historyTarget(-1) < 0 {
+		return ""
+	}
+	b := m.ctx.Keys.Binding(keymap.NavHistoryBack)
+	if len(b.Keys()) == 0 {
+		return ""
+	}
+	return hintItem{Key: b.Keys()[0], Desc: b.Help().Desc}.String() // "ctrl+o 이전 위치": the first key only
 }
 
 // pinFallbackNotice is shown while a pinned mode does not fit (CA 5.2.1).
@@ -182,26 +205,26 @@ func (m *Model) armStatusTick() tea.Cmd {
 
 // hints builds the hint items: the mode defaults (or the input hints while the focused
 // component captures input), then the focused component's Helper bindings whose keys
-// the defaults do not already show, at most maxHints in all.
-func (m *Model) hints() []string {
+// the defaults do not already show, at most maxHints in all. base is how many of them
+// are defaults (the back hint never displaces those).
+func (m *Model) hints() (out []string, base int) {
 	if len(m.overlays) > 0 {
-		return m.overlayHints()
+		return m.overlayHints(), 0
 	}
-	base := modeHints[m.lay.Mode]
+	defaults := modeHints[m.lay.Mode]
 	var comp ui.Component
 	if in := m.focusedInstance(); in != nil {
 		comp = in.comp
 	}
 	if c, ok := comp.(ui.InputCapturer); ok && c.CapturesInput() {
-		base = inputHints
+		defaults = inputHints
 	}
 	noThread := false
 	if th, ok := comp.(ui.ThreadHider); ok {
 		noThread = th.HidesThread(m.ctx)
 	}
 	shown := map[string]bool{}
-	var out []string
-	for _, h := range base {
+	for _, h := range defaults {
 		if noThread && h.Desc == hintThread {
 			continue
 		}
@@ -211,6 +234,7 @@ func (m *Model) hints() []string {
 		shown[h.Key] = true
 		out = append(out, h.String())
 	}
+	base = len(out)
 	if hp, ok := comp.(ui.Helper); ok {
 		for _, b := range hp.Help(m.ctx) {
 			if len(out) >= maxHints {
@@ -231,7 +255,7 @@ func (m *Model) hints() []string {
 			out = append(out, item.String())
 		}
 	}
-	return out
+	return out, base
 }
 
 // overlaps reports whether any key of b (or its help label) is already shown.
@@ -280,8 +304,10 @@ func (m *Model) connectionItem() statusItem {
 
 // renderStatus draws the 1-row status line at exactly w cells on the StatusBar
 // background: mode pill, hints, then the right items flush right. In tiny mode only the
-// pill and the connection symbol are drawn. When space runs short the non-essential
-// right items go first, then the hints are cut with "…".
+// pill, the back hint and the connection symbol are drawn. The back hint, never cut, goes
+// after the Keep leading hints and displaces the component hints behind them as needed;
+// on a line too short even for that it is dropped first. Then the non-essential right
+// items go, then the hints are cut with "…".
 func renderStatus(ctx *ui.Context, w int, in statusInput) string {
 	if w <= 0 {
 		return ""
@@ -316,7 +342,17 @@ func renderStatus(ctx *ui.Context, w int, in statusInput) string {
 		}
 		return n
 	}
-	hint := textwidth.Sanitize(strings.Join(in.Hints, sep))
+	hints := in.Hints
+	if in.Back != "" { // never cut: it replaces trailing component hints, else it is dropped
+		for k := len(hints); k >= min(in.Keep, len(hints)); k-- {
+			with := append(slices.Clone(hints[:k]), in.Back)
+			if pillW+1+textwidth.Width(textwidth.Sanitize(strings.Join(with, sep)))+1+rightW(right) <= w {
+				hints = with
+				break
+			}
+		}
+	}
+	hint := textwidth.Sanitize(strings.Join(hints, sep))
 	hintW := textwidth.Width(hint)
 	if hintW > 0 {
 		hintW++ // leading blank after the pill
