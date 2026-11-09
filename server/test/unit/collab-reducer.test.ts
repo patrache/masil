@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { DocState, applyFrame, applyOps, parseOps, parseSnapshot, type Op } from "../../src/lib/collab-reducer";
 import { DOC_TYPES } from "../../src/lib/collab-doctypes";
-import { archRulesOff } from "../helpers";
+import { archRulesOff } from "../arch-test-helpers";
 
 archRulesOff(); // generic objects: the reducer and the per-type limits, not the arch field rules
 

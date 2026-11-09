@@ -2,7 +2,8 @@
 // versions and record-version retention from the CollabHub alarm, and the lock on edits and restores.
 import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
-import { api, archRulesOff, connectDoc, makeDoc, makeSpace, signup, type DocClient } from "../helpers";
+import { api, connectDoc, makeDoc, makeSpace, signup, type DocClient } from "../helpers";
+import { archRulesOff } from "../arch-test-helpers";
 
 archRulesOff(); // generic objects: versions and restores, not the arch field rules
 

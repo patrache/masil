@@ -2,7 +2,8 @@
 // resends, hello catch-up (ops or snapshot), presence, frame and rate limits, and who may connect.
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
-import { api, archRulesOff, connectDoc, makeDoc, makeSpace, signup, type DocClient } from "../helpers";
+import { api, connectDoc, makeDoc, makeSpace, signup, type DocClient } from "../helpers";
+import { archRulesOff } from "../arch-test-helpers";
 
 archRulesOff(); // generic objects: the hub mechanics, not the arch field rules
 
