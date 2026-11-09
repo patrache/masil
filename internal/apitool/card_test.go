@@ -63,7 +63,7 @@ func TestResultCardDefaultTemplateURL(t *testing.T) {
 	if strings.Contains(string(raw), "canary") || strings.Contains(string(raw), "api.example.com") {
 		t.Fatalf("default card leaks: %s", raw)
 	}
-	if got := ResultPath(p); got != "/v1/payments" {
+	if got := ResultPath(r, p, CardOptions{}); got != "/v1/payments" {
 		t.Fatalf("ResultPath = %q", got)
 	}
 }
@@ -172,5 +172,49 @@ func TestRunCardTop3Failures(t *testing.T) {
 	raw, err = RunCard(RunSummary{Collection: "P", Requests: 1, Passed: 1}, "")
 	if err != nil || string(raw) != `{"collection":"P","requests":1,"passed":1,"failed":0,"time_ms":0,"failures":[],"ref":{}}` {
 		t.Fatalf("run card = %s, %v", raw, err)
+	}
+}
+
+// The fallback body's path is the card URL's: the template by default, the
+// non-secret variables filled in only with ShowHost (C3.11).
+func TestResultPathFollowsCardURL(t *testing.T) {
+	r := &Request{Method: "POST", URL: "{{base_url}}/tenants/{{tenant}}/v1/payments?x={{key}}"}
+	p := &Prepared{Method: "POST", URL: "https://api.corp/acme-internal/tenants/t-123/v1/payments?x=KEY-SECRET-1",
+		Used: []Value{
+			{Name: "base_url", Text: "https://api.corp/acme-internal"},
+			{Name: "tenant", Text: "t-123"},
+			{Name: "key", Text: "KEY-SECRET-1", Secret: true},
+		}}
+	if got := ResultPath(r, p, CardOptions{}); got != "/tenants/{{tenant}}/v1/payments" {
+		t.Fatalf("default path = %q", got)
+	}
+	if got := ResultPath(r, p, CardOptions{ShowHost: true}); got != "/acme-internal/tenants/t-123/v1/payments" {
+		t.Fatalf("host path = %q", got)
+	}
+	for _, u := range []string{"https://h.example", "{{base_url}}", "h.example/a/b", "/plain"} {
+		got := ResultPath(&Request{URL: u}, p, CardOptions{})
+		want := map[string]string{"https://h.example": "/", "{{base_url}}": "/", "h.example/a/b": "/a/b", "/plain": "/plain"}[u]
+		if got != want {
+			t.Fatalf("ResultPath(%q) = %q, want %q", u, got, want)
+		}
+	}
+}
+
+// A typed-in API key sent under a header name that does not look secret is
+// masked in the card's headers (as History masks it).
+func TestResultCardMasksLiteralAuthKey(t *testing.T) {
+	r, p, resp, as := cardFixture()
+	r.Auth = Auth{Kind: AuthAPIKey, Name: "appid", In: "header", Value: "LITERAL-KEY-77"}
+	p.Header.Set("appid", "LITERAL-KEY-77")
+	resp.Body = []byte("echo LITERAL-KEY-77")
+	raw, err := ResultCard(r, p, resp, as, "", CardRef{}, CardOptions{IncludeHeaders: true, IncludeBody: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "LITERAL-KEY-77") {
+		t.Fatalf("the typed-in key is in the card: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"Appid"`) {
+		t.Fatalf("the header row is gone: %s", raw)
 	}
 }

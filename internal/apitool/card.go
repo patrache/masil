@@ -3,7 +3,6 @@ package apitool
 import (
 	"encoding/json"
 	"errors"
-	"net/url"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -92,7 +91,7 @@ type RunData struct {
 // template ({{base_url}}/v1/payments); ShowHost expands only non-secret
 // variables. Every secret value p used is masked wherever it shows.
 func ResultCard(r *Request, p *Prepared, resp *Response, as []AssertResult, envName string, ref CardRef, o CardOptions) (json.RawMessage, error) {
-	sv := secretTexts(p)
+	sv := cardSecrets(r, p)
 	red := newRedactor(sv)
 	d := ResultData{Env: envName, Ref: cardRef{Collection: ref.Collection, RequestID: ref.RequestID, DocID: ref.DocID}}
 	if r != nil {
@@ -190,20 +189,61 @@ func bodyHead(s string) []string {
 	return lines
 }
 
-// ResultPath is the fallback body's path: the sent URL's path, secrets
-// masked ("/v1/payments").
-func ResultPath(p *Prepared) string {
-	if p == nil {
+// ResultPath is the fallback body's path, from the URL the card carries:
+// the template's path by default ("/v1/payments"), with the non-secret
+// variables filled in only when ShowHost is on; secrets masked.
+func ResultPath(r *Request, p *Prepared, o CardOptions) string {
+	if r == nil || p == nil {
 		return ""
 	}
-	path := p.URL
-	if u, err := url.Parse(p.URL); err == nil {
-		path = u.EscapedPath()
-		if path == "" {
-			path = "/"
+	u := r.URL
+	if o.ShowHost {
+		u = expandPlain(u, p.Used)
+	}
+	return RedactString(urlPath(u), cardSecrets(r, p))
+}
+
+// urlPath is the path of a URL or URL template: no scheme and host, no
+// leading {{origin}} variable, no query or fragment; "/" when empty.
+func urlPath(u string) string {
+	if i := strings.IndexAny(u, "?#"); i >= 0 {
+		u = u[:i]
+	}
+	if i := strings.Index(u, "://"); i >= 0 {
+		u = u[i+3:]
+	} else if loc := placeholder.FindStringIndex(u); loc != nil && loc[0] == 0 {
+		u = u[loc[1]:]
+	} else if strings.HasPrefix(u, "/") {
+		return u
+	}
+	i := strings.IndexByte(u, '/')
+	if i < 0 {
+		return "/"
+	}
+	return u[i:]
+}
+
+// cardSecrets are the texts a card masks: every secret value p used and the
+// request auth's typed-in password, token or key with the header it went out
+// in (History's rule: a key under a name that does not look secret).
+func cardSecrets(r *Request, p *Prepared) []string {
+	sv := secretTexts(p)
+	if r == nil {
+		return sv
+	}
+	for _, v := range []string{r.Auth.Pass, r.Auth.Token, r.Auth.Value} {
+		if literalCredential(v) {
+			sv = append(sv, strings.TrimSpace(v))
 		}
 	}
-	return RedactString(path, secretTexts(p))
+	if r.Auth.Kind == AuthAPIKey && r.Auth.In != "query" && r.Auth.Name != "" && literalCredential(r.Auth.Value) && p != nil {
+		for _, v := range p.Header.Values(r.Auth.Name) {
+			if strings.TrimSpace(v) != "" {
+				sv = append(sv, v)
+			}
+		}
+	}
+	return sv
 }
 
 // RunCard is the api.run data of a runner summary (the first three

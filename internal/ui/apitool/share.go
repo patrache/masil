@@ -114,7 +114,7 @@ func (t *Tool) buildShare(ctx *ui.Context, p *sharePlan) error {
 		st := p.st
 		p.data, err = apitool.ResultCard(st.req, st.prep, st.resp, st.checks, st.env, st.ref, p.opts)
 		passed := st.passed()
-		p.body = a.CardResultBody(st.method, apitool.ResultPath(st.prep), st.resp.Status, ms(st.resp.Timing.Total), passed, len(st.checks))
+		p.body = a.CardResultBody(st.method, apitool.ResultPath(st.req, st.prep, p.opts), st.resp.Status, ms(st.resp.Timing.Total), passed, len(st.checks))
 	case ui.CardAPIRun:
 		s := p.run
 		p.data, err = apitool.RunCard(*s, p.doc)
