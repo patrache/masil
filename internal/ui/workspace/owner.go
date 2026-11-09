@@ -155,9 +155,9 @@ func (s *Surface) startShare(ctx *ui.Context, o shareOpts) tea.Cmd {
 	if !o.files {
 		root, docs = nil, nil
 	}
-	auditDir := ""
-	if ctx.Paths.Cache != "" {
-		auditDir = filepath.Join(ctx.Paths.Cache, "workspace-audit")
+	auditDir := "" // B8.5: <config dir>/workspace-audit (kept, unlike the OS cache)
+	if ctx.Paths.Dir != "" {
+		auditDir = filepath.Join(ctx.Paths.Dir, "workspace-audit")
 	}
 	users := make([]api.UserRef, len(o.invite))
 	for i, h := range o.invite {

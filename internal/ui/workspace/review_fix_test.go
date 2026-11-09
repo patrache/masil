@@ -115,3 +115,21 @@ func TestJoinRequestRingsBell(t *testing.T) {
 		t.Fatalf("bells = %d", bells)
 	}
 }
+
+// The audit log lives under the config dir (B8.5: ~/.config/masil/workspace-audit),
+// not the OS cache that cleanup tools empty.
+func TestAuditLogInConfigDir(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r := newShareRig(t, h, fake, nil)
+	r.shareFriends()
+	paths := h.Context().Paths
+	if _, err := os.Stat(filepath.Join(paths.Dir, "workspace-audit", rigShare+".jsonl")); err != nil {
+		t.Fatalf("no audit log in the config dir: %v", err)
+	}
+	if paths.Cache != "" {
+		if _, err := os.Stat(filepath.Join(paths.Cache, "workspace-audit")); err == nil {
+			t.Fatal("an audit log went to the cache dir")
+		}
+	}
+}
