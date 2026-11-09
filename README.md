@@ -97,7 +97,7 @@ masil join <코드>     # 초대 코드로 방에 들어가기
 
 20×6 보다 작으면 "창을 조금만 키워 주세요" 만 보입니다.
 
-위젯은 위에 `채팅 / DM / 피드 / 알림` 탭(초소형은 `챗 / DM / 피 / 알`), 컴팩트는 열어 둔 채널 탭들 뒤에 `DM / 피드 / 알림` 이 붙습니다. `DM` 탭에는 1:1·그룹 DM 이 최근 대화 순으로 (안 읽은 수·마지막 메시지·시간과 함께) 모여 있고, 거기서 연 DM 과 그 스레드는 DM 탭 안에 머뭅니다 — `[` `]` 로 채팅 ↔ DM 을 오가도 양쪽 다 보던 자리 그대로입니다. 어디서 열든(홈·`ctrl+k`·알림) DM 은 언제나 DM 탭에 열립니다. 지휘소는 레일의 `홈` 바로 아래, 표준은 사이드바 맨 위 `DM` 으로 같은 목록을 엽니다.
+위젯은 위에 `채팅 / DM / 피드 / 알림` 탭(초소형은 `챗 / DM / 피 / 알`), 컴팩트는 열어 둔 탭(채널·홈)들 뒤에 `DM / 피드 / 알림` 이 붙습니다. `DM` 탭에는 1:1·그룹 DM 이 최근 대화 순으로 (안 읽은 수·마지막 메시지·시간과 함께) 모여 있고, 거기서 연 DM 과 그 스레드는 DM 탭 안에 머뭅니다 — `[` `]` 로 채팅 ↔ DM 을 오가도 양쪽 다 보던 자리 그대로입니다. 어디서 열든(홈·`ctrl+k`·알림) DM 은 언제나 DM 탭에 열립니다. 지휘소는 레일의 `홈` 바로 아래, 표준은 사이드바 맨 위 방 이름(`▾`) 바로 아래 `DM` 줄로 같은 목록을 엽니다.
 
 모드 고정: `ctrl+w` 다음 `1` 지휘소 · `2` 표준 · `3` 컴팩트 · `4` 위젯 · `5` 초소형, `ctrl+w 0` 은 자동으로 되돌립니다. 고정한 모드의 최소 크기보다 창이 작으면 자동 모드로 보이고 상태줄에 알려 줍니다. `config.toml` 의 `[layout] pin` 으로도 고정할 수 있습니다.
 
@@ -110,7 +110,7 @@ masil join <코드>     # 초대 코드로 방에 들어가기
 | `ctrl+n` | 알림 |
 | `?` (`f1`) | 도움말 |
 | `f` | 피드 열기/닫기 |
-| `[` / `]` | 이전/다음 탭 — 위젯·초소형 `채팅 → DM → 피드 → 알림`, 컴팩트 `열린 탭 → DM → 피드 → 알림` (한 칸짜리 화면에서는 `tab` / `shift+tab` 도) |
+| `[` / `]` | 이전/다음 탭 — 위젯·초소형 `채팅 → DM → 피드 → 알림`, 컴팩트·표준 `열린 탭 → DM → 피드 → 알림`, 지휘소 `열린 탭 → DM` (한 칸짜리 화면에서는 `tab` / `shift+tab` 도) |
 | `t` / `enter` | 선택한 메시지의 스레드 열기 |
 | `c` (스레드에서) | 그 스레드의 채널·DM 으로 — 루트 메시지가 선택된 채로 |
 | `y` | 선택한 메시지 복사 |
@@ -203,7 +203,7 @@ mouse = true               # 마우스 클릭·휠·드래그 복사 (false 면 
   - 글자 단위로 고르려면 터미널 자체 선택을 쓰세요: iTerm2 는 **⌥ Option**, macOS 터미널(Terminal.app)은 **fn** 을 누른 채 드래그(또는 보기 → "마우스 보고 허용" ⌘R 끄기), 대부분의 Linux 터미널·Windows Terminal 은 **Shift** 를 누른 채 드래그합니다.
   - 아예 마우스를 끄려면 설정(`ctrl+k` → 설정) → 화면 → **마우스** 를 끄거나 `config.toml` 의 `[ui] mouse = false` 로 두세요(`ui.mouse`). 그러면 클릭·휠·드래그 복사 대신 터미널 자체 선택이 됩니다.
 
-  복사는 두 길로 보냅니다: 터미널에 OSC 52 를 보내고(SSH 너머에서도 됨), 같은 기기의 클립보드 프로그램에도 직접 씁니다 — macOS `pbcopy`, Linux Wayland `wl-copy` · X11 `xclip`/`xsel`, Windows `clip.exe`. Linux 에서 "클립보드에 못 넣었어요" 가 뜨면 `wl-clipboard` 나 `xclip` 을 설치하세요. SSH 로 접속했을 때는 OSC 52 만 쓰므로 터미널이 OSC 52 를 허용해야 합니다: iTerm2 는 Settings → General → Selection → "Applications in terminal may access clipboard", tmux 는 `set -g set-clipboard on`. macOS 터미널(Terminal.app)은 OSC 52 를 지원하지 않습니다.
+  복사는 두 길로 보냅니다: 터미널에 OSC 52 를 보내고(SSH 너머에서도 됨), 같은 기기의 클립보드 프로그램에도 직접 씁니다 — macOS `pbcopy`, Linux Wayland `wl-copy` · X11 `xclip`/`xsel`, Windows `clip.exe`. Linux 에서 "터미널로 복사를 보냈어요 …" 가 뜨고 붙여 넣어지지 않으면 클립보드 프로그램이 없는 것이니 `wl-clipboard`(Wayland)나 `xclip`/`xsel`(X11)을 설치하세요. "클립보드에 못 넣었어요" 는 클립보드 프로그램이 있는데 실패한 경우이니 ⌥·fn·Shift 누른 채 드래그로 터미널 자체 선택을 쓰세요. SSH 로 접속했을 때는 OSC 52 만 쓰므로 터미널이 OSC 52 를 허용해야 합니다: iTerm2 는 Settings → General → Selection → "Applications in terminal may access clipboard", tmux 는 `set -g set-clipboard on`. macOS 터미널(Terminal.app)은 OSC 52 를 지원하지 않습니다.
 - **테두리가 어긋나거나 한글·상자 문자가 겹침**: iTerm2 의 "Ambiguous characters are double-width"(Profiles → Text)를 끄세요. 모호 폭 문자를 2칸으로 그리는 터미널 설정은 지원하지 않습니다.
 - **한글이 "명 령  팔 레 트" 처럼 띄엄띄엄 보임**: 터미널 글꼴에 한글이 없어서, 터미널이 대신 가져온 더 좁은 글꼴의 글자가 2칸 자리에 놓인 것입니다. 한글이 든 고정폭 글꼴(D2Coding, Sarasa Mono K, 나눔고딕코딩 등)로 바꾸거나, 터미널 설정에서 그 글꼴을 비 ASCII 문자용 글꼴로 지정하세요(iTerm2: Profiles → Text → "Use a different font for non-ASCII text").
 

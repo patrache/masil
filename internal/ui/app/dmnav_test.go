@@ -342,3 +342,30 @@ func TestDMInvariantRandomWalk(t *testing.T) {
 		}
 	}
 }
+
+// A DM opened with a jump target (the 알림함 "안 읽은 대화" row: Anchor + jump Query)
+// keeps it when a history walk comes back to it, as a text-channel tab does: restore
+// never hands the open DM a route with the Query but no Anchor (a RouteUpdatedMsg
+// that reset its 새 메시지 divider; release v0.1.2 review).
+func TestDMHistoryKeepsJumpTarget(t *testing.T) {
+	jump := map[string]string{"jump": "unread"}
+	for _, id := range []string{"D1", "C1"} {
+		r := ui.Route{Kind: ui.RouteChannel, ID: id, Anchor: "M5", Query: jump}
+		n := navDM(newNavState(), r)
+		l := n.loc()
+		later := n
+		later.Front = FrontNotifications
+		for _, mode := range allModes {
+			got, _ := later.restore(l, mode)
+			var open ui.Route
+			if got.InDM {
+				open = got.DM.Stack[1]
+			} else {
+				open = got.Tabs[got.Active].Stack[0]
+			}
+			if open.Key() != r.Key() || open.Anchor != "M5" || !reflect.DeepEqual(open.Query, jump) {
+				t.Fatalf("%s %s: restored %+v, want the jump target %+v kept", id, mode.ID(), open, r)
+			}
+		}
+	}
+}

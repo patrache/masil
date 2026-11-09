@@ -246,7 +246,7 @@ func emptyItems(ctx *ui.Context) []Item {
 			break
 		}
 		n++
-		if seen[itemKey(it)] {
+		if seen[itemKey(it)] || hiddenDMRoute(ctx, it) {
 			continue
 		}
 		seen[itemKey(it)] = true
@@ -256,6 +256,15 @@ func emptyItems(ctx *ui.Context) []Item {
 		out = append(out, home)
 	}
 	return append(out, commandItems(ctx)...)
+}
+
+// hiddenDMRoute: it routes to a 1:1 DM with a blocked peer (Store.HiddenDM), e.g. a
+// recent route chosen before the block.
+func hiddenDMRoute(ctx *ui.Context, it Item) bool {
+	if ctx == nil || ctx.Store == nil || it.Route == nil || it.Route.Kind != ui.RouteChannel {
+		return false
+	}
+	return ctx.Store.HiddenDM(ctx.Store.Channels[it.Route.ID])
 }
 
 // groupRank orders the command groups of the empty query (the overlay lists the
@@ -336,10 +345,10 @@ func remember(it Item) {
 // Home item copy.
 const (
 	homeTitle    = "홈"
-	homeSubtitle = "DM·친구·피드"
+	homeSubtitle = "방·DM·친구·피드"
 )
 
-// homeItem is the 홈 route (spec 4: 레일/탭의 홈 = DM·친구·피드).
+// homeItem is the 홈 route (spec 4 레일/탭의 홈; now also the joined spaces).
 func homeItem() Item {
 	return Item{Kind: ItemRoute, Title: homeTitle, Subtitle: homeSubtitle, Route: &ui.Route{Kind: ui.RouteHome}}
 }
@@ -388,7 +397,8 @@ func channelItems(ctx *ui.Context) []Item {
 	return out
 }
 
-// dmItems lists the DMs and group DMs (DMOrder, then any other DM channel by id).
+// dmItems lists the DMs and group DMs (DMOrder, then any other DM channel by id),
+// leaving out a 1:1 DM with a blocked peer (Store.HiddenDM), as the DM list does.
 func dmItems(ctx *ui.Context) []Item {
 	if ctx == nil || ctx.Store == nil {
 		return nil
@@ -405,7 +415,7 @@ func dmItems(ctx *ui.Context) []Item {
 	var out []Item
 	for _, id := range append(ids, rest...) {
 		ch := st.Channels[id]
-		if ch == nil || (ch.Kind != api.ChannelDM && ch.Kind != api.ChannelGroupDM) {
+		if ch == nil || (ch.Kind != api.ChannelDM && ch.Kind != api.ChannelGroupDM) || st.HiddenDM(ch) {
 			continue
 		}
 		sub := "DM"

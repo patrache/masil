@@ -174,7 +174,7 @@ func homeItems(ctx *ui.Context) []homeItem {
 	return items
 }
 
-// ---- joined spaces (feat/home-channels) ----
+// Joined spaces on the home (CA RouteHome).
 
 // homeItemsWith is what the home shows: homeItems with the joined spaces'
 // sections (homeSpaceItems) after the entry rows, before "─ DM". homeItems alone
@@ -241,8 +241,6 @@ func homeSpaceItems(ctx *ui.Context, expanded map[string]bool, keep string) []ho
 	}
 	return items
 }
-
-// ---- end joined spaces ----
 
 // onlineFriends are the friend rows of online / away friends (not blocked), by
 // presence then name: the label is the display name, the detail the custom status
@@ -585,7 +583,7 @@ func (v *homeView) open(_ *ui.Context, it homeItem) tea.Cmd {
 	return nil
 }
 
-// ---- joined spaces (feat/home-channels) ----
+// Joined spaces on the home (CA RouteHome).
 
 // activate is enter / the opening click on a row: "…N개 더" expands its space in
 // place (openMore), a space channel also becomes the selected space (as from the
@@ -628,5 +626,3 @@ func (v *homeView) openMore(ctx *ui.Context, id string) {
 	}
 	v.snap(-1)
 }
-
-// ---- end joined spaces ----

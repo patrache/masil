@@ -180,7 +180,9 @@ func (n NavState) restore(l histLoc, mode layout.Mode) (NavState, FocusIntent) {
 		case ui.RouteDMs:
 			d.Stack, d.Thread = d.Stack[:1], nil
 		case ui.RouteChannel:
-			c.openDM(r)
+			dm := r
+			dm.Query = nil // no jump target: an open DM keeps its own (as a tab root does)
+			c.openDM(dm)
 			d.Stack, d.Thread = d.Stack[:2], nil
 		case ui.RouteThread:
 			c.openDM(ui.Route{Kind: ui.RouteChannel, ID: r.Arg})

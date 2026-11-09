@@ -7,7 +7,7 @@ type RouteKind string
 
 // Route kinds.
 const (
-	RouteHome          RouteKind = "home"           // chat: DM·친구·피드 진입 목록 (레일 "홈")
+	RouteHome          RouteKind = "home"           // chat: 방·DM·친구·피드 진입 목록 (레일 "홈")
 	RouteChannel       RouteKind = "channel"        // chat: ID=channel id (text|dm|group_dm), Anchor=message id
 	RouteDMs           RouteKind = "dms"            // chat: the DM list (DM surface root: 1:1 and group DMs by recent activity)
 	RouteThread        RouteKind = "thread"         // chat: ID=root message id, Arg=channel id
