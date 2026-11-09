@@ -8,6 +8,7 @@ import (
 
 	"github.com/patrache/masil/internal/workspace/audit"
 	"github.com/patrache/masil/internal/workspace/wire"
+	"github.com/patrache/masil/internal/workspace/wscrypto"
 )
 
 // Keyboard level timing (spec B8.4).
@@ -30,6 +31,10 @@ const (
 	DemoteRekey   = "rekey"
 	DemoteOwner   = "owner"
 )
+
+// needsRekey reports whether the broadcast counter reached RekeyAfter (a
+// variable so tests can stand in for 2^40 frames).
+var needsRekey = (*wscrypto.Sealer).NeedsRekey
 
 var (
 	ErrNotMember   = errors.New("share: no such participant")
@@ -110,6 +115,13 @@ func (h *Host) changeLevel(mb *member, level wire.Level, by string) {
 		mb.kbUntil = time.Time{}
 	}
 	h.record(audit.EvLevel, int(mb.seat), mb.user, map[string]any{"from": from.String(), "to": level.String(), "by": by})
+	if level == wire.LevelNone {
+		// Out of the people list: its waiting proposals and open documents go.
+		h.dropProposals(mb.seat)
+		if h.docs != nil {
+			h.closeSeatDocs(mb.seat)
+		}
+	}
 	h.sendLevels()
 	h.membersChanged()
 }
@@ -271,10 +283,6 @@ func (h *Host) onSelfLevel(seat uint8, name string) {
 	}
 	h.changeLevel(mb, lvl, "self")
 	if lvl == wire.LevelNone {
-		h.dropProposals(seat)
-		if h.docs != nil {
-			h.closeSeatDocs(seat)
-		}
 		h.emit(EventPeerLeft{Seat: seat, UserID: mb.user})
 	}
 }

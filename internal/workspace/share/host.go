@@ -173,7 +173,7 @@ func NewHost(cfg HostConfig) *Host {
 		h.docs = NewDocManager(cfg.Root, nil, cfg.Clock)
 	}
 	if h.docs != nil {
-		h.docs.setHook(h.onDocSequenced)
+		h.docs.setHook(h, h.onDocSequenced)
 	}
 	return h
 }
@@ -716,9 +716,23 @@ func (h *Host) finishLocked(reason, by string) {
 	h.over = true
 	h.killed.Store(true)
 	h.record(audit.EvShareEnd, 0, "", map[string]any{"reason": reason, "by": by})
+	h.releaseDocs()
 	h.forgetKeys()
 	h.cancel()
 	h.emit(EventEnded{Reason: reason})
+}
+
+// releaseDocs gives back every document Open participants held and stops
+// relaying the shared DocManager's edits (h.mu held). The manager lives on
+// with the solo workspace.
+func (h *Host) releaseDocs() {
+	if h.docs == nil {
+		return
+	}
+	for s := range h.opens {
+		h.closeSeatDocs(s)
+	}
+	h.docs.clearHook(h)
 }
 
 // forgetKeys overwrites the key material the host holds and drops every

@@ -175,6 +175,7 @@ type DocManager struct {
 	lastPoll time.Time
 	events   []DocEvent
 	onSeq    seqHook
+	hookBy   *Host // the host onSeq belongs to
 }
 
 // NewDocManager manages the documents of root; j may be nil (no recovery
@@ -186,9 +187,18 @@ func NewDocManager(root *fsroot.Root, j *journal.Journal, clock Clock) *DocManag
 	return &DocManager{root: root, j: j, clock: clock, watcher: fsroot.NewWatcher(root), docs: map[string]*doc{}}
 }
 
-func (m *DocManager) setHook(h seqHook) {
+func (m *DocManager) setHook(by *Host, f seqHook) {
 	m.mu.Lock()
-	m.onSeq = h
+	m.onSeq, m.hookBy = f, by
+	m.mu.Unlock()
+}
+
+// clearHook removes by's hook (a later host's hook stays).
+func (m *DocManager) clearHook(by *Host) {
+	m.mu.Lock()
+	if m.hookBy == by {
+		m.onSeq, m.hookBy = nil, nil
+	}
 	m.mu.Unlock()
 }
 
