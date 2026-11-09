@@ -302,6 +302,8 @@ client                                   server (UserHub)
 | `channel_message` | `notify:"all"` 로 설정한 text 채널의 새 최상위 메시지 | 채널 prefs |
 | `social` | 좋아요·리포스트·팔로우·팔로우 요청·글 답글·인용·방명록 | `notify.social` |
 | `focus_summary` | 집중 모드 종료 시 1회. `title` 예: "집중 모드 끝 — 멘션 3, DM 2" | 항상 |
+| `workspace_invite` | v0.1.3 (P2): 작업공간 공유에 초대받음(`template.id = "workspace.invite"`, `target.type = "workspace_share"`) | `notify.workspace` |
+| `workspace_attention` | v0.1.3 (P2): 내가 공유 중인 작업공간의 프로그램이 확인을 기다림 — 오너에게만, 공유당 30초에 한 번까지(`template.id = "workspace.attention"`, 내용 없음) | `notify.workspace` |
 
 - 한 메시지가 한 사람에게 여러 조건을 만족하면 우선순위 `dm > mention > thread_reply > channel_message` 중 하나만 만든다.
 - `muted=true` 채널, `notify:"none"` 채널, 차단한 사용자가 행위자인 경우 alert 를 만들지 않는다.
@@ -361,6 +363,16 @@ client                                   server (UserHub)
 | `doc.comment_created` | `{ doc_id: ID, comment: DocComment }` |
 
 - 클라이언트는 모르는 문서 종류(`doc.type`)의 이벤트를 무시한다. 0.1.2 클라이언트는 모르는 `type` 을 무시한다(8장).
+
+### 4.11 작업공간 공유 (v0.1.3, P2 — `api.md` 5.25, F)
+
+공유 목록("초대받은 공유"·"내 공유") 갱신용 메타정보. 공유 **내용**은 이 소켓이 아니라 공유 소켓 `GET /v1/workspace-shares/{share_id}/ws`(`docs/contract/workspace.md`)의 암호문으로만 흐른다.
+
+| type | 청중 | 기록 | data |
+|---|---|---|---|
+| `workspace_share.invited` | `users:[초대받은 사람]` | 기록 | `{ share: WorkspaceShare }` |
+| `workspace_share.updated` | `users:[오너 + 멤버]` | 휘발 | `{ share: WorkspaceShare }` — 초대 더하기·내보내기·나가기·단계(`max_level`·`verified`) 바뀜. 내보내진 사람·나간 사람도 받는다(그 `share.members` 에 자기가 없으면 목록에서 뺀다) |
+| `workspace_share.ended` | `users:[오너 + 멤버]` | 기록 | `{ share_id: ID, reason: "ended" \| "timeout" }` |
 
 ## 5. 클라이언트 → 서버 프레임
 
@@ -482,6 +494,7 @@ notify 모드에서 `typing/idle/watch` → `reply{not_allowed_in_mode}`.
 `timeline.item_created, post.deleted, post.stats, post.reply_created, story.created, story.deleted,`
 `device.tui_state,`
 `doc.created, doc.updated, doc.comment_created` (v0.1.3, 4.10)
+`workspace_share.invited, workspace_share.updated, workspace_share.ended` (v0.1.3, 4.11)
 
 클라이언트는 모르는 `type` 을 무시한다(서버가 나중에 추가해도 깨지지 않게).
 

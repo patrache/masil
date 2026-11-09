@@ -703,6 +703,43 @@ CREATE INDEX idx_collab_comments_doc ON collab_comments(doc_id, created_at);
 - 문서 삭제는 소프트(`deleted_at`). 방 삭제도 소프트(`spaces.deleted_at`, api.md 5.7)라 `ON DELETE CASCADE` 는 실행되지 않고 문서 행은 `deleted_at IS NULL` 로 남는다. 그래서 삭제된 방의 문서는 모든 문서 경로(REST·`/ws`)가 `spaces.deleted_at` 을 보고 `404` 로 숨기고(api.md 5.24), 열린 소켓은 방 삭제 batch 커밋 뒤 `kickFromSpaceDocs(…, "space_deleted")` 로 닫는다(collab.md 4.1). `ON DELETE CASCADE` 는 행을 실제로 지울 때(운영자 정리 등)만 작동한다. 기록 버전(자동·되돌리기)의 보관 정리(30일·문서당 200개, api.md 5.24)는 DO alarm 이 하고 D1 `collab_versions` 행도 함께 지운다.
 - R2 는 쓰지 않는다(JC2 — 문서 한도가 작아 DO SQLite 로 충분).
 
+### 3.14 작업공간 공유 — `0007_workspace.sql` (v0.1.3 P2, 설계서 B10)
+
+```sql
+CREATE TABLE workspace_shares (
+  id          TEXT PRIMARY KEY,
+  owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,                              -- 1..40 code points (user data)
+  status      TEXT NOT NULL CHECK (status IN ('live','ended')),
+  created_at  INTEGER NOT NULL,
+  ended_at    INTEGER,
+  end_reason  TEXT CHECK (end_reason IN ('ended','timeout'))
+);
+CREATE INDEX idx_workspace_shares_owner ON workspace_shares(owner_id, status, created_at);
+CREATE INDEX idx_workspace_shares_ended ON workspace_shares(status, ended_at);
+
+CREATE TABLE workspace_share_members (
+  share_id    TEXT NOT NULL REFERENCES workspace_shares(id) ON DELETE CASCADE,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seat        INTEGER NOT NULL CHECK (seat BETWEEN 1 AND 8),
+  invited_at  INTEGER NOT NULL,
+  joined_at   INTEGER,                                    -- last share-socket connect
+  left_at     INTEGER,                                    -- last share-socket close
+  removed_at  INTEGER,                                    -- the owner removed them, or they left (DELETE .../participants/@me)
+  max_level   TEXT CHECK (max_level IN ('viewer','prompter','editor','keyboard')),
+  verified    INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0,1)),
+  PRIMARY KEY (share_id, user_id),
+  UNIQUE (share_id, seat)
+);
+CREATE INDEX idx_workspace_share_members_user ON workspace_share_members(user_id, share_id);
+
+ALTER TABLE user_settings ADD COLUMN notify_workspace INTEGER NOT NULL DEFAULT 1 CHECK (notify_workspace IN (0,1));
+```
+
+- 이 두 표에는 위 열만 있다(서버 시험이 `PRAGMA table_info` 로 확인). 경로·파일 이름·명령·화면·키·확인 숫자는 D1 에도 DO 저장소에도 쓰지 않는다. `WorkspaceHub` DO 는 단계표·확인 여부(평문 메타정보)만 DO 저장소에 두고, 최근 키프레임 묶음 암호문은 메모리에만 둔다(`docs/contract/workspace.md` 4장).
+- "60분에 10회" 공유 만들기 한도는 `idx_workspace_shares_owner` 로 `created_at` 을 센다(api.md 0.7).
+- `max_level`·`verified` 는 오너가 보낸 `ctl_levels` 의 최고 단계·확인 여부를 DO 가 옮겨 적는다. `joined_at`·`left_at` 은 DO 가 연결·종료 때 적는다.
+
 ## 4. 검색 — `0002_search.sql` (FTS5)
 
 D1은 SQLite FTS5 모듈을 지원한다(공식 문서 확인). 한국어는 띄어쓰기 단위에 조사가 붙어(`배포는`, `배포를`) 단어 토크나이저로는 잘 안 맞으므로 **`trigram` 토크나이저**를 쓴다 — 3글자 이상 부분 문자열 일치, 대소문자 무시.
@@ -780,6 +817,7 @@ cleanup 작업 목록:
 7. **상태 메시지 만료**: `status_expires_at < now` → `status_emoji/status_text/status_expires_at = NULL` (API 응답은 이미 만료분을 null 로 보여 줌).
 8. **정지 만료**: `suspended_until < now` → `suspended_at/suspended_until/suspend_reason = NULL` (인증 미들웨어는 이미 만료를 활성으로 취급).
 9. **접속 상태 정정**: `status <> 'offline' AND online_until < now` → `status='offline'`.
+10. **끝난 작업공간 공유** (v0.1.3 P2): `status='ended' AND ended_at < now - 30일` 인 `workspace_shares` 행 → DELETE(멤버 행은 `ON DELETE CASCADE`).
 
 DO 내부 보존(D1 아님): UserHub 이벤트 로그는 사용자당 최근 2,000건 또는 24시간 중 짧은 쪽(`events.md` 6.2). TopicHub 시청자 임대는 300초.
 

@@ -164,6 +164,37 @@ var areaAlerts = area{
 				ZhHans: {Other: "{actor} 在你的留言板留言"},
 			},
 		},
+		"workspace_attention_body": {
+			desc: "알림 본문: 내가 공유 중인 작업공간의 프로그램이 확인을 기다림(내용은 싣지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 중인 작업공간에서 확인이 필요해요"},
+				En: {Other: "Your shared workspace needs a confirmation"},
+			},
+		},
+		"workspace_attention_title": {
+			desc:   "알림 제목: 공유 중인 작업공간 이름. share = 공유 이름(사용자 글)",
+			params: []Param{{Name: "share", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{share}"},
+				En: {Other: "{share}"},
+			},
+		},
+		"workspace_invite_body": {
+			desc:   "알림 본문: 초대받은 작업공간 공유 이름. share = 공유 이름(사용자 글)",
+			params: []Param{{Name: "share", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{share}"},
+				En: {Other: "{share}"},
+			},
+		},
+		"workspace_invite_title": {
+			desc:   "알림 제목: 작업공간 공유에 초대받음. actor = 공유한 사람 이름",
+			params: []Param{{Name: "actor", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{actor}님이 작업공간을 공유했어요"},
+				En: {Other: "{actor} shared a workspace with you"},
+			},
+		},
 	},
 }
 
@@ -250,4 +281,24 @@ func (a_ AlertsT) SocialFriendRequestTitle(actor string) string {
 // SocialGuestbookTitle: 알림 제목: 내 방명록에 글이 남음. actor = 쓴 사람
 func (a_ AlertsT) SocialGuestbookTitle(actor string) string {
 	return a_.t.render(&areaAlerts, "social_guestbook_title", false, 0, "actor", actor)
+}
+
+// WorkspaceAttentionBody: 알림 본문: 내가 공유 중인 작업공간의 프로그램이 확인을 기다림(내용은 싣지 않음)
+func (a_ AlertsT) WorkspaceAttentionBody() string {
+	return a_.t.render(&areaAlerts, "workspace_attention_body", false, 0)
+}
+
+// WorkspaceAttentionTitle: 알림 제목: 공유 중인 작업공간 이름. share = 공유 이름(사용자 글)
+func (a_ AlertsT) WorkspaceAttentionTitle(share string) string {
+	return a_.t.render(&areaAlerts, "workspace_attention_title", false, 0, "share", share)
+}
+
+// WorkspaceInviteBody: 알림 본문: 초대받은 작업공간 공유 이름. share = 공유 이름(사용자 글)
+func (a_ AlertsT) WorkspaceInviteBody(share string) string {
+	return a_.t.render(&areaAlerts, "workspace_invite_body", false, 0, "share", share)
+}
+
+// WorkspaceInviteTitle: 알림 제목: 작업공간 공유에 초대받음. actor = 공유한 사람 이름
+func (a_ AlertsT) WorkspaceInviteTitle(actor string) string {
+	return a_.t.render(&areaAlerts, "workspace_invite_title", false, 0, "actor", actor)
 }

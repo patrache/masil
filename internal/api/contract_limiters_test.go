@@ -22,7 +22,7 @@ var contractMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "P
 
 var (
 	placeholderRe  = regexp.MustCompile(`\{[^}]+\}`)
-	limiterCellRe  = regexp.MustCompile(`^(RL_[A-Z]+)(?:\(([A-Z/]+)\))?$`)
+	limiterCellRe  = regexp.MustCompile(`^(RL_[A-Z_]+)(?:\(([A-Z/]+)\))?$`)
 	realtimeLimits = map[string]bool{"RL_WS": true} // realtime, not request.Limiter
 )
 
@@ -131,7 +131,10 @@ func loadContractLimiters(t *testing.T) map[string][]string {
 // client method that exercises them. Each entry names the Task that adds the
 // client method and its endpoint case; once a case covers the row the test
 // fails until the entry is removed, so the waiver cannot outlive its Task.
-var pendingLimiterRows = map[string]string{}
+var pendingLimiterRows = map[string]string{
+	"POST /v1/workspace-shares":           "P2 Task 14",
+	"POST /v1/workspace-shares/*/invites": "P2 Task 14",
+}
 
 // uncoveredLimiterRows reports every row that names a request limiter but no
 // case exercises (so checkLimiter, which proves request.Limiter, runs against

@@ -16,6 +16,8 @@
     "message.dm": { "params": ["actor"], "body": "verbatim" },
     "message.group": { "params": ["actor", "group"], "body": "verbatim" },
     "focus.summary": { "params": ["mention", "dm", "thread_reply", "invite", "friend_request", "other"], "body": "template" },
-    "doc.comment_mention": { "params": ["actor", "doc", "space"], "body": "verbatim" }
+    "doc.comment_mention": { "params": ["actor", "doc", "space"], "body": "verbatim" },
+    "workspace.invite": { "params": ["actor", "share"], "body": "template" },
+    "workspace.attention": { "params": ["share"], "body": "template" }
   }
 }

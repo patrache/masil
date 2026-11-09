@@ -35,6 +35,7 @@ export interface UserSettingsRow {
   notify_friend_request: 0 | 1;
   notify_thread_reply: 0 | 1;
   notify_social: 0 | 1;
+  notify_workspace: 0 | 1; // v0.1.3 P2 (0007_workspace)
   focus_default_min: number;
   updated_at: number;
 }
@@ -499,4 +500,28 @@ export interface CollabCommentRow {
   resolved_at: number | null;
   created_at: number;
   deleted: 0 | 1;
+}
+
+/** `workspace_shares` (v0.1.3 P2, data-model.md 3.14) — metadata only */
+export interface WorkspaceShareRow {
+  id: string;
+  owner_id: string;
+  title: string;
+  status: "live" | "ended";
+  created_at: number;
+  ended_at: number | null;
+  end_reason: "ended" | "timeout" | null;
+}
+
+/** `workspace_share_members` (v0.1.3 P2, data-model.md 3.14) */
+export interface WorkspaceShareMemberRow {
+  share_id: string;
+  user_id: string;
+  seat: number;
+  invited_at: number;
+  joined_at: number | null;
+  left_at: number | null;
+  removed_at: number | null;
+  max_level: "viewer" | "prompter" | "editor" | "keyboard" | null;
+  verified: 0 | 1;
 }

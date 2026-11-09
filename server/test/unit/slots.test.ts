@@ -10,14 +10,15 @@ import { api, signup } from "../helpers";
 const sources = import.meta.glob("../../src/app.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 
 describe("server assembly slots", () => {
-  it("leet and workspace-shares routers are mounted and serve nothing yet", async () => {
+  it("leet and workspace-shares routers are mounted (leet serves nothing yet)", async () => {
     const appSrc = Object.values(sources)[0]!;
     expect(appSrc).toContain('app.route("/v1", leetRoutes)');
     expect(appSrc).toContain('app.route("/v1", workspaceShareRoutes)');
     expect(createApp()).toBeDefined();
     const u = await signup();
     expect((await api(u.token).get("/v1/leet/daily")).status).toBe(404);
-    expect((await api(u.token).post("/v1/workspace-shares", {})).status).toBe(404);
+    // P2 Task 12 filled the workspace-shares slot: the route exists now (an empty body is a validation error, not 404)
+    expect((await api(u.token).post("/v1/workspace-shares", {})).status).toBe(400);
   });
 
   it("bindings: WORKSPACE_HUB, COLLAB_HUB, RL_DOC, RL_SHARE, RL_SHARE_WS", async () => {
