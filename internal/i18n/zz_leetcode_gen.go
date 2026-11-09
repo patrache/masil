@@ -3,6 +3,8 @@
 
 package i18n
 
+import "strconv"
+
 // LeetcodeT holds the "leetcode" area messages (locales/*/leetcode.toml).
 type LeetcodeT struct{ t *T }
 
@@ -25,6 +27,251 @@ var areaLeetcode = area{
 				En: {Other: "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"},
 			},
 		},
+		"auto_status_desc": {
+			desc:       "설정 줄 설명: 상태 메시지 자동 표시를 켜면 친구에게 지금 문제를 푸는 중이 보인다는 개인정보 안내(A10.5 — 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "켜면 친구에게 지금 문제를 푸는 중이 보여요"},
+				En: {Other: "When on, friends can see that you are solving a problem"},
+			},
+		},
+		"cmd_board": {
+			desc: "명령 팔레트 항목: 지금 방의 오늘의 문제 순위 보기",
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제 순위"},
+				En: {Other: "Daily problem ranking"},
+			},
+		},
+		"cmd_daily_toggle": {
+			desc: "명령 팔레트 항목: 지금 방의 #daily 채널(오늘의 문제 스레드) 켜기·끄기 — 방 owner·admin 만. #daily 는 채널 이름(번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 방의 #daily 켜기·끄기"},
+				En: {Other: "Turn #daily on/off in this space"},
+			},
+		},
+		"cmd_open": {
+			desc: "명령 팔레트 항목: 오늘의 문제 도구 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제 열기"},
+				En: {Other: "Open the daily problem"},
+			},
+		},
+		"cmd_settings": {
+			desc: "명령 팔레트 항목: 오늘의 문제 설정(언어·풀이 폴더·상태 메시지·#daily)",
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제 설정"},
+				En: {Other: "Daily problem settings"},
+			},
+		},
+		"daily_disabled": {
+			desc:   "토스트: 방의 #daily 를 껐을 때. space = 방 이름",
+			params: []Param{{Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{space} 의 #daily 를 껐어요"},
+				En: {Other: "#daily is off in {space}"},
+			},
+		},
+		"daily_enabled": {
+			desc:   "토스트: 방에 #daily 를 켰을 때. space = 방 이름(사용자 이름, 번역하지 않음)",
+			params: []Param{{Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{space} 에 #daily 를 켰어요"},
+				En: {Other: "#daily is on in {space}"},
+			},
+		},
+		"first_run_dir": {
+			desc:   "첫 실행 안내: 풀이 파일이 저장될 폴더. dir = 폴더 경로(번역하지 않음)",
+			params: []Param{{Name: "dir", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "풀이 폴더 {dir}"},
+				En: {Other: "Solutions folder {dir}"},
+			},
+		},
+		"first_run_footer": {
+			desc: "첫 실행 안내 바닥 줄 키 안내(↑↓·enter 는 키 이름)",
+			max:  36,
+			text: map[Locale]Forms{
+				Ko: {Other: "↑↓ 언어 · enter 시작"},
+				En: {Other: "↑↓ language · enter start"},
+			},
+		},
+		"first_run_lang": {
+			desc: "첫 실행 안내: 풀 언어 고르기 목록의 머리(아래에 Go·Python3 … 언어 이름 목록)",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "풀 언어"},
+				En: {Other: "Language"},
+			},
+		},
+		"first_run_notice": {
+			desc:       "첫 실행 안내: 문제를 사용자 PC 가 LeetCode 에서 직접 받는다는 것과 masil 이 LeetCode 와 관계없는 앱이라는 고지(약관 메모 A10.6 — 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "LeetCode 문제를 이 PC 가 직접 받아 와요. masil 은 LeetCode 와 관계없는 앱이에요."},
+				En: {Other: "This PC fetches LeetCode problems directly. masil is not affiliated with LeetCode."},
+			},
+		},
+		"first_run_title": {
+			desc: "첫 실행 안내 대화상자 제목(테두리)",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제 시작"},
+				En: {Other: "Daily LC"},
+			},
+		},
+		"hub_not_loaded": {
+			desc: "도구 허브 오늘의 문제 줄의 상태: 오늘 문제를 아직 받지 않았을 때(허브는 LeetCode 에 묻지 않는다)",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘 문제를 아직 안 받았어요"},
+				En: {Other: "Today's problem not fetched yet"},
+			},
+		},
+		"hub_status": {
+			desc:   "도구 허브 오늘의 문제 줄의 상태. id = 문제 번호, difficulty = Easy/Medium/Hard(번역하지 않음), solved = unsolved·solved 문구, streak = 연속 풀이 일수",
+			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}, {Name: "solved", Type: "string"}, {Name: "streak", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{id} · {difficulty} · {solved} · 🔥 {streak}일"},
+				En: {Other: "{id} · {difficulty} · {solved} · 🔥 {streak}d"},
+			},
+		},
+		"hub_status_short": {
+			desc:   "도구 허브 오늘의 문제 줄의 상태: 문제는 알지만 연속 풀이를 아직 모를 때(서버에 묻기 전). id = 문제 번호, difficulty = Easy/Medium/Hard",
+			params: []Param{{Name: "id", Type: "string"}, {Name: "difficulty", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{id} · {difficulty}"},
+				En: {Other: "{id} · {difficulty}"},
+			},
+		},
+		"name": {
+			desc: "도구 이름(허브·탭·팔레트·설정 도구 로그인 줄): LeetCode 오늘의 문제 도구",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제"},
+				En: {Other: "Daily LC"},
+			},
+		},
+		"off": {
+			desc: "설정 값: 꺼짐",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "끔"},
+				En: {Other: "off"},
+			},
+		},
+		"on": {
+			desc: "설정 값: 켜짐",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "켬"},
+				En: {Other: "on"},
+			},
+		},
+		"prefix_run": {
+			desc: "ctrl+\\ 접두키 도움말: r = 지금 풀이 파일을 LeetCode 에서 실행",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "실행"},
+				En: {Other: "Run"},
+			},
+		},
+		"prefix_submit": {
+			desc: "ctrl+\\ 접두키 도움말: s = 지금 풀이 파일을 LeetCode 에 제출",
+			max:  16,
+			text: map[Locale]Forms{
+				Ko: {Other: "제출"},
+				En: {Other: "Submit"},
+			},
+		},
+		"save_failed": {
+			desc: "토스트: config.toml 에 설정을 저장하지 못했을 때(이번 실행에는 바뀐 값이 쓰임)",
+			text: map[Locale]Forms{
+				Ko: {Other: "설정을 저장하지 못했어요"},
+				En: {Other: "Could not save the setting"},
+			},
+		},
+		"settings_auto_status": {
+			desc: "설정 줄 이름: 문제를 여는 동안 상태 메시지에 '1606 푸는 중' 을 자동으로 보이기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "상태 메시지 자동 표시"},
+				En: {Other: "Show in my status"},
+			},
+		},
+		"settings_daily": {
+			desc:   "설정 줄 이름: 내가 owner·admin 인 방의 #daily 채널 켜기·끄기. space = 방 이름. #daily 는 채널 이름(번역하지 않음)",
+			params: []Param{{Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#daily · {space}"},
+				En: {Other: "#daily · {space}"},
+			},
+		},
+		"settings_dir": {
+			desc: "설정 줄 이름: 풀이 파일 폴더(값은 경로)",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "풀이 폴더"},
+				En: {Other: "Solutions folder"},
+			},
+		},
+		"settings_dir_footer": {
+			desc: "오늘의 문제 설정: 풀이 폴더 입력 중 바닥 줄 키 안내(빈 칸 = 기본 폴더)",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 저장 · esc 취소"},
+				En: {Other: "enter save · esc cancel"},
+			},
+		},
+		"settings_footer": {
+			desc: "오늘의 문제 설정 대화상자 바닥 줄 키 안내(↑↓·enter·esc 는 키 이름)",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "↑↓ 이동 · enter 바꾸기 · esc 닫기"},
+				En: {Other: "↑↓ move · enter change · esc close"},
+			},
+		},
+		"settings_lang": {
+			desc: "설정 줄 이름: 풀 언어(값은 Go·Python3 같은 언어 이름)",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "언어"},
+				En: {Other: "Language"},
+			},
+		},
+		"settings_share_friends": {
+			desc: "설정 줄 이름: 친구 순위에 내 연속 풀이 일수를 보이기(서버 설정 leet_share_with_friends)",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "친구에게 연속 풀이 보이기"},
+				En: {Other: "Share my streak with friends"},
+			},
+		},
+		"settings_title": {
+			desc: "오늘의 문제 설정 대화상자 제목(테두리)",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제 설정"},
+				En: {Other: "Daily problem settings"},
+			},
+		},
+		"solved": {
+			desc: "허브·초소형 줄: 오늘 문제를 풀었음(통과)",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "풂"},
+				En: {Other: "solved"},
+			},
+		},
+		"unsolved": {
+			desc: "허브·초소형 줄: 오늘 문제를 아직 안 풀었음",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 안 풂"},
+				En: {Other: "unsolved"},
+			},
+		},
 	},
 }
 
@@ -36,4 +283,159 @@ func (a_ LeetcodeT) AdminDailySet(date string, slug string) string {
 // AdminUsage: 운영자 CLI 사용법 한 줄: masil admin leet-daily set. 명령·플래그 이름·Easy/Medium/Hard 는 번역하지 않는다
 func (a_ LeetcodeT) AdminUsage() string {
 	return a_.t.render(&areaLeetcode, "admin_usage", false, 0)
+}
+
+// AutoStatusDesc: 설정 줄 설명: 상태 메시지 자동 표시를 켜면 친구에게 지금 문제를 푸는 중이 보인다는 개인정보 안내(A10.5 — 줄여 쓰지 않음)
+func (a_ LeetcodeT) AutoStatusDesc() string {
+	return a_.t.render(&areaLeetcode, "auto_status_desc", false, 0)
+}
+
+// CmdBoard: 명령 팔레트 항목: 지금 방의 오늘의 문제 순위 보기
+func (a_ LeetcodeT) CmdBoard() string {
+	return a_.t.render(&areaLeetcode, "cmd_board", false, 0)
+}
+
+// CmdDailyToggle: 명령 팔레트 항목: 지금 방의 #daily 채널(오늘의 문제 스레드) 켜기·끄기 — 방 owner·admin 만. #daily 는 채널 이름(번역하지 않음)
+func (a_ LeetcodeT) CmdDailyToggle() string {
+	return a_.t.render(&areaLeetcode, "cmd_daily_toggle", false, 0)
+}
+
+// CmdOpen: 명령 팔레트 항목: 오늘의 문제 도구 열기
+func (a_ LeetcodeT) CmdOpen() string {
+	return a_.t.render(&areaLeetcode, "cmd_open", false, 0)
+}
+
+// CmdSettings: 명령 팔레트 항목: 오늘의 문제 설정(언어·풀이 폴더·상태 메시지·#daily)
+func (a_ LeetcodeT) CmdSettings() string {
+	return a_.t.render(&areaLeetcode, "cmd_settings", false, 0)
+}
+
+// DailyDisabled: 토스트: 방의 #daily 를 껐을 때. space = 방 이름
+func (a_ LeetcodeT) DailyDisabled(space string) string {
+	return a_.t.render(&areaLeetcode, "daily_disabled", false, 0, "space", space)
+}
+
+// DailyEnabled: 토스트: 방에 #daily 를 켰을 때. space = 방 이름(사용자 이름, 번역하지 않음)
+func (a_ LeetcodeT) DailyEnabled(space string) string {
+	return a_.t.render(&areaLeetcode, "daily_enabled", false, 0, "space", space)
+}
+
+// FirstRunDir: 첫 실행 안내: 풀이 파일이 저장될 폴더. dir = 폴더 경로(번역하지 않음)
+func (a_ LeetcodeT) FirstRunDir(dir string) string {
+	return a_.t.render(&areaLeetcode, "first_run_dir", false, 0, "dir", dir)
+}
+
+// FirstRunFooter: 첫 실행 안내 바닥 줄 키 안내(↑↓·enter 는 키 이름)
+func (a_ LeetcodeT) FirstRunFooter() string {
+	return a_.t.render(&areaLeetcode, "first_run_footer", false, 0)
+}
+
+// FirstRunLang: 첫 실행 안내: 풀 언어 고르기 목록의 머리(아래에 Go·Python3 … 언어 이름 목록)
+func (a_ LeetcodeT) FirstRunLang() string {
+	return a_.t.render(&areaLeetcode, "first_run_lang", false, 0)
+}
+
+// FirstRunNotice: 첫 실행 안내: 문제를 사용자 PC 가 LeetCode 에서 직접 받는다는 것과 masil 이 LeetCode 와 관계없는 앱이라는 고지(약관 메모 A10.6 — 줄여 쓰지 않음)
+func (a_ LeetcodeT) FirstRunNotice() string {
+	return a_.t.render(&areaLeetcode, "first_run_notice", false, 0)
+}
+
+// FirstRunTitle: 첫 실행 안내 대화상자 제목(테두리)
+func (a_ LeetcodeT) FirstRunTitle() string {
+	return a_.t.render(&areaLeetcode, "first_run_title", false, 0)
+}
+
+// HubNotLoaded: 도구 허브 오늘의 문제 줄의 상태: 오늘 문제를 아직 받지 않았을 때(허브는 LeetCode 에 묻지 않는다)
+func (a_ LeetcodeT) HubNotLoaded() string {
+	return a_.t.render(&areaLeetcode, "hub_not_loaded", false, 0)
+}
+
+// HubStatus: 도구 허브 오늘의 문제 줄의 상태. id = 문제 번호, difficulty = Easy/Medium/Hard(번역하지 않음), solved = unsolved·solved 문구, streak = 연속 풀이 일수
+func (a_ LeetcodeT) HubStatus(id string, difficulty string, solved string, streak int) string {
+	return a_.t.render(&areaLeetcode, "hub_status", false, 0, "id", id, "difficulty", difficulty, "solved", solved, "streak", strconv.Itoa(streak))
+}
+
+// HubStatusShort: 도구 허브 오늘의 문제 줄의 상태: 문제는 알지만 연속 풀이를 아직 모를 때(서버에 묻기 전). id = 문제 번호, difficulty = Easy/Medium/Hard
+func (a_ LeetcodeT) HubStatusShort(id string, difficulty string) string {
+	return a_.t.render(&areaLeetcode, "hub_status_short", false, 0, "id", id, "difficulty", difficulty)
+}
+
+// Name: 도구 이름(허브·탭·팔레트·설정 도구 로그인 줄): LeetCode 오늘의 문제 도구
+func (a_ LeetcodeT) Name() string {
+	return a_.t.render(&areaLeetcode, "name", false, 0)
+}
+
+// Off: 설정 값: 꺼짐
+func (a_ LeetcodeT) Off() string {
+	return a_.t.render(&areaLeetcode, "off", false, 0)
+}
+
+// On: 설정 값: 켜짐
+func (a_ LeetcodeT) On() string {
+	return a_.t.render(&areaLeetcode, "on", false, 0)
+}
+
+// PrefixRun: ctrl+\ 접두키 도움말: r = 지금 풀이 파일을 LeetCode 에서 실행
+func (a_ LeetcodeT) PrefixRun() string {
+	return a_.t.render(&areaLeetcode, "prefix_run", false, 0)
+}
+
+// PrefixSubmit: ctrl+\ 접두키 도움말: s = 지금 풀이 파일을 LeetCode 에 제출
+func (a_ LeetcodeT) PrefixSubmit() string {
+	return a_.t.render(&areaLeetcode, "prefix_submit", false, 0)
+}
+
+// SaveFailed: 토스트: config.toml 에 설정을 저장하지 못했을 때(이번 실행에는 바뀐 값이 쓰임)
+func (a_ LeetcodeT) SaveFailed() string {
+	return a_.t.render(&areaLeetcode, "save_failed", false, 0)
+}
+
+// SettingsAutoStatus: 설정 줄 이름: 문제를 여는 동안 상태 메시지에 '1606 푸는 중' 을 자동으로 보이기
+func (a_ LeetcodeT) SettingsAutoStatus() string {
+	return a_.t.render(&areaLeetcode, "settings_auto_status", false, 0)
+}
+
+// SettingsDaily: 설정 줄 이름: 내가 owner·admin 인 방의 #daily 채널 켜기·끄기. space = 방 이름. #daily 는 채널 이름(번역하지 않음)
+func (a_ LeetcodeT) SettingsDaily(space string) string {
+	return a_.t.render(&areaLeetcode, "settings_daily", false, 0, "space", space)
+}
+
+// SettingsDir: 설정 줄 이름: 풀이 파일 폴더(값은 경로)
+func (a_ LeetcodeT) SettingsDir() string {
+	return a_.t.render(&areaLeetcode, "settings_dir", false, 0)
+}
+
+// SettingsDirFooter: 오늘의 문제 설정: 풀이 폴더 입력 중 바닥 줄 키 안내(빈 칸 = 기본 폴더)
+func (a_ LeetcodeT) SettingsDirFooter() string {
+	return a_.t.render(&areaLeetcode, "settings_dir_footer", false, 0)
+}
+
+// SettingsFooter: 오늘의 문제 설정 대화상자 바닥 줄 키 안내(↑↓·enter·esc 는 키 이름)
+func (a_ LeetcodeT) SettingsFooter() string {
+	return a_.t.render(&areaLeetcode, "settings_footer", false, 0)
+}
+
+// SettingsLang: 설정 줄 이름: 풀 언어(값은 Go·Python3 같은 언어 이름)
+func (a_ LeetcodeT) SettingsLang() string {
+	return a_.t.render(&areaLeetcode, "settings_lang", false, 0)
+}
+
+// SettingsShareFriends: 설정 줄 이름: 친구 순위에 내 연속 풀이 일수를 보이기(서버 설정 leet_share_with_friends)
+func (a_ LeetcodeT) SettingsShareFriends() string {
+	return a_.t.render(&areaLeetcode, "settings_share_friends", false, 0)
+}
+
+// SettingsTitle: 오늘의 문제 설정 대화상자 제목(테두리)
+func (a_ LeetcodeT) SettingsTitle() string {
+	return a_.t.render(&areaLeetcode, "settings_title", false, 0)
+}
+
+// Solved: 허브·초소형 줄: 오늘 문제를 풀었음(통과)
+func (a_ LeetcodeT) Solved() string {
+	return a_.t.render(&areaLeetcode, "solved", false, 0)
+}
+
+// Unsolved: 허브·초소형 줄: 오늘 문제를 아직 안 풀었음
+func (a_ LeetcodeT) Unsolved() string {
+	return a_.t.render(&areaLeetcode, "unsolved", false, 0)
 }

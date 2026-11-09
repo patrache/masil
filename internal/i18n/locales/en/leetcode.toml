@@ -3,3 +3,96 @@ other = "Set the daily problem of {date} to {slug}."
 
 [admin_usage]
 other = "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"
+
+[auto_status_desc]
+other = "When on, friends can see that you are solving a problem"
+
+[cmd_board]
+other = "Daily problem ranking"
+
+[cmd_daily_toggle]
+other = "Turn #daily on/off in this space"
+
+[cmd_open]
+other = "Open the daily problem"
+
+[cmd_settings]
+other = "Daily problem settings"
+
+[daily_disabled]
+other = "#daily is off in {space}"
+
+[daily_enabled]
+other = "#daily is on in {space}"
+
+[first_run_dir]
+other = "Solutions folder {dir}"
+
+[first_run_footer]
+other = "↑↓ language · enter start"
+
+[first_run_lang]
+other = "Language"
+
+[first_run_notice]
+other = "This PC fetches LeetCode problems directly. masil is not affiliated with LeetCode."
+
+[first_run_title]
+other = "Daily LC"
+
+[hub_not_loaded]
+other = "Today's problem not fetched yet"
+
+[hub_status]
+other = "{id} · {difficulty} · {solved} · 🔥 {streak}d"
+
+[hub_status_short]
+other = "{id} · {difficulty}"
+
+[name]
+other = "Daily LC"
+
+[off]
+other = "off"
+
+[on]
+other = "on"
+
+[prefix_run]
+other = "Run"
+
+[prefix_submit]
+other = "Submit"
+
+[save_failed]
+other = "Could not save the setting"
+
+[settings_auto_status]
+other = "Show in my status"
+
+[settings_daily]
+other = "#daily · {space}"
+
+[settings_dir]
+other = "Solutions folder"
+
+[settings_dir_footer]
+other = "enter save · esc cancel"
+
+[settings_footer]
+other = "↑↓ move · enter change · esc close"
+
+[settings_lang]
+other = "Language"
+
+[settings_share_friends]
+other = "Share my streak with friends"
+
+[settings_title]
+other = "Daily problem settings"
+
+[solved]
+other = "solved"
+
+[unsolved]
+other = "unsolved"
