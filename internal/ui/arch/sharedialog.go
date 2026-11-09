@@ -3,8 +3,11 @@ package arch
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/archdoc"
@@ -158,13 +161,40 @@ func (d *shareDialog) create(ctx *ui.Context) tea.Cmd {
 	}
 }
 
-// docTitle is the room document's title (the design's, at most 80 graphemes).
+// docTitleMax is POST /docs' title limit: code points after NFC (the server's
+// charCount), not graphemes or cells.
+const docTitleMax = 80
+
+// docTitle is the room document's title: the design's (NFC via cleanText),
+// cut to docTitleMax code points on a grapheme boundary with "…".
 func (d *shareDialog) docTitle() string {
 	t := cleanText(d.title)
+	if utf8.RuneCountInString(t) > docTitleMax {
+		var b strings.Builder
+		n := 0
+		for rest := t; rest != ""; {
+			g, _ := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+			if g == "" {
+				_, w := utf8.DecodeRuneInString(rest)
+				g = rest[:w]
+			}
+			gn := utf8.RuneCountInString(g)
+			if n+gn > docTitleMax-1 { // room for "…"
+				break
+			}
+			b.WriteString(g)
+			n += gn
+			rest = rest[len(g):]
+		}
+		t = strings.TrimSpace(b.String())
+		if t != "" {
+			t += "…"
+		}
+	}
 	if t == "" {
 		t = "arch"
 	}
-	return textwidth.Truncate(t, 160, "…")
+	return t
 }
 
 // lines is the dialog's content at width w.

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -133,6 +134,54 @@ func setOp(id, field, v string) archdoc.Change {
 }
 
 func field(o archdoc.Objects, id, f string) string { return string(o[id][f]) }
+
+// The room document title fits the server's limit: 80 code points after NFC
+// (POST /docs zText(1, 80) counts code points), cut on a grapheme boundary.
+// An 80-grapheme design title can be 160 code points (flags, Thai marks).
+func TestShareDocTitleFitsServer(t *testing.T) {
+	for _, tc := range []struct{ name, title string }{
+		{"flags", strings.Repeat("\U0001F1F0\U0001F1F7", 80)}, // 2 code points, 1 grapheme, 2 cells each
+		{"thai marks", strings.Repeat("\u0E01\u0E34", 80)},    // กิ: 2 code points, 1 grapheme, 1 cell
+		{"family emoji", strings.Repeat("\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466", 12)},
+		{"plain", strings.Repeat("a", 90)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := cleanText(tc.title)
+			got := (&shareDialog{title: tc.title}).docTitle()
+			if n := utf8.RuneCountInString(got); n > 80 || n == 0 {
+				t.Fatalf("title has %d code points, want 1..80: %q", n, got)
+			}
+			body := strings.TrimSuffix(got, "…")
+			if !strings.HasPrefix(base, body) {
+				t.Fatalf("title %q is not a prefix of the design's %q", got, base)
+			}
+			// the cut is on a grapheme boundary: body's last grapheme is whole in base
+			if body != base && body != "" {
+				last := lastGrapheme(body)
+				if g, _ := ansi.FirstGraphemeCluster(base[len(body)-len(last):], ansi.GraphemeWidth); g != last {
+					t.Errorf("cut inside a grapheme: %q | %q", body, base[len(body):])
+				}
+			}
+		})
+	}
+	if got := (&shareDialog{title: "결제 v3"}).docTitle(); got != "결제 v3" {
+		t.Errorf("a short title changed: %q", got)
+	}
+}
+
+// lastGrapheme is s's last grapheme cluster.
+func lastGrapheme(s string) string {
+	var last string
+	for s != "" {
+		g, _ := ansi.FirstGraphemeCluster(s, ansi.GraphemeWidth)
+		if g == "" {
+			_, n := utf8.DecodeRuneInString(s)
+			g = s[:n]
+		}
+		last, s = g, s[len(g):]
+	}
+	return last
+}
 
 func TestShareConfirmShowsPlaintextWarning(t *testing.T) {
 	r := toolRoute("arch:file:t1", map[string]string{"file": fixtureName})
