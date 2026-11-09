@@ -38,7 +38,12 @@ func (r *rng) f64() float64 {
 // exp draws from the exponential distribution with the given rate (mean
 // 1/rate). It always uses one draw; rate <= 0 gives +Inf.
 func (r *rng) exp(rate float64) float64 {
-	u := r.f64()
+	return expOf(r.f64(), rate)
+}
+
+// expOf turns one uniform draw u into an Exp(rate) value, so a caller can
+// take the draw now and pay for the logarithm only if it uses the value.
+func expOf(u, rate float64) float64 {
 	if !(rate > 0) {
 		return math.Inf(1)
 	}

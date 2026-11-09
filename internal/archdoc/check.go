@@ -43,8 +43,9 @@ type graph struct {
 }
 
 func newGraph(d *Design) *graph {
-	g := &graph{d: d, nodes: map[string]*Node{}, out: map[string][]string{}, in: map[string][]string{},
-		parent: map[string]string{}, boxes: map[string]*Box{}}
+	nn, nb := len(d.Nodes), len(d.Boxes)
+	g := &graph{d: d, nodes: make(map[string]*Node, nn), out: make(map[string][]string, nn), in: make(map[string][]string, nn),
+		parent: make(map[string]string, nb), boxes: make(map[string]*Box, nb), ids: make([]string, 0, nn)}
 	for i := range d.Nodes {
 		n := &d.Nodes[i]
 		if _, dup := g.nodes[n.ID]; !dup {

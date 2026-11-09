@@ -267,6 +267,64 @@ func percentile(sorted []float64, pct int) float64 {
 	return sorted[max(i-1, 0)]
 }
 
+// p50p99 is percentile(sorted, 50) and percentile(sorted, 99) without sorting
+// all of xs: two selections, reordering xs in place. The values are the same
+// order statistics a sort gives.
+func p50p99(xs []float64) (p50, p99 float64) {
+	n := len(xs)
+	if n == 0 {
+		return 0, 0
+	}
+	for _, x := range xs {
+		if x != x { // NaN: keep sort's ordering exactly
+			slices.Sort(xs)
+			return percentile(xs, 50), percentile(xs, 99)
+		}
+	}
+	i99 := max((n*99+99)/100-1, 0)
+	i50 := max((n*50+99)/100-1, 0)
+	p99 = selectKth(xs, i99)
+	return selectKth(xs[:i99+1], i50), p99 // xs[:i99+1] now holds the i99+1 smallest
+}
+
+// selectKth is the k-th smallest (0-based) of xs (no NaN): quickselect with a
+// median-of-three pivot and a three-way partition, so ties cost nothing. After
+// it every element before k is ≤ xs[k] and every one after is ≥ it.
+func selectKth(xs []float64, k int) float64 {
+	lo, hi := 0, len(xs)
+	for budget := 64; hi-lo > 16; budget-- {
+		if budget == 0 {
+			break
+		}
+		a, b, c := xs[lo], xs[lo+(hi-lo)/2], xs[hi-1]
+		pivot := max(min(a, b), min(max(a, b), c))
+		lt, i, gt := lo, lo, hi
+		for i < gt {
+			switch x := xs[i]; {
+			case x < pivot:
+				xs[lt], xs[i] = x, xs[lt]
+				lt++
+				i++
+			case x > pivot:
+				gt--
+				xs[gt], xs[i] = x, xs[gt]
+			default:
+				i++
+			}
+		}
+		switch {
+		case k < lt:
+			hi = lt
+		case k >= gt:
+			lo = gt
+		default:
+			return pivot
+		}
+	}
+	slices.Sort(xs[lo:hi])
+	return xs[k]
+}
+
 // sampleState is what the end-to-end sampler reads per node.
 type sampleState struct {
 	ns      []nodeEval
@@ -426,10 +484,10 @@ func Analyze(d *archdoc.Design, opt Options) *Result {
 	}
 	ss := &sampleState{ns: se.ns, in: in, fs: fs, edgeS: m.edgeSeconds(fs, nil)}
 	lat := m.sample(newRNG(d.Seed).split(1), samples, ss, make([]float64, 0, samples))
-	slices.Sort(lat)
+	p50, p99 := p50p99(lat)
 	r := &Result{
 		EngineVersion: EngineVersion, Nodes: map[string]NodeResult{}, Edges: map[string]EdgeResult{},
-		RPS: toInt(fs.total), P50Ms: toInt(percentile(lat, 50)), P99Ms: toInt(percentile(lat, 99)),
+		RPS: toInt(fs.total), P50Ms: toInt(p50), P99Ms: toInt(p99),
 		Findings: archdoc.Check(d),
 	}
 	if fs.total > 0 {

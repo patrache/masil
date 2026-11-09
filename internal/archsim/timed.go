@@ -354,15 +354,15 @@ func RunTimed(ctx context.Context, d *archdoc.Design, opt TimedOptions) (*Timeli
 		fi := len(tl.Frames)
 		ss := &sampleState{ns: te.sn, waitS: te.waitS, in: in, fs: fs, edgeS: m.edgeSeconds(fs, fx.edgeAddMs)}
 		lat := m.sample(root.split(2).split(uint64(fi)), perFrame, ss, nil)
-		slices.Sort(lat)
+		p50, p99 := p50p99(lat)
 		share := defaultSamples / max(frames, 1)
 		if fi < defaultSamples%max(frames, 1) {
 			share++
 		}
 		ss.visitMs = func(u int, ms float64) { acc[u].lat = append(acc[u].lat, ms) }
 		summaryLat = m.sample(root.split(3).split(uint64(fi)), share, ss, summaryLat)
-		f := Frame{T10: tick + 1, RPS: toInt(frameReq / mul(float64(every), tickS)), P50Ms: toInt(percentile(lat, 50)),
-			P99Ms: toInt(percentile(lat, 99)), Nodes: make(map[string]FrameNode, N)}
+		f := Frame{T10: tick + 1, RPS: toInt(frameReq / mul(float64(every), tickS)), P50Ms: toInt(p50),
+			P99Ms: toInt(p99), Nodes: make(map[string]FrameNode, N)}
 		if frameReq > 0 {
 			f.ErrPermille = min(permilleOf(frameErr/frameReq), 1000)
 		}
@@ -375,7 +375,6 @@ func RunTimed(ctx context.Context, d *archdoc.Design, opt TimedOptions) (*Timeli
 		runErr += frameErr
 		frameReq, frameErr = 0, 0
 	}
-	slices.Sort(summaryLat)
 	tl.Summary = m.summary(d, ticks, avg, acc, edgePeak, edgeAdd, clientSum, runReq, runErr, summaryLat)
 	return tl, nil
 }
@@ -468,8 +467,9 @@ func (m *model) summary(d *archdoc.Design, ticks int, avg *flowState, acc []node
 	req, errs float64, lat []float64) *Result {
 	inv := 1 / float64(max(ticks, 1))
 	scaleFlow(avg, inv)
+	p50, p99 := p50p99(lat)
 	r := &Result{EngineVersion: EngineVersion, Nodes: map[string]NodeResult{}, Edges: map[string]EdgeResult{},
-		RPS: toInt(avg.total), P50Ms: toInt(percentile(lat, 50)), P99Ms: toInt(percentile(lat, 99)), Findings: archdoc.Check(d)}
+		RPS: toInt(avg.total), P50Ms: toInt(p50), P99Ms: toInt(p99), Findings: archdoc.Check(d)}
 	if req > 0 {
 		r.ErrorPermille = min(permilleOf(errs/req), 1000)
 	}
@@ -495,8 +495,8 @@ func (m *model) summary(d *archdoc.Design, ticks int, avg *flowState, acc []node
 		if a.lam > 0 {
 			nr.ErrPermille = min(permilleOf(a.err/a.lam), 1000)
 		}
-		slices.Sort(a.lat)
-		nr.P50Ms, nr.P99Ms = toInt(percentile(a.lat, 50)), toInt(percentile(a.lat, 99))
+		p50, p99 := p50p99(a.lat)
+		nr.P50Ms, nr.P99Ms = toInt(p50), toInt(p99)
 		r.Nodes[id] = nr
 		r.Overloaded = r.Overloaded || a.over
 		if a.peak > 0 {

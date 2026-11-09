@@ -102,7 +102,7 @@ func (s station) sample(r *rng) (wait, service float64) {
 // always uses three draws so streams stay aligned whatever the load.
 func (s station) sampleP(r *rng, pWait float64) (wait, service float64) {
 	u := r.f64()
-	w := r.exp(s.capacity() - s.lambda)
+	uw := r.f64() // the wait draw; its logarithm only when the request waits
 	service = r.exp(s.mu)
 	switch {
 	case !(s.lambda > 0):
@@ -110,7 +110,7 @@ func (s station) sampleP(r *rng, pWait float64) (wait, service float64) {
 	case s.rho() >= 1:
 		wait = math.Inf(1)
 	case u < pWait:
-		wait = w
+		wait = expOf(uw, s.capacity()-s.lambda)
 	}
 	return wait, service
 }

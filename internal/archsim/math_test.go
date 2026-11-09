@@ -2,6 +2,7 @@ package archsim
 
 import (
 	"math"
+	"slices"
 	"strconv"
 	"testing"
 )
@@ -211,6 +212,45 @@ func TestErlangCLargeServersClose(t *testing.T) {
 		a := float64(0.97 * float64(c))
 		if got, want := erlangC(c, a), erlangCRecurrence(c, a); got != want {
 			t.Fatalf("erlangC(%d, %v) = %v, want %v", c, a, got, want)
+		}
+	}
+}
+
+// p50p99 picks the same two order statistics as sorting and percentile does,
+// for any length and with many ties (timeouts, zero-latency paths).
+func TestP50P99MatchesSort(t *testing.T) {
+	r := newRNG(7)
+	for n := range 300 {
+		for _, levels := range []int{0, 1, 3, 50} {
+			xs := make([]float64, n)
+			for i := range xs {
+				if levels == 0 {
+					xs[i] = r.exp(1)
+				} else {
+					xs[i] = float64(int(float64(r.f64() * float64(levels))))
+				}
+			}
+			if n%7 == 3 && n > 0 {
+				xs[n/2] = math.Inf(1)
+			}
+			sorted := slices.Clone(xs)
+			slices.Sort(sorted)
+			p50, p99 := p50p99(xs)
+			if p50 != percentile(sorted, 50) || p99 != percentile(sorted, 99) {
+				t.Fatalf("n=%d levels=%d: p50p99 = %v, %v; sort gives %v, %v", n, levels, p50, p99, percentile(sorted, 50), percentile(sorted, 99))
+			}
+		}
+	}
+	// 20,000 samples, the steady-state size, and already sorted / reversed input.
+	xs := make([]float64, defaultSamples)
+	for i := range xs {
+		xs[i] = float64(i % 977)
+	}
+	for _, in := range [][]float64{xs, slices.Sorted(slices.Values(xs)), func() []float64 { s := slices.Sorted(slices.Values(xs)); slices.Reverse(s); return s }()} {
+		sorted := slices.Sorted(slices.Values(in))
+		p50, p99 := p50p99(slices.Clone(in))
+		if p50 != percentile(sorted, 50) || p99 != percentile(sorted, 99) {
+			t.Fatalf("p50p99 = %v, %v; sort gives %v, %v", p50, p99, percentile(sorted, 50), percentile(sorted, 99))
 		}
 	}
 }
