@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -76,11 +77,77 @@ type peerInfo struct {
 // shareStartedMsg ends the share start (API, engine).
 type shareStartedMsg struct {
 	surface string
+	starts  *shareStarts // the instance that asked
 	host    *share.Host
 	info    *api.WorkspaceShare
 	log     *audit.Log
 	opts    shareOpts
 	err     error
+}
+
+// shareStarts hands started engines from the start Cmd to the instance
+// (any goroutine): once the instance closed, a start that finishes ends
+// its share itself, and closing ends every start not installed yet — the
+// app drops a closed instance, so its shareStartedMsg reaches no one.
+type shareStarts struct {
+	mu      sync.Mutex
+	closed  bool
+	waiting map[*share.Host]*audit.Log
+}
+
+// hand gives a started host to the instance; false when it closed.
+func (p *shareStarts) hand(h *share.Host, log *audit.Log) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return false
+	}
+	if p.waiting == nil {
+		p.waiting = map[*share.Host]*audit.Log{}
+	}
+	p.waiting[h] = log
+	return true
+}
+
+// take claims a handed host (whoever takes it installs or ends it).
+func (p *shareStarts) take(h *share.Host) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, ok := p.waiting[h]; !ok {
+		return false
+	}
+	delete(p.waiting, h)
+	return true
+}
+
+// close marks the instance closed and ends what was handed but not taken.
+func (p *shareStarts) close() tea.Cmd {
+	p.mu.Lock()
+	p.closed = true
+	left := p.waiting
+	p.waiting = nil
+	p.mu.Unlock()
+	var cmds []tea.Cmd
+	for h, log := range left {
+		cmds = append(cmds, endHostCmd(h, log))
+	}
+	return tea.Batch(cmds...)
+}
+
+// endHost ends a share (falling back to the kill switch) and closes its log.
+func endHost(h *share.Host, log *audit.Log) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := h.End(ctx); err != nil && !errors.Is(err, share.ErrEnded) {
+		h.Kill()
+	}
+	if log != nil {
+		_ = log.Close()
+	}
+}
+
+func endHostCmd(h *share.Host, log *audit.Log) tea.Cmd {
+	return func() tea.Msg { endHost(h, log); return nil }
 }
 
 // launchTermMsg starts argv in a surface's terminal cell.
@@ -165,6 +232,10 @@ func (s *Surface) startShare(ctx *ui.Context, o shareOpts) tea.Cmd {
 		users[i] = api.UserRef("@" + h)
 	}
 	title := o.title
+	if s.starts == nil {
+		s.starts = &shareStarts{}
+	}
+	starts := s.starts
 	return func() tea.Msg {
 		bg := context.Background()
 		info, err := client.CreateWorkspaceShare(bg, title, users)
@@ -193,7 +264,11 @@ func (s *Surface) startShare(ctx *ui.Context, o shareOpts) tea.Cmd {
 			}
 			return shareStartedMsg{surface: id, err: err}
 		}
-		return shareStartedMsg{surface: id, host: host, info: info, log: log, opts: o}
+		if !starts.hand(host, log) { // the workspace closed meanwhile
+			endHost(host, log)
+			return nil
+		}
+		return shareStartedMsg{surface: id, starts: starts, host: host, info: info, log: log, opts: o}
 	}
 }
 
@@ -204,9 +279,11 @@ func (s *Surface) shareStarted(ctx *ui.Context, m shareStartedMsg) tea.Cmd {
 		slog.Warn("workspace: share start", "err", m.err)
 		return ui.Toast(ctx.T.Workspace.ShareFailed(), ui.ToastError)
 	}
+	if m.starts != s.starts || !m.starts.take(m.host) {
+		return nil // another instance's start, or one being ended already
+	}
 	if s.closed || s.own != nil {
-		_ = m.host.End(context.Background())
-		return nil
+		return endHostCmd(m.host, m.log)
 	}
 	s.own = &ownerShare{host: m.host, id: m.info.ID, title: m.info.Title, members: m.info.Members, files: m.opts.files,
 		terms: map[string]uint8{}, shared: map[uint8]share.Terminal{}, audit: m.log}
@@ -455,25 +532,20 @@ func (s *Surface) ownerBadge() ui.Badge {
 	return ui.Badge{}
 }
 
-// ownerClose ends the share when the workspace closes.
+// ownerClose ends the share when the workspace closes, and any share still
+// starting.
 func (s *Surface) ownerClose(*ui.Context) tea.Cmd {
+	var pending tea.Cmd
+	if s.starts != nil {
+		pending = s.starts.close()
+	}
 	o := s.own
 	if o == nil {
-		return nil
+		return pending
 	}
 	o.release()
 	s.own = nil
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if err := o.host.End(ctx); err != nil && !errors.Is(err, share.ErrEnded) {
-			o.host.Kill()
-		}
-		if o.audit != nil {
-			_ = o.audit.Close()
-		}
-		return nil
-	}
+	return tea.Batch(pending, endHostCmd(o.host, o.audit))
 }
 
 // shareKey is ctrl+\ S.

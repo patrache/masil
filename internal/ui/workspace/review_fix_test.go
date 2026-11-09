@@ -6,7 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/workspace/share"
 )
@@ -210,5 +213,47 @@ func TestShareEndReleasesTerminals(t *testing.T) {
 	}
 	if rt.stops != rt.taps || len(rt.sizes) == 0 || rt.sizes[len(rt.sizes)-1] != [2]int{0, 0} {
 		t.Fatalf("after the end: taps %d, stops %d, sizes %v", rt.taps, rt.stops, rt.sizes)
+	}
+}
+
+// Closing the workspace while a share is starting ends that share, whether
+// the start finishes before or after the close.
+func TestCloseDuringShareStartEndsIt(t *testing.T) {
+	for _, closeFirst := range []bool{true, false} {
+		t.Run(map[bool]string{true: "close-then-start", false: "start-then-close"}[closeFirst], func(t *testing.T) {
+			fake := setup(t)
+			h := uitest.New(t)
+			r := newShareRig(t, h, fake, nil)
+			ctx := h.Context()
+			start := r.s.startShare(ctx, shareOpts{title: "t", files: true, terms: map[string]bool{}})
+			if start == nil {
+				t.Fatal("no start")
+			}
+			var msg tea.Msg
+			if !closeFirst {
+				msg = start()
+			}
+			h.Send(ui.CloseTool(r.s.id)()) // the app drops the instance
+			if h.Instance(openRoute(r.s.id, r.s.dir).Key()) != nil {
+				t.Fatal("the instance is still open")
+			}
+			if closeFirst {
+				msg = start()
+			}
+			r.relay.Pump()
+			if msg != nil {
+				h.Send(msg)
+			}
+			r.relay.Pump()
+			if m, ok := msg.(shareStartedMsg); ok && (m.host == nil || !m.host.Killed()) {
+				t.Fatalf("the share outlived the closed workspace: %+v", m)
+			}
+			if !r.relay.Ended() {
+				t.Fatal("the relay never saw the share end")
+			}
+			if r.s.own != nil {
+				t.Fatal("a closed surface installed the share")
+			}
+		})
 	}
 }

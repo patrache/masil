@@ -40,6 +40,8 @@ type Surface struct {
 	code *codeCell
 	term *termCell
 	own  *ownerShare // the running share (nil = solo)
+	// starts: shares being started (nil until the first start)
+	starts *shareStarts
 
 	focus    int
 	zoomed   bool // the tool surface's wide view
