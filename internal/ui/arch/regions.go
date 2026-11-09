@@ -28,15 +28,19 @@ type regions struct {
 	View                       viewKind
 }
 
-// Region sizes (spec C2.6).
+// Region sizes (spec C2.6). The spec's widths are terminal columns; the pane
+// computeRegions lays out is the tool slot inside its border, two columns
+// narrower, so the column thresholds take paneBorder off (an 80-column widget
+// terminal is a 78-wide pane and shows the canvas).
 const (
 	paletteW   = 16
 	panelW     = 28
 	wideMin    = 110 // docked palette and panel from here
-	listBelow  = 80  // narrower: the list view is the default
-	tinyMaxW   = 43
+	paneBorder = 2
+	listBelow  = 80 - paneBorder // narrower: the list view is the default (terminal 44~79)
+	tinyMaxW   = 43 - paneBorder // terminal ≤ 43: the summary
 	tinyMaxH   = 15
-	dragMinW   = 60 // narrower canvases only view and pan
+	dragMinW   = 60 - paneBorder // narrower canvases only view and pan (terminal < 60)
 	metricsBig = 3
 )
 
@@ -44,9 +48,9 @@ const (
 // ≥110 wide = docked palette 16 · canvas · panel 28 with 3 metric rows (1 in
 // compact, 2 with the check line open); the command layout's ~90-wide tool slot
 // = palette drawer · canvas · panel 28; 80–109 (widget, standard without the
-// wide view) = full-width canvas with both as drawers on the right; 44–79 = the
-// list view by default ("v" shows the canvas); tiny (≤43 wide or ≤15 high) =
-// the summary. Hints are left empty: the key hints are the status line's
+// wide view) = full-width canvas with both as drawers on the right; 44–79
+// terminal columns = the list view by default ("v" shows the canvas); tiny
+// (≤43 columns or ≤15 high) = the summary. Hints are left empty: the key hints are the status line's
 // (ui.Helper). Rects never overlap: an open drawer narrows the canvas.
 func computeRegions(mode layout.Mode, w, h int, st drawerState) regions {
 	w, h = max(w, 0), max(h, 0)

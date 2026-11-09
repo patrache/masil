@@ -20,6 +20,11 @@ func TestComputeRegions(t *testing.T) {
 		{layout.ModeCompact, 120, 30, viewCanvas, false, false, 16, 28, 1},
 		{layout.ModeWidget, 80, 24, viewCanvas, true, true, 0, 0, 1},
 		{layout.ModeWidget, 60, 24, viewList, true, true, 0, 0, 1},
+		// the real inner sizes of the widget pane (terminal minus the border):
+		// an 80-column terminal shows the canvas, 79 and narrower the list
+		{layout.ModeWidget, 78, 19, viewCanvas, true, true, 0, 0, 1},
+		{layout.ModeWidget, 77, 19, viewList, true, true, 0, 0, 1},
+		{layout.ModeWidget, 42, 19, viewList, true, true, 0, 0, 1}, // a 44-column terminal
 		{layout.ModeTiny, 40, 14, viewSummary, false, false, 0, 0, 0},
 		{layout.ModeStandard, 92, 37, viewCanvas, true, true, 0, 0, 3},
 		{layout.ModeCommand, 166, 57, viewCanvas, false, false, 16, 28, 3},
@@ -57,7 +62,7 @@ func TestComputeRegionsDrawersAndToggles(t *testing.T) {
 	if r := computeRegions(layout.ModeStandard, 120, 40, drawerState{view: viewList, viewSet: true}); r.View != viewList {
 		t.Errorf("standard v: view %d, want list", r.View)
 	}
-	for _, s := range [][2]int{{44, 15}, {43, 30}, {100, 15}} {
+	for _, s := range [][2]int{{44, 15}, {41, 30}, {100, 15}} { // 41 wide = a 43-column terminal
 		if r := computeRegions(layout.ModeWidget, s[0], s[1], drawerState{}); r.View != viewSummary {
 			t.Errorf("%dx%d: view %d, want summary", s[0], s[1], r.View)
 		}
