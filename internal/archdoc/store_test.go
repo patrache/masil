@@ -198,3 +198,52 @@ func TestStoreBrokenFileListed(t *testing.T) {
 		t.Fatalf("Load broken = %v", err)
 	}
 }
+
+// TestStoreRenameCaseOnly: changing only the letter case of a name works on
+// case-insensitive file systems too (APFS, NTFS), where the new name already
+// "exists" as the old file (P3 review).
+func TestStoreRenameCaseOnly(t *testing.T) {
+	s, _, _ := openTestStore(t)
+	if err := s.Save("Design", small(), false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Rename("Design", "design"); err != nil {
+		t.Fatalf("case-only rename = %v", err)
+	}
+	ents, err := s.List()
+	if err != nil || len(ents) != 1 || ents[0].Name != "design" {
+		t.Fatalf("list = %+v, %v", ents, err)
+	}
+	// A different design of another case is still refused.
+	if err := s.Save("Other", small(), false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Rename("design", "Other"); !errors.Is(err, ErrExists) {
+		t.Fatalf("rename onto another design = %v, want ErrExists", err)
+	}
+}
+
+// TestStoreLongestNameSaves: the temp file config.WriteFileAtomic creates,
+// "." + name + ".json.tmp-<pid>-<rand>", must fit the 255-byte name limit of
+// ext4, xfs and btrfs for every name SafeName accepts (P3 review).
+func TestStoreLongestNameSaves(t *testing.T) {
+	longest := ""
+	for n := 255; n > 0 && longest == ""; n-- {
+		// 4-byte letters (U+1D400) padded with ASCII, no NFC change
+		name := strings.Repeat("\U0001D400", n/4) + strings.Repeat("x", n%4)
+		if got, err := SafeName(name); err == nil && got == name {
+			longest = name
+		}
+	}
+	const pidDigits, randDigits = 10, 10 // uint32 pid and CreateTemp's uint32
+	if tmp := 1 + len(longest) + len(".json") + len(".tmp-") + pidDigits + 1 + randDigits; tmp > 255 {
+		t.Fatalf("a %d-byte name passes SafeName but its temp file name is %d bytes", len(longest), tmp)
+	}
+	s, _, _ := openTestStore(t)
+	if err := s.Save(longest, small(), false); err != nil {
+		t.Fatalf("Save(longest name) = %v", err)
+	}
+	if _, err := s.Load(longest); err != nil {
+		t.Fatal(err)
+	}
+}

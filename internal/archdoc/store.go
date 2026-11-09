@@ -25,13 +25,16 @@ var (
 	ErrExists  = errors.New("archdoc: a design with that name exists")
 )
 
-// MaxName is the longest design name in graphemes. Names are also kept under
-// 250 bytes so "<name>.json" fits every file system.
+// MaxName is the longest design name in graphemes. Names are also kept to
+// maxNameBytes so the temp file of a save fits every file system.
 const MaxName = 64
 
 const (
-	fileExt      = ".json"
-	maxNameBytes = 250
+	fileExt = ".json"
+	// maxNameBytes leaves room in a 255-byte file name (ext4, xfs, btrfs) for
+	// config.WriteFileAtomic's temp file "." + name + ".json" + ".tmp-<pid>-<rand>"
+	// with a 10-digit pid and a 10-digit random part (P3 review).
+	maxNameBytes = 255 - len(".") - len(fileExt) - len(".tmp-") - 10 - len("-") - 10
 )
 
 // Store is the personal design folder (<config dir>/arch). Designs never leave
@@ -64,7 +67,7 @@ func OpenStore(dir string) (*Store, error) {
 // SafeName returns the NFC form of a design name, or ErrBadName for names that
 // are empty, "." or "..", start with ".", start or end with a space, hold
 // / \ : * ? " < > |, a control or invisible character, more than MaxName
-// graphemes or more than 250 bytes.
+// graphemes or more than 223 bytes.
 func SafeName(s string) (string, error) {
 	if !utf8.ValidString(s) {
 		return "", ErrBadName
@@ -220,7 +223,8 @@ func (s *Store) exists(file string) (bool, error) {
 	return false, fmt.Errorf("archdoc: store: %w", err)
 }
 
-// Rename renames a design; ErrExists if to is taken.
+// Rename renames a design; ErrExists if to is another design (a case-only
+// rename of the same file is allowed on case-insensitive file systems).
 func (s *Store) Rename(from, to string) error {
 	src, err := fileOf(from)
 	if err != nil {
@@ -233,20 +237,29 @@ func (s *Store) Rename(from, to string) error {
 	if src == dst {
 		return nil
 	}
-	if exists, err := s.exists(dst); err != nil {
-		return err
-	} else if exists {
-		return ErrExists
-	}
 	r, err := s.root()
 	if err != nil {
 		return err
 	}
 	defer r.Close()
+	if taken, err := s.exists(dst); err != nil {
+		return err
+	} else if taken && !sameFile(r, src, dst) {
+		return ErrExists // a case-only rename on APFS/NTFS finds src itself
+	}
 	if err := r.Rename(src, dst); err != nil {
 		return fmt.Errorf("archdoc: rename %q: %w", from, err)
 	}
 	return nil
+}
+
+func sameFile(r *os.Root, a, b string) bool {
+	fa, err := r.Lstat(a)
+	if err != nil {
+		return false
+	}
+	fb, err := r.Lstat(b)
+	return err == nil && os.SameFile(fa, fb)
 }
 
 // Delete removes a design.
