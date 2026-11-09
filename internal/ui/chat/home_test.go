@@ -699,3 +699,86 @@ func TestHomeChannelsSmallModes(t *testing.T) {
 		})
 	}
 }
+
+// homeItems keeps its one-argument form (release/v0.1.2's TestHomeNoStoreEmpty
+// calls homeItems(nil) / homeItems(&ui.Context{})); the view builds its rows with
+// homeItemsWith, which adds the joined spaces' sections (collapsed unless expanded).
+func TestHomeItemsOneArgForm(t *testing.T) {
+	if items := homeItems(nil); items != nil {
+		t.Fatalf("nil ctx: %+v", items)
+	}
+	if items := homeItemsWith(&ui.Context{}, nil, ""); items != nil {
+		t.Fatalf("nil Store: %+v", items)
+	}
+	h := open(t, uitest.Size{W: 120, H: 40}, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(bigSpace(13, 7)))
+	ctx := h.Context()
+	has := func(items []homeItem, id string) bool {
+		return slices.ContainsFunc(items, func(it homeItem) bool { return it.ID == id })
+	}
+	more := homeMorePrefix + fixtures.SpaceNova
+	if items := homeItemsWith(ctx, nil, ""); !has(items, more) || has(items, homeChanPrefix+fixtures.ChDev) {
+		t.Fatalf("collapsed by default: %+v", items)
+	}
+	if items := homeItemsWith(ctx, map[string]bool{fixtures.SpaceNova: true}, ""); has(items, more) || !has(items, homeChanPrefix+fixtures.ChDev) {
+		t.Fatalf("expanded: %+v", items)
+	}
+	// the kept row stays in a collapsed section though it has no badge
+	if items := homeItemsWith(ctx, nil, homeChanPrefix+fixtures.ChDev); !has(items, homeChanPrefix+fixtures.ChDev) || !has(items, more) {
+		t.Fatalf("kept row: %+v", items)
+	}
+	// the sections sit after the entry rows, before "─ DM"
+	items := homeItemsWith(ctx, nil, "")
+	if i, j, k := slices.IndexFunc(items, func(it homeItem) bool { return it.ID == homeFriendsID }),
+		slices.IndexFunc(items, func(it homeItem) bool { return it.kind == homeSpace }),
+		slices.IndexFunc(items, func(it homeItem) bool { return it.ID == "label:dms" }); !(i >= 0 && i < j && j < k) {
+		t.Fatalf("section order: 친구 목록 %d, space %d, ─ DM %d", i, j, k)
+	}
+}
+
+// In a collapsed space a read channel hides, but not the one the cursor was on:
+// back on the home (ctrl+o) after opening an unread channel, which is now read,
+// the cursor is still on its row (not on the next unread one or "…N개 더").
+func TestHomeCollapsedKeepsOpenedChannel(t *testing.T) {
+	for _, sz := range []uitest.Size{{W: 120, H: 40}, {W: 80, H: 30}, {W: 200, H: 60}, {W: 40, H: 14}} {
+		for _, c := range []struct {
+			name string
+			seed func(*store.Store)
+			row  string
+			id   string
+		}{
+			{"middle", bigSpace(14, 7, 9), "# 채널07", homeChanID(7)},
+			{"last unread", bigSpace(14), "# 일반", fixtures.ChGeneral},
+		} {
+			t.Run(fmt.Sprintf("%dx%d/%s", sz.W, sz.H, c.name), func(t *testing.T) {
+				h := open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(c.seed))
+				home := mainKey(h)
+				homeSelect(t, h, c.row)
+				h.Press("enter")
+				if got := top(h); got.Kind != ui.RouteChannel || got.ID != c.id {
+					t.Fatalf("opened %+v", got)
+				}
+				h.Event("read_state.updated", realtime.ReadStateUpdated{State: api.UnreadState{ChannelID: c.id}})
+				h.Press("ctrl+o")
+				if mainKey(h) != home {
+					t.Fatalf("ctrl+o: main %s", mainKey(h))
+				}
+				h.Screen()
+				if it, _ := homeOf(t, h).list.Selected(); it.ID != homeChanPrefix+c.id {
+					t.Fatalf("back on the home the cursor is on %q, want %q", it.Label, c.row)
+				}
+				mustContain(t, paneText(t, h, layout.SlotMain), c.row)
+				h.Press("enter")
+				if got := top(h); got.Kind != ui.RouteChannel || got.ID != c.id {
+					t.Fatalf("enter again opened %+v, want the channel just left", got)
+				}
+				// once the cursor leaves it, the read row hides again
+				h.Press("ctrl+o")
+				homeSelect(t, h, "피드 보기")
+				h.Screen()
+				if homeOf(t, h).index(homeChanPrefix+c.id) >= 0 {
+					t.Fatalf("read row %q still listed after the cursor left", c.row)
+				}
+			})
+		}
+	}
+}

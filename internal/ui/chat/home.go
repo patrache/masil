@@ -83,14 +83,14 @@ type homeSaved struct {
 }
 
 // homeView is RouteHome: the entry points (received invites, friend requests,
-// feed, friends), the joined spaces' channels, the visible DMs and the online friends.
+// feed, friends), the visible DMs and the online friends.
 type homeView struct {
 	list    *widgets.List[homeItem]
 	items   []homeItem // last sync
 	size    ui.Size
 	focused bool // of the View being drawn (render reads it)
 	restore *homeSaved
-	expand  map[string]bool // space ids whose "…N개 더" was opened
+	expand  map[string]bool // joined spaces (homeItemsWith): ids whose "…N개 더" was opened
 }
 
 var (
@@ -106,23 +106,21 @@ var (
 func newHome(ctx *ui.Context, _ ui.Route) ui.Component {
 	v := &homeView{}
 	v.list = widgets.NewList(func(it homeItem) string { return it.ID }, v.render)
-	v.setItems(homeItems(ctx, nil))
+	v.setItems(homeItemsWith(ctx, nil, ""))
 	return v
 }
 
 // homeItems builds the rows: (when any) 받은 방 초대 N and 친구 요청 N, then 피드
 // 보기, 친구 목록, "─ DM" + visibleDMs (a blocked peer's 1:1 DM leaves at once),
-// "─ 접속 중인 친구" + online / away friends (blocked users never); the joined
-// spaces' sections (homeSpaceItems) sit between the entry rows and "─ DM". Empty
-// (nil) when there is nothing to talk about: no space, DM, friend, invite or request.
-func homeItems(ctx *ui.Context, expanded map[string]bool) []homeItem {
+// "─ 접속 중인 친구" + online / away friends (blocked users never). Empty (nil)
+// when there is nothing to talk about: no DM, friend, invite or request.
+func homeItems(ctx *ui.Context) []homeItem {
 	if ctx == nil || ctx.Store == nil {
 		return nil
 	}
 	s := ctx.Store
 	dms := visibleDMs(ctx)
 	friends := onlineFriends(ctx)
-	spaces := homeSpaceItems(ctx, expanded)
 	anyFriend := false
 	for id := range s.Friends {
 		if !s.IsBlocked(id) {
@@ -131,7 +129,7 @@ func homeItems(ctx *ui.Context, expanded map[string]bool) []homeItem {
 		}
 	}
 	nInv, nReq := len(s.DirectInvites), len(s.FriendReqIn)
-	if len(dms) == 0 && !anyFriend && nInv == 0 && nReq == 0 && len(spaces) == 0 {
+	if len(dms) == 0 && !anyFriend && nInv == 0 && nReq == 0 && !homeHasSpace(ctx) { // a joined space is something to talk about too
 		return nil
 	}
 
@@ -148,9 +146,6 @@ func homeItems(ctx *ui.Context, expanded map[string]bool) []homeItem {
 		homeItem{ID: homeFeedID, Label: "피드 보기", Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}},
 		homeItem{ID: homeFriendsID, Label: "친구 목록", Route: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsList}},
 	)
-	// ---- joined spaces (feat/home-channels): one section per space ----
-	items = append(items, spaces...)
-	// ---- end joined spaces ----
 	if len(dms) > 0 {
 		items = append(items, homeItem{ID: "label:dms", Label: homeDMLabel, kind: homeLabel})
 		for _, ch := range dms {
@@ -167,6 +162,35 @@ func homeItems(ctx *ui.Context, expanded map[string]bool) []homeItem {
 	return items
 }
 
+// ---- joined spaces (feat/home-channels) ----
+
+// homeItemsWith is what the home shows: homeItems with the joined spaces'
+// sections (homeSpaceItems) after the entry rows, before "─ DM". homeItems alone
+// has no space section (its one-argument form stays for its callers); expanded
+// and keep are the view's (see homeSpaceItems).
+func homeItemsWith(ctx *ui.Context, expanded map[string]bool, keep string) []homeItem {
+	items := homeItems(ctx)
+	if len(items) == 0 {
+		return items
+	}
+	at := slices.IndexFunc(items, func(it homeItem) bool { return it.kind != homeEntry })
+	if at < 0 {
+		at = len(items)
+	}
+	return slices.Insert(items, at, homeSpaceItems(ctx, expanded, keep)...)
+}
+
+// homeHasSpace reports whether homeSpaceItems has a section: a joined space with
+// a channel I can read.
+func homeHasSpace(ctx *ui.Context) bool {
+	for _, sid := range ctx.Store.SpaceOrder {
+		if ctx.Store.Spaces[sid] != nil && len(ctx.Store.SpaceChannels(sid)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // homeSpaceMax is the most channels a space shows on the home before it collapses
 // to its unread channels and "…N개 더".
 const homeSpaceMax = 12
@@ -176,9 +200,11 @@ const homeSpaceMax = 12
 // space's text channels in the sidebar's order (Store.SpaceChannels: the ones I can
 // read, by position), drawn like the sidebar (channelRow: 🔒 private, sideBadge,
 // muted dim). A space with more than homeSpaceMax channels shows only those with a
-// badge, then "…N개 더" (enter expands it in place) unless expanded. A space without
-// a readable channel has no section.
-func homeSpaceItems(ctx *ui.Context, expanded map[string]bool) []homeItem {
+// badge, then "…N개 더" (enter expands it in place) unless expanded; the row whose
+// id is keep (the cursor's, or the one a pending LoadState selects) shows anyway,
+// so a channel just opened (and so read) keeps the cursor on its row. A space
+// without a readable channel has no section.
+func homeSpaceItems(ctx *ui.Context, expanded map[string]bool, keep string) []homeItem {
 	s := ctx.Store
 	var items []homeItem
 	for _, sid := range s.SpaceOrder {
@@ -199,7 +225,7 @@ func homeSpaceItems(ctx *ui.Context, expanded map[string]bool) []homeItem {
 		hidden := 0
 		for _, ch := range chs {
 			b := sideBadge(ch)
-			if collapse && b.Count == 0 {
+			if collapse && b.Count == 0 && homeChanPrefix+ch.ID != keep {
 				hidden++
 				continue
 			}
@@ -214,6 +240,8 @@ func homeSpaceItems(ctx *ui.Context, expanded map[string]bool) []homeItem {
 	}
 	return items
 }
+
+// ---- end joined spaces ----
 
 // onlineFriends are the friend rows of online / away friends (not blocked), by
 // presence then name: the label is the display name, the detail the custom status
@@ -396,7 +424,13 @@ func (v *homeView) sync(ctx *ui.Context, focused bool) {
 			v.expandSpace(id)
 		}
 	}
-	v.setItems(homeItems(ctx, v.expand))
+	keep := ""
+	if r := v.restore; r != nil {
+		keep = r.Selected
+	} else if it, ok := v.list.Selected(); ok {
+		keep = it.ID
+	}
+	v.setItems(homeItemsWith(ctx, v.expand, keep))
 	if r := v.restore; r != nil && len(v.items) > 0 {
 		v.restore = nil
 		v.list.Restore(r.Anchor)
@@ -487,7 +521,7 @@ func (v *homeView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		if !ok || !it.selectable() {
 			return false, nil
 		}
-		return true, v.open(ctx, it)
+		return true, v.activate(ctx, it)
 	}
 	prev := v.selectedIndex()
 	handled, cmd := v.list.HandleKey(ctx, msg)
@@ -532,15 +566,26 @@ func (v *homeView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 	}
 	it := v.items[i]
 	if cur, ok := v.list.Selected(); (ok && cur.ID == it.ID) || it.kind == homeMore { // "…N개 더" expands at once
-		return v.open(ctx, it)
+		return v.activate(ctx, it)
 	}
 	v.list.Select(it.ID)
 	return nil
 }
 
-// open navigates to a row's route; a space channel also becomes the selected space
-// (as from the sidebar), and "…N개 더" expands its space in place (openMore).
-func (v *homeView) open(ctx *ui.Context, it homeItem) tea.Cmd {
+// open navigates to a row's route.
+func (v *homeView) open(_ *ui.Context, it homeItem) tea.Cmd {
+	if it.Route.Kind == "" {
+		return nil
+	}
+	return ui.Navigate(it.Route)
+}
+
+// ---- joined spaces (feat/home-channels) ----
+
+// activate is enter / the opening click on a row: "…N개 더" expands its space in
+// place (openMore), a space channel also becomes the selected space (as from the
+// sidebar) and opens; every other row opens (open).
+func (v *homeView) activate(ctx *ui.Context, it homeItem) tea.Cmd {
 	switch it.kind {
 	case homeMore:
 		v.openMore(ctx, it.space)
@@ -550,10 +595,7 @@ func (v *homeView) open(ctx *ui.Context, it homeItem) tea.Cmd {
 			c.SetSelectedSpace(it.space)
 		}
 	}
-	if it.Route.Kind == "" {
-		return nil
-	}
-	return ui.Navigate(it.Route)
+	return v.open(ctx, it)
 }
 
 // expandSpace marks space id as expanded.
@@ -572,7 +614,7 @@ func (v *homeView) openMore(ctx *ui.Context, id string) {
 		shown[it.ID] = true
 	}
 	v.expandSpace(id)
-	v.setItems(homeItems(ctx, v.expand))
+	v.setItems(homeItemsWith(ctx, v.expand, ""))
 	for _, it := range v.items {
 		if it.kind == homeChan && it.space == id && !shown[it.ID] {
 			v.list.Select(it.ID)
@@ -581,3 +623,5 @@ func (v *homeView) openMore(ctx *ui.Context, id string) {
 	}
 	v.snap(-1)
 }
+
+// ---- end joined spaces ----
