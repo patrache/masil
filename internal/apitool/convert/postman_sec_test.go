@@ -2,6 +2,7 @@ package convert
 
 import (
 	"bytes"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -48,5 +49,25 @@ func TestExportPostmanNoLocalPath(t *testing.T) {
 	}
 	if !bytes.Contains(data, []byte(`"report.pdf"`)) || !bytes.Contains(data, []byte(`"b.png"`)) {
 		t.Fatalf("file names missing: %s", data)
+	}
+}
+
+// (m) a collection variable with a credential-like name is a secret like an
+// environment one: no value is imported, the drop is reported.
+func TestImportPostmanSensitiveCollectionVarIsSecret(t *testing.T) {
+	doc := `{"info":{"name":"v","schema":"` + postmanSchema + `"},"item":[],
+		"variable":[{"key":"api_token","value":"tok-456"},{"key":"X-Api-Key","value":"k-1"},{"key":"base_url","value":"https://api.test"}]}`
+	c, rep, err := ImportPostman([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []apitool.Var{{Name: "api_token", Secret: true}, {Name: "X-Api-Key", Secret: true}, {Name: "base_url", Value: "https://api.test"}}
+	if !reflect.DeepEqual(c.Vars, want) {
+		t.Fatalf("vars = %+v", c.Vars)
+	}
+	for _, d := range []string{"variable value: api_token", "variable value: X-Api-Key"} {
+		if !slices.Contains(rep.Dropped, d) {
+			t.Errorf("dropped = %q, want %q", rep.Dropped, d)
+		}
 	}
 }

@@ -94,7 +94,7 @@ func TestImportPostmanBodies(t *testing.T) {
 func TestImportPostmanSuggestsVariableSecrets(t *testing.T) {
 	tok := "ghp_" + strings.Repeat("aB3d", 9)
 	doc := `{"info":{"name":"v","schema":"` + postmanSchema + `"},"item":[],
-		"variable":[{"key":"api_token","value":"` + tok + `"},{"key":"base_url","value":"https://api.test"}]}`
+		"variable":[{"key":"gh","value":"` + tok + `"},{"key":"base_url","value":"https://api.test"}]}`
 	c, rep, err := ImportPostman([]byte(doc))
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func TestImportPostmanSuggestsVariableSecrets(t *testing.T) {
 	if len(c.Vars) != 2 {
 		t.Fatalf("vars = %+v", c.Vars)
 	}
-	if len(rep.Suggestions) != 1 || rep.Suggestions[0].Where != "variable:api_token" || rep.Suggestions[0].RequestID != "" ||
+	if len(rep.Suggestions) != 1 || rep.Suggestions[0].Where != "variable:gh" || rep.Suggestions[0].RequestID != "" ||
 		rep.Suggestions[0].Finding.Rule != "github_token" {
 		t.Fatalf("suggestions = %+v", rep.Suggestions)
 	}

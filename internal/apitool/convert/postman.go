@@ -131,7 +131,8 @@ type pmImporter struct {
 // collection variables and auth (basic, bearer, apikey — inherited from a
 // folder or the collection when a request has none). Scripts are dropped
 // and listed in Report.Dropped ("prerequest: <name>", "test: <name>"); a
-// secret collection variable keeps its name only.
+// secret collection variable — type "secret" or a credential-like name, as
+// in an environment — keeps its name only ("variable value: <name>").
 func ImportPostman(data []byte) (*apitool.Collection, Report, error) {
 	if err := checkSize(len(data)); err != nil {
 		return nil, Report{}, err
@@ -161,7 +162,8 @@ func ImportPostman(data []byte) (*apitool.Collection, Report, error) {
 			continue
 		}
 		vr := apitool.Var{Name: key, Value: string(v.Value)}
-		if v.Type == "secret" {
+		// as an environment: a credential-like name is a secret too
+		if v.Type == "secret" || apitool.SensitiveHeader(key) {
 			vr.Secret, vr.Value = true, ""
 			if v.Value != "" {
 				im.rep.Dropped = append(im.rep.Dropped, "variable value: "+key)
