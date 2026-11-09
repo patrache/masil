@@ -154,6 +154,30 @@ other = "Environment · {name}"
 [env_value_title]
 other = "{name} value"
 
+[err_bad_method]
+other = "Check the method"
+
+[err_bad_url]
+other = "Check the URL (http or https and a host)"
+
+[err_form_file]
+other = "A form file cannot be read"
+
+[err_not_found]
+other = "No such file or folder"
+
+[err_permission]
+other = "No permission for the file"
+
+[err_redirects]
+other = "Too many redirects"
+
+[err_tls]
+other = "The server certificate could not be verified"
+
+[err_too_large]
+other = "The response is too large (1GB at most)"
+
 [export_copied]
 other = "Copied the curl command"
 

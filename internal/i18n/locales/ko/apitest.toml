@@ -250,6 +250,38 @@ params = { name = "string" }
 max = 40
 other = "{name} 값"
 
+[err_bad_method]
+desc = "보내기 실패 원인: 메서드가 올바른 HTTP 토큰이 아님"
+other = "메서드를 확인해 주세요"
+
+[err_bad_url]
+desc = "보내기 실패 원인: URL 이 http·https 가 아니거나 호스트가 없음"
+other = "URL 을 확인해 주세요 (http·https 와 호스트)"
+
+[err_form_file]
+desc = "보내기 실패 원인: form 의 파일 칸이 가리키는 파일을 읽을 수 없음"
+other = "form 파일을 읽을 수 없어요"
+
+[err_not_found]
+desc = "저장·내보내기 실패 원인: 파일이나 폴더가 없음"
+other = "파일이나 폴더가 없어요"
+
+[err_permission]
+desc = "저장·내보내기 실패 원인: 파일 권한 없음"
+other = "파일 권한이 없어요"
+
+[err_redirects]
+desc = "보내기 실패 원인: 리다이렉트가 설정한 최대 횟수를 넘음"
+other = "리다이렉트가 너무 많아요"
+
+[err_tls]
+desc = "보내기 실패 원인: 서버 인증서 검사 실패"
+other = "서버 인증서를 확인할 수 없어요"
+
+[err_too_large]
+desc = "보내기 실패 원인: 응답 본문이 1GB 를 넘음"
+other = "응답이 너무 커요 (최대 1GB)"
+
 [export_copied]
 desc = "curl 을 복사한 뒤 토스트"
 other = "curl 을 복사했어요"
@@ -713,7 +745,7 @@ desc = "보내는 중 esc 로 취소했을 때 응답 칸"
 other = "보내기를 취소했어요"
 
 [send_failed]
-desc = "연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인, 영어일 수 있음)"
+desc = "연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인 문장: errtext.Describe 또는 err_* 키)"
 params = { err = "string" }
 other = "보내지 못했어요 · {err}"
 

@@ -412,6 +412,62 @@ var areaApitest = area{
 				En: {Other: "{name} value"},
 			},
 		},
+		"err_bad_method": {
+			desc: "보내기 실패 원인: 메서드가 올바른 HTTP 토큰이 아님",
+			text: map[Locale]Forms{
+				Ko: {Other: "메서드를 확인해 주세요"},
+				En: {Other: "Check the method"},
+			},
+		},
+		"err_bad_url": {
+			desc: "보내기 실패 원인: URL 이 http·https 가 아니거나 호스트가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "URL 을 확인해 주세요 (http·https 와 호스트)"},
+				En: {Other: "Check the URL (http or https and a host)"},
+			},
+		},
+		"err_form_file": {
+			desc: "보내기 실패 원인: form 의 파일 칸이 가리키는 파일을 읽을 수 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "form 파일을 읽을 수 없어요"},
+				En: {Other: "A form file cannot be read"},
+			},
+		},
+		"err_not_found": {
+			desc: "저장·내보내기 실패 원인: 파일이나 폴더가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일이나 폴더가 없어요"},
+				En: {Other: "No such file or folder"},
+			},
+		},
+		"err_permission": {
+			desc: "저장·내보내기 실패 원인: 파일 권한 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일 권한이 없어요"},
+				En: {Other: "No permission for the file"},
+			},
+		},
+		"err_redirects": {
+			desc: "보내기 실패 원인: 리다이렉트가 설정한 최대 횟수를 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "리다이렉트가 너무 많아요"},
+				En: {Other: "Too many redirects"},
+			},
+		},
+		"err_tls": {
+			desc: "보내기 실패 원인: 서버 인증서 검사 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "서버 인증서를 확인할 수 없어요"},
+				En: {Other: "The server certificate could not be verified"},
+			},
+		},
+		"err_too_large": {
+			desc: "보내기 실패 원인: 응답 본문이 1GB 를 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "응답이 너무 커요 (최대 1GB)"},
+				En: {Other: "The response is too large (1GB at most)"},
+			},
+		},
 		"export_copied": {
 			desc: "curl 을 복사한 뒤 토스트",
 			text: map[Locale]Forms{
@@ -1160,7 +1216,7 @@ var areaApitest = area{
 			},
 		},
 		"send_failed": {
-			desc:   "연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인, 영어일 수 있음)",
+			desc:   "연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인 문장: errtext.Describe 또는 err_* 키)",
 			params: []Param{{Name: "err", Type: "string"}},
 			text: map[Locale]Forms{
 				Ko: {Other: "보내지 못했어요 · {err}"},
@@ -1653,6 +1709,46 @@ func (a_ ApitestT) EnvValueTitle(name string) string {
 	return a_.t.render(&areaApitest, "env_value_title", false, 0, "name", name)
 }
 
+// ErrBadMethod: 보내기 실패 원인: 메서드가 올바른 HTTP 토큰이 아님
+func (a_ ApitestT) ErrBadMethod() string {
+	return a_.t.render(&areaApitest, "err_bad_method", false, 0)
+}
+
+// ErrBadUrl: 보내기 실패 원인: URL 이 http·https 가 아니거나 호스트가 없음
+func (a_ ApitestT) ErrBadUrl() string {
+	return a_.t.render(&areaApitest, "err_bad_url", false, 0)
+}
+
+// ErrFormFile: 보내기 실패 원인: form 의 파일 칸이 가리키는 파일을 읽을 수 없음
+func (a_ ApitestT) ErrFormFile() string {
+	return a_.t.render(&areaApitest, "err_form_file", false, 0)
+}
+
+// ErrNotFound: 저장·내보내기 실패 원인: 파일이나 폴더가 없음
+func (a_ ApitestT) ErrNotFound() string {
+	return a_.t.render(&areaApitest, "err_not_found", false, 0)
+}
+
+// ErrPermission: 저장·내보내기 실패 원인: 파일 권한 없음
+func (a_ ApitestT) ErrPermission() string {
+	return a_.t.render(&areaApitest, "err_permission", false, 0)
+}
+
+// ErrRedirects: 보내기 실패 원인: 리다이렉트가 설정한 최대 횟수를 넘음
+func (a_ ApitestT) ErrRedirects() string {
+	return a_.t.render(&areaApitest, "err_redirects", false, 0)
+}
+
+// ErrTls: 보내기 실패 원인: 서버 인증서 검사 실패
+func (a_ ApitestT) ErrTls() string {
+	return a_.t.render(&areaApitest, "err_tls", false, 0)
+}
+
+// ErrTooLarge: 보내기 실패 원인: 응답 본문이 1GB 를 넘음
+func (a_ ApitestT) ErrTooLarge() string {
+	return a_.t.render(&areaApitest, "err_too_large", false, 0)
+}
+
 // ExportCopied: curl 을 복사한 뒤 토스트
 func (a_ ApitestT) ExportCopied() string {
 	return a_.t.render(&areaApitest, "export_copied", false, 0)
@@ -2128,7 +2224,7 @@ func (a_ ApitestT) SendCanceled() string {
 	return a_.t.render(&areaApitest, "send_canceled", false, 0)
 }
 
-// SendFailed: 연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인, 영어일 수 있음)
+// SendFailed: 연결 실패 등으로 보내지 못했을 때 응답 칸(err = 원인 문장: errtext.Describe 또는 err_* 키)
 func (a_ ApitestT) SendFailed(err string) string {
 	return a_.t.render(&areaApitest, "send_failed", false, 0, "err", err)
 }

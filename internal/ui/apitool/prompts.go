@@ -308,6 +308,8 @@ func (t *Tool) importDone(ctx *ui.Context, res *imported, err error) tea.Cmd {
 			msg = a.ImportTooLarge()
 		case errors.Is(err, errUnknownFormat), errors.Is(err, convert.ErrNotOpenAPI), errors.Is(err, convert.ErrNotCurl):
 			msg = a.ImportUnknown()
+		case errors.Is(err, fs.ErrNotExist), errors.Is(err, fs.ErrPermission):
+			msg = a.ImportFailed(describeErr(ctx, err))
 		default:
 			msg = a.ImportFailed(errText(err))
 		}
@@ -416,7 +418,7 @@ func (t *Tool) exportChoice(ctx *ui.Context, choice int) tea.Cmd {
 		return func() tea.Msg {
 			s, err := convert.ToCurl(req, sc, mode, d)
 			if err != nil {
-				return ui.ToastMsg{Text: a.ExportFailed(errText(err)), Kind: ui.ToastError}
+				return ui.ToastMsg{Text: a.ExportFailed(describeErr(ctx, err)), Kind: ui.ToastError}
 			}
 			return ui.Copy(ctx, s, ok)()
 		}
@@ -449,7 +451,7 @@ func (t *Tool) exportPostman(ctx *ui.Context, path string, overwrite bool) tea.C
 	}
 	data, _, err := convert.ExportPostman(c)
 	if err != nil {
-		return ui.Toast(ctx.T.Apitest.ExportFailed(errText(err)), ui.ToastError)
+		return ui.Toast(ctx.T.Apitest.ExportFailed(describeErr(ctx, err)), ui.ToastError)
 	}
 	_, cmd := t.startJob(ctx, jobFile, func(context.Context) func(*ui.Context) tea.Cmd {
 		err := writePrivate(path, data, overwrite)
@@ -460,7 +462,7 @@ func (t *Tool) exportPostman(ctx *ui.Context, path string, overwrite bool) tea.C
 			a := ctx.T.Apitest
 			msg := a.ExportSaved(path)
 			if err != nil {
-				msg = a.ExportFailed(errText(err))
+				msg = a.ExportFailed(describeErr(ctx, err))
 			}
 			return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkReport, title: a.ExportTitle(), prefW: 72, body: []string{msg, a.ReportClose()}})
 		}

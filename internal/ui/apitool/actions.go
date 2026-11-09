@@ -3,8 +3,11 @@ package apitool
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"regexp"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/patrache/masil/internal/apitool"
 	"github.com/patrache/masil/internal/apitool/convert"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -241,15 +245,48 @@ func (t *Tool) sendError(key string, req *apitool.Request, pk string, err error)
 		case errors.Is(err, context.DeadlineExceeded):
 			st.errText = a.SendTimeout()
 		default:
-			st.errText = a.SendFailed(errText(err))
+			st.errText = a.SendFailed(describeErr(ctx, err))
 		}
 		t.applyResponse(key, st)
 		return nil
 	}
 }
 
-// errText is an engine error without its package prefixes (errors never
-// carry the URL).
+// describeErr is a send, save or export error in the shown language: what
+// the engine and the file system can name has the tool's own line, the rest
+// is errtext.Describe (network, canceled; P5 Task 6 moves it to the
+// catalog).
+func describeErr(ctx *ui.Context, err error) string {
+	a := ctx.T.Apitest
+	var (
+		cv *tls.CertificateVerificationError
+		ua x509.UnknownAuthorityError
+		hn x509.HostnameError
+		ci x509.CertificateInvalidError
+	)
+	switch {
+	case errors.Is(err, apitool.ErrTooManyRedirects):
+		return a.ErrRedirects()
+	case errors.Is(err, apitool.ErrTooLarge):
+		return a.ErrTooLarge()
+	case errors.Is(err, apitool.ErrBadURL):
+		return a.ErrBadUrl()
+	case errors.Is(err, apitool.ErrBadMethod):
+		return a.ErrBadMethod()
+	case errors.Is(err, apitool.ErrFormFile):
+		return a.ErrFormFile()
+	case errors.As(err, &cv), errors.As(err, &ua), errors.As(err, &hn), errors.As(err, &ci):
+		return a.ErrTls()
+	case errors.Is(err, fs.ErrPermission):
+		return a.ErrPermission()
+	case errors.Is(err, fs.ErrNotExist):
+		return a.ErrNotFound()
+	}
+	return errtext.Describe(ctx.T, err)
+}
+
+// errText is a converter error without its package prefixes (an import's
+// parse error names the place in the file; errors never carry the URL).
 func errText(err error) string {
 	s := err.Error()
 	for _, p := range []string{"apitool: send: ", "apitool: ", "convert: "} {
@@ -275,15 +312,15 @@ func (t *Tool) allowHost(ctx *ui.Context, he *apitool.HostNotAllowedError) tea.C
 	switch c := t.collection(t.colName); {
 	case t.env != nil && add(t.env.Vars):
 		if err := t.local.SaveEnv(t.env); err != nil {
-			return ui.Toast(ctx.T.Apitest.SaveFailed(errText(err)), ui.ToastError)
+			return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 		}
 	case c != nil && add(c.Vars):
 		if err := t.local.SaveCollection(c); err != nil {
-			return ui.Toast(ctx.T.Apitest.SaveFailed(errText(err)), ui.ToastError)
+			return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 		}
 	case add(t.globals):
 		if err := t.local.SaveGlobals(t.globals); err != nil {
-			return ui.Toast(ctx.T.Apitest.SaveFailed(errText(err)), ui.ToastError)
+			return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 		}
 	default:
 		return nil
@@ -463,7 +500,7 @@ func (t *Tool) declareSecret(ctx *ui.Context, name string, val secrets.Secret, r
 		err = t.local.SaveGlobals(t.globals)
 	}
 	if err != nil {
-		return ui.Toast(ctx.T.Apitest.SaveFailed(errText(err)), ui.ToastError)
+		return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 	}
 	key, _, ok := t.scope(ctx).SecretSlot(name)
 	if !ok {
@@ -503,7 +540,7 @@ func (t *Tool) onSecretPut(ctx *ui.Context, m secretPutMsg) tea.Cmd {
 		t.pendingPuts = append(m.rest, t.pendingPuts...)
 		return ui.OpenRegisteredOverlay(secretsui.OverlayConsent, ui.ToolAPI)
 	case m.err != nil:
-		return ui.Toast(a.SaveFailed(errText(m.err)), ui.ToastError)
+		return ui.Toast(a.SaveFailed(describeErr(ctx, m.err)), ui.ToastError)
 	case len(m.done) > 0:
 		i := len(m.done) - 1
 		for i >= 0 && m.done[i].quiet {
@@ -561,7 +598,7 @@ func (t *Tool) writeRequest(ctx *ui.Context) tea.Cmd {
 	}
 	c.Requests[t.req.ID] = cloneRequest(t.req)
 	if err := t.local.SaveCollection(c); err != nil {
-		return ui.Toast(a.SaveFailed(errText(err)), ui.ToastError)
+		return ui.Toast(a.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 	}
 	t.cols[name] = c
 	oldKey := t.respKey()

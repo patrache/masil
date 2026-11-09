@@ -1,8 +1,10 @@
 package apitool
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/apitool"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/ui/uitest"
@@ -137,7 +140,14 @@ func TestRunnerFailRowBigResponseIndexedInJob(t *testing.T) {
 	tl := seedRequests(h, nil, &apitool.Request{ID: "big", Name: "big", Method: "GET", URL: srv.URL + "/big",
 		Asserts: []apitool.Assertion{{ID: "s", Target: "status", Op: "eq", Value: "201"}}})
 	h.Press("r", "enter")
-	waitRun(t, h, tl)
+	// the job indexes 8MB: allow it real time (waitRun's budget is short)
+	for i := 0; i < 2000 && (tl.run == nil || !tl.run.done); i++ {
+		h.Advance(50 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
+	}
+	if tl.run == nil || !tl.run.done {
+		t.Fatalf("the run never ended")
+	}
 	if r := tl.run.rows[tl.run.sel]; !r.failed {
 		t.Fatalf("the selection is not on the failed row: %+v", r)
 	}
@@ -369,6 +379,25 @@ func TestEditorColumnTitlesCatalogued(t *testing.T) {
 		hdr := ansi.Strip(lines[2]) // the URL line, the tab line, the column titles
 		if strings.Count(hdr, "⟦") < 2 || strings.Contains(hdr, "header") || strings.Contains(hdr, "value") || strings.Contains(hdr, "key") {
 			t.Fatalf("tab %s column titles are not catalogued: %q", tab, hdr)
+		}
+	}
+}
+
+// A failed send says why in the shown language (errtext.Describe or the
+// tool's own line), never as a raw Go error.
+func TestSendErrorDescribed(t *testing.T) {
+	for _, c := range []struct {
+		url, want string
+	}{
+		{"http://127.0.0.1:1/x", errtext.Describe(i18n.KoT(), &net.OpError{Op: "dial", Err: errors.New("refused")})},
+		{"ftp://example.com/x", ko.ErrBadUrl()},
+	} {
+		h := openAPI(t)
+		seedRequests(h, nil, &apitool.Request{ID: "x", Name: "x", Method: "GET", URL: c.url})
+		h.Press("enter")
+		waitScreen(t, h, ko.SendFailed(c.want))
+		if s := h.Screen(); strings.Contains(s, "dial tcp") || strings.Contains(s, "apitool") || strings.Contains(s, "connection refused") {
+			t.Fatalf("a raw Go error is shown:\n%s", s)
 		}
 	}
 }

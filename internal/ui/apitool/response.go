@@ -752,7 +752,7 @@ func (t *Tool) saveBody(ctx *ui.Context, key, path string, overwrite bool) tea.C
 			a := ctx.T.Apitest
 			msg := a.BodySaved(path)
 			if err != nil {
-				msg = a.BodySaveFailed(errText(err))
+				msg = a.BodySaveFailed(describeErr(ctx, err))
 			}
 			return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkReport, title: a.SaveBodyTitle(), prefW: 72, body: []string{msg, a.ReportClose()}})
 		}

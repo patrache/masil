@@ -3,6 +3,7 @@ package apitool
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -80,6 +81,16 @@ func validMethod(m string) bool {
 	return true
 }
 
+// Prepare's errors the screen names (they never carry the URL).
+var (
+	// ErrBadMethod: the method is not an HTTP token.
+	ErrBadMethod = errors.New("apitool: bad method")
+	// ErrBadURL: the expanded URL is not http(s) with a host.
+	ErrBadURL = errors.New("apitool: bad URL")
+	// ErrFormFile: a multipart file field's file cannot be read.
+	ErrFormFile = errors.New("apitool: form file not readable")
+)
+
 // Prepare expands r in scope s: URL (+ query rows and an apikey in the
 // query), header rows, the auth helper and the body. It reads nothing from
 // the network; a multipart file must exist.
@@ -90,7 +101,7 @@ func Prepare(r *Request, colID string, s *Scope, d Dyn) (*Prepared, error) {
 		method = http.MethodGet
 	}
 	if !validMethod(method) {
-		return nil, fmt.Errorf("apitool: bad method %q", r.Method)
+		return nil, fmt.Errorf("%w %q", ErrBadMethod, r.Method)
 	}
 
 	rawURL := strings.TrimSpace(e.x(r.URL))
@@ -139,7 +150,7 @@ func Prepare(r *Request, colID string, s *Scope, d Dyn) (*Prepared, error) {
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return nil, fmt.Errorf("apitool: bad URL")
+		return nil, ErrBadURL
 	}
 	if len(qs) > 0 {
 		if u.RawQuery != "" {
@@ -213,7 +224,7 @@ func (e *expander) multipart(b Body) (func() (io.ReadCloser, error), int64, stri
 		if f.File != "" {
 			st, err := os.Stat(f.File)
 			if err != nil || !st.Mode().IsRegular() {
-				return nil, 0, "", fmt.Errorf("apitool: form file for %q not readable", f.Key)
+				return nil, 0, "", fmt.Errorf("%w: %q", ErrFormFile, f.Key)
 			}
 			mf.file = f.File
 			mf.fileName = or(f.FileName, filepath.Base(f.File))

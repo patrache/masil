@@ -321,7 +321,7 @@ func (t *Tool) setVarField(ctx *ui.Context, id string, f func(v *apitool.Var)) t
 	}
 	f(&(*vs)[i])
 	if err := t.saveRowVars(r.global); err != nil {
-		return ui.Toast(ctx.T.Apitest.SaveFailed(errText(err)), ui.ToastError)
+		return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 	}
 	return nil
 }
@@ -368,7 +368,7 @@ func (t *Tool) deleteVar(ctx *ui.Context, r envRow) tea.Cmd {
 	*vs = slices.DeleteFunc(*vs, func(v apitool.Var) bool { return v.Name == r.v.Name })
 	t.envCur = max(min(t.envCur, len(t.envRows())-1), 0)
 	if err := t.saveRowVars(r.global); err != nil {
-		return ui.Toast(ctx.T.Apitest.SaveFailed(errText(err)), ui.ToastError)
+		return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 	}
 	v := t.vault(ctx)
 	if key == "" || v == nil {
@@ -397,7 +397,7 @@ func (t *Tool) envDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 			return nil
 		}
 		if err := t.local.SaveEnv(&apitool.Env{Name: in}); err != nil {
-			return ui.Toast(a.SaveFailed(errText(err)), ui.ToastError)
+			return ui.Toast(a.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 		}
 		t.reload(ctx)
 		t.selectEnv(ctx, in)
@@ -412,7 +412,7 @@ func (t *Tool) envDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 			*vs = append(*vs, apitool.Var{Name: in})
 		}
 		if err := t.saveRowVars(false); err != nil {
-			return ui.Toast(a.SaveFailed(errText(err)), ui.ToastError)
+			return ui.Toast(a.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 		}
 		rows := t.envRows()
 		t.envCur = max(slices.IndexFunc(rows, func(r envRow) bool { return r.v.Name == in && r.global == (t.env == nil) }), 0)
