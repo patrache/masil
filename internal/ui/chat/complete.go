@@ -107,6 +107,7 @@ var emojiTable = []emojiEntry{
 	{"calendar", "📅", "일정"},
 	{"chicken", "🍗", "치킨"},
 	{"pizza", "🍕", "피자"},
+	{"smoking", "🚬", "흡연"},
 }
 
 // completionToken is the token the popup completes: '/' when the whole value is
