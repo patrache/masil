@@ -378,3 +378,47 @@ func TestKeychainCanceledContext(t *testing.T) {
 		t.Errorf("Get after the prompt = %q, %v (the abandoned Set still stores)", v, err)
 	}
 }
+
+// TestKeychainLegacyCLIItem: an item the old /usr/bin/security backend wrote
+// on a dev build of v0.1.3 holds "masil:b64:<base64>" or "masil:chunks:N" (the
+// pieces under service "masil.chunk"). Get never hands that marker back as the
+// value: it is ErrNotFound, so the tool asks to log in again. Set refuses a
+// value that starts like one, so Get never hides a value Set stored.
+func TestKeychainLegacyCLIItem(t *testing.T) {
+	api := newFakeSec(t)
+	kc := newTestKeychain(api)
+	for _, raw := range []string{"masil:b64:eyJ0b2tlbiI6IngifQ==", "masil:chunks:3", "masil:b64:", "masil:chunks:"} {
+		api.items[Service+"\x00api/h/U1/old"] = []byte(raw)
+		got, err := kc.Get(bg, Service, "api/h/U1/old")
+		if !errors.Is(err, ErrNotFound) || got != "" {
+			t.Errorf("Get(old item %q) = %q, %v; want ErrNotFound", raw, got, err)
+		}
+		if err != nil && strings.Contains(err.Error(), raw) {
+			t.Errorf("error %q carries the stored text", err)
+		}
+	}
+	api.items[Service+"\x00"+key("U1", "old").Account()] = []byte("masil:b64:eyJ0b2tlbiI6IngifQ==")
+	s := Open(Options{OS: kc, Paths: testPaths(t)})
+	if _, _, err := s.Get(bg, key("U1", "old")); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Store.Get(old item) = %v, want ErrNotFound", err)
+	}
+
+	api.calls = nil
+	for _, v := range []string{"masil:b64:abc", "masil:chunks:2"} {
+		err := kc.Set(bg, Service, "api/h/U1/new", v)
+		if err == nil || errors.Is(err, ErrUnavailable) || strings.Contains(err.Error(), v) {
+			t.Errorf("Set(%q) = %v, want a refusal that is not ErrUnavailable and has no value", v, err)
+		}
+	}
+	if calls := api.log(); len(calls) != 0 {
+		t.Errorf("the keychain was called for a refused value: %v", calls)
+	}
+	for _, v := range []string{"masil:b6", "xmasil:b64:abc", "masil:chunk"} {
+		if err := kc.Set(bg, Service, "api/h/U1/new", v); err != nil {
+			t.Fatalf("Set(%q) = %v", v, err)
+		}
+		if got, err := kc.Get(bg, Service, "api/h/U1/new"); err != nil || got != v {
+			t.Errorf("Get = %q, %v; want %q", got, err, v)
+		}
+	}
+}

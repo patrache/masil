@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // macOS keychain (A9.2): one generic-password item of the login keychain per
@@ -25,6 +26,25 @@ import (
 // kcMaxValue is the largest value Set stores — the same as the Credential
 // Manager's 64 chunks of 2,560 bytes, so a value fits every OS store.
 const kcMaxValue = credMaxChunks * credMaxBlob
+
+// kcLegacyMarkers start every value the /usr/bin/security backend of the dev
+// builds of v0.1.3 wrote (never released: v0.1.0-v0.1.2 have no keychain):
+// "masil:b64:<base64>", or "masil:chunks:N" with the pieces under service
+// "masil.chunk". Get reads such an item as missing (the tool asks to log in
+// again, and that Set replaces it) and Set refuses a value that starts like
+// one, so Get never hides a value Set stored. The pieces are left as they
+// are; the owner checklist (v013 index, section 4 row 3) says how to delete
+// them.
+var kcLegacyMarkers = []string{"masil:b64:", "masil:chunks:"}
+
+func kcLegacy(v string) bool {
+	for _, m := range kcLegacyMarkers {
+		if strings.HasPrefix(v, m) {
+			return true
+		}
+	}
+	return false
+}
 
 // OSStatus values of the SecItem calls (Security/SecBase.h).
 const (
@@ -144,6 +164,9 @@ func (k keychain) Set(ctx context.Context, service, account, value string) error
 	if len(value) > kcMaxValue {
 		return fmt.Errorf("secrets: keychain: value too large (%d bytes)", len(value))
 	}
+	if kcLegacy(value) {
+		return errors.New("secrets: keychain: a value cannot start with masil's old item markers")
+	}
 	data := []byte(value)
 	_, err := kcCall(ctx, k.slot, func() (struct{}, error) {
 		defer clear(data)
@@ -182,6 +205,9 @@ func (k keychain) Get(ctx context.Context, service, account string) (string, err
 		}
 		v := string(b)
 		clear(b)
+		if kcLegacy(v) {
+			return "", ErrNotFound // an old CLI item: see kcLegacyMarkers
+		}
 		return v, nil
 	})
 }
