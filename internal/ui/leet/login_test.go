@@ -1,6 +1,8 @@
 package leet_test
 
 import (
+	"time"
+
 	"net/http"
 	"strings"
 	"testing"
@@ -9,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/leet"
 	"github.com/patrache/masil/internal/ui/uitest"
+	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 )
 
 const cookieWarning = "이 값은 LeetCode 계정 전체 권한이에요. 이 PC(키체인)에만 저장하고 masil 서버로는 보내지 않아요."
@@ -58,11 +61,18 @@ func TestLoginMasksInput(t *testing.T) {
 		t.Fatalf("interpret after login = %d", n)
 	}
 	var stt struct {
-		Username string `json:"username"`
+		Accounts map[string]struct {
+			Username string `json:"username"`
+		} `json:"accounts"`
 	}
 	h.Context().ToolState.Section("leet", &stt)
-	if stt.Username != "sam_lc" {
-		t.Fatalf("username = %q", stt.Username)
+	if len(stt.Accounts) != 1 {
+		t.Fatalf("accounts = %+v", stt.Accounts)
+	}
+	for _, a := range stt.Accounts {
+		if a.Username != "sam_lc" {
+			t.Fatalf("username = %q", a.Username)
+		}
 	}
 }
 
@@ -122,9 +132,8 @@ func TestToolLoginForget(t *testing.T) {
 	st := secrettest.NewStore(t, true)
 	h := uitest.New(t, uitest.WithSecrets(st))
 	signIn(t, e, h)
-	if err := h.Context().ToolState.SetSection("leet", map[string]any{"first_run_done": true, "username": "sam_lc"}); err != nil {
-		t.Fatal(err)
-	}
+	firstRunDone(t, h)
+	leet.SetLoginAccountForTest(h.Context(), "sam_lc", false)
 	h.API.JSON("GET /v1/me/settings", http.StatusOK, map[string]any{"settings": map[string]any{"dm_policy": "friends_and_spaces", "focus_default_min": 25}})
 	h.API.JSON("GET /v1/blocks", http.StatusOK, map[string]any{"items": []any{}})
 	h.Resize(200, 60)
@@ -145,13 +154,15 @@ func TestToolLoginForget(t *testing.T) {
 		}
 	}
 	var stt struct {
-		Username string `json:"username"`
+		Accounts map[string]any `json:"accounts"`
 	}
 	h.Context().ToolState.Section("leet", &stt)
-	if stt.Username != "" {
-		t.Fatalf("username kept: %q", stt.Username)
+	if len(stt.Accounts) != 0 {
+		t.Fatalf("username kept: %v", stt.Accounts)
 	}
-	_ = leet.OverlayLogin
+	if name, ok := leet.DescribeLoginForTest(h.Context()); ok {
+		t.Fatalf("still signed in as %q", name)
+	}
 }
 
 // selectedRow is the screen line with the selection marker "› ".
@@ -174,4 +185,75 @@ func TestLoginGolden(t *testing.T) {
 		h.Check()
 		h.Golden("leet_login")
 	})
+}
+
+// switchAccount makes h's masil account another user (the cookie namespace
+// and the tool's account memory follow it).
+func switchAccount(h *uitest.Harness, userID string) {
+	me := *h.Context().Store.Me
+	me.ID = userID
+	h.Context().Store.Me = &me
+}
+
+// loginViaDialog signs in through the dialog (r opens it).
+func loginViaDialog(h *uitest.Harness) {
+	h.Press("r")
+	h.Paste("sess-SECRET-abcd")
+	h.Press("tab")
+	h.Paste("csrf-XYZ-9876")
+	h.Press("enter")
+}
+
+// A "this run only" login is not shown as signed in after a restart: the
+// settings row follows where the session cookie is kept.
+func TestLoginRowAfterRunOnlyLogin(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	e.lc.SetUserStatus(true, "sam_lc", false)
+	e.lc.QueueCheck(runID, "check_run_success.json")
+	h := uitest.New(t, uitest.WithSecrets(secrettest.NewStore(t, false)))
+	openToday(t, h)
+	loginViaDialog(h)
+	h.Press("enter") // consent: this run only
+	if name, ok := leet.DescribeLoginForTest(h.Context()); !ok || name != "sam_lc" {
+		t.Fatalf("describe after login = %q %v", name, ok)
+	}
+	// a restart: this run's memory and the memory-only store are gone
+	leet.ForgetRunForTest()
+	h.Context().Secrets = secrettest.NewStore(t, false)
+	if name, ok := leet.DescribeLoginForTest(h.Context()); ok {
+		t.Fatalf("signed in after a restart without cookies: %q", name)
+	}
+}
+
+// The LeetCode user and premium belong to the masil account: another masil
+// account on the same device is not signed in, its [지우기] does not touch
+// the first one, and it is paced as a free account.
+func TestLoginPerMasilAccount(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	e.lc.SetUserStatus(true, "sam_lc", true) // premium
+	e.lc.QueueCheck(runID, "check_run_success.json")
+	h := uitest.New(t, uitest.WithSecrets(secrettest.NewStore(t, true)))
+	openToday(t, h)
+	loginViaDialog(h)
+	if name, ok := leet.DescribeLoginForTest(h.Context()); !ok || name != "sam_lc" {
+		t.Fatalf("A describe = %q %v", name, ok)
+	}
+	if d := leet.PacerIntervalForTest(h.Context()); d != time.Second {
+		t.Fatalf("A pacer = %v, want 1s (premium)", d)
+	}
+	leet.ForgetRunForTest() // the next start of masil, signed in as B
+	switchAccount(h, "01JDB0000000000000000USERB")
+	if name, ok := leet.DescribeLoginForTest(h.Context()); ok {
+		t.Fatalf("B shown signed in as %q", name)
+	}
+	if d := leet.PacerIntervalForTest(h.Context()); d != 10*time.Second {
+		t.Fatalf("B pacer = %v, want 10s (free)", d)
+	}
+	leet.ForgetLoginForTest(h.Context()) // B's [지우기]
+	switchAccount(h, fixtures.UserSam)
+	if name, ok := leet.DescribeLoginForTest(h.Context()); !ok || name != "sam_lc" {
+		t.Fatalf("A after B's forget = %q %v", name, ok)
+	}
 }

@@ -55,8 +55,15 @@ const (
 type leetState struct {
 	Lang         string `json:"lang"`           // the language last picked with l (or on the first run)
 	FirstRunDone bool   `json:"first_run_done"` // the first-run notice was confirmed
-	Username     string `json:"username"`       // the LeetCode user the cookies signed in as (not a secret)
-	Premium      bool   `json:"premium"`        // that user has premium (runs paced 1s instead of 10s)
+	// Accounts is the LeetCode sign-in of each masil account ("<server>/<user
+	// id>"), like the cookies themselves (CredNS): one device, many accounts.
+	Accounts map[string]lcAccount `json:"accounts,omitempty"`
+}
+
+// lcAccount is who a masil account's cookies sign in as (not a secret).
+type lcAccount struct {
+	Username string `json:"username"`
+	Premium  bool   `json:"premium"` // runs paced 1s instead of 10s
 }
 
 func init() {
@@ -176,6 +183,7 @@ type memo struct {
 
 	creds *leetcode.Credentials // this run's LeetCode cookies (nil = not loaded)
 	pacer *leetcode.Pacer       // runs and submits of this account, paced
+	lc    *lcAccount            // who this run signed in as (nil = see tools-state)
 }
 
 var (
@@ -234,9 +242,44 @@ func knownCreds(ctx *ui.Context) *leetcode.Credentials {
 	return withMemo(ctx, func(m *memo) *leetcode.Credentials { return m.creds })
 }
 
+// key is the account's tools-state key.
+func (a account) key() string { return a.server + "/" + a.user }
+
+// lcAccountOf is who ctx's masil account signed in to LeetCode as: this
+// run's login, else the one tools-state remembers for the account.
+func lcAccountOf(ctx *ui.Context) lcAccount {
+	if a := withMemo(ctx, func(m *memo) *lcAccount { return m.lc }); a != nil {
+		return *a
+	}
+	return loadState(ctx).Accounts[accountOf(ctx).key()]
+}
+
+// setLCAccount remembers (nil: forgets) ctx's account's LeetCode user, for
+// this run and in tools-state.
+func setLCAccount(ctx *ui.Context, a *lcAccount) {
+	withMemo(ctx, func(m *memo) struct{} {
+		m.lc = nil
+		if a != nil {
+			cp := *a
+			m.lc = &cp
+		}
+		return struct{}{}
+	})
+	st, key := loadState(ctx), accountOf(ctx).key()
+	if a == nil {
+		delete(st.Accounts, key)
+	} else {
+		if st.Accounts == nil {
+			st.Accounts = map[string]lcAccount{}
+		}
+		st.Accounts[key] = *a
+	}
+	saveState(ctx, st)
+}
+
 // pacerOf is the account's pacer.
 func pacerOf(ctx *ui.Context) *leetcode.Pacer {
-	premium := loadState(ctx).Premium
+	premium := lcAccountOf(ctx).Premium
 	return withMemo(ctx, func(m *memo) *leetcode.Pacer {
 		if m.pacer == nil {
 			m.pacer = leetcode.NewPacer(premium)

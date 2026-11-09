@@ -20,8 +20,8 @@ import (
 // cf_clearance (optional) pasted from the browser. They are checked with
 // LeetCode's userStatus, then kept in ctx.Secrets only (the OS store, or
 // after a consent the file / this run) — never shown back except as
-// "••••abcd", never sent to masil. Only the LeetCode user name (not a
-// secret) goes to tools-state.json.
+// "••••abcd", never sent to masil. Only the LeetCode user name and premium
+// (not secrets) go to tools-state.json, under the masil account.
 
 // OverlayLogin is the login dialog (args unused).
 const OverlayLogin = "leet.login"
@@ -57,18 +57,20 @@ func init() {
 	settings.RegisterToolLogin(toolID, describeLogin, forgetLogin)
 }
 
-// describeLogin is the settings row's account: the LeetCode user name this
-// device signed in as (cheap: no store access).
+// describeLogin is the settings row's account: signed in when the store
+// keeps this masil account's session cookie (Where never touches the OS
+// store), named after the LeetCode user it signed in as.
 func describeLogin(ctx *ui.Context) (string, bool) {
-	u := loadState(ctx).Username
-	return textwidth.Sanitize(u), u != ""
+	ns, ok := credNS(ctx)
+	if !ok || ctx.Secrets == nil || ctx.Secrets.Where(ns.Key(leetcode.NameSession)) == "" {
+		return "", false
+	}
+	return textwidth.Sanitize(lcAccountOf(ctx).Username), true
 }
 
 // forgetLogin deletes this account's cookies and the user name.
 func forgetLogin(ctx *ui.Context) tea.Cmd {
-	st := loadState(ctx)
-	st.Username, st.Premium = "", false
-	saveState(ctx, st)
+	setLCAccount(ctx, nil)
 	forgetCreds(ctx)
 	ns, ok := credNS(ctx)
 	store := ctx.Secrets
@@ -177,9 +179,7 @@ func (d *loginDlg) save(ctx *ui.Context) tea.Cmd {
 // saved: remembered for this run, the user name kept, the dialog closed.
 func (d *loginDlg) saved(ctx *ui.Context) tea.Cmd {
 	rememberCreds(ctx, d.creds, d.status.Premium)
-	st := loadState(ctx)
-	st.Username, st.Premium = d.status.Username, d.status.Premium
-	saveState(ctx, st)
+	setLCAccount(ctx, &lcAccount{Username: d.status.Username, Premium: d.status.Premium})
 	user := textwidth.Sanitize(d.status.Username)
 	text := ctx.T.Leetcode.SignedIn(user)
 	if d.status.Premium {

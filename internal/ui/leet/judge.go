@@ -131,7 +131,7 @@ func (in *instance) credsLoaded(ctx *ui.Context, m credsLoadedMsg) tea.Cmd {
 		in.pending = m.kind
 		return ui.OpenRegisteredOverlay(OverlayLogin, "")
 	}
-	rememberCreds(ctx, m.creds, loadState(ctx).Premium)
+	rememberCreds(ctx, m.creds, lcAccountOf(ctx).Premium)
 	return in.send(ctx, m.kind, m.creds)
 }
 
