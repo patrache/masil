@@ -21,8 +21,9 @@ import (
 // its Cmds are never run (one of them waits on its signal channel forever,
 // others are timers): the signals are drained right after each key. Ex
 // commands: :w saves to the solution file (the only file it writes), :Run
-// and :Submit ask the tool to run / submit (the saved file). esc in normal
-// mode leaves the editor, so the tool's keys (r, s, e…) work again.
+// and :Submit ask the tool to run / submit (the saved file), and so do r and
+// s in normal mode (vim's replace and substitute give way, A10.4). esc in
+// normal mode leaves the editor, so the tool's keys (e, l, o…) work again.
 type goEditor struct {
 	m    goeditor.Model
 	id   string // the instance
@@ -124,9 +125,29 @@ func (e *goEditor) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		e.leave = true
 		return false, nil
 	}
+	if (k == "r" || k == "s") && e.normalIdle() { // Task 20: r / s after esc run / submit
+		if k == "r" {
+			return true, emit(runRequestedMsg{id: e.id})
+		}
+		return true, emit(submitRequestedMsg{id: e.id})
+	}
 	e.feed(msg)
 	cmd := e.afterKey(ctx)
 	return true, cmd
+}
+
+// normalIdle: normal mode with nothing part typed (no count, operator,
+// prefix or argument: the r of "fr" or "dr" stays vim's).
+func (e *goEditor) normalIdle() bool {
+	if !e.m.IsNormalMode() {
+		return false
+	}
+	ed := e.m.GetEditor()
+	if ed.GetState().PendingCount != nil {
+		return false
+	}
+	idle, ok := ed.GetMode().(interface{ Idle() bool })
+	return ok && idle.Idle()
 }
 
 // feed gives goeditor one msg, dropping its Cmds.

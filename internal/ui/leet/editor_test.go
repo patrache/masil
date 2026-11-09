@@ -139,6 +139,37 @@ func TestGoeditorFallback(t *testing.T) {
 	h.Check()
 }
 
+// Task 20 / A10.4: after esc (normal mode) r and s run and submit, in the
+// editor — not vim's replace and substitute.
+func TestGoeditorNormalModeRunSubmit(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	withNvim(t, false)
+	h := uitest.New(t)
+	signIn(t, e, h)
+	openToday(t, h)
+	h.Press("e", "i")
+	h.Type("// mine")
+	h.Press("esc", ":", "w", "enter") // normal mode, saved
+	before := readFile(t, solutionPath(e))
+	h.Press("r")
+	if run, _ := leet.RequestsForTest(todayInstance(t, h)); run != 1 {
+		t.Fatalf("run = %d after esc r in the editor", run)
+	}
+	h.Press("s")
+	if _, submit := leet.RequestsForTest(todayInstance(t, h)); submit != 1 {
+		t.Fatalf("submit = %d after s in the editor", submit)
+	}
+	h.Press("0", "f", "r") // r as an argument stays vim's
+	if run, _ := leet.RequestsForTest(todayInstance(t, h)); run != 1 {
+		t.Fatalf("run = %d after f r", run)
+	}
+	h.Press("x", ":", "w", "enter") // the editor still has the keys
+	if got := readFile(t, solutionPath(e)); got == before {
+		t.Fatal("the editor lost the keys after r / s")
+	}
+}
+
 func TestExecReload(t *testing.T) {
 	e := setup(t)
 	e.lc.SetDailyDate("2026-11-05")
