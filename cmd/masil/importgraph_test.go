@@ -24,6 +24,7 @@ const modulePrefix = "github.com/patrache/masil/"
 // its own line here.
 var toolPackagePrefixes = []string{
 	"internal/leetcode",
+	"internal/lazygit",
 	"internal/apitool",
 	"internal/arch",
 	"internal/workspace",

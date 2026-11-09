@@ -299,6 +299,24 @@ internal/
   (도구 패키지)                         P1 LeetCode·lazygit, P2 작업공간, P3 아키텍처 설계, P4 API 시험 — 이름과 행은 각 줄기가 더한다
 ```
 
+P1(LeetCode 오늘의 문제·lazygit) 행:
+
+```
+cmd/masil/register_leetgit.go          P1   (blank import of internal/ui/leet, internal/ui/gittool)
+internal/
+  api/ep_leet.go, api/types_leet.go    P1   (masil 서버의 /v1/leet·#daily 엔드포인트와 타입 — 4.3.3 규칙대로 core api 안의 파일)
+  config/tools_leetgit.go              P1   ([tools.leet]·[tools.lazygit] 절의 구조체, 읽기는 cfg.ToolSection)
+  admincli/leet.go                     P1   (masil admin leet-daily set)
+  leetcode/                            P1   (LeetCode GraphQL·실행·제출·간격·캐시·쿠키 자격증명 — UI 없음)
+  leetcode/htmldoc/                    P1   (문제 HTML → 문서 블록 — UI 없음)
+  leetcode/leetcodetest/               P1   (가짜 LeetCode — 시험에서만 import)
+  lazygit/                             P1   (lazygit 찾기·버전·저장소·색 덧씌움·실행 인자 — UI 없음)
+  third_party/goeditor/                P1   (github.com/ionut-t/goeditor v0.19.0 루트 패키지 고정 사본, MIT — WithDarkBackground 만 더함)
+  ui/leet/                             P1   (도구 leet: 문제 보기·편집기 자리·로그인·실행·제출·카드 남기기·leet.* 카드 그리기·순위)
+  ui/gittool/                          P1   (도구 git: 저장소 고르기·설치 안내·lazygit 인스턴스)
+  i18n/locales/<언어>/leetcode.toml, lazygit.toml   P1
+```
+
 ### 2.2 의존 방향 (import 규칙)
 
 ```
@@ -336,6 +354,20 @@ ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate,
 - `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
 - 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
 - `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
+
+P1 도구 패키지(P1 Task 24 가 맞춘 실제 의존):
+
+```
+leetcode ─▶ config, secrets                         (UI·api·realtime·store 금지 — internal/leetcode 의 TestNoForbiddenImports)
+leetcode/htmldoc ─▶ textwidth
+lazygit ─▶ config, termhost(Mode 타입), theme        (UI·api·realtime·store 금지 — 같은 시험)
+ui/leet ─▶ ui, ui/termpane, ui/secretsui, ui/settings, ui/palette, ui/keymap, ui/layout, api, leetcode, leetcode/htmldoc, third_party/goeditor, secrets, termhost, imgrender, markup, termcaps, features, i18n, config, theme, textwidth
+ui/gittool ─▶ ui, ui/termpane, ui/palette, ui/layout, lazygit, termhost, features, i18n, config, theme, textwidth
+```
+
+- `internal/leetcode`·`internal/lazygit` 는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(`toolPackagePrefixes` 의 P1 두 줄). `internal/api` 의 leet 엔드포인트는 쿠키를 모른다 — LeetCode 쿠키는 `ui/leet` → `leetcode` → LeetCode 로만 간다.
+- `ui/leet`·`ui/gittool` 은 서로, 그리고 `ui/chat`·`ui/feed`·`ui/fun` 을 import 하지 않는다. #daily·풀이 카드는 `ui.RegisterCard`, 순위·설정은 팔레트 명령으로만 닿는다.
+- `leetcodetest` 는 시험 파일에서만 import 한다.
 
 ### 2.3 실행 순서 (병렬 작성, 단계적 실행)
 
@@ -414,6 +446,8 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 | 파일 | 쓰는 쪽 | 형식 |
 |---|---|---|
 | `tools-state.json` | TUI(도구들) | 기기 전용 기억. 맨 위 객체의 키 = 도구 ID(`leet`·`workspace`·`arch`·`git`·`api`), 값 = 그 도구가 정한 JSON 섹션(`toolstate.Section/SetSection` — 도구는 자기 섹션만). 공통 칸 `last_open`(마지막 여는 방식 `auto\|pane\|exec\|window`)·`zoomed`(넓게 보기)는 `toolstate.Common`. 0600, 원자적 쓰기, 없거나 깨지면 빈 값. masil 서버로 보내지 않는다 |
+| `tools-state.json` 의 P1 섹션 | `ui/leet`·`ui/gittool` | `leet` = `{"lang": "<언어 ID — l 로 마지막에 고른 것>", "first_run_done": bool, "accounts": {"<masil 서버 호스트>/<masil 사용자 ID>": {"username": "<LeetCode 사용자 이름>", "premium": bool}}}` — 쿠키 값은 여기 없다(`secrets` 만). `git` = `{"recent": ["<저장소 절대 경로>", …]}`(최근 연 저장소, 앞이 최근). 둘 다 masil 서버로 보내지 않는다 |
+| 캐시 `leetcode/`, `lazygit/` | `leetcode`·`lazygit` | `<캐시>/leetcode/{daily/<date>.json, questions/<slug>.json, fetched/<UTC 날짜>.json}`(오늘의 문제·연 문제, 0600 — 쿠키 없음), `<캐시>/lazygit/theme-<해시>.yml`(패널 lazygit 의 색만 덧씌움, 0600). 풀이 파일은 설정 폴더 밖 `[tools.leet] dir`(기본 `~/masil/leetcode/<date>-<번호>-<slug>.<확장자>`) |
 | `secrets/` | TUI | 도구 자격증명 저장소(`internal/secrets`)의 대체 자리. 폴더 0700. `tools.json`(0600) = 사용자가 "파일에 저장"에 동의한 값, `index.json`(0600) = 저장한 값 **이름**만(값 없음, `Store.List`), `.gitignore` = `*` 한 줄. 파일 형식은 `secrets` 패키지 내부(다른 패키지가 직접 읽지 않음). OS 키체인에 저장된 값은 여기 없다 |
 
 ### 3.3 `config.toml`
@@ -2582,7 +2616,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | 등록 패키지 | 명령 id |
 |---|---|
 | core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
-| P1 LeetCode·lazygit | `leet.*`, `git.*` |
+| P1 LeetCode·lazygit | `ui/leet`: `leet.open`(오늘의 문제 열기), `leet.board`(지금 방의 순위·친구 순위 — 방 안에서만), `leet.settings`(도구 설정 창), `leet.daily.toggle`(지금 방의 #daily 켜기·끄기 — 방 owner·admin 만) — 모두 `Available` 에 `features.On(ui.ToolLeet)`. `ui/gittool`: `git.open`(저장소 고르기) — `features.On(ui.ToolGit)`. 전부 `Label func(*i18n.T)` |
 | P2 작업공간 | `ws.*` |
 | P3 아키텍처 설계 | `arch.*` |
 | P4 API 시험 | `api.*` |
