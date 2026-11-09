@@ -435,3 +435,45 @@ func TestAnalyzeBudget(t *testing.T) {
 		t.Fatalf("median %v > 5ms", med)
 	}
 }
+
+// hugeServersDesign passes Validate yet gives every API the most servers the
+// limits allow (1000 instances × 448 cores) at about 40% load.
+func hugeServersDesign() *archdoc.Design {
+	nodes := []archdoc.Node{cl("c", 10_000_000, 800, func(n *archdoc.Node) { n.Traffic.Curve = archdoc.CurveWave })}
+	var edges []archdoc.Edge
+	for i := 1; i < 300; i++ {
+		nodes = append(nodes, nd(id3("api", i), archdoc.KindAPI, func(n *archdoc.Node) {
+			n.Instances, n.CPUCores, n.CPUMicrosPerReq = 1000, 448, 6_000_000
+		}))
+		edges = append(edges, ed(id3("e", i), "c", id3("api", i), shares(3, 3)))
+	}
+	return design(nodes, edges)
+}
+
+// fastest is the best of three timings of f (the machine may be busy).
+func fastest(f func()) time.Duration {
+	best := time.Duration(math.MaxInt64)
+	for range 3 {
+		start := time.Now()
+		f()
+		best = min(best, time.Since(start))
+	}
+	return best
+}
+
+func TestAnalyzeHugeServerCountFast(t *testing.T) {
+	d := hugeServersDesign()
+	if is := d.Validate(); len(is) != 0 {
+		t.Fatalf("design does not validate: %v", is)
+	}
+	r := Analyze(d, Options{})
+	if u := r.Nodes["api001"].UtilPermille; u < 300 || u > 500 {
+		t.Fatalf("api001 util = %d‰, want about 400", u)
+	}
+	if took := fastest(func() { Analyze(d, Options{}) }); took > 50*time.Millisecond {
+		t.Fatalf("Analyze took %v, want ≤ 50ms", took)
+	}
+	if took := fastest(func() { MonthlyCost(d, nil) }); took > 50*time.Millisecond {
+		t.Fatalf("MonthlyCost took %v, want ≤ 50ms", took)
+	}
+}

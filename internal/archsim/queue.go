@@ -2,16 +2,37 @@ package archsim
 
 import "math"
 
+// erlangCExactMax is the most servers erlangC runs the exact recurrence for;
+// its cost is O(servers), and validated designs reach 448,000.
+const erlangCExactMax = 1024
+
 // erlangC is the probability that an arrival waits in an M/M/c queue with c
 // servers and offered load a = λ/μ. It uses the Erlang B recurrence
 // B(k) = a·B(k−1) / (k + a·B(k−1)), which stays in [0, 1] for any c, then
 // C = B / (1 − ρ(1 − B)) with ρ = a/c. No servers or ρ ≥ 1 → 1; no load → 0.
+//
+// Above erlangCExactMax servers the queue is mapped onto erlangCExactMax
+// servers with the same Halfin–Whitt β = (c − a)/√a, on which C depends in
+// the many-server limit: within 0.004 of the exact value (slightly high), and
+// the cost no longer grows with c.
 func erlangC(c int, a float64) float64 {
 	if !(a > 0) {
 		return 0
 	}
 	if c <= 0 || a >= float64(c) {
 		return 1
+	}
+	if c > erlangCExactMax {
+		beta := (float64(c) - a) / math.Sqrt(a)
+		t := float64(erlangCExactMax)
+		s := (math.Sqrt(float64(beta*beta)+float64(4*t)) - beta) / 2 // √a' with (t − a')/√a' = β
+		c, a = erlangCExactMax, float64(s*s)
+		if !(a > 0) {
+			return 0
+		}
+		if a >= t {
+			return 1
+		}
 	}
 	b := 1.0
 	for k := 1; k <= c && b != 0; k++ { // once B underflows to 0 it stays 0

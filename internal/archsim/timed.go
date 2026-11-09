@@ -74,7 +74,6 @@ const (
 	maxDuration     = 600
 	defaultFrameTks = 10
 	defaultPerFrame = 2_000
-	cancelEvery     = 100 // ticks between context checks
 )
 
 // failover is one primary's failover progress.
@@ -254,10 +253,8 @@ func RunTimed(ctx context.Context, d *archdoc.Design, opt TimedOptions) (*Timeli
 	summaryLat := make([]float64, 0, defaultSamples)
 
 	for ; tick < ticks; tick++ {
-		if tick%cancelEvery == 0 {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
+		if err := ctx.Err(); err != nil { // every tick: a tick of a large design can take a while
+			return nil, err
 		}
 		applyFaults(faults, tick, fx, emit)
 		for u := range m.nodes {

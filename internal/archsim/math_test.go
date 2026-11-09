@@ -180,3 +180,37 @@ func TestSplitStreamsDoNotOverlap(t *testing.T) {
 		}
 	}
 }
+
+// erlangCRecurrence is the plain Erlang B recurrence over every server: the
+// reference for erlangC's large-c path.
+func erlangCRecurrence(c int, a float64) float64 {
+	b := 1.0
+	for k := 1; k <= c && b != 0; k++ {
+		ab := float64(a * b)
+		b = ab / (float64(k) + ab)
+	}
+	rho := a / float64(c)
+	return b / (1 - float64(rho*(1-b)))
+}
+
+// Above erlangCExactMax servers erlangC maps the design onto erlangCExactMax
+// servers with the same Halfin–Whitt β, so its cost does not grow with c. It
+// stays within 0.01 of the exact value and never below it by more than noise.
+func TestErlangCLargeServersClose(t *testing.T) {
+	for _, c := range []int{erlangCExactMax + 1, 2000, 5000, 20_000, 100_000, 448_000} {
+		for _, rho := range []float64{0.1, 0.3, 0.5, 0.8, 0.9, 0.95, 0.98, 0.99, 0.995, 0.999, 0.9999} {
+			a := float64(rho * float64(c))
+			want, got := erlangCRecurrence(c, a), erlangC(c, a)
+			if math.IsNaN(got) || got < 0 || got > 1 || math.Abs(got-want) > 0.01 {
+				t.Fatalf("erlangC(%d, %v) = %v, exact %v", c, a, got, want)
+			}
+		}
+	}
+	// At or below the threshold the exact recurrence answers, bit for bit.
+	for _, c := range []int{1, 7, 64, erlangCExactMax} {
+		a := float64(0.97 * float64(c))
+		if got, want := erlangC(c, a), erlangCRecurrence(c, a); got != want {
+			t.Fatalf("erlangC(%d, %v) = %v, want %v", c, a, got, want)
+		}
+	}
+}

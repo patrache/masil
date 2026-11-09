@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/patrache/masil/internal/archdoc"
 )
@@ -253,5 +254,29 @@ func TestTimedDegenerateInputs(t *testing.T) {
 	tl := run(t, &archdoc.Design{}, TimedOptions{})
 	if len(tl.Frames) != 300 {
 		t.Fatalf("default duration frames = %d", len(tl.Frames))
+	}
+}
+
+func TestTimedCancelPromptHugeDesign(t *testing.T) {
+	d := hugeServersDesign()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := RunTimed(ctx, d, TimedOptions{DurationS: 600})
+		done <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	start := time.Now()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+		if took := time.Since(start); took > 100*time.Millisecond {
+			t.Fatalf("returned %v after cancel, want ≤ 100ms", took)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("RunTimed ignored cancel for 5s")
 	}
 }
