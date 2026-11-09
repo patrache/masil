@@ -1,0 +1,67 @@
+# API test tool area (v0.1.3 spec C3).
+
+[big_body]
+other = "Showing the first 10MB · Save to a file"
+
+[binary_body]
+other = "Binary · {type} · {size} — Save to a file"
+
+[body_overwritten]
+other = "{name} changed the body · Restore mine"
+
+[card_result_body]
+other = "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"
+
+[card_run_body]
+other = "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"
+
+[file_changed]
+other = "The file changed · Reload"
+
+[help_terms]
+other = "Requests leave from my PC and my IP. Following the target service's terms is my responsibility"
+
+[host_block]
+other = "About to send {{{var}}} to {host} · Allow this host / Cancel"
+
+[kv_empty]
+other = "No rows · a to add"
+
+[last_changed]
+other = "Last changed: {name} · {ago}"
+
+[need_bigger]
+other = "Make the window bigger"
+
+[no_value]
+other = "No value (set mine)"
+
+[openapi_yaml_unsupported]
+other = "OpenAPI YAML can't be read yet · Convert it to JSON and import again"
+
+[private_target]
+other = "This request goes to an address on my PC or my network (last changed by {name})"
+
+[run_progress_short]
+other = "Run {i}/{n} ✓{ok} ✕{fail}"
+
+[scripts_dropped]
+one = "{n} script was not imported"
+other = "{n} scripts were not imported"
+
+[secret_detected]
+other = "Looks like a secret → Make it a variable"
+
+[status_line]
+other = "{status} {text} · {ms}ms ({phases}) · {size} · checks {ok}/{total} {mark}"
+short = "{status} · {ms}ms · ✓{ok}/{total}"
+
+[tls_off_warning]
+other = "⚠ Certificate check off"
+
+[tree_count]
+one = "{n} item"
+other = "{n} items"
+
+[upload_plaintext_note]
+other = "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"

@@ -3,10 +3,300 @@
 
 package i18n
 
+import "strconv"
+
 // ApitestT holds the "apitest" area messages (locales/*/apitest.toml).
 type ApitestT struct{ t *T }
 
 var areaApitest = area{
 	name: "apitest",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"big_body": {
+			desc: "응답 본문이 10MB 를 넘어 앞부분만 보일 때의 안내 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "앞 10MB 만 보여요 · 파일로 저장"},
+				En: {Other: "Showing the first 10MB · Save to a file"},
+			},
+		},
+		"binary_body": {
+			desc:   "응답이 이미지·바이너리라 글자로 그리지 않을 때(type = Content-Type, size = 사람이 읽는 크기)",
+			params: []Param{{Name: "type", Type: "string"}, {Name: "size", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "바이너리 · {type} · {size} — 파일로 저장"},
+				En: {Other: "Binary · {type} · {size} — Save to a file"},
+			},
+		},
+		"body_overwritten": {
+			desc:   "공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 본문을 바꿨어요 · 내 내용 복구"},
+				En: {Other: "{name} changed the body · Restore mine"},
+			},
+		},
+		"card_result_body": {
+			desc:   "api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)",
+			params: []Param{{Name: "method", Type: "string"}, {Name: "path", Type: "string"}, {Name: "status", Type: "int"}, {Name: "ms", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"},
+				En: {Other: "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"},
+			},
+		},
+		"card_run_body": {
+			desc:   "api.run 카드의 0.1.2 클라이언트용 대체 본문(name = 컬렉션 이름, n = 요청 수)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}, {Name: "ms", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "🧪 {name} 실행 · {n}개 · ✓{ok} ✕{fail} · {ms}ms"},
+				En: {Other: "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"},
+			},
+		},
+		"file_changed": {
+			desc: "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "파일이 바뀌었어요 · 다시 읽기"},
+				En: {Other: "The file changed · Reload"},
+			},
+		},
+		"help_terms": {
+			desc:       "도움말의 약관 책임 한 줄(요청은 사용자 PC 에서 나감, 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "요청은 내 PC·내 IP 에서 나가요. 대상 서비스 약관을 지킬 책임은 나에게 있어요"},
+				En: {Other: "Requests leave from my PC and my IP. Following the target service's terms is my responsibility"},
+			},
+		},
+		"host_block": {
+			desc:       "비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)",
+			params:     []Param{{Name: "var", Type: "string"}, {Name: "host", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{{{var}}} 을 {host} 로 보내려 해요 · 이 호스트 허용 / 취소"},
+				En: {Other: "About to send {{{var}}} to {host} · Allow this host / Cancel"},
+			},
+		},
+		"kv_empty": {
+			desc: "헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "줄이 없어요 · a 로 추가"},
+				En: {Other: "No rows · a to add"},
+			},
+		},
+		"last_changed": {
+			desc:   "공유 요청 줄 옆: 마지막으로 바꾼 사람과 지난 시간(ago = '2분 전' 같은 사람이 읽는 시간)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "ago", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "마지막 변경: {name} · {ago}"},
+				En: {Other: "Last changed: {name} · {ago}"},
+			},
+		},
+		"need_bigger": {
+			desc: "창이 너무 작아 이 화면을 그릴 수 없을 때",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "창을 키워 주세요"},
+				En: {Other: "Make the window bigger"},
+			},
+		},
+		"no_value": {
+			desc: "환경 화면: 비밀 변수에 내 값이 아직 없을 때 값 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "값 없음(내 값 넣기)"},
+				En: {Other: "No value (set mine)"},
+			},
+		},
+		"openapi_yaml_unsupported": {
+			desc: "OpenAPI 가져오기에서 YAML 파일을 받았을 때(JSON 만 읽음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "OpenAPI YAML 은 아직 못 읽어요 · JSON 으로 바꿔 가져와 주세요"},
+				En: {Other: "OpenAPI YAML can't be read yet · Convert it to JSON and import again"},
+			},
+		},
+		"private_target": {
+			desc:       "남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 요청은 내 PC 또는 내 네트워크 안 주소로 가요 ({name}님이 마지막으로 바꿈)"},
+				En: {Other: "This request goes to an address on my PC or my network (last changed by {name})"},
+			},
+		},
+		"run_progress_short": {
+			desc:   "초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)",
+			params: []Param{{Name: "i", Type: "int"}, {Name: "n", Type: "int"}, {Name: "ok", Type: "int"}, {Name: "fail", Type: "int"}},
+			max:    24,
+			text: map[Locale]Forms{
+				Ko: {Other: "실행 {i}/{n} ✓{ok} ✕{fail}"},
+				En: {Other: "Run {i}/{n} ✓{ok} ✕{fail}"},
+			},
+		},
+		"scripts_dropped": {
+			desc:   "Postman 가져오기: 버린 스크립트(사전 요청·테스트) 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "스크립트 {n}개는 가져오지 않았어요"},
+				En: {One: "{n} script was not imported", Other: "{n} scripts were not imported"},
+			},
+		},
+		"secret_detected": {
+			desc:       "공유로 올라갈 칸에서 비밀값처럼 보이는 글자를 찾았을 때의 안내(줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀값처럼 보여요 → 변수로 바꾸기"},
+				En: {Other: "Looks like a secret → Make it a variable"},
+			},
+		},
+		"status_line": {
+			desc:   "응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면",
+			params: []Param{{Name: "status", Type: "int"}, {Name: "text", Type: "string"}, {Name: "ms", Type: "int"}, {Name: "phases", Type: "string"}, {Name: "size", Type: "string"}, {Name: "ok", Type: "int"}, {Name: "total", Type: "int"}, {Name: "mark", Type: "string"}},
+			max:    60,
+			text: map[Locale]Forms{
+				Ko: {Other: "{status} {text} · {ms}ms ({phases}) · {size} · 검사 {ok}/{total} {mark}", Short: "{status} · {ms}ms · ✓{ok}/{total}"},
+				En: {Other: "{status} {text} · {ms}ms ({phases}) · {size} · checks {ok}/{total} {mark}", Short: "{status} · {ms}ms · ✓{ok}/{total}"},
+			},
+		},
+		"tls_off_warning": {
+			desc:       "TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "⚠ 인증서 검사 끔"},
+				En: {Other: "⚠ Certificate check off"},
+			},
+		},
+		"tree_count": {
+			desc:   "JSON 나무에서 접힌 객체·배열 옆의 자식 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			max:    12,
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}개"},
+				En: {One: "{n} item", Other: "{n} items"},
+			},
+		},
+		"upload_plaintext_note": {
+			desc:       "'방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션의 정의(URL·헤더 이름·비밀이 아닌 값·본문 예시)는 masil 서버에 평문으로 저장되고 방 멤버와 운영자가 볼 수 있어요"},
+				En: {Other: "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"},
+			},
+		},
+	},
+}
+
+// BigBody: 응답 본문이 10MB 를 넘어 앞부분만 보일 때의 안내 줄
+func (a_ ApitestT) BigBody() string {
+	return a_.t.render(&areaApitest, "big_body", false, 0)
+}
+
+// BinaryBody: 응답이 이미지·바이너리라 글자로 그리지 않을 때(type = Content-Type, size = 사람이 읽는 크기)
+func (a_ ApitestT) BinaryBody(typeArg string, size string) string {
+	return a_.t.render(&areaApitest, "binary_body", false, 0, "type", typeArg, "size", size)
+}
+
+// BodyOverwritten: 공유 컬렉션에서 동료가 같은 요청 본문을 덮어써 내 편집이 졌을 때(name = 동료 표시 이름)
+func (a_ ApitestT) BodyOverwritten(name string) string {
+	return a_.t.render(&areaApitest, "body_overwritten", false, 0, "name", name)
+}
+
+// CardResultBody: api.result 카드의 0.1.2 클라이언트용 대체 본문(번역 거의 없음 — 메서드·경로·상태는 그대로)
+func (a_ ApitestT) CardResultBody(method string, path string, status int, ms int, ok int, total int) string {
+	return a_.t.render(&areaApitest, "card_result_body", false, 0, "method", method, "path", path, "status", strconv.Itoa(status), "ms", strconv.Itoa(ms), "ok", strconv.Itoa(ok), "total", strconv.Itoa(total))
+}
+
+// CardRunBody: api.run 카드의 0.1.2 클라이언트용 대체 본문(name = 컬렉션 이름, n = 요청 수)
+func (a_ ApitestT) CardRunBody(name string, n int, ok int, fail int, ms int) string {
+	return a_.t.render(&areaApitest, "card_run_body", false, 0, "name", name, "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail), "ms", strconv.Itoa(ms))
+}
+
+// FileChanged: 열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄
+func (a_ ApitestT) FileChanged() string {
+	return a_.t.render(&areaApitest, "file_changed", false, 0)
+}
+
+// HelpTerms: 도움말의 약관 책임 한 줄(요청은 사용자 PC 에서 나감, 줄여 쓰지 않음)
+func (a_ ApitestT) HelpTerms() string {
+	return a_.t.render(&areaApitest, "help_terms", false, 0)
+}
+
+// HostBlock: 비밀 변수를 허용 목록 밖 호스트로 보내려 할 때 보내기 전에 묻는 문장(var = 변수 이름, 앞뒤 {{ }} 가 붙음; host = 호스트 이름; 줄여 쓰지 않음)
+func (a_ ApitestT) HostBlock(varArg string, host string) string {
+	return a_.t.render(&areaApitest, "host_block", false, 0, "var", varArg, "host", host)
+}
+
+// KvEmpty: 헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄
+func (a_ ApitestT) KvEmpty() string {
+	return a_.t.render(&areaApitest, "kv_empty", false, 0)
+}
+
+// LastChanged: 공유 요청 줄 옆: 마지막으로 바꾼 사람과 지난 시간(ago = '2분 전' 같은 사람이 읽는 시간)
+func (a_ ApitestT) LastChanged(name string, ago string) string {
+	return a_.t.render(&areaApitest, "last_changed", false, 0, "name", name, "ago", ago)
+}
+
+// NeedBigger: 창이 너무 작아 이 화면을 그릴 수 없을 때
+func (a_ ApitestT) NeedBigger() string {
+	return a_.t.render(&areaApitest, "need_bigger", false, 0)
+}
+
+// NoValue: 환경 화면: 비밀 변수에 내 값이 아직 없을 때 값 칸
+func (a_ ApitestT) NoValue() string {
+	return a_.t.render(&areaApitest, "no_value", false, 0)
+}
+
+// OpenapiYamlUnsupported: OpenAPI 가져오기에서 YAML 파일을 받았을 때(JSON 만 읽음)
+func (a_ ApitestT) OpenapiYamlUnsupported() string {
+	return a_.t.render(&areaApitest, "openapi_yaml_unsupported", false, 0)
+}
+
+// PrivateTarget: 남이 마지막으로 바꾼 요청이 내 PC·사내망 주소로 갈 때 처음 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)
+func (a_ ApitestT) PrivateTarget(name string) string {
+	return a_.t.render(&areaApitest, "private_target", false, 0, "name", name)
+}
+
+// RunProgressShort: 초소형 화면의 실행기 진행 한 줄(i = 지금 몇 번째, n = 전체, ok = 통과, fail = 실패)
+func (a_ ApitestT) RunProgressShort(i int, n int, ok int, fail int) string {
+	return a_.t.render(&areaApitest, "run_progress_short", false, 0, "i", strconv.Itoa(i), "n", strconv.Itoa(n), "ok", strconv.Itoa(ok), "fail", strconv.Itoa(fail))
+}
+
+// ScriptsDropped: Postman 가져오기: 버린 스크립트(사전 요청·테스트) 수
+func (a_ ApitestT) ScriptsDropped(n int) string {
+	return a_.t.render(&areaApitest, "scripts_dropped", false, n, "n", strconv.Itoa(n))
+}
+
+// SecretDetected: 공유로 올라갈 칸에서 비밀값처럼 보이는 글자를 찾았을 때의 안내(줄여 쓰지 않음)
+func (a_ ApitestT) SecretDetected() string {
+	return a_.t.render(&areaApitest, "secret_detected", false, 0)
+}
+
+// StatusLine: 응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면
+func (a_ ApitestT) StatusLine(status int, text string, ms int, phases string, size string, ok int, total int, mark string) string {
+	return a_.t.render(&areaApitest, "status_line", false, 0, "status", strconv.Itoa(status), "text", text, "ms", strconv.Itoa(ms), "phases", phases, "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total), "mark", mark)
+}
+
+// StatusLineShort: 응답 상태 줄(status = 코드, text = 상태 문구 그대로, phases = 단계별 시간, size = 크기, mark = ✓/✕). short = 좁은 화면 (short form)
+func (a_ ApitestT) StatusLineShort(status int, text string, ms int, phases string, size string, ok int, total int, mark string) string {
+	return a_.t.render(&areaApitest, "status_line", true, 0, "status", strconv.Itoa(status), "text", text, "ms", strconv.Itoa(ms), "phases", phases, "size", size, "ok", strconv.Itoa(ok), "total", strconv.Itoa(total), "mark", mark)
+}
+
+// TlsOffWarning: TLS 인증서 검사를 끈 요청의 요청 줄 경고(늘 보임, 줄여 쓰지 않음)
+func (a_ ApitestT) TlsOffWarning() string {
+	return a_.t.render(&areaApitest, "tls_off_warning", false, 0)
+}
+
+// TreeCount: JSON 나무에서 접힌 객체·배열 옆의 자식 수
+func (a_ ApitestT) TreeCount(n int) string {
+	return a_.t.render(&areaApitest, "tree_count", false, n, "n", strconv.Itoa(n))
+}
+
+// UploadPlaintextNote: '방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)
+func (a_ ApitestT) UploadPlaintextNote() string {
+	return a_.t.render(&areaApitest, "upload_plaintext_note", false, 0)
 }
