@@ -63,7 +63,9 @@ func init() {
 //   - exec: the returned Cmd is termhost.Exec; its end is ExitedMsg.
 //   - window: termhost.Popup; a goroutine posts ExitedMsg when it closes.
 //
-// A mode that had to fall back to exec adds the toast termpane.downgraded.
+// opts.OnExit is a pane-mode hook (see Options); ExitedMsg is the end in
+// every mode. A mode that had to fall back to exec adds the toast
+// termpane.downgraded.
 // At the pane limit (all tools together) the error is termhost.ErrPaneLimit
 // and the Cmd is the toast termpane.pane_limit. Every ExitedMsg, CwdMsg and
 // NotifyMsg carries InstanceID: an instance takes only its own.

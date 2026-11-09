@@ -51,7 +51,10 @@ type Options struct {
 	// OnPrefix gets the tool's own keys after ctrl+\ (ToolSpec.PrefixKeys)
 	// and, without SingleCell, z.
 	OnPrefix func(ctx *ui.Context, key string) tea.Cmd
-	// OnExit runs once when the program ends by itself (ExitedMsg).
+	// OnExit runs once when the program ends, in pane mode only: the Pane
+	// calls it when ExitedMsg reaches its Update. exec and window have no Pane;
+	// there (and in pane mode too) the tool gets the broadcast ExitedMsg —
+	// handle that for anything that must happen in every mode.
 	OnExit func(ctx *ui.Context, info termhost.ExitInfo) tea.Cmd
 }
 
