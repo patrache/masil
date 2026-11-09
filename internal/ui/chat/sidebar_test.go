@@ -14,6 +14,7 @@ import (
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/uitest"
+	"github.com/patrache/masil/internal/ui/uitest/fixtures"
 )
 
 func TestSidebarGolden(t *testing.T) {
@@ -185,6 +186,8 @@ func TestSidebarKeysSkipLabels(t *testing.T) {
 	h.Press("k")
 	mustContain(t, paneText(t, h, layout.SlotSidebar), "›# 일반")
 	h.Press("j", "j", "j", "j")
+	mustContain(t, paneText(t, h, layout.SlotSidebar), "›＋ 새 채널") // the owner's last channel-section row
+	h.Press("j")
 	mustContain(t, paneText(t, h, layout.SlotSidebar), "›● 민지") // "─ DM" skipped
 	h.Press("end")
 	mustContain(t, paneText(t, h, layout.SlotSidebar), "›○ 준호")
@@ -288,6 +291,69 @@ func TestSidebarNoSpace(t *testing.T) {
 	h.Resize(120, 40)
 	mustContain(t, paneText(t, h, layout.SlotSidebar), "▾", "─ DM")
 	h.Check()
+}
+
+// The channel section of a space I own or administer ends with ＋ 새 채널, which
+// opens the channel creation dialog for that space; a plain member has none.
+func TestSidebarNewChannelRow(t *testing.T) {
+	h := devChannel(t, uitest.Size{W: 200, H: 60})
+	nova := fixtures.SpaceNova
+	mustContainInOrder(t, paneText(t, h, layout.SlotSidebar), "─ 채널", "# 배포알림", "＋ 새 채널", "─ DM", "● 민지")
+	h.Resize(120, 40) // standard: the same row under the dropdown header
+	mustContainInOrder(t, paneText(t, h, layout.SlotSidebar), "노바 개발방 ▾", "# 배포알림", "＋ 새 채널", "─ DM")
+	h.Resize(200, 60)
+
+	setRole(h, api.RoleAdmin)
+	mustContain(t, paneText(t, h, layout.SlotSidebar), "＋ 새 채널")
+	setRole(h, api.RoleMember)
+	if side := paneText(t, h, layout.SlotSidebar); strings.Contains(side, "새 채널") {
+		t.Fatalf("a member cannot create channels: no row:\n%s", side)
+	}
+	setRole(h, api.RoleOwner)
+
+	// it is no channel: it carries the space, not a *api.Channel (no badge, no viewed style)
+	n := 0
+	for _, it := range sideItems(h.Context(), 30) {
+		if it.Kind == sideNewChannel {
+			n++
+			if it.Ch != nil || it.Space != nova || !it.selectable() {
+				t.Fatalf("new-channel row %+v", it)
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("%d new-channel rows", n)
+	}
+
+	// enter on it opens chat.channel_create for the sidebar's space
+	clickText(t, h, layout.SlotSidebar, "─ 채널")
+	h.Press("home", "j", "j", "j", "j")
+	mustContain(t, paneText(t, h, layout.SlotSidebar), "›＋ 새 채널")
+	start := top(h)
+	h.Press("enter")
+	if overlays(h) != 1 || !strings.Contains(overlayText(t, h), nameLabel) {
+		t.Fatalf("enter on ＋ 새 채널 opens the creation dialog:\n%s", h.Screen())
+	}
+	if top(h).Key() != start.Key() {
+		t.Fatalf("the row opens a dialog, not a route: %+v", top(h))
+	}
+	h.Type("배포알림2")
+	h.Press("enter")
+	if n := len(reqs(h.API, "POST", "/v1/spaces/"+nova+"/channels")); n != 1 {
+		t.Fatalf("the dialog creates in the sidebar's space: %d POSTs", n)
+	}
+
+	// mouse: a click selects it, a second click opens the dialog
+	g := devChannel(t, uitest.Size{W: 200, H: 60})
+	clickText(t, g, layout.SlotSidebar, "＋ 새 채널")
+	if overlays(g) != 0 {
+		t.Fatal("first click only selects")
+	}
+	mustContain(t, paneText(t, g, layout.SlotSidebar), "›＋ 새 채널")
+	clickText(t, g, layout.SlotSidebar, "＋ 새 채널")
+	if overlays(g) != 1 || !strings.Contains(overlayText(t, g), nameLabel) {
+		t.Fatalf("second click opens the creation dialog:\n%s", g.Screen())
+	}
 }
 
 func TestSidebarHostileIntegrity(t *testing.T) {

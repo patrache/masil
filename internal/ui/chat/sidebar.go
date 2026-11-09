@@ -24,10 +24,11 @@ func init() {
 type sideKind int
 
 const (
-	sideHeader  sideKind = iota // the space name (command: title; standard: "이름 ▾" dropdown)
-	sideLabel                   // "─ 채널", "─ DM"
-	sideNotice                  // one wrapped line of the no-space notice
-	sideChannel                 // a text channel, DM or group DM
+	sideHeader     sideKind = iota // the space name (command: title; standard: "이름 ▾" dropdown)
+	sideLabel                      // "─ 채널", "─ DM"
+	sideNotice                     // one wrapped line of the no-space notice
+	sideChannel                    // a text channel, DM or group DM
+	sideNewChannel                 // "＋ 새 채널" (owner, admin): the channel creation dialog
 )
 
 // Sidebar row ids.
@@ -35,6 +36,7 @@ const (
 	sideHeaderID     = "header"
 	sideChanPrefix   = "ch:"
 	sideNoticePrefix = "notice:"
+	sideNewChannelID = "new-channel"
 )
 
 // sideNoSpace is the notice drawn instead of the channel section without a space
@@ -49,11 +51,12 @@ type sideItem struct {
 	Text     string       // header / label / notice text, sanitized
 	Dropdown bool         // header: standard-mode switcher
 	Ch       *api.Channel // sideChannel
+	Space    string       // sideNewChannel: the space the channel is created in
 }
 
-// selectable: channel rows and the standard-mode dropdown header.
+// selectable: channel rows, ＋ 새 채널 and the standard-mode dropdown header.
 func (it sideItem) selectable() bool {
-	return it.Kind == sideChannel || (it.Kind == sideHeader && it.Dropdown)
+	return it.Kind == sideChannel || it.Kind == sideNewChannel || (it.Kind == sideHeader && it.Dropdown)
 }
 
 // sidebarPane is the channel / DM list (SlotSidebar, command and standard): the
@@ -81,8 +84,9 @@ func newSidebar(ctx *ui.Context) ui.Component {
 
 // sideItems builds the rows. Command: title, "─ 채널", channels, "─ DM", DMs.
 // Standard: "이름 ▾" (replacing the rail and the section label), channels, "─ DM",
-// DMs. Without a space the channel section is the dim notice (wrapped to cw cells
-// when cw > 0). DMs are visibleDMs: a blocked peer's 1:1 DM leaves at once.
+// DMs. The channels end with ＋ 새 채널 when I may create one there (owner,
+// admin). Without a space the channel section is the dim notice (wrapped to cw
+// cells when cw > 0). DMs are visibleDMs: a blocked peer's 1:1 DM leaves at once.
 func sideItems(ctx *ui.Context, cw int) []sideItem {
 	if ctx == nil || ctx.Store == nil {
 		return nil
@@ -111,6 +115,9 @@ func sideItems(ctx *ui.Context, cw int) []sideItem {
 		}
 		for _, ch := range s.SpaceChannels(sid) {
 			items = append(items, sideItem{ID: sideChanPrefix + ch.ID, Kind: sideChannel, Ch: ch})
+		}
+		if canManageSpace(ctx, sid) {
+			items = append(items, sideItem{ID: sideNewChannelID, Kind: sideNewChannel, Text: channelRowNew, Space: sid})
 		}
 	} else {
 		notice := sideNoSpace
@@ -218,7 +225,7 @@ func (p *sidebarPane) render(ctx *ui.Context, it sideItem, selected bool, width 
 			text = textwidth.Truncate(text, max(cw-2, 0), "…") + " ▾"
 		}
 		body = cell(t.S.Title.Render, text, cw)
-	case sideLabel, sideNotice:
+	case sideLabel, sideNotice, sideNewChannel:
 		body = cell(t.S.Dim.Render, it.Text, cw)
 	case sideChannel:
 		body = channelRow(ctx, t, it.Ch, cw)
@@ -408,12 +415,15 @@ func (p *sidebarPane) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Po
 	return nil
 }
 
-// open runs a row: the dropdown opens the space switcher, a channel row opens that
-// channel (a space channel also becomes the selected space).
+// open runs a row: the dropdown opens the space switcher, ＋ 새 채널 the channel
+// creation dialog for its space (as the palette's channel.create), a channel row
+// opens that channel (a space channel also becomes the selected space).
 func (p *sidebarPane) open(ctx *ui.Context, it sideItem) tea.Cmd {
 	switch it.Kind {
 	case sideHeader:
 		return ui.OpenOverlay(newSpaceSwitchMenu(ctx))
+	case sideNewChannel:
+		return ui.OpenRegisteredOverlay(overlayChannelCreate, it.Space)
 	case sideChannel:
 		if it.Ch == nil {
 			return nil

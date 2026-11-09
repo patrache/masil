@@ -232,13 +232,114 @@ func TestHomeClickOpens(t *testing.T) {
 	}
 }
 
+// A brand-new user (bootstrapped, nothing to talk about) gets the entry rows,
+// not the empty widget: there is always a way to start (owner report 2026-11-09).
 func TestHomeEmptyGolden(t *testing.T) {
 	forEachSize(t, uitest.Required, func(t *testing.T, sz uitest.Size) *uitest.Harness {
 		return open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(func(s *store.Store) { s.Sync.Bootstrapped = true }))
 	}, func(t *testing.T, h *uitest.Harness) {
-		mustContain(t, h.Screen(), "아직 대화가 없어요")
+		if h.Context().Mode != layout.ModeTooSmall {
+			mustContain(t, h.Screen(), "＋ 방 만들기")
+		}
+		if strings.Contains(h.Screen(), homeEmptyTitle) {
+			t.Fatalf("a bootstrapped home always has rows:\n%s", h.Screen())
+		}
 		h.Golden("home_empty")
 	})
+}
+
+// The 방 만들기 / 초대 코드로 방 참여 rows follow 친구 목록, with or without
+// anything to talk about, and enter opens the same dialogs as the palette's
+// space.create / space.join.
+func TestHomeSpaceRows(t *testing.T) {
+	sz := uitest.Size{W: 120, H: 40}
+	brandNew := func(t *testing.T) *uitest.Harness {
+		return open(t, sz, ui.Route{Kind: ui.RouteHome}, uitest.WithSeed(func(s *store.Store) { s.Sync.Bootstrapped = true }))
+	}
+	for _, c := range []struct {
+		name string
+		mk   func(t *testing.T) *uitest.Harness
+		next string // the row after 초대 코드로 방 참여 ("" = the last row)
+	}{
+		{"seeded", func(t *testing.T) *uitest.Harness { return openHome(t, sz) }, "─ DM"},
+		{"brand_new", brandNew, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h := c.mk(t)
+			main := paneText(t, h, layout.SlotMain)
+			want := []string{"피드 보기", "친구 목록", "＋ 방 만들기", "초대 코드로 방 참여"}
+			if c.next != "" {
+				want = append(want, c.next)
+			}
+			mustContainInOrder(t, main, want...)
+			if strings.Contains(main, homeEmptyTitle) {
+				t.Fatalf("no empty widget with rows:\n%s", main)
+			}
+			if c.next == "" {
+				v := homeOf(t, h)
+				if last := v.items[len(v.items)-1]; last.Label != "초대 코드로 방 참여" {
+					t.Fatalf("brand-new home ends with %+v", last)
+				}
+			}
+
+			homeSelect(t, h, "방 만들기")
+			h.Press("enter")
+			if overlays(h) != 1 {
+				t.Fatalf("enter on ＋ 방 만들기 opens one dialog:\n%s", h.Screen())
+			}
+			mustContain(t, overlayText(t, h), spaceCreateTitle, "설명 (선택)", "아이콘")
+			h.Press("esc")
+
+			homeSelect(t, h, "초대 코드로 방 참여")
+			h.Press("enter")
+			if overlays(h) != 1 {
+				t.Fatalf("enter on 초대 코드로 방 참여 opens one dialog:\n%s", h.Screen())
+			}
+			mustContain(t, overlayText(t, h), spaceJoinTitle, "초대 코드", spaceJoinSubmit)
+			if top(h).Kind != ui.RouteHome {
+				t.Fatalf("the rows open dialogs, not routes: %+v", top(h))
+			}
+		})
+	}
+
+	// a click selects, a second click opens (like every home row)
+	h := brandNew(t)
+	clickText(t, h, layout.SlotMain, "＋ 방 만들기")
+	if overlays(h) != 0 {
+		t.Fatal("first click only selects")
+	}
+	clickText(t, h, layout.SlotMain, "＋ 방 만들기")
+	if overlays(h) != 1 || !strings.Contains(overlayText(t, h), "아이콘") {
+		t.Fatalf("second click opens 방 만들기:\n%s", h.Screen())
+	}
+}
+
+// Without a Store the home still draws its empty widget (no rows to build).
+func TestHomeNoStoreEmpty(t *testing.T) {
+	if items := homeItems(nil); items != nil {
+		t.Fatalf("nil ctx: %+v", items)
+	}
+	if items := homeItems(&ui.Context{}); items != nil {
+		t.Fatalf("nil Store: %+v", items)
+	}
+	ctx := &ui.Context{}
+	v := newHome(ctx, ui.Route{Kind: ui.RouteHome}).(*homeView)
+	v.Resize(ctx, ui.Size{W: 60, H: 12})
+	if out := v.View(ctx, true); !strings.Contains(out, homeEmptyTitle) {
+		t.Fatalf("no Store: the empty widget:\n%s", out)
+	}
+}
+
+// The status line keeps the ctrl+k (palette) hint on home in the modes that
+// show key hints with room for it.
+func TestHomePaletteHint(t *testing.T) {
+	for _, sz := range []uitest.Size{{W: 200, H: 60}, {W: 120, H: 40}} {
+		h := openHome(t, sz)
+		lines := strings.Split(h.Screen(), "\n")
+		if status := lines[len(lines)-1]; !strings.Contains(status, "ctrl+k") {
+			t.Fatalf("%dx%d: status line without ctrl+k: %q", sz.W, sz.H, status)
+		}
+	}
 }
 
 func TestHomeLiveUpdates(t *testing.T) {
