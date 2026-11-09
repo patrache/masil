@@ -35,6 +35,22 @@ type guestRig struct {
 	dir   string
 	hEv   []share.Event
 	term  *outTerm
+	// sentMu guards sent: every frame the participant's connection sent
+	sentMu sync.Mutex
+	sent   [][]byte
+}
+
+// sentKinds counts the frames the participant sent, by kind.
+func (r *guestRig) sentKinds() map[wire.Kind]int {
+	r.sentMu.Lock()
+	defer r.sentMu.Unlock()
+	n := map[wire.Kind]int{}
+	for _, f := range r.sent {
+		if hd, err := wire.ParseHeader(f); err == nil {
+			n[hd.Kind]++
+		}
+	}
+	return n
 }
 
 var samUser = api.UserSummary{ID: fixtures.UserSam, Handle: "sam", DisplayName: "sam"}
@@ -98,7 +114,18 @@ func newGuestRig(t *testing.T, h *uitest.Harness, prep func(dir string)) *guestR
 	r.docs = share.NewDocManager(root, nil, clock)
 	r.relay = sharetest.NewRelay(rigShare, fixtures.UserMinji, map[uint8]string{1: fixtures.UserSam})
 	r.relay.SetClock(h.Clock().Now)
-	t.Cleanup(SetDialForTest(r.relay.Dial(fixtures.UserSam)))
+	guestDial := r.relay.Dial(fixtures.UserSam)
+	t.Cleanup(SetDialForTest(func(ctx context.Context, id string) (share.Conn, error) {
+		c, err := guestDial(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return recConn{Conn: c, rec: func(f []byte) {
+			r.sentMu.Lock()
+			r.sent = append(r.sent, append([]byte(nil), f...))
+			r.sentMu.Unlock()
+		}}, nil
+	}))
 	r.host = share.NewHost(share.HostConfig{ShareID: rigShare, OwnerID: fixtures.UserMinji, Title: "민지의 작업공간",
 		Dial: r.relay.Dial(fixtures.UserMinji), Clock: clock, ManualTick: true, Root: root, Docs: r.docs})
 	if err := r.host.Start(context.Background()); err != nil {
@@ -335,12 +362,26 @@ func TestViewerIsReadOnly(t *testing.T) {
 	if d := r.s.code.current(); d == nil {
 		t.Fatalf("not open:\n%s", h.Screen())
 	}
+	d := r.s.code.current()
+	if !d.ed.ReadOnly() {
+		t.Fatal("a viewer's editor is writable")
+	}
 	before, _, _ := r.docs.Text(hubTS)
+	mine := d.ed.Text()
 	h.Press("i", "x", "esc", "x")
 	r.settle()
 	after, _, _ := r.docs.Text(hubTS)
 	if after != before {
 		t.Fatalf("a viewer changed the owner's text")
+	}
+	if d.ed.Text() != mine {
+		t.Fatal("a viewer's keys changed its own copy")
+	}
+	if len(r.sentKinds()) == 0 {
+		t.Fatal("no frame recorded from the participant (the recorder is not wired)")
+	}
+	if n := r.sentKinds()[wire.KindDocOp]; n != 0 {
+		t.Fatalf("a viewer sent %d doc_op frames", n)
 	}
 	for _, ev := range r.hEv {
 		if _, ok := ev.(share.EventDocApplied); ok {
