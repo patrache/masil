@@ -112,7 +112,7 @@ MinLevel 열: 참가자가 그 종류를 오너에게 보낼 수 있는 최소 �
 | `rekey` | `{epoch, key}` |
 | `ended` | `{reason}` |
 | `notice` | `{code, seat, arg}` |
-| `term_status` | `{term, title, cols, rows, attention, unsaved}` |
+| `term_status` | `{term, title, cols, rows, attention, unsaved}` — 참가자는 `cols`·`rows` 를 0~500·0~300 으로 잘라 받는다(재생 화면 크기 상한) |
 | `prop_submit` | `{id, text}` |
 | `prop_result` | `{id, action}` |
 | `tree_req` | `{dir}` |
