@@ -106,6 +106,20 @@ export function applyOps(state: DocState, seq: number, ops: Op[]): Change[];   /
 
 모르는 `op` 값·`reset` 은 1단계에서 `reject invalid`. 거절된 프레임은 순번·상태·`client_op_id` 기록을 남기지 않는다.
 
+### 3.4 서버가 정한 세부 (P0 Task 27)
+
+3.1–3.3 이 열어 둔 곳을 서버(`server/src/do/collab-hub.ts`·`collab-protocol.ts`)는 이렇게 채운다. Go 클라이언트(Task 30)도 같은 동작을 가정한다.
+
+- `hello{since}` 의 `since` 가 서버의 지금 `seq` 보다 크면(서버가 모르는 순번) `snapshot` 을 보낸다. `since` 가 정수가 아니면 `null` 로 본다.
+- 서버는 `hello` 를 받은 소켓에만 `op`·`presence` 를 보낸다(붙자마자 `hello` 를 보내는 3.1 순서 그대로면 놓치는 것이 없다).
+- `client_op_id` 가 없거나 모양(3.1)이 틀린 `op` 프레임은 답할 곳이 없으므로 **조용히 버린다**(순번·상태 변화 없음). `base_seq` 가 0 이상 정수가 아니면 `reject invalid`.
+- 속도(4장)는 모양 검사보다 먼저 센다 — 거절될 프레임도 초당 20에 든다. 멱등 재전송(같은 `client_op_id`)은 잠금·종류 검사보다 앞서 처음 `seq` 로 `ack` 한다.
+- 바이너리 프레임 → close `1003`. JSON 이 아니거나 모르는 `t` 는 버린다.
+- `presence` 는 연결마다 마지막 값에 고친 것만 합쳐 `{cursor, selection, dragging}` 전체를 보낸다. 받는 쪽은 **다른 사용자**의 소켓(보낸 사람의 다른 소켓은 빼고)이다. `selection` 은 문자열(64자 이하) 200개 이하 — 어기면 그 프레임을 버린다. 새로 붙은 소켓에 지난 presence 를 다시 보내지 않는다.
+- `init(docType, snapshot)`(POST `snapshot`): 모양·이름 규칙(1.2)·`id` 중복 → 거절 `invalid`, 문서 종류의 `validateOp` 를 `{op:"reset", snapshot}` 하나로 불러 거절하면 `invalid`, 5장 한도를 넘으면 `too_long`. REST 는 `400 fields.snapshot` 에 그 값을 싣는다. 객체가 하나라도 있으면 그 상태가 순번 1(`head_seq` 1), 비어 있으면 0. `snapshot.seq` 는 무시한다.
+- 압축(alarm): 스냅숏 뒤 op 가 1,000개를 넘으면 지금 상태를 스냅숏으로 쓰고 그 순번까지의 op 를 지운다. D1 `head_seq`·`updated_at` 반영은 op 뒤 30초 묶음.
+- `closeAll(reason)` 뒤에는 그 문서 소켓 업그레이드를 DO 도 `404` 로 거절한다(Worker 의 D1 확인과 겹치는 경합을 막는다).
+
 ---
 
 ## 4. 한도·종료 코드

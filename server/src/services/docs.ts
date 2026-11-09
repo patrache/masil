@@ -124,7 +124,9 @@ export async function createDoc(rt: Runtime, spaceId: string, userId: string, in
   };
   if (input.snapshot !== undefined && input.snapshot !== null) {
     // the DO validates and stores the first state before the row exists, so a refused snapshot leaves nothing behind
-    row.head_seq = await collabHub(rt, row.id).init(row.type, input.snapshot);
+    const r = await collabHub(rt, row.id).init(row.type, input.snapshot);
+    if ("error" in r) throw err.invalid({ snapshot: r.error });
+    row.head_seq = r.seq;
   }
   const res = await db
     .prepare(
