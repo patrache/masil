@@ -1,6 +1,7 @@
 // Package leetcodetest is a fake LeetCode (httptest) for internal/leetcode and
-// the leet tool's UI tests. It answers the GraphQL queries masil sends from
-// fixtures in testdata/, can be told to fail a path with any status, content
+// the leet tool's UI tests. It answers from fixtures in testdata/ — the
+// GraphQL queries masil sends, interpret_solution, submit and the check of a
+// run or submission — can be told to fail a path with any status, content
 // type and body (a Cloudflare page, a 429 …), and records every request.
 package leetcodetest
 
@@ -51,6 +52,9 @@ type Server struct {
 	fails      map[string]failure
 	userStatus map[string]any
 	reqs       []Recorded
+	interpret  string              // fixture answering interpret_solution
+	submit     string              // fixture answering submit
+	checks     map[string][]string // id -> check fixtures still to answer (the last repeats)
 }
 
 // New starts a fake with today's problem = daily_1606.json, two-sum
@@ -63,6 +67,9 @@ func New(tb testing.TB) *Server {
 		questions:  map[string]string{"two-sum": "question_two_sum.json"},
 		fails:      map[string]failure{},
 		userStatus: map[string]any{"isSignedIn": false, "username": "", "isPremium": nil},
+		interpret:  "interpret_ok.json",
+		submit:     "submit_ok.json",
+		checks:     map[string][]string{},
 	}
 	hs := httptest.NewServer(http.HandlerFunc(s.serve))
 	tb.Cleanup(hs.Close)
@@ -126,9 +133,70 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == "POST" && r.URL.Path == "/graphql/":
 		s.graphql(w, body)
+	case r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/problems/") && strings.HasSuffix(r.URL.Path, "/interpret_solution/"):
+		s.mu.Lock()
+		fx := s.interpret
+		s.mu.Unlock()
+		writeRaw(w, Fixture(s.tb, fx))
+	case r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/problems/") && strings.HasSuffix(r.URL.Path, "/submit/"):
+		s.mu.Lock()
+		fx := s.submit
+		s.mu.Unlock()
+		writeRaw(w, Fixture(s.tb, fx))
+	case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/submissions/detail/") && strings.HasSuffix(r.URL.Path, "/check/"):
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/submissions/detail/"), "/check/")
+		s.mu.Lock()
+		q := s.checks[id]
+		var fx string
+		if len(q) > 0 {
+			fx = q[0]
+			if len(q) > 1 {
+				s.checks[id] = q[1:]
+			}
+		}
+		s.mu.Unlock()
+		if fx == "" {
+			writeJSON(w, http.StatusNotFound, map[string]any{"error": "no such run"})
+			return
+		}
+		writeRaw(w, Fixture(s.tb, fx))
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "not found"})
 	}
+}
+
+// SetInterpret makes fixture the answer to every interpret_solution POST
+// (default interpret_ok.json).
+func (s *Server) SetInterpret(fixture string) {
+	Fixture(s.tb, fixture)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.interpret = fixture
+}
+
+// SetSubmit makes fixture the answer to every submit POST (default
+// submit_ok.json: submission 1234567890).
+func (s *Server) SetSubmit(fixture string) {
+	Fixture(s.tb, fixture)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.submit = fixture
+}
+
+// QueueCheck makes the check of id answer fixtures in order; the last one
+// keeps answering after that. An id with nothing queued is 404.
+func (s *Server) QueueCheck(id string, fixtures ...string) {
+	for _, f := range fixtures {
+		Fixture(s.tb, f)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.checks[id] = append(s.checks[id], fixtures...)
+}
+
+func writeRaw(w http.ResponseWriter, b []byte) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(b)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
