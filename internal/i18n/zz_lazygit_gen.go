@@ -8,5 +8,251 @@ type LazygitT struct{ t *T }
 
 var areaLazygit = area{
 	name: "lazygit",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"cmd_open": {
+			desc: "명령 팔레트 항목: lazygit 도구 열기(lazygit 은 프로그램 이름, 번역하지 않음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "lazygit 열기"},
+				En: {Other: "Open lazygit"},
+			},
+		},
+		"hub_installed": {
+			desc:   "도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 있을 때. version = lazygit 버전(0.66.3 꼴), recent = 최근 저장소 폴더 이름(사용자 이름, 번역하지 않음)",
+			params: []Param{{Name: "version", Type: "string"}, {Name: "recent", Type: "string"}},
+			max:    40,
+			text: map[Locale]Forms{
+				Ko: {Other: "설치됨 v{version} · 최근 {recent}"},
+				En: {Other: "Installed v{version} · recent {recent}"},
+			},
+		},
+		"hub_installed_no_recent": {
+			desc:   "도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 없을 때. version = lazygit 버전",
+			params: []Param{{Name: "version", Type: "string"}},
+			max:    40,
+			text: map[Locale]Forms{
+				Ko: {Other: "설치됨 v{version}"},
+				En: {Other: "Installed v{version}"},
+			},
+		},
+		"hub_installed_unknown": {
+			desc: "도구 허브 lazygit 줄의 상태: 설치돼 있지만 버전을 읽지 못했을 때",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "설치됨"},
+				En: {Other: "Installed"},
+			},
+		},
+		"hub_missing": {
+			desc: "도구 허브 lazygit 줄의 상태: 설치돼 있지 않음 — enter 를 누르면 설치 안내가 뜬다(enter 는 키 이름)",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "설치 필요 · enter 안내"},
+				En: {Other: "Not installed · enter for help"},
+			},
+		},
+		"install_body": {
+			desc:       "설치 안내 대화상자 본문: lazygit 을 찾지 못했다는 것과 아래 명령으로 직접 설치하라는 안내(줄여 쓰지 않음)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "lazygit 을 찾지 못했어요. 아래 명령으로 직접 설치한 뒤 다시 열어 주세요."},
+				En: {Other: "lazygit was not found. Install it yourself with the command below, then open it again."},
+			},
+		},
+		"install_copied": {
+			desc: "토스트: 설치 안내 대화상자에서 y 로 설치 명령(또는 주소)을 클립보드에 복사했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "설치 명령을 복사했어요"},
+				En: {Other: "Copied the install command"},
+			},
+		},
+		"install_footer": {
+			desc: "설치 안내 대화상자 바닥 줄 키 안내(y·esc 는 키 이름)",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "y 복사 · esc 닫기"},
+				En: {Other: "y copy · esc close"},
+			},
+		},
+		"install_linux": {
+			desc:       "설치 안내 대화상자(Linux 등): 배포판 패키지 관리자나 공식 릴리스 페이지로 설치하라는 안내. 그 아래 줄에 공식 주소가 보인다",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "배포판 패키지 관리자나 아래 공식 페이지의 방법으로 설치해 주세요."},
+				En: {Other: "Install it with your distribution's package manager or as the official page below describes."},
+			},
+		},
+		"install_tested": {
+			desc:   "설치 안내 대화상자: masil 이 시험한 lazygit 버전(최소 버전은 없음). version = 0.66.3 꼴",
+			params: []Param{{Name: "version", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "masil 은 lazygit v{version} 으로 시험했어요"},
+				En: {Other: "masil was tested with lazygit v{version}"},
+			},
+		},
+		"install_title": {
+			desc: "설치 안내 대화상자 제목(테두리)",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "lazygit 설치 안내"},
+				En: {Other: "Installing lazygit"},
+			},
+		},
+		"name": {
+			desc: "도구 이름(허브·탭·팔레트) — 프로그램 이름 그대로, 번역하지 않음",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "lazygit"},
+				En: {Other: "lazygit"},
+			},
+		},
+		"not_repo": {
+			desc: "저장소 고르기 화면 오류: 고른 경로가 git 저장소가 아님",
+			text: map[Locale]Forms{
+				Ko: {Other: "git 저장소가 아니에요"},
+				En: {Other: "Not a git repository"},
+			},
+		},
+		"pick_empty": {
+			desc: "저장소 고르기 화면: 최근에 연 저장소가 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "최근에 연 저장소가 없어요"},
+				En: {Other: "No recent repositories"},
+			},
+		},
+		"pick_footer": {
+			desc: "저장소 고르기 화면 바닥 줄 키 안내(목록일 때). enter·↑↓ 는 키 이름",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 열기 · ↑↓ 고르기"},
+				En: {Other: "enter open · ↑↓ choose"},
+			},
+		},
+		"pick_input_footer": {
+			desc: "저장소 고르기 화면 바닥 줄 키 안내(경로 입력 칸일 때). tab·enter·esc 는 키 이름",
+			max:  40,
+			text: map[Locale]Forms{
+				Ko: {Other: "tab 자동 완성 · enter 열기 · esc 목록"},
+				En: {Other: "tab complete · enter open · esc list"},
+			},
+		},
+		"pick_input_label": {
+			desc: "저장소 고르기 화면: 경로 입력 칸 앞 이름표",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "경로"},
+				En: {Other: "Path"},
+			},
+		},
+		"pick_title": {
+			desc: "저장소 고르기 화면의 제목(탭·테두리·허브 열린 목록)",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "저장소 고르기"},
+				En: {Other: "Choose a repository"},
+			},
+		},
+		"pick_type_path": {
+			desc: "저장소 고르기 목록의 마지막 줄: 고르면 경로를 직접 입력하는 칸이 열린다",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "경로 직접 입력"},
+				En: {Other: "Type a path"},
+			},
+		},
+	},
+}
+
+// CmdOpen: 명령 팔레트 항목: lazygit 도구 열기(lazygit 은 프로그램 이름, 번역하지 않음)
+func (a_ LazygitT) CmdOpen() string {
+	return a_.t.render(&areaLazygit, "cmd_open", false, 0)
+}
+
+// HubInstalled: 도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 있을 때. version = lazygit 버전(0.66.3 꼴), recent = 최근 저장소 폴더 이름(사용자 이름, 번역하지 않음)
+func (a_ LazygitT) HubInstalled(version string, recent string) string {
+	return a_.t.render(&areaLazygit, "hub_installed", false, 0, "version", version, "recent", recent)
+}
+
+// HubInstalledNoRecent: 도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 없을 때. version = lazygit 버전
+func (a_ LazygitT) HubInstalledNoRecent(version string) string {
+	return a_.t.render(&areaLazygit, "hub_installed_no_recent", false, 0, "version", version)
+}
+
+// HubInstalledUnknown: 도구 허브 lazygit 줄의 상태: 설치돼 있지만 버전을 읽지 못했을 때
+func (a_ LazygitT) HubInstalledUnknown() string {
+	return a_.t.render(&areaLazygit, "hub_installed_unknown", false, 0)
+}
+
+// HubMissing: 도구 허브 lazygit 줄의 상태: 설치돼 있지 않음 — enter 를 누르면 설치 안내가 뜬다(enter 는 키 이름)
+func (a_ LazygitT) HubMissing() string {
+	return a_.t.render(&areaLazygit, "hub_missing", false, 0)
+}
+
+// InstallBody: 설치 안내 대화상자 본문: lazygit 을 찾지 못했다는 것과 아래 명령으로 직접 설치하라는 안내(줄여 쓰지 않음)
+func (a_ LazygitT) InstallBody() string {
+	return a_.t.render(&areaLazygit, "install_body", false, 0)
+}
+
+// InstallCopied: 토스트: 설치 안내 대화상자에서 y 로 설치 명령(또는 주소)을 클립보드에 복사했을 때
+func (a_ LazygitT) InstallCopied() string {
+	return a_.t.render(&areaLazygit, "install_copied", false, 0)
+}
+
+// InstallFooter: 설치 안내 대화상자 바닥 줄 키 안내(y·esc 는 키 이름)
+func (a_ LazygitT) InstallFooter() string {
+	return a_.t.render(&areaLazygit, "install_footer", false, 0)
+}
+
+// InstallLinux: 설치 안내 대화상자(Linux 등): 배포판 패키지 관리자나 공식 릴리스 페이지로 설치하라는 안내. 그 아래 줄에 공식 주소가 보인다
+func (a_ LazygitT) InstallLinux() string {
+	return a_.t.render(&areaLazygit, "install_linux", false, 0)
+}
+
+// InstallTested: 설치 안내 대화상자: masil 이 시험한 lazygit 버전(최소 버전은 없음). version = 0.66.3 꼴
+func (a_ LazygitT) InstallTested(version string) string {
+	return a_.t.render(&areaLazygit, "install_tested", false, 0, "version", version)
+}
+
+// InstallTitle: 설치 안내 대화상자 제목(테두리)
+func (a_ LazygitT) InstallTitle() string {
+	return a_.t.render(&areaLazygit, "install_title", false, 0)
+}
+
+// Name: 도구 이름(허브·탭·팔레트) — 프로그램 이름 그대로, 번역하지 않음
+func (a_ LazygitT) Name() string {
+	return a_.t.render(&areaLazygit, "name", false, 0)
+}
+
+// NotRepo: 저장소 고르기 화면 오류: 고른 경로가 git 저장소가 아님
+func (a_ LazygitT) NotRepo() string {
+	return a_.t.render(&areaLazygit, "not_repo", false, 0)
+}
+
+// PickEmpty: 저장소 고르기 화면: 최근에 연 저장소가 하나도 없을 때
+func (a_ LazygitT) PickEmpty() string {
+	return a_.t.render(&areaLazygit, "pick_empty", false, 0)
+}
+
+// PickFooter: 저장소 고르기 화면 바닥 줄 키 안내(목록일 때). enter·↑↓ 는 키 이름
+func (a_ LazygitT) PickFooter() string {
+	return a_.t.render(&areaLazygit, "pick_footer", false, 0)
+}
+
+// PickInputFooter: 저장소 고르기 화면 바닥 줄 키 안내(경로 입력 칸일 때). tab·enter·esc 는 키 이름
+func (a_ LazygitT) PickInputFooter() string {
+	return a_.t.render(&areaLazygit, "pick_input_footer", false, 0)
+}
+
+// PickInputLabel: 저장소 고르기 화면: 경로 입력 칸 앞 이름표
+func (a_ LazygitT) PickInputLabel() string {
+	return a_.t.render(&areaLazygit, "pick_input_label", false, 0)
+}
+
+// PickTitle: 저장소 고르기 화면의 제목(탭·테두리·허브 열린 목록)
+func (a_ LazygitT) PickTitle() string {
+	return a_.t.render(&areaLazygit, "pick_title", false, 0)
+}
+
+// PickTypePath: 저장소 고르기 목록의 마지막 줄: 고르면 경로를 직접 입력하는 칸이 열린다
+func (a_ LazygitT) PickTypePath() string {
+	return a_.t.render(&areaLazygit, "pick_type_path", false, 0)
 }

@@ -1,0 +1,56 @@
+[cmd_open]
+other = "Open lazygit"
+
+[hub_installed]
+other = "Installed v{version} · recent {recent}"
+
+[hub_installed_no_recent]
+other = "Installed v{version}"
+
+[hub_installed_unknown]
+other = "Installed"
+
+[hub_missing]
+other = "Not installed · enter for help"
+
+[install_body]
+other = "lazygit was not found. Install it yourself with the command below, then open it again."
+
+[install_copied]
+other = "Copied the install command"
+
+[install_footer]
+other = "y copy · esc close"
+
+[install_linux]
+other = "Install it with your distribution's package manager or as the official page below describes."
+
+[install_tested]
+other = "masil was tested with lazygit v{version}"
+
+[install_title]
+other = "Installing lazygit"
+
+[name]
+other = "lazygit"
+
+[not_repo]
+other = "Not a git repository"
+
+[pick_empty]
+other = "No recent repositories"
+
+[pick_footer]
+other = "enter open · ↑↓ choose"
+
+[pick_input_footer]
+other = "tab complete · enter open · esc list"
+
+[pick_input_label]
+other = "Path"
+
+[pick_title]
+other = "Choose a repository"
+
+[pick_type_path]
+other = "Type a path"
