@@ -243,3 +243,23 @@ func TestSimCardLeavesChatKeys(t *testing.T) {
 		t.Errorf("R was taken by a card with nothing to replay:\n%s", h2.Screen())
 	}
 }
+
+// TestCardWidgetMode: at 80x24 (widget) the card is drawn whole — the mini
+// picture, the summary with its estimate note and the key hint — not just its
+// title; hostile mini lines are drawn there too, cut to the pane.
+func TestCardWidgetMode(t *testing.T) {
+	h := open(t, 80, 24, card(cardID, ui.CardArchDesign, 1, designData(nil), 10))
+	h.Check()
+	scr := h.Screen()
+	for _, want := range []string{"📐 결제 시스템 v3", mini[0], mini[1], "노드 12", "추정", "⏎ 열기"} {
+		if !strings.Contains(scr, want) {
+			t.Errorf("80x24: the card lacks %q:\n%s", want, scr)
+		}
+	}
+	hostile := designData(map[string]any{"mini": []string{"evil\u202E" + strings.Repeat("━", 200)}})
+	h2 := open(t, 80, 24, card(cardID, ui.CardArchDesign, 1, hostile, 10))
+	h2.Check()
+	if scr := h2.Screen(); !strings.Contains(scr, "evil━━━") || strings.ContainsRune(scr, '\u202e') {
+		t.Errorf("80x24: the hostile mini line is not drawn safely:\n%s", scr)
+	}
+}

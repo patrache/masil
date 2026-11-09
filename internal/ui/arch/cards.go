@@ -428,8 +428,8 @@ func cardLines(ctx *ui.Context, m *api.Message, width int) []string {
 }
 
 // cardLinesOf draws m's card at width: the title, the mini picture (re-cut to
-// 8 lines of 60 cells), the summary (the cost wrapped, never cut), an engine
-// version note and the key hint. Widget and tiny modes get the title alone.
+// 8 lines of min(60, width) cells), the summary (the cost wrapped, never cut),
+// an engine version note and the key hint. Tiny mode gets the title alone.
 func cardLinesOf(ctx *ui.Context, m *api.Message, width int) []cardLine {
 	width = max(width, 1)
 	c, ok := parseCard(m)
@@ -448,7 +448,7 @@ func cardLinesOf(ctx *ui.Context, m *api.Message, width int) []cardLine {
 			out = append(out, cardLine{s: l, st: st})
 		}
 	}
-	compact := ctx.Mode == layout.ModeWidget || ctx.Mode == layout.ModeTiny
+	compact := ctx.Mode == layout.ModeTiny
 	cost := func(usd int, asof string) string {
 		return a.CostShort(humanize.Grouped(int64(usd)), cleanText(asof))
 	}
