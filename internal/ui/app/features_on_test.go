@@ -10,7 +10,8 @@ import (
 )
 
 // With every tool flag on but no tool open, the shell draws exactly what it
-// draws with the flags off (A8.4) — the TestShellGoldens screens, every size.
+// draws with the flags off (A8.4) — the TestShellGoldens screens, every size,
+// with every tool and the tool routes registered in both draws.
 // The help and palette screens are left out: they list the new keys on purpose
 // (JX9, the release PR).
 func TestFeaturesOnShellUnchanged(t *testing.T) {
@@ -24,7 +25,7 @@ func TestFeaturesOnShellUnchanged(t *testing.T) {
 		{"dev_channel", []uitest.Option{uitest.WithRoute(devRoute)}},
 	}
 	draw := func(t *testing.T, flags string, opts []uitest.Option, s uitest.Size) string {
-		t.Setenv("MASIL_FEATURES", flags)
+		installStubTools(t, flags) // every tool and tool route registered, as in cmd/masil
 		h := uitest.New(t, opts...)
 		h.Resize(s.W, s.H)
 		return h.Styled()
