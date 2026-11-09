@@ -1,0 +1,453 @@
+{
+  "schema_version": 1,
+  "title": "async pipeline",
+  "seed": 18446744073709551615,
+  "duration_s": 60,
+  "nodes": [
+    {
+      "id": "n_api",
+      "kind": "api",
+      "label": "upload-api",
+      "pos": [
+        16,
+        0
+      ],
+      "parent": "",
+      "provider": "custom",
+      "instance_type": "",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 4096,
+      "instances": 2,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 12500,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 100,
+        "iops": 3000
+      },
+      "cpu_micros_per_req": 8000,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 120000,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_c",
+      "kind": "client",
+      "label": "mobile",
+      "pos": [
+        0,
+        0
+      ],
+      "parent": "",
+      "provider": "",
+      "instance_type": "",
+      "region": "",
+      "cpu_cores": 1,
+      "memory_mib": 1024,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 10000,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 0,
+        "iops": 0
+      },
+      "cpu_micros_per_req": 1,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      },
+      "traffic": {
+        "rps": 100,
+        "read_permille": 800,
+        "req_kb": 2,
+        "resp_kb": 16,
+        "curve": "constant",
+        "spike_mult": 5,
+        "spike_at_s": 60,
+        "spike_dur_s": 30
+      }
+    },
+    {
+      "id": "n_ext",
+      "kind": "external",
+      "label": "payments",
+      "pos": [
+        32,
+        12
+      ],
+      "parent": "",
+      "provider": "",
+      "instance_type": "",
+      "region": "",
+      "cpu_cores": 64,
+      "memory_mib": 1024,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 100000,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 0,
+        "iops": 0
+      },
+      "cpu_micros_per_req": 1,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 1000,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 100,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_q",
+      "kind": "queue",
+      "label": "jobs",
+      "pos": [
+        32,
+        0
+      ],
+      "parent": "",
+      "provider": "aws",
+      "instance_type": "mq.m5.large",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 8192,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 10000,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 0,
+        "iops": 0
+      },
+      "cpu_micros_per_req": 100,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 10000,
+        "retention_msgs": 1000000,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_s3",
+      "kind": "object_storage",
+      "label": "images",
+      "pos": [
+        64,
+        0
+      ],
+      "parent": "",
+      "provider": "aws",
+      "instance_type": "s3",
+      "region": "",
+      "cpu_cores": 64,
+      "memory_mib": 1024,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 100000,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 0,
+        "iops": 0
+      },
+      "cpu_micros_per_req": 100,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 5500,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 20,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_search",
+      "kind": "search",
+      "label": "search",
+      "pos": [
+        48,
+        6
+      ],
+      "parent": "",
+      "provider": "aws",
+      "instance_type": "r7g.large.search",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 16384,
+      "instances": 2,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 12500,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 100,
+        "iops": 3000
+      },
+      "cpu_micros_per_req": 30000,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 100
+      }
+    },
+    {
+      "id": "n_w",
+      "kind": "worker",
+      "label": "resizer",
+      "pos": [
+        48,
+        0
+      ],
+      "parent": "",
+      "provider": "aws",
+      "instance_type": "c7g.large",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 4096,
+      "instances": 4,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 12500,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 100,
+        "iops": 3000
+      },
+      "cpu_micros_per_req": 20000,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    }
+  ],
+  "boxes": [],
+  "edges": [
+    {
+      "id": "e_a",
+      "from": "n_c",
+      "to": "n_api",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 1000,
+      "write_permille": 1000
+    },
+    {
+      "id": "e_b",
+      "from": "n_api",
+      "to": "n_q",
+      "protocol": "async",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 0,
+      "write_permille": 1000
+    },
+    {
+      "id": "e_c",
+      "from": "n_q",
+      "to": "n_w",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 1000,
+      "write_permille": 1000
+    },
+    {
+      "id": "e_d",
+      "from": "n_w",
+      "to": "n_s3",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 1000,
+      "write_permille": 1000
+    },
+    {
+      "id": "e_e",
+      "from": "n_api",
+      "to": "n_search",
+      "protocol": "grpc",
+      "mbps": 1000,
+      "latency_micros": 500,
+      "read_permille": 1000,
+      "write_permille": 0
+    },
+    {
+      "id": "e_f",
+      "from": "n_api",
+      "to": "n_ext",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 0,
+      "write_permille": 100
+    }
+  ],
+  "faults": []
+}

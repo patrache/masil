@@ -1,0 +1,8 @@
+{"schema_version": 1, "title": "hand written, fields omitted", "seed": 9,
+ "future_field": {"ignored": true},
+ "nodes": [
+  {"id": "n_b", "kind": "api", "label": "api", "pos": [20, 0], "unknown": 1},
+  {"id": "n_a", "kind": "client", "label": "web", "traffic": {"rps": 500}}
+ ],
+ "edges": [{"id": "e_1", "from": "n_a", "to": "n_b"}]
+}
