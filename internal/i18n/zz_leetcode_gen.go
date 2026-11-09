@@ -441,7 +441,7 @@ var areaLeetcode = area{
 			},
 		},
 		"image_link": {
-			desc: "문제 본문 속 그림 자리(그림은 그리지 않고 링크만). o = 브라우저에서 문제 열기 키",
+			desc: "문제 본문 속 그림을 그리지 못할 때의 자리(assets.leetcode.com 밖의 주소·불러오는 중·실패·그래픽 꺼짐). o = 브라우저에서 문제 열기 키",
 			text: map[Locale]Forms{
 				Ko: {Other: "[그림] o 열기"},
 				En: {Other: "[image] o open"},
@@ -1281,7 +1281,7 @@ func (a_ LeetcodeT) HubStatusShort(id string, difficulty string) string {
 	return a_.t.render(&areaLeetcode, "hub_status_short", false, 0, "id", id, "difficulty", difficulty)
 }
 
-// ImageLink: 문제 본문 속 그림 자리(그림은 그리지 않고 링크만). o = 브라우저에서 문제 열기 키
+// ImageLink: 문제 본문 속 그림을 그리지 못할 때의 자리(assets.leetcode.com 밖의 주소·불러오는 중·실패·그래픽 꺼짐). o = 브라우저에서 문제 열기 키
 func (a_ LeetcodeT) ImageLink() string {
 	return a_.t.render(&areaLeetcode, "image_link", false, 0)
 }

@@ -2,6 +2,7 @@ package leet_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"slices"
@@ -54,6 +55,9 @@ func setup(t *testing.T) *env {
 	lc := leetcodetest.New(t)
 	t.Cleanup(leet.SetLeetcodeForTest(lc.URL))
 	t.Cleanup(leet.SetOpenURLForTest(func(string) error { return nil })) // never a real browser
+	t.Cleanup(leet.SetImageTransportForTest(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("no network in tests") // never assets.leetcode.com
+	}))
 	t.Cleanup(leet.SetLookPathForTest(func(string) (string, error) { return "", os.ErrNotExist }))
 	t.Cleanup(leet.SetTermEnvForTest(termhost.Env{GOOS: "darwin", TERM: "xterm-256color", Embedded: true}))
 	return &env{lc: lc, pane: termpanetest.Install(t), home: home}

@@ -1,6 +1,9 @@
 package leet
 
 import (
+	"image"
+	"net/http"
+
 	tea "charm.land/bubbletea/v2"
 
 	"time"
@@ -123,3 +126,23 @@ func SetLoginAccountForTest(ctx *ui.Context, user string, premium bool) {
 // ShareToggleForTest is the friends switch's request for next, as the
 // settings dialog sends it (no dialog needed to take the answer).
 func ShareToggleForTest(ctx *ui.Context, next bool) tea.Cmd { return shareToggle(ctx, next) }
+
+// SetImageTransportForTest answers every problem-image fetch with f (and
+// forgets the images of this run); the returned func restores it.
+func SetImageTransportForTest(f func(*http.Request) (*http.Response, error)) (restore func()) {
+	reset := func(tr http.RoundTripper) {
+		imageMu.Lock()
+		defer imageMu.Unlock()
+		imageTransport = tr
+		images, asked = map[string]image.Image{}, map[string]bool{}
+	}
+	imageMu.Lock()
+	saved := imageTransport
+	imageMu.Unlock()
+	reset(roundTrip(f))
+	return func() { reset(saved) }
+}
+
+type roundTrip func(*http.Request) (*http.Response, error)
+
+func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

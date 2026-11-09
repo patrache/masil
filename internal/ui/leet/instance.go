@@ -234,6 +234,11 @@ func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if m.Route.ID == in.id {
 			in.zoomed = m.Zoomed
 		}
+	case imageLoadedMsg:
+		if m.err == nil {
+			in.doc.invalidate() // drawn on the next View (any instance with it)
+		}
+		return nil
 	case openFailedMsg:
 		if m.id == in.id {
 			return ui.Copy(ctx, m.url, ctx.T.Leetcode.LinkCopied())
@@ -269,7 +274,9 @@ func (in *instance) loaded(ctx *ui.Context, l *loaded) tea.Cmd {
 		if l.q.IsPaidOnly || l.err != nil {
 			in.phase, in.doc = phasePremium, nil
 		} else {
-			in.phase, in.doc = phaseReady, newDocView(htmldoc.Convert(l.q.ContentHTML))
+			blocks := htmldoc.Convert(l.q.ContentHTML)
+			in.phase, in.doc = phaseReady, newDocView(blocks)
+			cmd = tea.Batch(cmd, requestImages(ctx, blocks))
 		}
 	default:
 		in.phase, in.err = phaseFailed, l.err

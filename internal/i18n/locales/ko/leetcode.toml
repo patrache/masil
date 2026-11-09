@@ -269,7 +269,7 @@ max = 40
 other = "{id} · {difficulty}"
 
 [image_link]
-desc = "문제 본문 속 그림 자리(그림은 그리지 않고 링크만). o = 브라우저에서 문제 열기 키"
+desc = "문제 본문 속 그림을 그리지 못할 때의 자리(assets.leetcode.com 밖의 주소·불러오는 중·실패·그래픽 꺼짐). o = 브라우저에서 문제 열기 키"
 other = "[그림] o 열기"
 
 [instance_title]

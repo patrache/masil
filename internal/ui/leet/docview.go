@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/patrache/masil/internal/imgrender"
 	"github.com/patrache/masil/internal/leetcode/htmldoc"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/textwidth"
@@ -12,9 +13,9 @@ import (
 
 // docView draws a problem body ([]htmldoc.Block) as styled lines through
 // markup.Render: a paragraph per block, list items with "• " / "N. " and
-// Depth*2 cells of indent, <pre> as a code block, an image as a link line
-// (images are not drawn). The lines are kept until the width, theme or
-// image text changes.
+// Depth*2 cells of indent, <pre> as a code block, an image in half blocks
+// once it is fetched (images.go), else as a link line. The lines are kept
+// until the width, theme or image text changes, or an image arrives.
 type docView struct {
 	blocks []htmldoc.Block
 
@@ -25,6 +26,13 @@ type docView struct {
 }
 
 func newDocView(blocks []htmldoc.Block) *docView { return &docView{blocks: blocks} }
+
+// invalidate drops the kept lines (an image arrived).
+func (d *docView) invalidate() {
+	if d != nil {
+		d.lines = nil
+	}
+}
 
 // Lines is the body at width w (image = the image link text).
 func (d *docView) Lines(th *theme.Theme, w int, image string) []string {
@@ -61,6 +69,15 @@ func blockLines(b htmldoc.Block, th *theme.Theme, w int, image string) []string 
 		lines = markup.Render(markup.Doc{Blocks: []markup.Block{{Kind: markup.Code, Code: b.Text}}}, th, markup.RenderOptions{Width: inner})
 	case htmldoc.Image:
 		alt := strings.TrimSpace(textwidth.Sanitize(b.Alt))
+		if img := imageOf(b.URL); b.URL != "" && img != nil {
+			if cols, rows := imageBox(img, inner); cols > 0 {
+				lines = imgrender.HalfBlock(img, cols, rows, th.P.BG)
+				if alt != "" {
+					lines = append(lines, th.S.Dim.Render(textwidth.Truncate(alt, inner, "…")))
+				}
+				break
+			}
+		}
 		text := image
 		if alt != "" {
 			text += " " + alt
