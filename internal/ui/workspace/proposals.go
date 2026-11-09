@@ -153,7 +153,7 @@ func newProposalsDialog(s *Surface) *form {
 		switch msg.String() {
 		case "i":
 			act = share.ActInsert
-		case "s", "enter":
+		case "s": // never enter: running a command is always an explicit s
 			act = share.ActInsertSend
 		case "r":
 			act = share.ActReject

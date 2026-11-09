@@ -41,3 +41,23 @@ func TestTinyFsRequestNeedsApproveKey(t *testing.T) {
 		t.Fatalf("a did not carry out the request: %v", err)
 	}
 }
+
+// enter in the proposal queue never runs a proposal: typing needs i or s.
+func TestProposalQueueEnterDoesNotRun(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	r, ft, g := sharedTermRig(t, h, fake, "제안", true)
+	r.propose(g, "rm -rf build")
+	h.Press("ctrl+\\", "enter")
+	if r.s.dlg == nil || !r.s.dlg.queue {
+		t.Fatalf("no proposal queue:\n%s", h.Screen())
+	}
+	h.Press("enter")
+	r.settle()
+	if got := ft.typed(); got != "" {
+		t.Fatalf("enter injected %q", got)
+	}
+	if n := len(r.s.own.host.Proposals()); n != 1 {
+		t.Fatalf("waiting proposals = %d", n)
+	}
+}
