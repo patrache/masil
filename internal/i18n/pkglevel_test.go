@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 )
@@ -47,30 +48,40 @@ func TestNoPackageLevelCatalogDetects(t *testing.T) {
 	for _, p := range packageLevelLookups(f) {
 		lines = append(lines, fset.Position(p).Line)
 	}
-	// var x = i18n.For(...) (line 8) and init's i18n.KoT() (line 10); f's body
-	// and the func literal are allowed.
-	if len(lines) != 2 || lines[0] != 8 || lines[1] != 10 {
-		t.Fatalf("lookups at lines %v, want [8 10]", lines)
+	// var x = i18n.For(...) (line 9), init's i18n.KoT() (line 11) and the two
+	// func literals called on the spot (lines 17, 19); f's body and the held
+	// func literal are allowed.
+	if want := []int{9, 11, 17, 19}; !slices.Equal(lines, want) {
+		t.Fatalf("lookups at lines %v, want %v", lines, want)
 	}
 }
 
 // packageLevelLookups returns the positions of i18n.For(…) and i18n.KoT()
 // calls that run at package initialization: inside a package-level var
 // initializer or a func init() body. Function literals are skipped (their body
-// runs when called, not at init).
+// runs when called, not at init) unless called on the spot (func(){…}()).
 func packageLevelLookups(f *ast.File) []token.Pos {
 	name := i18nImportName(f)
 	if name == "" {
 		return nil
 	}
 	var out []token.Pos
+	called := map[*ast.FuncLit]bool{}
 	find := func(n ast.Node) {
 		ast.Inspect(n, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.FuncLit:
-				return false
+				return called[n]
 			case *ast.CallExpr:
-				sel, ok := n.Fun.(*ast.SelectorExpr)
+				fun := n.Fun
+				for p, ok := fun.(*ast.ParenExpr); ok; p, ok = fun.(*ast.ParenExpr) {
+					fun = p.X
+				}
+				if lit, ok := fun.(*ast.FuncLit); ok {
+					called[lit] = true
+					return true
+				}
+				sel, ok := fun.(*ast.SelectorExpr)
 				if !ok {
 					return true
 				}
