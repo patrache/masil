@@ -1609,6 +1609,11 @@ type KeyHandler interface {
 type MouseHandler interface {
 	HandleMouse(ctx *Context, msg tea.MouseMsg, local Point) tea.Cmd // local = coords inside the pane's inner rect
 }
+type DragHandler interface { // left-button drags (text selection), 5.3.4 3
+	MouseHandler
+	HandleDrag(ctx *Context, msg tea.MouseMsg, local Point) tea.Cmd // motion + release after its press; local unclipped
+	ClearDrag()                                                    // a press elsewhere / the gesture was cut short
+}
 type InputCapturer interface{ CapturesInput() bool }   // true while a text field is active: printable keys never trigger soft globals
 type Cursorer interface{ Cursor() *tea.Cursor }        // real cursor relative to inner rect (IME!)
 type Titled interface{ Title(ctx *Context) (title string, badge Badge) } // pane border title / tab label
@@ -1827,6 +1832,7 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
    5. 포커스 컴포넌트가 `CapturesInput()==true` 면 여기서 끝(글자 키가 전역 단축키로 새지 않음). 단 `nav.history_back`/`nav.history_forward` 키는 컴포넌트가 처리하지 않았으면(`handled=false`) 계속 6단계로 간다 — 채팅 입력창은 편집 키가 아닌 기록 키(기본 `ctrl+o`)를 넘기고, `alt+←`/`alt+b`/`alt+→`/`alt+f` 는 단어 이동으로 쓴다. 다른 입력(검색 칸, sns 글쓰기 — `ctrl+o` 는 사진 첨부)은 지금처럼 모두 처리한다.
    6. **소프트 전역**: `?`, `f`, `[`, `]`, `esc`(뒤로), `ctrl+o`·`alt+←`·`alt+b`(이전 위치), `alt+→`·`alt+f`(다음 위치), `c`(포커스된 경로가 스레드일 때만: 대화로), `g` 계열.
 3. 마우스 → `layout.At(x,y)` 의 창: 클릭이면 그 창으로 포커스 이동 후 `HandleMouse(local)`, 휠은 포커스와 무관하게 포인터 아래 창으로. 오버레이가 열려 있으면 오버레이가 먼저(바깥 클릭 = 닫기).
+   - **드래그 [결정, 2026-11-09]**: 왼쪽 누르기를 `DragHandler` 인 창이 받으면 앱이 그 창을 붙잡는다(`app/mouse.go` `dragGrab`). 놓을 때까지의 `MouseMotionMsg` 와 `MouseReleaseMsg` 는 포인터가 어디 있든 그 창의 `HandleDrag` 로만 가고, 좌표는 그 창 내부 기준이되 **자르지 않는다**(위·아래로 벗어난 값으로 컴포넌트가 스크롤·고정을 정한다). 놓기의 버튼은 보지 않는다(X10 은 `MouseNone`). 붙잡지 않은 움직임·놓기는 버린다 — `DragHandler` 가 아닌 창은 지금처럼 누르기와 휠만 받는다. 새 왼쪽 누르기는 놓기를 잃은 이전 동작을 끝내고, 그 누르기가 마지막 선택을 가진 창 밖으로 가면(다른 창·탭·토스트·오버레이) 그 창의 `ClearDrag` 를 부른다. 붙잡은 뒤 오버레이가 열렸거나 창이 배치에서 빠졌거나 다른 컴포넌트를 보이거나 TooSmall 이 되면 다음 움직임·놓기에서 동작을 끝내고 `ClearDrag`.
 4. `tea.PasteMsg` → 오버레이가 열려 있으면 **맨 위 오버레이**(`Update`), 아니면 포커스 컴포넌트(`Update`). 오버레이가 열려 있는 동안 아래 창으로는 절대 가지 않는다.
 5. `realtime.EventMsg`(앱 브리지가 감싼 것) → `Store.Apply(ev)` → **모든 살아 있는 컴포넌트에 방송** → 알림 처리(`alert` 이면 notify, 9장) → `rt.MarkProcessed(seq)`.
 6. 그 밖 모든 메시지(API 결과, 틱, 내부 메시지) → 모든 살아 있는 컴포넌트에 방송. 컴포넌트는 자기와 관계없는 것은 무시한다. 단 `ui.RunCommandMsg` 는 방송하지 않는다(아래).
@@ -2023,7 +2029,7 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 | `msg.edit` | `e` | 메시지 선택(내 것) |
 | `msg.delete` | `d` (확인 대화상자) | 메시지 선택 |
 | `msg.pin` | `p` | 메시지 선택 |
-| `msg.copy` | `y` (`tea.SetClipboard`) | 메시지 선택 |
+| `msg.copy` | `y` (`ui.Copy`: OSC 52 + 시스템 클립보드) | 메시지 선택 |
 | `msg.actions` | `m` (동작 메뉴) | 메시지 선택 |
 | `channel.search` | `/` | 대화 |
 | `thread.channel` | `c` — 스레드에서 그 대화(채널·DM)로, 루트 메시지 선택(5.3.3). 힌트는 `c #개발로` | 스레드 |
@@ -2041,7 +2047,14 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 
 - 위젯·초소형 상태줄은 돌아갈 곳이 있고(기록) 오버레이가 없고 입력 캡처 중이 아닐 때 `nav.history_back` 의 첫 키를 `ctrl+o 이전 위치` 로 보인다. 이 힌트는 잘리지 않는다: 모드 기본 힌트(위젯 `tab 탭`) 뒤에 놓이고 자리가 모자라면 뒤쪽 컴포넌트 힌트를 밀어내며, 기본 힌트와 함께도 안 들어갈 만큼 좁으면 가장 먼저 빠진다(5.4 상태줄).
 
-마우스: 클릭 = 포커스 + 항목 선택, 선택된 항목 다시 클릭 = 열기, 휠 = 포인터 아래 창 3줄 스크롤, 탭·레일·목록 클릭 = 이동, 리액션 칩 클릭 = 토글, 오버레이 바깥 클릭 = 닫기.
+마우스: 클릭 = 포커스 + 항목 선택, 선택된 항목 다시 클릭 = 열기, 휠 = 포인터 아래 창 3줄 스크롤, 탭·레일·목록 클릭 = 이동, 리액션 칩 클릭 = 토글, 오버레이 바깥 클릭 = 닫기, 채팅 드래그 = 줄 복사(아래).
+
+**채팅 드래그 선택 [결정, 2026-11-09]** (`chat/msgpane.go`, 채널·스레드 메시지 목록; 모든 레이아웃 모드): 마우스를 켜 두면(`ui.mouse`) 터미널 자체의 드래그 선택이 막히므로 masil 이 줄 단위 선택을 한다.
+- 메시지 줄에서 누르고(`MouseClickMsg` Left) 버튼을 누른 채 움직이면(`MouseMotionMsg`) 누른 줄부터 포인터 아래 줄까지가 `S.TextSelect`(테마 반전: 배경 FG, 글자 BG — `Cursorline` 과 구별)로 칠해진다. 선택은 (행 id, 행 안 줄 번호)로 잡아 스크롤·새 메시지에도 그대로이고, 그 행이 사라지면 풀린다. 날짜·안 읽음 구분선·불러오는 중·알림 줄과 스레드 루트의 "더 보기" 줄은 칠하지도 복사하지도 않는다.
+- 목록 위·아래로 벗어나 끌면 움직임마다 1줄 스크롤하고 가장자리 줄로 고정한다(입력창 위로 끌어도 입력창은 상관없다). 내용 아래 빈 줄은 마지막 줄로 친다.
+- 놓으면(`MouseReleaseMsg`) 포인터가 움직였을 때(다른 줄, 다른 행, 또는 2칸 이상 옆) 선택한 줄을 **화면에 그려진 그대로** 평문으로 만들어 `ui.Copy(…, "복사했어요")` 한다: 줄마다 `ansi.Strip` + 끝 공백 제거, 행마다 자기 들여쓰기(full 들여쓰기 2칸, bubble 패딩, 내 말풍선의 오른쪽 정렬)를 뗀다 — 행의 첫 줄(머리줄·한 줄짜리 행)은 왼쪽 공백을 다 떼고 나머지 줄은 공통 들여쓰기만큼. 화면 줄 하나가 복사 줄 하나다(메시지 경계도 줄바꿈). 차단한 사람의 메시지는 접힌 줄(`차단한 사용자의 메시지`)만 복사된다 — 화면에 없는 글은 넣지 않는다(8.2 클립보드 결정). 강조는 놓은 뒤에도 남고 `esc`(그 창이 먹어 뒤로 가지 않는다)·그 창의 새 누르기·다른 곳 누르기로 풀린다.
+- 움직임 없는 누르기+놓기는 클릭이다: 누르기에서 지금처럼 선택(·리액션 칩/투표 칸)하고, **선택된 행 다시 클릭 = 열기는 놓을 때** 한다(드래그하려다 스레드가 열리지 않게). `uitest` 의 `h.Click` 은 누르기와 놓기를 보내고, `h.Drag(x0,y0,x1,y1)` 은 그 사이 칸마다 움직임을 보낸다.
+- 글자 단위 선택은 터미널 자체 선택으로 안내한다(도움말 `메시지` 무리, README 문제 해결): iTerm2 ⌥, Terminal.app fn(또는 ⌘R 마우스 보고 끄기), Linux·Windows Terminal Shift, 또는 `ui.mouse` 끄기.
 
 ### 5.6 명령 팔레트 — `internal/ui/palette` (core)
 
@@ -2350,7 +2363,9 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 
 - `Sanitize` 결과는 다시 `Sanitize` 해도 같다(멱등). 단위 시험이 위 예와 함께 "결과의 모든 그래핌 g 에 대해 `StringWidth(g)==StringWidthWc(g)`" 를 무작위 유니코드 문자열(시드 고정)로 검사한다.
 - 받은 데이터를 그릴 때의 `Sanitize` 는 전송 데이터(메시지 본문·리액션 키 등)에 **절대 적용하지 않는다**(화면 전용). 입력창이 사용자가 **치는** 글을 정규화하는 것은 별개 규칙이다(8.4).
-- **클립보드(OSC 52, `tea.SetClipboard`) [보안 결정, 2026-11-06]**: 남이 보낸 글을 복사할 때는 화면에 보인 것만 넣는다. 서버는 본문의 제어 문자를 지우지 않고 화면은 ESC 시퀀스를 내용째 지우므로, 원문을 그대로 넣으면 보이지 않던 괄호 붙여넣기 종료(`ESC[201~`)·CR·숨은 명령이 셸에 붙여 넣어진다(pastejacking). `msg.copy`(본문·투표 질문·주사위 결과)는 `textwidth.SanitizeInput`(줄바꿈 유지), 명령으로 붙여 넣는 한 줄 값(`masil join <code>`)은 `textwidth.Sanitize`(줄바꿈 없음)를 거친다.
+- **클립보드(OSC 52, `tea.SetClipboard`) [보안 결정, 2026-11-06]**: 남이 보낸 글을 복사할 때는 화면에 보인 것만 넣는다. 서버는 본문의 제어 문자를 지우지 않고 화면은 ESC 시퀀스를 내용째 지우므로, 원문을 그대로 넣으면 보이지 않던 괄호 붙여넣기 종료(`ESC[201~`)·CR·숨은 명령이 셸에 붙여 넣어진다(pastejacking). `msg.copy`(본문·투표 질문·주사위 결과)는 `textwidth.SanitizeInput`(줄바꿈 유지), 명령으로 붙여 넣는 한 줄 값(`masil join <code>`)은 `textwidth.Sanitize`(줄바꿈 없음)를 거친다. 채팅 드래그 복사는 화면에 그려진 줄의 평문이다(5.5).
+- **클립보드 도우미 `ui.Copy(ctx, text, okText)` [결정, 2026-11-09]**: UI 의 모든 복사(`msg.copy`, 초대 `y`·메뉴, 만든 초대 창 `y`, 채팅 드래그)는 이 하나만 쓴다. `textwidth.SanitizeInput` 후 `clipboard.MaxBytes`(256 KiB, 룬 경계)로 자르고 두 길로 보낸다: ① `tea.SetClipboard`(OSC 52 — SSH 너머의 터미널까지 가지만 Terminal.app 은 지원하지 않고 iTerm2 는 기본으로 꺼져 있고 tmux 는 `set-clipboard` 가 있어야 한다), ② `ctx.Clipboard`(`internal/clipboard.Writer`, Cmd 안에서 = Update 고루틴 밖). 토스트는 한 길이라도 될 것으로 볼 때만 `okText`(성공): ②가 됐거나 SSH 라서(`clipboard.ErrRemote`) ①이 유일한 길일 때. 그 밖(프로그램 없음 `ErrUnavailable`, 실패·시간 초과)은 `ui.CopyHint`("클립보드에 못 넣었어요 — ⌥·fn·Shift 누른 채 드래그", Info). `ctx.Clipboard` 가 nil(단위 시험)이면 ①만 하고 성공. 앱은 `app.Options.Clipboard`(nil = `clipboard.System()`), `uitest` 는 `clipboard.Recorder`(`h.Clip`, `h.Clipboards()`, `h.Clip.Fail(err)`)를 넣는다.
+- **`internal/clipboard`** (UI 밖, `notify` 와 같은 꼴): 순수 함수 `commandFor(host, text)` 가 모든 OS 에서 컴파일되어 OS 별 명령을 표로 시험받고, `os/exec` 는 `run.go` 의 `execRun`(·`lookPath`)만 쓴다(`TestOnlyExecRunExecs`). 본문은 **stdin 으로만**(argv·셸 없음), stdout·stderr 는 연결하지 않는다(xclip·xsel·wl-copy 가 fork 해 남긴 자식이 파이프를 쥐어 `Wait` 가 멈추지 않게), 한 번에 2초(`writeTimeout`). SSH(`SSH_CONNECTION`·`SSH_CLIENT`·`SSH_TTY` 중 하나)면 `ErrRemote`(원격 기계의 클립보드는 엉뚱한 곳). darwin: `/usr/bin/pbcopy`(절대 경로), 자식 환경의 `LANG`·`LC_ALL`·`LC_CTYPE` 를 빼고 `LANG=en_US.UTF-8`·`LC_ALL=en_US.UTF-8`(로캘이 C 면 한글이 깨진다). Linux·BSD: `WAYLAND_DISPLAY` 면 `wl-copy`, `DISPLAY` 면 `xclip -selection clipboard -in` 다음 `xsel --clipboard --input`(`$PATH` 에서 찾되 상대 경로 결과는 거부), WSL(`WSL_DISTRO_NAME` 또는 `/proc/sys/fs/binfmt_misc/WSLInterop`)이면 `/mnt/c/Windows/System32/clip.exe`, 없으면 `ErrUnavailable`. Windows: `GetSystemDirectory()\clip.exe`(`%SystemRoot%` 를 믿지 않음). clip.exe 에는 CRLF·UTF-16LE·BOM(FF FE)으로 넣는다(BOM 이 없으면 콘솔 코드 페이지로 읽는다 — 실기 확인 필요).
 - East Asian Ambiguous 를 2칸으로 그리는 터미널 설정(iTerm2 "Ambiguous characters are double-width" 등)은 지원하지 않는다 — 상자 문자 자체가 깨지므로. 도움말에 안내.
 
 ### 8.3 자르기·줄바꿈·채우기

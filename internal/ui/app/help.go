@@ -34,6 +34,14 @@ var helpNotices = []string{
 	"모호 폭 문자를 2칸으로 그리는 터미널 설정은 지원하지 않아요.",
 }
 
+// helpDragKey / helpDragText describe the mouse drag in the message list
+// (msgPane drag selection; the terminal's own selection needs a modifier
+// while masil reports the mouse).
+const (
+	helpDragKey  = "드래그"
+	helpDragText = "끈 줄 복사 · 글자 단위 선택은 ⌥/fn/Shift+드래그"
+)
+
 // helpGroups are the keymap groups (전역·창·목록·입력·메시지·글) in display order.
 var helpGroups = []struct {
 	name    string
@@ -114,6 +122,9 @@ func helpRows(km *keymap.Keymap) []helpRow {
 			} {
 				add(helpRow{kind: helpKey, key: r[0], text: r[1]})
 			}
+		}
+		if g.name == "메시지" {
+			add(helpRow{kind: helpKey, key: helpDragKey, text: helpDragText})
 		}
 	}
 	kw := 0

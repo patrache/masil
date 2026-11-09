@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/clipboard"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
@@ -29,7 +30,10 @@ type Context struct {
 	Now    func() time.Time // fixed clock in tests (uitest.FakeClock.Now)
 	Timers Timers           // never nil; RealTimers() in production, uitest.FakeClock in tests
 	Loc    *time.Location   // time.Local; Asia/Seoul in tests
-	Debug  bool
+	// Clipboard is the system clipboard (ui.Copy); clipboard.System() in
+	// production, a clipboard.Recorder in uitest, nil = OSC 52 only.
+	Clipboard clipboard.Writer
+	Debug     bool
 }
 
 // Realtime is the UI-facing subset of realtime.Client.

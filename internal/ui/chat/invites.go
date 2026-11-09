@@ -281,9 +281,9 @@ func revokeInviteCmd(ctx *ui.Context, spaceID, code string) tea.Cmd {
 	})
 }
 
-// copyInviteCmd copies "masil join <code>".
-func copyInviteCmd(code string) tea.Cmd {
-	return tea.Batch(tea.SetClipboard(clipboardLine(inviteJoinPrefix+code)), ui.Toast(inviteCopied, ui.ToastSuccess))
+// copyInviteCmd copies "masil join <code>" (ui.Copy).
+func copyInviteCmd(ctx *ui.Context, code string) tea.Cmd {
+	return ui.Copy(ctx, clipboardLine(inviteJoinPrefix+code), inviteCopied)
 }
 
 // ---- the invites tab ----
@@ -407,7 +407,7 @@ func (b *inviteTab) menu(ctx *ui.Context, it inviteItem) tea.Cmd {
 	code, space := it.inv.Code, b.v.spaceID
 	shown := textwidth.Sanitize(code)
 	return ui.OpenOverlay(newMenu(shown, []menuItem{
-		{Label: itemCopy, Hint: "y", Run: func(*ui.Context) (tea.Cmd, ui.Overlay) { return copyInviteCmd(code), nil }},
+		{Label: itemCopy, Hint: "y", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return copyInviteCmd(ctx, code), nil }},
 		{Label: itemRevokeInvite, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.Confirm(shown+revokeAskSuffix, revokeBody, itemRevokeInvite, cancelText, revokeInviteCmd(ctx, space, code))
 		}},
@@ -427,7 +427,7 @@ func (b *inviteTab) key(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		if !ok || it.inv == nil {
 			return true, nil
 		}
-		return true, copyInviteCmd(it.inv.Code)
+		return true, copyInviteCmd(ctx, it.inv.Code)
 	case ctx.Keys.Matches(msg, keymap.MsgActions):
 		if !ok {
 			return false, nil

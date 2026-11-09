@@ -227,6 +227,8 @@ func TestStylesInheritBase(t *testing.T) {
 		// Chip-backed per plan Task 16 Step 3 (status bar, reactions).
 		"StatusBar": func(p Palette) color.Color { return p.Chip }, "StatusHint": func(p Palette) color.Color { return p.Chip },
 		"Reaction": func(p Palette) color.Color { return p.Chip }, "ReactionMine": func(p Palette) color.Color { return p.Chip },
+		// drag selection: reverse video (fg as bg), unlike any Cursorline
+		"TextSelect": func(p Palette) color.Color { return p.FG },
 	}
 	borderFG := map[string]func(p Palette) color.Color{
 		"PaneFocused":   func(p Palette) color.Color { return p.Acc },
@@ -237,8 +239,8 @@ func TestStylesInheritBase(t *testing.T) {
 	}
 	for _, th := range All() {
 		fields := styleFields(th.S)
-		if len(fields) != 41 {
-			t.Fatalf("Styles has %d fields, test expects 41", len(fields))
+		if len(fields) != 42 {
+			t.Fatalf("Styles has %d fields, test expects 42", len(fields))
 		}
 		for _, f := range fields {
 			want := th.P.BG
@@ -357,5 +359,19 @@ func TestSwatchGolden(t *testing.T) {
 			}
 			golden.RequireEqual(t, strings.Join(fitted, "\n")+"\n")
 		})
+	}
+}
+
+// TestTextSelectIsReverse: the drag-selection style is the theme reversed, so
+// it reads in every theme and never looks like the cursor line (SelBG).
+func TestTextSelectIsReverse(t *testing.T) {
+	for _, th := range All() {
+		st := th.S.TextSelect
+		if !sameColor(st.GetForeground(), th.P.BG) || !sameColor(st.GetBackground(), th.P.FG) {
+			t.Errorf("%s TextSelect fg/bg = %v/%v, want BG/FG", th.Name, st.GetForeground(), st.GetBackground())
+		}
+		if sameColor(st.GetBackground(), th.P.SelBG) {
+			t.Errorf("%s TextSelect looks like the cursor line", th.Name)
+		}
 	}
 }

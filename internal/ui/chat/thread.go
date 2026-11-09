@@ -545,6 +545,9 @@ func (v *threadView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.
 		}
 		return handled, cmd
 	}
+	if v.pane.escDrag(ctx, msg) {
+		return true, nil
+	}
 	if ctx.Keys.Matches(msg, keymap.ComposeFocus) {
 		if v.inputBlocked(ctx) {
 			return false, nil
@@ -603,6 +606,9 @@ func (v *threadView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Poi
 		return nil
 	}
 	if local.Y >= v.inputY {
+		if c, ok := msg.(tea.MouseClickMsg); ok && c.Button == tea.MouseLeft {
+			v.pane.clearDrag()
+		}
 		if _, ok := msg.(tea.MouseClickMsg); ok && !v.inputBlocked(ctx) && !v.composer.focused() {
 			return v.composer.focus()
 		}
@@ -610,6 +616,18 @@ func (v *threadView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Poi
 	}
 	return tea.Batch(v.pane.handleMouse(ctx, msg, local), v.olderAtRoot(ctx))
 }
+
+// HandleDrag (ui.DragHandler): the drag selection of the root and replies; a
+// drag past the list (over the composer) clamps to its last line.
+func (v *threadView) HandleDrag(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
+	if v.gone(ctx) {
+		return nil
+	}
+	return v.pane.handleDrag(ctx, msg, local)
+}
+
+// ClearDrag (ui.DragHandler) drops the list's drag selection.
+func (v *threadView) ClearDrag() { v.pane.clearDrag() }
 
 // afterSend follows a send: the new pending reply is selected at the bottom
 // (the latest page is fetched first when an older one is shown).
