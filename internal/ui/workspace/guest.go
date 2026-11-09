@@ -752,6 +752,8 @@ func (s *Surface) guestPrefix(ctx *ui.Context, r termpane.PrefixResult) (bool, t
 			s.setFocus(ctx, PaneCode)
 		case "3":
 			s.setFocus(ctx, PaneTerm)
+		case "4":
+			s.setFocus(ctx, PanePeople)
 		case "f":
 			if rt := s.guest.current(); rt != nil {
 				rt.followOn()
@@ -912,6 +914,7 @@ func (s *Surface) guestView(ctx *ui.Context, w, h int, focused bool) string {
 		add(rect{X: p.Term.X, Y: p.Term.Y, W: 1, H: p.Term.H}, separatorColumn(ctx, p.Term.H))
 	}
 	add(tr, s.guestTermView(ctx, tr.W, tr.H, focused && s.focus == PaneTerm))
+	add(p.People, s.peopleView(ctx, p.People.W, p.People.H, focused && s.focus == PanePeople))
 	return strings.Join(drawBlocks(blocks, w, h), "\n")
 }
 

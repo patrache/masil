@@ -148,8 +148,21 @@ func nowClock(ctx *ui.Context) share.Clock { return uiClock{now: ctx.Now} }
 // sharing reports whether this folder is shared right now (Task 21).
 func (s *Surface) sharing() bool { return s.ownerSharing() }
 
-// peopleCount is how many participants are in (Task 21).
-func (s *Surface) peopleCount() int { return s.ownerPeople() }
+// peopleCount is how many participants are in (Task 21; the participant
+// screen counts its roster).
+func (s *Surface) peopleCount() int {
+	if s.guest != nil {
+		return len(s.guest.roster)
+	}
+	return s.ownerPeople()
+}
+
+// peopleShown is whether the people cell is part of the layout: my share is
+// live, or I am in someone's (the participant screen has the same
+// arrangement, B6.7).
+func (s *Surface) peopleShown() bool {
+	return s.sharing() || (s.guest != nil && s.guest.phase == guestIn)
+}
 
 // Init implements ui.Component.
 func (s *Surface) Init(ctx *ui.Context) tea.Cmd {
@@ -168,7 +181,7 @@ func (s *Surface) Resize(ctx *ui.Context, size ui.Size) {
 
 // relayout places the cells and gives the editor and the terminal their sizes.
 func (s *Surface) relayout(ctx *ui.Context) {
-	p := planLayout(s.mode, s.size, s.zoomed, s.sharing(), s.guest != nil, s.focus)
+	p := planLayout(s.mode, s.size, s.zoomed, s.peopleShown(), s.guest != nil, s.focus)
 	if s.cellZoom {
 		p = zoomCell(p, s.focus)
 	}
@@ -194,7 +207,7 @@ func (s *Surface) termRect() layout.Rect {
 
 // setFocus moves the surface's own focus to a cell.
 func (s *Surface) setFocus(ctx *ui.Context, pane int) {
-	if pane == PanePeople && !s.sharing() {
+	if pane == PanePeople && !s.peopleShown() {
 		return
 	}
 	s.focus = pane

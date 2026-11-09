@@ -26,7 +26,7 @@ func (s *Surface) subTabsLine(ctx *ui.Context, w int) string {
 		label string
 	}
 	tabs := []tab{{PaneTree, t.SubtabTree()}, {PaneCode, t.SubtabCode()}, {PaneTerm, t.SubtabTerm()}}
-	if s.sharing() {
+	if s.peopleShown() {
 		tabs = append(tabs, tab{PanePeople, t.SubtabPeople(s.peopleCount())})
 	}
 	dim := lipgloss.NewStyle().Foreground(ctx.Theme.P.Dim)

@@ -116,3 +116,29 @@ func TestGuestEndedKeyGoesToHub(t *testing.T) {
 		t.Fatalf("after the notice: focus %q, want the hub %q", got, want)
 	}
 }
+
+// The participant screen has the owner's arrangement (B6.7): a people tab in
+// the widget (ctrl+\ 4) and the people column in the command center, read
+// only.
+func TestGuestPeopleCell(t *testing.T) {
+	setup(t)
+	h := uitest.New(t)
+	h.Resize(80, 24)
+	r := newGuestRig(t, h, nil)
+	r.admit(wire.LevelViewer)
+	if scr := h.Screen(); !strings.Contains(scr, "사람(1)") {
+		t.Fatalf("no people tab in the widget:\n%s", scr)
+	}
+	h.Press("ctrl+\\", "4")
+	if r.s.focus != PanePeople {
+		t.Fatalf("ctrl+\\ 4: focus %d", r.s.focus)
+	}
+	if scr := h.Screen(); !strings.Contains(scr, "sam 보기") {
+		t.Fatalf("the people list does not show me:\n%s", scr)
+	}
+	h.Resize(200, 60)
+	r.settle()
+	if r.s.plan.People.W == 0 {
+		t.Fatal("no people column for the participant in the command center")
+	}
+}

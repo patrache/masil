@@ -199,6 +199,9 @@ func newKickDialog(s *Surface, p peerInfo) *form {
 // peopleView draws the people cell: one row per participant, the last
 // input, the keys.
 func (s *Surface) peopleView(ctx *ui.Context, w, h int, focused bool) []string {
+	if s.guest != nil && w > 0 {
+		return s.guestPeopleView(ctx, w, h)
+	}
 	if s.own == nil || w <= 0 {
 		return nil
 	}
@@ -268,4 +271,30 @@ func ago(ctx *ui.Context, d time.Duration) string {
 		return ctx.T.Workspace.AgoSeconds(int(d / time.Second))
 	}
 	return ctx.T.Workspace.AgoMinutes(int(d / time.Minute))
+}
+
+// guestPeopleView is the participant's people cell: who is in and at which
+// level, read only (the owner decides the levels).
+func (s *Surface) guestPeopleView(ctx *ui.Context, w, h int) []string {
+	th := ctx.Theme
+	sep := lipgloss.NewStyle().Foreground(th.P.Line).Render("│")
+	inner := max(w-1, 1)
+	if s.plan.Single == PanePeople {
+		sep, inner = "", w
+	}
+	now := nowClock(ctx).Now()
+	ms := s.guest.roster
+	lines := []string{th.S.Title.Render(textwidth.Truncate(" "+ctx.T.Workspace.PeopleTitle(len(ms)), inner, "…"))}
+	for _, m := range ms {
+		text := " " + s.guestPeerName(m.Seat, m.UserID) + " " + levelTag(ctx, m, now)
+		if !m.Connected {
+			text += " · " + ctx.T.Workspace.PeopleOffline()
+		}
+		lines = append(lines, textwidth.Truncate(text, inner, "…"))
+	}
+	out := make([]string, 0, h)
+	for _, l := range textwidth.Fit(lines, inner, h) {
+		out = append(out, sep+l)
+	}
+	return out
 }
