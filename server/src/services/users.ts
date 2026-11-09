@@ -11,6 +11,7 @@ import type { AdminUserView } from "../types/api";
 import type { UserRow } from "../types/rows";
 import { resolveReports } from "./content";
 import { closeDocSessions } from "./docs";
+import { closeWorkspaceSessions } from "./workspace-shares";
 import { errFields } from "../lib/log";
 
 export type RevokeReason = "logout" | "revoked" | "password_changed" | "suspended";
@@ -20,7 +21,7 @@ export type RevokeReason = "logout" | "revoked" | "password_changed" | "suspende
  * `session.revoked` to those sessions' sockets and close them (4001, or 4003 for "suspended").
  * `"all"` = every active session of the user, minus `exceptSessionId` when given. Only the user's own, not yet revoked
  * sessions are touched. A UserHub failure is logged only (D1 is the source of truth: the token is already dead).
- * Then (background) the same sessions' document sockets close with the same code (v0.1.3, collab.md 4.1).
+ * Then (background) the same sessions' document and workspace share sockets close with the same code (v0.1.3, collab.md 4.1).
  */
 export async function revokeSessions(
   rt: Runtime,
@@ -53,8 +54,11 @@ export async function revokeSessions(
   } catch (e) {
     console.error({ msg: "revokeSessions: UserHub call failed", err: errFields(e) });
   }
-  // v0.1.3 collab.md 4.1: the same sessions' document sockets close too (4001 / 4003), in the background
-  rt.waitUntil(closeDocSessions(rt, userId, targets, reason === "suspended" ? 4003 : 4001));
+  // v0.1.3 collab.md 4.1: the same sessions' document sockets close too (4001 / 4003), in the background — and their
+  // workspace share sockets (a suspended owner's shares end)
+  const code = reason === "suspended" ? 4003 : 4001;
+  rt.waitUntil(closeDocSessions(rt, userId, targets, code));
+  rt.waitUntil(closeWorkspaceSessions(rt, userId, targets, code));
 }
 
 /**

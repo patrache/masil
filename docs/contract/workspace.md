@@ -143,7 +143,7 @@ MinLevel 열: 참가자가 그 종류를 오너에게 보낼 수 있는 최소 �
 8. D1 `joined_at`·`left_at` 은 연결·종료 때 갱신.
 
 - 참가 처리 중(단계 없음)인 참가자의 프레임은 MinLevel `None` 종류(`hs_commit`·`hs_reveal`·`hs_resume`·`hs_confirm`)만 오너에게 간다. 오너가 참가 처리 중인 자리에 보내는 `To=n` 프레임(`hs_owner_pub`·`hs_grant`·`hs_decline`)은 단계와 상관없이 그 자리에 간다.
-- DO 내부 경로: `/connect`(업그레이드, 같은 사용자 기존 소켓은 `4102` 로 닫음), `POST /end {reason}`(모두 `4100`), `POST /kick {user_id}`(그 소켓 `4101`, 단계표에서 지움).
+- DO 내부 경로: `/connect`(업그레이드, 같은 사용자 기존 소켓은 `4102` 로 닫음), `POST /end {reason}`(모두 `4100`), `POST /kick {user_id}`(그 소켓 `4101`, 단계표에서 지움), `POST /revoke {user_id, session_ids | "all", code}`(`services/users.ts` `revokeSessions` 뒤: 첨부 `sessionId` 가 맞는 소켓을 `4001`/`4003` 으로 닫고 떠남 처리). `/connect` 는 수락 뒤 D1 에서 세션도 다시 확인해, 그 사이 폐기된 세션이면 `401`.
 
 ### 4.1 세부 규칙 (P2 Task 13 구현)
 
@@ -234,6 +234,8 @@ AES-256-GCM(`crypto/aes`+`crypto/cipher`), Ed25519(`crypto/ed25519`). 압축하�
 |---|---|---|---|
 | 4000 | protocol_error | 텍스트 프레임, 헤더 해석 실패, `From ≠ 소켓 자리`, 256 KiB 초과 | 다시 붙지 않고 오류를 보여 줌 |
 | 4008 | rate_limited | 프레임 한도 초과가 3초 이어짐 | 10초 뒤 재접속 |
+| 4001 | unauthorized | 세션 폐기(로그아웃·세션 끊기·비밀번호 변경, `POST /revoke`) — 오너면 2분 유예 alarm | 재접속 금지(events.md 와 같음) |
+| 4003 | account_suspended | 계정 정지(`POST /revoke`) — 정지된 오너의 공유는 끝남(`ended`, 나머지 `4100`) | 재접속 금지, 정지 안내(events.md 와 같음) |
 | 4100 | share_ended | 오너가 끝냄·오너 2분 넘게 끊김·다른 기기에서 끝냄 | 재접속 금지, `공유가 끝났어요` |
 | 4101 | kicked | 오너가 내보냄 | 재접속 금지 |
 | 4102 | replaced | 같은 사용자가 다른 소켓으로 붙음 | 재접속 금지(새 소켓이 이어받음) |
