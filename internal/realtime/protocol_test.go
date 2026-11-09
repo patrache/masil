@@ -429,6 +429,24 @@ func TestDecodeAllTypes(t *testing.T) {
 					t.Errorf("doc.comment_created = %+v", d)
 				}
 			}},
+		{"workspace_share.invited", `{"share":` + shareJSON + `}`,
+			func(t *testing.T, v any) {
+				if d := v.(WorkspaceShareInvited); d.Share.ID != "W1" || d.Share.Owner.Handle != "hana" || len(d.Share.Members) != 1 || d.Share.Members[0].Seat != 1 {
+					t.Errorf("workspace_share.invited = %+v", d)
+				}
+			}},
+		{"workspace_share.updated", `{"share":` + shareJSON + `,"future":1}`,
+			func(t *testing.T, v any) {
+				if d := v.(WorkspaceShareUpdated); d.Share.ID != "W1" || d.Share.Status != "live" || d.Share.Members[0].MaxLevel != nil {
+					t.Errorf("workspace_share.updated = %+v", d)
+				}
+			}},
+		{"workspace_share.ended", `{"share_id":"W1","reason":"timeout"}`,
+			func(t *testing.T, v any) {
+				if d := v.(WorkspaceShareEnded); d != (WorkspaceShareEnded{ShareID: "W1", Reason: "timeout"}) {
+					t.Errorf("workspace_share.ended = %+v", d)
+				}
+			}},
 	}
 
 	// Every events.md 8장 server type except pong must be covered exactly once.
@@ -481,7 +499,8 @@ presence.snapshot, presence.updated, presence.self, focus.started, focus.ended,
 notification.created, notifications.read, alert,
 timeline.item_created, post.deleted, post.stats, post.reply_created, story.created, story.deleted,
 device.tui_state,
-doc.created, doc.updated, doc.comment_created`))
+doc.created, doc.updated, doc.comment_created,
+workspace_share.invited, workspace_share.updated, workspace_share.ended`))
 
 const (
 	docUserJSON = `{"id":"U1","handle":"hana","display_name":"하나","avatar_url":null,"status":null,"is_private":false,"suspended":false}`
@@ -489,6 +508,9 @@ const (
 		`,"created_at":"2026-11-05T02:00:00Z","updated_at":"2026-11-05T02:05:00Z","head_seq":4,"locked":false}`
 	commentJSON = `{"id":"K1","doc_id":"D1","anchor":"node:n1","author":` + docUserJSON +
 		`,"body":"@sam 봐 주세요","root_id":null,"resolved_at":null,"created_at":"2026-11-05T02:05:00Z","deleted":false}`
+	shareJSON = `{"id":"W1","owner":` + docUserJSON + `,"title":"결제","status":"live","created_at":"2026-11-10T01:00:00Z",` +
+		`"ended_at":null,"end_reason":null,"members":[{"user":` + docUserJSON + `,"seat":1,"invited_at":"2026-11-10T01:00:00Z",` +
+		`"joined_at":null,"left_at":null,"max_level":null,"verified":false}]}`
 )
 
 // TestDecodeDocEvents: the three v0.1.3 doc.* frames (events.md 4.10) decode
@@ -563,8 +585,10 @@ func TestLoggedTypes(t *testing.T) {
 		"block.updated", "user.updated", "settings.updated", "focus.started", "focus.ended",
 		"notification.created", "notifications.read", "alert",
 		"doc.created", "doc.updated", "doc.comment_created",
+		"workspace_share.invited", "workspace_share.ended",
 	}
 	ephemeral := []string{
+		"workspace_share.updated",
 		"hello", "ready", "reply", "pong", "session.revoked", "typing", "presence.snapshot", "presence.updated", "presence.self",
 		"timeline.item_created", "post.deleted", "post.stats", "post.reply_created", "story.created", "story.deleted", "device.tui_state",
 	}

@@ -131,10 +131,7 @@ func loadContractLimiters(t *testing.T) map[string][]string {
 // client method that exercises them. Each entry names the Task that adds the
 // client method and its endpoint case; once a case covers the row the test
 // fails until the entry is removed, so the waiver cannot outlive its Task.
-var pendingLimiterRows = map[string]string{
-	"POST /v1/workspace-shares":           "P2 Task 14",
-	"POST /v1/workspace-shares/*/invites": "P2 Task 14",
-}
+var pendingLimiterRows = map[string]string{}
 
 // uncoveredLimiterRows reports every row that names a request limiter but no
 // case exercises (so checkLimiter, which proves request.Limiter, runs against
@@ -168,6 +165,7 @@ func TestEndpointLimitersMatchContractTable(t *testing.T) {
 	doc := loadContractLimiters(t)
 	cases := append(endpointsACases(t), endpointsBCases(t)...)
 	cases = append(cases, docEndpointCases(t)...)
+	cases = append(cases, workspaceEndpointCases(t)...)
 	covered := map[string]bool{}
 	var wrong []string
 	for _, c := range cases {

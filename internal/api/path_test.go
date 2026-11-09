@@ -225,6 +225,14 @@ var pathCalls = map[string]func(c *api.Client, v string) error{
 	},
 	"DeleteDocComment":         func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, v, "K") },
 	"DeleteDocComment/comment": func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, "D", v) },
+	"GetWorkspaceShare":        func(c *api.Client, v string) error { _, err := c.GetWorkspaceShare(ctx, v); return err },
+	"InviteWorkspaceShare": func(c *api.Client, v string) error {
+		_, err := c.InviteWorkspaceShare(ctx, v, []api.UserRef{"@hana"})
+		return err
+	},
+	"RemoveWorkspaceParticipant":      func(c *api.Client, v string) error { return c.RemoveWorkspaceParticipant(ctx, v, "@hana") },
+	"RemoveWorkspaceParticipant/user": func(c *api.Client, v string) error { return c.RemoveWorkspaceParticipant(ctx, "W", api.UserRef(v)) },
+	"EndWorkspaceShare":               func(c *api.Client, v string) error { return c.EndWorkspaceShare(ctx, v) },
 	// FetchMedia takes a server-supplied URL (Media.URL) instead of a segment.
 	"FetchMedia": func(c *api.Client, v string) error { _, err := c.FetchMedia(ctx, "/v1/media/"+v, ""); return err },
 	"FetchMedia/abs": func(c *api.Client, v string) error {

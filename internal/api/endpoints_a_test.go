@@ -121,10 +121,10 @@ func endpointsACases(t *testing.T) []epCase {
 				return c.UpdateSettings(ctx, api.UpdateSettingsRequest{
 					DMPolicy: api.Some("friends_only"), IsPrivate: api.Some(false),
 					Notify: &api.NotifySettingsPatch{DM: api.Some(true), Mention: api.Some(false), Invite: api.Some(true),
-						FriendRequest: api.Some(false), ThreadReply: api.Some(true), Social: api.Some(false)},
+						FriendRequest: api.Some(false), ThreadReply: api.Some(true), Social: api.Some(false), Workspace: api.Some(true)},
 				})
 			},
-			wantBody: `{"dm_policy":"friends_only","is_private":false,"notify":{"dm":true,"mention":false,"invite":true,"friend_request":false,"thread_reply":true,"social":false}}`},
+			wantBody: `{"dm_policy":"friends_only","is_private":false,"notify":{"dm":true,"mention":false,"invite":true,"friend_request":false,"thread_reply":true,"social":false,"workspace":true}}`},
 		{name: "SetStatus", route: "PUT /v1/me/status", resp: env(t, "status", "UserStatus"),
 			call: func(c *api.Client) (any, error) {
 				return c.SetStatus(ctx, api.SetStatusRequest{Emoji: api.Null[string](), Text: "회의 중", ExpiresInSec: api.Some(3600)})

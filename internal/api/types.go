@@ -132,6 +132,7 @@ type NotifySettings struct {
 	FriendRequest bool `json:"friend_request"`
 	ThreadReply   bool `json:"thread_reply"`
 	Social        bool `json:"social"`
+	Workspace     bool `json:"workspace"` // v0.1.3: workspace_invite / workspace_attention
 }
 
 // Focus is an active focus session.

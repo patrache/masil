@@ -1,0 +1,17 @@
+{
+  "user": {
+    "id": "01JA0000000000000000000002",
+    "handle": "hana",
+    "display_name": "하나",
+    "avatar_url": null,
+    "status": null,
+    "is_private": false,
+    "suspended": false
+  },
+  "seat": 1,
+  "invited_at": "2026-11-10T01:00:00.000Z",
+  "joined_at": "2026-11-10T01:01:00.000Z",
+  "left_at": "2026-11-10T01:30:00.000Z",
+  "max_level": "editor",
+  "verified": true
+}

@@ -21,9 +21,10 @@ import (
 // pathBuildAllowed are the functions that may join strings with a "/..."
 // literal: they extend the configured base URL, never a caller value
 // (MediaURL, WebSocketURL), or only compare against it (checkMediaPath).
-// DocSocketURL is a dial URL, not a request path: its one caller value is
-// url.PathEscape'd and dot segments give "" (TestDocSocketURL).
-var pathBuildAllowed = map[string]bool{"MediaURL": true, "WebSocketURL": true, "DocSocketURL": true, "checkMediaPath": true}
+// DocSocketURL and WorkspaceShareWSURL are dial URLs, not request paths: their
+// one caller value is url.PathEscape'd and dot segments give ""
+// (TestDocSocketURL, TestWorkspaceShareWSURL).
+var pathBuildAllowed = map[string]bool{"MediaURL": true, "WebSocketURL": true, "DocSocketURL": true, "WorkspaceShareWSURL": true, "checkMediaPath": true}
 
 // pathParamAllowed are the exported methods that may pass a parameter
 // straight into request.Path / request.URL: FetchMedia takes a whole

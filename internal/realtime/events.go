@@ -359,6 +359,25 @@ type DocCommentCreatedEvent struct {
 	Comment api.DocComment `json:"comment"`
 }
 
+// WorkspaceShareInvited is `workspace_share.invited` (events.md 4.11, v0.1.3):
+// I was invited to a share.
+type WorkspaceShareInvited struct {
+	Share api.WorkspaceShare `json:"share"`
+}
+
+// WorkspaceShareUpdated is `workspace_share.updated` (ephemeral): invites,
+// removals, leaving and level changes. A removed member also gets it, with a
+// Share whose Members no longer list them.
+type WorkspaceShareUpdated struct {
+	Share api.WorkspaceShare `json:"share"`
+}
+
+// WorkspaceShareEnded is `workspace_share.ended`; Reason is ended|timeout.
+type WorkspaceShareEnded struct {
+	ShareID string `json:"share_id"`
+	Reason  string `json:"reason"`
+}
+
 // decodeAs unmarshals raw into a T and returns it as a value.
 func decodeAs[T any](raw json.RawMessage) (any, error) {
 	var v T
@@ -437,6 +456,10 @@ var decoders = map[string]func(json.RawMessage) (any, error){
 	"doc.created":         decodeAs[DocCreatedEvent],
 	"doc.updated":         decodeAs[DocUpdatedEvent],
 	"doc.comment_created": decodeAs[DocCommentCreatedEvent],
+
+	"workspace_share.invited": decodeAs[WorkspaceShareInvited],
+	"workspace_share.updated": decodeAs[WorkspaceShareUpdated],
+	"workspace_share.ended":   decodeAs[WorkspaceShareEnded],
 }
 
 // loggedTypes are the types events.md 4장 marks 기록 (logged, carry a seq).
@@ -462,4 +485,6 @@ var loggedTypes = map[string]bool{
 	"notification.created": true, "notifications.read": true, "alert": true,
 
 	"doc.created": true, "doc.updated": true, "doc.comment_created": true,
+
+	"workspace_share.invited": true, "workspace_share.ended": true, // updated is ephemeral (events.md 4.11)
 }
