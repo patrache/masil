@@ -553,6 +553,34 @@ var areaArchcanvas = area{
 				En: {Other: "Cannot open design \"{name}\""},
 			},
 		},
+		"menu_comment": {
+			desc: "오른쪽 클릭 메뉴: 댓글",
+			text: map[Locale]Forms{
+				Ko: {Other: "댓글"},
+				En: {Other: "Comment"},
+			},
+		},
+		"menu_delete": {
+			desc: "오른쪽 클릭 메뉴: 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
+			},
+		},
+		"menu_fault": {
+			desc: "오른쪽 클릭 메뉴: 장애 넣기",
+			text: map[Locale]Forms{
+				Ko: {Other: "장애"},
+				En: {Other: "Fault"},
+			},
+		},
+		"menu_settings": {
+			desc: "오른쪽 클릭 메뉴: 설정 패널 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "설정"},
+				En: {Other: "Settings"},
+			},
+		},
 		"metric_bottleneck": {
 			desc:   "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %",
 			params: []Param{{Name: "label", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "int"}},
@@ -1330,6 +1358,26 @@ func (a_ ArchcanvasT) ListOutside() string {
 // LoadFailed: 캔버스: 설계 파일을 열 수 없을 때. name = 설계 이름
 func (a_ ArchcanvasT) LoadFailed(name string) string {
 	return a_.t.render(&areaArchcanvas, "load_failed", false, 0, "name", name)
+}
+
+// MenuComment: 오른쪽 클릭 메뉴: 댓글
+func (a_ ArchcanvasT) MenuComment() string {
+	return a_.t.render(&areaArchcanvas, "menu_comment", false, 0)
+}
+
+// MenuDelete: 오른쪽 클릭 메뉴: 삭제
+func (a_ ArchcanvasT) MenuDelete() string {
+	return a_.t.render(&areaArchcanvas, "menu_delete", false, 0)
+}
+
+// MenuFault: 오른쪽 클릭 메뉴: 장애 넣기
+func (a_ ArchcanvasT) MenuFault() string {
+	return a_.t.render(&areaArchcanvas, "menu_fault", false, 0)
+}
+
+// MenuSettings: 오른쪽 클릭 메뉴: 설정 패널 열기
+func (a_ ArchcanvasT) MenuSettings() string {
+	return a_.t.render(&areaArchcanvas, "menu_settings", false, 0)
 }
 
 // MetricBottleneck: 지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %

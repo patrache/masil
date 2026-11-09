@@ -53,6 +53,10 @@ type canvasModel struct {
 	find           string          // /: the query typed so far
 	running        bool            // space: the timed run (P3 Task 19)
 	speedX         int             // < >: the timed run's speed
+
+	// mouse (mouse.go, contextmenu.go)
+	gest *gesture // the drag in progress
+	menu *ctxMenu // the open right-click menu
 }
 
 var (
@@ -151,6 +155,7 @@ func (m *canvasModel) rebuild(ctx *ui.Context) {
 	if m.sel != "" && !m.exists(m.sel) {
 		m.sel = ""
 	}
+	m.gestureGone()
 	if !m.placed {
 		m.fit()
 	}
@@ -230,6 +235,13 @@ func (m *canvasModel) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.LocaleChangedMsg:
 		m.rebuild(ctx)
+	case ui.ModeChangedMsg:
+		m.cancelGesture()
+		m.menu = nil
+	case ui.FocusChangedMsg:
+		if msg.RouteKey != m.route.Key() {
+			m.cancelGesture()
+		}
 	}
 	return nil
 }
@@ -240,6 +252,8 @@ func (m *canvasModel) runCommand(*ui.Context, string) tea.Cmd { return nil }
 
 func (m *canvasModel) Resize(ctx *ui.Context, size ui.Size) {
 	m.size, m.layMode = size, ctx.Mode
+	m.cancelGesture()
+	m.menu = nil
 	m.layout()
 }
 

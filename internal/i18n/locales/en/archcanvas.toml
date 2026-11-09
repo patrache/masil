@@ -227,6 +227,18 @@ other = "Outside boxes"
 [load_failed]
 other = "Cannot open design \"{name}\""
 
+[menu_comment]
+other = "Comment"
+
+[menu_delete]
+other = "Delete"
+
+[menu_fault]
+other = "Fault"
+
+[menu_settings]
+other = "Settings"
+
 [metric_bottleneck]
 other = "bottleneck ⚠ {label} {limit} {util}%"
 

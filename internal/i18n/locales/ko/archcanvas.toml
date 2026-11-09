@@ -319,6 +319,22 @@ desc = "캔버스: 설계 파일을 열 수 없을 때. name = 설계 이름"
 params = { name = "string" }
 other = "설계 \"{name}\" 을(를) 열 수 없어요"
 
+[menu_comment]
+desc = "오른쪽 클릭 메뉴: 댓글"
+other = "댓글"
+
+[menu_delete]
+desc = "오른쪽 클릭 메뉴: 삭제"
+other = "삭제"
+
+[menu_fault]
+desc = "오른쪽 클릭 메뉴: 장애 넣기"
+other = "장애"
+
+[menu_settings]
+desc = "오른쪽 클릭 메뉴: 설정 패널 열기"
+other = "설정"
+
 [metric_bottleneck]
 desc = "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %"
 params = { label = "string", limit = "string", util = "int" }

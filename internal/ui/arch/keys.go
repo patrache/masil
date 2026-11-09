@@ -75,6 +75,9 @@ func (m *canvasModel) HandleKey(ctx *ui.Context, k tea.KeyPressMsg) (bool, tea.C
 	if m.regs.View == viewSummary {
 		return m.tinyKey(ctx, s)
 	}
+	if m.menu != nil {
+		return m.menuKey(ctx, s)
+	}
 	switch m.mode {
 	case modeFind:
 		return m.findKey(ctx, k, s)

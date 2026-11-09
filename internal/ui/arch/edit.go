@@ -20,6 +20,9 @@ const (
 	wrapPadX    = 2
 	wrapPadTop  = 2
 	wrapPadBott = 1
+	// a new empty box: room for two by two nodes
+	newBoxW = 2*(archdoc.NodeW+gapX) + 2*wrapPadX
+	newBoxH = 2*(archdoc.NodeH+gapY) + wrapPadTop + wrapPadBott
 )
 
 // commit is the one path of every edit of mine: the sink applies it, the undo
@@ -261,7 +264,7 @@ func (m *canvasModel) addPart(ctx *ui.Context, it paletteItem) tea.Cmd {
 				bx, by, bw, _ := m.scene.Bounds()
 				x, y = bx+bw+gapX, by
 			}
-			d.Boxes = append(d.Boxes, archdoc.Box{ID: id, Kind: it.box, Label: boxKindName(ctx.T, it.box), Rect: [4]int{snapX(x), y, 2*(archdoc.NodeW+gapX) + 2*wrapPadX, 2*(archdoc.NodeH+gapY) + wrapPadTop + wrapPadBott}})
+			d.Boxes = append(d.Boxes, archdoc.Box{ID: id, Kind: it.box, Label: boxKindName(ctx.T, it.box), Rect: [4]int{snapX(x), y, newBoxW, newBoxH}})
 			return
 		}
 		n := archdoc.Defaults(it.node)

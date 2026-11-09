@@ -261,6 +261,8 @@ func (m *canvasModel) View(ctx *ui.Context, focused bool) string {
 	m.drawPalette(ctx, b, r.Palette)
 	m.drawPanel(ctx, b, r.Panel)
 	m.drawMetrics(ctx, b, r.Metrics)
+	m.drawPaletteGhost(ctx, b)
+	m.drawMenu(ctx, b)
 	return b.render(ctx.Theme)
 }
 
@@ -288,6 +290,7 @@ func (m *canvasModel) overlay() archdraw.Overlay {
 			}
 		}
 	}
+	m.gestureOverlay(&ov)
 	return ov
 }
 
