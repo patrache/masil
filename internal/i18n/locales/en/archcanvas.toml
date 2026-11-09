@@ -1,0 +1,305 @@
+# Architecture design tool (v0.1.3 spec C2): the canvas, panels, metrics and
+# commands. Keys are snake_case with no area prefix; {usd} is a dollar
+# amount with thousands commas and {asof} the price table's year-month.
+
+[box_az]
+other = "AZ"
+
+[box_region]
+other = "region"
+
+[box_vpc]
+other = "VPC"
+
+[check_az_outside_vpc]
+other = "{targets}: AZ outside a VPC"
+
+[check_cycle]
+other = "{targets}: cycle (retry storm risk)"
+
+[check_ok]
+other = "No issues"
+
+[check_primary_replica_same_az]
+other = "{targets}: primary and replica share an AZ"
+
+[check_single_az_service]
+other = "{targets}: in one AZ only"
+
+[check_spof_single_instance]
+other = "{targets}: one instance = single point of failure"
+
+[check_spof_single_lb]
+other = "{targets}: one load balancer = single point of failure"
+
+[check_unconnected]
+other = "{targets}: not connected"
+
+[check_vpc_outside_region]
+other = "{targets}: VPC outside a region"
+
+[checks_label]
+other = "Checks"
+
+[cost_long]
+other = "About ${usd}/mo (estimate · {asof} prices · on-demand · excludes tax, discounts and free tiers)"
+
+[cost_short]
+other = "~${usd}/mo (estimate · {asof} prices)"
+
+[curve_constant]
+other = "constant"
+
+[curve_ramp]
+other = "ramp"
+
+[curve_spike]
+other = "spike"
+
+[curve_wave]
+other = "wave"
+
+[empty_canvas]
+other = "Press a to add a component"
+
+[engine_instant]
+other = "Instant analysis"
+
+[engine_mismatch]
+other = "Another engine version made these numbers; they may differ slightly"
+
+[estimate_disclaimer]
+other = "Estimates; actual bills may differ"
+
+[help_model_intro]
+other = "These numbers are approximations from queueing formulas. Use them to compare designs. Confirm a real service with a load test"
+
+[kind_api]
+other = "API server"
+
+[kind_cache]
+other = "cache"
+
+[kind_cdn]
+other = "CDN"
+
+[kind_client]
+other = "client"
+
+[kind_db_primary]
+other = "DB primary"
+
+[kind_db_replica]
+other = "DB replica"
+
+[kind_external]
+other = "External service"
+
+[kind_lb]
+other = "LB"
+
+[kind_object_storage]
+other = "object storage"
+
+[kind_queue]
+other = "queue"
+
+[kind_search]
+other = "search"
+
+[kind_worker]
+other = "worker"
+
+[limit_cpu]
+other = "CPU"
+
+[limit_ext_limit]
+other = "external limit"
+
+[limit_iops]
+other = "IOPS"
+
+[limit_link]
+other = "link bandwidth"
+
+[limit_nic]
+other = "bandwidth"
+
+[limit_pool]
+other = "connection pool"
+
+[limit_queue]
+other = "queue"
+
+[list_empty]
+other = "No nodes · press a to add"
+
+[list_outside]
+other = "Outside boxes"
+
+[load_failed]
+other = "Cannot open design \"{name}\""
+
+[metric_bottleneck]
+other = "bottleneck ⚠ {label} {limit} {util}%"
+
+[metric_err]
+other = "errors {pct}%"
+
+[metric_no_traffic]
+other = "No traffic · add a client"
+
+[metric_overloaded]
+other = "overloaded"
+
+[metric_throughput]
+other = "{rps}/s served"
+
+[metrics_total]
+other = "Total"
+
+[narrow_no_drag]
+other = "Dragging needs 60 columns or more · edit in the list"
+
+[palette_boxes]
+other = "Boxes"
+
+[palette_export]
+other = "Export design"
+
+[palette_new]
+other = "New architecture design"
+
+[palette_open]
+other = "Open architecture design"
+
+[palette_parts]
+other = "Parts"
+
+[palette_run]
+other = "Start/stop timed run"
+
+[palette_send_card]
+other = "Send design card"
+
+[palette_share]
+other = "Share design to a room"
+
+[palette_versions]
+other = "Design versions"
+
+[panel_autoscale]
+other = "(auto {min}–{max})"
+
+[panel_box]
+one = "{n} node"
+other = "{n} nodes"
+
+[panel_cpu_mem]
+other = "CPU {cpu} · memory {mem}GiB"
+
+[panel_curve]
+other = "shape {curve}"
+
+[panel_custom_type]
+other = "custom"
+
+[panel_down]
+other = "down"
+
+[panel_edge]
+other = "{from} → {to}"
+
+[panel_instances]
+other = "instances {n}"
+
+[panel_latency]
+other = "p50 {p50} · p99 {p99}"
+
+[panel_nic]
+other = "bandwidth {gbps}Gbps"
+
+[panel_no_client]
+other = "No client yet"
+
+[panel_read]
+other = "{pct}% reads"
+
+[panel_result]
+other = "Result"
+
+[panel_rps]
+other = "{n} requests/s"
+
+[panel_sizes]
+other = "request {req}KB · response {resp}KB"
+
+[panel_traffic]
+other = "Traffic model"
+
+[panel_util]
+other = "utilization {pct}%"
+
+[read_only_copy]
+other = "Copy · read-only"
+
+[save_failed]
+other = "Save failed"
+
+[save_pending]
+other = "Editing ●"
+
+[save_saved]
+other = "Saved"
+
+[save_unsaved]
+other = "Not saved"
+
+[status_copy]
+other = "{title} (copy)"
+
+[status_new]
+other = "New design"
+
+[status_personal]
+other = "{title} (personal)"
+
+[status_room]
+one = "{title} (room) · {n} editing"
+other = "{title} (room) · {n} editing"
+
+[tiny_bottleneck]
+other = "⚠ {label} {limit} {util}%"
+
+[tiny_edit_hint]
+other = "Enlarge the window to edit"
+
+[tiny_run]
+other = "space timed run"
+
+[tiny_summary]
+other = "📐 {title} · p99 {p99} · errors {err}%"
+
+[too_small_edit]
+other = "Please enlarge the window"
+
+[tool_name]
+other = "Architecture design"
+
+[traffic_hint]
+other = "A client is where traffic starts"
+
+[traffic_summary]
+other = "{rps} rps · {read}% reads · {kb}KB"
+
+[untitled]
+other = "Untitled design"
+
+[view_canvas]
+other = "Canvas"
+
+[view_list]
+other = "List"
+
+[zoom_overlap]
+other = "Zoom in"

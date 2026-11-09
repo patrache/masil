@@ -1,0 +1,442 @@
+# Architecture design tool (v0.1.3 spec C2): the canvas, panels, metrics and
+# commands. Keys are snake_case with no area prefix; {usd} is a dollar
+# amount with thousands commas and {asof} the price table's year-month.
+
+[box_az]
+desc = "상자 종류 이름: az"
+other = "AZ"
+
+[box_region]
+desc = "상자 종류 이름: region"
+other = "region"
+
+[box_vpc]
+desc = "상자 종류 이름: vpc"
+other = "VPC"
+
+[check_az_outside_vpc]
+desc = "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: AZ 가 VPC 밖"
+
+[check_cycle]
+desc = "설계 점검 경고(cycle). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: 순환(재시도 폭주 위험)"
+
+[check_ok]
+desc = "설계 점검에 걸린 것이 없을 때"
+other = "문제 없음"
+
+[check_primary_replica_same_az]
+desc = "설계 점검 경고(primary_replica_same_az). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: primary 와 replica 가 같은 AZ"
+
+[check_single_az_service]
+desc = "설계 점검 경고(single_az_service). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: 한 AZ 에만 있음"
+
+[check_spof_single_instance]
+desc = "설계 점검 경고(spof_single_instance). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: 인스턴스 1대 = 단일 장애점"
+
+[check_spof_single_lb]
+desc = "설계 점검 경고(spof_single_lb). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: LB 1대 = 단일 장애점"
+
+[check_unconnected]
+desc = "설계 점검 경고(unconnected). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: 연결 안 됨"
+
+[check_vpc_outside_region]
+desc = "설계 점검 경고(vpc_outside_region). targets = 대상 라벨을 \", \" 로 이은 것"
+params = { targets = "string" }
+other = "{targets}: VPC 가 리전 밖"
+
+[checks_label]
+desc = "지표 줄의 점검 머리"
+other = "점검"
+
+[cost_long]
+desc = "월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월"
+params = { usd = "string", asof = "string" }
+no_truncate = true
+legal = true
+other = "약 ${usd}/월 (추정 · {asof} 가격표 · 온디맨드 · 세금·할인·무료 사용량 제외)"
+
+[cost_short]
+desc = "월 비용 짧은 형(지표 줄·카드·요약). usd = 천 단위 쉼표 달러, asof = 가격표 기준 연월"
+params = { usd = "string", asof = "string" }
+no_truncate = true
+other = "~${usd}/월 (추정 · {asof} 가격표)"
+
+[curve_constant]
+desc = "트래픽 모양 이름: constant"
+other = "일정"
+
+[curve_ramp]
+desc = "트래픽 모양 이름: ramp"
+other = "점점 증가"
+
+[curve_spike]
+desc = "트래픽 모양 이름: spike"
+other = "급증"
+
+[curve_wave]
+desc = "트래픽 모양 이름: wave"
+other = "물결"
+
+[empty_canvas]
+desc = "빈 캔버스 안내 첫 줄"
+other = "a 로 부품을 추가하세요"
+
+[engine_instant]
+desc = "머리 줄 엔진 상태: 즉시 분석"
+other = "즉시분석"
+
+[engine_mismatch]
+desc = "카드·사본의 엔진 버전이 지금과 다를 때 안내"
+other = "엔진 버전이 달라 숫자가 조금 다를 수 있어요"
+
+[estimate_disclaimer]
+desc = "비용·숫자가 추정이라는 고지(법적 문구)"
+legal = true
+other = "추정치이며 실제 청구액과 다를 수 있음"
+
+[help_model_intro]
+desc = "도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)"
+no_truncate = true
+other = "이 숫자는 줄서기 공식으로 만든 근사입니다. 설계끼리 비교하는 데 쓰세요. 실제 서비스는 부하 시험으로 확인하세요"
+
+[kind_api]
+desc = "부품 이름: api(팔레트·패널·새 노드의 기본 라벨)"
+other = "API 서버"
+
+[kind_cache]
+desc = "부품 이름: cache(팔레트·패널·새 노드의 기본 라벨)"
+other = "cache"
+
+[kind_cdn]
+desc = "부품 이름: cdn(팔레트·패널·새 노드의 기본 라벨)"
+other = "CDN"
+
+[kind_client]
+desc = "부품 이름: client(팔레트·패널·새 노드의 기본 라벨)"
+other = "client"
+
+[kind_db_primary]
+desc = "부품 이름: db_primary(팔레트·패널·새 노드의 기본 라벨)"
+other = "DB primary"
+
+[kind_db_replica]
+desc = "부품 이름: db_replica(팔레트·패널·새 노드의 기본 라벨)"
+other = "DB replica"
+
+[kind_external]
+desc = "부품 이름: external(팔레트·패널·새 노드의 기본 라벨)"
+other = "외부 서비스"
+
+[kind_lb]
+desc = "부품 이름: lb(팔레트·패널·새 노드의 기본 라벨)"
+other = "LB"
+
+[kind_object_storage]
+desc = "부품 이름: object_storage(팔레트·패널·새 노드의 기본 라벨)"
+other = "object storage"
+
+[kind_queue]
+desc = "부품 이름: queue(팔레트·패널·새 노드의 기본 라벨)"
+other = "queue"
+
+[kind_search]
+desc = "부품 이름: search(팔레트·패널·새 노드의 기본 라벨)"
+other = "search"
+
+[kind_worker]
+desc = "부품 이름: worker(팔레트·패널·새 노드의 기본 라벨)"
+other = "worker"
+
+[limit_cpu]
+desc = "병목 자원 이름: cpu"
+other = "CPU"
+
+[limit_ext_limit]
+desc = "병목 자원 이름: ext_limit"
+other = "외부 한도"
+
+[limit_iops]
+desc = "병목 자원 이름: iops"
+other = "IOPS"
+
+[limit_link]
+desc = "병목 자원 이름: link"
+other = "연결 대역폭"
+
+[limit_nic]
+desc = "병목 자원 이름: nic"
+other = "대역폭"
+
+[limit_pool]
+desc = "병목 자원 이름: pool"
+other = "연결 풀"
+
+[limit_queue]
+desc = "병목 자원 이름: queue"
+other = "대기열"
+
+[list_empty]
+desc = "목록 보기: 노드가 없을 때"
+other = "노드가 없어요 · a 로 추가"
+
+[list_outside]
+desc = "목록 보기: 상자 밖 노드 묶음 머리"
+other = "상자 밖"
+
+[load_failed]
+desc = "캔버스: 설계 파일을 열 수 없을 때. name = 설계 이름"
+params = { name = "string" }
+other = "설계 \"{name}\" 을(를) 열 수 없어요"
+
+[metric_bottleneck]
+desc = "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %"
+params = { label = "string", limit = "string", util = "int" }
+other = "병목 ⚠ {label} {limit} {util}%"
+
+[metric_err]
+desc = "지표: 에러율. pct = 소수 한 자리 %"
+params = { pct = "string" }
+other = "에러 {pct}%"
+
+[metric_no_traffic]
+desc = "지표: client 가 없어 트래픽이 없음"
+other = "트래픽 없음 · client 를 추가하세요"
+
+[metric_overloaded]
+desc = "지표: 설계가 과부하"
+other = "과부하"
+
+[metric_throughput]
+desc = "지표: 처리량. rps = 짧은 수"
+params = { rps = "string" }
+other = "처리 {rps}/s"
+
+[metrics_total]
+desc = "지표 줄 머리: 설계 전체"
+other = "전체"
+
+[narrow_no_drag]
+desc = "60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트"
+other = "60칸보다 좁으면 끌어다 놓을 수 없어요 · 목록에서 편집하세요"
+
+[palette_boxes]
+desc = "부품 팔레트의 상자 묶음 머리"
+other = "상자"
+
+[palette_export]
+desc = "명령 팔레트 항목: arch.export"
+other = "설계 내보내기"
+
+[palette_new]
+desc = "명령 팔레트 항목: arch.new"
+other = "새 아키텍처 설계"
+
+[palette_open]
+desc = "명령 팔레트 항목: arch.open"
+other = "아키텍처 설계 열기"
+
+[palette_parts]
+desc = "부품 팔레트 머리"
+other = "부품"
+
+[palette_run]
+desc = "명령 팔레트 항목: arch.run"
+other = "설계 시간 실행 시작/정지"
+
+[palette_send_card]
+desc = "명령 팔레트 항목: arch.send_card"
+other = "설계 카드 보내기"
+
+[palette_share]
+desc = "명령 팔레트 항목: arch.share"
+other = "설계를 방에 올리기"
+
+[palette_versions]
+desc = "명령 팔레트 항목: arch.versions"
+other = "설계 버전 보기"
+
+[panel_autoscale]
+desc = "설정: 자동 확장 범위(인스턴스 줄 뒤)"
+params = { min = "int", max = "int" }
+other = "(자동 {min}~{max})"
+
+[panel_box]
+desc = "설정 패널: 상자를 골랐을 때 안에 든 노드 수"
+params = { n = "int" }
+count = "n"
+other = "노드 {n}개"
+
+[panel_cpu_mem]
+desc = "설정: CPU 코어 · 메모리 GiB"
+params = { cpu = "int", mem = "string" }
+other = "CPU {cpu} · 메모리 {mem}GiB"
+
+[panel_curve]
+desc = "트래픽: 시간에 따른 모양. curve = curve_* 문구"
+params = { curve = "string" }
+other = "모양 {curve}"
+
+[panel_custom_type]
+desc = "설정: 인스턴스 종류를 직접 정했을 때"
+other = "사용자 지정"
+
+[panel_down]
+desc = "결과: 꺼짐"
+other = "꺼짐"
+
+[panel_edge]
+desc = "설정 패널: 연결을 골랐을 때. from·to = 노드 라벨"
+params = { from = "string", to = "string" }
+other = "{from} → {to}"
+
+[panel_instances]
+desc = "설정: 인스턴스 수"
+params = { n = "int" }
+other = "인스턴스 {n}"
+
+[panel_latency]
+desc = "결과: 지연 p50·p99(짧은 시간 표기)"
+params = { p50 = "string", p99 = "string" }
+other = "p50 {p50} · p99 {p99}"
+
+[panel_nic]
+desc = "설정: 네트워크 대역폭 Gbps"
+params = { gbps = "string" }
+other = "대역폭 {gbps}Gbps"
+
+[panel_no_client]
+desc = "설정 패널: client 가 없을 때"
+other = "client 가 없어요"
+
+[panel_read]
+desc = "트래픽: 읽기 비율 %"
+params = { pct = "int" }
+other = "읽기 {pct}%"
+
+[panel_result]
+desc = "설정 패널의 결과 구분선 글"
+other = "결과"
+
+[panel_rps]
+desc = "트래픽: 초당 요청. n = 쉼표가 든 수"
+params = { n = "string" }
+other = "초당 요청 {n}"
+
+[panel_sizes]
+desc = "트래픽: 요청·응답 크기 KB"
+params = { req = "int", resp = "int" }
+other = "요청 {req}KB · 응답 {resp}KB"
+
+[panel_traffic]
+desc = "설정 패널: 아무것도 안 골랐을 때의 트래픽 모델 머리"
+other = "트래픽 모델"
+
+[panel_util]
+desc = "결과: 사용률 %"
+params = { pct = "int" }
+other = "사용률 {pct}%"
+
+[read_only_copy]
+desc = "머리 줄: 카드에서 연 읽기 전용 사본"
+other = "사본 · 읽기 전용"
+
+[save_failed]
+desc = "머리 줄 저장 상태: 저장 실패"
+other = "저장 실패"
+
+[save_pending]
+desc = "머리 줄 저장 상태: 아직 저장 전 편집이 있음"
+other = "편집 ●"
+
+[save_saved]
+desc = "머리 줄 저장 상태: 저장됨"
+other = "저장됨"
+
+[save_unsaved]
+desc = "머리 줄 저장 상태: 파일 이름이 없는 새 설계"
+other = "저장 안 됨"
+
+[status_copy]
+desc = "허브 상태: 채팅 카드에서 연 사본"
+params = { title = "string" }
+other = "{title} (사본)"
+
+[status_new]
+desc = "허브 상태: 아직 저장하지 않은 새 설계"
+other = "새 설계"
+
+[status_personal]
+desc = "허브 상태: 내 PC 의 개인 설계"
+params = { title = "string" }
+other = "{title} (개인)"
+
+[status_room]
+desc = "허브 상태: 방에 공유된 설계. title = 설계 제목, n = 지금 편집 중인 사람 수"
+params = { title = "string", n = "int" }
+count = "n"
+other = "{title} (방) · {n}명 편집 중"
+
+[tiny_bottleneck]
+desc = "초소형 요약 병목 줄"
+params = { label = "string", limit = "string", util = "int" }
+other = "⚠ {label} {limit} {util}%"
+
+[tiny_edit_hint]
+desc = "초소형 요약 마지막 줄: 편집하려면 창을 키우라는 안내"
+other = "창을 키우면 편집"
+
+[tiny_run]
+desc = "초소형 요약 마지막 줄 앞: 시간 실행 키"
+other = "space 시간실행"
+
+[tiny_summary]
+desc = "초소형 요약 첫 줄. title = 설계 제목, p99 = 짧은 시간, err = 소수 한 자리 %"
+params = { title = "string", p99 = "string", err = "string" }
+other = "📐 {title} · p99 {p99} · 에러 {err}%"
+
+[too_small_edit]
+desc = "초소형에서 편집 키를 눌렀을 때 토스트"
+other = "창을 키워 주세요"
+
+[tool_name]
+desc = "도구 이름(허브·팔레트·탭)"
+other = "아키텍처 설계"
+
+[traffic_hint]
+desc = "빈 캔버스 안내 둘째 줄: client 가 트래픽의 출발점"
+other = "client 가 트래픽의 출발점이에요"
+
+[traffic_summary]
+desc = "머리 줄 트래픽 요약. rps = 짧은 수(12.0k), read = 읽기 %, kb = 요청 KB"
+params = { rps = "string", read = "int", kb = "int" }
+other = "{rps} rps · 읽기 {read}% · {kb}KB"
+
+[untitled]
+desc = "제목이 빈 설계의 표시 이름"
+other = "제목 없는 설계"
+
+[view_canvas]
+desc = "보기 이름: 캔버스"
+other = "캔버스"
+
+[view_list]
+desc = "보기 이름: 목록"
+other = "목록"
+
+[zoom_overlap]
+desc = "이 확대 단계에서 노드가 겹칠 때 캔버스 안내"
+other = "확대를 높이세요"

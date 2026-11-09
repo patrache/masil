@@ -3,10 +3,1252 @@
 
 package i18n
 
+import "strconv"
+
 // ArchcanvasT holds the "archcanvas" area messages (locales/*/archcanvas.toml).
 type ArchcanvasT struct{ t *T }
 
 var areaArchcanvas = area{
 	name: "archcanvas",
-	keys: map[string]*entry{},
+	keys: map[string]*entry{
+		"box_az": {
+			desc: "상자 종류 이름: az",
+			text: map[Locale]Forms{
+				Ko: {Other: "AZ"},
+				En: {Other: "AZ"},
+			},
+		},
+		"box_region": {
+			desc: "상자 종류 이름: region",
+			text: map[Locale]Forms{
+				Ko: {Other: "region"},
+				En: {Other: "region"},
+			},
+		},
+		"box_vpc": {
+			desc: "상자 종류 이름: vpc",
+			text: map[Locale]Forms{
+				Ko: {Other: "VPC"},
+				En: {Other: "VPC"},
+			},
+		},
+		"check_az_outside_vpc": {
+			desc:   "설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: AZ 가 VPC 밖"},
+				En: {Other: "{targets}: AZ outside a VPC"},
+			},
+		},
+		"check_cycle": {
+			desc:   "설계 점검 경고(cycle). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 순환(재시도 폭주 위험)"},
+				En: {Other: "{targets}: cycle (retry storm risk)"},
+			},
+		},
+		"check_ok": {
+			desc: "설계 점검에 걸린 것이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "문제 없음"},
+				En: {Other: "No issues"},
+			},
+		},
+		"check_primary_replica_same_az": {
+			desc:   "설계 점검 경고(primary_replica_same_az). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: primary 와 replica 가 같은 AZ"},
+				En: {Other: "{targets}: primary and replica share an AZ"},
+			},
+		},
+		"check_single_az_service": {
+			desc:   "설계 점검 경고(single_az_service). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 한 AZ 에만 있음"},
+				En: {Other: "{targets}: in one AZ only"},
+			},
+		},
+		"check_spof_single_instance": {
+			desc:   "설계 점검 경고(spof_single_instance). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 인스턴스 1대 = 단일 장애점"},
+				En: {Other: "{targets}: one instance = single point of failure"},
+			},
+		},
+		"check_spof_single_lb": {
+			desc:   "설계 점검 경고(spof_single_lb). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: LB 1대 = 단일 장애점"},
+				En: {Other: "{targets}: one load balancer = single point of failure"},
+			},
+		},
+		"check_unconnected": {
+			desc:   "설계 점검 경고(unconnected). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: 연결 안 됨"},
+				En: {Other: "{targets}: not connected"},
+			},
+		},
+		"check_vpc_outside_region": {
+			desc:   "설계 점검 경고(vpc_outside_region). targets = 대상 라벨을 \", \" 로 이은 것",
+			params: []Param{{Name: "targets", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{targets}: VPC 가 리전 밖"},
+				En: {Other: "{targets}: VPC outside a region"},
+			},
+		},
+		"checks_label": {
+			desc: "지표 줄의 점검 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "점검"},
+				En: {Other: "Checks"},
+			},
+		},
+		"cost_long": {
+			desc:       "월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월",
+			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "약 ${usd}/월 (추정 · {asof} 가격표 · 온디맨드 · 세금·할인·무료 사용량 제외)"},
+				En: {Other: "About ${usd}/mo (estimate · {asof} prices · on-demand · excludes tax, discounts and free tiers)"},
+			},
+		},
+		"cost_short": {
+			desc:       "월 비용 짧은 형(지표 줄·카드·요약). usd = 천 단위 쉼표 달러, asof = 가격표 기준 연월",
+			params:     []Param{{Name: "usd", Type: "string"}, {Name: "asof", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "~${usd}/월 (추정 · {asof} 가격표)"},
+				En: {Other: "~${usd}/mo (estimate · {asof} prices)"},
+			},
+		},
+		"curve_constant": {
+			desc: "트래픽 모양 이름: constant",
+			text: map[Locale]Forms{
+				Ko: {Other: "일정"},
+				En: {Other: "constant"},
+			},
+		},
+		"curve_ramp": {
+			desc: "트래픽 모양 이름: ramp",
+			text: map[Locale]Forms{
+				Ko: {Other: "점점 증가"},
+				En: {Other: "ramp"},
+			},
+		},
+		"curve_spike": {
+			desc: "트래픽 모양 이름: spike",
+			text: map[Locale]Forms{
+				Ko: {Other: "급증"},
+				En: {Other: "spike"},
+			},
+		},
+		"curve_wave": {
+			desc: "트래픽 모양 이름: wave",
+			text: map[Locale]Forms{
+				Ko: {Other: "물결"},
+				En: {Other: "wave"},
+			},
+		},
+		"empty_canvas": {
+			desc: "빈 캔버스 안내 첫 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "a 로 부품을 추가하세요"},
+				En: {Other: "Press a to add a component"},
+			},
+		},
+		"engine_instant": {
+			desc: "머리 줄 엔진 상태: 즉시 분석",
+			text: map[Locale]Forms{
+				Ko: {Other: "즉시분석"},
+				En: {Other: "Instant analysis"},
+			},
+		},
+		"engine_mismatch": {
+			desc: "카드·사본의 엔진 버전이 지금과 다를 때 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "엔진 버전이 달라 숫자가 조금 다를 수 있어요"},
+				En: {Other: "Another engine version made these numbers; they may differ slightly"},
+			},
+		},
+		"estimate_disclaimer": {
+			desc:  "비용·숫자가 추정이라는 고지(법적 문구)",
+			legal: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "추정치이며 실제 청구액과 다를 수 있음"},
+				En: {Other: "Estimates; actual bills may differ"},
+			},
+		},
+		"help_model_intro": {
+			desc:       "도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 숫자는 줄서기 공식으로 만든 근사입니다. 설계끼리 비교하는 데 쓰세요. 실제 서비스는 부하 시험으로 확인하세요"},
+				En: {Other: "These numbers are approximations from queueing formulas. Use them to compare designs. Confirm a real service with a load test"},
+			},
+		},
+		"kind_api": {
+			desc: "부품 이름: api(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "API 서버"},
+				En: {Other: "API server"},
+			},
+		},
+		"kind_cache": {
+			desc: "부품 이름: cache(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "cache"},
+				En: {Other: "cache"},
+			},
+		},
+		"kind_cdn": {
+			desc: "부품 이름: cdn(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "CDN"},
+				En: {Other: "CDN"},
+			},
+		},
+		"kind_client": {
+			desc: "부품 이름: client(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "client"},
+				En: {Other: "client"},
+			},
+		},
+		"kind_db_primary": {
+			desc: "부품 이름: db_primary(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "DB primary"},
+				En: {Other: "DB primary"},
+			},
+		},
+		"kind_db_replica": {
+			desc: "부품 이름: db_replica(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "DB replica"},
+				En: {Other: "DB replica"},
+			},
+		},
+		"kind_external": {
+			desc: "부품 이름: external(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "외부 서비스"},
+				En: {Other: "External service"},
+			},
+		},
+		"kind_lb": {
+			desc: "부품 이름: lb(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "LB"},
+				En: {Other: "LB"},
+			},
+		},
+		"kind_object_storage": {
+			desc: "부품 이름: object_storage(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "object storage"},
+				En: {Other: "object storage"},
+			},
+		},
+		"kind_queue": {
+			desc: "부품 이름: queue(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "queue"},
+				En: {Other: "queue"},
+			},
+		},
+		"kind_search": {
+			desc: "부품 이름: search(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "search"},
+				En: {Other: "search"},
+			},
+		},
+		"kind_worker": {
+			desc: "부품 이름: worker(팔레트·패널·새 노드의 기본 라벨)",
+			text: map[Locale]Forms{
+				Ko: {Other: "worker"},
+				En: {Other: "worker"},
+			},
+		},
+		"limit_cpu": {
+			desc: "병목 자원 이름: cpu",
+			text: map[Locale]Forms{
+				Ko: {Other: "CPU"},
+				En: {Other: "CPU"},
+			},
+		},
+		"limit_ext_limit": {
+			desc: "병목 자원 이름: ext_limit",
+			text: map[Locale]Forms{
+				Ko: {Other: "외부 한도"},
+				En: {Other: "external limit"},
+			},
+		},
+		"limit_iops": {
+			desc: "병목 자원 이름: iops",
+			text: map[Locale]Forms{
+				Ko: {Other: "IOPS"},
+				En: {Other: "IOPS"},
+			},
+		},
+		"limit_link": {
+			desc: "병목 자원 이름: link",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 대역폭"},
+				En: {Other: "link bandwidth"},
+			},
+		},
+		"limit_nic": {
+			desc: "병목 자원 이름: nic",
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭"},
+				En: {Other: "bandwidth"},
+			},
+		},
+		"limit_pool": {
+			desc: "병목 자원 이름: pool",
+			text: map[Locale]Forms{
+				Ko: {Other: "연결 풀"},
+				En: {Other: "connection pool"},
+			},
+		},
+		"limit_queue": {
+			desc: "병목 자원 이름: queue",
+			text: map[Locale]Forms{
+				Ko: {Other: "대기열"},
+				En: {Other: "queue"},
+			},
+		},
+		"list_empty": {
+			desc: "목록 보기: 노드가 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드가 없어요 · a 로 추가"},
+				En: {Other: "No nodes · press a to add"},
+			},
+		},
+		"list_outside": {
+			desc: "목록 보기: 상자 밖 노드 묶음 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자 밖"},
+				En: {Other: "Outside boxes"},
+			},
+		},
+		"load_failed": {
+			desc:   "캔버스: 설계 파일을 열 수 없을 때. name = 설계 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 \"{name}\" 을(를) 열 수 없어요"},
+				En: {Other: "Cannot open design \"{name}\""},
+			},
+		},
+		"metric_bottleneck": {
+			desc:   "지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %",
+			params: []Param{{Name: "label", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "병목 ⚠ {label} {limit} {util}%"},
+				En: {Other: "bottleneck ⚠ {label} {limit} {util}%"},
+			},
+		},
+		"metric_err": {
+			desc:   "지표: 에러율. pct = 소수 한 자리 %",
+			params: []Param{{Name: "pct", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "에러 {pct}%"},
+				En: {Other: "errors {pct}%"},
+			},
+		},
+		"metric_no_traffic": {
+			desc: "지표: client 가 없어 트래픽이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "트래픽 없음 · client 를 추가하세요"},
+				En: {Other: "No traffic · add a client"},
+			},
+		},
+		"metric_overloaded": {
+			desc: "지표: 설계가 과부하",
+			text: map[Locale]Forms{
+				Ko: {Other: "과부하"},
+				En: {Other: "overloaded"},
+			},
+		},
+		"metric_throughput": {
+			desc:   "지표: 처리량. rps = 짧은 수",
+			params: []Param{{Name: "rps", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "처리 {rps}/s"},
+				En: {Other: "{rps}/s served"},
+			},
+		},
+		"metrics_total": {
+			desc: "지표 줄 머리: 설계 전체",
+			text: map[Locale]Forms{
+				Ko: {Other: "전체"},
+				En: {Other: "Total"},
+			},
+		},
+		"narrow_no_drag": {
+			desc: "60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "60칸보다 좁으면 끌어다 놓을 수 없어요 · 목록에서 편집하세요"},
+				En: {Other: "Dragging needs 60 columns or more · edit in the list"},
+			},
+		},
+		"palette_boxes": {
+			desc: "부품 팔레트의 상자 묶음 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "상자"},
+				En: {Other: "Boxes"},
+			},
+		},
+		"palette_export": {
+			desc: "명령 팔레트 항목: arch.export",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 내보내기"},
+				En: {Other: "Export design"},
+			},
+		},
+		"palette_new": {
+			desc: "명령 팔레트 항목: arch.new",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 아키텍처 설계"},
+				En: {Other: "New architecture design"},
+			},
+		},
+		"palette_open": {
+			desc: "명령 팔레트 항목: arch.open",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계 열기"},
+				En: {Other: "Open architecture design"},
+			},
+		},
+		"palette_parts": {
+			desc: "부품 팔레트 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "부품"},
+				En: {Other: "Parts"},
+			},
+		},
+		"palette_run": {
+			desc: "명령 팔레트 항목: arch.run",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 시간 실행 시작/정지"},
+				En: {Other: "Start/stop timed run"},
+			},
+		},
+		"palette_send_card": {
+			desc: "명령 팔레트 항목: arch.send_card",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 카드 보내기"},
+				En: {Other: "Send design card"},
+			},
+		},
+		"palette_share": {
+			desc: "명령 팔레트 항목: arch.share",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계를 방에 올리기"},
+				En: {Other: "Share design to a room"},
+			},
+		},
+		"palette_versions": {
+			desc: "명령 팔레트 항목: arch.versions",
+			text: map[Locale]Forms{
+				Ko: {Other: "설계 버전 보기"},
+				En: {Other: "Design versions"},
+			},
+		},
+		"panel_autoscale": {
+			desc:   "설정: 자동 확장 범위(인스턴스 줄 뒤)",
+			params: []Param{{Name: "min", Type: "int"}, {Name: "max", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "(자동 {min}~{max})"},
+				En: {Other: "(auto {min}–{max})"},
+			},
+		},
+		"panel_box": {
+			desc:   "설정 패널: 상자를 골랐을 때 안에 든 노드 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "노드 {n}개"},
+				En: {One: "{n} node", Other: "{n} nodes"},
+			},
+		},
+		"panel_cpu_mem": {
+			desc:   "설정: CPU 코어 · 메모리 GiB",
+			params: []Param{{Name: "cpu", Type: "int"}, {Name: "mem", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "CPU {cpu} · 메모리 {mem}GiB"},
+				En: {Other: "CPU {cpu} · memory {mem}GiB"},
+			},
+		},
+		"panel_curve": {
+			desc:   "트래픽: 시간에 따른 모양. curve = curve_* 문구",
+			params: []Param{{Name: "curve", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "모양 {curve}"},
+				En: {Other: "shape {curve}"},
+			},
+		},
+		"panel_custom_type": {
+			desc: "설정: 인스턴스 종류를 직접 정했을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용자 지정"},
+				En: {Other: "custom"},
+			},
+		},
+		"panel_down": {
+			desc: "결과: 꺼짐",
+			text: map[Locale]Forms{
+				Ko: {Other: "꺼짐"},
+				En: {Other: "down"},
+			},
+		},
+		"panel_edge": {
+			desc:   "설정 패널: 연결을 골랐을 때. from·to = 노드 라벨",
+			params: []Param{{Name: "from", Type: "string"}, {Name: "to", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{from} → {to}"},
+				En: {Other: "{from} → {to}"},
+			},
+		},
+		"panel_instances": {
+			desc:   "설정: 인스턴스 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "인스턴스 {n}"},
+				En: {Other: "instances {n}"},
+			},
+		},
+		"panel_latency": {
+			desc:   "결과: 지연 p50·p99(짧은 시간 표기)",
+			params: []Param{{Name: "p50", Type: "string"}, {Name: "p99", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "p50 {p50} · p99 {p99}"},
+				En: {Other: "p50 {p50} · p99 {p99}"},
+			},
+		},
+		"panel_nic": {
+			desc:   "설정: 네트워크 대역폭 Gbps",
+			params: []Param{{Name: "gbps", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "대역폭 {gbps}Gbps"},
+				En: {Other: "bandwidth {gbps}Gbps"},
+			},
+		},
+		"panel_no_client": {
+			desc: "설정 패널: client 가 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "client 가 없어요"},
+				En: {Other: "No client yet"},
+			},
+		},
+		"panel_read": {
+			desc:   "트래픽: 읽기 비율 %",
+			params: []Param{{Name: "pct", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 {pct}%"},
+				En: {Other: "{pct}% reads"},
+			},
+		},
+		"panel_result": {
+			desc: "설정 패널의 결과 구분선 글",
+			text: map[Locale]Forms{
+				Ko: {Other: "결과"},
+				En: {Other: "Result"},
+			},
+		},
+		"panel_rps": {
+			desc:   "트래픽: 초당 요청. n = 쉼표가 든 수",
+			params: []Param{{Name: "n", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "초당 요청 {n}"},
+				En: {Other: "{n} requests/s"},
+			},
+		},
+		"panel_sizes": {
+			desc:   "트래픽: 요청·응답 크기 KB",
+			params: []Param{{Name: "req", Type: "int"}, {Name: "resp", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 {req}KB · 응답 {resp}KB"},
+				En: {Other: "request {req}KB · response {resp}KB"},
+			},
+		},
+		"panel_traffic": {
+			desc: "설정 패널: 아무것도 안 골랐을 때의 트래픽 모델 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "트래픽 모델"},
+				En: {Other: "Traffic model"},
+			},
+		},
+		"panel_util": {
+			desc:   "결과: 사용률 %",
+			params: []Param{{Name: "pct", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "사용률 {pct}%"},
+				En: {Other: "utilization {pct}%"},
+			},
+		},
+		"read_only_copy": {
+			desc: "머리 줄: 카드에서 연 읽기 전용 사본",
+			text: map[Locale]Forms{
+				Ko: {Other: "사본 · 읽기 전용"},
+				En: {Other: "Copy · read-only"},
+			},
+		},
+		"save_failed": {
+			desc: "머리 줄 저장 상태: 저장 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장 실패"},
+				En: {Other: "Save failed"},
+			},
+		},
+		"save_pending": {
+			desc: "머리 줄 저장 상태: 아직 저장 전 편집이 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "편집 ●"},
+				En: {Other: "Editing ●"},
+			},
+		},
+		"save_saved": {
+			desc: "머리 줄 저장 상태: 저장됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장됨"},
+				En: {Other: "Saved"},
+			},
+		},
+		"save_unsaved": {
+			desc: "머리 줄 저장 상태: 파일 이름이 없는 새 설계",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장 안 됨"},
+				En: {Other: "Not saved"},
+			},
+		},
+		"status_copy": {
+			desc:   "허브 상태: 채팅 카드에서 연 사본",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} (사본)"},
+				En: {Other: "{title} (copy)"},
+			},
+		},
+		"status_new": {
+			desc: "허브 상태: 아직 저장하지 않은 새 설계",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 설계"},
+				En: {Other: "New design"},
+			},
+		},
+		"status_personal": {
+			desc:   "허브 상태: 내 PC 의 개인 설계",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} (개인)"},
+				En: {Other: "{title} (personal)"},
+			},
+		},
+		"status_room": {
+			desc:   "허브 상태: 방에 공유된 설계. title = 설계 제목, n = 지금 편집 중인 사람 수",
+			params: []Param{{Name: "title", Type: "string"}, {Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} (방) · {n}명 편집 중"},
+				En: {One: "{title} (room) · {n} editing", Other: "{title} (room) · {n} editing"},
+			},
+		},
+		"tiny_bottleneck": {
+			desc:   "초소형 요약 병목 줄",
+			params: []Param{{Name: "label", Type: "string"}, {Name: "limit", Type: "string"}, {Name: "util", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "⚠ {label} {limit} {util}%"},
+				En: {Other: "⚠ {label} {limit} {util}%"},
+			},
+		},
+		"tiny_edit_hint": {
+			desc: "초소형 요약 마지막 줄: 편집하려면 창을 키우라는 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "창을 키우면 편집"},
+				En: {Other: "Enlarge the window to edit"},
+			},
+		},
+		"tiny_run": {
+			desc: "초소형 요약 마지막 줄 앞: 시간 실행 키",
+			text: map[Locale]Forms{
+				Ko: {Other: "space 시간실행"},
+				En: {Other: "space timed run"},
+			},
+		},
+		"tiny_summary": {
+			desc:   "초소형 요약 첫 줄. title = 설계 제목, p99 = 짧은 시간, err = 소수 한 자리 %",
+			params: []Param{{Name: "title", Type: "string"}, {Name: "p99", Type: "string"}, {Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "📐 {title} · p99 {p99} · 에러 {err}%"},
+				En: {Other: "📐 {title} · p99 {p99} · errors {err}%"},
+			},
+		},
+		"too_small_edit": {
+			desc: "초소형에서 편집 키를 눌렀을 때 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "창을 키워 주세요"},
+				En: {Other: "Please enlarge the window"},
+			},
+		},
+		"tool_name": {
+			desc: "도구 이름(허브·팔레트·탭)",
+			text: map[Locale]Forms{
+				Ko: {Other: "아키텍처 설계"},
+				En: {Other: "Architecture design"},
+			},
+		},
+		"traffic_hint": {
+			desc: "빈 캔버스 안내 둘째 줄: client 가 트래픽의 출발점",
+			text: map[Locale]Forms{
+				Ko: {Other: "client 가 트래픽의 출발점이에요"},
+				En: {Other: "A client is where traffic starts"},
+			},
+		},
+		"traffic_summary": {
+			desc:   "머리 줄 트래픽 요약. rps = 짧은 수(12.0k), read = 읽기 %, kb = 요청 KB",
+			params: []Param{{Name: "rps", Type: "string"}, {Name: "read", Type: "int"}, {Name: "kb", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{rps} rps · 읽기 {read}% · {kb}KB"},
+				En: {Other: "{rps} rps · {read}% reads · {kb}KB"},
+			},
+		},
+		"untitled": {
+			desc: "제목이 빈 설계의 표시 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "제목 없는 설계"},
+				En: {Other: "Untitled design"},
+			},
+		},
+		"view_canvas": {
+			desc: "보기 이름: 캔버스",
+			text: map[Locale]Forms{
+				Ko: {Other: "캔버스"},
+				En: {Other: "Canvas"},
+			},
+		},
+		"view_list": {
+			desc: "보기 이름: 목록",
+			text: map[Locale]Forms{
+				Ko: {Other: "목록"},
+				En: {Other: "List"},
+			},
+		},
+		"zoom_overlap": {
+			desc: "이 확대 단계에서 노드가 겹칠 때 캔버스 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "확대를 높이세요"},
+				En: {Other: "Zoom in"},
+			},
+		},
+	},
+}
+
+// BoxAz: 상자 종류 이름: az
+func (a_ ArchcanvasT) BoxAz() string {
+	return a_.t.render(&areaArchcanvas, "box_az", false, 0)
+}
+
+// BoxRegion: 상자 종류 이름: region
+func (a_ ArchcanvasT) BoxRegion() string {
+	return a_.t.render(&areaArchcanvas, "box_region", false, 0)
+}
+
+// BoxVpc: 상자 종류 이름: vpc
+func (a_ ArchcanvasT) BoxVpc() string {
+	return a_.t.render(&areaArchcanvas, "box_vpc", false, 0)
+}
+
+// CheckAzOutsideVpc: 설계 점검 경고(az_outside_vpc). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckAzOutsideVpc(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_az_outside_vpc", false, 0, "targets", targets)
+}
+
+// CheckCycle: 설계 점검 경고(cycle). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckCycle(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_cycle", false, 0, "targets", targets)
+}
+
+// CheckOk: 설계 점검에 걸린 것이 없을 때
+func (a_ ArchcanvasT) CheckOk() string {
+	return a_.t.render(&areaArchcanvas, "check_ok", false, 0)
+}
+
+// CheckPrimaryReplicaSameAz: 설계 점검 경고(primary_replica_same_az). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckPrimaryReplicaSameAz(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_primary_replica_same_az", false, 0, "targets", targets)
+}
+
+// CheckSingleAzService: 설계 점검 경고(single_az_service). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckSingleAzService(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_single_az_service", false, 0, "targets", targets)
+}
+
+// CheckSpofSingleInstance: 설계 점검 경고(spof_single_instance). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckSpofSingleInstance(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_spof_single_instance", false, 0, "targets", targets)
+}
+
+// CheckSpofSingleLb: 설계 점검 경고(spof_single_lb). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckSpofSingleLb(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_spof_single_lb", false, 0, "targets", targets)
+}
+
+// CheckUnconnected: 설계 점검 경고(unconnected). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckUnconnected(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_unconnected", false, 0, "targets", targets)
+}
+
+// CheckVpcOutsideRegion: 설계 점검 경고(vpc_outside_region). targets = 대상 라벨을 ", " 로 이은 것
+func (a_ ArchcanvasT) CheckVpcOutsideRegion(targets string) string {
+	return a_.t.render(&areaArchcanvas, "check_vpc_outside_region", false, 0, "targets", targets)
+}
+
+// ChecksLabel: 지표 줄의 점검 머리
+func (a_ ArchcanvasT) ChecksLabel() string {
+	return a_.t.render(&areaArchcanvas, "checks_label", false, 0)
+}
+
+// CostLong: 월 비용 긴 형(설정 패널·도움말). usd = 천 단위 쉼표가 든 달러 정수, asof = 가격표 기준 연월
+func (a_ ArchcanvasT) CostLong(usd string, asof string) string {
+	return a_.t.render(&areaArchcanvas, "cost_long", false, 0, "usd", usd, "asof", asof)
+}
+
+// CostShort: 월 비용 짧은 형(지표 줄·카드·요약). usd = 천 단위 쉼표 달러, asof = 가격표 기준 연월
+func (a_ ArchcanvasT) CostShort(usd string, asof string) string {
+	return a_.t.render(&areaArchcanvas, "cost_short", false, 0, "usd", usd, "asof", asof)
+}
+
+// CurveConstant: 트래픽 모양 이름: constant
+func (a_ ArchcanvasT) CurveConstant() string {
+	return a_.t.render(&areaArchcanvas, "curve_constant", false, 0)
+}
+
+// CurveRamp: 트래픽 모양 이름: ramp
+func (a_ ArchcanvasT) CurveRamp() string {
+	return a_.t.render(&areaArchcanvas, "curve_ramp", false, 0)
+}
+
+// CurveSpike: 트래픽 모양 이름: spike
+func (a_ ArchcanvasT) CurveSpike() string {
+	return a_.t.render(&areaArchcanvas, "curve_spike", false, 0)
+}
+
+// CurveWave: 트래픽 모양 이름: wave
+func (a_ ArchcanvasT) CurveWave() string {
+	return a_.t.render(&areaArchcanvas, "curve_wave", false, 0)
+}
+
+// EmptyCanvas: 빈 캔버스 안내 첫 줄
+func (a_ ArchcanvasT) EmptyCanvas() string {
+	return a_.t.render(&areaArchcanvas, "empty_canvas", false, 0)
+}
+
+// EngineInstant: 머리 줄 엔진 상태: 즉시 분석
+func (a_ ArchcanvasT) EngineInstant() string {
+	return a_.t.render(&areaArchcanvas, "engine_instant", false, 0)
+}
+
+// EngineMismatch: 카드·사본의 엔진 버전이 지금과 다를 때 안내
+func (a_ ArchcanvasT) EngineMismatch() string {
+	return a_.t.render(&areaArchcanvas, "engine_mismatch", false, 0)
+}
+
+// EstimateDisclaimer: 비용·숫자가 추정이라는 고지(법적 문구)
+func (a_ ArchcanvasT) EstimateDisclaimer() string {
+	return a_.t.render(&areaArchcanvas, "estimate_disclaimer", false, 0)
+}
+
+// HelpModelIntro: 도움말 첫 장: 숫자가 근사라는 설명(줄여 쓰지 않음)
+func (a_ ArchcanvasT) HelpModelIntro() string {
+	return a_.t.render(&areaArchcanvas, "help_model_intro", false, 0)
+}
+
+// KindApi: 부품 이름: api(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindApi() string {
+	return a_.t.render(&areaArchcanvas, "kind_api", false, 0)
+}
+
+// KindCache: 부품 이름: cache(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindCache() string {
+	return a_.t.render(&areaArchcanvas, "kind_cache", false, 0)
+}
+
+// KindCdn: 부품 이름: cdn(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindCdn() string {
+	return a_.t.render(&areaArchcanvas, "kind_cdn", false, 0)
+}
+
+// KindClient: 부품 이름: client(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindClient() string {
+	return a_.t.render(&areaArchcanvas, "kind_client", false, 0)
+}
+
+// KindDbPrimary: 부품 이름: db_primary(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindDbPrimary() string {
+	return a_.t.render(&areaArchcanvas, "kind_db_primary", false, 0)
+}
+
+// KindDbReplica: 부품 이름: db_replica(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindDbReplica() string {
+	return a_.t.render(&areaArchcanvas, "kind_db_replica", false, 0)
+}
+
+// KindExternal: 부품 이름: external(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindExternal() string {
+	return a_.t.render(&areaArchcanvas, "kind_external", false, 0)
+}
+
+// KindLb: 부품 이름: lb(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindLb() string {
+	return a_.t.render(&areaArchcanvas, "kind_lb", false, 0)
+}
+
+// KindObjectStorage: 부품 이름: object_storage(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindObjectStorage() string {
+	return a_.t.render(&areaArchcanvas, "kind_object_storage", false, 0)
+}
+
+// KindQueue: 부품 이름: queue(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindQueue() string {
+	return a_.t.render(&areaArchcanvas, "kind_queue", false, 0)
+}
+
+// KindSearch: 부품 이름: search(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindSearch() string {
+	return a_.t.render(&areaArchcanvas, "kind_search", false, 0)
+}
+
+// KindWorker: 부품 이름: worker(팔레트·패널·새 노드의 기본 라벨)
+func (a_ ArchcanvasT) KindWorker() string {
+	return a_.t.render(&areaArchcanvas, "kind_worker", false, 0)
+}
+
+// LimitCpu: 병목 자원 이름: cpu
+func (a_ ArchcanvasT) LimitCpu() string {
+	return a_.t.render(&areaArchcanvas, "limit_cpu", false, 0)
+}
+
+// LimitExtLimit: 병목 자원 이름: ext_limit
+func (a_ ArchcanvasT) LimitExtLimit() string {
+	return a_.t.render(&areaArchcanvas, "limit_ext_limit", false, 0)
+}
+
+// LimitIops: 병목 자원 이름: iops
+func (a_ ArchcanvasT) LimitIops() string {
+	return a_.t.render(&areaArchcanvas, "limit_iops", false, 0)
+}
+
+// LimitLink: 병목 자원 이름: link
+func (a_ ArchcanvasT) LimitLink() string {
+	return a_.t.render(&areaArchcanvas, "limit_link", false, 0)
+}
+
+// LimitNic: 병목 자원 이름: nic
+func (a_ ArchcanvasT) LimitNic() string {
+	return a_.t.render(&areaArchcanvas, "limit_nic", false, 0)
+}
+
+// LimitPool: 병목 자원 이름: pool
+func (a_ ArchcanvasT) LimitPool() string {
+	return a_.t.render(&areaArchcanvas, "limit_pool", false, 0)
+}
+
+// LimitQueue: 병목 자원 이름: queue
+func (a_ ArchcanvasT) LimitQueue() string {
+	return a_.t.render(&areaArchcanvas, "limit_queue", false, 0)
+}
+
+// ListEmpty: 목록 보기: 노드가 없을 때
+func (a_ ArchcanvasT) ListEmpty() string {
+	return a_.t.render(&areaArchcanvas, "list_empty", false, 0)
+}
+
+// ListOutside: 목록 보기: 상자 밖 노드 묶음 머리
+func (a_ ArchcanvasT) ListOutside() string {
+	return a_.t.render(&areaArchcanvas, "list_outside", false, 0)
+}
+
+// LoadFailed: 캔버스: 설계 파일을 열 수 없을 때. name = 설계 이름
+func (a_ ArchcanvasT) LoadFailed(name string) string {
+	return a_.t.render(&areaArchcanvas, "load_failed", false, 0, "name", name)
+}
+
+// MetricBottleneck: 지표: 병목. label = 노드 라벨, limit = 자원 이름, util = 사용률 %
+func (a_ ArchcanvasT) MetricBottleneck(label string, limit string, util int) string {
+	return a_.t.render(&areaArchcanvas, "metric_bottleneck", false, 0, "label", label, "limit", limit, "util", strconv.Itoa(util))
+}
+
+// MetricErr: 지표: 에러율. pct = 소수 한 자리 %
+func (a_ ArchcanvasT) MetricErr(pct string) string {
+	return a_.t.render(&areaArchcanvas, "metric_err", false, 0, "pct", pct)
+}
+
+// MetricNoTraffic: 지표: client 가 없어 트래픽이 없음
+func (a_ ArchcanvasT) MetricNoTraffic() string {
+	return a_.t.render(&areaArchcanvas, "metric_no_traffic", false, 0)
+}
+
+// MetricOverloaded: 지표: 설계가 과부하
+func (a_ ArchcanvasT) MetricOverloaded() string {
+	return a_.t.render(&areaArchcanvas, "metric_overloaded", false, 0)
+}
+
+// MetricThroughput: 지표: 처리량. rps = 짧은 수
+func (a_ ArchcanvasT) MetricThroughput(rps string) string {
+	return a_.t.render(&areaArchcanvas, "metric_throughput", false, 0, "rps", rps)
+}
+
+// MetricsTotal: 지표 줄 머리: 설계 전체
+func (a_ ArchcanvasT) MetricsTotal() string {
+	return a_.t.render(&areaArchcanvas, "metrics_total", false, 0)
+}
+
+// NarrowNoDrag: 60칸보다 좁은 캔버스에서 끌기를 막을 때 토스트
+func (a_ ArchcanvasT) NarrowNoDrag() string {
+	return a_.t.render(&areaArchcanvas, "narrow_no_drag", false, 0)
+}
+
+// PaletteBoxes: 부품 팔레트의 상자 묶음 머리
+func (a_ ArchcanvasT) PaletteBoxes() string {
+	return a_.t.render(&areaArchcanvas, "palette_boxes", false, 0)
+}
+
+// PaletteExport: 명령 팔레트 항목: arch.export
+func (a_ ArchcanvasT) PaletteExport() string {
+	return a_.t.render(&areaArchcanvas, "palette_export", false, 0)
+}
+
+// PaletteNew: 명령 팔레트 항목: arch.new
+func (a_ ArchcanvasT) PaletteNew() string {
+	return a_.t.render(&areaArchcanvas, "palette_new", false, 0)
+}
+
+// PaletteOpen: 명령 팔레트 항목: arch.open
+func (a_ ArchcanvasT) PaletteOpen() string {
+	return a_.t.render(&areaArchcanvas, "palette_open", false, 0)
+}
+
+// PaletteParts: 부품 팔레트 머리
+func (a_ ArchcanvasT) PaletteParts() string {
+	return a_.t.render(&areaArchcanvas, "palette_parts", false, 0)
+}
+
+// PaletteRun: 명령 팔레트 항목: arch.run
+func (a_ ArchcanvasT) PaletteRun() string {
+	return a_.t.render(&areaArchcanvas, "palette_run", false, 0)
+}
+
+// PaletteSendCard: 명령 팔레트 항목: arch.send_card
+func (a_ ArchcanvasT) PaletteSendCard() string {
+	return a_.t.render(&areaArchcanvas, "palette_send_card", false, 0)
+}
+
+// PaletteShare: 명령 팔레트 항목: arch.share
+func (a_ ArchcanvasT) PaletteShare() string {
+	return a_.t.render(&areaArchcanvas, "palette_share", false, 0)
+}
+
+// PaletteVersions: 명령 팔레트 항목: arch.versions
+func (a_ ArchcanvasT) PaletteVersions() string {
+	return a_.t.render(&areaArchcanvas, "palette_versions", false, 0)
+}
+
+// PanelAutoscale: 설정: 자동 확장 범위(인스턴스 줄 뒤)
+func (a_ ArchcanvasT) PanelAutoscale(min int, max int) string {
+	return a_.t.render(&areaArchcanvas, "panel_autoscale", false, 0, "min", strconv.Itoa(min), "max", strconv.Itoa(max))
+}
+
+// PanelBox: 설정 패널: 상자를 골랐을 때 안에 든 노드 수
+func (a_ ArchcanvasT) PanelBox(n int) string {
+	return a_.t.render(&areaArchcanvas, "panel_box", false, n, "n", strconv.Itoa(n))
+}
+
+// PanelCpuMem: 설정: CPU 코어 · 메모리 GiB
+func (a_ ArchcanvasT) PanelCpuMem(cpu int, mem string) string {
+	return a_.t.render(&areaArchcanvas, "panel_cpu_mem", false, 0, "cpu", strconv.Itoa(cpu), "mem", mem)
+}
+
+// PanelCurve: 트래픽: 시간에 따른 모양. curve = curve_* 문구
+func (a_ ArchcanvasT) PanelCurve(curve string) string {
+	return a_.t.render(&areaArchcanvas, "panel_curve", false, 0, "curve", curve)
+}
+
+// PanelCustomType: 설정: 인스턴스 종류를 직접 정했을 때
+func (a_ ArchcanvasT) PanelCustomType() string {
+	return a_.t.render(&areaArchcanvas, "panel_custom_type", false, 0)
+}
+
+// PanelDown: 결과: 꺼짐
+func (a_ ArchcanvasT) PanelDown() string {
+	return a_.t.render(&areaArchcanvas, "panel_down", false, 0)
+}
+
+// PanelEdge: 설정 패널: 연결을 골랐을 때. from·to = 노드 라벨
+func (a_ ArchcanvasT) PanelEdge(from string, to string) string {
+	return a_.t.render(&areaArchcanvas, "panel_edge", false, 0, "from", from, "to", to)
+}
+
+// PanelInstances: 설정: 인스턴스 수
+func (a_ ArchcanvasT) PanelInstances(n int) string {
+	return a_.t.render(&areaArchcanvas, "panel_instances", false, 0, "n", strconv.Itoa(n))
+}
+
+// PanelLatency: 결과: 지연 p50·p99(짧은 시간 표기)
+func (a_ ArchcanvasT) PanelLatency(p50 string, p99 string) string {
+	return a_.t.render(&areaArchcanvas, "panel_latency", false, 0, "p50", p50, "p99", p99)
+}
+
+// PanelNic: 설정: 네트워크 대역폭 Gbps
+func (a_ ArchcanvasT) PanelNic(gbps string) string {
+	return a_.t.render(&areaArchcanvas, "panel_nic", false, 0, "gbps", gbps)
+}
+
+// PanelNoClient: 설정 패널: client 가 없을 때
+func (a_ ArchcanvasT) PanelNoClient() string {
+	return a_.t.render(&areaArchcanvas, "panel_no_client", false, 0)
+}
+
+// PanelRead: 트래픽: 읽기 비율 %
+func (a_ ArchcanvasT) PanelRead(pct int) string {
+	return a_.t.render(&areaArchcanvas, "panel_read", false, 0, "pct", strconv.Itoa(pct))
+}
+
+// PanelResult: 설정 패널의 결과 구분선 글
+func (a_ ArchcanvasT) PanelResult() string {
+	return a_.t.render(&areaArchcanvas, "panel_result", false, 0)
+}
+
+// PanelRps: 트래픽: 초당 요청. n = 쉼표가 든 수
+func (a_ ArchcanvasT) PanelRps(n string) string {
+	return a_.t.render(&areaArchcanvas, "panel_rps", false, 0, "n", n)
+}
+
+// PanelSizes: 트래픽: 요청·응답 크기 KB
+func (a_ ArchcanvasT) PanelSizes(req int, resp int) string {
+	return a_.t.render(&areaArchcanvas, "panel_sizes", false, 0, "req", strconv.Itoa(req), "resp", strconv.Itoa(resp))
+}
+
+// PanelTraffic: 설정 패널: 아무것도 안 골랐을 때의 트래픽 모델 머리
+func (a_ ArchcanvasT) PanelTraffic() string {
+	return a_.t.render(&areaArchcanvas, "panel_traffic", false, 0)
+}
+
+// PanelUtil: 결과: 사용률 %
+func (a_ ArchcanvasT) PanelUtil(pct int) string {
+	return a_.t.render(&areaArchcanvas, "panel_util", false, 0, "pct", strconv.Itoa(pct))
+}
+
+// ReadOnlyCopy: 머리 줄: 카드에서 연 읽기 전용 사본
+func (a_ ArchcanvasT) ReadOnlyCopy() string {
+	return a_.t.render(&areaArchcanvas, "read_only_copy", false, 0)
+}
+
+// SaveFailed: 머리 줄 저장 상태: 저장 실패
+func (a_ ArchcanvasT) SaveFailed() string {
+	return a_.t.render(&areaArchcanvas, "save_failed", false, 0)
+}
+
+// SavePending: 머리 줄 저장 상태: 아직 저장 전 편집이 있음
+func (a_ ArchcanvasT) SavePending() string {
+	return a_.t.render(&areaArchcanvas, "save_pending", false, 0)
+}
+
+// SaveSaved: 머리 줄 저장 상태: 저장됨
+func (a_ ArchcanvasT) SaveSaved() string {
+	return a_.t.render(&areaArchcanvas, "save_saved", false, 0)
+}
+
+// SaveUnsaved: 머리 줄 저장 상태: 파일 이름이 없는 새 설계
+func (a_ ArchcanvasT) SaveUnsaved() string {
+	return a_.t.render(&areaArchcanvas, "save_unsaved", false, 0)
+}
+
+// StatusCopy: 허브 상태: 채팅 카드에서 연 사본
+func (a_ ArchcanvasT) StatusCopy(title string) string {
+	return a_.t.render(&areaArchcanvas, "status_copy", false, 0, "title", title)
+}
+
+// StatusNew: 허브 상태: 아직 저장하지 않은 새 설계
+func (a_ ArchcanvasT) StatusNew() string {
+	return a_.t.render(&areaArchcanvas, "status_new", false, 0)
+}
+
+// StatusPersonal: 허브 상태: 내 PC 의 개인 설계
+func (a_ ArchcanvasT) StatusPersonal(title string) string {
+	return a_.t.render(&areaArchcanvas, "status_personal", false, 0, "title", title)
+}
+
+// StatusRoom: 허브 상태: 방에 공유된 설계. title = 설계 제목, n = 지금 편집 중인 사람 수
+func (a_ ArchcanvasT) StatusRoom(title string, n int) string {
+	return a_.t.render(&areaArchcanvas, "status_room", false, n, "title", title, "n", strconv.Itoa(n))
+}
+
+// TinyBottleneck: 초소형 요약 병목 줄
+func (a_ ArchcanvasT) TinyBottleneck(label string, limit string, util int) string {
+	return a_.t.render(&areaArchcanvas, "tiny_bottleneck", false, 0, "label", label, "limit", limit, "util", strconv.Itoa(util))
+}
+
+// TinyEditHint: 초소형 요약 마지막 줄: 편집하려면 창을 키우라는 안내
+func (a_ ArchcanvasT) TinyEditHint() string {
+	return a_.t.render(&areaArchcanvas, "tiny_edit_hint", false, 0)
+}
+
+// TinyRun: 초소형 요약 마지막 줄 앞: 시간 실행 키
+func (a_ ArchcanvasT) TinyRun() string {
+	return a_.t.render(&areaArchcanvas, "tiny_run", false, 0)
+}
+
+// TinySummary: 초소형 요약 첫 줄. title = 설계 제목, p99 = 짧은 시간, err = 소수 한 자리 %
+func (a_ ArchcanvasT) TinySummary(title string, p99 string, err string) string {
+	return a_.t.render(&areaArchcanvas, "tiny_summary", false, 0, "title", title, "p99", p99, "err", err)
+}
+
+// TooSmallEdit: 초소형에서 편집 키를 눌렀을 때 토스트
+func (a_ ArchcanvasT) TooSmallEdit() string {
+	return a_.t.render(&areaArchcanvas, "too_small_edit", false, 0)
+}
+
+// ToolName: 도구 이름(허브·팔레트·탭)
+func (a_ ArchcanvasT) ToolName() string {
+	return a_.t.render(&areaArchcanvas, "tool_name", false, 0)
+}
+
+// TrafficHint: 빈 캔버스 안내 둘째 줄: client 가 트래픽의 출발점
+func (a_ ArchcanvasT) TrafficHint() string {
+	return a_.t.render(&areaArchcanvas, "traffic_hint", false, 0)
+}
+
+// TrafficSummary: 머리 줄 트래픽 요약. rps = 짧은 수(12.0k), read = 읽기 %, kb = 요청 KB
+func (a_ ArchcanvasT) TrafficSummary(rps string, read int, kb int) string {
+	return a_.t.render(&areaArchcanvas, "traffic_summary", false, 0, "rps", rps, "read", strconv.Itoa(read), "kb", strconv.Itoa(kb))
+}
+
+// Untitled: 제목이 빈 설계의 표시 이름
+func (a_ ArchcanvasT) Untitled() string {
+	return a_.t.render(&areaArchcanvas, "untitled", false, 0)
+}
+
+// ViewCanvas: 보기 이름: 캔버스
+func (a_ ArchcanvasT) ViewCanvas() string {
+	return a_.t.render(&areaArchcanvas, "view_canvas", false, 0)
+}
+
+// ViewList: 보기 이름: 목록
+func (a_ ArchcanvasT) ViewList() string {
+	return a_.t.render(&areaArchcanvas, "view_list", false, 0)
+}
+
+// ZoomOverlap: 이 확대 단계에서 노드가 겹칠 때 캔버스 안내
+func (a_ ArchcanvasT) ZoomOverlap() string {
+	return a_.t.render(&areaArchcanvas, "zoom_overlap", false, 0)
 }

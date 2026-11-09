@@ -297,6 +297,12 @@ internal/
   ui/tools/                            P0   (도구 허브·도구 표면 명령·팔레트 소스)
   ui/secretsui/                        P0   (동의·가림 입력 오버레이)
   (도구 패키지)                         P1 LeetCode·lazygit, P2 작업공간, P3 아키텍처 설계, P4 API 시험 — 이름과 행은 각 줄기가 더한다
+  archdoc/                             P3   (설계 문서 모델·JSON·검증·객체 키·되돌리기·자동 정리·점검·개인 저장소)
+  archsim/                             P3   (즉시 분석·시간 실행 시뮬레이터 — 순수 계산, ui 없음)
+  archsim/pricing/                     P3   (내장 가격표 `AsOf`)
+  archdraw/                            P3   (격자 그리기: 3단계 확대·직교 선 경로·적중 시험 — ui 없음)
+  archexport/                          P3   (텍스트 스냅샷·카드 미니 그림·내보내기)
+  ui/arch/                             P3   (도구 `arch`: 캔버스 인스턴스·모드별 배치·읽기 보기·docSink·편집)
 ```
 
 ### 2.2 의존 방향 (import 규칙)
@@ -336,6 +342,7 @@ ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate,
 - `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
 - 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
 - `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
+- **P3**: `archdoc ─▶ config(원자적 쓰기), ids, textwidth` · `archsim ─▶ archdoc, archsim/pricing` · `archsim/pricing ─▶ archdoc` · `archdraw ─▶ archdoc, textwidth` · `archexport ─▶ archdoc, archsim, archsim/pricing, archdraw, textwidth` — 이 넷은 `internal/ui/...`·`api`·`collab` 을 전이로도 import 하지 않는다(화면 없이 시험·내보내기에 쓰는 순수 계산). `ui/arch ─▶ ui, ui/layout, ui/palette, features, i18n, ids, theme, textwidth, humanize, termhost(Mode 타입), archdoc, archsim, archsim/pricing, archdraw, archexport` 이고, `cmd/masil/register_arch.go` 의 blank import 로만 연결된다.
 
 ### 2.3 실행 순서 (병렬 작성, 단계적 실행)
 
@@ -414,6 +421,7 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 | 파일 | 쓰는 쪽 | 형식 |
 |---|---|---|
 | `tools-state.json` | TUI(도구들) | 기기 전용 기억. 맨 위 객체의 키 = 도구 ID(`leet`·`workspace`·`arch`·`git`·`api`), 값 = 그 도구가 정한 JSON 섹션(`toolstate.Section/SetSection` — 도구는 자기 섹션만). 공통 칸 `last_open`(마지막 여는 방식 `auto\|pane\|exec\|window`)·`zoomed`(넓게 보기)는 `toolstate.Common`. 0600, 원자적 쓰기, 없거나 깨지면 빈 값. masil 서버로 보내지 않는다 |
+| `arch/` | TUI(`ui/arch`) | 개인 아키텍처 설계(P3). `arch/<이름>.json` = `archdoc.Encode` 결과 한 파일(이름은 `archdoc.SafeName` 으로 거른 것), 폴더 0700·파일 0600, 원자적 쓰기, 마지막 편집 1초 뒤 저장. 읽을 때 `Validate` — 깨진 파일은 읽기 전용으로 연다. masil 서버로 보내지 않는다(공유는 방 문서·카드로만) |
 | `secrets/` | TUI | 도구 자격증명 저장소(`internal/secrets`)의 대체 자리. 폴더 0700. `tools.json`(0600) = 사용자가 "파일에 저장"에 동의한 값, `index.json`(0600) = 저장한 값 **이름**만(값 없음, `Store.List`), `.gitignore` = `*` 한 줄. 파일 형식은 `secrets` 패키지 내부(다른 패키지가 직접 읽지 않음). OS 키체인에 저장된 값은 여기 없다 |
 
 ### 3.3 `config.toml`
@@ -2524,7 +2532,7 @@ const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 | core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
 | P1 LeetCode·lazygit | `leet.*`, `git.*` |
 | P2 작업공간 | `ws.*` |
-| P3 아키텍처 설계 | `arch.*` |
+| P3 `ui/arch` | `arch.new`, `arch.open`(둘 다 `Available` = `features.On("arch")`), `arch.share`, `arch.export`, `arch.versions`, `arch.send_card`, `arch.run`(이 다섯은 플래그 + 앞에 연 arch 인스턴스가 있을 때만; 그 인스턴스에 실행을 보낸다) — 모두 `Group: GroupCommand`, `Label func(*i18n.T)` |
 | P4 API 시험 | `api.*` |
 
 - 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).
