@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -98,6 +99,13 @@ func (t *Tool) vault(ctx *ui.Context) apitool.Vault {
 // scope is the live variable scope of the edited request.
 func (t *Tool) scope(ctx *ui.Context) *apitool.Scope {
 	s := &apitool.Scope{Env: t.env, Globals: t.globals, Vault: t.vault(ctx)}
+	if sd := t.curShared(); sd != nil {
+		s.DocID, s.Mine = sd.id, sd.mine
+		if sd.col != nil {
+			s.Collection, s.CollectionID = sd.col.Vars, sd.id
+		}
+		return s
+	}
 	if c := t.collection(t.colName); c != nil {
 		s.Collection, s.CollectionID = c.Vars, c.ID
 	}
@@ -114,6 +122,13 @@ func (t *Tool) snapshot(ctx *ui.Context) *apitool.Scope {
 	}
 	s.Globals = cloneVars(s.Globals)
 	s.Collection = cloneVars(s.Collection)
+	if s.Mine != nil {
+		m := apitool.Mine{Values: maps.Clone(s.Mine.Values), Hosts: map[string][]string{}}
+		for k, v := range s.Mine.Hosts {
+			m.Hosts[k] = slices.Clone(v)
+		}
+		s.Mine = &m
+	}
 	return s
 }
 
@@ -212,10 +227,8 @@ func (t *Tool) sent(ctx *ui.Context, key string, st *respState, vals map[string]
 
 // saveVars writes the environment and my globals.
 func (t *Tool) saveVars() {
-	if t.env != nil {
-		if err := t.local.SaveEnv(t.env); err != nil {
-			slog.Warn("api: save env", "err", err)
-		}
+	if err := t.saveEnv(); err != nil {
+		slog.Warn("api: save env", "err", err)
 	}
 	if err := t.local.SaveGlobals(t.globals); err != nil {
 		slog.Warn("api: save globals", "err", err)
@@ -309,9 +322,25 @@ func (t *Tool) allowHost(ctx *ui.Context, he *apitool.HostNotAllowedError) tea.C
 		}
 		return false
 	}
+	if sd := t.curShared(); sd != nil {
+		// a shared secret's hosts are mine (.mine.json), whatever layer declares it
+		if _, mk, ok := t.scope(ctx).SecretSlot(he.Var); ok {
+			hosts := sd.mine.Hosts[mk]
+			if !slices.Contains(hosts, he.Host) {
+				hosts = append(slices.Clone(hosts), he.Host)
+			}
+			sd.mine.MarkSecret(mk, hosts)
+			if err := t.local.SaveMine(sd.id, sd.mine); err != nil {
+				return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
+			}
+			t.applyMine(sd)
+			return t.send(ctx)
+		}
+		return nil
+	}
 	switch c := t.collection(t.colName); {
 	case t.env != nil && add(t.env.Vars):
-		if err := t.local.SaveEnv(t.env); err != nil {
+		if err := t.saveEnv(); err != nil {
 			return ui.Toast(ctx.T.Apitest.SaveFailed(describeErr(ctx, err)), ui.ToastError)
 		}
 	case c != nil && add(c.Vars):
@@ -494,7 +523,7 @@ func (t *Tool) declareSecret(ctx *ui.Context, name string, val secrets.Secret, r
 	var err error
 	if t.env != nil {
 		t.env.Vars = declare(t.env.Vars)
-		err = t.local.SaveEnv(t.env)
+		err = t.saveEnv()
 	} else {
 		t.globals = declare(t.globals)
 		err = t.local.SaveGlobals(t.globals)
@@ -569,6 +598,9 @@ func (t *Tool) saveRequest(ctx *ui.Context) tea.Cmd {
 		return nil
 	}
 	t.ed.store()
+	if t.curShared() != nil {
+		return t.syncShared(ctx) // a shared collection keeps no file: ctrl+s syncs now
+	}
 	a := ctx.T.Apitest
 	if t.colName != "" && t.collection(t.colName) != nil {
 		if changed, _ := t.local.Changed(t.colName); changed {

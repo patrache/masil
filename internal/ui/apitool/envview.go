@@ -90,6 +90,11 @@ func (t *Tool) slotOf(r envRow) string {
 	s := &apitool.Scope{Globals: t.globals}
 	if !r.global {
 		s = &apitool.Scope{Env: t.env}
+		if t.envShared {
+			if sd := t.curShared(); sd != nil {
+				s.DocID = sd.id
+			}
+		}
 	}
 	key, _, _ := s.SecretSlot(r.v.Name)
 	return key
@@ -100,7 +105,7 @@ func (t *Tool) saveRowVars(global bool) error {
 	if global || t.env == nil {
 		return t.local.SaveGlobals(t.globals)
 	}
-	return t.local.SaveEnv(t.env)
+	return t.saveEnv()
 }
 
 // openEnv opens the environments screen.
@@ -214,6 +219,26 @@ type shownCookie struct{ name, value string }
 
 // switchEnv picks the next (d 1) or previous environment; "none" is last.
 func (t *Tool) switchEnv(ctx *ui.Context, d int) tea.Cmd {
+	if sd := t.curShared(); sd != nil && sd.col != nil {
+		names := []string{}
+		for _, e := range sd.col.Envs {
+			names = append(names, e.Name)
+		}
+		names = append(names, "")
+		cur := ""
+		if t.env != nil {
+			cur = t.env.Name
+		}
+		i := slices.Index(names, cur)
+		t.sharedEnvs[sd.id] = names[(i+d+len(names))%len(names)]
+		if t.sharedEnvs[sd.id] == "" {
+			t.sharedEnvs[sd.id] = noEnv
+		}
+		t.envDirty = false
+		t.syncEnvMode()
+		t.envCur = 0
+		return t.loadMasks(ctx)
+	}
 	t.envs, _ = t.local.ListEnvs()
 	names := append(slices.Clone(t.envs), "")
 	cur := ""
@@ -504,7 +529,8 @@ func (s *envScreen) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.C
 	if msg.String() == "ctrl+c" {
 		return false, nil
 	}
-	return s.t.envKey(ctx, msg)
+	handled, cmd := s.t.envKey(ctx, msg)
+	return handled, s.t.afterEdit(ctx, cmd)
 }
 
 // View: storage line, picker, variables, the selected one's source and

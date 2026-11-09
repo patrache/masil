@@ -89,6 +89,17 @@ func (e *editor) load(r *apitool.Request) {
 	e.body = newTextArea(r.Body.Text)
 }
 
+// reload shows r again after a peer changed it, keeping where the focus is.
+func (e *editor) reload(r *apitool.Request) {
+	onURL := e.onURL
+	cur := [5]int{e.query.cur, e.headers.cur, e.asserts.cur, e.extracts.cur, e.form.cur}
+	e.load(r)
+	e.onURL = onURL
+	for i, tb := range []*KVTable{e.query, e.headers, e.asserts, e.extracts, e.form} {
+		tb.cur = min(cur[i], max(len(tb.rows)-1, 0))
+	}
+}
+
 // table is the KVTable of the shown tab (nil for body text and settings).
 func (e *editor) table() *KVTable {
 	switch e.tab {
@@ -209,6 +220,9 @@ func (e *editor) view(ctx *ui.Context, t *Tool, w, h int, focused bool) []string
 	if t.fileChanged && h > 2 {
 		text := textwidth.Truncate(ctx.T.Apitest.FileChanged()+" (R)", w, "…")
 		band = []string{style(ctx.Theme, func(s theme.Styles) lipgloss.Style { return s.Warning }, text)}
+	}
+	if lc := t.lastChangedLine(ctx); lc != "" && h > len(band)+2 {
+		band = append(band, dim(ctx.Theme, textwidth.Truncate(lc, w, "…")))
 	}
 	out := e.rows(ctx, t, w, h-len(band), focused)
 	if e.hasCur {

@@ -97,6 +97,8 @@ func registerOverlays() {
 // onDialog follows a closed dialog of this instance.
 func (t *Tool) onDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 	switch m.Kind {
+	case dkUpload, dkUploadHeld, dkHeld, dkLost, dkVersions, dkVersionPreview:
+		return t.afterEdit(ctx, t.sharedDialog(ctx, m))
 	case dkRunHosts:
 		return t.runHostsAnswer(ctx, m)
 	case dkEnvAdd, dkEnvValue, dkEnvHosts, dkEnvNew:

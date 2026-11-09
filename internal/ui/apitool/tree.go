@@ -55,7 +55,19 @@ func folderKey(col, id string) string { return col + "\x00" + id }
 // rows lists the visible rows.
 func (v *treeView) rows(ctx *ui.Context, t *Tool) []treeRow {
 	a := ctx.T.Apitest
-	out := []treeRow{{kind: rowGroup, text: a.TreeLocal()}}
+	var out []treeRow
+	for _, id := range t.docOrder {
+		sd := t.docs[id]
+		if sd == nil || sd.col == nil {
+			continue
+		}
+		key := sharedKey(id)
+		out = append(out, treeRow{kind: rowCollection, col: key, text: a.TreeShared(sd.title)})
+		if v.open[key] {
+			out = v.folder(t, out, sd.col, key, &sd.col.Root, 1)
+		}
+	}
+	out = append(out, treeRow{kind: rowGroup, text: a.TreeLocal()})
 	if !v.open[groupKey] {
 		return out
 	}
@@ -219,6 +231,16 @@ func urlPath(raw string) string {
 func (v *treeView) handleKey(ctx *ui.Context, t *Tool, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	rows := v.rows(ctx, t)
 	switch msg.String() {
+	case "v":
+		if v.cur < len(rows) {
+			if id, ok := docOfKey(rows[v.cur].col); ok {
+				return true, t.openVersions(ctx, id)
+			}
+		}
+		if sd := t.curShared(); sd != nil {
+			return true, t.openVersions(ctx, sd.id)
+		}
+		return false, nil
 	case "j", "down":
 		v.cur = min(v.cur+1, max(len(rows)-1, 0))
 	case "k", "up":

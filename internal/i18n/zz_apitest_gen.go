@@ -568,6 +568,22 @@ var areaApitest = area{
 				En: {Other: "Find "},
 			},
 		},
+		"held_field": {
+			desc:   "공유 전 확인 창: 걸린 칸(field = 칸 이름, 번역하지 않음)",
+			params: []Param{{Name: "field", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "칸: {field}"},
+				En: {Other: "Field: {field}"},
+			},
+		},
+		"held_title": {
+			desc: "공유로 나가기 전 비밀값을 찾았을 때의 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "올리기 전 확인"},
+				En: {Other: "Check before sharing"},
+			},
+		},
 		"help_close": {
 			desc: "도움말 창 맨 아래: 닫는 키",
 			max:  20,
@@ -913,6 +929,56 @@ var areaApitest = area{
 				En: {Other: "Stopped the redirect to {host} because of {{{var}}}"},
 			},
 		},
+		"reject_body_too_large": {
+			desc: "서버가 너무 큰 요청 본문 편집을 거절했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "본문이 너무 커서 공유되지 않았어요"},
+				En: {Other: "The body is too large to share"},
+			},
+		},
+		"reject_invalid_op": {
+			desc: "서버가 공유 컬렉션 편집을 모양이 틀렸다고 거절했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "서버가 이 편집을 받지 않았어요"},
+				En: {Other: "The server didn't accept this edit"},
+			},
+		},
+		"reject_limit_requests": {
+			desc: "공유 컬렉션의 요청이 1,000개를 넘어 거절됐을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청이 1,000개를 넘어 공유되지 않았어요"},
+				En: {Other: "Over 1,000 requests, not shared"},
+			},
+		},
+		"reject_locked": {
+			desc: "잠긴 공유 컬렉션을 고치려 했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "잠긴 컬렉션이라 고칠 수 없어요"},
+				En: {Other: "The collection is locked"},
+			},
+		},
+		"reject_other": {
+			desc:   "그 밖의 이유로 편집이 거절됐을 때의 토스트(code = 서버 코드, 번역하지 않음)",
+			params: []Param{{Name: "code", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "편집이 반영되지 않았어요 ({code})"},
+				En: {Other: "The edit wasn't applied ({code})"},
+			},
+		},
+		"reject_secret_value": {
+			desc: "비밀 변수에 값이 실려 서버가 거절했을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀 변수의 값은 공유되지 않아요"},
+				En: {Other: "A secret variable's value is never shared"},
+			},
+		},
+		"reject_too_large": {
+			desc: "공유 컬렉션 문서·필드가 너무 커서 거절됐을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션이 너무 커서 편집이 반영되지 않았어요"},
+				En: {Other: "The shared collection is too large for this edit"},
+			},
+		},
 		"report_close": {
 			desc: "보고 창 맨 아래: 닫는 키",
 			max:  20,
@@ -960,6 +1026,21 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "원문"},
 				En: {Other: "Raw"},
+			},
+		},
+		"restore_mine": {
+			desc: "본문이 덮어써졌을 때 창의 선택지: 내 내용을 새 편집으로 되살리기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 내용 복구"},
+				En: {Other: "Restore mine"},
+			},
+		},
+		"restored_mine": {
+			desc: "내 본문을 되살린 뒤 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "내 내용으로 되돌렸어요"},
+				En: {Other: "Restored your version"},
 			},
 		},
 		"run_bad_iterations": {
@@ -1270,6 +1351,21 @@ var areaApitest = area{
 				En: {Other: "TLS certificate check {state} · space toggle"},
 			},
 		},
+		"shared_kicked": {
+			desc:   "공유 컬렉션에서 내보내졌거나 문서가 지워져 닫았을 때의 토스트(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션을 더 볼 수 없어요 · {name}"},
+				En: {Other: "You can no longer see this shared collection · {name}"},
+			},
+		},
+		"shared_too_large": {
+			desc: "공유 컬렉션 한도(요청 1,000개 · 본문 64KB · 전체 2MB)를 넘어 동기화하지 않았을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 컬렉션 한도를 넘어 올리지 않았어요 (요청 1,000개 · 본문 64KB · 전체 2MB)"},
+				En: {Other: "Over the shared collection limits, not shared (1,000 requests · 64KB body · 2MB total)"},
+			},
+		},
 		"src_collection": {
 			desc: "변수 값 출처: 컬렉션 변수",
 			max:  10,
@@ -1434,12 +1530,58 @@ var areaApitest = area{
 				En: {Other: "My collections (local)"},
 			},
 		},
+		"tree_shared": {
+			desc:   "왼쪽 나무: 방에 올린 공유 컬렉션 줄(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} (공유)"},
+				En: {Other: "{name} (shared)"},
+			},
+		},
 		"undefined_var": {
 			desc:   "보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)",
 			params: []Param{{Name: "name", Type: "string"}},
 			text: map[Locale]Forms{
 				Ko: {Other: "{{{name}}} 값이 없어요 · e 환경에서 넣기"},
 				En: {Other: "{{{name}}} has no value · set it in e Environments"},
+			},
+		},
+		"upload_anyway": {
+			desc: "공유 전 확인 창의 선택지: 탐지를 무시하고 그대로 올리기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "그래도 올리기"},
+				En: {Other: "Share anyway"},
+			},
+		},
+		"upload_done": {
+			desc:   "공유 컬렉션을 만든 뒤 토스트(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올렸어요 · {name}"},
+				En: {Other: "Shared to the room · {name}"},
+			},
+		},
+		"upload_failed": {
+			desc:   "방에 올리기가 실패했을 때의 토스트(err = 오류 문장)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "올리지 못했어요 · {err}"},
+				En: {Other: "Couldn't share · {err}"},
+			},
+		},
+		"upload_no_space": {
+			desc: "올릴 방이 하나도 없을 때의 토스트",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방이 없어요"},
+				En: {Other: "No room to share to"},
+			},
+		},
+		"upload_pick": {
+			desc: "'방에 올리기' 창: 아래 목록에서 방을 고르라는 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "올릴 방을 고르세요"},
+				En: {Other: "Pick the room to share to"},
 			},
 		},
 		"upload_plaintext_note": {
@@ -1449,6 +1591,85 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "공유 컬렉션의 정의(URL·헤더 이름·비밀이 아닌 값·본문 예시)는 masil 서버에 평문으로 저장되고 방 멤버와 운영자가 볼 수 있어요"},
 				En: {Other: "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"},
+			},
+		},
+		"upload_title": {
+			desc: "'방에 올리기' 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 올리기"},
+				En: {Other: "Share to a room"},
+			},
+		},
+		"version_auto": {
+			desc: "자동으로 만든 버전의 만든 사람 칸",
+			max:  12,
+			text: map[Locale]Forms{
+				Ko: {Other: "자동"},
+				En: {Other: "auto"},
+			},
+		},
+		"version_preview": {
+			desc:   "버전 미리보기(no = 버전 번호, n = 요청 수)",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#{no} · 요청 {n}개"},
+				En: {Other: "#{no} · {n} requests"},
+			},
+		},
+		"version_restore": {
+			desc: "버전 미리보기 창의 선택지: 이 버전으로 되돌리기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 버전으로 되돌리기"},
+				En: {Other: "Restore this version"},
+			},
+		},
+		"version_restored": {
+			desc:   "되돌린 뒤 토스트(no = 새로 생긴 버전 번호)",
+			params: []Param{{Name: "no", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "되돌렸어요 · 새 버전 #{no}"},
+				En: {Other: "Restored · new version #{no}"},
+			},
+		},
+		"version_restored_row": {
+			desc:   "되돌리기로 생긴 버전 줄(from = 되돌린 버전 번호)",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "from", Type: "int"}, {Name: "when", Type: "string"}, {Name: "who", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#{no} · #{from} 로 되돌림 · {when} · {who}"},
+				En: {Other: "#{no} · restored #{from} · {when} · {who}"},
+			},
+		},
+		"version_row": {
+			desc:   "버전 목록 한 줄(no = 버전 번호, when = 시각, who = 만든 사람 또는 '자동')",
+			params: []Param{{Name: "no", Type: "int"}, {Name: "when", Type: "string"}, {Name: "who", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#{no} · {when} · {who}"},
+				En: {Other: "#{no} · {when} · {who}"},
+			},
+		},
+		"versions_empty": {
+			desc: "공유 컬렉션에 저장된 버전이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장된 버전이 없어요"},
+				En: {Other: "No saved versions"},
+			},
+		},
+		"versions_failed": {
+			desc:   "버전 목록·내용을 읽지 못했을 때의 토스트(err = 오류 문장)",
+			params: []Param{{Name: "err", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "버전을 읽지 못했어요 · {err}"},
+				En: {Other: "Couldn't read the versions · {err}"},
+			},
+		},
+		"versions_title": {
+			desc:   "공유 컬렉션 버전 창 제목(name = 컬렉션 이름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "버전 · {name}"},
+				En: {Other: "Versions · {name}"},
 			},
 		},
 	},
@@ -1814,6 +2035,16 @@ func (a_ ApitestT) FindPrompt() string {
 	return a_.t.render(&areaApitest, "find_prompt", false, 0)
 }
 
+// HeldField: 공유 전 확인 창: 걸린 칸(field = 칸 이름, 번역하지 않음)
+func (a_ ApitestT) HeldField(field string) string {
+	return a_.t.render(&areaApitest, "held_field", false, 0, "field", field)
+}
+
+// HeldTitle: 공유로 나가기 전 비밀값을 찾았을 때의 창 제목
+func (a_ ApitestT) HeldTitle() string {
+	return a_.t.render(&areaApitest, "held_title", false, 0)
+}
+
 // HelpClose: 도움말 창 맨 아래: 닫는 키
 func (a_ ApitestT) HelpClose() string {
 	return a_.t.render(&areaApitest, "help_close", false, 0)
@@ -2034,6 +2265,41 @@ func (a_ ApitestT) RedirectBlocked(varArg string, host string) string {
 	return a_.t.render(&areaApitest, "redirect_blocked", false, 0, "var", varArg, "host", host)
 }
 
+// RejectBodyTooLarge: 서버가 너무 큰 요청 본문 편집을 거절했을 때의 토스트
+func (a_ ApitestT) RejectBodyTooLarge() string {
+	return a_.t.render(&areaApitest, "reject_body_too_large", false, 0)
+}
+
+// RejectInvalidOp: 서버가 공유 컬렉션 편집을 모양이 틀렸다고 거절했을 때의 토스트
+func (a_ ApitestT) RejectInvalidOp() string {
+	return a_.t.render(&areaApitest, "reject_invalid_op", false, 0)
+}
+
+// RejectLimitRequests: 공유 컬렉션의 요청이 1,000개를 넘어 거절됐을 때의 토스트
+func (a_ ApitestT) RejectLimitRequests() string {
+	return a_.t.render(&areaApitest, "reject_limit_requests", false, 0)
+}
+
+// RejectLocked: 잠긴 공유 컬렉션을 고치려 했을 때의 토스트
+func (a_ ApitestT) RejectLocked() string {
+	return a_.t.render(&areaApitest, "reject_locked", false, 0)
+}
+
+// RejectOther: 그 밖의 이유로 편집이 거절됐을 때의 토스트(code = 서버 코드, 번역하지 않음)
+func (a_ ApitestT) RejectOther(code string) string {
+	return a_.t.render(&areaApitest, "reject_other", false, 0, "code", code)
+}
+
+// RejectSecretValue: 비밀 변수에 값이 실려 서버가 거절했을 때의 토스트
+func (a_ ApitestT) RejectSecretValue() string {
+	return a_.t.render(&areaApitest, "reject_secret_value", false, 0)
+}
+
+// RejectTooLarge: 공유 컬렉션 문서·필드가 너무 커서 거절됐을 때의 토스트
+func (a_ ApitestT) RejectTooLarge() string {
+	return a_.t.render(&areaApitest, "reject_too_large", false, 0)
+}
+
 // ReportClose: 보고 창 맨 아래: 닫는 키
 func (a_ ApitestT) ReportClose() string {
 	return a_.t.render(&areaApitest, "report_close", false, 0)
@@ -2062,6 +2328,16 @@ func (a_ ApitestT) RespHeaders(n int) string {
 // RespRaw: 응답 탭: 원문(상태 줄·헤더·본문 그대로)
 func (a_ ApitestT) RespRaw() string {
 	return a_.t.render(&areaApitest, "resp_raw", false, 0)
+}
+
+// RestoreMine: 본문이 덮어써졌을 때 창의 선택지: 내 내용을 새 편집으로 되살리기
+func (a_ ApitestT) RestoreMine() string {
+	return a_.t.render(&areaApitest, "restore_mine", false, 0)
+}
+
+// RestoredMine: 내 본문을 되살린 뒤 토스트
+func (a_ ApitestT) RestoredMine() string {
+	return a_.t.render(&areaApitest, "restored_mine", false, 0)
 }
 
 // RunBadIterations: 반복 횟수가 1~1000 밖일 때의 토스트
@@ -2259,6 +2535,16 @@ func (a_ ApitestT) SetTls(state string) string {
 	return a_.t.render(&areaApitest, "set_tls", false, 0, "state", state)
 }
 
+// SharedKicked: 공유 컬렉션에서 내보내졌거나 문서가 지워져 닫았을 때의 토스트(name = 컬렉션 이름)
+func (a_ ApitestT) SharedKicked(name string) string {
+	return a_.t.render(&areaApitest, "shared_kicked", false, 0, "name", name)
+}
+
+// SharedTooLarge: 공유 컬렉션 한도(요청 1,000개 · 본문 64KB · 전체 2MB)를 넘어 동기화하지 않았을 때의 토스트
+func (a_ ApitestT) SharedTooLarge() string {
+	return a_.t.render(&areaApitest, "shared_too_large", false, 0)
+}
+
 // SrcCollection: 변수 값 출처: 컬렉션 변수
 func (a_ ApitestT) SrcCollection() string {
 	return a_.t.render(&areaApitest, "src_collection", false, 0)
@@ -2364,12 +2650,92 @@ func (a_ ApitestT) TreeLocal() string {
 	return a_.t.render(&areaApitest, "tree_local", false, 0)
 }
 
+// TreeShared: 왼쪽 나무: 방에 올린 공유 컬렉션 줄(name = 컬렉션 이름)
+func (a_ ApitestT) TreeShared(name string) string {
+	return a_.t.render(&areaApitest, "tree_shared", false, 0, "name", name)
+}
+
 // UndefinedVar: 보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)
 func (a_ ApitestT) UndefinedVar(name string) string {
 	return a_.t.render(&areaApitest, "undefined_var", false, 0, "name", name)
 }
 
+// UploadAnyway: 공유 전 확인 창의 선택지: 탐지를 무시하고 그대로 올리기
+func (a_ ApitestT) UploadAnyway() string {
+	return a_.t.render(&areaApitest, "upload_anyway", false, 0)
+}
+
+// UploadDone: 공유 컬렉션을 만든 뒤 토스트(name = 컬렉션 이름)
+func (a_ ApitestT) UploadDone(name string) string {
+	return a_.t.render(&areaApitest, "upload_done", false, 0, "name", name)
+}
+
+// UploadFailed: 방에 올리기가 실패했을 때의 토스트(err = 오류 문장)
+func (a_ ApitestT) UploadFailed(err string) string {
+	return a_.t.render(&areaApitest, "upload_failed", false, 0, "err", err)
+}
+
+// UploadNoSpace: 올릴 방이 하나도 없을 때의 토스트
+func (a_ ApitestT) UploadNoSpace() string {
+	return a_.t.render(&areaApitest, "upload_no_space", false, 0)
+}
+
+// UploadPick: '방에 올리기' 창: 아래 목록에서 방을 고르라는 안내
+func (a_ ApitestT) UploadPick() string {
+	return a_.t.render(&areaApitest, "upload_pick", false, 0)
+}
+
 // UploadPlaintextNote: '방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)
 func (a_ ApitestT) UploadPlaintextNote() string {
 	return a_.t.render(&areaApitest, "upload_plaintext_note", false, 0)
+}
+
+// UploadTitle: '방에 올리기' 창 제목
+func (a_ ApitestT) UploadTitle() string {
+	return a_.t.render(&areaApitest, "upload_title", false, 0)
+}
+
+// VersionAuto: 자동으로 만든 버전의 만든 사람 칸
+func (a_ ApitestT) VersionAuto() string {
+	return a_.t.render(&areaApitest, "version_auto", false, 0)
+}
+
+// VersionPreview: 버전 미리보기(no = 버전 번호, n = 요청 수)
+func (a_ ApitestT) VersionPreview(no int, n int) string {
+	return a_.t.render(&areaApitest, "version_preview", false, 0, "no", strconv.Itoa(no), "n", strconv.Itoa(n))
+}
+
+// VersionRestore: 버전 미리보기 창의 선택지: 이 버전으로 되돌리기
+func (a_ ApitestT) VersionRestore() string {
+	return a_.t.render(&areaApitest, "version_restore", false, 0)
+}
+
+// VersionRestored: 되돌린 뒤 토스트(no = 새로 생긴 버전 번호)
+func (a_ ApitestT) VersionRestored(no int) string {
+	return a_.t.render(&areaApitest, "version_restored", false, 0, "no", strconv.Itoa(no))
+}
+
+// VersionRestoredRow: 되돌리기로 생긴 버전 줄(from = 되돌린 버전 번호)
+func (a_ ApitestT) VersionRestoredRow(no int, from int, when string, who string) string {
+	return a_.t.render(&areaApitest, "version_restored_row", false, 0, "no", strconv.Itoa(no), "from", strconv.Itoa(from), "when", when, "who", who)
+}
+
+// VersionRow: 버전 목록 한 줄(no = 버전 번호, when = 시각, who = 만든 사람 또는 '자동')
+func (a_ ApitestT) VersionRow(no int, when string, who string) string {
+	return a_.t.render(&areaApitest, "version_row", false, 0, "no", strconv.Itoa(no), "when", when, "who", who)
+}
+
+// VersionsEmpty: 공유 컬렉션에 저장된 버전이 없을 때
+func (a_ ApitestT) VersionsEmpty() string {
+	return a_.t.render(&areaApitest, "versions_empty", false, 0)
+}
+
+// VersionsFailed: 버전 목록·내용을 읽지 못했을 때의 토스트(err = 오류 문장)
+func (a_ ApitestT) VersionsFailed(err string) string {
+	return a_.t.render(&areaApitest, "versions_failed", false, 0, "err", err)
+}
+
+// VersionsTitle: 공유 컬렉션 버전 창 제목(name = 컬렉션 이름)
+func (a_ ApitestT) VersionsTitle(name string) string {
+	return a_.t.render(&areaApitest, "versions_title", false, 0, "name", name)
 }

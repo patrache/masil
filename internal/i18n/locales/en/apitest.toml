@@ -217,6 +217,12 @@ other = "No '{q}'"
 [find_prompt]
 other = "Find "
 
+[held_field]
+other = "Field: {field}"
+
+[held_title]
+other = "Check before sharing"
+
 [help_close]
 other = "esc close"
 
@@ -350,6 +356,27 @@ other = "Request to my PC or network"
 [redirect_blocked]
 other = "Stopped the redirect to {host} because of {{{var}}}"
 
+[reject_body_too_large]
+other = "The body is too large to share"
+
+[reject_invalid_op]
+other = "The server didn't accept this edit"
+
+[reject_limit_requests]
+other = "Over 1,000 requests, not shared"
+
+[reject_locked]
+other = "The collection is locked"
+
+[reject_other]
+other = "The edit wasn't applied ({code})"
+
+[reject_secret_value]
+other = "A secret variable's value is never shared"
+
+[reject_too_large]
+other = "The shared collection is too large for this edit"
+
 [report_close]
 other = "esc close"
 
@@ -367,6 +394,12 @@ other = "Headers {n}"
 
 [resp_raw]
 other = "Raw"
+
+[restore_mine]
+other = "Restore mine"
+
+[restored_mine]
+other = "Restored your version"
 
 [run_bad_iterations]
 other = "Iterations are 1 to 1000"
@@ -486,6 +519,12 @@ other = "Timeout {ms}ms · ⏎ change"
 [set_tls]
 other = "TLS certificate check {state} · space toggle"
 
+[shared_kicked]
+other = "You can no longer see this shared collection · {name}"
+
+[shared_too_large]
+other = "Over the shared collection limits, not shared (1,000 requests · 64KB body · 2MB total)"
+
 [src_collection]
 other = "collection"
 
@@ -549,8 +588,56 @@ other = "History"
 [tree_local]
 other = "My collections (local)"
 
+[tree_shared]
+other = "{name} (shared)"
+
 [undefined_var]
 other = "{{{name}}} has no value · set it in e Environments"
 
+[upload_anyway]
+other = "Share anyway"
+
+[upload_done]
+other = "Shared to the room · {name}"
+
+[upload_failed]
+other = "Couldn't share · {err}"
+
+[upload_no_space]
+other = "No room to share to"
+
+[upload_pick]
+other = "Pick the room to share to"
+
 [upload_plaintext_note]
 other = "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"
+
+[upload_title]
+other = "Share to a room"
+
+[version_auto]
+other = "auto"
+
+[version_preview]
+other = "#{no} · {n} requests"
+
+[version_restore]
+other = "Restore this version"
+
+[version_restored]
+other = "Restored · new version #{no}"
+
+[version_restored_row]
+other = "#{no} · restored #{from} · {when} · {who}"
+
+[version_row]
+other = "#{no} · {when} · {who}"
+
+[versions_empty]
+other = "No saved versions"
+
+[versions_failed]
+other = "Couldn't read the versions · {err}"
+
+[versions_title]
+other = "Versions · {name}"

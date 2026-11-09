@@ -35,6 +35,7 @@ const (
 	jobSend jobKind = iota + 1
 	jobRun
 	jobFile
+	jobShare // shared collections: upload, versions (P4 Task 18)
 )
 
 // jobTickMsg asks tool t to look at job id.

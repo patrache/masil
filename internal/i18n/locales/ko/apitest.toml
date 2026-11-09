@@ -343,6 +343,16 @@ desc = "응답 본문 찾기 칸 앞 글자(/ 를 눌렀을 때)"
 max = 8
 other = "찾기 "
 
+[held_field]
+desc = "공유 전 확인 창: 걸린 칸(field = 칸 이름, 번역하지 않음)"
+params = { field = "string" }
+other = "칸: {field}"
+
+[held_title]
+desc = "공유로 나가기 전 비밀값을 찾았을 때의 창 제목"
+max = 30
+other = "올리기 전 확인"
+
 [help_close]
 desc = "도움말 창 맨 아래: 닫는 키"
 max = 20
@@ -556,6 +566,35 @@ desc = "비밀 변수가 허용 목록 밖 호스트로 가지 않게 리다이�
 params = { var = "string", host = "string" }
 other = "{{{var}}} 때문에 {host} 로의 리다이렉트를 멈췄어요"
 
+[reject_body_too_large]
+desc = "서버가 너무 큰 요청 본문 편집을 거절했을 때의 토스트"
+other = "본문이 너무 커서 공유되지 않았어요"
+
+[reject_invalid_op]
+desc = "서버가 공유 컬렉션 편집을 모양이 틀렸다고 거절했을 때의 토스트"
+other = "서버가 이 편집을 받지 않았어요"
+
+[reject_limit_requests]
+desc = "공유 컬렉션의 요청이 1,000개를 넘어 거절됐을 때의 토스트"
+other = "요청이 1,000개를 넘어 공유되지 않았어요"
+
+[reject_locked]
+desc = "잠긴 공유 컬렉션을 고치려 했을 때의 토스트"
+other = "잠긴 컬렉션이라 고칠 수 없어요"
+
+[reject_other]
+desc = "그 밖의 이유로 편집이 거절됐을 때의 토스트(code = 서버 코드, 번역하지 않음)"
+params = { code = "string" }
+other = "편집이 반영되지 않았어요 ({code})"
+
+[reject_secret_value]
+desc = "비밀 변수에 값이 실려 서버가 거절했을 때의 토스트"
+other = "비밀 변수의 값은 공유되지 않아요"
+
+[reject_too_large]
+desc = "공유 컬렉션 문서·필드가 너무 커서 거절됐을 때의 토스트"
+other = "공유 컬렉션이 너무 커서 편집이 반영되지 않았어요"
+
 [report_close]
 desc = "보고 창 맨 아래: 닫는 키"
 max = 20
@@ -586,6 +625,15 @@ other = "헤더 {n}"
 desc = "응답 탭: 원문(상태 줄·헤더·본문 그대로)"
 max = 8
 other = "원문"
+
+[restore_mine]
+desc = "본문이 덮어써졌을 때 창의 선택지: 내 내용을 새 편집으로 되살리기"
+max = 30
+other = "내 내용 복구"
+
+[restored_mine]
+desc = "내 본문을 되살린 뒤 토스트"
+other = "내 내용으로 되돌렸어요"
 
 [run_bad_iterations]
 desc = "반복 횟수가 1~1000 밖일 때의 토스트"
@@ -778,6 +826,15 @@ desc = "요청 설정 줄: TLS 인증서 검사(state = on/off 문구)"
 params = { state = "string" }
 other = "TLS 인증서 검사 {state} · space 바꾸기"
 
+[shared_kicked]
+desc = "공유 컬렉션에서 내보내졌거나 문서가 지워져 닫았을 때의 토스트(name = 컬렉션 이름)"
+params = { name = "string" }
+other = "공유 컬렉션을 더 볼 수 없어요 · {name}"
+
+[shared_too_large]
+desc = "공유 컬렉션 한도(요청 1,000개 · 본문 64KB · 전체 2MB)를 넘어 동기화하지 않았을 때의 토스트"
+other = "공유 컬렉션 한도를 넘어 올리지 않았어요 (요청 1,000개 · 본문 64KB · 전체 2MB)"
+
 [src_collection]
 desc = "변수 값 출처: 컬렉션 변수"
 max = 10
@@ -883,13 +940,90 @@ desc = "나무의 개인 컬렉션 묶음 머리"
 max = 22
 other = "내 컬렉션 (로컬)"
 
+[tree_shared]
+desc = "왼쪽 나무: 방에 올린 공유 컬렉션 줄(name = 컬렉션 이름)"
+params = { name = "string" }
+other = "{name} (공유)"
+
 [undefined_var]
 desc = "보내기 전 값이 없는 변수를 만났을 때의 토스트(name = 변수 이름, 앞뒤 {{ }} 가 붙음)"
 params = { name = "string" }
 other = "{{{name}}} 값이 없어요 · e 환경에서 넣기"
+
+[upload_anyway]
+desc = "공유 전 확인 창의 선택지: 탐지를 무시하고 그대로 올리기"
+max = 30
+other = "그래도 올리기"
+
+[upload_done]
+desc = "공유 컬렉션을 만든 뒤 토스트(name = 컬렉션 이름)"
+params = { name = "string" }
+other = "방에 올렸어요 · {name}"
+
+[upload_failed]
+desc = "방에 올리기가 실패했을 때의 토스트(err = 오류 문장)"
+params = { err = "string" }
+other = "올리지 못했어요 · {err}"
+
+[upload_no_space]
+desc = "올릴 방이 하나도 없을 때의 토스트"
+other = "올릴 방이 없어요"
+
+[upload_pick]
+desc = "'방에 올리기' 창: 아래 목록에서 방을 고르라는 안내"
+other = "올릴 방을 고르세요"
 
 [upload_plaintext_note]
 desc = "'방에 올리기' 확인 창의 개인정보 안내(공유 정의는 서버에 평문, 줄여 쓰지 않음)"
 no_truncate = true
 legal = true
 other = "공유 컬렉션의 정의(URL·헤더 이름·비밀이 아닌 값·본문 예시)는 masil 서버에 평문으로 저장되고 방 멤버와 운영자가 볼 수 있어요"
+
+[upload_title]
+desc = "'방에 올리기' 창 제목"
+max = 30
+other = "방에 올리기"
+
+[version_auto]
+desc = "자동으로 만든 버전의 만든 사람 칸"
+max = 12
+other = "자동"
+
+[version_preview]
+desc = "버전 미리보기(no = 버전 번호, n = 요청 수)"
+params = { no = "int", n = "int" }
+other = "#{no} · 요청 {n}개"
+
+[version_restore]
+desc = "버전 미리보기 창의 선택지: 이 버전으로 되돌리기"
+max = 30
+other = "이 버전으로 되돌리기"
+
+[version_restored]
+desc = "되돌린 뒤 토스트(no = 새로 생긴 버전 번호)"
+params = { no = "int" }
+other = "되돌렸어요 · 새 버전 #{no}"
+
+[version_restored_row]
+desc = "되돌리기로 생긴 버전 줄(from = 되돌린 버전 번호)"
+params = { no = "int", from = "int", when = "string", who = "string" }
+other = "#{no} · #{from} 로 되돌림 · {when} · {who}"
+
+[version_row]
+desc = "버전 목록 한 줄(no = 버전 번호, when = 시각, who = 만든 사람 또는 '자동')"
+params = { no = "int", when = "string", who = "string" }
+other = "#{no} · {when} · {who}"
+
+[versions_empty]
+desc = "공유 컬렉션에 저장된 버전이 없을 때"
+other = "저장된 버전이 없어요"
+
+[versions_failed]
+desc = "버전 목록·내용을 읽지 못했을 때의 토스트(err = 오류 문장)"
+params = { err = "string" }
+other = "버전을 읽지 못했어요 · {err}"
+
+[versions_title]
+desc = "공유 컬렉션 버전 창 제목(name = 컬렉션 이름)"
+params = { name = "string" }
+other = "버전 · {name}"

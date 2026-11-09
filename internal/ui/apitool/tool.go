@@ -13,6 +13,7 @@ import (
 	bkey "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/apitool"
 	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/textwidth"
@@ -117,7 +118,20 @@ type Tool struct {
 
 	run        *runState       // the last runner run
 	pendingRun *pendingRun     // a shared run waiting for its host list answer
-	shared     map[string]bool // collection name -> a shared collection (P4 Task 18)
+	shared     map[string]bool // collection key -> a shared collection (P4 Task 18)
+
+	// shared collections (P4 Task 18, sharedview.go)
+	docs        map[string]*sharedDoc // doc id -> open shared collection
+	docOrder    []string              // the tree order of docs
+	envShared   bool                  // env is a copy of the shown shared collection's environment
+	envDirty    bool                  // that copy changed and is not synced yet
+	personalEnv string                // the personal environment to go back to
+	sharedEnvs  map[string]string     // doc id -> the chosen shared environment name
+	spaces      []string              // the room ids of the open upload question
+	versions    []api.DocVersion      // the versions question's list (newest first)
+	verDoc      string                // whose versions
+	lostQ       []lostItem            // overwritten bodies waiting for the restore question
+	upPlan      *uploadPlan           // the upload waiting for the held question
 }
 
 var (
@@ -150,6 +164,9 @@ func New(ctx *ui.Context, r ui.Route) ui.Component {
 		foreign:   map[string]foreignInfo{},
 		privateOK: map[string]bool{},
 		shared:    map[string]bool{},
+
+		docs:       map[string]*sharedDoc{},
+		sharedEnvs: map[string]string{},
 	}
 	cfg := apiConfig{History: true}
 	if ctx.Config != nil {
@@ -188,6 +205,7 @@ func New(ctx *ui.Context, r ui.Route) ui.Component {
 	}
 	t.selectEnv(ctx, st.Env)
 	t.openFirst(col, req)
+	t.openSharedAtStart(ctx, r)
 	t.tree.follow(ctx, t)
 	return t
 }
@@ -212,6 +230,12 @@ func (t *Tool) reload(ctx *ui.Context) {
 // collection returns the loaded collection name (loading it on first use).
 func (t *Tool) collection(name string) *apitool.Collection {
 	if name == "" {
+		return nil
+	}
+	if id, ok := docOfKey(name); ok {
+		if sd := t.docs[id]; sd != nil {
+			return sd.col
+		}
 		return nil
 	}
 	if c, ok := t.cols[name]; ok {
@@ -261,6 +285,7 @@ func (t *Tool) selectRequest(col, id string) {
 	t.colName, t.req = col, r
 	t.ed.load(r)
 	t.rv.show(t.respKey())
+	t.syncEnvMode()
 }
 
 // selectEnv picks the personal environment name ("" or unknown = none).
@@ -293,6 +318,13 @@ func (t *Tool) save(ctx *ui.Context) {
 	}
 	if t.env != nil {
 		st.Env = t.env.Name
+	}
+	if t.curShared() != nil {
+		// a shared collection is opened by its route: what is kept for next
+		// time stays the personal collection and environment
+		var prev savedState
+		ctx.ToolState.Section(ui.ToolAPI, &prev)
+		st.Collection, st.Request, st.Env = prev.Collection, prev.Request, t.personalEnv
 	}
 	if err := ctx.ToolState.SetSection(ui.ToolAPI, st); err != nil {
 		slog.Warn("api: save tool state", "err", err)
@@ -413,6 +445,26 @@ func (t *Tool) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			t.fileChanged = m.changed
 		}
 		return nil
+	case collabEventMsg:
+		if m.t == t {
+			return t.onCollabEvent(ctx, m)
+		}
+		return nil
+	case copyTickMsg:
+		if m.t == t {
+			return t.writeCopy(m.doc)
+		}
+		return nil
+	case syncNowMsg:
+		if m.t == t {
+			return t.syncShared(ctx)
+		}
+		return nil
+	case sharedJobMsg:
+		if m.t == t {
+			return m.fn(ctx)
+		}
+		return nil
 	}
 	return t.update(ctx, msg)
 }
@@ -420,6 +472,9 @@ func (t *Tool) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 // onRoute follows a reused instance's new query (a palette command, a card).
 func (t *Tool) onRoute(ctx *ui.Context, r ui.Route) tea.Cmd {
 	t.route = r
+	if d := r.Query[queryDoc]; d != "" {
+		t.openDoc(ctx, d, r.Query[queryReq])
+	}
 	if c := r.Query[queryCol]; c != "" {
 		t.reload(ctx)
 		t.openFirst(c, r.Query[queryReq])
@@ -448,7 +503,7 @@ func (t *Tool) mode(ctx *ui.Context) viewMode {
 func (t *Tool) Title(ctx *ui.Context) (string, ui.Badge) {
 	parts := []string{ctx.T.Apitest.ToolName()}
 	if t.colName != "" {
-		parts = append(parts, textwidth.Sanitize(t.colName))
+		parts = append(parts, textwidth.Sanitize(t.colLabel()))
 	}
 	if t.env != nil {
 		parts = append(parts, textwidth.Sanitize(t.env.Name))
@@ -470,6 +525,7 @@ func (t *Tool) CloseTool(*ui.Context) tea.Cmd {
 		j.cancel()
 	}
 	t.rv.release()
+	t.closeDocs()
 	return nil
 }
 
@@ -497,8 +553,17 @@ func (t *Tool) Completing() bool { return t.ed.capturing() || t.rv.find != nil }
 // Cursor implements ui.Cursorer.
 func (t *Tool) Cursor() *tea.Cursor { return t.cursor }
 
-// HandleKey implements ui.KeyHandler.
+// HandleKey implements ui.KeyHandler. In a shared collection a handled key
+// that ends an edit syncs the edited request (P4 Task 18).
 func (t *Tool) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
+	handled, cmd := t.handleKey(ctx, msg)
+	if handled {
+		cmd = t.afterEdit(ctx, cmd)
+	}
+	return handled, cmd
+}
+
+func (t *Tool) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	mode := t.mode(ctx)
 	if mode == vmNone {
 		return false, nil
@@ -612,6 +677,8 @@ func (t *Tool) globalKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		return true, t.openImport(ctx)
 	case "x":
 		return true, t.openExport(ctx)
+	case "U":
+		return true, t.openUpload(ctx)
 	case "esc":
 		if t.running(jobSend) {
 			t.cancelJob(jobSend)
