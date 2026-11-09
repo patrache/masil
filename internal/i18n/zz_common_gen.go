@@ -10,6 +10,7 @@ var areaCommon = area{
 	name: "common",
 	keys: map[string]*entry{
 		"lang_name_en": {
+			desc: "언어 목록의 영어 이름 — 모든 언어에서 그 언어 자신의 이름",
 			text: map[Locale]Forms{
 				Ko:     {Other: "English"},
 				En:     {Other: "English"},
@@ -17,6 +18,7 @@ var areaCommon = area{
 			},
 		},
 		"lang_name_ko": {
+			desc: "언어 목록의 한국어 이름 — 모든 언어에서 그 언어 자신의 이름",
 			text: map[Locale]Forms{
 				Ko:     {Other: "한국어"},
 				En:     {Other: "한국어"},
@@ -24,6 +26,7 @@ var areaCommon = area{
 			},
 		},
 		"lang_name_zh": {
+			desc: "언어 목록의 간체 중국어 이름 — 모든 언어에서 그 언어 자신의 이름",
 			text: map[Locale]Forms{
 				Ko:     {Other: "简体中文"},
 				En:     {Other: "简体中文"},

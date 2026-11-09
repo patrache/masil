@@ -120,17 +120,28 @@ func emitArea(a *Area) ([]byte, error) {
 	return gofmt("zz_"+a.Name+"_gen.go", b.Bytes())
 }
 
-// emitMeta writes the entry fields the runtime needs besides the text.
+// emitMeta writes the entry metadata: params, plural, budget and flags
+// (served by Entries for review sheets and width tests).
 func emitMeta(b *bytes.Buffer, k *Key) {
+	fmt.Fprintf(b, "\t\t\tdesc: %s,\n", strconv.Quote(strings.Join(strings.Fields(k.Desc), " ")))
 	if len(k.Params) > 0 {
 		var ps []string
 		for _, p := range k.Params {
-			ps = append(ps, strconv.Quote(p.Name))
+			ps = append(ps, fmt.Sprintf("{Name: %q, Type: %q}", p.Name, p.Type))
 		}
-		fmt.Fprintf(b, "\t\t\tparams: []string{%s},\n", strings.Join(ps, ", "))
+		fmt.Fprintf(b, "\t\t\tparams: []Param{%s},\n", strings.Join(ps, ", "))
 	}
 	if k.Count != "" {
 		fmt.Fprintf(b, "\t\t\tcount: %q,\n", k.Count)
+	}
+	if k.Max > 0 {
+		fmt.Fprintf(b, "\t\t\tmax: %d,\n", k.Max)
+	}
+	if k.NoTruncate {
+		b.WriteString("\t\t\tnoTruncate: true,\n")
+	}
+	if k.Legal {
+		b.WriteString("\t\t\tlegal: true,\n")
 	}
 }
 

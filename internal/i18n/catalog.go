@@ -8,11 +8,17 @@ import (
 // Forms is one language's text for a key: One (en singular), Other, Short.
 type Forms struct{ One, Other, Short string }
 
+// Param is a declared message argument; Type is "int" or "string".
+type Param struct{ Name, Type string }
+
 // entry is one key of an area table (generated).
 type entry struct {
-	params []string // declaration order
-	count  string   // plural-selecting int param, "" = none
-	text   map[Locale]Forms
+	desc              string
+	params            []Param // declaration order
+	count             string  // plural-selecting int param, "" = none
+	max               int     // width budget in cells, 0 = none
+	noTruncate, legal bool
+	text              map[Locale]Forms
 }
 
 // area is one generated area table.
@@ -79,6 +85,10 @@ func (t *T) render(a *area, key string, short bool, n int, args ...string) strin
 	if e == nil {
 		return a.name + "." + key
 	}
+	return t.renderEntry(e, short, n, args)
+}
+
+func (t *T) renderEntry(e *entry, short bool, n int, args []string) string {
 	l, f := e.pick(t.locale)
 	s := f.Other
 	switch {
@@ -86,6 +96,9 @@ func (t *T) render(a *area, key string, short bool, n int, args ...string) strin
 		s = f.Short
 	case !short && e.count != "" && l == En && n == 1 && f.One != "":
 		s = f.One
+	}
+	if t.locale == Pseudo {
+		return pseudo(s, args)
 	}
 	return fill(s, args)
 }

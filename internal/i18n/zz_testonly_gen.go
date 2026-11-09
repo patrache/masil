@@ -12,13 +12,15 @@ var areaTestonly = area{
 	name: "testonly",
 	keys: map[string]*entry{
 		"en_only": {
+			desc: "시험용: zh-Hans 누락 → en 대체",
 			text: map[Locale]Forms{
 				Ko: {Other: "영어에도 있음"},
 				En: {Other: "Only in English"},
 			},
 		},
 		"greet": {
-			params: []string{"name"},
+			desc:   "시험용: 사람 이름 + 님(D8)",
+			params: []Param{{Name: "name", Type: "string"}},
 			text: map[Locale]Forms{
 				Ko:     {Other: "{name}님, 안녕하세요"},
 				En:     {Other: "Hi, {name}"},
@@ -26,13 +28,16 @@ var areaTestonly = area{
 			},
 		},
 		"ko_only": {
+			desc: "시험용: en·zh-Hans 누락 → ko 대체",
 			text: map[Locale]Forms{
 				Ko: {Other: "한국어만"},
 			},
 		},
 		"members": {
-			params: []string{"n"},
+			desc:   "시험용: 복수형과 짧은 형",
+			params: []Param{{Name: "n", Type: "int"}},
 			count:  "n",
+			max:    14,
 			text: map[Locale]Forms{
 				Ko:     {Other: "멤버 {n}명", Short: "{n}명"},
 				En:     {One: "{n} member", Other: "{n} members", Short: "{n}"},
@@ -40,7 +45,8 @@ var areaTestonly = area{
 			},
 		},
 		"move_to": {
-			params: []string{"place"},
+			desc:   "시험용: 조사 표시 으로/로",
+			params: []Param{{Name: "place", Type: "string"}},
 			text: map[Locale]Forms{
 				Ko:     {Other: "{place|으로/로} 옮겼어요"},
 				En:     {Other: "Moved to {place}"},
