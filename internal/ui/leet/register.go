@@ -11,6 +11,7 @@ package leet
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,12 +143,14 @@ var (
 	leetcodeURL string // "" = leetcode.Origin
 )
 
-// newClient is a LeetCode client signed in with cr (nil = signed out).
+// newClient is a LeetCode client signed in with cr (nil = signed out). Its
+// debug lines go to masil's log (slog.Default — method, path, status, length;
+// the Cookie and x-csrftoken values are "(redacted)").
 func newClient(cr *leetcode.Credentials) *leetcode.Client {
 	clientMu.Lock()
 	base := leetcodeURL
 	clientMu.Unlock()
-	return leetcode.New(leetcode.Options{BaseURL: base, Creds: cr})
+	return leetcode.New(leetcode.Options{BaseURL: base, Creds: cr, Log: slog.Default()})
 }
 
 // fetcher reads problems through the local cache (A10.1 JA27).

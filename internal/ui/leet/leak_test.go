@@ -109,8 +109,13 @@ func sweepAll(t *testing.T, e *env, h *uitest.Harness, logBuf *bytes.Buffer, sw 
 	noValueUnder(t, paths.Dir, paths.SecretsDir, values...)
 	noValueUnder(t, paths.Cache, "", values...)
 	noValueUnder(t, e.home, "", values...)
-	// (c) the slog buffer.
-	noValueIn(t, "slog", logBuf.String(), values...)
+	// (c) the slog buffer — which did get the LeetCode client's debug lines
+	// (the requests that carried the cookies), with the headers redacted.
+	logs := logBuf.String()
+	if !strings.Contains(logs, "leetcode request") || !strings.Contains(logs, "cookie=(redacted)") {
+		t.Fatalf("the slog buffer has no LeetCode request line with a redacted cookie (the check would be vacuous):\n%s", logs)
+	}
+	noValueIn(t, "slog", logs, values...)
 	// (d) the screen after every step, and this package's goldens.
 	sw.shot(h)
 	for i, s := range sw.screens {
