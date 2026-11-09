@@ -2,6 +2,7 @@ package arch
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -52,6 +53,11 @@ func commentDoc(t *testing.T) (*uitest.Harness, *canvasModel, *sharedSink, *coll
 	hub := collabtest.New(t)
 	sharedFixture(t, hub, api.Doc{SpaceID: fixtures.SpaceNova, Title: fixtureName})
 	h, c, sh := docHarness(t, hub)
+	// the room's members (the @ suggestions)
+	h.API.JSON("GET /v1/spaces/{space_id}/members", http.StatusOK, map[string]any{"items": []api.SpaceMember{
+		{User: api.UserSummary{ID: fixtures.UserHana, Handle: "hana", DisplayName: "하나"}, Role: api.RoleMember},
+		{User: api.UserSummary{ID: fixtures.UserMinji, Handle: "minji", DisplayName: "민지"}, Role: api.RoleMember},
+	}, "next_cursor": nil})
 	waitUntil(t, h, "the comments", func() bool { return c.cmt.loaded })
 	return h, c, sh, hub
 }
@@ -315,5 +321,42 @@ func TestCommentsOnPersonalDesign(t *testing.T) {
 	}
 	if !shown(h.Screen(), h.Context().T.Archcanvas.CommentsPersonal()) {
 		t.Errorf("no notice:\n%s", h.Screen())
+	}
+}
+
+// TestMentionsRoomMembersOnly: @ suggests the room's members only — every
+// page of them — and nobody until they load (a failed list is asked again
+// the next time the comments open).
+func TestMentionsRoomMembersOnly(t *testing.T) {
+	h, c, _, _ := commentDoc(t)
+	h.API.Error("GET /v1/spaces/{space_id}/members", http.StatusInternalServerError, "internal")
+	h.Press("C")
+	h.Type("@ha")
+	if len(c.cmt.sugg) != 0 {
+		t.Fatalf("suggestions before the members loaded: %+v", c.cmt.sugg)
+	}
+	h.Press("esc", "esc")
+
+	member := func(id, handle string) api.SpaceMember {
+		return api.SpaceMember{User: api.UserSummary{ID: id, Handle: handle}, Role: api.RoleMember}
+	}
+	h.API.Handle("GET /v1/spaces/{space_id}/members", func(w http.ResponseWriter, r *http.Request) {
+		page := map[string]any{"items": []api.SpaceMember{member(fixtures.UserMinji, "minji")}, "next_cursor": "p2"}
+		if r.URL.Query().Get("cursor") == "p2" {
+			page = map[string]any{"items": []api.SpaceMember{member(fixtures.UserHana, "hana")}, "next_cursor": nil}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(page)
+	})
+	h.Press("C")
+	waitUntil(t, h, "the members", func() bool { return len(c.cmt.members) == 2 })
+	h.Type("@ha")
+	if len(c.cmt.sugg) != 1 || c.cmt.sugg[0].Handle != "hana" {
+		t.Errorf("@ha (second page) = %+v", c.cmt.sugg)
+	}
+	h.Press("backspace", "backspace")
+	h.Type("ju") // 준호 is in the store but not a member
+	if len(c.cmt.sugg) != 0 {
+		t.Errorf("@ju suggests a non-member: %+v", c.cmt.sugg)
 	}
 }

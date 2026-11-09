@@ -138,6 +138,7 @@ type (
 	membersLoadedMsg struct {
 		instance string
 		members  []api.UserSummary
+		err      error
 	}
 	// openCommentsMsg opens the comments of instance (a mention alert for a
 	// document whose canvas is already open).
@@ -172,6 +173,10 @@ func (m *canvasModel) commentMsg(ctx *ui.Context, msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 	case membersLoadedMsg:
 		if msg.instance == m.route.ID {
+			if msg.err != nil {
+				m.cmt.membersAsked = false // asked again the next time the comments open
+				return nil, true
+			}
 			m.cmt.members = msg.members
 		}
 		return nil, true
@@ -250,7 +255,11 @@ func (m *canvasModel) loadComments(ctx *ui.Context, docID string) tea.Cmd {
 	}
 }
 
-// askMembers reads the room's members once (the @ suggestions).
+// membersPages bounds the member list read for @: 50 pages of 100 = a
+// space's 5,000 members.
+const membersPages = 50
+
+// askMembers reads the room's members, every page, once (the @ suggestions).
 func (m *canvasModel) askMembers(ctx *ui.Context) tea.Cmd {
 	sh := m.shared()
 	if sh == nil || sh.meta == nil || sh.meta.SpaceID == "" || m.cmt.membersAsked || ctx.API == nil {
@@ -259,13 +268,20 @@ func (m *canvasModel) askMembers(ctx *ui.Context) tea.Cmd {
 	m.cmt.membersAsked = true
 	cl, inst, space := ctx.API, m.route.ID, sh.meta.SpaceID
 	return func() tea.Msg {
-		pg, err := cl.ListSpaceMembers(context.Background(), space, api.SpaceMembersQuery{PageOpts: api.PageOpts{Limit: 100}})
-		if err != nil {
-			return membersLoadedMsg{instance: inst}
-		}
-		out := make([]api.UserSummary, 0, len(pg.Items))
-		for _, mb := range pg.Items {
-			out = append(out, mb.User)
+		var out []api.UserSummary
+		q := api.SpaceMembersQuery{PageOpts: api.PageOpts{Limit: 100}}
+		for range membersPages {
+			pg, err := cl.ListSpaceMembers(context.Background(), space, q)
+			if err != nil {
+				return membersLoadedMsg{instance: inst, err: err}
+			}
+			for _, mb := range pg.Items {
+				out = append(out, mb.User)
+			}
+			if pg.Done() || *pg.NextCursor == "" {
+				break
+			}
+			q.Cursor = *pg.NextCursor
 		}
 		return membersLoadedMsg{instance: inst, members: out}
 	}
@@ -671,19 +687,10 @@ func (m *canvasModel) mentionWord() (start int, word string, ok bool) {
 	return i, w, true
 }
 
-// mentionPeople are the people @ can name: the room's members, else everyone
-// the store knows; never me.
+// mentionPeople are the people @ can name: the room's members (none until
+// they load); never me.
 func (m *canvasModel) mentionPeople(ctx *ui.Context) []api.UserSummary {
-	var src []api.UserSummary
-	if len(m.cmt.members) > 0 {
-		src = m.cmt.members
-	} else if ctx.Store != nil {
-		for _, u := range ctx.Store.Users {
-			if u != nil {
-				src = append(src, *u)
-			}
-		}
-	}
+	src := m.cmt.members
 	me := myID(ctx)
 	out := make([]api.UserSummary, 0, len(src))
 	for _, u := range src {
