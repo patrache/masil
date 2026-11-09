@@ -65,28 +65,42 @@ func (h Header) Marshal() [HeaderLen]byte {
 	return b
 }
 
+// ParseHeader reads and checks the first HeaderLen bytes of b without
+// checking Len against len(b) (for frames whose trailing bytes were cut off,
+// e.g. a stripped signature). Len must still fit in MaxFrame.
+func ParseHeader(b []byte) (Header, error) {
+	if len(b) < HeaderLen {
+		return Header{}, ErrLength
+	}
+	if b[0] != Version {
+		return Header{}, ErrVersion
+	}
+	if b[5] != 0 || b[6] != 0 || b[7] != 0 {
+		return Header{}, ErrReserved
+	}
+	h := Header{
+		Kind:  Kind(b[1]),
+		Flags: b[2],
+		From:  b[3],
+		To:    b[4],
+		Seq:   binary.BigEndian.Uint64(b[8:16]),
+		Len:   binary.BigEndian.Uint32(b[16:20]),
+	}
+	if uint64(h.Len) > MaxFrame-HeaderLen {
+		return Header{}, ErrTooLarge
+	}
+	return h, nil
+}
+
 // Parse splits a frame into its header and the bytes after it.
 // The returned payload aliases frame.
 func Parse(frame []byte) (Header, []byte, error) {
-	if len(frame) < HeaderLen {
-		return Header{}, nil, ErrLength
-	}
-	if frame[0] != Version {
-		return Header{}, nil, ErrVersion
-	}
 	if len(frame) > MaxFrame {
 		return Header{}, nil, ErrTooLarge
 	}
-	if frame[5] != 0 || frame[6] != 0 || frame[7] != 0 {
-		return Header{}, nil, ErrReserved
-	}
-	h := Header{
-		Kind:  Kind(frame[1]),
-		Flags: frame[2],
-		From:  frame[3],
-		To:    frame[4],
-		Seq:   binary.BigEndian.Uint64(frame[8:16]),
-		Len:   binary.BigEndian.Uint32(frame[16:20]),
+	h, err := ParseHeader(frame)
+	if err != nil {
+		return Header{}, nil, err
 	}
 	if uint64(h.Len) != uint64(len(frame)-HeaderLen) {
 		return Header{}, nil, ErrLength

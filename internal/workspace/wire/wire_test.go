@@ -71,6 +71,18 @@ func TestParseRejects(t *testing.T) {
 	}
 }
 
+func TestParseHeaderIgnoresBody(t *testing.T) {
+	b := Header{Kind: KindTermOut, Seq: 9, Len: 100}.Marshal()
+	h, err := ParseHeader(b[:])
+	if err != nil || h.Len != 100 || h.Seq != 9 {
+		t.Fatalf("%+v %v", h, err)
+	}
+	b = Header{Kind: KindTermOut, Len: MaxFrame}.Marshal()
+	if _, err := ParseHeader(b[:]); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("too large: %v", err)
+	}
+}
+
 func TestChunkReassemble(t *testing.T) {
 	payload := make([]byte, 600<<10)
 	for i := range payload {
