@@ -209,7 +209,32 @@ export const DOC_TYPES: Record<"arch" | "apicol", DocTypeSpec>;
 
 ## 6. `arch` (P3)
 
-(P3 가 객체 종류·필드·한도·거절 `detail` 을 더한다.)
+객체·필드의 정본은 `docs/contract/arch.md` 2.1(객체·필드)·1.4(값 범위)·2.4(서버 검증)다. 이 절은 소켓 쪽에서 알아야 할 것만 모은다. 구현은 `server/src/lib/collab/arch.ts`(P3 Task 21).
+
+| 객체 키(`Op.id`) | `Op.type` | 필드 |
+|---|---|---|
+| `meta` | `meta` | `title`, `seed`, `duration_s` |
+| `n:<id>` | `node` | arch.md 2.1 (`kind`, `label`, `pos`, `parent`, `cpu_cores`, `autoscale.*`, `params.*`, `traffic.*` …) |
+| `b:<id>` | `box` | `kind`, `label`, `region_code`, `rect`, `parent` |
+| `e:<id>` | `edge` | `from`, `to`, `protocol`, `mbps`, `latency_micros`, `read_permille`, `write_permille` |
+| `f:<id>` | `fault` | `at_s`, `kind`, `target`, `count`, `add_ms`, `dur_s` |
+
+- 객체 키 정규식은 `^(meta|[nbef]:[A-Za-z0-9_-]{1,62})$`. `put` 의 `type` 은 키 접두사와 같아야 한다.
+- **`maxObjects` 전체**(살아 있는 것만 셈): `node` 300 · `edge` 1,000 · `box` 100 · `fault` 50 · `meta` 1. 5장 표의 `arch` 행(P0)은 `node`·`edge` 만 적었으나 서버 `DOC_TYPES.arch.maxObjects` 는 이 다섯이다 — 5장의 "`maxObjects` 에 없는 객체 type 은 개수 한도가 없다" 는 `arch` 에는 해당하지 않는다. 넘기면 `limit_exceeded`(`detail` 은 아래 `arch_limit`, 적용 뒤 P0 검사면 `limit_<type>`).
+- `maxDocBytes` 1,048,576 · `maxFieldBytes` 16,384 는 5장 그대로(`too_large`).
+- 값 `null` 은 모든 필드에서 받는다(필드를 비움 = arch.md 2.3 의 기본값).
+
+| `detail` | `code` | 언제 (자세히는 arch.md 2.4) |
+|---|---|---|
+| `arch_bad_object` | `invalid` | 키가 정규식 밖, 또는 `type` 이 키 접두사와 다름 |
+| `arch_bad_field` | `invalid` | 그 객체 종류에 없는 필드 |
+| `arch_bad_value` | `invalid` | JSON 타입·정수·범위·열거값 밖, 64바이트 문자열 초과, `label` 40·`title` 80 그래핌 초과, 금지 문자 |
+| `arch_cycle` | `invalid` | 상자 `parent` 가 자기 조상이 됨 |
+| `arch_depth` | `invalid` | 상자 중첩이 3단보다 깊어짐 |
+| `arch_limit` | `limit_exceeded` | 새 객체 `put`·`undel` 이 위 `maxObjects` 를 넘김 |
+
+- `reset`(새 문서 스냅숏·버전 복원)도 같은 규칙. 새 문서 스냅숏이 거절되면 `POST /v1/spaces/{id}/docs` 는 400 `fields.snapshot`.
+- 가리키는 대상이 없는 참조(`parent`·`from`·`to`·`target`·`params.failover_to`)는 거절하지 않는다 — 동시 삭제로 늘 생기고 arch.md 2.3 이 모든 클라이언트에서 같게 고친다.
 
 ## 7. `apicol` (P4)
 
