@@ -35,7 +35,7 @@ func TestNotifierShowsOnce(t *testing.T) {
 	if len(rec.Shown) != 1 {
 		t.Fatalf("shown %d", len(rec.Shown))
 	}
-	if want := notify.Format(a); rec.Shown[0] != want {
+	if want := notify.Format(a, nil); rec.Shown[0] != want {
 		t.Errorf("shown %+v, want %+v", rec.Shown[0], want)
 	}
 

@@ -2,8 +2,10 @@ package daemon
 
 import (
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 )
 
@@ -16,14 +18,24 @@ type ledgerSink struct {
 	backend notify.Backend
 	ledger  *notify.Ledger
 	log     *slog.Logger
+	lang    atomic.Value // i18n.Locale the notifications render in (default ko)
 }
 
 func newLedgerSink(b notify.Backend, l *notify.Ledger, log *slog.Logger) *ledgerSink {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &ledgerSink{backend: b, ledger: l, log: log}
+	s := &ledgerSink{backend: b, ledger: l, log: log}
+	s.lang.Store(i18n.Ko)
+	return s
 }
+
+// setLocale picks the language alert templates render in (the daemon's
+// effective language, re-read on config reload).
+func (s *ledgerSink) setLocale(l i18n.Locale) { s.lang.Store(l) }
+
+// catalog is the message catalog of the current language.
+func (s *ledgerSink) catalog() *i18n.T { return i18n.For(s.lang.Load().(i18n.Locale)) }
 
 // Handle returns the decision, whether the alert was displayed, and a display
 // (backend) failure. A ledger failure still shows (a duplicate is better than a
@@ -45,7 +57,7 @@ func (s *ledgerSink) Handle(a api.Alert, in notify.Input) (notify.Decision, bool
 	if !isNew || s.backend == nil {
 		return d, false, nil
 	}
-	if err := s.backend.Show(notify.Format(a)); err != nil {
+	if err := s.backend.Show(notify.Format(a, s.catalog())); err != nil {
 		return d, false, err
 	}
 	return d, true, nil

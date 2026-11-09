@@ -338,3 +338,38 @@ func TestLoadRejectsUnkeptComments(t *testing.T) {
 		t.Fatalf("string # taken as a comment: %s", got)
 	}
 }
+
+// Alert templates (alerts area) follow the server rule (api.md alert
+// templates): each language uses a subset of the declared params and the
+// languages together use all of them — ko may leave a context param out
+// (doc.comment_mention's {space}). Every other area keeps the exact rule.
+func TestCheckAlertsParamsSubset(t *testing.T) {
+	ok, _ := problems(t, writeLocales(t, map[string]string{
+		"ko/alerts.toml": "[a_title]\ndesc=\"d\"\nparams={ actor = \"string\", space = \"string\" }\nother=\"{actor}님\"\n",
+		"en/alerts.toml": "[a_title]\nother=\"{actor} in {space}\"\n",
+	}))
+	if ok != "" {
+		t.Fatalf("alerts subset rejected: %s", ok)
+	}
+	for name, files := range map[string]map[string]string{
+		"no language uses a declared param": {
+			"ko/alerts.toml": "[a_title]\ndesc=\"d\"\nparams={ actor = \"string\", space = \"string\" }\nother=\"{actor}님\"\n",
+			"en/alerts.toml": "[a_title]\nother=\"{actor}\"\n",
+		},
+		"undeclared param in alerts": {
+			"ko/alerts.toml": "[a_title]\ndesc=\"d\"\nparams={ actor = \"string\" }\nother=\"{actor}님\"\n",
+			"en/alerts.toml": "[a_title]\nother=\"{actor} {doc}\"\n",
+		},
+		"subset outside alerts": {
+			"ko/tools.toml": "[a]\ndesc=\"d\"\nparams={ actor = \"string\", space = \"string\" }\nother=\"{actor}님\"\n",
+			"en/tools.toml": "[a]\nother=\"{actor} in {space}\"\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, _ := problems(t, writeLocales(t, files))
+			if !strings.Contains(got, "params differ") {
+				t.Fatalf("problems = %q, want params differ", got)
+			}
+		})
+	}
+}

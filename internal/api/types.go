@@ -510,17 +510,31 @@ type Alert struct {
 	CreatedAt        time.Time    `json:"created_at"`
 	Suppressed       bool         `json:"suppressed"`        // focus/dnd: no OS notification
 	SuppressedReason *string      `json:"suppressed_reason"` // focus|dnd|null
+	// Template is what the client renders from its catalog (notify.Render);
+	// Title/Body are the server's fallback in the request language. nil on
+	// alerts from an older server or an older stored record.
+	Template *AlertTemplate `json:"template"`
+}
+
+// AlertTemplate is Alert.template: an id registered in
+// docs/contract/i18n/alert-templates.json and its params (strings and JSON
+// numbers — float64 after decoding).
+type AlertTemplate struct {
+	ID     string         `json:"id"`
+	Params map[string]any `json:"params"`
 }
 
 // AlertTarget is Alert.target.
 type AlertTarget struct {
-	Type         string  `json:"type"` // channel|message|post|space|user|notification
+	Type         string  `json:"type"` // channel|message|post|space|user|notification|doc (P0 0.1.3) — unknown types go to ui.AlertTargetCmd
 	ID           string  `json:"id"`
 	ChannelID    *string `json:"channel_id"`
 	MessageID    *string `json:"message_id"`
 	ThreadRootID *string `json:"thread_root_id"`
 	PostID       *string `json:"post_id"`
 	SpaceID      *string `json:"space_id"`
+	// DocType is "arch" | "apicol" when Type == "doc" (absent otherwise).
+	DocType string `json:"doc_type,omitempty"`
 }
 
 // FocusSummary summarizes a finished focus session.

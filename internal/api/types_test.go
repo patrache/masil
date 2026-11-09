@@ -66,6 +66,7 @@ var typeSamples = map[string]func() any{
 	"NotificationContext": func() any { return new(api.NotificationContext) },
 	"Alert":               func() any { return new(api.Alert) },
 	"AlertTarget":         func() any { return new(api.AlertTarget) },
+	"AlertTemplate":       func() any { return new(api.AlertTemplate) },
 	"FocusSummary":        func() any { return new(api.FocusSummary) },
 	"FocusCounts":         func() any { return new(api.FocusCounts) },
 	"GuestbookEntry":      func() any { return new(api.GuestbookEntry) },
