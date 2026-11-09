@@ -397,7 +397,7 @@ func (s *Surface) ownerBand(ctx *ui.Context) (string, lipgloss.Style, bool) {
 		parts = append(parts, t.JoinPending(n, openKey(ctx)))
 	}
 	if n := len(o.host.Proposals()); n > 0 {
-		parts = append(parts, t.ProposalPending(n, "enter"))
+		parts = append(parts, t.ProposalPending(n, openKey(ctx)))
 	}
 	st := lipgloss.NewStyle().Foreground(ctx.Theme.P.Acc2).Bold(true)
 	return strings.Join(parts, " · "), st, true

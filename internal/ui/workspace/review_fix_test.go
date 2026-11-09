@@ -89,3 +89,15 @@ func TestJoinRequestWaitsForOwner(t *testing.T) {
 		t.Fatalf("ctrl+\\ enter did not open the check-number dialog:\n%s", h.Screen())
 	}
 }
+
+// The band names the key that really opens the queue.
+func TestProposalBandNamesRealKey(t *testing.T) {
+	fake := setup(t)
+	h := uitest.New(t)
+	h.Resize(200, 60)
+	r, _, g := sharedTermRig(t, h, fake, "제안", true)
+	r.propose(g, "npm test")
+	if !strings.Contains(h.Screen(), "제안 1건 대기(ctrl+\\ enter 보기)") {
+		t.Fatalf("band:\n%s", h.Screen())
+	}
+}
