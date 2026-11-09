@@ -1,6 +1,7 @@
 package fsroot
 
 import (
+	"errors"
 	"io/fs"
 	"sort"
 )
@@ -24,6 +25,12 @@ type Entry struct {
 // denied and ignored entries are left out; for the owner they are marked.
 // Past MaxDirEntries the rest is only counted in more.
 func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err error) {
+	return r.list(dirRel, forPeer, forPeer)
+}
+
+// list is List; strict makes an ignore-rule error fail the listing even in
+// the owner's (marking) view.
+func (r *Root) list(dirRel string, forPeer, strict bool) (entries []Entry, more int, err error) {
 	clean, err := r.Check(dirRel, forPeer)
 	if err != nil {
 		return nil, 0, err
@@ -94,7 +101,7 @@ func (r *Root) List(dirRel string, forPeer bool) (entries []Entry, more int, err
 	}
 	if ig := r.ignorer(); ig != nil && len(qRels) > 0 {
 		res, ierr := ig.Ignored(qRels, qDirs)
-		if ierr != nil && forPeer {
+		if ierr != nil && strict {
 			return nil, 0, ierr
 		}
 		for i, v := range res {
@@ -134,4 +141,68 @@ func sizeOf(fi fs.FileInfo) int64 {
 		return 0
 	}
 	return fi.Size()
+}
+
+// MaxSubtreeEntries bounds the walk of CheckSubtree; a bigger folder is
+// refused.
+const MaxSubtreeEntries = 20000
+
+// CheckSubtree refuses (a PathError on rel) a participant's rename or
+// delete of a folder holding anything hidden from participants: renaming
+// the folder would move its denied and ignored entries along, out from
+// under the ignore rules that hid them (v0.1.3 security (w)). Denied entries
+// give ReasonDenied; ignored ones, rule files, an ignore-rule error or more
+// than MaxSubtreeEntries entries give ReasonIgnored. A file, a link (renamed
+// itself) or a missing path is nil. Links inside are not descended: their
+// targets do not move.
+func (r *Root) CheckSubtree(rel string) error {
+	clean, err := cleanRel(rel)
+	if err != nil {
+		return err
+	}
+	fi, err := r.root.Lstat(osPath(clean))
+	if err != nil || !fi.IsDir() {
+		return nil
+	}
+	seen := 0
+	queue := []string{clean}
+	for len(queue) > 0 {
+		dir := queue[0]
+		queue = queue[1:]
+		entries, more, err := r.list(dir, false, true)
+		if err != nil {
+			var pe *PathError
+			if errors.As(err, &pe) && pe.Reason == ReasonDenied {
+				return reject(rel, ReasonDenied)
+			}
+			return reject(rel, ReasonIgnored)
+		}
+		seen += len(entries) + more
+		if more > 0 || seen > MaxSubtreeEntries {
+			return reject(rel, ReasonIgnored)
+		}
+		for _, e := range entries {
+			if e.Denied {
+				return reject(rel, ReasonDenied)
+			}
+		}
+		for _, e := range entries {
+			if e.Ignored {
+				return reject(rel, ReasonIgnored)
+			}
+		}
+		for _, e := range entries {
+			if !e.Dir {
+				continue
+			}
+			child := e.Name
+			if dir != "." {
+				child = dir + "/" + e.Name
+			}
+			if lfi, err := r.root.Lstat(osPath(child)); err == nil && lfi.IsDir() {
+				queue = append(queue, child)
+			}
+		}
+	}
+	return nil
 }
