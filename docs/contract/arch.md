@@ -218,7 +218,7 @@ CollabHub 는 op 프레임마다 op 하나씩 이 검사를 거친 뒤 적용한
 ### 3.4 일일 도전 (선택, P3 Task 28 — 설계서 C2.12)
 
 - 시나리오 15개는 앱에 내장(`internal/archsim/challenge/scenarios/<id>.json` = `{ id, goal_p99_ms, goal_err_permille, budget_usd_month, start: <설계 JSON v1> }`, 시드·시간 실행 길이·예약 장애는 `start` 안). 이름은 카탈로그 `archcanvas.challenge_<id>_title`. 날짜(UTC 자정 기준 `YYYY-MM-DD`)의 1970-01-01 부터 일 수 mod 15 로 ID 순 목록에서 고른다 — 모두가 같은 날 같은 문제.
-- 팔레트 `arch.challenge`(플래그 뒤, 허브 행 없음, LeetCode 화면과 묶지 않음 — JX12) → 인스턴스 `arch:challenge:<date>`(쿼리 `challenge=<id>`·`date=<date>`), 시작 설계를 저장 안 된 새 설계로 연다.
-- 시간 실행은 내 설계에 시나리오의 시드·실행 길이·장애·**클라이언트 트래픽(노드 id 로)** 을 덮어 돌린다. 시나리오 클라이언트를 지우면 돌리지 않는다(`challenge_client_missing`).
+- 팔레트 `arch.challenge`(플래그 뒤, LeetCode 오늘의 문제와 한 화면으로 묶지 않음 — JX12) → 인스턴스 `arch:challenge:<date>`(쿼리 `challenge=<id>`·`date=<date>`), 시작 설계를 저장 안 된 새 설계로 연다. 설계서 C2.12 는 허브에서 따로 열게 하지만, P0 허브·열기 메뉴에 도구가 행을 더할 자리가 없어 지금 입구는 팔레트뿐이다(허브 행은 P0 확장점이 생기면 — exec-log P3).
+- 시간 실행은 내 설계에 시나리오의 시드·실행 길이·장애·**클라이언트 트래픽(노드 id 로)** 을 덮어 돌린다. 돌리지 않는 설계(토스트만): 시나리오 클라이언트가 없음(`challenge_client_missing`), 클라이언트 트래픽이 서버까지 가지 않음(`challenge_unrouted` — 시나리오 클라이언트에서 닿는 클라이언트·LB·CDN·큐가 받는 읽기·쓰기마다 나가는 연결 비율 합 ≥ 1000‰ 이고, 그런 연결의 고리 위에 있지 않아야 한다; 엔진은 넘기지 않은 몫을 그 노드에서 지연·비용 없이 끝난 것으로 센다), 예약 장애의 대상(노드·연결·AZ·리전)이 없음(`challenge_fault_target_missing` — 실행 설계 = 카드 사본이 늘 유효하도록). 시나리오마다 예약 장애가 하나 이상 있다.
 - 점수(정수, 하한 0) = 지킨 초 × 1000 × min(1, 예산 ÷ 월 비용) − 실패 요청 수. 지킨 초 = 프레임 p99 ≤ 목표이고 프레임 에러율 ≤ 목표인 프레임의 길이 합. 실패 요청 = Σ 프레임 초당 요청 × 에러율 × 프레임 길이. 월 비용 = 시간 실행 요약의 평균 비용.
 - 점수가 난 뒤 `arch.send_card` 는 `arch.sim` 카드로 열리고 `challenge {date, scenario, score}` 를 싣는다. 카드의 숫자·시드·사본은 **점수를 낸 실행 설계**(시나리오 시드 등을 덮은 것)라 `R` 로 그대로 다시 돌릴 수 있다. 편집하면 점수는 지워진다. 순위표·서버 저장은 없다(JC11).

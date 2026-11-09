@@ -146,7 +146,10 @@ func registerCommands() {
 		{ID: "arch.send_card", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteSendCard() }, Keywords: []string{"arch", "card", "send"}, Available: front, Run: toFront("arch.send_card")},
 		{ID: "arch.save_copy", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteSaveCopy() }, Keywords: []string{"arch", "copy", "save"}, Available: front, Run: toFront("arch.save_copy")},
 		{ID: "arch.run", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteRun() }, Keywords: []string{"arch", "run", "simulate"}, Available: front, Run: toFront("arch.run")},
-		// the optional daily challenge (Task 28): its own command, no hub row (JX12)
+		// the optional daily challenge (Task 28): its own command, never one
+		// screen with LeetCode's daily problem (JX12). Spec C2.12 opens both
+		// from the hub, but P0's hub and open menu have no tool hook P3 may
+		// add to, so the palette is the only way in for now (exec-log P3).
 		{ID: "arch.challenge", Label: func(t *i18n.T) string { return t.Archcanvas.PaletteChallenge() }, Keywords: []string{"arch", "challenge", "daily"}, Available: flag,
 			Run: func(ctx *ui.Context, _ string) tea.Cmd { return openChallenge(ctx) }},
 	}
