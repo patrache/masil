@@ -1049,9 +1049,13 @@ func New(tb testing.TB) *Server                                    // httptest.S
 func (s *Server) Handle(pattern string, h http.HandlerFunc)        // Go 1.22 mux pattern, e.g. "GET /v1/channels/{id}/messages"
 func (s *Server) JSON(pattern string, status int, body any)        // canned JSON
 func (s *Server) Error(pattern string, status int, code string)    // error envelope
-func (s *Server) Requests() []Recorded                             // method, path, query, body (token redacted)
+func (s *Server) Requests() []Recorded                             // method, path, query, header, body (token redacted)
 func (s *Server) Client(opts ...api.Option) *api.Client            // token "msl_test"
-type Recorded struct{ Method, Path, Query string; Body []byte }
+type Recorded struct {
+	Method, Path, Query string
+	Header              http.Header // v0.1.3 (P0 Task 23): as sent, masil tokens redacted — secrettest.AssertNoLeak reads it
+	Body                []byte
+}
 ```
 
 #### 4.3.4 v0.1.3 추가 (P0 Task 7·9·25·30)
@@ -1929,6 +1933,19 @@ type Poster interface {
 - **고루틴 규칙**: `internal/ui/...` 의 고루틴(패널 출력·외부 창 대기·방 문서 세션 콜백 등)이 화면에 무언가 알리려면 `ctx.Post` 만 쓴다(`tea.Program.Send` 직접 호출 금지). 지연은 지금처럼 `ui.After` 만(타이머 규칙 그대로).
 - 도구는 비밀값을 `ctx.Secrets` 로만 읽고 쓴다(전역 저장소·도구별 생성자 없음). 기기 전용 기억은 `ctx.ToolState.Section(<도구 ID>, &v)`·`SetSection` 으로 자기 섹션만.
 
+**v0.1.3 추가 — 비밀값 키** (P0 Task 23, `internal/ui/secretkey.go`):
+
+```go
+// 로그인한 masil 계정의 비밀값 범위(v0.1.3 A9.1 규칙 3). ok=false = 로그아웃 상태.
+// server = API 클라이언트 기본 URL(ctx.API.BaseURL())의 host — 포트 포함(url.URL.Host 그대로),
+//          API 가 없으면 ctx.Config.ServerURL() 의 host. userID = ctx.Me().ID.
+func (c *Context) SecretScope() (server, userID string, ok bool)
+// secrets.Key{Tool: tool, Server: server, UserID: userID, Name: name}
+func (c *Context) SecretKey(tool, name string) (secrets.Key, bool)
+```
+- **키 규칙 [결정]**: 도구는 비밀값 키를 언제나 `ctx.SecretKey(<도구 ID>, <값 이름>)` 로 만든다. 이름 목록·지우기에 쓰는 `(server, userID)` 도 `ctx.SecretScope()` 로만 얻는다(`ctx.Secrets.List(ctx, tool, server, userID)` 등). host 를 설정 `ServerURL` 에서 따로 구하거나 포트를 빼지 않는다 — 로그아웃 `DeleteAll`·설정 [지우기]가 같은 함수를 써서, 다른 방식으로 만든 키는 지워지지 않고 남는다.
+- `secrets.Store` 겉모양(P0 계획 Interfaces 요약과 같음): `Put(ctx, Key, Secret) (Backend, error)`·`Get(ctx, Key) (Secret, Backend, error)`·`Delete`·`List(ctx, tool, server, userID)`·`DeleteAll(ctx, server, userID)`·`Where(Key) Backend`(OS 를 부르지 않음)·`SetFallback(Fallback)`·`Fallback() Fallback`. OS 저장소 실패는 `ErrUnavailable`(그 실행 동안 Put·Get 은 OS 를 다시 부르지 않음 → `ErrNeedConsent`), **ctx 취소·만료는 ctx 의 오류**(`errors.Is(err, context.Canceled)` 등 — 동의를 묻지 않고 OS 를 내려 두지도 않음). 지우기처럼 꼭 끝나야 하는 호출에는 다른 요청과 나누지 않은 자기 ctx 를 준다.
+
 #### 5.3.3 경로(Route)와 내비게이션
 
 ```go
@@ -2283,6 +2300,7 @@ type Options struct {
 	Notifier     *notify.Notifier  // nil => notify.New(NewOSBackend("masil"), OpenLedger(paths), log)
 	API          *api.Client       // nil => api.New(config.ServerURL(), WithToken(...))
 	Timers       ui.Timers         // nil => ui.RealTimers(); uitest passes its FakeClock
+	Secrets      *secrets.Store    // v0.1.3 (P0 Task 21): ctx.Secrets; nil => secrets.Open(Paths) with this OS's store
 }
 
 type Model struct{ /* implements tea.Model */ }
@@ -2575,6 +2593,9 @@ func ReactionChips(t *theme.Theme, rs []api.ReactionSummary, width int) []string
 func PollView(t *theme.Theme, p api.Poll, width int, selected int) []string // bars "국밥 ████████░░ 4", chat + feed
 func Empty(t *theme.Theme, size ui.Size, icon, title, hint string) string
 func Confirm(title, body, yes, no string, onYes tea.Cmd) ui.Overlay
+// v0.1.3 (P0 Task 23): Confirm + one checkbox line "[ ] <check>" (default off; space/x toggles).
+// onYes gets the box's state. Used by the logout dialog ("이 기기의 도구 로그인도 지우기").
+func ConfirmCheck(title, body, check, yes, no string, onYes func(checked bool) tea.Cmd) ui.Overlay
 func EmojiPicker(onPick func(emoji string) tea.Cmd) ui.Overlay // recent + common set, search by Korean/English name
 // ReportDialog: reason list (spam|harassment|illegal|sexual|violence|other, Korean labels) + optional note (textinput, 5.3.7 rules),
 // submits api.Report via ui.Do tag "core.report:<targetID>"; 201 => ToastSuccess "신고했어요", 409 already_exists => ToastInfo "이미 신고한 대상이에요".
@@ -2593,6 +2614,8 @@ func (f *Fade) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd
 
 - `internal/ui/authui`: 로그인·가입 화면(`RouteLogin`). 서버 주소 표시, handle/비밀번호/표시 이름, 오류는 `api.Describe`. 성공 시 `auth.Save` + `LoggedInMsg{Credentials, Me}` → 앱이 API 토큰 설정·realtime 시작.
 - `internal/ui/settings`(`RouteSettings`): 테마(미리보기 4종), 레이아웃 고정, 마우스·이미지·애니메이션, 데스크톱 알림(로컬 스위치 + 서버 `notify.*` 토글), DM 정책, 비공개 계정, 집중 기본 시간, **차단 목록**(`ListBlocks` 로 표시 — `Store.Blocks` 와 같은 집합, 항목마다 `Unblock` + `widgets.Confirm`, `block.updated` 이벤트로 갱신; 팔레트 `blocks` 가 이 섹션으로 연다), 세션 목록·폐기, 비밀번호 변경, 로그아웃.
+- **v0.1.3 `도구 로그인` 묶음** (P0 Task 23, v0.1.3 A9.4): 로그아웃 바로 앞. 줄 = `<도구 이름> · <계정> · <보관 위치> · [지우기]`(값은 안 보임, 보관 위치는 `Store.Where` — OS 를 부르지 않음). 도구는 `settings.RegisterToolLogin(tool, describe func(*ui.Context) (account string, ok bool), forget func(*ui.Context) tea.Cmd)` 로 init() 에서 등록한다(P1 LeetCode, P4 API 시험). 그 도구가 등록돼 있고 기능 플래그가 켜져 있고 `describe` 가 ok 일 때만 줄이 생기고, 줄이 없으면 묶음 자체가 안 보인다(0.1.2 화면 그대로). [지우기] → 확인 대화상자 → `forget`(nil 이면 그 도구의 `SecretScope` 범위 값 전부 `Delete`).
+- **v0.1.3 로그아웃 선택지** (P0 Task 23, A9.4): 기능 플래그가 하나라도 켜졌을 때 로그아웃 확인은 `widgets.ConfirmCheck` 로 `이 기기의 도구 로그인도 지우기`(기본 꺼짐)를 보인다(모두 꺼짐 = 0.1.2 `Confirm`). 켜고 확인하면 `ctx.Secrets.DeleteAll(SecretScope())` 를 **자기 ctx(30초)로, POST /v1/auth/logout 보다 먼저** 부른다(서버가 늦어도 지우기는 끝까지). 범위는 세션이 끝나기 전에 읽는다. 실패는 로그만.
 - **차단·신고 동작의 소유 [결정]**: 차단 **해제 목록**은 core(설정). 차단·신고를 **거는** 동작은 대상이 보이는 화면의 소유 계획이 단다 — chat: 메시지(`message`), 메시지 작성자·멤버 목록의 사용자(`user`), 방(`space`, 방 설정·초대 미리보기); sns-fun: 프로필의 사용자(`user`), 글(`post`), 스토리(`story`), 방명록 글(`guestbook_entry`). 신고 UI 는 모두 `widgets.ReportDialog`, 차단은 `widgets.Confirm` 후 `api.Block`.
 
 ---
@@ -2978,7 +3001,7 @@ func (h *Harness) WaitPosted(n int, timeout time.Duration) // 고루틴이 n 개
 | 패키지 | 무엇 | 주요 겉모양 |
 |---|---|---|
 | `internal/ui/termpane/termpanetest` | 진짜 PTY 없이 `termpane.Launch` 를 가짜로 | `Install(tb) *Fake`, `Started() []termhost.Request`, `Exit(id, code)`·`Cwd(id, dir)`·`Notify(id, kind)` → msg, `SetLimit(n)`, `SetEnv(termhost.Env)` |
-| `internal/secrets/secrettest` | 메모리 저장소·누출 확인 | `NewStore(tb, osAvailable) *secrets.Store`, `Values(s) map[string]string`, `AssertNoLeak(t, srv *apitest.Server, logDir, values...)` |
+| `internal/secrets/secrettest` | 메모리 저장소·누출 확인 | `NewStore(tb, osAvailable) *secrets.Store`, `Values(s) map[string]string`, `AssertNoLeak(t, srv *apitest.Server, logDir, values...)`(요청 메서드·경로·쿼리·헤더·본문 + `logs/`), `AssertNoLeakFrames(t, frames [][]byte, values...)`(보낸 WebSocket 프레임 — apitest 는 소켓을 기록하지 않으므로 시험의 가짜 소켓이 모은 프레임을 넘김) |
 | `internal/collab/collabtest` | CollabHub 가짜(서버와 같은 reducer) | `New(tb) *Hub`, `Seed`, `Dial`, `Ops`, `Inject`, `Kick`, `SetOnline`, `RejectNext`, `Register(srv)` |
 
 - 기능 플래그 시험은 `t.Setenv("MASIL_FEATURES", "<id>"|"all")`.

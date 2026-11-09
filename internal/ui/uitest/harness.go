@@ -26,6 +26,7 @@ import (
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/app"
@@ -128,6 +129,10 @@ func New(tb testing.TB, opts ...Option) *Harness {
 	if lang == "" {
 		lang = i18n.Ko
 	}
+	sec := c.secrets
+	if sec == nil {
+		sec = secrettest.NewStore(tb, true)
+	}
 	h.Model = app.New(app.Options{
 		Locale:          &i18n.Resolution{Requested: lang, Effective: lang, Source: i18n.SourceEnv},
 		Paths:           paths,
@@ -140,6 +145,7 @@ func New(tb testing.TB, opts ...Option) *Harness {
 		Notifier:        notify.New(rec, notify.OpenLedger(paths), slog.New(slog.DiscardHandler)),
 		Timers:          clock,
 		Clipboard:       h.Clip,
+		Secrets:         sec,
 	})
 	h.posts = newRecPoster()
 	h.Model.Context().Post = h.posts // recorded; Flush delivers

@@ -4,6 +4,7 @@ import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/i18n"
+	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -24,7 +25,14 @@ type config struct {
 	creds    *auth.Credentials
 	credsSet bool // WithCredentials was given (nil => logged out)
 	keys     map[string][]string
-	locale   i18n.Locale // "" => i18n.Ko
+	locale   i18n.Locale    // "" => i18n.Ko
+	secrets  *secrets.Store // nil => secrettest.NewStore(tb, true)
+}
+
+// WithSecrets uses s as ctx.Secrets (default: a secrettest memory store whose
+// OS fake is available).
+func WithSecrets(s *secrets.Store) Option {
+	return func(c *config) { c.secrets = s }
 }
 
 // WithLocale shows the harness in l (ctx.T, ctx.Lang, Accept-Language). Like

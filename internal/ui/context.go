@@ -8,6 +8,7 @@ import (
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
@@ -52,6 +53,10 @@ type Context struct {
 	// OpenTools lists the tool instances open on the tool surface (the hub
 	// excluded), in surface order; set by the app (nil = none).
 	OpenTools func() []OpenToolInfo
+	// Secrets is the tool-secret store (v0.1.3 A9): tools read and write their
+	// cookies, tokens and keys only through it. Never nil in the app
+	// (secrets.Open at start; the harness: secrettest.NewStore).
+	Secrets *secrets.Store
 }
 
 // Realtime is the UI-facing subset of realtime.Client.

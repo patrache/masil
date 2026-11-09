@@ -49,6 +49,7 @@ type route struct {
 type Recorded struct {
 	Method, Path, Query string
 	Body                []byte
+	Header              http.Header // as sent (masil tokens redacted); leak checks read it
 }
 
 var tokenRE = regexp.MustCompile(`msl_[A-Za-z0-9_-]+`)
@@ -76,6 +77,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		Path:   r.URL.EscapedPath(),
 		Query:  r.URL.RawQuery,
 		Body:   tokenRE.ReplaceAll(body, []byte(redacted)),
+		Header: redactHeader(r.Header),
 	})
 	mux := s.mux
 	s.mu.Unlock()
@@ -85,6 +87,17 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mux.ServeHTTP(w, r)
+}
+
+// redactHeader is a copy of h with masil tokens redacted.
+func redactHeader(h http.Header) http.Header {
+	out := h.Clone()
+	for k, vs := range out {
+		for i, v := range vs {
+			out[k][i] = tokenRE.ReplaceAllString(v, redacted)
+		}
+	}
+	return out
 }
 
 // shapeKey erases wildcard names: "GET /a/{id}/b/{rest...}" => "GET /a/{}/b/{...}".
@@ -201,13 +214,14 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Write(b)
 }
 
-// Requests returns every recorded request: method, path, query, body (token redacted).
+// Requests returns every recorded request: method, path, query, body, header (token redacted).
 func (s *Server) Requests() []Recorded {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]Recorded, len(s.log))
 	for i, r := range s.log {
 		r.Body = bytes.Clone(r.Body)
+		r.Header = r.Header.Clone()
 		out[i] = r
 	}
 	return out

@@ -18,6 +18,7 @@ import (
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
@@ -44,6 +45,7 @@ type Options struct {
 	Timers          ui.Timers        // nil => ui.RealTimers(); uitest passes its FakeClock
 	Clipboard       clipboard.Writer // nil => clipboard.System(); uitest passes a clipboard.Recorder
 	Locale          *i18n.Resolution // nil => i18n.Resolve(i18n.DetectOS() + [ui] language)
+	Secrets         *secrets.Store   // nil => secrets.Open(Paths) with this OS's store (run.go)
 }
 
 // Model implements tea.Model.
@@ -229,6 +231,8 @@ func New(o Options) *Model {
 	}
 	m.ctx.Keys.Localize(m.ctx.T) // help descriptions in the shown language
 	m.initTools(o.Paths)         // ctx.ToolState (never nil), ctx.OpenTools
+	// ctx.Secrets (never nil).
+	m.ctx.Secrets = openSecrets(o)
 	m.ctx.Clipboard = o.Clipboard
 	if m.ctx.Clipboard == nil {
 		m.ctx.Clipboard = clipboard.System()
@@ -403,7 +407,7 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case unauthorizedMsg, upgradeMsg: // the flags were taken at the start of Update
 		return m, nil
 	case logoutConfirmedMsg:
-		return m, m.logoutConfirmed()
+		return m, m.logoutConfirmed(msg.wipeTools)
 	case logoutDoneMsg:
 		if msg.err != nil {
 			slog.Debug("logout request failed; logging out locally", "err", msg.err)

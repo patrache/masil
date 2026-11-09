@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	minstance "github.com/patrache/masil/internal/instance"
+	"github.com/patrache/masil/internal/secrets"
 )
 
 // Run acquires the TUI lock, builds the tea.Program (alt screen via View),
@@ -49,4 +50,14 @@ func runProgram(ctx context.Context, m *Model, opts ...tea.ProgramOption) error 
 		return nil
 	}
 	return err
+}
+
+// openSecrets is ctx.Secrets: o.Secrets, else the store on this OS's keychain
+// with the file fallback in Paths.SecretsDir. Opening does no I/O (no keychain
+// prompt at start); the harness and Run take this same path through New.
+func openSecrets(o Options) *secrets.Store {
+	if o.Secrets != nil {
+		return o.Secrets
+	}
+	return secrets.Open(secrets.Options{Paths: o.Paths})
 }

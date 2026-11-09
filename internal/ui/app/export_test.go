@@ -3,12 +3,21 @@ package app
 import (
 	"context"
 	"net/http"
+	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/ui"
 )
+
+// SetLogoutTimeoutForTest shortens the POST /v1/auth/logout timeout for tb.
+func SetLogoutTimeoutForTest(tb testing.TB, d time.Duration) {
+	prev := logoutTimeout
+	logoutTimeout = d
+	tb.Cleanup(func() { logoutTimeout = prev })
+}
 
 // SetRealtimeForTest replaces the Context's realtime (status-line connection tests).
 func SetRealtimeForTest(m *Model, rt ui.Realtime) {
