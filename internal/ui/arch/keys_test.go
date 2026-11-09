@@ -60,6 +60,42 @@ func boxPickKeys(t *testing.T, k archdoc.BoxKind) []string {
 	return nil
 }
 
+// selectKeys selects node or box id with keys only, as a ui.mouse=false user
+// would: hjkl from the current node when that reaches it, else "/" with its
+// label and enter. The test fails when neither does.
+func selectKeys(t *testing.T, h *uitest.Harness, c *canvasModel, id string) {
+	t.Helper()
+	if c.node(id) != nil && c.node(c.sel) != nil {
+		for range 8 {
+			if c.sel == id {
+				return
+			}
+			before := c.sel
+			for _, k := range []string{"h", "j", "k", "l"} {
+				h.Press(k)
+				if c.sel == id {
+					return
+				}
+				if c.sel != before {
+					break // a step moved: try again from there
+				}
+			}
+			if c.sel == before {
+				break
+			}
+		}
+	}
+	if c.sel == id {
+		return
+	}
+	h.Press("/")
+	h.Type(c.label(id))
+	h.Press("enter")
+	if c.sel != id {
+		t.Fatalf("keys cannot select %q (label %q): selection %q", id, c.label(id), c.sel)
+	}
+}
+
 func repeat(k string, n int) []string {
 	out := make([]string, n)
 	for i := range out {
@@ -159,7 +195,7 @@ func TestKeyboardBuildFlow(t *testing.T) {
 	}
 
 	// a single node: H J K L step one grid cell (2 across, 1 down)
-	c.sel = api.ID
+	selectKeys(t, h, c, api.ID)
 	x, y := api.Pos[0], api.Pos[1]
 	h.Press("L", "J")
 	api = nodeOfKind(designOf(t, c), archdoc.KindAPI)

@@ -496,7 +496,7 @@ func TestMouseKeyboardParity(t *testing.T) {
 	h, c := keyHarness(t, toolRoute("arch:new:k1", nil))
 	moveTo := func(id string, x, y int) {
 		t.Helper()
-		c.sel = id
+		selectKeys(t, h, c, id)
 		var at [2]int
 		if n := c.node(id); n != nil {
 			at = n.Pos
@@ -518,7 +518,7 @@ func TestMouseKeyboardParity(t *testing.T) {
 	h.Press("enter")
 	db := c.sel
 	moveTo(db, wantDB.Pos[0], wantDB.Pos[1])
-	c.sel = api
+	selectKeys(t, h, c, api)
 	h.Press("c")
 	for _, k := range []string{"j", "l", "k", "h"} {
 		if c.cursor == db {
