@@ -567,10 +567,16 @@ func (h *Host) handleSealed(seat uint8, kind wire.Kind, frame []byte) {
 		h.rejectFrame(seat, kind, cryptoReason(err), true)
 		return
 	}
+	levelOK := true
 	if kind.MinLevel() != wire.LevelNone {
 		if mb == nil || !mb.level.Allows(kind) {
-			h.rejectFrame(seat, kind, "level", false)
-			return
+			if mb == nil || kind != wire.KindDocOp {
+				h.rejectFrame(seat, kind, "level", false)
+				return
+			}
+			// An edit sent before the participant heard it was lowered:
+			// answered with doc_reject{level} once whole (contract 7).
+			levelOK = false
 		}
 		if h.overRate(seat, kind, h.now()) {
 			h.rejectFrame(seat, kind, "rate", false)
@@ -583,6 +589,14 @@ func (h *Host) handleSealed(seat uint8, kind wire.Kind, frame []byte) {
 		return
 	}
 	if !done {
+		return
+	}
+	if !levelOK {
+		h.rejectFrame(seat, kind, RejectLevel, false)
+		var m wire.DocOp
+		if unmarshal(full, &m) {
+			h.sendToPeer(mb, wire.KindDocReject, mustJSON(wire.DocReject{Doc: m.Doc, ClientOpID: m.ClientOpID, Code: RejectLevel}))
+		}
 		return
 	}
 	h.dispatch(seat, kind, full)
