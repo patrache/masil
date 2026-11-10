@@ -66,15 +66,22 @@ func TestToggleToolsAddsHubBeforeInstance(t *testing.T) {
 	}
 }
 
-// The hub itself was active (left with esc): ToolLast stays what it was.
-func TestToggleToolsFromHubKeepsLast(t *testing.T) {
+// The hub itself was active (left with esc or ctrl+t): ToolLast is cleared
+// (review fix), so the hub keeps the cursor where the user left it instead
+// of jumping back to an older instance.
+func TestToggleToolsFromHubClearsLast(t *testing.T) {
 	n := newNavState()
 	n.Tools = []ui.Route{hubRoute, navGit}
 	n.ToolLast = navGit.Key()
 	n.Front = FrontTab
 	c, _ := n.toggleTools(layout.ModeStandard)
-	if c.ToolLast != navGit.Key() {
-		t.Errorf("ToolLast = %q, want %q kept", c.ToolLast, navGit.Key())
+	if c.ToolLast != "" {
+		t.Errorf("ToolLast = %q, want cleared (the hub was the last entry)", c.ToolLast)
+	}
+	// hub -> chat -> hub: still cleared.
+	b, _ := c.toggleTools(layout.ModeStandard)
+	if b, _ = b.toggleTools(layout.ModeStandard); b.ToolLast != "" {
+		t.Errorf("hub -> chat -> hub: ToolLast = %q, want cleared", b.ToolLast)
 	}
 }
 

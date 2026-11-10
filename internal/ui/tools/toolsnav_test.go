@@ -2,6 +2,7 @@ package tools_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/patrache/masil/internal/ui"
@@ -74,5 +75,39 @@ func TestCtrlTHubCursorFollowsLastInstance(t *testing.T) {
 	}
 	if n := h.Model.Nav(); !slices.ContainsFunc(n.Tools, func(r ui.Route) bool { return r.Key() == leetRoute.Key() }) {
 		t.Fatalf("ctrl+t 4 closed leet: %v", n.Tools)
+	}
+}
+
+// Review fix (tools-nav): the hub moves its cursor to the last instance only
+// when ctrl+t brings it forward from the chat. A zoom on the hub (ctrl+w z)
+// re-broadcasts ToolSwitchedMsg for the hub; that must not pull the cursor
+// off the row the user picked.
+func TestHubZoomKeepsCursor(t *testing.T) {
+	fx := installTools(t, "all")
+	h := uitest.New(t)
+	h.Resize(120, 40)
+	h.Press("ctrl+t", "4", "ctrl+t", "ctrl+t") // git, the chat, the hub (cursor on git)
+	onHub(t, h)
+	h.Press("home", "ctrl+w", "z") // the first tool's row, then zoom the hub
+	onHub(t, h)
+	h.Press("enter")
+	if got := fx.open.list(); len(got) != 2 || !strings.HasPrefix(got[1], ui.ToolLeet+"|") {
+		t.Fatalf("enter after zoom opened %v, want leet (the row picked), not git's open row", got)
+	}
+}
+
+// Review fix (tools-nav): the hub was the last entry in front (the user moved
+// its cursor, then ctrl+t to the chat): ctrl+t again shows the hub with the
+// cursor where it was left, not on an older instance.
+func TestHubChatHubKeepsCursor(t *testing.T) {
+	fx := installTools(t, "all")
+	h := uitest.New(t)
+	h.Press("ctrl+t", "4", "ctrl+t", "ctrl+t") // git, the chat, the hub (cursor on git)
+	onHub(t, h)
+	h.Press("home", "ctrl+t", "ctrl+t") // the first tool's row, the chat, the hub
+	onHub(t, h)
+	h.Press("enter")
+	if got := fx.open.list(); len(got) != 2 || !strings.HasPrefix(got[1], ui.ToolLeet+"|") {
+		t.Fatalf("hub -> chat -> hub enter opened %v, want leet (the row left), not git", got)
 	}
 }

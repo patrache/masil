@@ -148,6 +148,10 @@ type OpenToolInfo struct {
 type ToolSwitchedMsg struct {
 	Route  Route
 	Zoomed bool
+	// Toggled: tools.toggle (ctrl+t) brought the surface (the hub) forward
+	// from the chat — not a zoom, tools.next/prev or a navigation. Only then
+	// does the hub move its cursor to the last instance.
+	Toggled bool
 }
 
 // ToolSurfaceAction is a tool-surface command of the shell.

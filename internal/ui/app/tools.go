@@ -186,7 +186,8 @@ func (n NavState) closeToolEntry(k string) (NavState, bool) {
 // instances when it is not open), the open instances kept. The instance that
 // was active is remembered as ToolLast, so the hub's cursor starts on it and
 // ctrl+t enter shows that same instance again (0.1.3 patch: the hub used to
-// appear only the first time).
+// appear only the first time). When the hub itself was the active entry,
+// ToolLast is cleared: the hub keeps the cursor where the user left it.
 func (n NavState) toggleTools(mode layout.Mode) (NavState, FocusIntent) {
 	c := n.clone()
 	if c.Front == FrontTools {
@@ -195,6 +196,8 @@ func (n NavState) toggleTools(mode layout.Mode) (NavState, FocusIntent) {
 	}
 	if r, ok := c.activeTool(); ok && r.Kind == ui.RouteTool {
 		c.ToolLast = r.Key()
+	} else {
+		c.ToolLast = ""
 	}
 	return c.openTool(hubRoute, mode)
 }
@@ -246,25 +249,34 @@ func (m *Model) toolSnap() toolSnap {
 
 // toolSwitched broadcasts ui.ToolSwitchedMsg when the entry in front or its wide
 // view changed since prev (and the surface is in front).
-func (m *Model) toolSwitched(prev toolSnap) tea.Cmd {
+func (m *Model) toolSwitched(prev toolSnap) tea.Cmd { return m.toolSwitchedBy(prev, false) }
+
+// toolSwitchedBy is toolSwitched with the msg's Toggled (tools.toggle made the
+// change).
+func (m *Model) toolSwitchedBy(prev toolSnap, toggled bool) tea.Cmd {
 	now := m.toolSnap()
 	if now.key == "" || now == prev {
 		return nil
 	}
 	r, _ := m.nav.activeTool()
-	return m.broadcast(ui.ToolSwitchedMsg{Route: r, Zoomed: now.zoomed})
+	return m.broadcast(ui.ToolSwitchedMsg{Route: r, Zoomed: now.zoomed, Toggled: toggled})
 }
 
 // applyTools installs a tool-surface transition: the new state, its focus
 // intent (when set), the relayout, then ToolSwitchedMsg.
 func (m *Model) applyTools(n NavState, intent FocusIntent) tea.Cmd {
+	return m.applyToolsBy(n, intent, false)
+}
+
+// applyToolsBy is applyTools with the ToolSwitchedMsg's Toggled.
+func (m *Model) applyToolsBy(n NavState, intent FocusIntent, toggled bool) tea.Cmd {
 	prev := m.toolSnap()
 	m.nav = n
 	if intent.Slot != "" {
 		m.intent = intent
 	}
 	cmd := m.relayout()
-	return tea.Batch(cmd, m.toolSwitched(prev))
+	return tea.Batch(cmd, m.toolSwitchedBy(prev, toggled))
 }
 
 // toolsOn reports whether the tool surface exists in this run (a tool flag is on).
@@ -347,7 +359,8 @@ func (m *Model) toolMsg(msg tea.Msg) (tea.Cmd, bool) {
 
 // toggleTools is tools.toggle.
 func (m *Model) toggleTools() tea.Cmd {
-	return m.applyTools(m.nav.toggleTools(m.lay.Mode))
+	n, intent := m.nav.toggleTools(m.lay.Mode)
+	return m.applyToolsBy(n, intent, true)
 }
 
 // zoomTool is tools.zoom on the active tool (no-op while the surface is not in

@@ -287,9 +287,41 @@ func TestToolSwitchedBroadcast(t *testing.T) {
 		t.Fatalf("ToolSwitchedMsg = %+v, want %+v", got, want)
 	}
 	for i := range want {
-		if got[i].Route.Key() != want[i].Route.Key() || got[i].Zoomed != want[i].Zoomed {
+		if got[i].Route.Key() != want[i].Route.Key() || got[i].Zoomed != want[i].Zoomed || got[i].Toggled {
 			t.Errorf("ToolSwitchedMsg[%d] = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+// Review fix (tools-nav): Toggled is set only when tools.toggle (ctrl+t)
+// brings the hub forward — not for a zoom of the hub, nor tools.next/prev
+// landing on it — so only then does the hub move its cursor.
+func TestToolSwitchedToggledOnlyByToggle(t *testing.T) {
+	installStubTools(t, "all")
+	h := uitest.New(t)
+	h.Resize(120, 40)
+	var got []ui.ToolSwitchedMsg
+	app.SetObserverForTest(h.Model, func(msg tea.Msg) {
+		if m, ok := msg.(ui.ToolSwitchedMsg); ok {
+			got = append(got, m)
+		}
+	})
+	openTool(h, ui.ToolArch, "a1")
+	got = nil
+	h.Press("ctrl+t", "ctrl+t") // the chat, then the hub
+	h.Press("ctrl+w", "z")      // zoom the hub
+	h.Send(ui.ToolSurfaceMsg{Action: ui.ToolSurfaceNext})
+	h.Send(ui.ToolSurfaceMsg{Action: ui.ToolSurfacePrev})
+	if len(got) != 4 {
+		t.Fatalf("ToolSwitchedMsg = %+v, want hub, hub zoomed, a1, hub", got)
+	}
+	for i, wantToggled := range []bool{true, false, false, false} {
+		if got[i].Toggled != wantToggled {
+			t.Errorf("ToolSwitchedMsg[%d] = %+v, want Toggled %v", i, got[i], wantToggled)
+		}
+	}
+	if got[0].Route.Kind != ui.RouteTools || got[1].Route.Kind != ui.RouteTools || !got[1].Zoomed || got[3].Route.Kind != ui.RouteTools {
+		t.Errorf("ToolSwitchedMsg = %+v, want hub, hub zoomed, a1, hub", got)
 	}
 }
 
