@@ -93,9 +93,10 @@ C 를 macOS 에서 확인한 방법: 정리 직전·직후에 `lsof -p <pid>` �
 
 - **Windows CI not yet rerun.** 이 그룹의 실패가 다 사라지는지는 다음 실행에서 확인해야 한다.
 - A: 상대 링크 대상의 `..` 를 Windows 가 정말 글자 그대로 푸는지는 Go os.Root 의 모델에 기댄 것이고 Windows 에서
-  직접 보지 않았다. 다음 CI 에서 `TestReadTextLinkDotDotReadsOSTarget`(a, abs 모두 "root")가 통과해야 한다. 이 테스트는
-  `ReadText` 가 계산한 경로를 읽으므로 OS 가 실제로 여는 파일과 대조하지는 않는다 — 대조하려면 Windows 에서
-  `os.ReadFile(proj\a)` 와 비교하는 단언을 추가하는 것을 권한다(이번에는 Windows 에서 확인할 수 없어 넣지 않음).
+  직접 보지 않았다. 다음 CI 에서 `TestReadTextLinkDotDotReadsOSTarget`(a, abs 모두 "root")가 통과해야 한다. 리뷰 뒤
+  (아래 R1) 이 테스트와 Windows 모델 테스트들은 계산값만이 아니라 **OS 가 실제로 여는 파일**(`os.ReadFile`, 상대 링크는
+  `os.Root.ReadFile` 도)과 대조하므로, 모델이 틀리면 다음 Windows CI 가 "link model differs from the OS / os.Root" 로
+  어느 쪽이 다른지까지 알려 준다.
 - A: CI 러너는 개발자 모드라 심링크가 만들어졌다. 일반 사용자 Windows 에서는 `symlink()` 도우미가 Skip 한다.
 - B 관련 제품 한계(이번에 고치지 않음): Windows 에서 원자 저장(임시 파일 + rename)은 원래 파일에 따로 준 ACL 을
   옮기지 않고, 읽기 전용 속성 파일은 rename 덮어쓰기가 거부될 수 있다(MoveFileEx 가 읽기 전용 대상에 ACCESS_DENIED).
@@ -104,3 +105,33 @@ C 를 macOS 에서 확인한 방법: 정리 직전·직후에 `lsof -p <pid>` �
   지우거나 이름을 바꾸지 못할 수 있다 — os.Root 의 성질이고 이번 실패와는 별개, 확인 안 함.
 - E: 가짜 패널로 Windows 에서 처음 실제로 돌게 되는 테스트 중 `TestAttentionFromHook` 은 `hooks.Listen` 을 쓴다.
   `internal/workspace/hooks` 패키지는 Windows CI 에서 통과했지만 ui 쪽 경로는 Windows 에서 아직 안 돌아 봤다.
+
+## 리뷰 지적 반영 (2차)
+
+- **R1 (fsroot, medium) — 진짜 문제, 고침** `8e885ec7 fix(fsroot): check the link model against what the OS opens on Windows`.
+  지적대로 `TestReadTextLinkDotDotReadsOSTarget` 등은 `ReadText` 가 `follow` 로 계산한 경로를 읽을 뿐이라 `windowsLinks`
+  계산이 틀려도 통과했다(원래 CI 의 `a` 통과가 그 예). `assertOSOpens(proj, rel, want, osRoot)` 를 넣었다:
+  `os.ReadFile(proj/rel)`(커널이 링크를 따라감)과, 상대 링크면 `os.OpenRoot(proj).ReadFile(rel)`(Create/Rename/Remove 가
+  쓰는 경로)가 모델의 답과 같아야 한다. `os.Root` 는 절대 링크 대상을 거부하므로(`splitPathInRoot`, Go 1.26 소스 확인)
+  `abs` 는 커널 읽기만 대조한다.
+  - `TestReadTextLinkDotDotReadsOSTarget`: 모든 OS 에서 대조(macOS 에서 커널·os.Root 모두 "sub" 로 통과 확인).
+  - `TestCheckLinkDotDotWindowsModel`: `runtime.GOOS == "windows"` 일 때 `d/config`, `a`, `e`(커널+os.Root), `abs`(커널)가
+    "root". 다른 OS 에서는 모델을 강제로 켠 것이라 OS 는 Unix 식으로 열므로 대조하지 않는다.
+  - `TestCheckLinkWindowsModelDeniesLexicalSecret`: Windows 에서 `k/d` 를 커널·os.Root 로 읽으면 "SECRET" — 막는 링크가
+    실제 비밀 파일을 가리킨다는 것까지 확인한다.
+  - **내 판단**: os.Root 의 Windows 동작(`rootCleanPath` 로 링크 폴더+대상+나머지를 함께 정리)은 Go 소스로 확인했다.
+    커널(plain open)이 상대 대상 `s\..\config` 를 같은 식으로 푸는지는 소스로 확인할 수 없다 — 다르면 다음 CI 에서
+    `os.ReadFile` 단언만 실패할 것이고, 그때는 os.Root 경로(Create/Rename/Remove)와 터미널 쪽 plain open 이 서로 다른
+    파일을 연다는 뜻이므로 모델을 고르기 전에 오너께 여쭌다.
+- **R2 (ui/workspace helpers, low) — 진짜(잠재) 문제, 고침** `36d7aec2 fix(ui/workspace): run the cleanup close commands through
+  the harness on Windows`. `closeLiveAtEnd` 의 대비 경로 `runCmds` 는 `tea.BatchMsg` 만 펼치고 나머지 메시지를 버렸다 —
+  `tea.Sequence` 나 메시지 뒤에 이어지는 명령이 생기면 `endHostCmd` 가 조용히 사라져 Windows TempDir 정리 실패가 다시 난다.
+  이제 `runCmds(t, h, cmd)` 는 Batch 를 펼치고, 결과 메시지는 `h.Send` 로 앱에 넘기며(하네스가 후속 명령을 돌리고
+  `tea.Sequence` 는 하네스가 Errorf), 돌릴 수 없는 bubbletea 내부 메시지는 버리지 않고 `t.Errorf` 로 알린다.
+  - **내 판단**: 지적의 첫 안 `h.Send(cmd())` 그대로는 쓰지 않았다 — `Harness.Send` 는 받은 메시지를 바로 `Model.Update`
+    에 넘기고 최상위 `tea.BatchMsg` 는 펼치지 않는다(`runCmd` 만 펼친다, `internal/ui/uitest/harness.go`). 그래서
+    `CloseTool` 의 `tea.Batch(ownerClose, guestClose)` 결과를 그대로 Send 하면 오히려 명령이 다 버려진다. 두 번째 안
+    (못 돌리는 타입은 Errorf)과 결과 메시지 Send 를 합쳤다. 하네스(uitest)는 건드리지 않았다.
+- 재검증(macOS): `go test -count=1 ./internal/ui/workspace/ ./internal/workspace/... ./internal/ui/uitest/` 통과,
+  `GOOS=windows go vet ./...` 깨끗, `GOOS=windows go test -c` (fsroot, share, ui/workspace) 컴파일 성공, `gofmt -l .` 비어 있음.
+  **Windows CI not yet rerun.**
