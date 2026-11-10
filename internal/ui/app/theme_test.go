@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -255,5 +256,24 @@ func TestThemeKeepsBrokenConfigFile(t *testing.T) {
 	}
 	if s := h.Screen(); !strings.Contains(s, "config.toml 을 고친 뒤 다시 해 주세요") {
 		t.Fatalf("fix-the-file toast missing:\n%s", s)
+	}
+}
+
+// TestThemeSetCommandsFollowLocale: theme.set.* palette rows say the theme
+// name in the shown language (P5 Task 9: theme names come from theme.Label);
+// ko is the 0.1.2 Title.
+func TestThemeSetCommandsFollowLocale(t *testing.T) {
+	en := i18n.For(i18n.En)
+	for _, th := range theme.All() {
+		c, ok := palette.Lookup("theme.set." + string(th.Name))
+		if !ok {
+			t.Fatalf("theme.set.%s not registered", th.Name)
+		}
+		if got, want := c.TitleIn(en), "Theme: "+theme.Label(en, th.Name); got != want {
+			t.Errorf("theme.set.%s en = %q, want %q", th.Name, got, want)
+		}
+		if got := c.TitleIn(i18n.KoT()); got != c.Title {
+			t.Errorf("theme.set.%s ko = %q, want the 0.1.2 Title %q", th.Name, got, c.Title)
+		}
 	}
 }

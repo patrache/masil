@@ -8,6 +8,7 @@ import (
 
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/features"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -70,7 +71,8 @@ func init() {
 	for _, t := range theme.All() {
 		name := t.Name
 		palette.Register(palette.Command{
-			ID: "theme.set." + string(name), Title: "테마: " + t.Label, Group: palette.GroupSettings,
+			ID: "theme.set." + string(name), Title: "테마: " + theme.Label(nil, name), Group: palette.GroupSettings,
+			Label:    func(t *i18n.T) string { return t.Settings.ThemeCommand(theme.Label(t, name)) },
 			Keywords: themeKeywords[name],
 			Run:      func(*ui.Context, string) tea.Cmd { return msgCmd(ui.SetThemeMsg{Name: name}) },
 		})

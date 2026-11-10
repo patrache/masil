@@ -8,7 +8,6 @@ cmd/masil 4
 internal/admincli 77
 internal/markup 3
 internal/textwidth 2
-internal/theme 4
 internal/ui 2
 internal/ui/app 101
 internal/ui/chat 574
