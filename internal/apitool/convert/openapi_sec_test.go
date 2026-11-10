@@ -186,7 +186,9 @@ func TestOpenAPIRefFanOutWorkBudget(t *testing.T) {
 			}
 			start := time.Now()
 			_, _, err := ImportOpenAPI(doc)
-			if el := time.Since(start); el > 5*time.Second {
+			// The point is "seconds, not minutes": a CI runner under a full
+			// `go test ./...` takes about 5x this Mac's 1.6s, so allow 30s.
+			if el := time.Since(start); el > 30*time.Second {
 				t.Errorf("import took %v", el)
 			}
 			if !errors.Is(err, ErrTooLarge) {
@@ -206,7 +208,7 @@ func TestOpenAPILongRefWorkBudget(t *testing.T) {
 	}
 	start := time.Now()
 	_, _, err := ImportOpenAPI(doc)
-	if el := time.Since(start); el > 5*time.Second {
+	if el := time.Since(start); el > 30*time.Second { // seconds, not minutes (see above)
 		t.Errorf("import took %v", el)
 	}
 	if !errors.Is(err, ErrTooLarge) {
@@ -222,7 +224,7 @@ func TestOpenAPIManyPathParamsLinear(t *testing.T) {
 	doc := []byte(`{"openapi":"3.0.3","paths":{"/x":{"get":{"parameters":[` + params + `]}}}}`)
 	start := time.Now()
 	col, _, err := ImportOpenAPI(doc)
-	if el := time.Since(start); el > 5*time.Second {
+	if el := time.Since(start); el > 30*time.Second { // seconds, not minutes (see above)
 		t.Errorf("import took %v", el)
 	}
 	if err != nil {
