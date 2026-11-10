@@ -172,8 +172,13 @@ func TestPathErrorHasNoPath(t *testing.T) {
 }
 
 // A ".." inside a link target is resolved after the links before it, the
-// way the OS does: d -> s/.. with s -> .ssh/keys lands in .ssh.
+// way Unix does: d -> s/.. with s -> .ssh/keys lands in .ssh. Windows cleans
+// the target lexically instead (d is the folder itself), see
+// TestCheckLinkDotDotWindowsModel.
 func TestCheckLinkDotDotFollowsOS(t *testing.T) {
+	if windowsLinks {
+		t.Skip("Unix link model; the Windows model is TestCheckLinkDotDotWindowsModel")
+	}
 	proj := t.TempDir()
 	writeFile(t, proj, ".ssh/keys/k", "k")
 	writeFile(t, proj, ".ssh/config", "SECRET")
@@ -203,11 +208,99 @@ func TestReadTextLinkDotDotReadsOSTarget(t *testing.T) {
 	symlink(t, proj, "s/../config", "a")
 	symlink(t, proj, proj+string(filepath.Separator)+filepath.FromSlash("s/../config"), "abs") // raw, not cleaned
 	r := openRoot(t, proj)
+	// Unix walks s first and ".." leaves sub/inner; Windows cleans
+	// "s\..\config" lexically (CreateSymbolicLinkW stores an absolute target
+	// already cleaned, a relative one is cleaned when followed).
+	want := "sub"
+	if windowsLinks {
+		want = "root"
+	}
 	for _, rel := range []string{"a", "abs"} {
 		text, _, err := r.ReadText(rel)
-		if err != nil || text != "sub" {
-			t.Errorf("ReadText(%s) = %q, %v; want %q (the file the OS opens)", rel, text, err, "sub")
+		if err != nil || text != want {
+			t.Errorf("ReadText(%s) = %q, %v; want %q (the file the OS opens)", rel, text, err, want)
 		}
+	}
+}
+
+// withWindowsLinks runs the rest of the test with the Windows link model.
+func withWindowsLinks(t *testing.T) {
+	t.Helper()
+	old := windowsLinks
+	windowsLinks = true
+	t.Cleanup(func() { windowsLinks = old })
+}
+
+// The Windows model on any OS: Check answers with the path Windows (and
+// os.Root on Windows) opens. d -> s/.. is the folder itself there, so
+// d/config is the harmless top-level name, not .ssh/config.
+func TestCheckLinkDotDotWindowsModel(t *testing.T) {
+	withWindowsLinks(t)
+	proj := t.TempDir()
+	writeFile(t, proj, ".ssh/keys/k", "k")
+	writeFile(t, proj, ".ssh/config", "SECRET")
+	writeFile(t, proj, "config", "root")
+	writeFile(t, proj, "sub/inner/x", "x")
+	symlink(t, proj, ".ssh/keys", "s")
+	symlink(t, proj, "s/..", "d")
+	symlink(t, proj, "sub/inner", "i")
+	symlink(t, proj, "i/../config", "a")
+	symlink(t, proj, proj+string(filepath.Separator)+filepath.FromSlash("i/../config"), "abs")
+	symlink(t, proj, "s/../config", "e")
+	r := openRoot(t, proj)
+	for rel, want := range map[string]string{"d/config": "config", "d": ".", "a": "config", "abs": "config"} {
+		_, real, err := r.resolve(rel)
+		if err != nil || real != want {
+			t.Errorf("resolve(%q) = %q, %v; want %q", rel, real, err, want)
+		}
+		if _, err := r.Check(rel, true); err != nil {
+			t.Errorf("Check(%q) err = %v, want nil", rel, err)
+		}
+	}
+	// s -> .ssh/keys, so e -> s/../config is "config" on Windows but
+	// .ssh/config on Unix: the Windows model must not deny a file it does
+	// not open, and the text read is the one Windows opens.
+	if text, _, err := r.ReadText("e"); err != nil || text != "root" {
+		t.Errorf("ReadText(e) = %q, %v; want %q", text, err, "root")
+	}
+}
+
+// The case the Windows model closes: a lexical target that lands on a
+// secret Windows opens while the Unix walk ends on a public file. k -> .ssh,
+// .ssh/d -> s/../config, .ssh/s -> ../sub: Unix opens config, Windows (and
+// os.Root on Windows, which Create/Rename/Remove go through) opens
+// .ssh/config, so Check must deny it.
+func TestCheckLinkWindowsModelDeniesLexicalSecret(t *testing.T) {
+	withWindowsLinks(t)
+	proj := t.TempDir()
+	writeFile(t, proj, ".ssh/config", "SECRET")
+	writeFile(t, proj, "config", "public")
+	writeFile(t, proj, "sub/x", "x")
+	symlink(t, proj, ".ssh", "k")
+	symlink(t, proj, "../sub", ".ssh/s")
+	symlink(t, proj, "s/../config", ".ssh/d")
+	r := openRoot(t, proj)
+	_, err := r.Check("k/d", true)
+	if reason, ok := reasonOf(err); !ok || reason != ReasonDenied {
+		t.Errorf("Check(k/d) err = %v, want Denied", err)
+	}
+	if text, _, err := r.ReadText("k/d"); err != nil || text != "SECRET" {
+		t.Errorf("owner ReadText(k/d) = %q, %v; want the file Windows opens", text, err)
+	}
+}
+
+// Above the root by lexical cleaning is an escape in the Windows model.
+func TestCheckLinkWindowsModelEscape(t *testing.T) {
+	withWindowsLinks(t)
+	proj := t.TempDir()
+	writeFile(t, proj, "a/b/x", "x")
+	symlink(t, proj, "a/b", "s")
+	// Unix: s/../.. is the root; Windows: proj/s/../.. is above it.
+	symlink(t, proj, "s/../..", "up")
+	r := openRoot(t, proj)
+	_, err := r.Check("up", true)
+	if reason, ok := reasonOf(err); !ok || reason != ReasonEscape {
+		t.Errorf("Check(up) err = %v, want Escape", err)
 	}
 }
 
