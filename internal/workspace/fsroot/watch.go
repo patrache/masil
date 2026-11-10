@@ -34,6 +34,19 @@ func (w *Watcher) Track(rel string, fp Fingerprint) {
 	w.mu.Unlock()
 }
 
+// TrackNow starts watching rel from what it holds now (absent included);
+// a rel already watched is left as it is.
+func (w *Watcher) TrackNow(rel string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, ok := w.files[rel]; ok {
+		return
+	}
+	if fp, ok := w.current(rel, Fingerprint{}); ok {
+		w.files[rel] = fp
+	}
+}
+
 // Untrack stops watching rel.
 func (w *Watcher) Untrack(rel string) {
 	w.mu.Lock()

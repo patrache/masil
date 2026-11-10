@@ -20,6 +20,46 @@ func isRuleFile(rel string) bool {
 	return base == GitIgnoreFile || base == MasilIgnoreFile
 }
 
+// gitExcludeFile is the repository's own exclude list (relative to the
+// folder when the folder is the repository's top).
+const gitExcludeFile = ".git/info/exclude"
+
+// RuleFiles lists the ignore-rule files (present or not) whose change can
+// change whether rel is hidden from peers: .gitignore and .masilignore in
+// every folder above rel and above the real path its links lead to, and
+// .git/info/exclude. Rules outside the folder (a parent repository's
+// .gitignore, core.excludesFile) are not included. A path that does not
+// resolve gives nil.
+func (r *Root) RuleFiles(rel string) []string {
+	clean, real, err := r.resolve(rel)
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	add := func(p string) {
+		if !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	for _, p := range []string{clean, real} {
+		els := split(p)
+		for n := 0; n < len(els); n++ {
+			dir := strings.Join(els[:n], "/")
+			for _, name := range []string{GitIgnoreFile, MasilIgnoreFile} {
+				if dir == "" {
+					add(name)
+				} else {
+					add(dir + "/" + name)
+				}
+			}
+		}
+	}
+	add(gitExcludeFile)
+	return out
+}
+
 // Ignorer answers, for many paths at once, whether each is ignored. A path is
 // ignored when it or any parent folder matches (git cannot re-include a file
 // inside an excluded folder).

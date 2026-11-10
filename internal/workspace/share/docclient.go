@@ -162,6 +162,9 @@ func (g *Guest) Presence(rel string, cursor, selFrom, selTo int) {
 
 func (g *Guest) onDocState(m wire.DocState) {
 	if m.Error != "" {
+		// For a document I have open this is the owner closing it (it no
+		// longer passes the participant check): drop my copy.
+		delete(g.docs, m.Doc)
 		g.emit(EventDocState{DocState: m})
 		return
 	}

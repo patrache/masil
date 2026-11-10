@@ -509,6 +509,11 @@ func (s *Surface) guestDocState(ctx *ui.Context, m wire.DocState) tea.Cmd {
 	g := s.guest
 	t := ctx.T.Workspace
 	if m.Error != "" {
+		// An error for a document I have open: the owner closed it (it no
+		// longer passes the participant check).
+		if d := s.code.find(m.Doc); d != nil {
+			s.guestCloseDoc(ctx, d)
+		}
 		switch m.Error {
 		case share.DocErrTooLarge:
 			s.code.msg = t.CodeCannotOpenLarge()
