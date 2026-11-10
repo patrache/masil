@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/theme"
 )
 
 // Syntax colors and the completion menu (v0.1.3-1). Both are mine alone:
@@ -50,6 +52,15 @@ func (e *Editor) SetLanguage(lang string) {
 // Language is the editor's language.
 func (e *Editor) Language() string { return e.as.lang }
 
+// SetTheme switches the theme (a runtime theme change): the text, token
+// and menu colors follow it.
+func (e *Editor) SetTheme(th *theme.Theme) {
+	if th == nil || th == e.th {
+		return
+	}
+	e.th, e.as.styles = th, nil
+}
+
 // SetAssist turns syntax colors and the completion menu on or off.
 func (e *Editor) SetAssist(highlight, complete bool) {
 	e.as.highlight, e.as.complete = highlight, complete
@@ -84,9 +95,7 @@ func (e *Editor) CompletionOpen() bool { return e.as.open }
 
 // CompletionKeys reports whether ctrl+n / ctrl+p are the editor's now
 // (insert mode, completion on, editable).
-func (e *Editor) CompletionKeys() bool {
-	return e.as.complete && !e.readOnly && e.core.IsInsertMode()
-}
+func (e *Editor) CompletionKeys() bool { return e.menuLive() }
 
 // Paste types text in insert mode with the menu out of the way (a pasted
 // newline is a newline, never an accept).
@@ -158,9 +167,20 @@ func (e *Editor) cursorWord() (row, from, to int, prefix, word string) {
 	return pos.Row, from, to, prefix, word
 }
 
-// refreshMenu opens, refills or closes the menu for the word being typed.
-func (e *Editor) refreshMenu() {
-	if !e.as.complete || e.readOnly || !e.core.IsInsertMode() {
+// menuLive reports whether the menu may be open now (insert mode on an
+// editable document, completion on).
+func (e *Editor) menuLive() bool {
+	return e.as.complete && !e.readOnly && e.core.IsInsertMode()
+}
+
+// refreshMenu opens, refills or closes the menu for the word being typed;
+// the first item is selected.
+func (e *Editor) refreshMenu() { e.fillMenu(false) }
+
+// fillMenu is refreshMenu; keep holds on to the selected word when it is
+// still offered (a refill for someone else's edit must not move it).
+func (e *Editor) fillMenu(keep bool) {
+	if !e.menuLive() {
 		e.closeMenu()
 		return
 	}
@@ -178,7 +198,13 @@ func (e *Editor) refreshMenu() {
 		e.closeMenu()
 		return
 	}
-	e.as.open, e.as.items, e.as.sel, e.as.top = true, items, 0, 0
+	sel, top := 0, 0
+	if keep && e.as.open && e.as.sel < len(e.as.items) {
+		if i := slices.Index(items, e.as.items[e.as.sel]); i >= 0 {
+			sel, top = i, min(e.as.top, i) // drawMenu scrolls it into view
+		}
+	}
+	e.as.open, e.as.items, e.as.sel, e.as.top = true, items, sel, top
 }
 
 // acceptCompletion replaces the word under the cursor with the selected
@@ -268,7 +294,7 @@ func spanAt(spans []codeassist.Span, i *int, col int) (chroma.TokenType, bool) {
 // drawMenu lays the open menu over the drawn rows: under the cursor's line
 // (above it when there is no room), from the start of the typed word.
 func (e *Editor) drawMenu(out []string, rows int) {
-	if !e.as.open || len(e.as.items) == 0 || rows <= 0 {
+	if !e.as.open || len(e.as.items) == 0 || rows <= 0 || !e.menuLive() {
 		return
 	}
 	st := e.core.GetState()
@@ -278,13 +304,15 @@ func (e *Editor) drawMenu(out []string, rows int) {
 	if y < 0 || y >= rows {
 		return
 	}
-	n := min(len(e.as.items)-e.as.top, codeassist.MaxVisible)
+	total := len(e.as.items)
+	want := min(total, codeassist.MaxVisible)
+	n := want
 	below, above := rows-y-1, y
 	y0 := y + 1
 	switch {
-	case below >= n:
-	case above >= n:
-		y0 = y - n
+	case below >= want:
+	case above >= want:
+		y0 = y - want
 	case below >= above:
 		n = below
 	default:
@@ -293,10 +321,18 @@ func (e *Editor) drawMenu(out []string, rows int) {
 	if n <= 0 {
 		return
 	}
+	// The scroll window follows the rows drawn (fewer than MaxVisible in a
+	// short pane), so the selected item is always one of them.
+	top := min(e.as.top, e.as.sel)
+	if e.as.sel >= top+n {
+		top = e.as.sel - n + 1
+	}
+	top = max(0, min(top, total-n))
+	e.as.top = top
 	labels := make([]string, n)
 	w := 0
 	for i := range n {
-		labels[i] = textwidth.Sanitize(e.as.items[e.as.top+i])
+		labels[i] = textwidth.Sanitize(e.as.items[top+i])
 		w = max(w, textwidth.Width(labels[i]))
 	}
 	w = min(w+2, e.w)
@@ -306,7 +342,7 @@ func (e *Editor) drawMenu(out []string, rows int) {
 	sel := lipgloss.NewStyle().Background(e.th.P.Acc).Foreground(e.th.P.BG).Bold(true)
 	for i := range n {
 		style := item
-		if e.as.top+i == e.as.sel {
+		if top+i == e.as.sel {
 			style = sel
 		}
 		cell := style.Render(textwidth.PadRight(" "+textwidth.Truncate(labels[i], w-2, "…"), w))

@@ -60,8 +60,12 @@ func (c *codeCell) setupAssist(ctx *ui.Context, d *openDoc) {
 	c.applyAssist(ctx, d)
 }
 
-// applyAssist follows the settings' switches (code_highlight, code_complete).
+// applyAssist follows the settings' switches (code_highlight, code_complete)
+// and the theme (it can change at run time).
 func (c *codeCell) applyAssist(ctx *ui.Context, d *openDoc) {
+	if ctx != nil {
+		d.ed.SetTheme(ctx.Theme)
+	}
 	hl, cp := true, true
 	if ctx != nil && ctx.Config != nil {
 		hl, cp = ctx.Config.UI.CodeHighlight, ctx.Config.UI.CodeComplete

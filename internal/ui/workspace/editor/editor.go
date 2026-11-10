@@ -173,6 +173,9 @@ func (e *Editor) SetReadOnly(ro bool) {
 	if ro && e.core.IsInsertMode() {
 		e.core.SetNormalMode()
 	}
+	if ro {
+		e.closeMenu()
+	}
 }
 
 // ReadOnly reports whether editing is off.
@@ -232,7 +235,7 @@ func (e *Editor) ApplyRemote(op ot.Op) {
 	e.load(next, positionOf(next, cur))
 	e.scrollColumn()
 	if e.as.open {
-		e.refreshMenu()
+		e.fillMenu(true)
 	}
 }
 
@@ -252,6 +255,9 @@ func (e *Editor) Reset(text string) {
 func (e *Editor) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	defer e.drainSignals()
 	ks := msg.String()
+	if e.as.open && !e.menuLive() {
+		e.closeMenu() // stale (the mode or the level changed under it)
+	}
 	if e.as.open && e.menuKey(ks) {
 		return true, nil
 	}

@@ -88,3 +88,38 @@ func TestGoeditorCompletion(t *testing.T) {
 		t.Fatalf("file = %q", got)
 	}
 }
+
+// l from python3 to python keeps the solution file (both .py), so the
+// editor stays open: its keyword table and highlighting follow the new
+// language (python has no nonlocal).
+func TestGoeditorLanguageChangeKeepsEditor(t *testing.T) {
+	e := setup(t)
+	e.lc.SetDailyDate("2026-11-05")
+	withNvim(t, false)
+	h := uitest.New(t)
+	openToday(t, h)
+	in := func() bool { return leet.CompletionMenuForTest(todayInstance(t, h)) }
+	h.Press("l", "e") // python3
+	h.Press("o", "n", "o", "n", "l")
+	if !in() {
+		t.Fatalf("python3: no menu for nonl:\n%s", h.Screen())
+	}
+	h.Press("esc", "esc", "d", "d", "esc") // the line goes, the editor lets go of the keys
+	before, ok := leet.EditorViewForTest(h.Context(), todayInstance(t, h))
+	if !ok {
+		t.Fatal("no built-in editor")
+	}
+	h.Press("l") // python: the same .py file
+	after, ok := leet.EditorViewForTest(h.Context(), todayInstance(t, h))
+	if !ok {
+		t.Fatal("the editor was dropped on python3 -> python")
+	}
+	kw := fgSeq(h.Context().Theme.EditorTokenStyle(chroma.Keyword).GetForeground())
+	if !strings.Contains(before, kw) || !strings.Contains(after, kw) {
+		t.Fatalf("keywords not colored (python3 %v, python %v):\n%q", strings.Contains(before, kw), strings.Contains(after, kw), after)
+	}
+	h.Press("e", "o", "n", "o", "n", "l")
+	if in() {
+		t.Fatalf("python: nonlocal still offered:\n%s", h.Screen())
+	}
+}

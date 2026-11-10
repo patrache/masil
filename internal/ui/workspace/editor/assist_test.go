@@ -265,3 +265,100 @@ func TestLargeFileTyping(t *testing.T) {
 		t.Fatalf("menu = %v", m)
 	}
 }
+
+// In a short pane the menu is drawn with fewer rows than MaxVisible; moving
+// down keeps the selected item among the drawn rows.
+func TestCompletionShortPaneKeepsSelectionVisible(t *testing.T) {
+	var words []string
+	for i := 1; i <= 9; i++ {
+		words = append(words, "aa"+string(rune('0'+i)))
+	}
+	e := goEd(strings.Join(words, " ") + "\n\n\n\n\n")
+	e.Resize(50, 10)
+	press(t, e, "j", "j", "j", "j", "o", "a", "a")
+	if n := len(menu(t, e)); n != 9 {
+		t.Fatalf("%d items, want 9", n)
+	}
+	for range 6 {
+		press(t, e, "down")
+	}
+	items, sel, ok := e.Completion()
+	if !ok {
+		t.Fatal("menu closed")
+	}
+	want := items[sel]
+	v := ansi.Strip(e.View(true))
+	if strings.Count(v, want) < 2 { // once in the text, once in the menu
+		t.Fatalf("selected %q (%d) is not drawn:\n%s", want, sel, v)
+	}
+	// and every way back up keeps it drawn too
+	for range 9 {
+		press(t, e, "up")
+		items, sel, _ = e.Completion()
+		if v := ansi.Strip(e.View(true)); strings.Count(v, items[sel]) < 2 {
+			t.Fatalf("selected %q (%d) is not drawn going up:\n%s", items[sel], sel, v)
+		}
+	}
+}
+
+// Someone else's edit refills the menu but keeps my selection.
+func TestRemoteEditKeepsSelection(t *testing.T) {
+	e := goEd("alpha1 alpha2 alpha3\nzzz\n")
+	press(t, e, "o", "a", "l")
+	press(t, e, "down", "down")
+	items, sel, ok := e.Completion()
+	if !ok || sel != 2 {
+		t.Fatalf("menu %v sel %d", items, sel)
+	}
+	want := items[sel]
+	e.ApplyRemote(ot.Insert(24, "y", len([]rune(e.Text())))) // into "zzz" (after "al\n")
+	items, sel, ok = e.Completion()
+	if !ok || items[sel] != want {
+		t.Fatalf("after a remote edit selected %v[%d], want %q", items, sel, want)
+	}
+}
+
+// Turning read-only (a guest's level drops) closes the menu, and the next
+// menu key is not eaten by it.
+func TestReadOnlyClosesMenu(t *testing.T) {
+	e := goEd("result\n")
+	press(t, e, "o", "r", "e")
+	if !e.CompletionOpen() {
+		t.Fatal("no menu")
+	}
+	e.SetReadOnly(true)
+	if e.CompletionOpen() || e.Mode() != "normal" {
+		t.Fatalf("read-only: menu open %v, mode %s", e.CompletionOpen(), e.Mode())
+	}
+	if v := ansi.Strip(e.View(true)); strings.Count(v, "result") > 1 {
+		t.Fatalf("menu still drawn:\n%s", v)
+	}
+	// the stale-state backstop: a menu left open outside insert mode is not drawn and eats no key
+	e.SetReadOnly(false)
+	e.as.open, e.as.items = true, []string{"result"}
+	if v := ansi.Strip(e.View(true)); strings.Count(v, "result") > 1 {
+		t.Fatalf("menu drawn in normal mode:\n%s", v)
+	}
+	press(t, e, "esc")
+	if e.CompletionOpen() {
+		t.Fatal("menu still open after a key in normal mode")
+	}
+}
+
+// A theme switch at run time recolors the tokens (the cache is dropped).
+func TestSetThemeRecolorsTokens(t *testing.T) {
+	old, next := theme.Get(theme.Default), theme.Get(theme.Cream)
+	kwOld, kwNew := old.EditorTokenStyle(chroma.Keyword).Render("f"), next.EditorTokenStyle(chroma.Keyword).Render("f")
+	if kwOld == kwNew {
+		t.Skip("the two themes color keywords alike")
+	}
+	e := goEd("func main() {}\n")
+	if v := e.View(true); !strings.Contains(v, kwOld) {
+		t.Fatalf("not colored by the first theme:\n%q", v)
+	}
+	e.SetTheme(next)
+	v := e.View(true)
+	if !strings.Contains(v, kwNew) || strings.Contains(v, kwOld) {
+		t.Fatalf("still the old theme's colors:\n%q", v)
+	}
+}
