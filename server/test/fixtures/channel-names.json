@@ -1,0 +1,39 @@
+{
+  "_comment": "api.md 0.3 text channel name rule (P5 Task 20). One table for server/test/unit/validate.test.ts (CHANNEL_NAME_RE) and internal/ui/chat channelNameRe (TestChannelNameRuleMatchesServer). Inputs are already NFC + trimmed.",
+  "valid": [
+    "general",
+    "일반",
+    "综合",
+    "前端",
+    "后端_api",
+    "㐀",
+    "䶿",
+    "一",
+    "鿿",
+    "a-b_c",
+    "dev2",
+    "前端-api_v2",
+    "一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一",
+    "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "invalid": [
+    "",
+    "General",
+    "前端!",
+    "前 端",
+    "Ａ",
+    "ｱ",
+    "😀",
+    "〇",
+    "⼀",
+    "ꀀ",
+    "䷀",
+    "㏿",
+    "#general",
+    "前端。",
+    "一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "채널 이름"
+  ]
+}

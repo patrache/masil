@@ -309,7 +309,7 @@ func TestDaemonInstall(t *testing.T) {
 	}
 }
 
-// README's `MASIL_SERVER=… masil login` (inline, not exported) saves
+// README*.md's `MASIL_SERVER=… masil login` (inline, not exported) saves
 // credentials for another server; a later install from a plain shell must warn
 // that the autostarted daemon will never connect, like `masil daemon status`.
 func TestDaemonInstallWarnsCredentialsServerMismatch(t *testing.T) {

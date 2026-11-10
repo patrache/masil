@@ -260,7 +260,8 @@ export async function makeFriends(a: TestUser, b: TestUser): Promise<void> {
 
 /**
  * `owner` creates a space through the API, makes one invite link (no use cap) and every member accepts it.
- * Returns the space as the owner sees it after the joins, and its default channel (`일반`).
+ * Returns the space as the owner sees it after the joins, and its default channel (`일반` — the request carries no
+ * Accept-Language, so the default name is ko; api.md 5.7).
  */
 export async function makeSpace(owner: TestUser, members: TestUser[] = []): Promise<{ space: SpaceDetail; generalChannelId: string }> {
   const created = await api(owner.token).post<{ space: SpaceDetail }>("/v1/spaces", { name: `방 ${randomBase36(6)}` });

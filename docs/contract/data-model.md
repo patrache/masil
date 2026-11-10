@@ -257,7 +257,7 @@ CREATE TABLE channels (
   id              TEXT PRIMARY KEY,
   kind            TEXT NOT NULL CHECK (kind IN ('text','dm','group_dm')),
   space_id        TEXT REFERENCES spaces(id) ON DELETE CASCADE,
-  name            TEXT,                                   -- text: ^[a-z0-9가-힣_-]{1,32}$ ; group_dm: optional 1..50 free text ; dm: NULL
+  name            TEXT,                                   -- text: ^[a-z0-9가-힣㐀-䶿一-鿿_-]{1,32}$ ; group_dm: optional 1..50 free text ; dm: NULL
   topic           TEXT NOT NULL DEFAULT '',               -- 0..250
   is_private      INTEGER NOT NULL DEFAULT 0 CHECK (is_private IN (0,1)),
   position        INTEGER NOT NULL DEFAULT 0,

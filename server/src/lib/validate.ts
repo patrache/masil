@@ -106,8 +106,12 @@ export const zPollInput = z.object({
   duration_sec: z.number().int().min(60).max(604_800).nullable().optional(),
 });
 
-/** Text channel name (api.md 0.3): NFC + trim, then `^[a-z0-9가-힣_-]{1,32}$` (no case folding). */
-export const CHANNEL_NAME_RE = /^[a-z0-9가-힣_-]{1,32}$/;
+/**
+ * Text channel name (api.md 0.3): NFC + trim, then `^[a-z0-9가-힣㐀-䶿一-鿿_-]{1,32}$` (no case folding): Hangul
+ * syllables, CJK extension A (U+3400–U+4DBF) and CJK unified ideographs (U+4E00–U+9FFF, P5 Task 20). Every allowed
+ * character is in the BMP, so the 32 counts code points. The Go client keeps the same range (internal/ui/chat channelNameRe).
+ */
+export const CHANNEL_NAME_RE = /^[a-z0-9가-힣㐀-䶿一-鿿_-]{1,32}$/;
 
 export const zChannelName: z.ZodType<string, string> = z
   .string()

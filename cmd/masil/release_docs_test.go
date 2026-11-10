@@ -93,12 +93,12 @@ func TestReleaseDocsGateCommands(t *testing.T) {
 	}
 }
 
-// v0.1.1 R4: the local-dev client command (README '로컬 개발' and its spec,
+// v0.1.1 R4: the local-dev client command (README*.md local development and its spec,
 // plan 06 Task 13 item 11) talks to `wrangler dev`, whose MIN_CLIENT_VERSION
 // is 0.1.0, so every `go run ./cmd/masil` in them must be stamped too.
 func TestReleaseDocsLocalDevStamped(t *testing.T) {
 	const stamped = "MASIL_SERVER=http://localhost:8787 go run " + gateVersionFlag + " ./cmd/masil"
-	for _, rel := range []string{plan06, "README.md"} {
+	for _, rel := range []string{plan06, "README.md", "README.ko.md"} {
 		doc := readDoc(t, rel)
 		found := 0
 		for rest := doc; ; {

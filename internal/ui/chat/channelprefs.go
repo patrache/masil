@@ -95,8 +95,10 @@ const (
 	memberPageSize = 100 // api.md 0: list limit max
 )
 
-// channelNameRe is the channel name rule (api.md 0.3).
-var channelNameRe = regexp.MustCompile(`^[a-z0-9가-힣_-]{1,32}$`)
+// channelNameRe is the channel name rule (api.md 0.3): lowercase ASCII letters, digits, Hangul syllables
+// (U+AC00–U+D7A3), CJK extension A (U+3400–U+4DBF), CJK unified ideographs (U+4E00–U+9FFF), _ and -, 1..32 code
+// points — the server's CHANNEL_NAME_RE (TestChannelNameRuleMatchesServer reads the same table).
+var channelNameRe = regexp.MustCompile(`^[a-z0-9\x{AC00}-\x{D7A3}\x{3400}-\x{4DBF}\x{4E00}-\x{9FFF}_-]{1,32}$`)
 
 // validChannelName is a form Validate for channel names.
 func validChannelName(s string) string {

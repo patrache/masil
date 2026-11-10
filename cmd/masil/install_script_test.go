@@ -126,23 +126,32 @@ func TestInstallShRetriesDownloads(t *testing.T) {
 		}
 	})
 
-	t.Run("curl HTTP error names the HTTP cause", func(t *testing.T) {
-		r := run("curl", base, "FAKE_HTTP_ERROR=504")
-		if r.code != 1 || r.installed {
-			t.Fatalf("HTTP 504 => exit %d, installed %v, want 1:\n%s", r.code, r.installed, r.out)
-		}
-		for _, want := range []string{
-			"내려받기 실패: " + base + "/masil_linux_amd64.tar.gz",
-			"returned error: 504", // curl's own line is shown, not sent to /dev/null
-			"HTTP 오류",
-			"5xx",
-			"잠시 뒤 다시",
-		} {
-			if !strings.Contains(r.out, want) {
-				t.Errorf("failure output lacks %q:\n%s", want, r.out)
+	// P5 Task 22: the messages are Korean when the locale starts with ko,
+	// English otherwise.
+	for _, lc := range []struct {
+		lang, failed, http, later string
+	}{
+		{"LANG=ko_KR.UTF-8", "내려받기 실패: ", "HTTP 오류", "잠시 뒤 다시"},
+		{"LANG=en_US.UTF-8", "Download failed: ", "HTTP error", "try again in a moment"},
+	} {
+		t.Run("curl HTTP error names the HTTP cause/"+lc.lang, func(t *testing.T) {
+			r := run("curl", base, "FAKE_HTTP_ERROR=504", lc.lang)
+			if r.code != 1 || r.installed {
+				t.Fatalf("HTTP 504 => exit %d, installed %v, want 1:\n%s", r.code, r.installed, r.out)
 			}
-		}
-	})
+			for _, want := range []string{
+				lc.failed + base + "/masil_linux_amd64.tar.gz",
+				"returned error: 504", // curl's own line is shown, not sent to /dev/null
+				lc.http,
+				"5xx",
+				lc.later,
+			} {
+				if !strings.Contains(r.out, want) {
+					t.Errorf("failure output lacks %q:\n%s", want, r.out)
+				}
+			}
+		})
+	}
 
 	t.Run("wget retries transient failures", func(t *testing.T) {
 		r := run("wget", base, "FAKE_WGET_FAILURES=2")
@@ -158,7 +167,7 @@ func TestInstallShRetriesDownloads(t *testing.T) {
 	})
 
 	t.Run("wget gives up after 5 tries", func(t *testing.T) {
-		r := run("wget", base, "FAKE_WGET_FAILURES=99")
+		r := run("wget", base, "FAKE_WGET_FAILURES=99", "LANG=ko_KR.UTF-8")
 		if r.code != 1 || r.installed {
 			t.Fatalf("exit %d, installed %v, want 1:\n%s", r.code, r.installed, r.out)
 		}
@@ -169,6 +178,115 @@ func TestInstallShRetriesDownloads(t *testing.T) {
 			t.Errorf("failure output lacks the HTTP hint:\n%s", r.out)
 		}
 	})
+}
+
+// P5 Task 22: outside a Korean locale install.sh speaks English only — on
+// success, on failure and in the next-step hints. MASIL_INSTALL_LANG=ko|en
+// wins over the locale; LC_ALL wins over LANG.
+func TestInstallShEnglishNoHangul(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install.sh is a POSIX sh script")
+	}
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh not on PATH")
+	}
+	script, err := filepath.Abs(filepath.Join("..", "..", "scripts", "install.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dist := fakeRelease(t, "masil_linux_amd64.tar.gz")
+	run := func(env ...string) string {
+		t.Helper()
+		dir := t.TempDir()
+		bin := sandboxPath(t, filepath.Join(dir, "path"))
+		writeExe(t, filepath.Join(bin, "curl"), fakeCurl)
+		log := filepath.Join(dir, "fetch.log")
+		if err := os.WriteFile(log, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command(sh, script)
+		cmd.Env = append([]string{
+			"PATH=" + bin, "HOME=" + dir, "TMPDIR=" + dir,
+			"MASIL_OS=Linux", "MASIL_ARCH=x86_64",
+			"MASIL_DOWNLOAD_BASE=file://" + dist, "MASIL_INSTALL_DIR=" + filepath.Join(dir, "inst"),
+			"FAKE_DIST=" + dist, "FAKE_LOG=" + log,
+		}, env...)
+		out, _ := cmd.CombinedOutput()
+		return string(out)
+	}
+	hangul := func(s string) bool {
+		return strings.IndexFunc(s, func(r rune) bool { return r >= 0xAC00 && r <= 0xD7A3 }) >= 0
+	}
+
+	for _, c := range []struct {
+		name string
+		env  []string
+		ko   bool
+	}{
+		{"LANG=C", []string{"LANG=C"}, false},
+		{"no locale", nil, false},
+		{"LANG=en_US", []string{"LANG=en_US.UTF-8"}, false},
+		{"LANG=ko_KR", []string{"LANG=ko_KR.UTF-8"}, true},
+		{"LC_ALL beats LANG (en)", []string{"LC_ALL=en_US.UTF-8", "LANG=ko_KR.UTF-8"}, false},
+		{"LC_ALL beats LANG (ko)", []string{"LC_ALL=ko_KR.UTF-8", "LANG=C"}, true},
+		{"MASIL_INSTALL_LANG=en", []string{"MASIL_INSTALL_LANG=en", "LANG=ko_KR.UTF-8"}, false},
+		{"MASIL_INSTALL_LANG=ko", []string{"MASIL_INSTALL_LANG=ko", "LANG=C"}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			for _, extra := range [][]string{nil, {"FAKE_HTTP_ERROR=404"}, {"MASIL_OS=Plan9"}} {
+				out := run(append(append([]string{}, c.env...), extra...)...)
+				if hangul(out) != c.ko {
+					t.Errorf("%v: Korean output = %v, want %v:\n%s", extra, hangul(out), c.ko, out)
+				}
+				if strings.TrimSpace(out) == "" {
+					t.Errorf("%v: no output", extra)
+				}
+			}
+		})
+	}
+}
+
+// P5 Task 22: every user-facing message of the install scripts is one line
+// holding the Korean and the English text together (say_t/die_t/t in
+// install.sh, T/Say-T/Fail-T in install.ps1 — and `if ($masilKo) {…}` for the
+// last line outside its script block), so neither language can drift.
+func TestInstallScriptMessagesPaired(t *testing.T) {
+	hangul := func(s string) bool {
+		return strings.IndexFunc(s, func(r rune) bool { return r >= 0xAC00 && r <= 0xD7A3 }) >= 0
+	}
+	for _, c := range []struct {
+		file, comment string
+		helpers       []string
+	}{
+		{"install.sh", "#", []string{"say_t ", "die_t ", "$(t "}},
+		{"install.ps1", "#", []string{"(T ", "Say-T ", "Fail-T ", "if ($masilKo) {"}},
+	} {
+		b, err := os.ReadFile(filepath.Join("..", "..", "scripts", c.file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for i, line := range strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n") {
+			l := strings.TrimSpace(line)
+			if !hangul(l) || strings.HasPrefix(l, c.comment) {
+				continue
+			}
+			n++
+			paired := false
+			for _, h := range c.helpers {
+				if strings.Contains(l, h) {
+					paired = true
+				}
+			}
+			if !paired {
+				t.Errorf("%s:%d: Korean text outside a two-language message: %s", c.file, i+1, l)
+			}
+		}
+		if n == 0 {
+			t.Errorf("%s: no Korean messages found", c.file)
+		}
+	}
 }
 
 // install.ps1 cannot run here (no pwsh locally; plan 06 Task 10 says not to
@@ -196,9 +314,19 @@ func TestInstallPs1RetriesDownloads(t *testing.T) {
 		"HTTP 오류",
 		"5xx",
 		"잠시 뒤 다시",
+		// P5 Task 22: the same hint in English
+		"HTTP error",
+		"try again in a moment",
 	} {
 		if !strings.Contains(fn, want) {
 			t.Errorf("install.ps1 Save-Url lacks %q:\n%s", want, fn)
+		}
+	}
+	// P5 Task 22: Korean when MASIL_INSTALL_LANG=ko or (unset) the Windows UI
+	// culture is ko-*; English otherwise.
+	for _, want := range []string{"MASIL_INSTALL_LANG", "(Get-UICulture).Name -like 'ko*'"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("install.ps1 lacks %q", want)
 		}
 	}
 	// A file:// source is a local copy: it is not retried.

@@ -1,5 +1,6 @@
 // Text channel creation (api.md 5.9), shared by POST /v1/spaces/{space_id}/channels and the #daily switch
-// (PUT /v1/spaces/{space_id}/leet, P1 Task 2). P5 Task 20 passes its default channel name through here.
+// (PUT /v1/spaces/{space_id}/leet, P1 Task 2). The default channel made with a space (POST /v1/spaces, named per
+// request language by P5 Task 20) is not made here: it is part of the space-creation batch (data-model.md 3.8).
 import type { Runtime } from "../env";
 import { batch, first, jsonList, stmt } from "../lib/db";
 import { err } from "../lib/errors";
