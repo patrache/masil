@@ -472,8 +472,9 @@ func TestExportCurlCopies(t *testing.T) {
 	h.Press("enter")
 	waitWhole(t, h, ko.ExportSaved(out))
 	st, err := os.Stat(out)
-	if err != nil || st.Mode().Perm() != 0o600 {
-		t.Fatalf("export file: %v %v", err, st)
+	if err != nil {
+		t.Fatalf("export file: %v", err)
 	}
+	assertPrivateMode(t, out, st)
 	_ = tl
 }
