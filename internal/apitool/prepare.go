@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/patrache/masil/internal/textwidth"
 )
 
 // Prepared is a request with every variable expanded, ready for Sender.
@@ -79,6 +81,19 @@ func validMethod(m string) bool {
 		}
 	}
 	return true
+}
+
+// NormalizeRequest clears what a request read from outside (a collection
+// file, a shared document, an import) may not hold: a method that is not an
+// HTTP token keeps only its shown text (Sanitize, what every draw site
+// shows; one still not a token is refused by Prepare), a body kind outside
+// the enum reads as no body. Draw sites sanitize too; this keeps control
+// bytes out of the model.
+func NormalizeRequest(r *Request) {
+	if m := strings.ToUpper(strings.TrimSpace(r.Method)); m != "" && !validMethod(m) {
+		r.Method = textwidth.Sanitize(r.Method)
+	}
+	r.Body.Kind = docBodyKind(string(r.Body.Kind))
 }
 
 // Prepare's errors the screen names (they never carry the URL).

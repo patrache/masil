@@ -363,6 +363,12 @@ func TestGateNamesSetValues(t *testing.T) {
 	if held[3].Obj != "req:r-get" || held[3].F != "url" {
 		t.Fatalf("held[3] = %+v", held[3])
 	}
+	// Each held value names its row or variable (the question shows it).
+	for i, want := range []string{"X-Api-Key", "API_TOKEN", "X-Session", ""} {
+		if held[i].Name != want {
+			t.Fatalf("held[%d].Name = %q, want %q", i, held[i].Name, want)
+		}
+	}
 	if len(send) != 2 || send[0].Field != "key" || send[1].ID != "row:q1" {
 		t.Fatalf("send = %+v", send)
 	}
@@ -372,7 +378,7 @@ func TestGateNamesSetValues(t *testing.T) {
 	next := fixture()
 	next.Requests["r-pay"].Headers = append(next.Requests["r-pay"].Headers, KV{ID: "h10", Key: "X-API-Key", Value: key})
 	s1, h1 := GateIn(base, Diff(base, next))
-	if len(h1) != 1 {
+	if len(h1) != 1 || h1[0].Name != "X-API-Key" {
 		t.Fatalf("first held = %+v", h1)
 	}
 	d := collab.NewDoc(DocFromCollection(base))
@@ -423,7 +429,7 @@ func TestGateHoldsLiteralAuth(t *testing.T) {
 // ~24k folders; every change rebuilds the collection on the UI goroutine).
 // A folder in a cycle or under a missing one goes to the root.
 func TestCollectionFromDocFolderChain(t *testing.T) {
-	const n = 10_000
+	const n = MaxSharedFolders - 4 // with the four below: at the folder cap
 	objs := []collab.Object{{ID: "col", Type: ObjCol, Fields: map[string]json.RawMessage{"name": mustRaw("deep")}}}
 	for i := range n {
 		p := ""
@@ -448,7 +454,12 @@ func TestCollectionFromDocFolderChain(t *testing.T) {
 		top = append(top, it.Folder.ID)
 	}
 	slices.Sort(top)
-	if !slices.Equal(top, []string{"c1", "c2", "f0", "lost", "under"}) {
+	want := []string{"c1", "c2", "lost", "under"}
+	for i := 0; i < n; i += MaxSharedFolderDepth { // past the depth cap a chain restarts at the root
+		want = append(want, "f"+strconv.Itoa(i))
+	}
+	slices.Sort(want)
+	if !slices.Equal(top, want) {
 		t.Fatalf("root folders = %v", top)
 	}
 	depth := 0
@@ -458,7 +469,7 @@ func TestCollectionFromDocFolderChain(t *testing.T) {
 		}
 		f = f.Items[0].Folder
 	}
-	if depth != n-1 {
+	if depth != MaxSharedFolderDepth-1 {
 		t.Fatalf("chain depth = %d", depth)
 	}
 }

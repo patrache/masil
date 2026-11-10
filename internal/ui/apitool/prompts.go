@@ -43,6 +43,7 @@ const (
 	dkReport     dialogKind = "report"
 	dkSaveBody   dialogKind = "save_body"
 	dkFileExists dialogKind = "file_exists"
+	dkInsecure   dialogKind = "insecure"
 )
 
 // pendingWrite is a save to a path that exists, waiting for the overwrite
@@ -122,6 +123,13 @@ func (t *Tool) onDialog(ctx *ui.Context, m dialogMsg) tea.Cmd {
 		t.pendingPrivate = ""
 		if pk != "" && m.Choice == 0 {
 			t.privateOK[pk] = true
+			return t.send(ctx)
+		}
+	case dkInsecure:
+		pk := t.pendingInsecure
+		t.pendingInsecure = ""
+		if pk != "" && m.Choice == 0 {
+			t.insecureOK[pk] = true
 			return t.send(ctx)
 		}
 	case dkImport:
@@ -486,34 +494,55 @@ func (t *Tool) askOverwrite(ctx *ui.Context, p pendingWrite) tea.Cmd {
 		body: []string{a.FileExistsBody(p.path)}, choices: []string{a.OverwriteYes(), a.Cancel()}})
 }
 
-// createPrivate opens path for writing, readable by me only: a new file, or
-// (overwrite) an existing one emptied. Without overwrite an existing path
-// fails with fs.ErrExist (the screen asks first).
-func createPrivate(path string, overwrite bool) (*os.File, error) {
-	flag := os.O_WRONLY | os.O_CREATE | os.O_EXCL
-	if overwrite {
-		flag = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+// fillPrivate writes path readable by me only, its content from fill: a
+// new file (an existing path fails with fs.ErrExist — the screen asks
+// first), or (overwrite) a temporary file in the same folder renamed over
+// path, so a symlink there is replaced, never followed to the file it
+// points at.
+func fillPrivate(path string, overwrite bool, fill func(io.Writer) error) error {
+	if !overwrite {
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return err
+		}
+		if err := writeClose(f, fill); err != nil {
+			_ = os.Remove(path)
+			return err
+		}
+		return nil
 	}
-	f, err := os.OpenFile(path, flag, 0o600)
+	f, err := os.CreateTemp(filepath.Dir(path), ".masil-save-*")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if err := f.Chmod(0o600); err != nil {
-		f.Close()
-		return nil, err
+	tmp := f.Name()
+	if err := writeClose(f, fill); err != nil {
+		_ = os.Remove(tmp)
+		return err
 	}
-	return f, nil
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
-// writePrivate writes data to path readable by me only (see createPrivate).
+// writeClose makes f mine only, fills and closes it.
+func writeClose(f *os.File, fill func(io.Writer) error) error {
+	err := f.Chmod(0o600)
+	if err == nil {
+		err = fill(f)
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
+// writePrivate writes data to path readable by me only (see fillPrivate).
 func writePrivate(path string, data []byte, overwrite bool) error {
-	f, err := createPrivate(path, overwrite)
-	if err != nil {
+	return fillPrivate(path, overwrite, func(w io.Writer) error {
+		_, err := w.Write(data)
 		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		return err
-	}
-	return f.Close()
+	})
 }

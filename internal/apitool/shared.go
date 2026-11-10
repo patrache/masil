@@ -38,6 +38,11 @@ const (
 	MaxSharedDoc      = 2 << 20  // canonical snapshot JSON bytes
 	MaxSharedField    = 61_440   // one field value's JSON bytes (collab.md 5)
 	MaxLost           = 20       // overwritten bodies kept in .lost.json
+
+	// Folder caps: a peer's document past them is read within them
+	// (CollectionFromDoc), my own edits and uploads are refused.
+	MaxSharedFolders     = 1000
+	MaxSharedFolderDepth = 32
 )
 
 // Shared collection errors.
@@ -47,6 +52,8 @@ var (
 	ErrSharedBodyTooLarge    = errors.New("apitool: a shared request body is too large")
 	ErrSharedFieldTooLarge   = errors.New("apitool: a shared field is too large")
 	ErrSharedDocTooLarge     = errors.New("apitool: the shared collection is too large")
+	ErrSharedTooManyFolders  = errors.New("apitool: a shared collection holds at most 1000 folders")
+	ErrSharedFoldersTooDeep  = errors.New("apitool: shared folders nest at most 32 deep")
 )
 
 // Object types and id prefixes of an apicol document (collab.md 7.1).
@@ -393,14 +400,25 @@ func CollectionFromDoc(s collab.Snapshot) (*Collection, error) {
 
 	// folders and their effective parents
 	folders := map[string]fieldReader{}
+	var folderIDs []string
 	for _, o := range byType[ObjFolder] {
 		if id, ok := strings.CutPrefix(o.ID, prefixFolder); ok {
 			folders[id] = fieldReader(o.Fields)
+			folderIDs = append(folderIDs, id)
+		}
+	}
+	if len(folders) > MaxSharedFolders {
+		// Past the cap (a peer's document): the first ones by id are kept,
+		// the items of the rest go to the root.
+		slices.Sort(folderIDs)
+		for _, id := range folderIDs[MaxSharedFolders:] {
+			delete(folders, id)
 		}
 	}
 	// Each folder's parent is read once; a chain is walked once (memoised),
 	// so a peer's deep chain costs linear time. A folder whose chain meets a
-	// missing folder or a cycle goes to the root.
+	// missing folder or a cycle goes to the root; one nested past
+	// MaxSharedFolderDepth starts a new chain at the root.
 	parent := make(map[string]string, len(folders))
 	for id, f := range folders {
 		parent[id] = f.str("parent")
@@ -411,6 +429,8 @@ func CollectionFromDoc(s collab.Snapshot) (*Collection, error) {
 		broken
 	)
 	state := make(map[string]int8, len(folders))
+	depth := make(map[string]int, len(folders))
+	cut := map[string]bool{}
 	var path []string
 	for id := range folders {
 		path = path[:0]
@@ -435,12 +455,24 @@ func CollectionFromDoc(s collab.Snapshot) (*Collection, error) {
 				cur = p
 			}
 		}
-		for _, x := range path {
+		for i := len(path) - 1; i >= 0; i-- { // parents first
+			x := path[i]
 			state[x] = res
+			if res != rooted {
+				continue
+			}
+			d := 1
+			if p := parent[x]; p != "" {
+				d = depth[p] + 1
+			}
+			if d > MaxSharedFolderDepth {
+				d, cut[x] = 1, true
+			}
+			depth[x] = d
 		}
 	}
 	parentOf := func(id string) string {
-		if state[id] != rooted {
+		if state[id] != rooted || cut[id] {
 			return ""
 		}
 		return parent[id]
@@ -458,10 +490,11 @@ func CollectionFromDoc(s collab.Snapshot) (*Collection, error) {
 		f := fieldReader(o.Fields)
 		r := &Request{
 			ID: id, Name: f.str("name"), Method: f.str("method"), URL: f.str("url"),
-			Body: Body{Kind: BodyKind(f.str("body_kind")), Text: f.str("body"), ContentType: f.str("content_type")},
+			Body: Body{Kind: docBodyKind(f.str("body_kind")), Text: f.str("body"), ContentType: f.str("content_type")},
 		}
 		f.into("auth", &r.Auth)
 		f.into("settings", &r.Settings)
+		NormalizeRequest(r)
 		c.Requests[id] = r
 		p := f.str("folder")
 		if _, ok := folders[p]; !ok {
@@ -666,9 +699,12 @@ func sameJSON(a, b json.RawMessage) bool {
 // HeldField is a field Gate kept back: op OpIndex of the input, object Obj,
 // field F, and the detector's first finding in it; Text is the string the
 // finding's offsets are in (the field's value, or a string inside it).
+// Name is the row's key or the variable's name when F is its "value" ("" =
+// none known), so a question about the field can say which one it is.
 type HeldField struct {
 	OpIndex int
 	Obj, F  string
+	Name    string
 	Finding Finding
 	Text    string
 }
@@ -690,7 +726,7 @@ func GateIn(base *Collection, ops []collab.Op) (send []collab.Op, held []HeldFie
 		switch op.Op {
 		case collab.OpSet:
 			if f, text, ok := scanField(op.Field, op.Value, names[op.ID]); ok {
-				held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: op.Field, Finding: f, Text: text})
+				held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: op.Field, Name: valueName(op.Field, names[op.ID]), Finding: f, Text: text})
 				continue
 			}
 			send = append(send, op)
@@ -708,7 +744,7 @@ func GateIn(base *Collection, ops []collab.Op) (send []collab.Op, held []HeldFie
 			var keep map[string]json.RawMessage
 			for _, k := range names {
 				if f, text, ok := scanField(k, op.Fields[k], hint); ok {
-					held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: k, Finding: f, Text: text})
+					held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: k, Name: valueName(k, hint), Finding: f, Text: text})
 					if keep == nil {
 						keep = maps.Clone(op.Fields)
 					}
@@ -724,6 +760,14 @@ func GateIn(base *Collection, ops []collab.Op) (send []collab.Op, held []HeldFie
 		}
 	}
 	return send, held
+}
+
+// valueName is name when field is a row's or variable's "value", else "".
+func valueName(field, name string) string {
+	if field != "value" {
+		return ""
+	}
+	return name
 }
 
 // valueNames maps each row and variable object to the name of its value:
@@ -881,6 +925,24 @@ func (c *Collection) docBytes() int { return len(rawJSON(DocFromCollection(c))) 
 // CheckSharedLimits checks c against the shared collection limits before
 // it is uploaded or edited (collab.md 7.2): requests, body, field, document.
 func CheckSharedLimits(c *Collection) error {
+	folders, deepest := 0, 0
+	var walk func(f *Folder, d int)
+	walk = func(f *Folder, d int) {
+		deepest = max(deepest, d)
+		for _, it := range f.Items {
+			if it.Folder != nil && folders <= MaxSharedFolders && deepest <= MaxSharedFolderDepth {
+				folders++
+				walk(it.Folder, d+1)
+			}
+		}
+	}
+	walk(&c.Root, 0)
+	if folders > MaxSharedFolders {
+		return fmt.Errorf("%w (%d)", ErrSharedTooManyFolders, folders)
+	}
+	if deepest > MaxSharedFolderDepth {
+		return ErrSharedFoldersTooDeep
+	}
 	ids := c.Root.RequestIDs()
 	if len(ids) > MaxSharedRequests {
 		return fmt.Errorf("%w (%d)", ErrSharedTooManyRequests, len(ids))
@@ -1087,4 +1149,14 @@ func (s *LocalStore) RemoveShared(docID string) error {
 		}
 	}
 	return nil
+}
+
+// docBodyKind is a document's body kind; one the server's enum does not
+// know (an old or forged document) reads as no body.
+func docBodyKind(s string) BodyKind {
+	switch k := BodyKind(s); k {
+	case "", BodyNone, BodyJSON, BodyURLEncoded, BodyMultipart, BodyRaw:
+		return k
+	}
+	return BodyNone
 }

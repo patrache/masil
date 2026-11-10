@@ -305,6 +305,7 @@ func ParseCurl(cmd string) (*apitool.Request, Report, error) {
 	st.finish()
 	r := st.r
 	r.ID = ids.New()
+	apitool.NormalizeRequest(&r)
 	st.rep.Suggestions = suggest(&r)
 	return &r, st.rep, nil
 }

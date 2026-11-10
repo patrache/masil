@@ -623,6 +623,22 @@ var areaApitest = area{
 				En: {Other: "Field: {field}"},
 			},
 		},
+		"held_field_named": {
+			desc:   "공유 전 확인 창: 걸린 칸과 그 행의 키 또는 변수 이름(name = 키·변수 이름, field = 칸 이름, 둘 다 번역하지 않음)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "field", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "칸: {name} ({field})"},
+				En: {Other: "Field: {name} ({field})"},
+			},
+		},
+		"held_request": {
+			desc:   "공유 전 확인 창: 걸린 칸이 속한 요청(request = 요청 이름)",
+			params: []Param{{Name: "request", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청: {request}"},
+				En: {Other: "Request: {request}"},
+			},
+		},
 		"held_title": {
 			desc: "공유로 나가기 전 비밀값을 찾았을 때의 창 제목",
 			max:  30,
@@ -863,6 +879,41 @@ var areaApitest = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "curl, OpenAPI JSON, Postman v2.1 형식이 아니에요"},
 				En: {Other: "Not curl, OpenAPI JSON or Postman v2.1"},
+			},
+		},
+		"insecure_peer": {
+			desc:       "공유 컬렉션에서 남이 마지막으로 바꾼 요청이 TLS 인증서 검사를 끈 채일 때, 내가 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 공유 요청은 인증서 검사가 꺼져 있어요 ({name}님이 마지막으로 바꿈). 인증서를 검사하지 않고 보낼까요?"},
+				En: {Other: "This shared request has the certificate check off (last changed by {name}). Send it without checking the certificate?"},
+			},
+		},
+		"insecure_send": {
+			desc: "insecure_peer 창의 선택지: 이 버전은 인증서 검사 없이 보내기",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "검사 없이 보내기"},
+				En: {Other: "Send without checking"},
+			},
+		},
+		"insecure_title": {
+			desc: "insecure_peer 창 제목",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "인증서 검사를 끈 공유 요청"},
+				En: {Other: "Shared request, cert check off"},
+			},
+		},
+		"insecure_unknown": {
+			desc:       "insecure_peer 와 같은 질문인데 마지막으로 바꾼 사람을 모를 때(처음 받은 문서·오프라인 사본·카드로 연 문서)",
+			noTruncate: true,
+			legal:      true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 공유 요청은 인증서 검사가 꺼져 있어요 (누가 마지막으로 바꿨는지 몰라요). 인증서를 검사하지 않고 보낼까요?"},
+				En: {Other: "This shared request has the certificate check off (who changed it last is not known). Send it without checking the certificate?"},
 			},
 		},
 		"kv_empty": {
@@ -2189,6 +2240,16 @@ func (a_ ApitestT) HeldField(field string) string {
 	return a_.t.render(&areaApitest, "held_field", false, 0, "field", field)
 }
 
+// HeldFieldNamed: 공유 전 확인 창: 걸린 칸과 그 행의 키 또는 변수 이름(name = 키·변수 이름, field = 칸 이름, 둘 다 번역하지 않음)
+func (a_ ApitestT) HeldFieldNamed(name string, field string) string {
+	return a_.t.render(&areaApitest, "held_field_named", false, 0, "name", name, "field", field)
+}
+
+// HeldRequest: 공유 전 확인 창: 걸린 칸이 속한 요청(request = 요청 이름)
+func (a_ ApitestT) HeldRequest(request string) string {
+	return a_.t.render(&areaApitest, "held_request", false, 0, "request", request)
+}
+
 // HeldTitle: 공유로 나가기 전 비밀값을 찾았을 때의 창 제목
 func (a_ ApitestT) HeldTitle() string {
 	return a_.t.render(&areaApitest, "held_title", false, 0)
@@ -2342,6 +2403,26 @@ func (a_ ApitestT) ImportTooLarge() string {
 // ImportUnknown: 가져올 파일의 형식을 알 수 없을 때
 func (a_ ApitestT) ImportUnknown() string {
 	return a_.t.render(&areaApitest, "import_unknown", false, 0)
+}
+
+// InsecurePeer: 공유 컬렉션에서 남이 마지막으로 바꾼 요청이 TLS 인증서 검사를 끈 채일 때, 내가 보내기 전에 묻는 문장(name = 마지막으로 바꾼 사람, 줄여 쓰지 않음)
+func (a_ ApitestT) InsecurePeer(name string) string {
+	return a_.t.render(&areaApitest, "insecure_peer", false, 0, "name", name)
+}
+
+// InsecureSend: insecure_peer 창의 선택지: 이 버전은 인증서 검사 없이 보내기
+func (a_ ApitestT) InsecureSend() string {
+	return a_.t.render(&areaApitest, "insecure_send", false, 0)
+}
+
+// InsecureTitle: insecure_peer 창 제목
+func (a_ ApitestT) InsecureTitle() string {
+	return a_.t.render(&areaApitest, "insecure_title", false, 0)
+}
+
+// InsecureUnknown: insecure_peer 와 같은 질문인데 마지막으로 바꾼 사람을 모를 때(처음 받은 문서·오프라인 사본·카드로 연 문서)
+func (a_ ApitestT) InsecureUnknown() string {
+	return a_.t.render(&areaApitest, "insecure_unknown", false, 0)
 }
 
 // KvEmpty: 헤더·쿼리·form·검사·환경 표가 비었을 때 표 안의 한 줄

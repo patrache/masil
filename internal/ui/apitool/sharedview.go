@@ -382,6 +382,10 @@ func (t *Tool) syncShared(ctx *ui.Context) tea.Cmd {
 	if old == nil || reflect.DeepEqual(old, t.req) {
 		return nil
 	}
+	if !old.Settings.Insecure && t.req.Settings.Insecure {
+		// I turned the certificate check off myself: no question for it.
+		t.insecureOK[privKey(sd.id, t.req.ID, t.foreign[t.req.ID].Seq)] = true
+	}
 	next := cloneCol(sd.col)
 	next.Requests[t.req.ID] = cloneRequest(t.req)
 	before := rowIDs(t.req)
@@ -480,15 +484,47 @@ func heldKey(ops []collab.Op, h apitool.HeldField) string {
 }
 
 // heldDialog asks about the first held field: make it a variable, share it
-// anyway, or keep it here.
+// anyway, or keep it here. It names the field (the row's key or variable's
+// name with it) and its request, so each answer says what it shares.
 func (t *Tool) heldDialog(ctx *ui.Context, sd *sharedDoc) tea.Cmd {
 	a := ctx.T.Apitest
 	h := sd.held.held[0]
 	name := suggestName(h.Finding.Rule, h.F)
+	field := a.HeldField(textwidth.Sanitize(h.F))
+	if h.Name != "" {
+		field = a.HeldFieldNamed(textwidth.Sanitize(h.Name), textwidth.Sanitize(h.F))
+	}
+	body := []string{a.SecretDetected(), field}
+	if r := heldRequestName(sd.col, h.Obj); r != "" {
+		body = append(body, a.HeldRequest(textwidth.Sanitize(r)))
+	}
+	body = append(body, a.SecretName())
 	return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkHeld, title: a.HeldTitle(), data: sd.id, prefW: 64,
-		body:    []string{a.SecretDetected(), a.HeldField(h.F), a.SecretName()},
+		body:    body,
 		input:   newLineInput(name),
 		choices: []string{a.SecretToVar(), a.UploadAnyway(), a.Cancel()}})
+}
+
+// heldRequestName is the name of the request object obj (a request or one
+// of its rows) belongs to in c ("" = none, e.g. a variable).
+func heldRequestName(c *apitool.Collection, obj string) string {
+	if c == nil {
+		return ""
+	}
+	if id, ok := strings.CutPrefix(obj, "req:"); ok {
+		if r := c.Requests[id]; r != nil {
+			return r.Name
+		}
+		return ""
+	}
+	if id, ok := strings.CutPrefix(obj, "row:"); ok {
+		for _, r := range c.Requests {
+			if slices.Contains(rowIDs(r), id) {
+				return r.Name
+			}
+		}
+	}
+	return ""
 }
 
 // heldAnswer follows the held question.
@@ -500,8 +536,12 @@ func (t *Tool) heldAnswer(ctx *ui.Context, m dialogMsg) tea.Cmd {
 	he := sd.held
 	sd.held = nil
 	switch m.Choice {
-	case 1: // share anyway
-		t.sendOps(sd, he.ops)
+	case 1: // share the shown field anyway; the next one is asked about
+		t.sendOps(sd, he.ops[:1])
+		if len(he.ops) > 1 {
+			sd.held = &heldEdit{ops: he.ops[1:], held: he.held[1:]}
+			return t.heldDialog(ctx, sd)
+		}
 		return nil
 	case 0: // make it a variable
 		name := strings.TrimSpace(m.Input)
@@ -666,7 +706,8 @@ func (t *Tool) markForeign(ctx *ui.Context, sd *sharedDoc, changes []collab.Chan
 }
 
 // markRequests marks reqs someone else's: by author (direct ones also get
-// the "last changed" time), or unknown when author is "".
+// the "last changed" time), or unknown when author is "" (a peer already
+// known keeps their name); either way at the view's current version.
 func (t *Tool) markRequests(ctx *ui.Context, sd *sharedDoc, reqs, direct map[string]bool, author string) {
 	seq := 0
 	if sd.view != nil {
@@ -674,9 +715,14 @@ func (t *Tool) markRequests(ctx *ui.Context, sd *sharedDoc, reqs, direct map[str
 	}
 	for r := range reqs {
 		if author == "" {
-			if !t.foreign[r].foreign() {
-				t.foreign[r] = foreignInfo{Unknown: true, Seq: seq}
+			// A known peer stays named, but the version always moves: a
+			// consent keyed by the earlier one (privKey) asks again.
+			fi := t.foreign[r]
+			if !fi.foreign() {
+				fi.Unknown = true
 			}
+			fi.Seq = seq
+			t.foreign[r] = fi
 			continue
 		}
 		t.foreign[r] = foreignInfo{By: userName(ctx, author), Seq: seq}

@@ -309,7 +309,8 @@ func methodOf(r *apitool.Request) string {
 	return m
 }
 
-// bodyKindLabel is the shown body kind (not translated).
+// bodyKindLabel is the shown body kind (not translated); an unknown kind
+// (from an imported or shared file) is sanitized.
 func bodyKindLabel(k apitool.BodyKind) string {
 	switch k {
 	case apitool.BodyJSON:
@@ -321,7 +322,7 @@ func bodyKindLabel(k apitool.BodyKind) string {
 	case apitool.BodyRaw:
 		return "raw"
 	}
-	return string(k)
+	return textwidth.Sanitize(string(k))
 }
 
 // ---- checks / extracts / form as table rows ----

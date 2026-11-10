@@ -104,14 +104,16 @@ type Tool struct {
 	jobSeq int
 	cursor *tea.Cursor
 
-	foreign        map[string]foreignInfo // request id -> last changed by someone else
-	privateOK      map[string]bool        // privKey -> a private target was allowed
-	fileChanged    bool                   // the collection changed outside masil
-	pendingSecret  *pendingSecret
-	pendingPuts    []pendingPut
-	pendingHost    *apitool.HostNotAllowedError
-	pendingPrivate string
-	pendingWrite   *pendingWrite // a save to an existing path, waiting for the overwrite answer
+	foreign         map[string]foreignInfo // request id -> last changed by someone else
+	privateOK       map[string]bool        // privKey -> a private target was allowed
+	fileChanged     bool                   // the collection changed outside masil
+	pendingSecret   *pendingSecret
+	pendingPuts     []pendingPut
+	pendingHost     *apitool.HostNotAllowedError
+	pendingPrivate  string
+	insecureOK      map[string]bool // privKey -> a peer's certificate-check-off was allowed (or turned on by me)
+	pendingInsecure string
+	pendingWrite    *pendingWrite // a save to an existing path, waiting for the overwrite answer
 
 	envCur int               // the environments screen's selected row
 	masks  map[string]string // secret rows "e:<name>" -> "••••1234"
@@ -162,9 +164,10 @@ func New(ctx *ui.Context, r ui.Route) ui.Component {
 		focus:   paneRequest,
 		jobs:    map[jobKind]*job{},
 
-		foreign:   map[string]foreignInfo{},
-		privateOK: map[string]bool{},
-		shared:    map[string]bool{},
+		foreign:    map[string]foreignInfo{},
+		privateOK:  map[string]bool{},
+		insecureOK: map[string]bool{},
+		shared:     map[string]bool{},
 
 		docs:       map[string]*sharedDoc{},
 		sharedEnvs: map[string]string{},

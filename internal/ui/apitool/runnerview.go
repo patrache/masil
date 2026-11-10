@@ -171,6 +171,14 @@ func (t *Tool) prepareRun(ctx *ui.Context, col, folder string, o apitool.RunOpti
 	sc.Collection, sc.CollectionID = cloneVars(c.Vars), c.ID
 	pr := &pendingRun{snap: apitool.Snapshot(c, folder, sc), opts: o, n: len(folderRequests(c, folder)) * o.Iterations, shared: t.shared[col]}
 	if pr.shared {
+		// A request someone else turned the certificate check off for runs
+		// with the check unless I allowed it (a send's question).
+		doc, _ := docOfKey(col)
+		for _, r := range pr.snap.Collection.Requests {
+			if _, ask := t.peerInsecure(doc, r); ask {
+				r.Settings.Insecure = false
+			}
+		}
 		hosts, err := apitool.RunHosts(pr.snap, dyn(ctx))
 		if err != nil {
 			slog.Debug("api: run hosts", "err", err)
