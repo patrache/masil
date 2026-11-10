@@ -8,9 +8,56 @@ other = "친구 요청을 수락하지 못했어요"
 desc = "메시지 동작 메뉴 제목"
 other = "메시지"
 
+[add_submit]
+desc = "멤버 추가 단추"
+other = "추가"
+
 [anchor_not_found]
 desc = "알림·링크로 연 답글이 없음"
 other = "답글을 찾을 수 없어요"
+
+[bad_channel_name]
+desc = "채널 이름 바꾸기 검사 실패"
+other = "채널 이름은 영문 소문자·숫자·한글·_·- 1~32자예요"
+
+[ban_reason_holder]
+desc = "방 차단(밴): 사유 칸 예시"
+other = "예: 도배"
+
+[ban_reason_label]
+desc = "방 차단(밴): 사유 칸 이름"
+other = "사유 (선택)"
+
+[ban_reason_too_long]
+desc = "방 차단(밴): 사유 200자 넘음"
+other = "사유는 200자까지예요"
+
+[ban_submit]
+desc = "방 차단(밴) 단추"
+other = "차단"
+
+[ban_title]
+desc = "방 차단(밴) 대화상자 제목. name = 이름"
+params = { name = "string" }
+other = "{name} 차단(밴)"
+
+[banned]
+desc = "알림: 방에서 차단함. name = 이름"
+params = { name = "string" }
+other = "{name}님을 방에서 차단했어요"
+
+[banned_by]
+desc = "방 차단 탭: 차단한 사람. name = 이름"
+params = { name = "string" }
+other = "차단: {name}"
+
+[bans_failed]
+desc = "방 차단 탭: 목록 불러오기 실패"
+other = "차단 목록을 불러오지 못했어요"
+
+[bans_none]
+desc = "방 차단 탭: 차단한 사람이 없음"
+other = "차단한 사람이 없어요"
 
 [block_ask]
 desc = "차단 확인 질문. name = 이름"
@@ -52,6 +99,28 @@ other = "친구 요청을 취소하지 못했어요"
 desc = "수정할 수 없는 메시지"
 other = "이 메시지는 수정할 수 없어요"
 
+[change_submit]
+desc = "바꾸기 단추"
+other = "바꾸기"
+
+[channel_created]
+desc = "알림: 채널을 만듦. title = 채널 제목(# 이름)"
+params = { title = "string" }
+other = "{title} 채널을 만들었어요"
+
+[channel_deleted]
+desc = "알림: 채널을 삭제함. title = 채널 제목"
+params = { title = "string" }
+other = "{title} 채널을 삭제했어요"
+
+[channel_name_holder]
+desc = "채널 이름 칸 예시"
+other = "예: 배포알림"
+
+[channel_name_rule]
+desc = "새 채널 이름 규칙 안내(검사 실패 시 상태 줄)"
+other = "영문 소문자·숫자·한글·_- 1~32자"
+
 [channel_row_new]
 desc = "사이드바 줄: 새 채널 만들기(방장·관리자)"
 other = "＋ 새 채널"
@@ -59,6 +128,14 @@ other = "＋ 새 채널"
 [channel_title]
 desc = "채널 판 제목(채널을 모를 때)"
 other = "채널"
+
+[cmd_channel_create]
+desc = "명령 팔레트·대화상자 제목: 채널 만들기"
+other = "채널 만들기"
+
+[cmd_channel_prefs]
+desc = "명령 팔레트: 채널 설정"
+other = "채널 설정"
 
 [cmd_dm_new]
 desc = "명령 팔레트: 새 대화"
@@ -72,6 +149,18 @@ other = "친구 추가"
 desc = "명령 팔레트: 친구 목록"
 other = "친구 목록"
 
+[cmd_invite_create]
+desc = "명령 팔레트·대화상자 제목: 초대 링크 만들기"
+other = "초대 링크 만들기"
+
+[cmd_invite_direct]
+desc = "명령 팔레트: 친구를 방에 초대"
+other = "친구를 방에 초대"
+
+[cmd_invites_inbox]
+desc = "명령 팔레트·화면 제목: 받은 방 초대"
+other = "받은 방 초대"
+
 [cmd_pins]
 desc = "명령 팔레트: 고정 메시지 보기"
 other = "고정 메시지 보기"
@@ -80,18 +169,75 @@ other = "고정 메시지 보기"
 desc = "명령 팔레트: 메시지 검색"
 other = "메시지 검색"
 
+[cmd_space_create]
+desc = "명령 팔레트·대화상자 제목: 방 만들기"
+other = "방 만들기"
+
+[cmd_space_join]
+desc = "명령 팔레트: 초대 코드로 방 참여"
+other = "초대 코드로 방 참여"
+
+[cmd_space_leave]
+desc = "명령 팔레트·방 설정 항목: 방 나가기"
+other = "방 나가기"
+
+[cmd_space_settings]
+desc = "명령 팔레트·화면 제목(방을 모를 때): 방 설정"
+other = "방 설정"
+
+[create_submit]
+desc = "채널·방 만들기 대화상자의 만들기 단추"
+other = "만들기"
+
+[date_with_year]
+desc = "다른 해의 날짜. year = 연도, date = 월·일(time.month_day)"
+params = { year = "string", date = "string" }
+other = "{year}년 {date}"
+
 [decline_failed]
 desc = "오류 알림 머리: 친구 요청 거절 실패"
 other = "친구 요청을 거절하지 못했어요"
+
+[default_chan_hint]
+desc = "채널 삭제 항목 옆: 기본 채널이라 못 지움"
+other = "기본 채널"
 
 [delete_body]
 desc = "메시지 삭제 확인 질문"
 no_truncate = true
 other = "이 메시지를 삭제할까요?"
 
+[delete_channel_ask]
+desc = "확인 제목: 채널을 삭제할까. title = 채널 제목"
+params = { title = "string" }
+no_truncate = true
+other = "{title} 채널을 삭제할까요?"
+
+[delete_channel_body]
+desc = "채널 삭제 확인 설명"
+other = "메시지도 함께 사라지고 되돌릴 수 없어요"
+
+[delete_channel_failed]
+desc = "오류 알림 머리: 채널 삭제 실패"
+other = "채널을 삭제하지 못했어요"
+
 [delete_failed]
 desc = "오류 알림 머리: 메시지 삭제 실패"
 other = "메시지를 삭제하지 못했어요"
+
+[delete_space_ask]
+desc = "확인 제목: 방을 삭제할까. name = 방 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name} 방을 삭제할까요?"
+
+[delete_space_body]
+desc = "방 삭제 확인 설명"
+other = "모든 채널과 메시지가 사라지고 되돌릴 수 없어요"
+
+[delete_space_yes]
+desc = "방 삭제 확인 단추"
+other = "삭제"
 
 [delete_title]
 desc = "메시지 삭제 확인 제목"
@@ -135,6 +281,10 @@ other = "나: {body}"
 desc = "DM 판 제목·사이드바 줄"
 max = 8
 other = "DM"
+
+[edit_channel_title]
+desc = "채널 이름·주제 바꾸기 제목"
+other = "채널 이름·주제"
 
 [edit_failed]
 desc = "오류 알림 머리: 메시지 수정 실패"
@@ -413,17 +563,49 @@ other = "삭제되었거나 볼 수 없는 채널이에요"
 desc = "그룹 DM 생성·추가가 차단 관계로 거부됨"
 other = "함께 대화할 수 없는 참여자가 있어요"
 
+[group_full_hint]
+desc = "멤버 추가 항목 옆: 그룹 대화가 꽉 참(10명)"
+other = "최대 10명"
+
+[help_copy]
+desc = "도움말 줄: 복사"
+other = "복사"
+
+[help_find]
+desc = "도움말 줄: 찾기"
+other = "찾기"
+
+[help_find_member]
+desc = "도움말 줄: 멤버 찾기"
+other = "멤버 찾기"
+
 [help_jump]
 desc = "키 도움말: 그 메시지로 이동"
 other = "이동"
+
+[help_menu]
+desc = "도움말 줄: 메뉴"
+other = "메뉴"
+
+[help_more]
+desc = "도움말 줄: 더보기 메뉴"
+other = "더보기"
 
 [help_name_field]
 desc = "키 도움말: 이름 칸으로"
 other = "이름 칸"
 
+[help_new_channel]
+desc = "도움말 줄: 새 채널"
+other = "새 채널"
+
 [help_next_field]
 desc = "키 도움말: 다음 칸"
 other = "다음 칸"
+
+[help_open]
+desc = "도움말 줄: 열기"
+other = "열기"
 
 [help_pick_then]
 desc = "키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글"
@@ -446,9 +628,21 @@ other = "범위"
 desc = "키 도움말: 검색"
 other = "검색"
 
+[help_settings]
+desc = "도움말 줄: 설정"
+other = "설정"
+
+[help_stop_find]
+desc = "도움말 줄: 그만 찾기"
+other = "그만 찾기"
+
 [help_tabs]
 desc = "키 도움말: 탭 옮기기"
 other = "탭"
+
+[help_unban]
+desc = "도움말 줄: 차단 풀기"
+other = "차단 풀기"
 
 [help_unpin]
 desc = "키 도움말: 고정 해제"
@@ -505,13 +699,190 @@ other = "＋ 방 만들기"
 desc = "홈 판 제목"
 other = "홈"
 
+[icon_none]
+desc = "방 아이콘 고르기: 아이콘 없음"
+other = "없음"
+
+[invite_accept_failed]
+desc = "오류 알림 머리: 초대 수락 실패"
+other = "초대를 수락하지 못했어요"
+
+[invite_accepting]
+desc = "방 초대: 수락하는 중"
+other = "수락하는 중…"
+
+[invite_close_hint]
+desc = "초대 오류 아래 안내(닫기)"
+other = "esc 닫기"
+
+[invite_code_bad]
+desc = "초대 코드 검사: 형식 틀림"
+other = "초대 코드는 8자예요"
+
+[invite_code_holder]
+desc = "방 참여: 초대 코드 칸 예시(masil join 은 명령 그대로)"
+other = "AB12CD34 또는 masil join AB12CD34"
+
+[invite_code_label]
+desc = "방 참여: 초대 코드 칸 이름"
+other = "초대 코드"
+
+[invite_code_required]
+desc = "초대 코드 검사: 비어 있음"
+other = "초대 코드를 입력해 주세요"
+
+[invite_copied]
+desc = "알림: 초대 줄을 복사함"
+other = "복사했어요"
+
+[invite_created_title]
+desc = "만든 초대 링크 창 제목"
+other = "초대 링크"
+
+[invite_days]
+desc = "초대 링크 만료 고르기: N일"
+params = { n = "int" }
+count = "n"
+other = "{n}일"
+
+[invite_decline_failed]
+desc = "오류 알림 머리: 초대 거절 실패"
+other = "초대를 거절하지 못했어요"
+
+[invite_declined]
+desc = "알림: 초대를 거절함"
+other = "초대를 거절했어요"
+
+[invite_declining]
+desc = "방 초대: 거절하는 중"
+other = "거절하는 중…"
+
+[invite_direct_actions]
+desc = "받은 직접 초대 카드 아래 안내"
+other = "enter 수락 · d 거절 · m 더보기"
+
+[invite_direct_none]
+desc = "친구 직접 초대: 초대할 친구가 없음"
+other = "초대할 수 있는 친구가 없어요"
+
+[invite_direct_submit]
+desc = "친구 직접 초대 단추"
+other = "초대"
+
+[invite_direct_title]
+desc = "친구 직접 초대 제목"
+other = "친구 초대"
+
+[invite_exhausted]
+desc = "초대 오류: 사용 횟수 다 참"
+other = "사용 횟수가 다 찬 초대예요"
+
+[invite_expired]
+desc = "초대 링크 목록: 만료됨"
+other = "만료됨"
+
+[invite_expired_err]
+desc = "초대 오류: 만료됨"
+other = "만료된 초대예요"
+
+[invite_expires]
+desc = "만든 초대 링크: 만료 시각. when = 사람이 읽는 시각"
+params = { when = "string" }
+other = "만료 {when}"
+
+[invite_expires_on]
+desc = "초대 링크 목록: 만료 날짜. date = 날짜"
+params = { date = "string" }
+other = "{date} 만료"
+
+[invite_expiry_label]
+desc = "초대 링크 만들기: 만료 칸 이름"
+other = "만료"
+
 [invite_failed]
 desc = "오류 알림 머리: 초대 실패"
 other = "초대하지 못했어요"
 
+[invite_forever]
+desc = "초대 링크 만료 고르기: 만료 없음"
+other = "무기한"
+
+[invite_gone]
+desc = "초대가 더는 유효하지 않음"
+other = "더 이상 유효하지 않은 초대예요"
+
+[invite_hint]
+desc = "만든 초대 링크 창 아래 안내"
+other = "y 복사 · esc 닫기"
+
+[invite_hours]
+desc = "초대 링크 만료 고르기: N시간"
+params = { n = "int" }
+count = "n"
+other = "{n}시간"
+
+[invite_inviter]
+desc = "초대 카드: 초대한 사람. name = 이름"
+params = { name = "string" }
+other = "초대한 사람: {name}"
+
+[invite_joining]
+desc = "방 초대: 참여하는 중"
+other = "참여하는 중…"
+
+[invite_link_actions]
+desc = "초대 링크 카드 아래 안내"
+other = "enter 참여하기 · m 더보기 · esc 닫기"
+
 [invite_link_failed]
 desc = "오류 알림 머리: 초대 링크 만들기 실패"
 other = "초대 링크를 만들지 못했어요"
+
+[invite_loading]
+desc = "방 초대: 불러오는 중"
+other = "초대를 불러오는 중…"
+
+[invite_max_uses]
+desc = "만든 초대 링크: 최대 사용 횟수"
+params = { n = "int" }
+count = "n"
+other = "최대 {n}번"
+
+[invite_member_actions]
+desc = "초대 링크 카드: 이미 멤버인 방"
+other = "이미 참여한 방이에요 · enter 열기"
+
+[invite_no_expiry]
+desc = "만든 초대 링크: 만료 없음"
+other = "만료 없음"
+
+[invite_none]
+desc = "받은 방 초대 목록이 빔"
+other = "받은 방 초대가 없어요"
+
+[invite_none_hint]
+desc = "받은 방 초대 목록이 빔: 도움말"
+other = "친구가 방에 초대하면 여기에 보여요"
+
+[invite_not_found]
+desc = "초대 오류: 없는 코드"
+other = "없는 초대 코드예요"
+
+[invite_retry_hint]
+desc = "초대 오류 아래 안내(다시 시도)"
+other = "r 다시 시도 · esc 닫기"
+
+[invite_revoked]
+desc = "초대 오류: 취소됨"
+other = "취소된 초대예요"
+
+[invite_row_direct]
+desc = "방 설정 초대 탭: 친구 직접 초대 줄(＋ 표시 포함)"
+other = "＋ 친구 직접 초대"
+
+[invite_row_new]
+desc = "방 설정 초대 탭: 새 초대 링크 줄(＋ 표시 포함)"
+other = "＋ 새 초대 링크"
 
 [invite_space_only]
 desc = "방 채널이 아닌 곳에서 /invite"
@@ -521,19 +892,67 @@ other = "방 채널에서만 초대할 수 있어요"
 desc = "친구를 초대할 방 고르기 메뉴 제목"
 other = "어느 방에 초대할까요?"
 
+[invite_title]
+desc = "방 초대 화면 제목"
+other = "방 초대"
+
+[invite_unlimited]
+desc = "만든 초대 링크: 사용 횟수 제한 없음"
+other = "횟수 무제한"
+
+[invite_until]
+desc = "초대 카드: 유효 기한. when = 시각"
+params = { when = "string" }
+other = "{when}까지"
+
+[invite_uses_label]
+desc = "초대 링크 만들기: 최대 사용 칸 이름"
+other = "최대 사용"
+
+[invite_uses_n]
+desc = "초대 링크 사용 횟수(고르기·목록)"
+params = { n = "int" }
+count = "n"
+other = "{n}회"
+
+[invite_uses_no_limit]
+desc = "초대 링크 최대 사용 고르기: 제한 없음"
+other = "무제한"
+
+[invite_uses_of]
+desc = "초대 링크 목록: 쓴 횟수/최대 횟수"
+params = { used = "int", max = "int" }
+other = "{used}/{max}회"
+
 [invited]
 desc = "알림: 방에 초대함. who = 이름·@아이디, space = 방 이름"
 params = { who = "string", space = "string" }
 other = "{who}님을 {space}에 초대했어요"
 
+[invites_failed]
+desc = "방 설정 초대 탭: 목록 불러오기 실패"
+other = "초대 링크를 불러오지 못했어요"
+
+[invites_none]
+desc = "방 설정 초대 탭: 만든 초대 링크가 없음"
+other = "아직 만든 초대 링크가 없어요"
+
 [item_accept]
 desc = "친구 요청 메뉴: 수락"
 other = "수락"
+
+[item_add_members]
+desc = "채널 설정 메뉴·고르기 제목: 멤버 추가"
+other = "멤버 추가"
 
 [item_author]
 desc = "메시지 메뉴: 작성자 프로필. name = 이름"
 params = { name = "string" }
 other = "작성자 · {name}"
+
+[item_ban]
+desc = "방 멤버 메뉴: 차단(밴)"
+other = "차단(밴)"
 
 [item_block_author]
 desc = "메시지 메뉴: 작성자 차단"
@@ -563,13 +982,58 @@ other = "거절"
 desc = "메시지 메뉴: 삭제"
 other = "삭제"
 
+[item_delete_channel]
+desc = "채널 설정 메뉴: 채널 삭제"
+other = "채널 삭제"
+
+[item_delete_space]
+desc = "방 설정 항목: 방 삭제"
+other = "방 삭제"
+
 [item_edit]
 desc = "메시지 메뉴: 수정"
 other = "수정"
 
+[item_edit_channel]
+desc = "채널 설정 메뉴: 이름·주제 바꾸기"
+other = "이름·주제 바꾸기"
+
+[item_edit_space]
+desc = "방 설정 항목·대화상자 제목: 방 정보 바꾸기"
+other = "방 정보 바꾸기"
+
 [item_invite_to_space]
 desc = "친구 메뉴: 방에 초대"
 other = "방에 초대"
+
+[item_join]
+desc = "초대 메뉴·도움말: 참여하기"
+other = "참여하기"
+
+[item_kick]
+desc = "채널 설정 메뉴·메뉴 제목: 멤버 내보내기"
+other = "멤버 내보내기"
+
+[item_leave]
+desc = "그룹 대화 설정 메뉴·확인 단추: 나가기"
+other = "나가기"
+
+[item_make_admin]
+desc = "방 멤버 메뉴: 관리자로 지정"
+other = "관리자로 지정"
+
+[item_mute]
+desc = "채널 설정 메뉴: 음소거"
+other = "음소거"
+
+[item_notify]
+desc = "채널 설정 메뉴: 알림 단계 항목. level = notify_* 낱말"
+params = { level = "string" }
+other = "알림: {level}"
+
+[item_open_space]
+desc = "초대 메뉴·도움말: 이미 멤버인 방 열기"
+other = "열기"
 
 [item_pin]
 desc = "메시지 메뉴: 고정"
@@ -587,9 +1051,17 @@ other = "리액션"
 desc = "메시지 메뉴·창 제목: 리액션 누른 사람"
 other = "리액션 누른 사람"
 
+[item_rename]
+desc = "그룹 대화 설정 메뉴: 이름 바꾸기"
+other = "이름 바꾸기"
+
 [item_report]
 desc = "메시지 메뉴: 신고"
 other = "신고"
+
+[item_report_space]
+desc = "초대 메뉴: 방 신고"
+other = "방 신고"
 
 [item_report_user]
 desc = "사용자 메뉴: 사용자 신고"
@@ -599,6 +1071,10 @@ other = "사용자 신고"
 desc = "메시지 메뉴: 투표 취소"
 other = "투표 취소"
 
+[item_revoke_invite]
+desc = "초대 링크 메뉴·확인 단추: 폐기"
+other = "폐기"
+
 [item_send_dm]
 desc = "사용자 메뉴: DM 보내기"
 other = "DM 보내기"
@@ -607,9 +1083,21 @@ other = "DM 보내기"
 desc = "메시지 메뉴: 스레드로 답글"
 other = "스레드로 답글"
 
+[item_transfer_space]
+desc = "방 설정 항목: 방장 넘기기"
+other = "방장 넘기기"
+
 [item_unfriend]
 desc = "친구 메뉴: 친구 끊기"
 other = "친구 끊기"
+
+[item_unmake_admin]
+desc = "방 멤버 메뉴: 관리자 해제"
+other = "관리자 해제"
+
+[item_unmute]
+desc = "채널 설정 메뉴: 음소거 해제"
+other = "음소거 해제"
 
 [item_unpin]
 desc = "메시지 메뉴: 고정 해제"
@@ -619,6 +1107,37 @@ other = "고정 해제"
 desc = "메시지 메뉴: 투표 선택지. option = 선택지"
 params = { option = "string" }
 other = "투표: {option}"
+
+[kick_ask]
+desc = "확인 제목: 채널·그룹에서 멤버를 내보낼까. name = 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}님을 내보낼까요?"
+
+[kick_body]
+desc = "멤버 내보내기 확인 설명"
+other = "다시 들어오려면 누군가 추가해야 해요"
+
+[kick_failed]
+desc = "오류 알림 머리: 멤버 내보내기 실패"
+other = "멤버를 내보내지 못했어요"
+
+[kick_yes]
+desc = "멤버 내보내기 확인 단추"
+other = "내보내기"
+
+[kicked]
+desc = "알림: 멤버를 내보냄. name = 이름"
+params = { name = "string" }
+other = "{name}님을 내보냈어요"
+
+[kw_channel_create]
+desc = "명령 팔레트 검색어: 채널 만들기"
+other = "채널, 새 채널, 비공개, 만들기"
+
+[kw_channel_prefs]
+desc = "명령 팔레트 검색어: 채널 설정"
+other = "알림, 음소거, 대화 설정"
 
 [kw_dm_new]
 desc = "명령 팔레트 검색어(쉼표로 나눔): 새 대화"
@@ -632,6 +1151,18 @@ other = "친구 요청 보내기"
 desc = "명령 팔레트 검색어: 친구 목록"
 other = "친구, 친구 요청"
 
+[kw_invite_create]
+desc = "명령 팔레트 검색어: 초대 링크 만들기"
+other = "초대, 초대 링크, 초대 코드, 만들기"
+
+[kw_invite_direct]
+desc = "명령 팔레트 검색어: 친구 직접 초대"
+other = "초대, 친구 초대, 직접 초대"
+
+[kw_invites_inbox]
+desc = "명령 팔레트 검색어: 받은 방 초대"
+other = "초대, 방 초대, 받은 초대"
+
 [kw_pins]
 desc = "명령 팔레트 검색어: 고정 메시지"
 other = "고정, 고정 메시지, 핀"
@@ -640,6 +1171,54 @@ other = "고정, 고정 메시지, 핀"
 desc = "명령 팔레트 검색어: 메시지 검색"
 other = "검색, 메시지 찾기"
 
+[kw_space_create]
+desc = "명령 팔레트 검색어: 방 만들기"
+other = "방, 새 방, 만들기"
+
+[kw_space_join]
+desc = "명령 팔레트 검색어: 방 참여"
+other = "참여, 초대 코드, 입장"
+
+[kw_space_leave]
+desc = "명령 팔레트 검색어: 방 나가기"
+other = "방, 나가기, 탈퇴"
+
+[kw_space_settings]
+desc = "명령 팔레트 검색어: 방 설정"
+other = "방, 설정, 멤버, 역할, 관리"
+
+[leave_ask]
+desc = "확인 제목: 그룹 대화에서 나갈까. name = 대화 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}에서 나갈까요?"
+
+[leave_body]
+desc = "그룹 대화 나가기 확인 설명"
+other = "다시 들어오려면 멤버가 추가해 줘야 해요"
+
+[leave_failed]
+desc = "오류 알림 머리: 대화 나가기 실패"
+other = "대화에서 나가지 못했어요"
+
+[leave_space_ask]
+desc = "확인 제목: 방에서 나갈까. name = 방 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}에서 나갈까요?"
+
+[leave_space_body]
+desc = "방 나가기 확인 설명"
+other = "다시 들어오려면 초대를 받아야 해요"
+
+[leaving_space]
+desc = "방 나가기 확인: 나가는 중"
+other = "나가는 중…"
+
+[left_conversation]
+desc = "알림: 대화에서 나감"
+other = "대화에서 나갔어요"
+
 [load_failed]
 desc = "메시지 목록을 불러오지 못함"
 other = "메시지를 불러오지 못했어요"
@@ -647,6 +1226,11 @@ other = "메시지를 불러오지 못했어요"
 [loading]
 desc = "불러오는 중 표시"
 other = "불러오는 중…"
+
+[made_admin]
+desc = "알림: 관리자로 지정함. name = 이름"
+params = { name = "string" }
+other = "{name}님을 관리자로 지정했어요"
 
 [me]
 desc = "내 이름 자리: 나"
@@ -658,14 +1242,42 @@ params = { n = "int" }
 count = "n"
 other = "멤버 {n}명"
 
+[member_filter_holder]
+desc = "방 멤버 찾기 칸 예시"
+other = "이름이나 @아이디로 찾기"
+
+[member_filter_idle]
+desc = "방 멤버 찾기 칸(쉬는 중) 안내"
+other = "/ 눌러 멤버 찾기"
+
+[member_more]
+desc = "방 멤버 탭: 더 보기 줄"
+other = "더 보기"
+
+[member_more_loading]
+desc = "방 멤버 탭: 더 불러오는 중"
+other = "더 불러오는 중…"
+
+[members_added]
+desc = "알림: 멤버를 추가함"
+other = "멤버를 추가했어요"
+
 [members_failed]
 desc = "멤버 목록을 불러오지 못함"
 other = "멤버를 불러오지 못했어요"
+
+[members_load_title]
+desc = "방장 넘기기: 멤버 불러오는 창 제목"
+other = "멤버 불러오기"
 
 [members_more]
 desc = "멤버 목록 끝: 더 있는 멤버 수"
 params = { n = "int" }
 other = "+ {n}명 더"
+
+[members_no_match]
+desc = "방 멤버 탭: 찾는 멤버가 없음"
+other = "찾는 멤버가 없어요"
 
 [members_none]
 desc = "멤버 판: 열린 대화가 없음"
@@ -702,6 +1314,14 @@ other = "복사했어요"
 desc = "삭제된 메시지 자리"
 other = "삭제된 메시지"
 
+[muted]
+desc = "알림: 음소거함"
+other = "음소거했어요"
+
+[name_label]
+desc = "채널 이름 칸 이름"
+other = "채널 이름"
+
 [new_below]
 desc = "메시지 판 아래: 안 본 새 메시지 수"
 params = { n = "int" }
@@ -715,6 +1335,10 @@ other = "삭제할 권한이 없어요"
 [no_incoming]
 desc = "받은 요청 탭이 빔"
 other = "받은 친구 요청이 없어요"
+
+[no_kickable]
+desc = "멤버 내보내기 메뉴: 내보낼 사람이 없음"
+other = "내보낼 멤버가 없어요"
 
 [no_outgoing]
 desc = "보낸 요청 탭이 빔"
@@ -732,6 +1356,23 @@ other = "고정할 권한이 없어요"
 desc = "남의 메시지 수정 시도"
 other = "내 메시지만 수정할 수 있어요"
 
+[notify_all]
+desc = "알림 단계: 모두"
+other = "모두"
+
+[notify_mentions]
+desc = "알림 단계: 멘션만"
+other = "멘션만"
+
+[notify_none]
+desc = "알림 단계: 끄기"
+other = "끄기"
+
+[notify_set]
+desc = "알림: 알림 단계를 바꿈. level = notify_* 낱말"
+params = { level = "string" }
+other = "알림 설정: {level}"
+
 [now_friends]
 desc = "알림: 친구 요청이 바로 수락됨"
 params = { name = "string" }
@@ -744,6 +1385,10 @@ other = "서버에 연결할 수 없어요"
 [out_failed]
 desc = "보낸 요청 목록을 불러오지 못함"
 other = "보낸 요청을 불러오지 못했어요"
+
+[owner_leave]
+desc = "알림: 방장은 방장을 넘긴 뒤에만 나갈 수 있음"
+other = "방장은 방장을 넘긴 뒤에 나갈 수 있어요"
 
 [picker_max]
 desc = "사람 고르기: 고를 수 있는 최대 인원 초과"
@@ -849,6 +1494,36 @@ params = { n = "int" }
 count = "n"
 other = "{n}명 참여"
 
+[prefs_failed]
+desc = "오류 알림 머리: 알림 설정 바꾸기 실패"
+other = "알림 설정을 바꾸지 못했어요"
+
+[prefs_title_channel]
+desc = "채널 설정 메뉴 제목. name = 채널 제목"
+params = { name = "string" }
+other = "채널 설정 · {name}"
+
+[prefs_title_dm]
+desc = "DM·그룹 대화 설정 메뉴 제목. name = 대화 이름"
+params = { name = "string" }
+other = "대화 설정 · {name}"
+
+[privacy_label]
+desc = "채널 만들기: 공개 범위 칸 이름"
+other = "공개 범위"
+
+[private_members_none]
+desc = "비공개 채널 멤버 고르기: 고를 사람이 없음"
+other = "함께할 멤버가 없어요 · enter 로 나만 있는 채널 만들기"
+
+[private_members_title]
+desc = "비공개 채널 첫 멤버 고르기 제목"
+other = "비공개 채널 멤버"
+
+[private_toggle]
+desc = "채널 만들기: 비공개 켜기 글"
+other = "비공개 (고른 멤버만)"
+
 [rail_home]
 desc = "레일의 홈 글자(가운데 3칸 안)"
 max = 3
@@ -883,6 +1558,22 @@ other = "차단한 사용자와의 대화예요"
 desc = "첫 동기화 실패 안내: 다시 연결 중"
 other = "다시 연결 중"
 
+[rename_holder]
+desc = "그룹 대화 이름 칸 예시"
+other = "비우면 멤버 이름으로 보여요"
+
+[rename_label]
+desc = "그룹 대화 이름 칸 이름"
+other = "대화 이름"
+
+[rename_title]
+desc = "그룹 대화 이름 바꾸기 제목"
+other = "대화 이름 바꾸기"
+
+[renamed]
+desc = "알림: 이름을 바꿈"
+other = "이름을 바꿨어요"
+
 [replies_label]
 desc = "스레드 머리: 답글 수. n = 사람이 읽는 수(1.2천 등)"
 params = { n = "string" }
@@ -901,6 +1592,36 @@ other = "{name}의 메시지"
 desc = "알림: 친구 요청 보냄"
 params = { name = "string" }
 other = "{name}님에게 친구 요청을 보냈어요"
+
+[revoke_ask]
+desc = "확인 제목: 초대 링크를 폐기할까. code = 초대 코드"
+params = { code = "string" }
+no_truncate = true
+other = "{code} 초대 링크를 폐기할까요?"
+
+[revoke_body]
+desc = "초대 링크 폐기 확인 설명"
+other = "이 코드로는 더 들어올 수 없어요"
+
+[revoke_failed]
+desc = "오류 알림 머리: 초대 링크 폐기 실패"
+other = "초대 링크를 폐기하지 못했어요"
+
+[revoked]
+desc = "알림: 초대 링크를 폐기함"
+other = "초대 링크를 폐기했어요"
+
+[role_admin]
+desc = "방 역할: 관리자"
+other = "관리자"
+
+[role_failed]
+desc = "오류 알림 머리: 역할 바꾸기 실패"
+other = "역할을 바꾸지 못했어요"
+
+[role_member]
+desc = "방 역할: 멤버"
+other = "멤버"
 
 [role_owner]
 desc = "멤버 줄의 역할: 방장"
@@ -961,6 +1682,11 @@ other = "전송 실패"
 [send_failed_hint]
 desc = "보내지 못한 메시지 안내(앞에 ' — ')"
 other = "enter 다시 보내기 · d 버리기"
+
+[settings_title]
+desc = "방 설정 화면 제목. name = 방 이름"
+params = { name = "string" }
+other = "{name} 설정"
 
 [side_channels_label]
 desc = "사이드바 채널 절 머리(앞에 '─ ')"
@@ -1098,6 +1824,101 @@ other = "사용법을 확인해 주세요"
 desc = "레일 + 메뉴 제목"
 other = "방 추가"
 
+[space_banned]
+desc = "초대 오류: 이 방에서 차단됨"
+other = "이 방에 들어갈 수 없어요"
+
+[space_delete_failed]
+desc = "오류 알림 머리: 방 삭제 실패"
+other = "방을 삭제하지 못했어요"
+
+[space_deleted]
+desc = "알림: 방을 삭제함"
+other = "방을 삭제했어요"
+
+[space_desc_holder]
+desc = "방 설명 칸 예시"
+other = "어떤 방인가요?"
+
+[space_desc_label]
+desc = "방 만들기·바꾸기: 설명 칸 이름(선택)"
+other = "설명 (선택)"
+
+[space_desc_too_long]
+desc = "방 설명 검사: 200자 넘음"
+other = "설명은 200자까지예요"
+
+[space_gone]
+desc = "방 설정: 볼 수 없는 방"
+other = "볼 수 없는 방이에요"
+
+[space_gone_hint]
+desc = "방 설정: 볼 수 없는 방 도움말"
+other = "방이 삭제됐거나 더 이상 멤버가 아니에요"
+
+[space_icon_label]
+desc = "방 만들기·바꾸기: 아이콘 칸 이름"
+other = "아이콘"
+
+[space_info]
+desc = "방 설정 개요: 멤버 수와 내 역할. count = member_count 문구, role = role_* 낱말"
+params = { count = "string", role = "string" }
+other = "{count} · 내 역할: {role}"
+
+[space_join_submit]
+desc = "방 참여 대화상자 단추: 초대 미리 보기"
+other = "미리 보기"
+
+[space_join_title]
+desc = "방 참여 대화상자 제목"
+other = "방 참여"
+
+[space_kick_ask]
+desc = "확인 제목: 방에서 내보낼까(강퇴). name = 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}님을 방에서 내보낼까요?"
+
+[space_kick_body]
+desc = "방 강퇴 확인 설명"
+other = "다시 초대하면 들어올 수 있어요"
+
+[space_kick_failed]
+desc = "오류 알림 머리: 방 강퇴 실패"
+other = "내보내지 못했어요"
+
+[space_leave_failed]
+desc = "오류 알림 머리: 방 나가기 실패"
+other = "방에서 나가지 못했어요"
+
+[space_left]
+desc = "알림: 방에서 나옴"
+other = "방에서 나왔어요"
+
+[space_members_none]
+desc = "방 멤버 탭: 멤버가 없음"
+other = "멤버가 없어요"
+
+[space_name_holder]
+desc = "방 이름 칸 예시"
+other = "예: 노바 개발방"
+
+[space_name_label]
+desc = "방 만들기·바꾸기: 이름 칸 이름"
+other = "이름"
+
+[space_name_required]
+desc = "방 이름 검사: 비어 있음"
+other = "이름을 입력해 주세요"
+
+[space_name_too_long]
+desc = "방 이름 검사: 50자 넘음"
+other = "이름은 50자까지예요"
+
+[space_open_failed]
+desc = "오류 알림 머리: 방 열기 실패"
+other = "방을 열지 못했어요"
+
 [space_switch_title]
 desc = "방 전환 메뉴 제목"
 other = "방 전환"
@@ -1105,6 +1926,10 @@ other = "방 전환"
 [space_unnamed]
 desc = "이름이 빈 방"
 other = "방"
+
+[space_updated]
+desc = "알림: 방 정보를 바꿈"
+other = "방 정보를 바꿨어요"
 
 [sys_channel_created]
 desc = "시스템 메시지: 채널 만듦. name = 채널 이름(# 없이)"
@@ -1150,6 +1975,26 @@ desc = "시스템 메시지: 주제 바뀜"
 params = { topic = "string" }
 other = "주제 변경: {topic}"
 
+[tab_bans]
+desc = "방 설정 탭: 차단된 사람"
+other = "차단됨"
+
+[tab_channels]
+desc = "방 설정 탭: 채널"
+other = "채널"
+
+[tab_invites]
+desc = "방 설정 탭: 초대"
+other = "초대"
+
+[tab_members]
+desc = "방 설정 탭: 멤버"
+other = "멤버"
+
+[tab_overview]
+desc = "방 설정 탭: 개요"
+other = "개요"
+
 [thread_parent_euro]
 desc = "키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름"
 params = { label = "string" }
@@ -1172,6 +2017,53 @@ other = "스레드에서는 투표를 만들 수 없어요"
 desc = "스레드 판 제목"
 other = "스레드"
 
+[topic_holder]
+desc = "채널 주제 칸 예시"
+other = "채널 주제(선택)"
+
+[topic_label]
+desc = "채널 주제 칸 이름"
+other = "주제"
+
+[topic_opt_label]
+desc = "채널 만들기: 주제 칸 이름(선택)"
+other = "주제 (선택)"
+
+[topic_too_long]
+desc = "채널 주제 검사: 250자 넘음"
+other = "주제는 250자까지예요"
+
+[transfer_ask]
+desc = "확인 제목: 방장을 넘길까. name = 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}님에게 방장을 넘길까요?"
+
+[transfer_body]
+desc = "방장 넘기기 확인 설명"
+other = "넘기면 나는 관리자가 돼요"
+
+[transfer_failed]
+desc = "오류 알림 머리: 방장 넘기기 실패"
+other = "방장을 넘기지 못했어요"
+
+[transfer_submit]
+desc = "방장 넘기기: 고르기 단추"
+other = "고르기"
+
+[transfer_title]
+desc = "방장 넘기기: 새 방장 고르기 제목"
+other = "새 방장 고르기"
+
+[transfer_yes]
+desc = "방장 넘기기 확인 단추"
+other = "넘기기"
+
+[transferred]
+desc = "알림: 방장을 넘김. name = 이름"
+params = { name = "string" }
+other = "{name}님에게 방장을 넘겼어요"
+
 [typing_many]
 desc = "입력 중 줄: 세 명 이상"
 other = "여러 명이 입력 중…"
@@ -1189,6 +2081,29 @@ other = "누군가"
 desc = "입력 중 줄: 두 명"
 params = { a = "string", b = "string" }
 other = "{a}, {b} 입력 중…"
+
+[unban_ask]
+desc = "확인 제목: 차단을 풀까. name = 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}님의 차단을 풀까요?"
+
+[unban_body]
+desc = "차단 풀기 확인 설명"
+other = "차단을 풀어도 다시 초대해야 들어올 수 있어요"
+
+[unban_failed]
+desc = "오류 알림 머리: 차단 풀기 실패"
+other = "차단을 풀지 못했어요"
+
+[unban_yes]
+desc = "차단 풀기 확인 단추"
+other = "풀기"
+
+[unbanned]
+desc = "알림: 차단을 풂. name = 이름"
+params = { name = "string" }
+other = "{name}님의 차단을 풀었어요"
 
 [unfriend_ask]
 desc = "친구 끊기 확인 질문. name = 상대 이름"
@@ -1217,6 +2132,15 @@ other = "{name}님과 친구를 끊었어요"
 [unknown_user]
 desc = "이름을 모르는 사용자"
 other = "알 수 없는 사용자"
+
+[unmade_admin]
+desc = "알림: 관리자 해제함. name = 이름"
+params = { name = "string" }
+other = "{name}님의 관리자 역할을 해제했어요"
+
+[unmuted]
+desc = "알림: 음소거 해제함"
+other = "음소거를 해제했어요"
 
 [unpinned]
 desc = "알림: 고정 해제함"

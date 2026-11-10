@@ -5,6 +5,8 @@ import (
 	"testing"
 	"unicode"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui/uitest"
@@ -118,5 +120,71 @@ func TestRowsFollowLocaleSwitch(t *testing.T) {
 	h.SetLocale("en")
 	if s := h.Screen(); strings.Contains(s, "요일") || !strings.Contains(s, "day,") {
 		t.Fatalf("day divider not rebuilt after the switch:\n%s", s)
+	}
+}
+
+// confirmText is screen s with the box drawing and white space gone, so a
+// sentence wrapped inside a dialog reads as one run.
+func confirmText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r >= 0x2500 && r <= 0x257F {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// TestDestructiveConfirmsNoTruncate (P5 Task 16): the space delete, leave and
+// kick questions are no_truncate keys, and at 40x14 the whole en sentence is on
+// screen (wrapped, never cut).
+func TestDestructiveConfirmsNoTruncate(t *testing.T) {
+	keys := map[string]bool{"delete_space_ask": false, "leave_space_ask": false, "space_kick_ask": false}
+	for _, e := range i18n.Entries() {
+		if _, ok := keys[e.Key]; ok && e.Area == "chat" {
+			keys[e.Key] = e.NoTruncate
+		}
+	}
+	for k, nt := range keys {
+		if !nt {
+			t.Errorf("chat.%s is not no_truncate", k)
+		}
+	}
+	en := i18n.For(i18n.En)
+	sz := uitest.Size{W: 40, H: 14}
+	open := func(role string) *uitest.Harness {
+		r := api.SpaceRole(role)
+		return openWith(t, sz, novaSettings(), settingsServer(t, r), uitest.WithSeed(settingsSeed(r)), uitest.WithLocale(i18n.En))
+	}
+	check := func(name string, h *uitest.Harness, want string) {
+		t.Helper()
+		if s := h.Screen(); !strings.Contains(confirmText(s), confirmText(want)) {
+			t.Errorf("%s: %q not whole on screen:\n%s", name, want, s)
+		}
+	}
+	h := open("owner")
+	h.Press("j", "j", "enter")
+	check("delete", h, en.Chat.DeleteSpaceAsk("노바 개발방"))
+
+	h = open("member")
+	h.Press("enter")
+	check("leave", h, en.Chat.LeaveSpaceAsk("노바 개발방"))
+
+	h = open("owner")
+	toMembers(h)
+	memberSelect(t, h, "junho")
+	h.Press("m")
+	clickOn(t, h, en.Chat.KickYes(), tea.MouseLeft)
+	check("kick", h, en.Chat.SpaceKickAsk(displayName(userBy(t, h.Context().Store, "junho"))))
+}
+
+// TestChannelNameRegexEscaped (P5 Task 16): the channel name rule names the
+// Hangul range by code point (\x{AC00}-\x{D7A3}), not with Hangul literals.
+func TestChannelNameRegexEscaped(t *testing.T) {
+	src := channelNameRe.String()
+	if hasHangul(src) {
+		t.Fatalf("channelNameRe has Hangul literals: %s", src)
+	}
+	if !strings.Contains(src, `\x{AC00}-\x{D7A3}`) {
+		t.Fatalf("channelNameRe lacks the escaped Hangul range: %s", src)
 	}
 }

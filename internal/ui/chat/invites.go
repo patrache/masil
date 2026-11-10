@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -22,15 +23,19 @@ func init() {
 	ui.RegisterOverlay(overlayInviteCreate, newInviteCreate)
 	ui.RegisterOverlay(overlayInviteDirect, newInviteDirect)
 	palette.Register(palette.Command{
-		ID: "invite.create", Title: "초대 링크 만들기", Keywords: []string{"invite", "link", "code", "create", "초대", "초대 링크", "초대 코드", "만들기"}, Group: palette.GroupCommand,
-		Available: canCreateInvite,
+		ID: "invite.create", Label: func(t *i18n.T) string { return t.Chat.CmdInviteCreate() }, Group: palette.GroupCommand,
+		Keywords:   []string{"invite", "link", "code", "create"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwInviteCreate()) },
+		Available:  canCreateInvite,
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			return ui.OpenRegisteredOverlay(overlayInviteCreate, spaceArg(ctx, args))
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "invite.direct", Title: "친구를 방에 초대", Keywords: []string{"invite", "friend", "direct", "초대", "친구 초대", "직접 초대"}, Group: palette.GroupCommand,
-		Available: canDirectInvite,
+		ID: "invite.direct", Label: func(t *i18n.T) string { return t.Chat.CmdInviteDirect() }, Group: palette.GroupCommand,
+		Keywords:   []string{"invite", "friend", "direct"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwInviteDirect()) },
+		Available:  canDirectInvite,
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			return ui.OpenRegisteredOverlay(overlayInviteDirect, spaceArg(ctx, args))
 		},
@@ -43,30 +48,8 @@ const (
 	overlayInviteDirect = "chat.invite_direct"
 )
 
-// Invite management texts.
+// Invite management tags and row ids (the texts are chat.toml keys).
 const (
-	inviteCreateTitle   = "초대 링크 만들기"
-	inviteCreateSubmit  = "만들기"
-	inviteExpiryLabel   = "만료"
-	inviteUsesLabel     = "최대 사용"
-	inviteForever       = "무기한"
-	inviteUsesNoLimit   = "무제한"
-	inviteUsesUnit      = "회"
-	inviteDirectTitle   = "친구 초대"
-	inviteDirectSubmit  = "초대"
-	inviteDirectNone    = "초대할 수 있는 친구가 없어요"
-	inviteRowNew        = "＋ 새 초대 링크"
-	inviteRowDirect     = "＋ 친구 직접 초대"
-	invitesLoading      = "불러오는 중…"
-	invitesFailed       = "초대 링크를 불러오지 못했어요"
-	invitesNone         = "아직 만든 초대 링크가 없어요"
-	inviteExpiredText   = "만료됨"
-	inviteExpirySuffix  = " 만료"
-	itemRevokeInvite    = "폐기"
-	revokeAskSuffix     = " 초대 링크를 폐기할까요?"
-	revokeBody          = "이 코드로는 더 들어올 수 없어요"
-	revokedText         = "초대 링크를 폐기했어요"
-	revokeFailed        = "초대 링크를 폐기하지 못했어요"
 	tagSpaceInvites     = "chat.space_invites:"
 	tagInviteRevoke     = "chat.invite_revoke:"
 	tagDirectCandidates = "chat.invite_direct_members:"
@@ -75,21 +58,29 @@ const (
 	inviteRowStatusID   = "status"
 )
 
-// inviteExpiries are the 만료 choices and their expires_in_sec (0 = null: no expiry).
-var inviteExpiries = []struct {
-	label string
-	sec   int
-}{{"7일", 604800}, {"1일", 86400}, {"1시간", 3600}, {"30일", 2592000}, {inviteForever, 0}}
+// inviteExpiries are the 만료 choices in expires_in_sec (0 = null: no expiry).
+var inviteExpiries = []int{604800, 86400, 3600, 2592000, 0}
+
+// expiryLabel is "7일" / "1시간" / "무기한" in c's language.
+func expiryLabel(c *i18n.T, sec int) string {
+	switch {
+	case sec <= 0:
+		return c.Chat.InviteForever()
+	case sec%86400 == 0:
+		return c.Chat.InviteDays(sec / 86400)
+	}
+	return c.Chat.InviteHours(sec / 3600)
+}
 
 // inviteUses are the 최대 사용 choices (0 = no limit: max_uses omitted).
 var inviteUses = []int{0, 1, 5, 10, 25, 100}
 
-// usesLabel is "무제한" / "10회".
-func usesLabel(n int) string {
+// usesLabel is "무제한" / "10회" in c's language.
+func usesLabel(c *i18n.T, n int) string {
 	if n <= 0 {
-		return inviteUsesNoLimit
+		return c.Chat.InviteUsesNoLimit()
 	}
-	return strconv.Itoa(n) + inviteUsesUnit
+	return c.Chat.InviteUsesN(n)
 }
 
 // spaceArg is the space of a palette/overlay args: args when given, else the current space.
@@ -121,11 +112,12 @@ func canDirectInvite(ctx *ui.Context) bool { return currentSpaceID(ctx) != "" }
 // inviteRow is "AB12CD34 · 3/10회 · 11월 12일 만료 · 민지" (no limit "3회", no
 // expiry "만료 없음") in at most width cells, plain and sanitized.
 func inviteRow(ctx *ui.Context, inv api.Invite, width int) string {
-	uses := strconv.Itoa(inv.UseCount) + inviteUsesUnit
+	c := cat(ctx)
+	uses := c.Chat.InviteUsesN(inv.UseCount)
 	if inv.MaxUses != nil {
-		uses = strconv.Itoa(inv.UseCount) + "/" + strconv.Itoa(*inv.MaxUses) + inviteUsesUnit
+		uses = c.Chat.InviteUsesOf(inv.UseCount, *inv.MaxUses)
 	}
-	exp := inviteNoExpiry
+	exp := c.Chat.InviteNoExpiry()
 	if inv.ExpiresAt != nil {
 		exp = inviteExpiryDate(ctx, *inv.ExpiresAt)
 	}
@@ -143,16 +135,17 @@ func inviteExpiryDate(ctx *ui.Context, at time.Time) string {
 	if ctx != nil && ctx.Now != nil {
 		now = ctx.Now()
 	}
+	c := cat(ctx)
 	if !at.After(now) {
-		return inviteExpiredText
+		return c.Chat.InviteExpired()
 	}
 	loc := locOf(ctx)
 	t, n := at.In(loc), now.In(loc)
-	d := strconv.Itoa(int(t.Month())) + "월 " + strconv.Itoa(t.Day()) + "일"
+	d := hz(ctx).MonthDay(t, loc)
 	if t.Year() != n.Year() {
-		d = strconv.Itoa(t.Year()) + "년 " + d
+		d = c.Chat.DateWithYear(strconv.Itoa(t.Year()), d)
 	}
-	return d + inviteExpirySuffix
+	return c.Chat.InviteExpiresOn(d)
 }
 
 // ---- overlays ----
@@ -175,33 +168,34 @@ func newInviteCreate(ctx *ui.Context, args string) ui.Overlay {
 	if id == "" {
 		return nil
 	}
+	c := cat(ctx)
 	expiries := make([]string, len(inviteExpiries))
-	for i, e := range inviteExpiries {
-		expiries[i] = e.label
+	for i, sec := range inviteExpiries {
+		expiries[i] = expiryLabel(c, sec)
 	}
 	uses := make([]string, len(inviteUses))
 	for i, n := range inviteUses {
-		uses[i] = usesLabel(n)
+		uses[i] = usesLabel(c, n)
 	}
 	return newForm(formSpec{
-		Title: inviteCreateTitle, Submit: inviteCreateSubmit,
+		Title: c.Chat.CmdInviteCreate(), Submit: c.Chat.CreateSubmit(),
 		Fields: []field{
-			{Key: "expires", Label: inviteExpiryLabel, Kind: fieldChoice, Choices: expiries},
-			{Key: "uses", Label: inviteUsesLabel, Kind: fieldChoice, Choices: uses},
+			{Key: "expires", Label: c.Chat.InviteExpiryLabel(), Kind: fieldChoice, Choices: expiries},
+			{Key: "uses", Label: c.Chat.InviteUsesLabel(), Kind: fieldChoice, Choices: uses},
 		},
 		OnSubmit: func(ctx *ui.Context, vals map[string]string) (string, tea.Cmd) {
 			var r api.CreateInviteRequest
-			for _, e := range inviteExpiries {
-				if e.label == vals["expires"] {
-					if e.sec > 0 {
-						r.ExpiresInSec = api.Some(e.sec)
+			for i, sec := range inviteExpiries {
+				if expiries[i] == vals["expires"] {
+					if sec > 0 {
+						r.ExpiresInSec = api.Some(sec)
 					} else {
 						r.ExpiresInSec = api.Null[int]()
 					}
 				}
 			}
-			for _, n := range inviteUses {
-				if n > 0 && usesLabel(n) == vals["uses"] {
+			for i, n := range inviteUses {
+				if n > 0 && uses[i] == vals["uses"] {
 					r.MaxUses = api.Some(n)
 				}
 			}
@@ -235,7 +229,8 @@ func newInviteDirect(ctx *ui.Context, args string) ui.Overlay {
 	if id == "" {
 		return nil
 	}
-	return newLoader(inviteDirectTitle, tagDirectCandidates+id, func(c context.Context, cl *api.Client) (directCandidates, error) {
+	c := cat(ctx)
+	return newLoader(c.Chat.InviteDirectTitle(), tagDirectCandidates+id, func(c context.Context, cl *api.Client) (directCandidates, error) {
 		ms, err := allPages(func(cursor string) (*api.Page[api.SpaceMember], error) {
 			return cl.ListSpaceMembers(c, id, api.SpaceMembersQuery{PageOpts: api.PageOpts{Cursor: cursor, Limit: memberPageSize}})
 		})
@@ -249,7 +244,7 @@ func newInviteDirect(ctx *ui.Context, args string) ui.Overlay {
 		return directCandidates{known: true, members: set}, nil
 	}, func(_ *ui.Context, dc directCandidates) ui.Overlay {
 		return newUserPicker(pickerSpec{
-			Title: inviteDirectTitle, Submit: inviteDirectSubmit, Max: 1, Empty: inviteDirectNone,
+			Title: c.Chat.InviteDirectTitle(), Submit: c.Chat.InviteDirectSubmit(), Max: 1, Empty: c.Chat.InviteDirectNone(),
 			Candidates: friendCandidates, Order: byPresence,
 			Exclude: func(ctx *ui.Context, uid string) bool { return dc.members[uid] || blockedUser(ctx, uid) },
 			OnPick: func(ctx *ui.Context, users []api.UserSummary, _ string) (string, tea.Cmd) {
@@ -272,18 +267,18 @@ func newInviteDirect(ctx *ui.Context, args string) ui.Overlay {
 func revokeInviteCmd(ctx *ui.Context, spaceID, code string) tea.Cmd {
 	return doAction(ctx, tagInviteRevoke+code, func(c context.Context, cl *api.Client) (struct{}, error) {
 		return struct{}{}, cl.RevokeInvite(c, code)
-	}, func(_ *ui.Context, _ struct{}, err error) tea.Cmd {
+	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, revokeFailed)
+			return errorCmd(err, cat(ctx).Chat.RevokeFailed())
 		}
 		gone := func() tea.Msg { return inviteGoneMsg{SpaceID: spaceID, Code: code} }
-		return tea.Batch(gone, ui.Toast(revokedText, ui.ToastSuccess))
+		return tea.Batch(gone, ui.Toast(cat(ctx).Chat.Revoked(), ui.ToastSuccess))
 	})
 }
 
 // copyInviteCmd copies "masil join <code>" (ui.Copy).
 func copyInviteCmd(ctx *ui.Context, code string) tea.Cmd {
-	return ui.Copy(ctx, clipboardLine(inviteJoinPrefix+code), inviteCopied)
+	return ui.Copy(ctx, clipboardLine(inviteJoinPrefix+code), cat(ctx).Chat.InviteCopied())
 }
 
 // ---- the invites tab ----
@@ -336,7 +331,8 @@ func (b *inviteTab) fetch(ctx *ui.Context) tea.Cmd {
 
 // sync rebuilds the rows: the two actions, then the invites or the list state.
 func (b *inviteTab) sync(ctx *ui.Context) {
-	rows := []inviteItem{{id: inviteRowNewID, label: inviteRowNew}, {id: inviteRowDirectID, label: inviteRowDirect}}
+	c := cat(ctx)
+	rows := []inviteItem{{id: inviteRowNewID, label: c.Chat.InviteRowNew()}, {id: inviteRowDirectID, label: c.Chat.InviteRowDirect()}}
 	status := ""
 	switch {
 	case len(b.items) > 0:
@@ -345,11 +341,11 @@ func (b *inviteTab) sync(ctx *ui.Context) {
 			rows = append(rows, inviteItem{id: "inv:" + inv.Code, label: inviteRow(ctx, inv, 1<<20), inv: &inv})
 		}
 	case b.failed:
-		status = invitesFailed
+		status = c.Chat.InvitesFailed()
 	case !b.loaded:
-		status = invitesLoading
+		status = c.Chat.Loading()
 	default:
-		status = invitesNone
+		status = c.Chat.InvitesNone()
 	}
 	if status != "" {
 		rows = append(rows, inviteItem{id: inviteRowStatusID, label: status})
@@ -408,8 +404,9 @@ func (b *inviteTab) menu(ctx *ui.Context, it inviteItem) tea.Cmd {
 	shown := textwidth.Sanitize(code)
 	return ui.OpenOverlay(newMenu(shown, []menuItem{
 		{Label: cat(ctx).Chat.ItemCopy(), Hint: "y", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return copyInviteCmd(ctx, code), nil }},
-		{Label: itemRevokeInvite, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, widgets.Confirm(shown+revokeAskSuffix, revokeBody, itemRevokeInvite, cat(ctx).Chat.Cancel(), revokeInviteCmd(ctx, space, code))
+		{Label: cat(ctx).Chat.ItemRevokeInvite(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			c := cat(ctx)
+			return nil, widgets.Confirm(c.Chat.RevokeAsk(shown), c.Chat.RevokeBody(), c.Chat.ItemRevokeInvite(), c.Chat.Cancel(), revokeInviteCmd(ctx, space, code))
 		}},
 	}))
 }

@@ -25,11 +25,91 @@ var areaChat = area{
 				En: {Other: "Message"},
 			},
 		},
+		"add_submit": {
+			desc: "멤버 추가 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "추가"},
+				En: {Other: "Add"},
+			},
+		},
 		"anchor_not_found": {
 			desc: "알림·링크로 연 답글이 없음",
 			text: map[Locale]Forms{
 				Ko: {Other: "답글을 찾을 수 없어요"},
 				En: {Other: "Reply not found"},
+			},
+		},
+		"bad_channel_name": {
+			desc: "채널 이름 바꾸기 검사 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 이름은 영문 소문자·숫자·한글·_·- 1~32자예요"},
+				En: {Other: "Channel names are 1–32 lowercase letters, digits, Hangul, _ or -"},
+			},
+		},
+		"ban_reason_holder": {
+			desc: "방 차단(밴): 사유 칸 예시",
+			text: map[Locale]Forms{
+				Ko: {Other: "예: 도배"},
+				En: {Other: "e.g. spam"},
+			},
+		},
+		"ban_reason_label": {
+			desc: "방 차단(밴): 사유 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "사유 (선택)"},
+				En: {Other: "Reason (optional)"},
+			},
+		},
+		"ban_reason_too_long": {
+			desc: "방 차단(밴): 사유 200자 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "사유는 200자까지예요"},
+				En: {Other: "Reasons can be up to 200 characters"},
+			},
+		},
+		"ban_submit": {
+			desc: "방 차단(밴) 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단"},
+				En: {Other: "Ban"},
+			},
+		},
+		"ban_title": {
+			desc:   "방 차단(밴) 대화상자 제목. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 차단(밴)"},
+				En: {Other: "Ban {name}"},
+			},
+		},
+		"banned": {
+			desc:   "알림: 방에서 차단함. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 방에서 차단했어요"},
+				En: {Other: "Banned {name} from the space"},
+			},
+		},
+		"banned_by": {
+			desc:   "방 차단 탭: 차단한 사람. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "차단: {name}"},
+				En: {Other: "Banned by {name}"},
+			},
+		},
+		"bans_failed": {
+			desc: "방 차단 탭: 목록 불러오기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단 목록을 불러오지 못했어요"},
+				En: {Other: "Couldn't load the ban list"},
+			},
+		},
+		"bans_none": {
+			desc: "방 차단 탭: 차단한 사람이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단한 사람이 없어요"},
+				En: {Other: "No one is banned"},
 			},
 		},
 		"block_ask": {
@@ -99,6 +179,43 @@ var areaChat = area{
 				En: {Other: "This message can't be edited"},
 			},
 		},
+		"change_submit": {
+			desc: "바꾸기 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "바꾸기"},
+				En: {Other: "Save"},
+			},
+		},
+		"channel_created": {
+			desc:   "알림: 채널을 만듦. title = 채널 제목(# 이름)",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} 채널을 만들었어요"},
+				En: {Other: "Created {title}"},
+			},
+		},
+		"channel_deleted": {
+			desc:   "알림: 채널을 삭제함. title = 채널 제목",
+			params: []Param{{Name: "title", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} 채널을 삭제했어요"},
+				En: {Other: "Deleted {title}"},
+			},
+		},
+		"channel_name_holder": {
+			desc: "채널 이름 칸 예시",
+			text: map[Locale]Forms{
+				Ko: {Other: "예: 배포알림"},
+				En: {Other: "e.g. deploys"},
+			},
+		},
+		"channel_name_rule": {
+			desc: "새 채널 이름 규칙 안내(검사 실패 시 상태 줄)",
+			text: map[Locale]Forms{
+				Ko: {Other: "영문 소문자·숫자·한글·_- 1~32자"},
+				En: {Other: "Lowercase letters, digits, Hangul, _ or -, 1–32 chars"},
+			},
+		},
 		"channel_row_new": {
 			desc: "사이드바 줄: 새 채널 만들기(방장·관리자)",
 			text: map[Locale]Forms{
@@ -111,6 +228,20 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "채널"},
 				En: {Other: "Channel"},
+			},
+		},
+		"cmd_channel_create": {
+			desc: "명령 팔레트·대화상자 제목: 채널 만들기",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 만들기"},
+				En: {Other: "Create channel"},
+			},
+		},
+		"cmd_channel_prefs": {
+			desc: "명령 팔레트: 채널 설정",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 설정"},
+				En: {Other: "Channel settings"},
 			},
 		},
 		"cmd_dm_new": {
@@ -134,6 +265,27 @@ var areaChat = area{
 				En: {Other: "Friends"},
 			},
 		},
+		"cmd_invite_create": {
+			desc: "명령 팔레트·대화상자 제목: 초대 링크 만들기",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 링크 만들기"},
+				En: {Other: "Create invite link"},
+			},
+		},
+		"cmd_invite_direct": {
+			desc: "명령 팔레트: 친구를 방에 초대",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구를 방에 초대"},
+				En: {Other: "Invite a friend to the space"},
+			},
+		},
+		"cmd_invites_inbox": {
+			desc: "명령 팔레트·화면 제목: 받은 방 초대",
+			text: map[Locale]Forms{
+				Ko: {Other: "받은 방 초대"},
+				En: {Other: "Space invites"},
+			},
+		},
 		"cmd_pins": {
 			desc: "명령 팔레트: 고정 메시지 보기",
 			text: map[Locale]Forms{
@@ -148,11 +300,61 @@ var areaChat = area{
 				En: {Other: "Search messages"},
 			},
 		},
+		"cmd_space_create": {
+			desc: "명령 팔레트·대화상자 제목: 방 만들기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 만들기"},
+				En: {Other: "Create space"},
+			},
+		},
+		"cmd_space_join": {
+			desc: "명령 팔레트: 초대 코드로 방 참여",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 코드로 방 참여"},
+				En: {Other: "Join a space with an invite code"},
+			},
+		},
+		"cmd_space_leave": {
+			desc: "명령 팔레트·방 설정 항목: 방 나가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 나가기"},
+				En: {Other: "Leave space"},
+			},
+		},
+		"cmd_space_settings": {
+			desc: "명령 팔레트·화면 제목(방을 모를 때): 방 설정",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 설정"},
+				En: {Other: "Space settings"},
+			},
+		},
+		"create_submit": {
+			desc: "채널·방 만들기 대화상자의 만들기 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "만들기"},
+				En: {Other: "Create"},
+			},
+		},
+		"date_with_year": {
+			desc:   "다른 해의 날짜. year = 연도, date = 월·일(time.month_day)",
+			params: []Param{{Name: "year", Type: "string"}, {Name: "date", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{year}년 {date}"},
+				En: {Other: "{date}, {year}"},
+			},
+		},
 		"decline_failed": {
 			desc: "오류 알림 머리: 친구 요청 거절 실패",
 			text: map[Locale]Forms{
 				Ko: {Other: "친구 요청을 거절하지 못했어요"},
 				En: {Other: "Couldn't decline the friend request"},
+			},
+		},
+		"default_chan_hint": {
+			desc: "채널 삭제 항목 옆: 기본 채널이라 못 지움",
+			text: map[Locale]Forms{
+				Ko: {Other: "기본 채널"},
+				En: {Other: "default"},
 			},
 		},
 		"delete_body": {
@@ -163,11 +365,57 @@ var areaChat = area{
 				En: {Other: "Delete this message?"},
 			},
 		},
+		"delete_channel_ask": {
+			desc:       "확인 제목: 채널을 삭제할까. title = 채널 제목",
+			params:     []Param{{Name: "title", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{title} 채널을 삭제할까요?"},
+				En: {Other: "Delete {title}?"},
+			},
+		},
+		"delete_channel_body": {
+			desc: "채널 삭제 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지도 함께 사라지고 되돌릴 수 없어요"},
+				En: {Other: "Its messages go with it. This can't be undone."},
+			},
+		},
+		"delete_channel_failed": {
+			desc: "오류 알림 머리: 채널 삭제 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널을 삭제하지 못했어요"},
+				En: {Other: "Couldn't delete the channel"},
+			},
+		},
 		"delete_failed": {
 			desc: "오류 알림 머리: 메시지 삭제 실패",
 			text: map[Locale]Forms{
 				Ko: {Other: "메시지를 삭제하지 못했어요"},
 				En: {Other: "Couldn't delete the message"},
+			},
+		},
+		"delete_space_ask": {
+			desc:       "확인 제목: 방을 삭제할까. name = 방 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 방을 삭제할까요?"},
+				En: {Other: "Delete the space {name}?"},
+			},
+		},
+		"delete_space_body": {
+			desc: "방 삭제 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "모든 채널과 메시지가 사라지고 되돌릴 수 없어요"},
+				En: {Other: "All its channels and messages go with it. This can't be undone."},
+			},
+		},
+		"delete_space_yes": {
+			desc: "방 삭제 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
 			},
 		},
 		"delete_title": {
@@ -241,6 +489,13 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "DM"},
 				En: {Other: "DMs"},
+			},
+		},
+		"edit_channel_title": {
+			desc: "채널 이름·주제 바꾸기 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 이름·주제"},
+				En: {Other: "Channel name and topic"},
 			},
 		},
 		"edit_failed": {
@@ -724,11 +979,53 @@ var areaChat = area{
 				En: {Other: "Some of these people can't be in a conversation together"},
 			},
 		},
+		"group_full_hint": {
+			desc: "멤버 추가 항목 옆: 그룹 대화가 꽉 참(10명)",
+			text: map[Locale]Forms{
+				Ko: {Other: "최대 10명"},
+				En: {Other: "10 max"},
+			},
+		},
+		"help_copy": {
+			desc: "도움말 줄: 복사",
+			text: map[Locale]Forms{
+				Ko: {Other: "복사"},
+				En: {Other: "copy"},
+			},
+		},
+		"help_find": {
+			desc: "도움말 줄: 찾기",
+			text: map[Locale]Forms{
+				Ko: {Other: "찾기"},
+				En: {Other: "search"},
+			},
+		},
+		"help_find_member": {
+			desc: "도움말 줄: 멤버 찾기",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버 찾기"},
+				En: {Other: "find member"},
+			},
+		},
 		"help_jump": {
 			desc: "키 도움말: 그 메시지로 이동",
 			text: map[Locale]Forms{
 				Ko: {Other: "이동"},
 				En: {Other: "jump"},
+			},
+		},
+		"help_menu": {
+			desc: "도움말 줄: 메뉴",
+			text: map[Locale]Forms{
+				Ko: {Other: "메뉴"},
+				En: {Other: "menu"},
+			},
+		},
+		"help_more": {
+			desc: "도움말 줄: 더보기 메뉴",
+			text: map[Locale]Forms{
+				Ko: {Other: "더보기"},
+				En: {Other: "more"},
 			},
 		},
 		"help_name_field": {
@@ -738,11 +1035,25 @@ var areaChat = area{
 				En: {Other: "name field"},
 			},
 		},
+		"help_new_channel": {
+			desc: "도움말 줄: 새 채널",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 채널"},
+				En: {Other: "new channel"},
+			},
+		},
 		"help_next_field": {
 			desc: "키 도움말: 다음 칸",
 			text: map[Locale]Forms{
 				Ko: {Other: "다음 칸"},
 				En: {Other: "next field"},
+			},
+		},
+		"help_open": {
+			desc: "도움말 줄: 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "열기"},
+				En: {Other: "open"},
 			},
 		},
 		"help_pick_then": {
@@ -781,11 +1092,32 @@ var areaChat = area{
 				En: {Other: "search"},
 			},
 		},
+		"help_settings": {
+			desc: "도움말 줄: 설정",
+			text: map[Locale]Forms{
+				Ko: {Other: "설정"},
+				En: {Other: "settings"},
+			},
+		},
+		"help_stop_find": {
+			desc: "도움말 줄: 그만 찾기",
+			text: map[Locale]Forms{
+				Ko: {Other: "그만 찾기"},
+				En: {Other: "stop"},
+			},
+		},
 		"help_tabs": {
 			desc: "키 도움말: 탭 옮기기",
 			text: map[Locale]Forms{
 				Ko: {Other: "탭"},
 				En: {Other: "tabs"},
+			},
+		},
+		"help_unban": {
+			desc: "도움말 줄: 차단 풀기",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단 풀기"},
+				En: {Other: "unban"},
 			},
 		},
 		"help_unpin": {
@@ -882,6 +1214,178 @@ var areaChat = area{
 				En: {Other: "Home"},
 			},
 		},
+		"icon_none": {
+			desc: "방 아이콘 고르기: 아이콘 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "없음"},
+				En: {Other: "None"},
+			},
+		},
+		"invite_accept_failed": {
+			desc: "오류 알림 머리: 초대 수락 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대를 수락하지 못했어요"},
+				En: {Other: "Couldn't accept the invite"},
+			},
+		},
+		"invite_accepting": {
+			desc: "방 초대: 수락하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "수락하는 중…"},
+				En: {Other: "Accepting…"},
+			},
+		},
+		"invite_close_hint": {
+			desc: "초대 오류 아래 안내(닫기)",
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 닫기"},
+				En: {Other: "esc close"},
+			},
+		},
+		"invite_code_bad": {
+			desc: "초대 코드 검사: 형식 틀림",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 코드는 8자예요"},
+				En: {Other: "Invite codes are 8 characters"},
+			},
+		},
+		"invite_code_holder": {
+			desc: "방 참여: 초대 코드 칸 예시(masil join 은 명령 그대로)",
+			text: map[Locale]Forms{
+				Ko: {Other: "AB12CD34 또는 masil join AB12CD34"},
+				En: {Other: "AB12CD34 or masil join AB12CD34"},
+			},
+		},
+		"invite_code_label": {
+			desc: "방 참여: 초대 코드 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 코드"},
+				En: {Other: "Invite code"},
+			},
+		},
+		"invite_code_required": {
+			desc: "초대 코드 검사: 비어 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 코드를 입력해 주세요"},
+				En: {Other: "Enter an invite code"},
+			},
+		},
+		"invite_copied": {
+			desc: "알림: 초대 줄을 복사함",
+			text: map[Locale]Forms{
+				Ko: {Other: "복사했어요"},
+				En: {Other: "Copied"},
+			},
+		},
+		"invite_created_title": {
+			desc: "만든 초대 링크 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 링크"},
+				En: {Other: "Invite link"},
+			},
+		},
+		"invite_days": {
+			desc:   "초대 링크 만료 고르기: N일",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}일"},
+				En: {One: "{n} day", Other: "{n} days"},
+			},
+		},
+		"invite_decline_failed": {
+			desc: "오류 알림 머리: 초대 거절 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대를 거절하지 못했어요"},
+				En: {Other: "Couldn't decline the invite"},
+			},
+		},
+		"invite_declined": {
+			desc: "알림: 초대를 거절함",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대를 거절했어요"},
+				En: {Other: "Invite declined"},
+			},
+		},
+		"invite_declining": {
+			desc: "방 초대: 거절하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "거절하는 중…"},
+				En: {Other: "Declining…"},
+			},
+		},
+		"invite_direct_actions": {
+			desc: "받은 직접 초대 카드 아래 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 수락 · d 거절 · m 더보기"},
+				En: {Other: "enter accept · d decline · m more"},
+			},
+		},
+		"invite_direct_none": {
+			desc: "친구 직접 초대: 초대할 친구가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대할 수 있는 친구가 없어요"},
+				En: {Other: "No friends to invite"},
+			},
+		},
+		"invite_direct_submit": {
+			desc: "친구 직접 초대 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대"},
+				En: {Other: "Invite"},
+			},
+		},
+		"invite_direct_title": {
+			desc: "친구 직접 초대 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 초대"},
+				En: {Other: "Invite a friend"},
+			},
+		},
+		"invite_exhausted": {
+			desc: "초대 오류: 사용 횟수 다 참",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용 횟수가 다 찬 초대예요"},
+				En: {Other: "This invite has been used up"},
+			},
+		},
+		"invite_expired": {
+			desc: "초대 링크 목록: 만료됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "만료됨"},
+				En: {Other: "Expired"},
+			},
+		},
+		"invite_expired_err": {
+			desc: "초대 오류: 만료됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "만료된 초대예요"},
+				En: {Other: "This invite has expired"},
+			},
+		},
+		"invite_expires": {
+			desc:   "만든 초대 링크: 만료 시각. when = 사람이 읽는 시각",
+			params: []Param{{Name: "when", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "만료 {when}"},
+				En: {Other: "Expires {when}"},
+			},
+		},
+		"invite_expires_on": {
+			desc:   "초대 링크 목록: 만료 날짜. date = 날짜",
+			params: []Param{{Name: "date", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{date} 만료"},
+				En: {Other: "Expires {date}"},
+			},
+		},
+		"invite_expiry_label": {
+			desc: "초대 링크 만들기: 만료 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "만료"},
+				En: {Other: "Expires"},
+			},
+		},
 		"invite_failed": {
 			desc: "오류 알림 머리: 초대 실패",
 			text: map[Locale]Forms{
@@ -889,11 +1393,142 @@ var areaChat = area{
 				En: {Other: "Couldn't invite"},
 			},
 		},
+		"invite_forever": {
+			desc: "초대 링크 만료 고르기: 만료 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "무기한"},
+				En: {Other: "Never"},
+			},
+		},
+		"invite_gone": {
+			desc: "초대가 더는 유효하지 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "더 이상 유효하지 않은 초대예요"},
+				En: {Other: "This invite is no longer valid"},
+			},
+		},
+		"invite_hint": {
+			desc: "만든 초대 링크 창 아래 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "y 복사 · esc 닫기"},
+				En: {Other: "y copy · esc close"},
+			},
+		},
+		"invite_hours": {
+			desc:   "초대 링크 만료 고르기: N시간",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}시간"},
+				En: {One: "{n} hour", Other: "{n} hours"},
+			},
+		},
+		"invite_inviter": {
+			desc:   "초대 카드: 초대한 사람. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "초대한 사람: {name}"},
+				En: {Other: "Invited by {name}"},
+			},
+		},
+		"invite_joining": {
+			desc: "방 초대: 참여하는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "참여하는 중…"},
+				En: {Other: "Joining…"},
+			},
+		},
+		"invite_link_actions": {
+			desc: "초대 링크 카드 아래 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 참여하기 · m 더보기 · esc 닫기"},
+				En: {Other: "enter join · m more · esc close"},
+			},
+		},
 		"invite_link_failed": {
 			desc: "오류 알림 머리: 초대 링크 만들기 실패",
 			text: map[Locale]Forms{
 				Ko: {Other: "초대 링크를 만들지 못했어요"},
 				En: {Other: "Couldn't create an invite link"},
+			},
+		},
+		"invite_loading": {
+			desc: "방 초대: 불러오는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대를 불러오는 중…"},
+				En: {Other: "Loading the invite…"},
+			},
+		},
+		"invite_max_uses": {
+			desc:   "만든 초대 링크: 최대 사용 횟수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "최대 {n}번"},
+				En: {One: "Up to {n} use", Other: "Up to {n} uses"},
+			},
+		},
+		"invite_member_actions": {
+			desc: "초대 링크 카드: 이미 멤버인 방",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미 참여한 방이에요 · enter 열기"},
+				En: {Other: "You're already in this space · enter open"},
+			},
+		},
+		"invite_no_expiry": {
+			desc: "만든 초대 링크: 만료 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "만료 없음"},
+				En: {Other: "No expiry"},
+			},
+		},
+		"invite_none": {
+			desc: "받은 방 초대 목록이 빔",
+			text: map[Locale]Forms{
+				Ko: {Other: "받은 방 초대가 없어요"},
+				En: {Other: "No space invites"},
+			},
+		},
+		"invite_none_hint": {
+			desc: "받은 방 초대 목록이 빔: 도움말",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구가 방에 초대하면 여기에 보여요"},
+				En: {Other: "Invites from friends show up here"},
+			},
+		},
+		"invite_not_found": {
+			desc: "초대 오류: 없는 코드",
+			text: map[Locale]Forms{
+				Ko: {Other: "없는 초대 코드예요"},
+				En: {Other: "No such invite code"},
+			},
+		},
+		"invite_retry_hint": {
+			desc: "초대 오류 아래 안내(다시 시도)",
+			text: map[Locale]Forms{
+				Ko: {Other: "r 다시 시도 · esc 닫기"},
+				En: {Other: "r retry · esc close"},
+			},
+		},
+		"invite_revoked": {
+			desc: "초대 오류: 취소됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "취소된 초대예요"},
+				En: {Other: "This invite was revoked"},
+			},
+		},
+		"invite_row_direct": {
+			desc: "방 설정 초대 탭: 친구 직접 초대 줄(＋ 표시 포함)",
+			text: map[Locale]Forms{
+				Ko: {Other: "＋ 친구 직접 초대"},
+				En: {Other: "＋ Invite a friend directly"},
+			},
+		},
+		"invite_row_new": {
+			desc: "방 설정 초대 탭: 새 초대 링크 줄(＋ 표시 포함)",
+			text: map[Locale]Forms{
+				Ko: {Other: "＋ 새 초대 링크"},
+				En: {Other: "＋ New invite link"},
 			},
 		},
 		"invite_space_only": {
@@ -910,12 +1545,79 @@ var areaChat = area{
 				En: {Other: "Invite to which space?"},
 			},
 		},
+		"invite_title": {
+			desc: "방 초대 화면 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 초대"},
+				En: {Other: "Space invite"},
+			},
+		},
+		"invite_unlimited": {
+			desc: "만든 초대 링크: 사용 횟수 제한 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "횟수 무제한"},
+				En: {Other: "Unlimited uses"},
+			},
+		},
+		"invite_until": {
+			desc:   "초대 카드: 유효 기한. when = 시각",
+			params: []Param{{Name: "when", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{when}까지"},
+				En: {Other: "Until {when}"},
+			},
+		},
+		"invite_uses_label": {
+			desc: "초대 링크 만들기: 최대 사용 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "최대 사용"},
+				En: {Other: "Max uses"},
+			},
+		},
+		"invite_uses_n": {
+			desc:   "초대 링크 사용 횟수(고르기·목록)",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}회"},
+				En: {One: "{n} use", Other: "{n} uses"},
+			},
+		},
+		"invite_uses_no_limit": {
+			desc: "초대 링크 최대 사용 고르기: 제한 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "무제한"},
+				En: {Other: "No limit"},
+			},
+		},
+		"invite_uses_of": {
+			desc:   "초대 링크 목록: 쓴 횟수/최대 횟수",
+			params: []Param{{Name: "used", Type: "int"}, {Name: "max", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{used}/{max}회"},
+				En: {Other: "{used}/{max} uses"},
+			},
+		},
 		"invited": {
 			desc:   "알림: 방에 초대함. who = 이름·@아이디, space = 방 이름",
 			params: []Param{{Name: "who", Type: "string"}, {Name: "space", Type: "string"}},
 			text: map[Locale]Forms{
 				Ko: {Other: "{who}님을 {space}에 초대했어요"},
 				En: {Other: "Invited {who} to {space}"},
+			},
+		},
+		"invites_failed": {
+			desc: "방 설정 초대 탭: 목록 불러오기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 링크를 불러오지 못했어요"},
+				En: {Other: "Couldn't load invite links"},
+			},
+		},
+		"invites_none": {
+			desc: "방 설정 초대 탭: 만든 초대 링크가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 만든 초대 링크가 없어요"},
+				En: {Other: "No invite links yet"},
 			},
 		},
 		"item_accept": {
@@ -925,12 +1627,26 @@ var areaChat = area{
 				En: {Other: "Accept"},
 			},
 		},
+		"item_add_members": {
+			desc: "채널 설정 메뉴·고르기 제목: 멤버 추가",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버 추가"},
+				En: {Other: "Add members"},
+			},
+		},
 		"item_author": {
 			desc:   "메시지 메뉴: 작성자 프로필. name = 이름",
 			params: []Param{{Name: "name", Type: "string"}},
 			text: map[Locale]Forms{
 				Ko: {Other: "작성자 · {name}"},
 				En: {Other: "Author · {name}"},
+			},
+		},
+		"item_ban": {
+			desc: "방 멤버 메뉴: 차단(밴)",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단(밴)"},
+				En: {Other: "Ban"},
 			},
 		},
 		"item_block_author": {
@@ -982,6 +1698,20 @@ var areaChat = area{
 				En: {Other: "Delete"},
 			},
 		},
+		"item_delete_channel": {
+			desc: "채널 설정 메뉴: 채널 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 삭제"},
+				En: {Other: "Delete channel"},
+			},
+		},
+		"item_delete_space": {
+			desc: "방 설정 항목: 방 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 삭제"},
+				En: {Other: "Delete space"},
+			},
+		},
 		"item_edit": {
 			desc: "메시지 메뉴: 수정",
 			text: map[Locale]Forms{
@@ -989,11 +1719,75 @@ var areaChat = area{
 				En: {Other: "Edit"},
 			},
 		},
+		"item_edit_channel": {
+			desc: "채널 설정 메뉴: 이름·주제 바꾸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름·주제 바꾸기"},
+				En: {Other: "Edit name and topic"},
+			},
+		},
+		"item_edit_space": {
+			desc: "방 설정 항목·대화상자 제목: 방 정보 바꾸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 정보 바꾸기"},
+				En: {Other: "Edit space info"},
+			},
+		},
 		"item_invite_to_space": {
 			desc: "친구 메뉴: 방에 초대",
 			text: map[Locale]Forms{
 				Ko: {Other: "방에 초대"},
 				En: {Other: "Invite to a space"},
+			},
+		},
+		"item_join": {
+			desc: "초대 메뉴·도움말: 참여하기",
+			text: map[Locale]Forms{
+				Ko: {Other: "참여하기"},
+				En: {Other: "Join"},
+			},
+		},
+		"item_kick": {
+			desc: "채널 설정 메뉴·메뉴 제목: 멤버 내보내기",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버 내보내기"},
+				En: {Other: "Remove a member"},
+			},
+		},
+		"item_leave": {
+			desc: "그룹 대화 설정 메뉴·확인 단추: 나가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "나가기"},
+				En: {Other: "Leave"},
+			},
+		},
+		"item_make_admin": {
+			desc: "방 멤버 메뉴: 관리자로 지정",
+			text: map[Locale]Forms{
+				Ko: {Other: "관리자로 지정"},
+				En: {Other: "Make admin"},
+			},
+		},
+		"item_mute": {
+			desc: "채널 설정 메뉴: 음소거",
+			text: map[Locale]Forms{
+				Ko: {Other: "음소거"},
+				En: {Other: "Mute"},
+			},
+		},
+		"item_notify": {
+			desc:   "채널 설정 메뉴: 알림 단계 항목. level = notify_* 낱말",
+			params: []Param{{Name: "level", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "알림: {level}"},
+				En: {Other: "Notifications: {level}"},
+			},
+		},
+		"item_open_space": {
+			desc: "초대 메뉴·도움말: 이미 멤버인 방 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "열기"},
+				En: {Other: "Open"},
 			},
 		},
 		"item_pin": {
@@ -1024,11 +1818,25 @@ var areaChat = area{
 				En: {Other: "Reactions"},
 			},
 		},
+		"item_rename": {
+			desc: "그룹 대화 설정 메뉴: 이름 바꾸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름 바꾸기"},
+				En: {Other: "Rename"},
+			},
+		},
 		"item_report": {
 			desc: "메시지 메뉴: 신고",
 			text: map[Locale]Forms{
 				Ko: {Other: "신고"},
 				En: {Other: "Report"},
+			},
+		},
+		"item_report_space": {
+			desc: "초대 메뉴: 방 신고",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 신고"},
+				En: {Other: "Report space"},
 			},
 		},
 		"item_report_user": {
@@ -1045,6 +1853,13 @@ var areaChat = area{
 				En: {Other: "Retract vote"},
 			},
 		},
+		"item_revoke_invite": {
+			desc: "초대 링크 메뉴·확인 단추: 폐기",
+			text: map[Locale]Forms{
+				Ko: {Other: "폐기"},
+				En: {Other: "Revoke"},
+			},
+		},
 		"item_send_dm": {
 			desc: "사용자 메뉴: DM 보내기",
 			text: map[Locale]Forms{
@@ -1059,11 +1874,32 @@ var areaChat = area{
 				En: {Other: "Reply in thread"},
 			},
 		},
+		"item_transfer_space": {
+			desc: "방 설정 항목: 방장 넘기기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방장 넘기기"},
+				En: {Other: "Transfer ownership"},
+			},
+		},
 		"item_unfriend": {
 			desc: "친구 메뉴: 친구 끊기",
 			text: map[Locale]Forms{
 				Ko: {Other: "친구 끊기"},
 				En: {Other: "Unfriend"},
+			},
+		},
+		"item_unmake_admin": {
+			desc: "방 멤버 메뉴: 관리자 해제",
+			text: map[Locale]Forms{
+				Ko: {Other: "관리자 해제"},
+				En: {Other: "Remove admin"},
+			},
+		},
+		"item_unmute": {
+			desc: "채널 설정 메뉴: 음소거 해제",
+			text: map[Locale]Forms{
+				Ko: {Other: "음소거 해제"},
+				En: {Other: "Unmute"},
 			},
 		},
 		"item_unpin": {
@@ -1079,6 +1915,58 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "투표: {option}"},
 				En: {Other: "Vote: {option}"},
+			},
+		},
+		"kick_ask": {
+			desc:       "확인 제목: 채널·그룹에서 멤버를 내보낼까. name = 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 내보낼까요?"},
+				En: {Other: "Remove {name}?"},
+			},
+		},
+		"kick_body": {
+			desc: "멤버 내보내기 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 들어오려면 누군가 추가해야 해요"},
+				En: {Other: "Someone will have to add them back."},
+			},
+		},
+		"kick_failed": {
+			desc: "오류 알림 머리: 멤버 내보내기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버를 내보내지 못했어요"},
+				En: {Other: "Couldn't remove the member"},
+			},
+		},
+		"kick_yes": {
+			desc: "멤버 내보내기 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내기"},
+				En: {Other: "Remove"},
+			},
+		},
+		"kicked": {
+			desc:   "알림: 멤버를 내보냄. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 내보냈어요"},
+				En: {Other: "Removed {name}"},
+			},
+		},
+		"kw_channel_create": {
+			desc: "명령 팔레트 검색어: 채널 만들기",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널, 새 채널, 비공개, 만들기"},
+				En: {Other: "new channel"},
+			},
+		},
+		"kw_channel_prefs": {
+			desc: "명령 팔레트 검색어: 채널 설정",
+			text: map[Locale]Forms{
+				Ko: {Other: "알림, 음소거, 대화 설정"},
+				En: {Other: "notifications"},
 			},
 		},
 		"kw_dm_new": {
@@ -1102,6 +1990,27 @@ var areaChat = area{
 				En: {Other: "friend requests"},
 			},
 		},
+		"kw_invite_create": {
+			desc: "명령 팔레트 검색어: 초대 링크 만들기",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대, 초대 링크, 초대 코드, 만들기"},
+				En: {Other: "invite link"},
+			},
+		},
+		"kw_invite_direct": {
+			desc: "명령 팔레트 검색어: 친구 직접 초대",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대, 친구 초대, 직접 초대"},
+				En: {Other: "invite friend"},
+			},
+		},
+		"kw_invites_inbox": {
+			desc: "명령 팔레트 검색어: 받은 방 초대",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대, 방 초대, 받은 초대"},
+				En: {Other: "space invites"},
+			},
+		},
 		"kw_pins": {
 			desc: "명령 팔레트 검색어: 고정 메시지",
 			text: map[Locale]Forms{
@@ -1116,6 +2025,87 @@ var areaChat = area{
 				En: {Other: "find"},
 			},
 		},
+		"kw_space_create": {
+			desc: "명령 팔레트 검색어: 방 만들기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방, 새 방, 만들기"},
+				En: {Other: "new space"},
+			},
+		},
+		"kw_space_join": {
+			desc: "명령 팔레트 검색어: 방 참여",
+			text: map[Locale]Forms{
+				Ko: {Other: "참여, 초대 코드, 입장"},
+				En: {Other: "invite code"},
+			},
+		},
+		"kw_space_leave": {
+			desc: "명령 팔레트 검색어: 방 나가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방, 나가기, 탈퇴"},
+				En: {Other: "leave space"},
+			},
+		},
+		"kw_space_settings": {
+			desc: "명령 팔레트 검색어: 방 설정",
+			text: map[Locale]Forms{
+				Ko: {Other: "방, 설정, 멤버, 역할, 관리"},
+				En: {Other: "space settings"},
+			},
+		},
+		"leave_ask": {
+			desc:       "확인 제목: 그룹 대화에서 나갈까. name = 대화 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}에서 나갈까요?"},
+				En: {Other: "Leave {name}?"},
+			},
+		},
+		"leave_body": {
+			desc: "그룹 대화 나가기 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 들어오려면 멤버가 추가해 줘야 해요"},
+				En: {Other: "A member will have to add you back."},
+			},
+		},
+		"leave_failed": {
+			desc: "오류 알림 머리: 대화 나가기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화에서 나가지 못했어요"},
+				En: {Other: "Couldn't leave the conversation"},
+			},
+		},
+		"leave_space_ask": {
+			desc:       "확인 제목: 방에서 나갈까. name = 방 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}에서 나갈까요?"},
+				En: {Other: "Leave {name}?"},
+			},
+		},
+		"leave_space_body": {
+			desc: "방 나가기 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 들어오려면 초대를 받아야 해요"},
+				En: {Other: "You'll need a new invite to come back."},
+			},
+		},
+		"leaving_space": {
+			desc: "방 나가기 확인: 나가는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "나가는 중…"},
+				En: {Other: "Leaving…"},
+			},
+		},
+		"left_conversation": {
+			desc: "알림: 대화에서 나감",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화에서 나갔어요"},
+				En: {Other: "You left the conversation"},
+			},
+		},
 		"load_failed": {
 			desc: "메시지 목록을 불러오지 못함",
 			text: map[Locale]Forms{
@@ -1128,6 +2118,14 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "불러오는 중…"},
 				En: {Other: "Loading…"},
+			},
+		},
+		"made_admin": {
+			desc:   "알림: 관리자로 지정함. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 관리자로 지정했어요"},
+				En: {Other: "{name} is now an admin"},
 			},
 		},
 		"me": {
@@ -1146,11 +2144,53 @@ var areaChat = area{
 				En: {One: "{n} member", Other: "{n} members"},
 			},
 		},
+		"member_filter_holder": {
+			desc: "방 멤버 찾기 칸 예시",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름이나 @아이디로 찾기"},
+				En: {Other: "Search by name or @handle"},
+			},
+		},
+		"member_filter_idle": {
+			desc: "방 멤버 찾기 칸(쉬는 중) 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "/ 눌러 멤버 찾기"},
+				En: {Other: "Press / to find members"},
+			},
+		},
+		"member_more": {
+			desc: "방 멤버 탭: 더 보기 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "더 보기"},
+				En: {Other: "Show more"},
+			},
+		},
+		"member_more_loading": {
+			desc: "방 멤버 탭: 더 불러오는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "더 불러오는 중…"},
+				En: {Other: "Loading more…"},
+			},
+		},
+		"members_added": {
+			desc: "알림: 멤버를 추가함",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버를 추가했어요"},
+				En: {Other: "Members added"},
+			},
+		},
 		"members_failed": {
 			desc: "멤버 목록을 불러오지 못함",
 			text: map[Locale]Forms{
 				Ko: {Other: "멤버를 불러오지 못했어요"},
 				En: {Other: "Couldn't load members"},
+			},
+		},
+		"members_load_title": {
+			desc: "방장 넘기기: 멤버 불러오는 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버 불러오기"},
+				En: {Other: "Loading members"},
 			},
 		},
 		"members_more": {
@@ -1159,6 +2199,13 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "+ {n}명 더"},
 				En: {Other: "+ {n} more"},
+			},
+		},
+		"members_no_match": {
+			desc: "방 멤버 탭: 찾는 멤버가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "찾는 멤버가 없어요"},
+				En: {Other: "No matching members"},
 			},
 		},
 		"members_none": {
@@ -1220,6 +2267,20 @@ var areaChat = area{
 				En: {Other: "Deleted message"},
 			},
 		},
+		"muted": {
+			desc: "알림: 음소거함",
+			text: map[Locale]Forms{
+				Ko: {Other: "음소거했어요"},
+				En: {Other: "Muted"},
+			},
+		},
+		"name_label": {
+			desc: "채널 이름 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 이름"},
+				En: {Other: "Channel name"},
+			},
+		},
 		"new_below": {
 			desc:   "메시지 판 아래: 안 본 새 메시지 수",
 			params: []Param{{Name: "n", Type: "int"}},
@@ -1241,6 +2302,13 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "받은 친구 요청이 없어요"},
 				En: {Other: "No friend requests"},
+			},
+		},
+		"no_kickable": {
+			desc: "멤버 내보내기 메뉴: 내보낼 사람이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "내보낼 멤버가 없어요"},
+				En: {Other: "No one to remove"},
 			},
 		},
 		"no_outgoing": {
@@ -1271,6 +2339,35 @@ var areaChat = area{
 				En: {Other: "You can only edit your own messages"},
 			},
 		},
+		"notify_all": {
+			desc: "알림 단계: 모두",
+			text: map[Locale]Forms{
+				Ko: {Other: "모두"},
+				En: {Other: "all"},
+			},
+		},
+		"notify_mentions": {
+			desc: "알림 단계: 멘션만",
+			text: map[Locale]Forms{
+				Ko: {Other: "멘션만"},
+				En: {Other: "mentions only"},
+			},
+		},
+		"notify_none": {
+			desc: "알림 단계: 끄기",
+			text: map[Locale]Forms{
+				Ko: {Other: "끄기"},
+				En: {Other: "off"},
+			},
+		},
+		"notify_set": {
+			desc:   "알림: 알림 단계를 바꿈. level = notify_* 낱말",
+			params: []Param{{Name: "level", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "알림 설정: {level}"},
+				En: {Other: "Notifications: {level}"},
+			},
+		},
 		"now_friends": {
 			desc:   "알림: 친구 요청이 바로 수락됨",
 			params: []Param{{Name: "name", Type: "string"}},
@@ -1291,6 +2388,13 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "보낸 요청을 불러오지 못했어요"},
 				En: {Other: "Couldn't load sent requests"},
+			},
+		},
+		"owner_leave": {
+			desc: "알림: 방장은 방장을 넘긴 뒤에만 나갈 수 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "방장은 방장을 넘긴 뒤에 나갈 수 있어요"},
+				En: {Other: "Transfer ownership before you leave"},
 			},
 		},
 		"picker_max": {
@@ -1469,6 +2573,57 @@ var areaChat = area{
 				En: {One: "{n} voter", Other: "{n} voters"},
 			},
 		},
+		"prefs_failed": {
+			desc: "오류 알림 머리: 알림 설정 바꾸기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "알림 설정을 바꾸지 못했어요"},
+				En: {Other: "Couldn't change notifications"},
+			},
+		},
+		"prefs_title_channel": {
+			desc:   "채널 설정 메뉴 제목. name = 채널 제목",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 설정 · {name}"},
+				En: {Other: "Channel settings · {name}"},
+			},
+		},
+		"prefs_title_dm": {
+			desc:   "DM·그룹 대화 설정 메뉴 제목. name = 대화 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "대화 설정 · {name}"},
+				En: {Other: "Conversation settings · {name}"},
+			},
+		},
+		"privacy_label": {
+			desc: "채널 만들기: 공개 범위 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "공개 범위"},
+				En: {Other: "Visibility"},
+			},
+		},
+		"private_members_none": {
+			desc: "비공개 채널 멤버 고르기: 고를 사람이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "함께할 멤버가 없어요 · enter 로 나만 있는 채널 만들기"},
+				En: {Other: "No one to add · enter creates a channel just for you"},
+			},
+		},
+		"private_members_title": {
+			desc: "비공개 채널 첫 멤버 고르기 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "비공개 채널 멤버"},
+				En: {Other: "Private channel members"},
+			},
+		},
+		"private_toggle": {
+			desc: "채널 만들기: 비공개 켜기 글",
+			text: map[Locale]Forms{
+				Ko: {Other: "비공개 (고른 멤버만)"},
+				En: {Other: "Private (chosen members only)"},
+			},
+		},
 		"rail_home": {
 			desc: "레일의 홈 글자(가운데 3칸 안)",
 			max:  3,
@@ -1527,6 +2682,34 @@ var areaChat = area{
 				En: {Other: "Reconnecting"},
 			},
 		},
+		"rename_holder": {
+			desc: "그룹 대화 이름 칸 예시",
+			text: map[Locale]Forms{
+				Ko: {Other: "비우면 멤버 이름으로 보여요"},
+				En: {Other: "Leave empty to show member names"},
+			},
+		},
+		"rename_label": {
+			desc: "그룹 대화 이름 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화 이름"},
+				En: {Other: "Conversation name"},
+			},
+		},
+		"rename_title": {
+			desc: "그룹 대화 이름 바꾸기 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화 이름 바꾸기"},
+				En: {Other: "Rename conversation"},
+			},
+		},
+		"renamed": {
+			desc: "알림: 이름을 바꿈",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름을 바꿨어요"},
+				En: {Other: "Renamed"},
+			},
+		},
 		"replies_label": {
 			desc:   "스레드 머리: 답글 수. n = 사람이 읽는 수(1.2천 등)",
 			params: []Param{{Name: "n", Type: "string"}},
@@ -1556,6 +2739,57 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{name}님에게 친구 요청을 보냈어요"},
 				En: {Other: "Friend request sent to {name}"},
+			},
+		},
+		"revoke_ask": {
+			desc:       "확인 제목: 초대 링크를 폐기할까. code = 초대 코드",
+			params:     []Param{{Name: "code", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{code} 초대 링크를 폐기할까요?"},
+				En: {Other: "Revoke invite {code}?"},
+			},
+		},
+		"revoke_body": {
+			desc: "초대 링크 폐기 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 코드로는 더 들어올 수 없어요"},
+				En: {Other: "No one can join with this code anymore."},
+			},
+		},
+		"revoke_failed": {
+			desc: "오류 알림 머리: 초대 링크 폐기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 링크를 폐기하지 못했어요"},
+				En: {Other: "Couldn't revoke the invite link"},
+			},
+		},
+		"revoked": {
+			desc: "알림: 초대 링크를 폐기함",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 링크를 폐기했어요"},
+				En: {Other: "Invite link revoked"},
+			},
+		},
+		"role_admin": {
+			desc: "방 역할: 관리자",
+			text: map[Locale]Forms{
+				Ko: {Other: "관리자"},
+				En: {Other: "Admin"},
+			},
+		},
+		"role_failed": {
+			desc: "오류 알림 머리: 역할 바꾸기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "역할을 바꾸지 못했어요"},
+				En: {Other: "Couldn't change the role"},
+			},
+		},
+		"role_member": {
+			desc: "방 역할: 멤버",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버"},
+				En: {Other: "Member"},
 			},
 		},
 		"role_owner": {
@@ -1661,6 +2895,14 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "enter 다시 보내기 · d 버리기"},
 				En: {Other: "enter resend · d discard"},
+			},
+		},
+		"settings_title": {
+			desc:   "방 설정 화면 제목. name = 방 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 설정"},
+				En: {Other: "{name} settings"},
 			},
 		},
 		"side_channels_label": {
@@ -1889,6 +3131,170 @@ var areaChat = area{
 				En: {Other: "Add a space"},
 			},
 		},
+		"space_banned": {
+			desc: "초대 오류: 이 방에서 차단됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 방에 들어갈 수 없어요"},
+				En: {Other: "You can't join this space"},
+			},
+		},
+		"space_delete_failed": {
+			desc: "오류 알림 머리: 방 삭제 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "방을 삭제하지 못했어요"},
+				En: {Other: "Couldn't delete the space"},
+			},
+		},
+		"space_deleted": {
+			desc: "알림: 방을 삭제함",
+			text: map[Locale]Forms{
+				Ko: {Other: "방을 삭제했어요"},
+				En: {Other: "Space deleted"},
+			},
+		},
+		"space_desc_holder": {
+			desc: "방 설명 칸 예시",
+			text: map[Locale]Forms{
+				Ko: {Other: "어떤 방인가요?"},
+				En: {Other: "What is this space about?"},
+			},
+		},
+		"space_desc_label": {
+			desc: "방 만들기·바꾸기: 설명 칸 이름(선택)",
+			text: map[Locale]Forms{
+				Ko: {Other: "설명 (선택)"},
+				En: {Other: "Description (optional)"},
+			},
+		},
+		"space_desc_too_long": {
+			desc: "방 설명 검사: 200자 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "설명은 200자까지예요"},
+				En: {Other: "Descriptions can be up to 200 characters"},
+			},
+		},
+		"space_gone": {
+			desc: "방 설정: 볼 수 없는 방",
+			text: map[Locale]Forms{
+				Ko: {Other: "볼 수 없는 방이에요"},
+				En: {Other: "You can't see this space"},
+			},
+		},
+		"space_gone_hint": {
+			desc: "방 설정: 볼 수 없는 방 도움말",
+			text: map[Locale]Forms{
+				Ko: {Other: "방이 삭제됐거나 더 이상 멤버가 아니에요"},
+				En: {Other: "It was deleted, or you're no longer a member"},
+			},
+		},
+		"space_icon_label": {
+			desc: "방 만들기·바꾸기: 아이콘 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "아이콘"},
+				En: {Other: "Icon"},
+			},
+		},
+		"space_info": {
+			desc:   "방 설정 개요: 멤버 수와 내 역할. count = member_count 문구, role = role_* 낱말",
+			params: []Param{{Name: "count", Type: "string"}, {Name: "role", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{count} · 내 역할: {role}"},
+				En: {Other: "{count} · My role: {role}"},
+			},
+		},
+		"space_join_submit": {
+			desc: "방 참여 대화상자 단추: 초대 미리 보기",
+			text: map[Locale]Forms{
+				Ko: {Other: "미리 보기"},
+				En: {Other: "Preview"},
+			},
+		},
+		"space_join_title": {
+			desc: "방 참여 대화상자 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 참여"},
+				En: {Other: "Join space"},
+			},
+		},
+		"space_kick_ask": {
+			desc:       "확인 제목: 방에서 내보낼까(강퇴). name = 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 방에서 내보낼까요?"},
+				En: {Other: "Remove {name} from the space?"},
+			},
+		},
+		"space_kick_body": {
+			desc: "방 강퇴 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 초대하면 들어올 수 있어요"},
+				En: {Other: "They can come back with a new invite."},
+			},
+		},
+		"space_kick_failed": {
+			desc: "오류 알림 머리: 방 강퇴 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "내보내지 못했어요"},
+				En: {Other: "Couldn't remove them"},
+			},
+		},
+		"space_leave_failed": {
+			desc: "오류 알림 머리: 방 나가기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에서 나가지 못했어요"},
+				En: {Other: "Couldn't leave the space"},
+			},
+		},
+		"space_left": {
+			desc: "알림: 방에서 나옴",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에서 나왔어요"},
+				En: {Other: "You left the space"},
+			},
+		},
+		"space_members_none": {
+			desc: "방 멤버 탭: 멤버가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버가 없어요"},
+				En: {Other: "No members"},
+			},
+		},
+		"space_name_holder": {
+			desc: "방 이름 칸 예시",
+			text: map[Locale]Forms{
+				Ko: {Other: "예: 노바 개발방"},
+				En: {Other: "e.g. Nova devs"},
+			},
+		},
+		"space_name_label": {
+			desc: "방 만들기·바꾸기: 이름 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름"},
+				En: {Other: "Name"},
+			},
+		},
+		"space_name_required": {
+			desc: "방 이름 검사: 비어 있음",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름을 입력해 주세요"},
+				En: {Other: "Enter a name"},
+			},
+		},
+		"space_name_too_long": {
+			desc: "방 이름 검사: 50자 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름은 50자까지예요"},
+				En: {Other: "Names can be up to 50 characters"},
+			},
+		},
+		"space_open_failed": {
+			desc: "오류 알림 머리: 방 열기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "방을 열지 못했어요"},
+				En: {Other: "Couldn't open the space"},
+			},
+		},
 		"space_switch_title": {
 			desc: "방 전환 메뉴 제목",
 			text: map[Locale]Forms{
@@ -1901,6 +3307,13 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "방"},
 				En: {Other: "Space"},
+			},
+		},
+		"space_updated": {
+			desc: "알림: 방 정보를 바꿈",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 정보를 바꿨어요"},
+				En: {Other: "Space info updated"},
 			},
 		},
 		"sys_channel_created": {
@@ -1974,6 +3387,41 @@ var areaChat = area{
 				En: {Other: "Topic changed: {topic}"},
 			},
 		},
+		"tab_bans": {
+			desc: "방 설정 탭: 차단된 사람",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단됨"},
+				En: {Other: "Banned"},
+			},
+		},
+		"tab_channels": {
+			desc: "방 설정 탭: 채널",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널"},
+				En: {Other: "Channels"},
+			},
+		},
+		"tab_invites": {
+			desc: "방 설정 탭: 초대",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대"},
+				En: {Other: "Invites"},
+			},
+		},
+		"tab_members": {
+			desc: "방 설정 탭: 멤버",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버"},
+				En: {Other: "Members"},
+			},
+		},
+		"tab_overview": {
+			desc: "방 설정 탭: 개요",
+			text: map[Locale]Forms{
+				Ko: {Other: "개요"},
+				En: {Other: "Overview"},
+			},
+		},
 		"thread_parent_euro": {
 			desc:   "키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름",
 			params: []Param{{Name: "label", Type: "string"}},
@@ -2011,6 +3459,86 @@ var areaChat = area{
 				En: {Other: "Thread"},
 			},
 		},
+		"topic_holder": {
+			desc: "채널 주제 칸 예시",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 주제(선택)"},
+				En: {Other: "Channel topic (optional)"},
+			},
+		},
+		"topic_label": {
+			desc: "채널 주제 칸 이름",
+			text: map[Locale]Forms{
+				Ko: {Other: "주제"},
+				En: {Other: "Topic"},
+			},
+		},
+		"topic_opt_label": {
+			desc: "채널 만들기: 주제 칸 이름(선택)",
+			text: map[Locale]Forms{
+				Ko: {Other: "주제 (선택)"},
+				En: {Other: "Topic (optional)"},
+			},
+		},
+		"topic_too_long": {
+			desc: "채널 주제 검사: 250자 넘음",
+			text: map[Locale]Forms{
+				Ko: {Other: "주제는 250자까지예요"},
+				En: {Other: "Topics can be up to 250 characters"},
+			},
+		},
+		"transfer_ask": {
+			desc:       "확인 제목: 방장을 넘길까. name = 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님에게 방장을 넘길까요?"},
+				En: {Other: "Make {name} the owner?"},
+			},
+		},
+		"transfer_body": {
+			desc: "방장 넘기기 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "넘기면 나는 관리자가 돼요"},
+				En: {Other: "You'll become an admin."},
+			},
+		},
+		"transfer_failed": {
+			desc: "오류 알림 머리: 방장 넘기기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "방장을 넘기지 못했어요"},
+				En: {Other: "Couldn't transfer ownership"},
+			},
+		},
+		"transfer_submit": {
+			desc: "방장 넘기기: 고르기 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "고르기"},
+				En: {Other: "Choose"},
+			},
+		},
+		"transfer_title": {
+			desc: "방장 넘기기: 새 방장 고르기 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 방장 고르기"},
+				En: {Other: "Choose the new owner"},
+			},
+		},
+		"transfer_yes": {
+			desc: "방장 넘기기 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "넘기기"},
+				En: {Other: "Transfer"},
+			},
+		},
+		"transferred": {
+			desc:   "알림: 방장을 넘김. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님에게 방장을 넘겼어요"},
+				En: {Other: "{name} is now the owner"},
+			},
+		},
 		"typing_many": {
 			desc: "입력 중 줄: 세 명 이상",
 			text: map[Locale]Forms{
@@ -2039,6 +3567,44 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{a}, {b} 입력 중…"},
 				En: {Other: "{a} and {b} are typing…"},
+			},
+		},
+		"unban_ask": {
+			desc:       "확인 제목: 차단을 풀까. name = 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 차단을 풀까요?"},
+				En: {Other: "Unban {name}?"},
+			},
+		},
+		"unban_body": {
+			desc: "차단 풀기 확인 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단을 풀어도 다시 초대해야 들어올 수 있어요"},
+				En: {Other: "They'll still need an invite to come back."},
+			},
+		},
+		"unban_failed": {
+			desc: "오류 알림 머리: 차단 풀기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단을 풀지 못했어요"},
+				En: {Other: "Couldn't unban"},
+			},
+		},
+		"unban_yes": {
+			desc: "차단 풀기 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "풀기"},
+				En: {Other: "Unban"},
+			},
+		},
+		"unbanned": {
+			desc:   "알림: 차단을 풂. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 차단을 풀었어요"},
+				En: {Other: "Unbanned {name}"},
 			},
 		},
 		"unfriend_ask": {
@@ -2087,6 +3653,21 @@ var areaChat = area{
 				En: {Other: "Unknown user"},
 			},
 		},
+		"unmade_admin": {
+			desc:   "알림: 관리자 해제함. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 관리자 역할을 해제했어요"},
+				En: {Other: "{name} is no longer an admin"},
+			},
+		},
+		"unmuted": {
+			desc: "알림: 음소거 해제함",
+			text: map[Locale]Forms{
+				Ko: {Other: "음소거를 해제했어요"},
+				En: {Other: "Unmuted"},
+			},
+		},
 		"unpinned": {
 			desc: "알림: 고정 해제함",
 			text: map[Locale]Forms{
@@ -2121,9 +3702,64 @@ func (a_ ChatT) ActionsTitle() string {
 	return a_.t.render(&areaChat, "actions_title", false, 0)
 }
 
+// AddSubmit: 멤버 추가 단추
+func (a_ ChatT) AddSubmit() string {
+	return a_.t.render(&areaChat, "add_submit", false, 0)
+}
+
 // AnchorNotFound: 알림·링크로 연 답글이 없음
 func (a_ ChatT) AnchorNotFound() string {
 	return a_.t.render(&areaChat, "anchor_not_found", false, 0)
+}
+
+// BadChannelName: 채널 이름 바꾸기 검사 실패
+func (a_ ChatT) BadChannelName() string {
+	return a_.t.render(&areaChat, "bad_channel_name", false, 0)
+}
+
+// BanReasonHolder: 방 차단(밴): 사유 칸 예시
+func (a_ ChatT) BanReasonHolder() string {
+	return a_.t.render(&areaChat, "ban_reason_holder", false, 0)
+}
+
+// BanReasonLabel: 방 차단(밴): 사유 칸 이름
+func (a_ ChatT) BanReasonLabel() string {
+	return a_.t.render(&areaChat, "ban_reason_label", false, 0)
+}
+
+// BanReasonTooLong: 방 차단(밴): 사유 200자 넘음
+func (a_ ChatT) BanReasonTooLong() string {
+	return a_.t.render(&areaChat, "ban_reason_too_long", false, 0)
+}
+
+// BanSubmit: 방 차단(밴) 단추
+func (a_ ChatT) BanSubmit() string {
+	return a_.t.render(&areaChat, "ban_submit", false, 0)
+}
+
+// BanTitle: 방 차단(밴) 대화상자 제목. name = 이름
+func (a_ ChatT) BanTitle(name string) string {
+	return a_.t.render(&areaChat, "ban_title", false, 0, "name", name)
+}
+
+// Banned: 알림: 방에서 차단함. name = 이름
+func (a_ ChatT) Banned(name string) string {
+	return a_.t.render(&areaChat, "banned", false, 0, "name", name)
+}
+
+// BannedBy: 방 차단 탭: 차단한 사람. name = 이름
+func (a_ ChatT) BannedBy(name string) string {
+	return a_.t.render(&areaChat, "banned_by", false, 0, "name", name)
+}
+
+// BansFailed: 방 차단 탭: 목록 불러오기 실패
+func (a_ ChatT) BansFailed() string {
+	return a_.t.render(&areaChat, "bans_failed", false, 0)
+}
+
+// BansNone: 방 차단 탭: 차단한 사람이 없음
+func (a_ ChatT) BansNone() string {
+	return a_.t.render(&areaChat, "bans_none", false, 0)
 }
 
 // BlockAsk: 차단 확인 질문. name = 이름
@@ -2171,6 +3807,31 @@ func (a_ ChatT) CantEdit() string {
 	return a_.t.render(&areaChat, "cant_edit", false, 0)
 }
 
+// ChangeSubmit: 바꾸기 단추
+func (a_ ChatT) ChangeSubmit() string {
+	return a_.t.render(&areaChat, "change_submit", false, 0)
+}
+
+// ChannelCreated: 알림: 채널을 만듦. title = 채널 제목(# 이름)
+func (a_ ChatT) ChannelCreated(title string) string {
+	return a_.t.render(&areaChat, "channel_created", false, 0, "title", title)
+}
+
+// ChannelDeleted: 알림: 채널을 삭제함. title = 채널 제목
+func (a_ ChatT) ChannelDeleted(title string) string {
+	return a_.t.render(&areaChat, "channel_deleted", false, 0, "title", title)
+}
+
+// ChannelNameHolder: 채널 이름 칸 예시
+func (a_ ChatT) ChannelNameHolder() string {
+	return a_.t.render(&areaChat, "channel_name_holder", false, 0)
+}
+
+// ChannelNameRule: 새 채널 이름 규칙 안내(검사 실패 시 상태 줄)
+func (a_ ChatT) ChannelNameRule() string {
+	return a_.t.render(&areaChat, "channel_name_rule", false, 0)
+}
+
 // ChannelRowNew: 사이드바 줄: 새 채널 만들기(방장·관리자)
 func (a_ ChatT) ChannelRowNew() string {
 	return a_.t.render(&areaChat, "channel_row_new", false, 0)
@@ -2179,6 +3840,16 @@ func (a_ ChatT) ChannelRowNew() string {
 // ChannelTitle: 채널 판 제목(채널을 모를 때)
 func (a_ ChatT) ChannelTitle() string {
 	return a_.t.render(&areaChat, "channel_title", false, 0)
+}
+
+// CmdChannelCreate: 명령 팔레트·대화상자 제목: 채널 만들기
+func (a_ ChatT) CmdChannelCreate() string {
+	return a_.t.render(&areaChat, "cmd_channel_create", false, 0)
+}
+
+// CmdChannelPrefs: 명령 팔레트: 채널 설정
+func (a_ ChatT) CmdChannelPrefs() string {
+	return a_.t.render(&areaChat, "cmd_channel_prefs", false, 0)
 }
 
 // CmdDmNew: 명령 팔레트: 새 대화
@@ -2196,6 +3867,21 @@ func (a_ ChatT) CmdFriends() string {
 	return a_.t.render(&areaChat, "cmd_friends", false, 0)
 }
 
+// CmdInviteCreate: 명령 팔레트·대화상자 제목: 초대 링크 만들기
+func (a_ ChatT) CmdInviteCreate() string {
+	return a_.t.render(&areaChat, "cmd_invite_create", false, 0)
+}
+
+// CmdInviteDirect: 명령 팔레트: 친구를 방에 초대
+func (a_ ChatT) CmdInviteDirect() string {
+	return a_.t.render(&areaChat, "cmd_invite_direct", false, 0)
+}
+
+// CmdInvitesInbox: 명령 팔레트·화면 제목: 받은 방 초대
+func (a_ ChatT) CmdInvitesInbox() string {
+	return a_.t.render(&areaChat, "cmd_invites_inbox", false, 0)
+}
+
 // CmdPins: 명령 팔레트: 고정 메시지 보기
 func (a_ ChatT) CmdPins() string {
 	return a_.t.render(&areaChat, "cmd_pins", false, 0)
@@ -2206,9 +3892,44 @@ func (a_ ChatT) CmdSearch() string {
 	return a_.t.render(&areaChat, "cmd_search", false, 0)
 }
 
+// CmdSpaceCreate: 명령 팔레트·대화상자 제목: 방 만들기
+func (a_ ChatT) CmdSpaceCreate() string {
+	return a_.t.render(&areaChat, "cmd_space_create", false, 0)
+}
+
+// CmdSpaceJoin: 명령 팔레트: 초대 코드로 방 참여
+func (a_ ChatT) CmdSpaceJoin() string {
+	return a_.t.render(&areaChat, "cmd_space_join", false, 0)
+}
+
+// CmdSpaceLeave: 명령 팔레트·방 설정 항목: 방 나가기
+func (a_ ChatT) CmdSpaceLeave() string {
+	return a_.t.render(&areaChat, "cmd_space_leave", false, 0)
+}
+
+// CmdSpaceSettings: 명령 팔레트·화면 제목(방을 모를 때): 방 설정
+func (a_ ChatT) CmdSpaceSettings() string {
+	return a_.t.render(&areaChat, "cmd_space_settings", false, 0)
+}
+
+// CreateSubmit: 채널·방 만들기 대화상자의 만들기 단추
+func (a_ ChatT) CreateSubmit() string {
+	return a_.t.render(&areaChat, "create_submit", false, 0)
+}
+
+// DateWithYear: 다른 해의 날짜. year = 연도, date = 월·일(time.month_day)
+func (a_ ChatT) DateWithYear(year string, date string) string {
+	return a_.t.render(&areaChat, "date_with_year", false, 0, "year", year, "date", date)
+}
+
 // DeclineFailed: 오류 알림 머리: 친구 요청 거절 실패
 func (a_ ChatT) DeclineFailed() string {
 	return a_.t.render(&areaChat, "decline_failed", false, 0)
+}
+
+// DefaultChanHint: 채널 삭제 항목 옆: 기본 채널이라 못 지움
+func (a_ ChatT) DefaultChanHint() string {
+	return a_.t.render(&areaChat, "default_chan_hint", false, 0)
 }
 
 // DeleteBody: 메시지 삭제 확인 질문
@@ -2216,9 +3937,39 @@ func (a_ ChatT) DeleteBody() string {
 	return a_.t.render(&areaChat, "delete_body", false, 0)
 }
 
+// DeleteChannelAsk: 확인 제목: 채널을 삭제할까. title = 채널 제목
+func (a_ ChatT) DeleteChannelAsk(title string) string {
+	return a_.t.render(&areaChat, "delete_channel_ask", false, 0, "title", title)
+}
+
+// DeleteChannelBody: 채널 삭제 확인 설명
+func (a_ ChatT) DeleteChannelBody() string {
+	return a_.t.render(&areaChat, "delete_channel_body", false, 0)
+}
+
+// DeleteChannelFailed: 오류 알림 머리: 채널 삭제 실패
+func (a_ ChatT) DeleteChannelFailed() string {
+	return a_.t.render(&areaChat, "delete_channel_failed", false, 0)
+}
+
 // DeleteFailed: 오류 알림 머리: 메시지 삭제 실패
 func (a_ ChatT) DeleteFailed() string {
 	return a_.t.render(&areaChat, "delete_failed", false, 0)
+}
+
+// DeleteSpaceAsk: 확인 제목: 방을 삭제할까. name = 방 이름
+func (a_ ChatT) DeleteSpaceAsk(name string) string {
+	return a_.t.render(&areaChat, "delete_space_ask", false, 0, "name", name)
+}
+
+// DeleteSpaceBody: 방 삭제 확인 설명
+func (a_ ChatT) DeleteSpaceBody() string {
+	return a_.t.render(&areaChat, "delete_space_body", false, 0)
+}
+
+// DeleteSpaceYes: 방 삭제 확인 단추
+func (a_ ChatT) DeleteSpaceYes() string {
+	return a_.t.render(&areaChat, "delete_space_yes", false, 0)
 }
 
 // DeleteTitle: 메시지 삭제 확인 제목
@@ -2269,6 +4020,11 @@ func (a_ ChatT) DmsMine(body string) string {
 // DmsTitle: DM 판 제목·사이드바 줄
 func (a_ ChatT) DmsTitle() string {
 	return a_.t.render(&areaChat, "dms_title", false, 0)
+}
+
+// EditChannelTitle: 채널 이름·주제 바꾸기 제목
+func (a_ ChatT) EditChannelTitle() string {
+	return a_.t.render(&areaChat, "edit_channel_title", false, 0)
 }
 
 // EditFailed: 오류 알림 머리: 메시지 수정 실패
@@ -2611,9 +4367,39 @@ func (a_ ChatT) GroupDmRefused() string {
 	return a_.t.render(&areaChat, "group_dm_refused", false, 0)
 }
 
+// GroupFullHint: 멤버 추가 항목 옆: 그룹 대화가 꽉 참(10명)
+func (a_ ChatT) GroupFullHint() string {
+	return a_.t.render(&areaChat, "group_full_hint", false, 0)
+}
+
+// HelpCopy: 도움말 줄: 복사
+func (a_ ChatT) HelpCopy() string {
+	return a_.t.render(&areaChat, "help_copy", false, 0)
+}
+
+// HelpFind: 도움말 줄: 찾기
+func (a_ ChatT) HelpFind() string {
+	return a_.t.render(&areaChat, "help_find", false, 0)
+}
+
+// HelpFindMember: 도움말 줄: 멤버 찾기
+func (a_ ChatT) HelpFindMember() string {
+	return a_.t.render(&areaChat, "help_find_member", false, 0)
+}
+
 // HelpJump: 키 도움말: 그 메시지로 이동
 func (a_ ChatT) HelpJump() string {
 	return a_.t.render(&areaChat, "help_jump", false, 0)
+}
+
+// HelpMenu: 도움말 줄: 메뉴
+func (a_ ChatT) HelpMenu() string {
+	return a_.t.render(&areaChat, "help_menu", false, 0)
+}
+
+// HelpMore: 도움말 줄: 더보기 메뉴
+func (a_ ChatT) HelpMore() string {
+	return a_.t.render(&areaChat, "help_more", false, 0)
 }
 
 // HelpNameField: 키 도움말: 이름 칸으로
@@ -2621,9 +4407,19 @@ func (a_ ChatT) HelpNameField() string {
 	return a_.t.render(&areaChat, "help_name_field", false, 0)
 }
 
+// HelpNewChannel: 도움말 줄: 새 채널
+func (a_ ChatT) HelpNewChannel() string {
+	return a_.t.render(&areaChat, "help_new_channel", false, 0)
+}
+
 // HelpNextField: 키 도움말: 다음 칸
 func (a_ ChatT) HelpNextField() string {
 	return a_.t.render(&areaChat, "help_next_field", false, 0)
+}
+
+// HelpOpen: 도움말 줄: 열기
+func (a_ ChatT) HelpOpen() string {
+	return a_.t.render(&areaChat, "help_open", false, 0)
 }
 
 // HelpPickThen: 키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글
@@ -2651,9 +4447,24 @@ func (a_ ChatT) HelpSearch() string {
 	return a_.t.render(&areaChat, "help_search", false, 0)
 }
 
+// HelpSettings: 도움말 줄: 설정
+func (a_ ChatT) HelpSettings() string {
+	return a_.t.render(&areaChat, "help_settings", false, 0)
+}
+
+// HelpStopFind: 도움말 줄: 그만 찾기
+func (a_ ChatT) HelpStopFind() string {
+	return a_.t.render(&areaChat, "help_stop_find", false, 0)
+}
+
 // HelpTabs: 키 도움말: 탭 옮기기
 func (a_ ChatT) HelpTabs() string {
 	return a_.t.render(&areaChat, "help_tabs", false, 0)
+}
+
+// HelpUnban: 도움말 줄: 차단 풀기
+func (a_ ChatT) HelpUnban() string {
+	return a_.t.render(&areaChat, "help_unban", false, 0)
 }
 
 // HelpUnpin: 키 도움말: 고정 해제
@@ -2721,14 +4532,224 @@ func (a_ ChatT) HomeTitle() string {
 	return a_.t.render(&areaChat, "home_title", false, 0)
 }
 
+// IconNone: 방 아이콘 고르기: 아이콘 없음
+func (a_ ChatT) IconNone() string {
+	return a_.t.render(&areaChat, "icon_none", false, 0)
+}
+
+// InviteAcceptFailed: 오류 알림 머리: 초대 수락 실패
+func (a_ ChatT) InviteAcceptFailed() string {
+	return a_.t.render(&areaChat, "invite_accept_failed", false, 0)
+}
+
+// InviteAccepting: 방 초대: 수락하는 중
+func (a_ ChatT) InviteAccepting() string {
+	return a_.t.render(&areaChat, "invite_accepting", false, 0)
+}
+
+// InviteCloseHint: 초대 오류 아래 안내(닫기)
+func (a_ ChatT) InviteCloseHint() string {
+	return a_.t.render(&areaChat, "invite_close_hint", false, 0)
+}
+
+// InviteCodeBad: 초대 코드 검사: 형식 틀림
+func (a_ ChatT) InviteCodeBad() string {
+	return a_.t.render(&areaChat, "invite_code_bad", false, 0)
+}
+
+// InviteCodeHolder: 방 참여: 초대 코드 칸 예시(masil join 은 명령 그대로)
+func (a_ ChatT) InviteCodeHolder() string {
+	return a_.t.render(&areaChat, "invite_code_holder", false, 0)
+}
+
+// InviteCodeLabel: 방 참여: 초대 코드 칸 이름
+func (a_ ChatT) InviteCodeLabel() string {
+	return a_.t.render(&areaChat, "invite_code_label", false, 0)
+}
+
+// InviteCodeRequired: 초대 코드 검사: 비어 있음
+func (a_ ChatT) InviteCodeRequired() string {
+	return a_.t.render(&areaChat, "invite_code_required", false, 0)
+}
+
+// InviteCopied: 알림: 초대 줄을 복사함
+func (a_ ChatT) InviteCopied() string {
+	return a_.t.render(&areaChat, "invite_copied", false, 0)
+}
+
+// InviteCreatedTitle: 만든 초대 링크 창 제목
+func (a_ ChatT) InviteCreatedTitle() string {
+	return a_.t.render(&areaChat, "invite_created_title", false, 0)
+}
+
+// InviteDays: 초대 링크 만료 고르기: N일
+func (a_ ChatT) InviteDays(n int) string {
+	return a_.t.render(&areaChat, "invite_days", false, n, "n", strconv.Itoa(n))
+}
+
+// InviteDeclineFailed: 오류 알림 머리: 초대 거절 실패
+func (a_ ChatT) InviteDeclineFailed() string {
+	return a_.t.render(&areaChat, "invite_decline_failed", false, 0)
+}
+
+// InviteDeclined: 알림: 초대를 거절함
+func (a_ ChatT) InviteDeclined() string {
+	return a_.t.render(&areaChat, "invite_declined", false, 0)
+}
+
+// InviteDeclining: 방 초대: 거절하는 중
+func (a_ ChatT) InviteDeclining() string {
+	return a_.t.render(&areaChat, "invite_declining", false, 0)
+}
+
+// InviteDirectActions: 받은 직접 초대 카드 아래 안내
+func (a_ ChatT) InviteDirectActions() string {
+	return a_.t.render(&areaChat, "invite_direct_actions", false, 0)
+}
+
+// InviteDirectNone: 친구 직접 초대: 초대할 친구가 없음
+func (a_ ChatT) InviteDirectNone() string {
+	return a_.t.render(&areaChat, "invite_direct_none", false, 0)
+}
+
+// InviteDirectSubmit: 친구 직접 초대 단추
+func (a_ ChatT) InviteDirectSubmit() string {
+	return a_.t.render(&areaChat, "invite_direct_submit", false, 0)
+}
+
+// InviteDirectTitle: 친구 직접 초대 제목
+func (a_ ChatT) InviteDirectTitle() string {
+	return a_.t.render(&areaChat, "invite_direct_title", false, 0)
+}
+
+// InviteExhausted: 초대 오류: 사용 횟수 다 참
+func (a_ ChatT) InviteExhausted() string {
+	return a_.t.render(&areaChat, "invite_exhausted", false, 0)
+}
+
+// InviteExpired: 초대 링크 목록: 만료됨
+func (a_ ChatT) InviteExpired() string {
+	return a_.t.render(&areaChat, "invite_expired", false, 0)
+}
+
+// InviteExpiredErr: 초대 오류: 만료됨
+func (a_ ChatT) InviteExpiredErr() string {
+	return a_.t.render(&areaChat, "invite_expired_err", false, 0)
+}
+
+// InviteExpires: 만든 초대 링크: 만료 시각. when = 사람이 읽는 시각
+func (a_ ChatT) InviteExpires(when string) string {
+	return a_.t.render(&areaChat, "invite_expires", false, 0, "when", when)
+}
+
+// InviteExpiresOn: 초대 링크 목록: 만료 날짜. date = 날짜
+func (a_ ChatT) InviteExpiresOn(date string) string {
+	return a_.t.render(&areaChat, "invite_expires_on", false, 0, "date", date)
+}
+
+// InviteExpiryLabel: 초대 링크 만들기: 만료 칸 이름
+func (a_ ChatT) InviteExpiryLabel() string {
+	return a_.t.render(&areaChat, "invite_expiry_label", false, 0)
+}
+
 // InviteFailed: 오류 알림 머리: 초대 실패
 func (a_ ChatT) InviteFailed() string {
 	return a_.t.render(&areaChat, "invite_failed", false, 0)
 }
 
+// InviteForever: 초대 링크 만료 고르기: 만료 없음
+func (a_ ChatT) InviteForever() string {
+	return a_.t.render(&areaChat, "invite_forever", false, 0)
+}
+
+// InviteGone: 초대가 더는 유효하지 않음
+func (a_ ChatT) InviteGone() string {
+	return a_.t.render(&areaChat, "invite_gone", false, 0)
+}
+
+// InviteHint: 만든 초대 링크 창 아래 안내
+func (a_ ChatT) InviteHint() string {
+	return a_.t.render(&areaChat, "invite_hint", false, 0)
+}
+
+// InviteHours: 초대 링크 만료 고르기: N시간
+func (a_ ChatT) InviteHours(n int) string {
+	return a_.t.render(&areaChat, "invite_hours", false, n, "n", strconv.Itoa(n))
+}
+
+// InviteInviter: 초대 카드: 초대한 사람. name = 이름
+func (a_ ChatT) InviteInviter(name string) string {
+	return a_.t.render(&areaChat, "invite_inviter", false, 0, "name", name)
+}
+
+// InviteJoining: 방 초대: 참여하는 중
+func (a_ ChatT) InviteJoining() string {
+	return a_.t.render(&areaChat, "invite_joining", false, 0)
+}
+
+// InviteLinkActions: 초대 링크 카드 아래 안내
+func (a_ ChatT) InviteLinkActions() string {
+	return a_.t.render(&areaChat, "invite_link_actions", false, 0)
+}
+
 // InviteLinkFailed: 오류 알림 머리: 초대 링크 만들기 실패
 func (a_ ChatT) InviteLinkFailed() string {
 	return a_.t.render(&areaChat, "invite_link_failed", false, 0)
+}
+
+// InviteLoading: 방 초대: 불러오는 중
+func (a_ ChatT) InviteLoading() string {
+	return a_.t.render(&areaChat, "invite_loading", false, 0)
+}
+
+// InviteMaxUses: 만든 초대 링크: 최대 사용 횟수
+func (a_ ChatT) InviteMaxUses(n int) string {
+	return a_.t.render(&areaChat, "invite_max_uses", false, n, "n", strconv.Itoa(n))
+}
+
+// InviteMemberActions: 초대 링크 카드: 이미 멤버인 방
+func (a_ ChatT) InviteMemberActions() string {
+	return a_.t.render(&areaChat, "invite_member_actions", false, 0)
+}
+
+// InviteNoExpiry: 만든 초대 링크: 만료 없음
+func (a_ ChatT) InviteNoExpiry() string {
+	return a_.t.render(&areaChat, "invite_no_expiry", false, 0)
+}
+
+// InviteNone: 받은 방 초대 목록이 빔
+func (a_ ChatT) InviteNone() string {
+	return a_.t.render(&areaChat, "invite_none", false, 0)
+}
+
+// InviteNoneHint: 받은 방 초대 목록이 빔: 도움말
+func (a_ ChatT) InviteNoneHint() string {
+	return a_.t.render(&areaChat, "invite_none_hint", false, 0)
+}
+
+// InviteNotFound: 초대 오류: 없는 코드
+func (a_ ChatT) InviteNotFound() string {
+	return a_.t.render(&areaChat, "invite_not_found", false, 0)
+}
+
+// InviteRetryHint: 초대 오류 아래 안내(다시 시도)
+func (a_ ChatT) InviteRetryHint() string {
+	return a_.t.render(&areaChat, "invite_retry_hint", false, 0)
+}
+
+// InviteRevoked: 초대 오류: 취소됨
+func (a_ ChatT) InviteRevoked() string {
+	return a_.t.render(&areaChat, "invite_revoked", false, 0)
+}
+
+// InviteRowDirect: 방 설정 초대 탭: 친구 직접 초대 줄(＋ 표시 포함)
+func (a_ ChatT) InviteRowDirect() string {
+	return a_.t.render(&areaChat, "invite_row_direct", false, 0)
+}
+
+// InviteRowNew: 방 설정 초대 탭: 새 초대 링크 줄(＋ 표시 포함)
+func (a_ ChatT) InviteRowNew() string {
+	return a_.t.render(&areaChat, "invite_row_new", false, 0)
 }
 
 // InviteSpaceOnly: 방 채널이 아닌 곳에서 /invite
@@ -2741,9 +4762,54 @@ func (a_ ChatT) InviteSpaceTitle() string {
 	return a_.t.render(&areaChat, "invite_space_title", false, 0)
 }
 
+// InviteTitle: 방 초대 화면 제목
+func (a_ ChatT) InviteTitle() string {
+	return a_.t.render(&areaChat, "invite_title", false, 0)
+}
+
+// InviteUnlimited: 만든 초대 링크: 사용 횟수 제한 없음
+func (a_ ChatT) InviteUnlimited() string {
+	return a_.t.render(&areaChat, "invite_unlimited", false, 0)
+}
+
+// InviteUntil: 초대 카드: 유효 기한. when = 시각
+func (a_ ChatT) InviteUntil(when string) string {
+	return a_.t.render(&areaChat, "invite_until", false, 0, "when", when)
+}
+
+// InviteUsesLabel: 초대 링크 만들기: 최대 사용 칸 이름
+func (a_ ChatT) InviteUsesLabel() string {
+	return a_.t.render(&areaChat, "invite_uses_label", false, 0)
+}
+
+// InviteUsesN: 초대 링크 사용 횟수(고르기·목록)
+func (a_ ChatT) InviteUsesN(n int) string {
+	return a_.t.render(&areaChat, "invite_uses_n", false, n, "n", strconv.Itoa(n))
+}
+
+// InviteUsesNoLimit: 초대 링크 최대 사용 고르기: 제한 없음
+func (a_ ChatT) InviteUsesNoLimit() string {
+	return a_.t.render(&areaChat, "invite_uses_no_limit", false, 0)
+}
+
+// InviteUsesOf: 초대 링크 목록: 쓴 횟수/최대 횟수
+func (a_ ChatT) InviteUsesOf(used int, max int) string {
+	return a_.t.render(&areaChat, "invite_uses_of", false, 0, "used", strconv.Itoa(used), "max", strconv.Itoa(max))
+}
+
 // Invited: 알림: 방에 초대함. who = 이름·@아이디, space = 방 이름
 func (a_ ChatT) Invited(who string, space string) string {
 	return a_.t.render(&areaChat, "invited", false, 0, "who", who, "space", space)
+}
+
+// InvitesFailed: 방 설정 초대 탭: 목록 불러오기 실패
+func (a_ ChatT) InvitesFailed() string {
+	return a_.t.render(&areaChat, "invites_failed", false, 0)
+}
+
+// InvitesNone: 방 설정 초대 탭: 만든 초대 링크가 없음
+func (a_ ChatT) InvitesNone() string {
+	return a_.t.render(&areaChat, "invites_none", false, 0)
 }
 
 // ItemAccept: 친구 요청 메뉴: 수락
@@ -2751,9 +4817,19 @@ func (a_ ChatT) ItemAccept() string {
 	return a_.t.render(&areaChat, "item_accept", false, 0)
 }
 
+// ItemAddMembers: 채널 설정 메뉴·고르기 제목: 멤버 추가
+func (a_ ChatT) ItemAddMembers() string {
+	return a_.t.render(&areaChat, "item_add_members", false, 0)
+}
+
 // ItemAuthor: 메시지 메뉴: 작성자 프로필. name = 이름
 func (a_ ChatT) ItemAuthor(name string) string {
 	return a_.t.render(&areaChat, "item_author", false, 0, "name", name)
+}
+
+// ItemBan: 방 멤버 메뉴: 차단(밴)
+func (a_ ChatT) ItemBan() string {
+	return a_.t.render(&areaChat, "item_ban", false, 0)
 }
 
 // ItemBlockAuthor: 메시지 메뉴: 작성자 차단
@@ -2791,14 +4867,69 @@ func (a_ ChatT) ItemDelete() string {
 	return a_.t.render(&areaChat, "item_delete", false, 0)
 }
 
+// ItemDeleteChannel: 채널 설정 메뉴: 채널 삭제
+func (a_ ChatT) ItemDeleteChannel() string {
+	return a_.t.render(&areaChat, "item_delete_channel", false, 0)
+}
+
+// ItemDeleteSpace: 방 설정 항목: 방 삭제
+func (a_ ChatT) ItemDeleteSpace() string {
+	return a_.t.render(&areaChat, "item_delete_space", false, 0)
+}
+
 // ItemEdit: 메시지 메뉴: 수정
 func (a_ ChatT) ItemEdit() string {
 	return a_.t.render(&areaChat, "item_edit", false, 0)
 }
 
+// ItemEditChannel: 채널 설정 메뉴: 이름·주제 바꾸기
+func (a_ ChatT) ItemEditChannel() string {
+	return a_.t.render(&areaChat, "item_edit_channel", false, 0)
+}
+
+// ItemEditSpace: 방 설정 항목·대화상자 제목: 방 정보 바꾸기
+func (a_ ChatT) ItemEditSpace() string {
+	return a_.t.render(&areaChat, "item_edit_space", false, 0)
+}
+
 // ItemInviteToSpace: 친구 메뉴: 방에 초대
 func (a_ ChatT) ItemInviteToSpace() string {
 	return a_.t.render(&areaChat, "item_invite_to_space", false, 0)
+}
+
+// ItemJoin: 초대 메뉴·도움말: 참여하기
+func (a_ ChatT) ItemJoin() string {
+	return a_.t.render(&areaChat, "item_join", false, 0)
+}
+
+// ItemKick: 채널 설정 메뉴·메뉴 제목: 멤버 내보내기
+func (a_ ChatT) ItemKick() string {
+	return a_.t.render(&areaChat, "item_kick", false, 0)
+}
+
+// ItemLeave: 그룹 대화 설정 메뉴·확인 단추: 나가기
+func (a_ ChatT) ItemLeave() string {
+	return a_.t.render(&areaChat, "item_leave", false, 0)
+}
+
+// ItemMakeAdmin: 방 멤버 메뉴: 관리자로 지정
+func (a_ ChatT) ItemMakeAdmin() string {
+	return a_.t.render(&areaChat, "item_make_admin", false, 0)
+}
+
+// ItemMute: 채널 설정 메뉴: 음소거
+func (a_ ChatT) ItemMute() string {
+	return a_.t.render(&areaChat, "item_mute", false, 0)
+}
+
+// ItemNotify: 채널 설정 메뉴: 알림 단계 항목. level = notify_* 낱말
+func (a_ ChatT) ItemNotify(level string) string {
+	return a_.t.render(&areaChat, "item_notify", false, 0, "level", level)
+}
+
+// ItemOpenSpace: 초대 메뉴·도움말: 이미 멤버인 방 열기
+func (a_ ChatT) ItemOpenSpace() string {
+	return a_.t.render(&areaChat, "item_open_space", false, 0)
 }
 
 // ItemPin: 메시지 메뉴: 고정
@@ -2821,9 +4952,19 @@ func (a_ ChatT) ItemReactUsers() string {
 	return a_.t.render(&areaChat, "item_react_users", false, 0)
 }
 
+// ItemRename: 그룹 대화 설정 메뉴: 이름 바꾸기
+func (a_ ChatT) ItemRename() string {
+	return a_.t.render(&areaChat, "item_rename", false, 0)
+}
+
 // ItemReport: 메시지 메뉴: 신고
 func (a_ ChatT) ItemReport() string {
 	return a_.t.render(&areaChat, "item_report", false, 0)
+}
+
+// ItemReportSpace: 초대 메뉴: 방 신고
+func (a_ ChatT) ItemReportSpace() string {
+	return a_.t.render(&areaChat, "item_report_space", false, 0)
 }
 
 // ItemReportUser: 사용자 메뉴: 사용자 신고
@@ -2836,6 +4977,11 @@ func (a_ ChatT) ItemRetract() string {
 	return a_.t.render(&areaChat, "item_retract", false, 0)
 }
 
+// ItemRevokeInvite: 초대 링크 메뉴·확인 단추: 폐기
+func (a_ ChatT) ItemRevokeInvite() string {
+	return a_.t.render(&areaChat, "item_revoke_invite", false, 0)
+}
+
 // ItemSendDm: 사용자 메뉴: DM 보내기
 func (a_ ChatT) ItemSendDm() string {
 	return a_.t.render(&areaChat, "item_send_dm", false, 0)
@@ -2846,9 +4992,24 @@ func (a_ ChatT) ItemThread() string {
 	return a_.t.render(&areaChat, "item_thread", false, 0)
 }
 
+// ItemTransferSpace: 방 설정 항목: 방장 넘기기
+func (a_ ChatT) ItemTransferSpace() string {
+	return a_.t.render(&areaChat, "item_transfer_space", false, 0)
+}
+
 // ItemUnfriend: 친구 메뉴: 친구 끊기
 func (a_ ChatT) ItemUnfriend() string {
 	return a_.t.render(&areaChat, "item_unfriend", false, 0)
+}
+
+// ItemUnmakeAdmin: 방 멤버 메뉴: 관리자 해제
+func (a_ ChatT) ItemUnmakeAdmin() string {
+	return a_.t.render(&areaChat, "item_unmake_admin", false, 0)
+}
+
+// ItemUnmute: 채널 설정 메뉴: 음소거 해제
+func (a_ ChatT) ItemUnmute() string {
+	return a_.t.render(&areaChat, "item_unmute", false, 0)
 }
 
 // ItemUnpin: 메시지 메뉴: 고정 해제
@@ -2859,6 +5020,41 @@ func (a_ ChatT) ItemUnpin() string {
 // ItemVote: 메시지 메뉴: 투표 선택지. option = 선택지
 func (a_ ChatT) ItemVote(option string) string {
 	return a_.t.render(&areaChat, "item_vote", false, 0, "option", option)
+}
+
+// KickAsk: 확인 제목: 채널·그룹에서 멤버를 내보낼까. name = 이름
+func (a_ ChatT) KickAsk(name string) string {
+	return a_.t.render(&areaChat, "kick_ask", false, 0, "name", name)
+}
+
+// KickBody: 멤버 내보내기 확인 설명
+func (a_ ChatT) KickBody() string {
+	return a_.t.render(&areaChat, "kick_body", false, 0)
+}
+
+// KickFailed: 오류 알림 머리: 멤버 내보내기 실패
+func (a_ ChatT) KickFailed() string {
+	return a_.t.render(&areaChat, "kick_failed", false, 0)
+}
+
+// KickYes: 멤버 내보내기 확인 단추
+func (a_ ChatT) KickYes() string {
+	return a_.t.render(&areaChat, "kick_yes", false, 0)
+}
+
+// Kicked: 알림: 멤버를 내보냄. name = 이름
+func (a_ ChatT) Kicked(name string) string {
+	return a_.t.render(&areaChat, "kicked", false, 0, "name", name)
+}
+
+// KwChannelCreate: 명령 팔레트 검색어: 채널 만들기
+func (a_ ChatT) KwChannelCreate() string {
+	return a_.t.render(&areaChat, "kw_channel_create", false, 0)
+}
+
+// KwChannelPrefs: 명령 팔레트 검색어: 채널 설정
+func (a_ ChatT) KwChannelPrefs() string {
+	return a_.t.render(&areaChat, "kw_channel_prefs", false, 0)
 }
 
 // KwDmNew: 명령 팔레트 검색어(쉼표로 나눔): 새 대화
@@ -2876,6 +5072,21 @@ func (a_ ChatT) KwFriends() string {
 	return a_.t.render(&areaChat, "kw_friends", false, 0)
 }
 
+// KwInviteCreate: 명령 팔레트 검색어: 초대 링크 만들기
+func (a_ ChatT) KwInviteCreate() string {
+	return a_.t.render(&areaChat, "kw_invite_create", false, 0)
+}
+
+// KwInviteDirect: 명령 팔레트 검색어: 친구 직접 초대
+func (a_ ChatT) KwInviteDirect() string {
+	return a_.t.render(&areaChat, "kw_invite_direct", false, 0)
+}
+
+// KwInvitesInbox: 명령 팔레트 검색어: 받은 방 초대
+func (a_ ChatT) KwInvitesInbox() string {
+	return a_.t.render(&areaChat, "kw_invites_inbox", false, 0)
+}
+
 // KwPins: 명령 팔레트 검색어: 고정 메시지
 func (a_ ChatT) KwPins() string {
 	return a_.t.render(&areaChat, "kw_pins", false, 0)
@@ -2884,6 +5095,61 @@ func (a_ ChatT) KwPins() string {
 // KwSearch: 명령 팔레트 검색어: 메시지 검색
 func (a_ ChatT) KwSearch() string {
 	return a_.t.render(&areaChat, "kw_search", false, 0)
+}
+
+// KwSpaceCreate: 명령 팔레트 검색어: 방 만들기
+func (a_ ChatT) KwSpaceCreate() string {
+	return a_.t.render(&areaChat, "kw_space_create", false, 0)
+}
+
+// KwSpaceJoin: 명령 팔레트 검색어: 방 참여
+func (a_ ChatT) KwSpaceJoin() string {
+	return a_.t.render(&areaChat, "kw_space_join", false, 0)
+}
+
+// KwSpaceLeave: 명령 팔레트 검색어: 방 나가기
+func (a_ ChatT) KwSpaceLeave() string {
+	return a_.t.render(&areaChat, "kw_space_leave", false, 0)
+}
+
+// KwSpaceSettings: 명령 팔레트 검색어: 방 설정
+func (a_ ChatT) KwSpaceSettings() string {
+	return a_.t.render(&areaChat, "kw_space_settings", false, 0)
+}
+
+// LeaveAsk: 확인 제목: 그룹 대화에서 나갈까. name = 대화 이름
+func (a_ ChatT) LeaveAsk(name string) string {
+	return a_.t.render(&areaChat, "leave_ask", false, 0, "name", name)
+}
+
+// LeaveBody: 그룹 대화 나가기 확인 설명
+func (a_ ChatT) LeaveBody() string {
+	return a_.t.render(&areaChat, "leave_body", false, 0)
+}
+
+// LeaveFailed: 오류 알림 머리: 대화 나가기 실패
+func (a_ ChatT) LeaveFailed() string {
+	return a_.t.render(&areaChat, "leave_failed", false, 0)
+}
+
+// LeaveSpaceAsk: 확인 제목: 방에서 나갈까. name = 방 이름
+func (a_ ChatT) LeaveSpaceAsk(name string) string {
+	return a_.t.render(&areaChat, "leave_space_ask", false, 0, "name", name)
+}
+
+// LeaveSpaceBody: 방 나가기 확인 설명
+func (a_ ChatT) LeaveSpaceBody() string {
+	return a_.t.render(&areaChat, "leave_space_body", false, 0)
+}
+
+// LeavingSpace: 방 나가기 확인: 나가는 중
+func (a_ ChatT) LeavingSpace() string {
+	return a_.t.render(&areaChat, "leaving_space", false, 0)
+}
+
+// LeftConversation: 알림: 대화에서 나감
+func (a_ ChatT) LeftConversation() string {
+	return a_.t.render(&areaChat, "left_conversation", false, 0)
 }
 
 // LoadFailed: 메시지 목록을 불러오지 못함
@@ -2896,6 +5162,11 @@ func (a_ ChatT) Loading() string {
 	return a_.t.render(&areaChat, "loading", false, 0)
 }
 
+// MadeAdmin: 알림: 관리자로 지정함. name = 이름
+func (a_ ChatT) MadeAdmin(name string) string {
+	return a_.t.render(&areaChat, "made_admin", false, 0, "name", name)
+}
+
 // Me: 내 이름 자리: 나
 func (a_ ChatT) Me() string {
 	return a_.t.render(&areaChat, "me", false, 0)
@@ -2906,14 +5177,49 @@ func (a_ ChatT) MemberCount(n int) string {
 	return a_.t.render(&areaChat, "member_count", false, n, "n", strconv.Itoa(n))
 }
 
+// MemberFilterHolder: 방 멤버 찾기 칸 예시
+func (a_ ChatT) MemberFilterHolder() string {
+	return a_.t.render(&areaChat, "member_filter_holder", false, 0)
+}
+
+// MemberFilterIdle: 방 멤버 찾기 칸(쉬는 중) 안내
+func (a_ ChatT) MemberFilterIdle() string {
+	return a_.t.render(&areaChat, "member_filter_idle", false, 0)
+}
+
+// MemberMore: 방 멤버 탭: 더 보기 줄
+func (a_ ChatT) MemberMore() string {
+	return a_.t.render(&areaChat, "member_more", false, 0)
+}
+
+// MemberMoreLoading: 방 멤버 탭: 더 불러오는 중
+func (a_ ChatT) MemberMoreLoading() string {
+	return a_.t.render(&areaChat, "member_more_loading", false, 0)
+}
+
+// MembersAdded: 알림: 멤버를 추가함
+func (a_ ChatT) MembersAdded() string {
+	return a_.t.render(&areaChat, "members_added", false, 0)
+}
+
 // MembersFailed: 멤버 목록을 불러오지 못함
 func (a_ ChatT) MembersFailed() string {
 	return a_.t.render(&areaChat, "members_failed", false, 0)
 }
 
+// MembersLoadTitle: 방장 넘기기: 멤버 불러오는 창 제목
+func (a_ ChatT) MembersLoadTitle() string {
+	return a_.t.render(&areaChat, "members_load_title", false, 0)
+}
+
 // MembersMore: 멤버 목록 끝: 더 있는 멤버 수
 func (a_ ChatT) MembersMore(n int) string {
 	return a_.t.render(&areaChat, "members_more", false, 0, "n", strconv.Itoa(n))
+}
+
+// MembersNoMatch: 방 멤버 탭: 찾는 멤버가 없음
+func (a_ ChatT) MembersNoMatch() string {
+	return a_.t.render(&areaChat, "members_no_match", false, 0)
 }
 
 // MembersNone: 멤버 판: 열린 대화가 없음
@@ -2956,6 +5262,16 @@ func (a_ ChatT) MsgDeleted() string {
 	return a_.t.render(&areaChat, "msg_deleted", false, 0)
 }
 
+// Muted: 알림: 음소거함
+func (a_ ChatT) Muted() string {
+	return a_.t.render(&areaChat, "muted", false, 0)
+}
+
+// NameLabel: 채널 이름 칸 이름
+func (a_ ChatT) NameLabel() string {
+	return a_.t.render(&areaChat, "name_label", false, 0)
+}
+
 // NewBelow: 메시지 판 아래: 안 본 새 메시지 수
 func (a_ ChatT) NewBelow(n int) string {
 	return a_.t.render(&areaChat, "new_below", false, n, "n", strconv.Itoa(n))
@@ -2969,6 +5285,11 @@ func (a_ ChatT) NoDeletePerm() string {
 // NoIncoming: 받은 요청 탭이 빔
 func (a_ ChatT) NoIncoming() string {
 	return a_.t.render(&areaChat, "no_incoming", false, 0)
+}
+
+// NoKickable: 멤버 내보내기 메뉴: 내보낼 사람이 없음
+func (a_ ChatT) NoKickable() string {
+	return a_.t.render(&areaChat, "no_kickable", false, 0)
 }
 
 // NoOutgoing: 보낸 요청 탭이 빔
@@ -2991,6 +5312,26 @@ func (a_ ChatT) NotMineEdit() string {
 	return a_.t.render(&areaChat, "not_mine_edit", false, 0)
 }
 
+// NotifyAll: 알림 단계: 모두
+func (a_ ChatT) NotifyAll() string {
+	return a_.t.render(&areaChat, "notify_all", false, 0)
+}
+
+// NotifyMentions: 알림 단계: 멘션만
+func (a_ ChatT) NotifyMentions() string {
+	return a_.t.render(&areaChat, "notify_mentions", false, 0)
+}
+
+// NotifyNone: 알림 단계: 끄기
+func (a_ ChatT) NotifyNone() string {
+	return a_.t.render(&areaChat, "notify_none", false, 0)
+}
+
+// NotifySet: 알림: 알림 단계를 바꿈. level = notify_* 낱말
+func (a_ ChatT) NotifySet(level string) string {
+	return a_.t.render(&areaChat, "notify_set", false, 0, "level", level)
+}
+
 // NowFriends: 알림: 친구 요청이 바로 수락됨
 func (a_ ChatT) NowFriends(name string) string {
 	return a_.t.render(&areaChat, "now_friends", false, 0, "name", name)
@@ -3004,6 +5345,11 @@ func (a_ ChatT) Offline() string {
 // OutFailed: 보낸 요청 목록을 불러오지 못함
 func (a_ ChatT) OutFailed() string {
 	return a_.t.render(&areaChat, "out_failed", false, 0)
+}
+
+// OwnerLeave: 알림: 방장은 방장을 넘긴 뒤에만 나갈 수 있음
+func (a_ ChatT) OwnerLeave() string {
+	return a_.t.render(&areaChat, "owner_leave", false, 0)
 }
 
 // PickerMax: 사람 고르기: 고를 수 있는 최대 인원 초과
@@ -3126,6 +5472,41 @@ func (a_ ChatT) PollVoters(n int) string {
 	return a_.t.render(&areaChat, "poll_voters", false, n, "n", strconv.Itoa(n))
 }
 
+// PrefsFailed: 오류 알림 머리: 알림 설정 바꾸기 실패
+func (a_ ChatT) PrefsFailed() string {
+	return a_.t.render(&areaChat, "prefs_failed", false, 0)
+}
+
+// PrefsTitleChannel: 채널 설정 메뉴 제목. name = 채널 제목
+func (a_ ChatT) PrefsTitleChannel(name string) string {
+	return a_.t.render(&areaChat, "prefs_title_channel", false, 0, "name", name)
+}
+
+// PrefsTitleDm: DM·그룹 대화 설정 메뉴 제목. name = 대화 이름
+func (a_ ChatT) PrefsTitleDm(name string) string {
+	return a_.t.render(&areaChat, "prefs_title_dm", false, 0, "name", name)
+}
+
+// PrivacyLabel: 채널 만들기: 공개 범위 칸 이름
+func (a_ ChatT) PrivacyLabel() string {
+	return a_.t.render(&areaChat, "privacy_label", false, 0)
+}
+
+// PrivateMembersNone: 비공개 채널 멤버 고르기: 고를 사람이 없음
+func (a_ ChatT) PrivateMembersNone() string {
+	return a_.t.render(&areaChat, "private_members_none", false, 0)
+}
+
+// PrivateMembersTitle: 비공개 채널 첫 멤버 고르기 제목
+func (a_ ChatT) PrivateMembersTitle() string {
+	return a_.t.render(&areaChat, "private_members_title", false, 0)
+}
+
+// PrivateToggle: 채널 만들기: 비공개 켜기 글
+func (a_ ChatT) PrivateToggle() string {
+	return a_.t.render(&areaChat, "private_toggle", false, 0)
+}
+
 // RailHome: 레일의 홈 글자(가운데 3칸 안)
 func (a_ ChatT) RailHome() string {
 	return a_.t.render(&areaChat, "rail_home", false, 0)
@@ -3166,6 +5547,26 @@ func (a_ ChatT) Reconnecting() string {
 	return a_.t.render(&areaChat, "reconnecting", false, 0)
 }
 
+// RenameHolder: 그룹 대화 이름 칸 예시
+func (a_ ChatT) RenameHolder() string {
+	return a_.t.render(&areaChat, "rename_holder", false, 0)
+}
+
+// RenameLabel: 그룹 대화 이름 칸 이름
+func (a_ ChatT) RenameLabel() string {
+	return a_.t.render(&areaChat, "rename_label", false, 0)
+}
+
+// RenameTitle: 그룹 대화 이름 바꾸기 제목
+func (a_ ChatT) RenameTitle() string {
+	return a_.t.render(&areaChat, "rename_title", false, 0)
+}
+
+// Renamed: 알림: 이름을 바꿈
+func (a_ ChatT) Renamed() string {
+	return a_.t.render(&areaChat, "renamed", false, 0)
+}
+
 // RepliesLabel: 스레드 머리: 답글 수. n = 사람이 읽는 수(1.2천 등)
 func (a_ ChatT) RepliesLabel(n string) string {
 	return a_.t.render(&areaChat, "replies_label", false, 0, "n", n)
@@ -3184,6 +5585,41 @@ func (a_ ChatT) ReportMessageOf(name string) string {
 // RequestSent: 알림: 친구 요청 보냄
 func (a_ ChatT) RequestSent(name string) string {
 	return a_.t.render(&areaChat, "request_sent", false, 0, "name", name)
+}
+
+// RevokeAsk: 확인 제목: 초대 링크를 폐기할까. code = 초대 코드
+func (a_ ChatT) RevokeAsk(code string) string {
+	return a_.t.render(&areaChat, "revoke_ask", false, 0, "code", code)
+}
+
+// RevokeBody: 초대 링크 폐기 확인 설명
+func (a_ ChatT) RevokeBody() string {
+	return a_.t.render(&areaChat, "revoke_body", false, 0)
+}
+
+// RevokeFailed: 오류 알림 머리: 초대 링크 폐기 실패
+func (a_ ChatT) RevokeFailed() string {
+	return a_.t.render(&areaChat, "revoke_failed", false, 0)
+}
+
+// Revoked: 알림: 초대 링크를 폐기함
+func (a_ ChatT) Revoked() string {
+	return a_.t.render(&areaChat, "revoked", false, 0)
+}
+
+// RoleAdmin: 방 역할: 관리자
+func (a_ ChatT) RoleAdmin() string {
+	return a_.t.render(&areaChat, "role_admin", false, 0)
+}
+
+// RoleFailed: 오류 알림 머리: 역할 바꾸기 실패
+func (a_ ChatT) RoleFailed() string {
+	return a_.t.render(&areaChat, "role_failed", false, 0)
+}
+
+// RoleMember: 방 역할: 멤버
+func (a_ ChatT) RoleMember() string {
+	return a_.t.render(&areaChat, "role_member", false, 0)
 }
 
 // RoleOwner: 멤버 줄의 역할: 방장
@@ -3259,6 +5695,11 @@ func (a_ ChatT) SendFailed() string {
 // SendFailedHint: 보내지 못한 메시지 안내(앞에 ' — ')
 func (a_ ChatT) SendFailedHint() string {
 	return a_.t.render(&areaChat, "send_failed_hint", false, 0)
+}
+
+// SettingsTitle: 방 설정 화면 제목. name = 방 이름
+func (a_ ChatT) SettingsTitle(name string) string {
+	return a_.t.render(&areaChat, "settings_title", false, 0, "name", name)
 }
 
 // SideChannelsLabel: 사이드바 채널 절 머리(앞에 '─ ')
@@ -3411,6 +5852,121 @@ func (a_ ChatT) SpaceAddTitle() string {
 	return a_.t.render(&areaChat, "space_add_title", false, 0)
 }
 
+// SpaceBanned: 초대 오류: 이 방에서 차단됨
+func (a_ ChatT) SpaceBanned() string {
+	return a_.t.render(&areaChat, "space_banned", false, 0)
+}
+
+// SpaceDeleteFailed: 오류 알림 머리: 방 삭제 실패
+func (a_ ChatT) SpaceDeleteFailed() string {
+	return a_.t.render(&areaChat, "space_delete_failed", false, 0)
+}
+
+// SpaceDeleted: 알림: 방을 삭제함
+func (a_ ChatT) SpaceDeleted() string {
+	return a_.t.render(&areaChat, "space_deleted", false, 0)
+}
+
+// SpaceDescHolder: 방 설명 칸 예시
+func (a_ ChatT) SpaceDescHolder() string {
+	return a_.t.render(&areaChat, "space_desc_holder", false, 0)
+}
+
+// SpaceDescLabel: 방 만들기·바꾸기: 설명 칸 이름(선택)
+func (a_ ChatT) SpaceDescLabel() string {
+	return a_.t.render(&areaChat, "space_desc_label", false, 0)
+}
+
+// SpaceDescTooLong: 방 설명 검사: 200자 넘음
+func (a_ ChatT) SpaceDescTooLong() string {
+	return a_.t.render(&areaChat, "space_desc_too_long", false, 0)
+}
+
+// SpaceGone: 방 설정: 볼 수 없는 방
+func (a_ ChatT) SpaceGone() string {
+	return a_.t.render(&areaChat, "space_gone", false, 0)
+}
+
+// SpaceGoneHint: 방 설정: 볼 수 없는 방 도움말
+func (a_ ChatT) SpaceGoneHint() string {
+	return a_.t.render(&areaChat, "space_gone_hint", false, 0)
+}
+
+// SpaceIconLabel: 방 만들기·바꾸기: 아이콘 칸 이름
+func (a_ ChatT) SpaceIconLabel() string {
+	return a_.t.render(&areaChat, "space_icon_label", false, 0)
+}
+
+// SpaceInfo: 방 설정 개요: 멤버 수와 내 역할. count = member_count 문구, role = role_* 낱말
+func (a_ ChatT) SpaceInfo(count string, role string) string {
+	return a_.t.render(&areaChat, "space_info", false, 0, "count", count, "role", role)
+}
+
+// SpaceJoinSubmit: 방 참여 대화상자 단추: 초대 미리 보기
+func (a_ ChatT) SpaceJoinSubmit() string {
+	return a_.t.render(&areaChat, "space_join_submit", false, 0)
+}
+
+// SpaceJoinTitle: 방 참여 대화상자 제목
+func (a_ ChatT) SpaceJoinTitle() string {
+	return a_.t.render(&areaChat, "space_join_title", false, 0)
+}
+
+// SpaceKickAsk: 확인 제목: 방에서 내보낼까(강퇴). name = 이름
+func (a_ ChatT) SpaceKickAsk(name string) string {
+	return a_.t.render(&areaChat, "space_kick_ask", false, 0, "name", name)
+}
+
+// SpaceKickBody: 방 강퇴 확인 설명
+func (a_ ChatT) SpaceKickBody() string {
+	return a_.t.render(&areaChat, "space_kick_body", false, 0)
+}
+
+// SpaceKickFailed: 오류 알림 머리: 방 강퇴 실패
+func (a_ ChatT) SpaceKickFailed() string {
+	return a_.t.render(&areaChat, "space_kick_failed", false, 0)
+}
+
+// SpaceLeaveFailed: 오류 알림 머리: 방 나가기 실패
+func (a_ ChatT) SpaceLeaveFailed() string {
+	return a_.t.render(&areaChat, "space_leave_failed", false, 0)
+}
+
+// SpaceLeft: 알림: 방에서 나옴
+func (a_ ChatT) SpaceLeft() string {
+	return a_.t.render(&areaChat, "space_left", false, 0)
+}
+
+// SpaceMembersNone: 방 멤버 탭: 멤버가 없음
+func (a_ ChatT) SpaceMembersNone() string {
+	return a_.t.render(&areaChat, "space_members_none", false, 0)
+}
+
+// SpaceNameHolder: 방 이름 칸 예시
+func (a_ ChatT) SpaceNameHolder() string {
+	return a_.t.render(&areaChat, "space_name_holder", false, 0)
+}
+
+// SpaceNameLabel: 방 만들기·바꾸기: 이름 칸 이름
+func (a_ ChatT) SpaceNameLabel() string {
+	return a_.t.render(&areaChat, "space_name_label", false, 0)
+}
+
+// SpaceNameRequired: 방 이름 검사: 비어 있음
+func (a_ ChatT) SpaceNameRequired() string {
+	return a_.t.render(&areaChat, "space_name_required", false, 0)
+}
+
+// SpaceNameTooLong: 방 이름 검사: 50자 넘음
+func (a_ ChatT) SpaceNameTooLong() string {
+	return a_.t.render(&areaChat, "space_name_too_long", false, 0)
+}
+
+// SpaceOpenFailed: 오류 알림 머리: 방 열기 실패
+func (a_ ChatT) SpaceOpenFailed() string {
+	return a_.t.render(&areaChat, "space_open_failed", false, 0)
+}
+
 // SpaceSwitchTitle: 방 전환 메뉴 제목
 func (a_ ChatT) SpaceSwitchTitle() string {
 	return a_.t.render(&areaChat, "space_switch_title", false, 0)
@@ -3419,6 +5975,11 @@ func (a_ ChatT) SpaceSwitchTitle() string {
 // SpaceUnnamed: 이름이 빈 방
 func (a_ ChatT) SpaceUnnamed() string {
 	return a_.t.render(&areaChat, "space_unnamed", false, 0)
+}
+
+// SpaceUpdated: 알림: 방 정보를 바꿈
+func (a_ ChatT) SpaceUpdated() string {
+	return a_.t.render(&areaChat, "space_updated", false, 0)
 }
 
 // SysChannelCreated: 시스템 메시지: 채널 만듦. name = 채널 이름(# 없이)
@@ -3466,6 +6027,31 @@ func (a_ ChatT) SysTopicChanged(topic string) string {
 	return a_.t.render(&areaChat, "sys_topic_changed", false, 0, "topic", topic)
 }
 
+// TabBans: 방 설정 탭: 차단된 사람
+func (a_ ChatT) TabBans() string {
+	return a_.t.render(&areaChat, "tab_bans", false, 0)
+}
+
+// TabChannels: 방 설정 탭: 채널
+func (a_ ChatT) TabChannels() string {
+	return a_.t.render(&areaChat, "tab_channels", false, 0)
+}
+
+// TabInvites: 방 설정 탭: 초대
+func (a_ ChatT) TabInvites() string {
+	return a_.t.render(&areaChat, "tab_invites", false, 0)
+}
+
+// TabMembers: 방 설정 탭: 멤버
+func (a_ ChatT) TabMembers() string {
+	return a_.t.render(&areaChat, "tab_members", false, 0)
+}
+
+// TabOverview: 방 설정 탭: 개요
+func (a_ ChatT) TabOverview() string {
+	return a_.t.render(&areaChat, "tab_overview", false, 0)
+}
+
 // ThreadParentEuro: 키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름
 func (a_ ChatT) ThreadParentEuro(label string) string {
 	return a_.t.render(&areaChat, "thread_parent_euro", false, 0, "label", label)
@@ -3491,6 +6077,61 @@ func (a_ ChatT) ThreadTitle() string {
 	return a_.t.render(&areaChat, "thread_title", false, 0)
 }
 
+// TopicHolder: 채널 주제 칸 예시
+func (a_ ChatT) TopicHolder() string {
+	return a_.t.render(&areaChat, "topic_holder", false, 0)
+}
+
+// TopicLabel: 채널 주제 칸 이름
+func (a_ ChatT) TopicLabel() string {
+	return a_.t.render(&areaChat, "topic_label", false, 0)
+}
+
+// TopicOptLabel: 채널 만들기: 주제 칸 이름(선택)
+func (a_ ChatT) TopicOptLabel() string {
+	return a_.t.render(&areaChat, "topic_opt_label", false, 0)
+}
+
+// TopicTooLong: 채널 주제 검사: 250자 넘음
+func (a_ ChatT) TopicTooLong() string {
+	return a_.t.render(&areaChat, "topic_too_long", false, 0)
+}
+
+// TransferAsk: 확인 제목: 방장을 넘길까. name = 이름
+func (a_ ChatT) TransferAsk(name string) string {
+	return a_.t.render(&areaChat, "transfer_ask", false, 0, "name", name)
+}
+
+// TransferBody: 방장 넘기기 확인 설명
+func (a_ ChatT) TransferBody() string {
+	return a_.t.render(&areaChat, "transfer_body", false, 0)
+}
+
+// TransferFailed: 오류 알림 머리: 방장 넘기기 실패
+func (a_ ChatT) TransferFailed() string {
+	return a_.t.render(&areaChat, "transfer_failed", false, 0)
+}
+
+// TransferSubmit: 방장 넘기기: 고르기 단추
+func (a_ ChatT) TransferSubmit() string {
+	return a_.t.render(&areaChat, "transfer_submit", false, 0)
+}
+
+// TransferTitle: 방장 넘기기: 새 방장 고르기 제목
+func (a_ ChatT) TransferTitle() string {
+	return a_.t.render(&areaChat, "transfer_title", false, 0)
+}
+
+// TransferYes: 방장 넘기기 확인 단추
+func (a_ ChatT) TransferYes() string {
+	return a_.t.render(&areaChat, "transfer_yes", false, 0)
+}
+
+// Transferred: 알림: 방장을 넘김. name = 이름
+func (a_ ChatT) Transferred(name string) string {
+	return a_.t.render(&areaChat, "transferred", false, 0, "name", name)
+}
+
 // TypingMany: 입력 중 줄: 세 명 이상
 func (a_ ChatT) TypingMany() string {
 	return a_.t.render(&areaChat, "typing_many", false, 0)
@@ -3509,6 +6150,31 @@ func (a_ ChatT) TypingSomeone() string {
 // TypingTwo: 입력 중 줄: 두 명
 func (a_ ChatT) TypingTwo(a string, b string) string {
 	return a_.t.render(&areaChat, "typing_two", false, 0, "a", a, "b", b)
+}
+
+// UnbanAsk: 확인 제목: 차단을 풀까. name = 이름
+func (a_ ChatT) UnbanAsk(name string) string {
+	return a_.t.render(&areaChat, "unban_ask", false, 0, "name", name)
+}
+
+// UnbanBody: 차단 풀기 확인 설명
+func (a_ ChatT) UnbanBody() string {
+	return a_.t.render(&areaChat, "unban_body", false, 0)
+}
+
+// UnbanFailed: 오류 알림 머리: 차단 풀기 실패
+func (a_ ChatT) UnbanFailed() string {
+	return a_.t.render(&areaChat, "unban_failed", false, 0)
+}
+
+// UnbanYes: 차단 풀기 확인 단추
+func (a_ ChatT) UnbanYes() string {
+	return a_.t.render(&areaChat, "unban_yes", false, 0)
+}
+
+// Unbanned: 알림: 차단을 풂. name = 이름
+func (a_ ChatT) Unbanned(name string) string {
+	return a_.t.render(&areaChat, "unbanned", false, 0, "name", name)
 }
 
 // UnfriendAsk: 친구 끊기 확인 질문. name = 상대 이름
@@ -3539,6 +6205,16 @@ func (a_ ChatT) Unfriended(name string) string {
 // UnknownUser: 이름을 모르는 사용자
 func (a_ ChatT) UnknownUser() string {
 	return a_.t.render(&areaChat, "unknown_user", false, 0)
+}
+
+// UnmadeAdmin: 알림: 관리자 해제함. name = 이름
+func (a_ ChatT) UnmadeAdmin(name string) string {
+	return a_.t.render(&areaChat, "unmade_admin", false, 0, "name", name)
+}
+
+// Unmuted: 알림: 음소거 해제함
+func (a_ ChatT) Unmuted() string {
+	return a_.t.render(&areaChat, "unmuted", false, 0)
 }
 
 // Unpinned: 알림: 고정 해제함

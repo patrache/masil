@@ -22,4 +22,8 @@ var (
 	pinsFailed         = koCat.Chat.PinsFailed()
 	goneTitle          = koCat.Chat.GoneTitle()
 	inviteFailedText   = koCat.Chat.InviteFailed()
+	nameLabel          = koCat.Chat.NameLabel()
+	spaceCreateTitle   = koCat.Chat.CmdSpaceCreate()
+	spaceJoinTitle     = koCat.Chat.SpaceJoinTitle()
+	spaceJoinSubmit    = koCat.Chat.SpaceJoinSubmit()
 )

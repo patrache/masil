@@ -30,7 +30,7 @@ func TestChannelNameRuleMatchesServer(t *testing.T) {
 		if !channelNameRe.MatchString(n) {
 			t.Errorf("%q rejected, server accepts it", n)
 		}
-		if msg := validChannelName(n); msg != "" {
+		if msg := validChannelName(koCat)(n); msg != "" {
 			t.Errorf("validChannelName(%q) = %q", n, msg)
 		}
 	}

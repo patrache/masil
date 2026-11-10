@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -24,8 +24,10 @@ import (
 func init() {
 	ui.RegisterRoute(ui.RouteSpaceSettings, newSpaceSettings)
 	palette.Register(palette.Command{
-		ID: "space.settings", Title: "방 설정", Keywords: []string{"space", "settings", "members", "roles", "bans", "방", "설정", "멤버", "역할", "관리"}, Group: palette.GroupNav,
-		Available: func(ctx *ui.Context) bool { return currentSpaceID(ctx) != "" },
+		ID: "space.settings", Label: func(t *i18n.T) string { return t.Chat.CmdSpaceSettings() }, Group: palette.GroupNav,
+		Keywords:   []string{"space", "settings", "members", "roles", "bans"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwSpaceSettings()) },
+		Available:  func(ctx *ui.Context) bool { return currentSpaceID(ctx) != "" },
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {
 			id := currentSpaceID(ctx)
 			if id == "" {
@@ -35,15 +37,17 @@ func init() {
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "space.leave", Title: "방 나가기", Keywords: []string{"space", "leave", "quit", "방", "나가기", "탈퇴"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return currentSpaceID(ctx) != "" },
+		ID: "space.leave", Label: func(t *i18n.T) string { return t.Chat.CmdSpaceLeave() }, Group: palette.GroupCommand,
+		Keywords:   []string{"space", "leave", "quit"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwSpaceLeave()) },
+		Available:  func(ctx *ui.Context) bool { return currentSpaceID(ctx) != "" },
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {
 			id := currentSpaceID(ctx)
 			if id == "" {
 				return nil
 			}
 			if myRole(ctx, id) == api.RoleOwner {
-				return ui.Toast(ownerLeaveText, ui.ToastInfo)
+				return ui.Toast(cat(ctx).Chat.OwnerLeave(), ui.ToastInfo)
 			}
 			return ui.OpenOverlay(leaveSpaceConfirm(ctx, id, false))
 		},
@@ -62,60 +66,23 @@ const (
 	tabBans
 )
 
-// label is the tab's label.
-func (t settingsTab) label() string {
+// label is the tab's label in c's language.
+func (t settingsTab) label(c *i18n.T) string {
 	switch t {
 	case tabMembers:
-		return "멤버"
+		return c.Chat.TabMembers()
 	case tabInvites:
-		return "초대"
+		return c.Chat.TabInvites()
 	case tabChannels:
-		return "채널"
+		return c.Chat.TabChannels()
 	case tabBans:
-		return "차단됨"
+		return c.Chat.TabBans()
 	}
-	return "개요"
+	return c.Chat.TabOverview()
 }
 
-// Space settings texts.
+// Space settings tags (the texts are chat.toml keys).
 const (
-	settingsTitleSuffix = " 설정"
-	settingsFallback    = "방 설정"
-	spaceGoneText       = "볼 수 없는 방이에요"
-	spaceGoneHint       = "방이 삭제됐거나 더 이상 멤버가 아니에요"
-	roleOwnerLabel      = "방장"
-	roleAdminLabel      = "관리자"
-	roleMemberLabel     = "멤버"
-
-	itemEditSpace     = "방 정보 바꾸기"
-	itemTransferSpace = "방장 넘기기"
-	itemLeaveSpace    = "방 나가기"
-	itemDeleteSpace   = "방 삭제"
-
-	editSpaceSubmit   = "바꾸기"
-	spaceUpdatedText  = "방 정보를 바꿨어요"
-	spaceUpdateFailed = "방 정보를 바꾸지 못했어요"
-	transferTitle     = "새 방장 고르기"
-	transferSubmit    = "고르기"
-	transferAskSuffix = "님에게 방장을 넘길까요?"
-	transferBody      = "넘기면 나는 관리자가 돼요"
-	transferYes       = "넘기기"
-	transferredSuffix = "님에게 방장을 넘겼어요"
-	transferFailed    = "방장을 넘기지 못했어요"
-	membersLoadTitle  = "멤버 불러오기"
-	deleteSpaceAsk    = " 방을 삭제할까요?"
-	deleteSpaceBody   = "모든 채널과 메시지가 사라지고 되돌릴 수 없어요"
-	deleteSpaceYes    = "삭제"
-	spaceDeletedText  = "방을 삭제했어요"
-	spaceDeleteFailed = "방을 삭제하지 못했어요"
-	leaveSpaceAsk     = "에서 나갈까요?"
-	leaveSpaceBody    = "다시 들어오려면 초대를 받아야 해요"
-	leaveSpaceYes     = "나가기"
-	spaceLeftText     = "방에서 나왔어요"
-	leavingSpaceText  = "나가는 중…"
-	spaceLeaveFailed  = "방에서 나가지 못했어요"
-	ownerLeaveText    = "방장은 방장을 넘긴 뒤에 나갈 수 있어요"
-
 	tagSpaceGet        = "chat.space_get:"
 	tagSpaceUpdate     = "chat.space_update:"
 	tagSpaceTransfer   = "chat.space_transfer:"
@@ -125,15 +92,15 @@ const (
 	tagTransferMembers = "chat.space_transfer_members:"
 )
 
-// roleLabel is the Korean name of a role ("" for an unknown role).
-func roleLabel(r api.SpaceRole) string {
+// roleLabel is the name of a role in c's language ("" for an unknown role).
+func roleLabel(c *i18n.T, r api.SpaceRole) string {
 	switch r {
 	case api.RoleOwner:
-		return roleOwnerLabel
+		return c.Chat.RoleOwner()
 	case api.RoleAdmin:
-		return roleAdminLabel
+		return c.Chat.RoleAdmin()
 	case api.RoleMember:
-		return roleMemberLabel
+		return c.Chat.RoleMember()
 	}
 	return ""
 }
@@ -276,27 +243,29 @@ func (v *spaceSettingsView) overviewActions(ctx *ui.Context) []menuItem {
 	id := v.spaceID
 	name := textwidth.Sanitize(sd.Name)
 	role := sd.MyRole
+	c := cat(ctx)
 	var items []menuItem
 	if role == api.RoleOwner || role == api.RoleAdmin {
-		items = append(items, menuItem{Label: itemEditSpace, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemEditSpace(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, editSpaceForm(ctx, id)
 		}})
 	}
 	if role == api.RoleOwner {
-		items = append(items, menuItem{Label: itemTransferSpace, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemTransferSpace(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, transferLoader(ctx, id)
 		}})
 	} else {
-		items = append(items, menuItem{Label: itemLeaveSpace, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.CmdSpaceLeave(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, leaveSpaceConfirm(ctx, id, true)
 		}})
 	}
 	if role == api.RoleOwner {
-		items = append(items, menuItem{Label: itemDeleteSpace, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, widgets.Confirm(name+deleteSpaceAsk, deleteSpaceBody, deleteSpaceYes, cat(ctx).Chat.Cancel(), deleteSpaceCmd(ctx, id, true))
+		items = append(items, menuItem{Label: c.Chat.ItemDeleteSpace(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			c := cat(ctx)
+			return nil, widgets.Confirm(c.Chat.DeleteSpaceAsk(name), c.Chat.DeleteSpaceBody(), c.Chat.DeleteSpaceYes(), c.Chat.Cancel(), deleteSpaceCmd(ctx, id, true))
 		}})
 	} else {
-		items = append(items, menuItem{Label: itemReportSpace, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemReportSpace(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.ReportDialog("space", id, name)
 		}})
 	}
@@ -337,7 +306,8 @@ func (v *spaceSettingsView) overviewLines(ctx *ui.Context, t *theme.Theme, w int
 	if desc := strings.TrimSpace(textwidth.Sanitize(sd.Description)); desc != "" {
 		lines = append(lines, pad(cell(t.S.Base.Render, desc, cw)))
 	}
-	info := "멤버 " + strconv.Itoa(sd.MemberCount) + "명 · 내 역할: " + roleLabel(sd.MyRole)
+	c := cat(ctx)
+	info := c.Chat.SpaceInfo(c.Chat.MemberCount(sd.MemberCount), roleLabel(c, sd.MyRole))
 	lines = append(lines, pad(cell(t.S.Dim.Render, info, cw)), blank(t, w))
 	first := len(lines)
 	items := v.overviewActions(ctx)
@@ -381,13 +351,13 @@ func (v *spaceSettingsView) View(ctx *ui.Context, focused bool) string {
 	v.focused = focused
 	t := themeOf(ctx)
 	if v.space(ctx) == nil {
-		return widgets.Empty(t, v.size, "🚫", spaceGoneText, spaceGoneHint)
+		return widgets.Empty(t, v.size, "🚫", cat(ctx).Chat.SpaceGone(), cat(ctx).Chat.SpaceGoneHint())
 	}
 	v.clampTab(ctx)
 	set := v.tabSet(ctx)
 	tabs := make([]widgets.Tab, len(set))
 	for i, tab := range set {
-		tabs[i] = widgets.Tab{Label: tab.label()}
+		tabs[i] = widgets.Tab{Label: tab.label(cat(ctx))}
 	}
 	v.tabs.Set(tabs, v.tabIndex(ctx))
 	lines := []string{v.tabs.View(t, w)}
@@ -417,40 +387,41 @@ func (v *spaceSettingsView) View(ctx *ui.Context, focused bool) string {
 // Title is "<방 이름> 설정".
 func (v *spaceSettingsView) Title(ctx *ui.Context) (string, ui.Badge) {
 	if sd := v.space(ctx); sd != nil {
-		return textwidth.Sanitize(sd.Name) + settingsTitleSuffix, ui.Badge{}
+		return cat(ctx).Chat.SettingsTitle(textwidth.Sanitize(sd.Name)), ui.Badge{}
 	}
-	return settingsFallback, ui.Badge{}
+	return cat(ctx).Chat.CmdSpaceSettings(), ui.Badge{}
 }
 
 func (v *spaceSettingsView) Help(ctx *ui.Context) []key.Binding {
 	if v.space(ctx) == nil {
 		return nil
 	}
-	tabs := key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", "탭"))
+	c := cat(ctx)
+	tabs := key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", c.Chat.HelpTabs()))
 	switch v.tab {
 	case tabMembers:
 		if v.members.filtering {
 			return []key.Binding{
-				key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "찾기")),
-				key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "그만 찾기")),
+				key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", c.Chat.HelpFind())),
+				key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", c.Chat.HelpStopFind())),
 			}
 		}
-		return append(ctx.Keys.Help(keymap.MsgActions), key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "멤버 찾기")), tabs)
+		return append(ctx.Keys.Help(keymap.MsgActions), key.NewBinding(key.WithKeys("/"), key.WithHelp("/", c.Chat.HelpFindMember())), tabs)
 	case tabInvites:
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "열기")),
-			key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "복사")),
-			key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "메뉴")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", c.Chat.HelpOpen())),
+			key.NewBinding(key.WithKeys("y"), key.WithHelp("y", c.Chat.HelpCopy())),
+			key.NewBinding(key.WithKeys("m"), key.WithHelp("m", c.Chat.HelpMenu())),
 			tabs,
 		}
 	case tabChannels:
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "설정")),
-			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "새 채널")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", c.Chat.HelpSettings())),
+			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", c.Chat.HelpNewChannel())),
 			tabs,
 		}
 	case tabBans:
-		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "차단 풀기")), tabs}
+		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", c.Chat.HelpUnban())), tabs}
 	}
 	return append(ctx.Keys.Help(keymap.ListOpen), tabs)
 }
@@ -708,22 +679,24 @@ func editSpaceForm(ctx *ui.Context, spaceID string) ui.Overlay {
 	if sd == nil {
 		return nil
 	}
-	cur := iconNone
+	c := cat(ctx)
+	none := c.Chat.IconNone()
+	cur := none
 	if sd.IconEmoji != nil && *sd.IconEmoji != "" {
 		cur = *sd.IconEmoji
 	}
-	icons := slices.Clone(spaceIcons)
+	icons := spaceIconChoices(c)
 	if !slices.Contains(icons, cur) {
 		icons = slices.Insert(icons, 1, cur)
 	}
 	oldName, oldDesc := sd.Name, sd.Description
 	tag := tagSpaceUpdate + spaceID
 	return newForm(formSpec{
-		Title: itemEditSpace, Submit: editSpaceSubmit,
+		Title: c.Chat.ItemEditSpace(), Submit: c.Chat.ChangeSubmit(),
 		Fields: []field{
-			{Key: "name", Label: "이름", Placeholder: "예: 노바 개발방", Value: oldName, Max: spaceNameMax, Validate: validSpaceName},
-			{Key: "description", Label: "설명 (선택)", Placeholder: "어떤 방인가요?", Value: oldDesc, Max: spaceDescMax, Validate: validSpaceDesc},
-			{Key: "icon", Label: "아이콘", Kind: fieldChoice, Choices: icons, Value: cur},
+			{Key: "name", Label: c.Chat.SpaceNameLabel(), Placeholder: c.Chat.SpaceNameHolder(), Value: oldName, Max: spaceNameMax, Validate: validSpaceName(c)},
+			{Key: "description", Label: c.Chat.SpaceDescLabel(), Placeholder: c.Chat.SpaceDescHolder(), Value: oldDesc, Max: spaceDescMax, Validate: validSpaceDesc(c)},
+			{Key: "icon", Label: c.Chat.SpaceIconLabel(), Kind: fieldChoice, Choices: icons, Value: cur},
 		},
 		OnSubmit: func(ctx *ui.Context, vals map[string]string) (string, tea.Cmd) {
 			var req api.UpdateSpaceRequest
@@ -734,7 +707,7 @@ func editSpaceForm(ctx *ui.Context, spaceID string) ui.Overlay {
 				req.Description = api.Some(d)
 			}
 			if icon := vals["icon"]; icon != cur {
-				if icon == iconNone {
+				if icon == none {
 					req.IconEmoji = api.Null[string]()
 				} else {
 					req.IconEmoji = api.Some(icon)
@@ -757,15 +730,15 @@ func editSpaceForm(ctx *ui.Context, spaceID string) ui.Overlay {
 				sd.Space = *m.Value
 				sd.MyRole = role
 			}
-			return ui.Toast(spaceUpdatedText, ui.ToastSuccess), nil
+			return ui.Toast(cat(ctx).Chat.SpaceUpdated(), ui.ToastSuccess), nil
 		},
 	})
 }
 
 // transferLoader is 방장 넘기기: the space's members are fetched (every page, so
 // anyone can become owner), then picked (one, never me), then confirmed.
-func transferLoader(_ *ui.Context, spaceID string) ui.Overlay {
-	return newLoader(membersLoadTitle, tagTransferMembers+spaceID, func(c context.Context, cl *api.Client) ([]api.UserSummary, error) {
+func transferLoader(ctx *ui.Context, spaceID string) ui.Overlay {
+	return newLoader(cat(ctx).Chat.MembersLoadTitle(), tagTransferMembers+spaceID, func(c context.Context, cl *api.Client) ([]api.UserSummary, error) {
 		ms, err := allPages(func(cursor string) (*api.Page[api.SpaceMember], error) {
 			return cl.ListSpaceMembers(c, spaceID, api.SpaceMembersQuery{PageOpts: api.PageOpts{Cursor: cursor, Limit: memberPageSize}})
 		})
@@ -777,7 +750,7 @@ func transferLoader(_ *ui.Context, spaceID string) ui.Overlay {
 	}, func(ctx *ui.Context, users []api.UserSummary) ui.Overlay {
 		var picked api.UserSummary
 		return newUserPicker(pickerSpec{
-			Title: transferTitle, Submit: transferSubmit, Max: 1,
+			Title: cat(ctx).Chat.TransferTitle(), Submit: cat(ctx).Chat.TransferSubmit(), Max: 1,
 			Candidates: func(*ui.Context) []api.UserSummary { return users },
 			OnPick: func(_ *ui.Context, us []api.UserSummary, _ string) (string, tea.Cmd) {
 				if len(us) > 0 {
@@ -790,7 +763,8 @@ func transferLoader(_ *ui.Context, spaceID string) ui.Overlay {
 					return nil, nil
 				}
 				name := textwidth.Sanitize(displayName(picked))
-				return nil, widgets.Confirm(name+transferAskSuffix, transferBody, transferYes, cat(ctx).Chat.Cancel(), transferSpaceCmd(ctx, spaceID, picked))
+				c := cat(ctx)
+				return nil, widgets.Confirm(c.Chat.TransferAsk(name), c.Chat.TransferBody(), c.Chat.TransferYes(), c.Chat.Cancel(), transferSpaceCmd(ctx, spaceID, picked))
 			},
 		})
 	})
@@ -804,7 +778,7 @@ func transferSpaceCmd(ctx *ui.Context, spaceID string, u api.UserSummary) tea.Cm
 		return cl.TransferSpace(c, spaceID, userRef(u))
 	}, func(ctx *ui.Context, _ *api.Space, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, transferFailed)
+			return errorCmd(err, cat(ctx).Chat.TransferFailed())
 		}
 		s := ctx.Store
 		var cmds []tea.Cmd
@@ -815,7 +789,7 @@ func transferSpaceCmd(ctx *ui.Context, spaceID string, u api.UserSummary) tea.Cm
 		if s.Me != nil {
 			cmds = append(cmds, memberChanged(spaceID, api.SpaceMember{User: s.Me.UserSummary, Role: api.RoleAdmin}))
 		}
-		cmds = append(cmds, memberChanged(spaceID, api.SpaceMember{User: u, Role: api.RoleOwner}), ui.Toast(name+transferredSuffix, ui.ToastSuccess))
+		cmds = append(cmds, memberChanged(spaceID, api.SpaceMember{User: u, Role: api.RoleOwner}), ui.Toast(cat(ctx).Chat.Transferred(name), ui.ToastSuccess))
 		return tea.Batch(cmds...)
 	})
 }
@@ -836,9 +810,9 @@ func deleteSpaceCmd(ctx *ui.Context, spaceID string, fromSettings bool) tea.Cmd 
 		return struct{}{}, cl.DeleteSpace(c, spaceID)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, spaceDeleteFailed)
+			return errorCmd(err, cat(ctx).Chat.SpaceDeleteFailed())
 		}
-		return tea.Batch(spaceGoneCmd(ctx, "space.deleted", spaceID, ""), leftNav(ctx, spaceID, fromSettings), ui.Toast(spaceDeletedText, ui.ToastSuccess))
+		return tea.Batch(spaceGoneCmd(ctx, "space.deleted", spaceID, ""), leftNav(ctx, spaceID, fromSettings), ui.Toast(cat(ctx).Chat.SpaceDeleted(), ui.ToastSuccess))
 	})
 }
 
@@ -849,7 +823,8 @@ func leaveSpaceConfirm(ctx *ui.Context, spaceID string, fromSettings bool) ui.Ov
 		name = textwidth.Sanitize(sd.Name)
 	}
 	// it stays open until the result lands: space.leave runs from any route
-	return confirmAndAwait(name+leaveSpaceAsk, leaveSpaceBody, leaveSpaceYes, cat(ctx).Chat.Cancel(), leavingSpaceText, tagSpaceLeave+spaceID, leaveSpaceCmd(ctx, spaceID, fromSettings))
+	c := cat(ctx)
+	return confirmAndAwait(c.Chat.LeaveSpaceAsk(name), c.Chat.LeaveSpaceBody(), c.Chat.ItemLeave(), c.Chat.Cancel(), c.Chat.LeavingSpace(), tagSpaceLeave+spaceID, leaveSpaceCmd(ctx, spaceID, fromSettings))
 }
 
 // leaveSpaceCmd leaves the space; on success it is gone and home opens.
@@ -858,8 +833,8 @@ func leaveSpaceCmd(ctx *ui.Context, spaceID string, fromSettings bool) tea.Cmd {
 		return struct{}{}, cl.RemoveSpaceMember(c, spaceID, api.MeRef, api.RemoveMemberOpts{})
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, spaceLeaveFailed)
+			return errorCmd(err, cat(ctx).Chat.SpaceLeaveFailed())
 		}
-		return tea.Batch(spaceGoneCmd(ctx, "space.removed", spaceID, "left"), leftNav(ctx, spaceID, fromSettings), ui.Toast(spaceLeftText, ui.ToastSuccess))
+		return tea.Batch(spaceGoneCmd(ctx, "space.removed", spaceID, "left"), leftNav(ctx, spaceID, fromSettings), ui.Toast(cat(ctx).Chat.SpaceLeft(), ui.ToastSuccess))
 	})
 }

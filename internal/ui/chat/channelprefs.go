@@ -12,6 +12,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -23,9 +24,11 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayChannelPrefs, newChannelPrefs)
 	palette.Register(palette.Command{
-		ID: "channel.prefs", Title: "채널 설정", Keywords: []string{"channel", "settings", "notify", "mute", "알림", "음소거", "대화 설정"}, Group: palette.GroupCommand,
-		Available: func(ctx *ui.Context) bool { return viewedChannel(ctx) != nil },
-		Run:       func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayChannelPrefs, args) },
+		ID: "channel.prefs", Label: func(t *i18n.T) string { return t.Chat.CmdChannelPrefs() }, Group: palette.GroupCommand,
+		Keywords:   []string{"channel", "settings", "notify", "mute"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwChannelPrefs()) },
+		Available:  func(ctx *ui.Context) bool { return viewedChannel(ctx) != nil },
+		Run:        func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayChannelPrefs, args) },
 	})
 }
 
@@ -35,58 +38,9 @@ const (
 	overlayPins         = "chat.pins"          // pins.go; args = channel id
 )
 
-// Channel settings texts and limits.
+// Channel settings marks and limits (the texts are chat.toml keys).
 const (
-	prefsTitleChannel = "채널 설정 · "
-	prefsTitleDM      = "대화 설정 · "
-	itemNotifyAll     = "알림: 모두"
-	itemNotifyMention = "알림: 멘션만"
-	itemNotifyNone    = "알림: 끄기"
-	itemMute          = "음소거"
-	itemUnmute        = "음소거 해제"
-	itemPins          = "고정 메시지 보기"
-	itemRename        = "이름 바꾸기"
-	itemEditChannel   = "이름·주제 바꾸기"
-	itemAddMembers    = "멤버 추가"
-	itemKick          = "멤버 내보내기"
-	itemLeave         = "나가기"
-	itemDeleteChannel = "채널 삭제"
-	checkHint         = "✓"
-	defaultChanHint   = "기본 채널"
-	groupFullHint     = "최대 10명"
-	noKickable        = "내보낼 멤버가 없어요"
-
-	renameTitle      = "대화 이름 바꾸기"
-	renameLabel      = "대화 이름"
-	renameHolder     = "비우면 멤버 이름으로 보여요"
-	editTitle        = "채널 이름·주제"
-	nameLabel        = "채널 이름"
-	topicLabel       = "주제"
-	topicHolder      = "채널 주제(선택)"
-	changeSubmit     = "바꾸기"
-	addSubmit        = "추가"
-	kickAskSuffix    = "님을 내보낼까요?"
-	kickBody         = "다시 들어오려면 누군가 추가해야 해요"
-	kickYes          = "내보내기"
-	leaveAskSuffix   = "에서 나갈까요?"
-	leaveBody        = "다시 들어오려면 멤버가 추가해 줘야 해요"
-	deleteAskSuffix  = " 채널을 삭제할까요?"
-	deleteChanBody   = "메시지도 함께 사라지고 되돌릴 수 없어요"
-	prefsFailed      = "알림 설정을 바꾸지 못했어요"
-	kickFailed       = "멤버를 내보내지 못했어요"
-	leaveFailed      = "대화에서 나가지 못했어요"
-	deleteChanFailed = "채널을 삭제하지 못했어요"
-	notifySetPrefix  = "알림 설정: "
-	mutedText        = "음소거했어요"
-	unmutedText      = "음소거를 해제했어요"
-	renamedText      = "이름을 바꿨어요"
-	membersAddedText = "멤버를 추가했어요"
-	kickedSuffix     = "님을 내보냈어요"
-	leftText         = "대화에서 나갔어요"
-	deletedSuffix    = " 채널을 삭제했어요"
-	badChannelName   = "채널 이름은 영문 소문자·숫자·한글·_·- 1~32자예요"
-	topicTooLong     = "주제는 250자까지예요"
-	loaderText       = " 불러오는 중…"
+	checkHint = "✓"
 
 	channelNameMax = 32
 	topicMax       = 250
@@ -100,20 +54,24 @@ const (
 // points — the server's CHANNEL_NAME_RE (TestChannelNameRuleMatchesServer reads the same table).
 var channelNameRe = regexp.MustCompile(`^[a-z0-9\x{AC00}-\x{D7A3}\x{3400}-\x{4DBF}\x{4E00}-\x{9FFF}_-]{1,32}$`)
 
-// validChannelName is a form Validate for channel names.
-func validChannelName(s string) string {
-	if !channelNameRe.MatchString(s) {
-		return badChannelName
+// validChannelName is a form Validate for channel names, in c's language.
+func validChannelName(c *i18n.T) func(string) string {
+	return func(s string) string {
+		if !channelNameRe.MatchString(s) {
+			return c.Chat.BadChannelName()
+		}
+		return ""
 	}
-	return ""
 }
 
-// validTopic is a form Validate for channel topics (0..250 code points).
-func validTopic(s string) string {
-	if len([]rune(s)) > topicMax {
-		return topicTooLong
+// validTopic is a form Validate for channel topics (0..250 code points), in c's language.
+func validTopic(c *i18n.T) func(string) string {
+	return func(s string) string {
+		if len([]rune(s)) > topicMax {
+			return c.Chat.TopicTooLong()
+		}
+		return ""
 	}
-	return ""
 }
 
 // newChannelPrefs is the chat.channel_prefs factory: the settings menu of the
@@ -131,11 +89,12 @@ func newChannelPrefs(ctx *ui.Context, args string) ui.Overlay {
 	if ch == nil {
 		return nil
 	}
-	title := prefsTitleChannel
+	name := channelTitle(ctx, ch, false)
+	title := cat(ctx).Chat.PrefsTitleChannel(name)
 	if ch.Kind != api.ChannelText {
-		title = prefsTitleDM
+		title = cat(ctx).Chat.PrefsTitleDm(name)
 	}
-	return newMenu(title+channelTitle(ctx, ch, false), channelPrefItems(ctx, ch))
+	return newMenu(title, channelPrefItems(ctx, ch))
 }
 
 // liveChannel is the Store's current copy of channel id, else fallback.
@@ -163,11 +122,12 @@ func channelPrefItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 	if notify == "" {
 		notify = "all"
 	}
+	c := cat(ctx)
 	var items []menuItem
 	for _, lv := range []struct{ value, label string }{
-		{"all", itemNotifyAll}, {"mentions", itemNotifyMention}, {"none", itemNotifyNone},
+		{"all", c.Chat.NotifyAll()}, {"mentions", c.Chat.NotifyMentions()}, {"none", c.Chat.NotifyNone()},
 	} {
-		it := menuItem{Label: lv.label, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		it := menuItem{Label: c.Chat.ItemNotify(lv.label), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return setPrefsCmd(ctx, id, prefsChange{notify: &lv.value, label: lv.label}), nil
 		}}
 		if lv.value == notify {
@@ -176,15 +136,15 @@ func channelPrefItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 		items = append(items, it)
 	}
 	muted := !ch.My.Muted
-	muteLabel := itemMute
+	muteLabel := c.Chat.ItemMute()
 	if ch.My.Muted {
-		muteLabel = itemUnmute
+		muteLabel = c.Chat.ItemUnmute()
 	}
 	items = append(items,
 		menuItem{Label: muteLabel, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return setPrefsCmd(ctx, id, prefsChange{muted: &muted}), nil
 		}},
-		menuItem{Label: itemPins, Run: openRegistered(overlayPins, id)},
+		menuItem{Label: c.Chat.CmdPins(), Run: openRegistered(overlayPins, id)},
 	)
 	switch ch.Kind {
 	case api.ChannelGroupDM:
@@ -198,26 +158,28 @@ func channelPrefItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 // groupDMItems: 이름 바꾸기, 멤버 추가, 멤버 내보내기 (creator), 나가기.
 func groupDMItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 	id, snap := ch.ID, *ch
-	items := []menuItem{{Label: itemRename, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-		return nil, renameGroupForm(liveChannel(ctx, id, &snap))
+	c := cat(ctx)
+	items := []menuItem{{Label: c.Chat.ItemRename(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		return nil, renameGroupForm(cat(ctx), liveChannel(ctx, id, &snap))
 	}}}
-	add := menuItem{Label: itemAddMembers, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+	add := menuItem{Label: c.Chat.ItemAddMembers(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 		return nil, groupAddPicker(ctx, liveChannel(ctx, id, &snap))
 	}}
 	if groupSize(ch) >= groupDMLimit {
-		add.Disabled, add.Hint = true, groupFullHint
+		add.Disabled, add.Hint = true, c.Chat.GroupFullHint()
 	}
 	items = append(items, add)
 	if ch.OwnerID != nil && isMe(ctx, *ch.OwnerID) {
-		items = append(items, menuItem{Label: itemKick, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemKick(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			cur := liveChannel(ctx, id, &snap)
 			return nil, kickMenu(ctx, cur, cur.Members)
 		}})
 	}
-	return append(items, menuItem{Label: itemLeave, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+	return append(items, menuItem{Label: c.Chat.ItemLeave(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 		cur := liveChannel(ctx, id, &snap)
 		label := textwidth.Sanitize(ctx.Store.ChannelLabel(id))
-		return nil, widgets.Confirm(label+leaveAskSuffix, leaveBody, itemLeave, cat(ctx).Chat.Cancel(), leaveChannelCmd(ctx, cur))
+		c := cat(ctx)
+		return nil, widgets.Confirm(c.Chat.LeaveAsk(label), c.Chat.LeaveBody(), c.Chat.ItemLeave(), c.Chat.Cancel(), leaveChannelCmd(ctx, cur))
 	}})
 }
 
@@ -229,27 +191,29 @@ func groupSize(ch *api.Channel) int { return max(len(ch.Members), ch.MemberCount
 func textChannelItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 	id, snap := ch.ID, *ch
 	manage := ch.SpaceID != nil && canManageSpace(ctx, *ch.SpaceID)
+	c := cat(ctx)
 	var items []menuItem
 	if manage {
-		del := menuItem{Label: itemDeleteChannel, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		del := menuItem{Label: c.Chat.ItemDeleteChannel(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			cur := liveChannel(ctx, id, &snap)
-			return nil, widgets.Confirm(channelTitle(ctx, cur, false)+deleteAskSuffix, deleteChanBody, cat(ctx).Chat.DeleteYes(), cat(ctx).Chat.Cancel(), deleteChannelCmd(ctx, cur))
+			c := cat(ctx)
+			return nil, widgets.Confirm(c.Chat.DeleteChannelAsk(channelTitle(ctx, cur, false)), c.Chat.DeleteChannelBody(), c.Chat.DeleteYes(), c.Chat.Cancel(), deleteChannelCmd(ctx, cur))
 		}}
 		if sd := spaceOf(ctx, ch); sd != nil && sd.DefaultChannelID == id {
-			del.Disabled, del.Hint = true, defaultChanHint
+			del.Disabled, del.Hint = true, c.Chat.DefaultChanHint()
 		}
-		items = append(items, menuItem{Label: itemEditChannel, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, editChannelForm(liveChannel(ctx, id, &snap))
+		items = append(items, menuItem{Label: c.Chat.ItemEditChannel(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			return nil, editChannelForm(cat(ctx), liveChannel(ctx, id, &snap))
 		}}, del)
 	}
 	if ch.IsPrivate && ch.SpaceID != nil {
 		space := *ch.SpaceID
-		items = append(items, menuItem{Label: itemAddMembers, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, privateAddLoader(id, space)
+		items = append(items, menuItem{Label: c.Chat.ItemAddMembers(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			return nil, privateAddLoader(cat(ctx), id, space)
 		}})
 		if manage {
-			items = append(items, menuItem{Label: itemKick, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-				return nil, privateKickLoader(liveChannel(ctx, id, &snap))
+			items = append(items, menuItem{Label: c.Chat.ItemKick(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+				return nil, privateKickLoader(cat(ctx), liveChannel(ctx, id, &snap))
 			}})
 		}
 	}
@@ -258,7 +222,7 @@ func textChannelItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 
 // ---- prefs ----
 
-// prefsChange is one PUT /v1/channels/{id}/prefs change (label = the notify item).
+// prefsChange is one PUT /v1/channels/{id}/prefs change (label = the notify level word).
 type prefsChange struct {
 	notify *string
 	muted  *bool
@@ -298,18 +262,18 @@ func setPrefsCmd(ctx *ui.Context, id string, p prefsChange) tea.Cmd {
 					cur.My.Muted = prev.Muted
 				}
 			}
-			return errorCmd(err, prefsFailed)
+			return errorCmd(err, cat(ctx).Chat.PrefsFailed())
 		}
 		if cur != nil && my != nil {
 			cur.My.Notify, cur.My.Muted = my.Notify, my.Muted
 		}
 		switch {
 		case p.muted != nil && *p.muted:
-			return ui.Toast(mutedText, ui.ToastSuccess)
+			return ui.Toast(cat(ctx).Chat.Muted(), ui.ToastSuccess)
 		case p.muted != nil:
-			return ui.Toast(unmutedText, ui.ToastSuccess)
+			return ui.Toast(cat(ctx).Chat.Unmuted(), ui.ToastSuccess)
 		}
-		return ui.Toast(notifySetPrefix+strings.TrimPrefix(p.label, "알림: "), ui.ToastSuccess)
+		return ui.Toast(cat(ctx).Chat.NotifySet(p.label), ui.ToastSuccess)
 	})
 }
 
@@ -333,33 +297,34 @@ func channelResultDone(text string) func(ctx *ui.Context, result tea.Msg) (tea.C
 }
 
 // renameGroupForm renames a group DM (0..50; empty = the member names show).
-func renameGroupForm(ch *api.Channel) ui.Overlay {
+func renameGroupForm(c *i18n.T, ch *api.Channel) ui.Overlay {
 	id, name := ch.ID, ""
 	if ch.Name != nil {
 		name = *ch.Name
 	}
 	return newForm(formSpec{
-		Title: renameTitle, Submit: changeSubmit,
-		Fields: []field{{Key: "name", Label: renameLabel, Placeholder: renameHolder, Value: name, Max: groupNameMax}},
+		Title: c.Chat.RenameTitle(), Submit: c.Chat.ChangeSubmit(),
+		Fields: []field{{Key: "name", Label: c.Chat.RenameLabel(), Placeholder: c.Chat.RenameHolder(), Value: name, Max: groupNameMax}},
 		OnSubmit: func(ctx *ui.Context, vals map[string]string) (string, tea.Cmd) {
 			tag := "chat.channel_update:" + id
 			return tag, updateChannelDo(ctx, tag, id, api.UpdateChannelRequest{Name: api.Some(strings.TrimSpace(vals["name"]))})
 		},
-		OnDone: channelResultDone(renamedText),
+		OnDone: channelResultDone(c.Chat.Renamed()),
 	})
 }
 
 // editChannelForm edits a text channel's name (the name rule) and topic (0..250).
-func editChannelForm(ch *api.Channel) ui.Overlay {
+func editChannelForm(c *i18n.T, ch *api.Channel) ui.Overlay {
 	id, name := ch.ID, ""
 	if ch.Name != nil {
 		name = *ch.Name
 	}
+	validName := validChannelName(c)
 	return newForm(formSpec{
-		Title: editTitle, Submit: changeSubmit,
+		Title: c.Chat.EditChannelTitle(), Submit: c.Chat.ChangeSubmit(),
 		Fields: []field{
-			{Key: "name", Label: nameLabel, Value: name, Max: channelNameMax, Validate: func(s string) string { return validChannelName(strings.TrimSpace(s)) }},
-			{Key: "topic", Label: topicLabel, Placeholder: topicHolder, Value: ch.Topic, Max: topicMax, Validate: validTopic},
+			{Key: "name", Label: c.Chat.NameLabel(), Value: name, Max: channelNameMax, Validate: func(s string) string { return validName(strings.TrimSpace(s)) }},
+			{Key: "topic", Label: c.Chat.TopicLabel(), Placeholder: c.Chat.TopicHolder(), Value: ch.Topic, Max: topicMax, Validate: validTopic(c)},
 		},
 		OnSubmit: func(ctx *ui.Context, vals map[string]string) (string, tea.Cmd) {
 			tag := "chat.channel_update:" + id
@@ -367,7 +332,7 @@ func editChannelForm(ch *api.Channel) ui.Overlay {
 				Name: api.Some(strings.TrimSpace(vals["name"])), Topic: api.Some(strings.TrimSpace(vals["topic"])),
 			})
 		},
-		OnDone: channelResultDone(renamedText),
+		OnDone: channelResultDone(c.Chat.Renamed()),
 	})
 }
 
@@ -398,13 +363,14 @@ func memberSet(users []api.UserSummary) map[string]bool {
 
 // groupAddPicker adds people to a group DM: friends (online first) plus a server
 // search, current members and blocked users hidden, up to 10 members in all.
-func groupAddPicker(_ *ui.Context, ch *api.Channel) ui.Overlay {
+func groupAddPicker(ctx *ui.Context, ch *api.Channel) ui.Overlay {
 	in := memberSet(ch.Members)
+	c := cat(ctx)
 	return newUserPicker(pickerSpec{
-		Title: itemAddMembers, Submit: addSubmit, Max: max(1, groupDMLimit-groupSize(ch)), Search: true,
+		Title: c.Chat.ItemAddMembers(), Submit: c.Chat.AddSubmit(), Max: max(1, groupDMLimit-groupSize(ch)), Search: true,
 		Candidates: friendCandidates, Order: byPresence,
 		Exclude: func(ctx *ui.Context, id string) bool { return in[id] || blockedUser(ctx, id) },
-		OnPick:  addMembersPick(ch.ID), OnDone: channelResultDone(membersAddedText),
+		OnPick:  addMembersPick(ch.ID), OnDone: channelResultDone(c.Chat.MembersAdded()),
 		DescribeErr: describeGroupDMErr,
 	})
 }
@@ -450,8 +416,8 @@ func channelMemberUsers(c context.Context, cl *api.Client, id string) ([]api.Use
 
 // privateAddLoader adds space members to private channel id: the candidates are
 // the space members who are not in the channel yet (both lists fetched first).
-func privateAddLoader(id, spaceID string) ui.Overlay {
-	return newLoader(itemAddMembers, "chat.channel_members:"+id, func(c context.Context, cl *api.Client) (memberLists, error) {
+func privateAddLoader(c *i18n.T, id, spaceID string) ui.Overlay {
+	return newLoader(c.Chat.ItemAddMembers(), "chat.channel_members:"+id, func(c context.Context, cl *api.Client) (memberLists, error) {
 		sm, err := allPages(func(cursor string) (*api.Page[api.SpaceMember], error) {
 			return cl.ListSpaceMembers(c, spaceID, api.SpaceMembersQuery{PageOpts: api.PageOpts{Cursor: cursor, Limit: memberPageSize}})
 		})
@@ -471,19 +437,19 @@ func privateAddLoader(id, spaceID string) ui.Overlay {
 		in := memberSet(v.channel)
 		cands := slices.DeleteFunc(slices.Clone(v.space), func(u api.UserSummary) bool { return in[u.ID] })
 		return newUserPicker(pickerSpec{
-			Title: itemAddMembers, Submit: addSubmit, Max: dmMaxPeers,
+			Title: c.Chat.ItemAddMembers(), Submit: c.Chat.AddSubmit(), Max: dmMaxPeers,
 			Candidates: func(*ui.Context) []api.UserSummary { return cands },
 			Exclude:    func(_ *ui.Context, id string) bool { return in[id] },
-			OnPick:     addMembersPick(id), OnDone: channelResultDone(membersAddedText),
+			OnPick:     addMembersPick(id), OnDone: channelResultDone(c.Chat.MembersAdded()),
 		})
 	})
 }
 
 // privateKickLoader removes a member of a private channel (owner/admin): the
 // channel members are fetched, then picked from a menu.
-func privateKickLoader(ch *api.Channel) ui.Overlay {
+func privateKickLoader(c *i18n.T, ch *api.Channel) ui.Overlay {
 	snap := *ch
-	return newLoader(itemKick, "chat.channel_members:"+ch.ID, func(c context.Context, cl *api.Client) ([]api.UserSummary, error) {
+	return newLoader(c.Chat.ItemKick(), "chat.channel_members:"+ch.ID, func(c context.Context, cl *api.Client) ([]api.UserSummary, error) {
 		return channelMemberUsers(c, cl, snap.ID)
 	}, func(ctx *ui.Context, users []api.UserSummary) ui.Overlay {
 		return kickMenu(ctx, liveChannel(ctx, snap.ID, &snap), users)
@@ -499,13 +465,15 @@ func kickMenu(ctx *ui.Context, ch *api.Channel, users []api.UserSummary) ui.Over
 		}
 		name := textwidth.Sanitize(displayName(u))
 		items = append(items, menuItem{Label: name, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, widgets.Confirm(name+kickAskSuffix, kickBody, kickYes, cat(ctx).Chat.Cancel(), kickMemberCmd(ctx, ch.ID, u))
+			c := cat(ctx)
+			return nil, widgets.Confirm(c.Chat.KickAsk(name), c.Chat.KickBody(), c.Chat.KickYes(), c.Chat.Cancel(), kickMemberCmd(ctx, ch.ID, u))
 		}})
 	}
+	c := cat(ctx)
 	if len(items) == 0 {
-		items = []menuItem{{Label: noKickable, Disabled: true}}
+		items = []menuItem{{Label: c.Chat.NoKickable(), Disabled: true}}
 	}
-	return newMenu(itemKick, items)
+	return newMenu(c.Chat.ItemKick(), items)
 }
 
 // kickMemberCmd removes u from channel id; a group DM drops u from its member
@@ -516,7 +484,7 @@ func kickMemberCmd(ctx *ui.Context, id string, u api.UserSummary) tea.Cmd {
 		return struct{}{}, cl.RemoveChannelMember(c, id, userRef(u))
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, kickFailed)
+			return errorCmd(err, cat(ctx).Chat.KickFailed())
 		}
 		if ch := liveChannel(ctx, id, nil); ch != nil && ch.Kind == api.ChannelGroupDM {
 			if i := slices.IndexFunc(ch.Members, func(m api.UserSummary) bool { return m.ID == u.ID }); i >= 0 {
@@ -524,7 +492,7 @@ func kickMemberCmd(ctx *ui.Context, id string, u api.UserSummary) tea.Cmd {
 				ch.MemberCount = max(0, ch.MemberCount-1)
 			}
 		}
-		return ui.Toast(name+kickedSuffix, ui.ToastSuccess)
+		return ui.Toast(cat(ctx).Chat.Kicked(name), ui.ToastSuccess)
 	})
 }
 
@@ -549,9 +517,9 @@ func leaveChannelCmd(ctx *ui.Context, ch *api.Channel) tea.Cmd {
 		return struct{}{}, cl.RemoveChannelMember(c, snap.ID, api.MeRef)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, leaveFailed)
+			return errorCmd(err, cat(ctx).Chat.LeaveFailed())
 		}
-		return tea.Batch(channelGoneCmd(ctx, &snap, "removed"), goHome(ctx), ui.Toast(leftText, ui.ToastSuccess))
+		return tea.Batch(channelGoneCmd(ctx, &snap, "removed"), goHome(ctx), ui.Toast(cat(ctx).Chat.LeftConversation(), ui.ToastSuccess))
 	})
 }
 
@@ -564,13 +532,13 @@ func deleteChannelCmd(ctx *ui.Context, ch *api.Channel) tea.Cmd {
 		return struct{}{}, cl.DeleteChannel(c, snap.ID)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, deleteChanFailed)
+			return errorCmd(err, cat(ctx).Chat.DeleteChannelFailed())
 		}
 		var open tea.Cmd
 		if snap.SpaceID != nil {
 			open = goSpace(ctx, *snap.SpaceID)
 		}
-		return tea.Batch(channelGoneCmd(ctx, &snap, "deleted"), open, ui.Toast(title+deletedSuffix, ui.ToastSuccess))
+		return tea.Batch(channelGoneCmd(ctx, &snap, "deleted"), open, ui.Toast(cat(ctx).Chat.ChannelDeleted(title), ui.ToastSuccess))
 	})
 }
 
@@ -665,7 +633,7 @@ func (l *loader[T]) Help(ctx *ui.Context) []key.Binding {
 	if l.next != nil {
 		return l.morph.help(ctx)
 	}
-	return []key.Binding{key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기"))}
+	return []key.Binding{key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", cat(ctx).Common.HelpClose()))}
 }
 
 func (l *loader[T]) Cursor() *tea.Cursor {
@@ -704,7 +672,7 @@ func (l *loader[T]) View(ctx *ui.Context, focused bool) string {
 	if l.errMsg != "" {
 		row = cell(t.S.Error.Render, "✕ "+textwidth.Sanitize(l.errMsg), cw)
 	} else {
-		row = l.spinner.View(t) + cell(t.S.Dim.Render, loaderText, cw-1)
+		row = l.spinner.View(t) + cell(t.S.Dim.Render, " "+cat(ctx).Chat.Loading(), cw-1)
 	}
 	rows := []string{row}
 	if l.size.H >= 3 { // degraded to the whole body (no border): the title goes inside

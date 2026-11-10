@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -25,42 +24,19 @@ import (
 func init() {
 	ui.RegisterRoute(ui.RouteInvite, newInvite)
 	palette.Register(palette.Command{
-		ID: "invites.inbox", Title: "받은 방 초대", Keywords: []string{"invites", "inbox", "direct invite", "초대", "방 초대", "받은 초대"}, Group: palette.GroupNav,
-		Run: func(*ui.Context, string) tea.Cmd { return ui.Navigate(ui.Route{Kind: ui.RouteInvite, Arg: "direct"}) },
+		ID: "invites.inbox", Label: func(t *i18n.T) string { return t.Chat.CmdInvitesInbox() }, Group: palette.GroupNav,
+		Keywords:   []string{"invites", "inbox", "direct invite"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwInvitesInbox()) },
+		Run:        func(*ui.Context, string) tea.Cmd { return ui.Navigate(ui.Route{Kind: ui.RouteInvite, Arg: "direct"}) },
 	})
 }
 
 // directArg is the RouteInvite Arg of direct invites.
 const directArg = "direct"
 
-// Invite screen texts.
+// Invite screen layout and tags (the texts are chat.toml keys).
 const (
-	inviteTitle         = "방 초대"
-	inviteInboxTitle    = "받은 방 초대"
-	inviteLoadingText   = "초대를 불러오는 중…"
-	inviteJoiningText   = "참여하는 중…"
-	inviteAcceptingText = "수락하는 중…"
-	inviteDecliningText = "거절하는 중…"
-	inviteLinkActions   = "enter 참여하기 · m 더보기 · esc 닫기"
-	inviteMemberActions = "이미 참여한 방이에요 · enter 열기"
-	inviteDirectActions = "enter 수락 · d 거절 · m 더보기"
-	inviteInviterPrefix = "초대한 사람: "
-	inviteUntilSuffix   = "까지"
-	inviteRetryHint     = "r 다시 시도 · esc 닫기"
-	inviteCloseHint     = "esc 닫기"
-	inviteGoneText      = "더 이상 유효하지 않은 초대예요"
-	inviteNoneText      = "받은 방 초대가 없어요"
-	inviteNoneHint      = "친구가 방에 초대하면 여기에 보여요"
-	inviteDeclinedText  = "초대를 거절했어요"
-	inviteAcceptFailed  = "초대를 수락하지 못했어요"
-	inviteDeclineFailed = "초대를 거절하지 못했어요"
-	inviteOpenFailed    = "방을 열지 못했어요"
-	itemJoin            = "참여하기"
-	itemOpenSpace       = "열기"
-	itemAcceptInvite    = "수락"
-	itemDeclineInvite   = "거절"
-	itemReportSpace     = "방 신고"
-	inviteCardMaxW      = 48
+	inviteCardMaxW = 48
 
 	tagInvitePrefix        = "chat.invite:"
 	tagInviteAcceptPrefix  = "chat.invite_accept:"
@@ -75,16 +51,16 @@ func inviteErrorText(t *i18n.T, err error) string {
 	case api.IsCode(err, "invite_invalid"):
 		switch invalidReason(err) {
 		case "expired":
-			return "만료된 초대예요"
+			return orKo(t).Chat.InviteExpiredErr()
 		case "exhausted":
-			return "사용 횟수가 다 찬 초대예요"
+			return orKo(t).Chat.InviteExhausted()
 		case "revoked":
-			return "취소된 초대예요"
+			return orKo(t).Chat.InviteRevoked()
 		}
 	case api.IsCode(err, "not_found"):
-		return "없는 초대 코드예요"
+		return orKo(t).Chat.InviteNotFound()
 	case api.IsCode(err, "banned_from_space"):
-		return "이 방에 들어갈 수 없어요"
+		return orKo(t).Chat.SpaceBanned()
 	}
 	return errtext.Describe(t, err)
 }
@@ -265,7 +241,7 @@ func (v *inviteView) primary(ctx *ui.Context) tea.Cmd {
 	}
 	code := v.code
 	tag := tagInviteAcceptPrefix + code
-	return v.setBusy(ctx, tag, inviteJoiningText, ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteSpace, error) {
+	return v.setBusy(ctx, tag, cat(ctx).Chat.InviteJoining(), ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteSpace, error) {
 		d, err := cl.AcceptInvite(c, code)
 		return inviteSpace{space: d}, err
 	}))
@@ -277,7 +253,7 @@ func (v *inviteView) openSpace(ctx *ui.Context, id string) tea.Cmd {
 		return cmd
 	}
 	tag := tagInviteOpenPrefix + id
-	return v.setBusy(ctx, tag, inviteLoadingText, ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteSpace, error) {
+	return v.setBusy(ctx, tag, cat(ctx).Chat.InviteLoading(), ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteSpace, error) {
 		d, err := cl.GetSpace(c, id)
 		return inviteSpace{space: d}, err
 	}))
@@ -289,7 +265,7 @@ func (v *inviteView) acceptDirect(ctx *ui.Context) tea.Cmd {
 	}
 	id := v.inviteID
 	tag := tagDirectAcceptPrefix + id
-	return v.setBusy(ctx, tag, inviteAcceptingText, ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteSpace, error) {
+	return v.setBusy(ctx, tag, cat(ctx).Chat.InviteAccepting(), ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteSpace, error) {
 		d, err := cl.AcceptDirectInvite(c, id)
 		return inviteSpace{space: d}, err
 	}))
@@ -301,7 +277,7 @@ func (v *inviteView) declineDirect(ctx *ui.Context) tea.Cmd {
 	}
 	id := v.inviteID
 	tag := tagDirectDeclinePrefix + id
-	return v.setBusy(ctx, tag, inviteDecliningText, ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteDeclined, error) {
+	return v.setBusy(ctx, tag, cat(ctx).Chat.InviteDeclining(), ui.Do(ctx, tag, func(c context.Context, cl *api.Client) (inviteDeclined, error) {
 		return inviteDeclined{}, cl.DeclineDirectInvite(c, id)
 	}))
 }
@@ -331,25 +307,26 @@ func (v *inviteView) menu(ctx *ui.Context) tea.Cmd {
 	if !ok || (v.mode == inviteLink && v.err != nil) {
 		return nil
 	}
+	c := cat(ctx)
 	var items []menuItem
 	act := func(f func(*ui.Context) tea.Cmd) func(*ui.Context) (tea.Cmd, ui.Overlay) {
 		return func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return f(ctx), nil }
 	}
 	switch v.mode {
 	case inviteLink:
-		label := itemJoin
+		label := c.Chat.ItemJoin()
 		if v.preview.AlreadyMember {
-			label = itemOpenSpace
+			label = c.Chat.ItemOpenSpace()
 		}
 		items = append(items, menuItem{Label: label, Disabled: !v.ready(), Run: act(v.primary)})
 	case inviteDirectOne:
 		items = append(items,
-			menuItem{Label: itemAcceptInvite, Disabled: !v.ready(), Run: act(v.acceptDirect)},
-			menuItem{Label: itemDeclineInvite, Disabled: !v.ready(), Run: act(v.declineDirect)},
+			menuItem{Label: c.Chat.ItemAccept(), Disabled: !v.ready(), Run: act(v.acceptDirect)},
+			menuItem{Label: c.Chat.ItemDecline(), Disabled: !v.ready(), Run: act(v.declineDirect)},
 		)
 	}
 	name := strings.TrimSpace(textwidth.Sanitize(sp.Name))
-	items = append(items, menuItem{Label: itemReportSpace, Danger: true, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+	items = append(items, menuItem{Label: c.Chat.ItemReportSpace(), Danger: true, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 		return nil, widgets.ReportDialog("space", sp.ID, name)
 	}})
 	return ui.OpenOverlay(newMenu(name, items))
@@ -387,13 +364,13 @@ func (v *inviteView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 				dropDirectInvite(ctx, v.inviteID)
 				return nil
 			}
-			return errorCmd(m.Err, inviteDeclineFailed)
+			return errorCmd(m.Err, cat(ctx).Chat.InviteDeclineFailed())
 		}
 		dropDirectInvite(ctx, v.inviteID)
 		// Leave the invite: back pops it off its stack (to 홈, or the received list it
 		// was opened from); Navigate(RouteHome) would only switch to the home tab and
 		// leave this screen on top of it.
-		return tea.Batch(ui.Toast(inviteDeclinedText, ui.ToastInfo), ui.Back())
+		return tea.Batch(ui.Toast(cat(ctx).Chat.InviteDeclined(), ui.ToastInfo), ui.Back())
 	}
 	return v.spinner.Update(ctx, msg)
 }
@@ -406,7 +383,7 @@ func (v *inviteView) landSpace(ctx *ui.Context, m ui.ResultMsg[inviteSpace]) tea
 	if m.Err != nil {
 		switch {
 		case open:
-			return errorCmd(m.Err, inviteOpenFailed)
+			return errorCmd(m.Err, cat(ctx).Chat.SpaceOpenFailed())
 		case api.IsCode(m.Err, "already_member"):
 			if direct {
 				dropDirectInvite(ctx, v.inviteID)
@@ -424,7 +401,7 @@ func (v *inviteView) landSpace(ctx *ui.Context, m ui.ResultMsg[inviteSpace]) tea
 			}
 			return nil
 		}
-		return errorCmd(m.Err, inviteAcceptFailed)
+		return errorCmd(m.Err, cat(ctx).Chat.InviteAcceptFailed())
 	}
 	if direct {
 		dropDirectInvite(ctx, v.inviteID)
@@ -522,30 +499,31 @@ func (v *inviteView) Title(ctx *ui.Context) (string, ui.Badge) {
 		if ctx != nil && ctx.Store != nil {
 			n = len(ctx.Store.DirectInvites)
 		}
-		return inviteInboxTitle, ui.Badge{Count: n}
+		return cat(ctx).Chat.CmdInvitesInbox(), ui.Badge{Count: n}
 	}
-	return inviteTitle, ui.Badge{}
+	return cat(ctx).Chat.InviteTitle(), ui.Badge{}
 }
 
 func (v *inviteView) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
+	c := cat(ctx)
 	switch v.mode {
 	case inviteDirectList:
 		return ctx.Keys.Help(keymap.ListOpen, keymap.ListDown, keymap.ListUp)
 	case inviteDirectOne:
-		return []key.Binding{b("enter", itemAcceptInvite), b("d", itemDeclineInvite), b("m", "더보기")}
+		return []key.Binding{b("enter", c.Chat.ItemAccept()), b("d", c.Chat.ItemDecline()), b("m", c.Chat.HelpMore())}
 	}
 	if v.err != nil {
 		if finalInviteError(v.err) {
 			return nil
 		}
-		return []key.Binding{b("r", "다시 시도")}
+		return []key.Binding{b("r", c.Chat.HelpRetry())}
 	}
-	open := itemJoin
+	open := c.Chat.ItemJoin()
 	if v.preview != nil && v.preview.AlreadyMember {
-		open = itemOpenSpace
+		open = c.Chat.ItemOpenSpace()
 	}
-	return []key.Binding{b("enter", open), b("m", "더보기")}
+	return []key.Binding{b("enter", open), b("m", c.Chat.HelpMore())}
 }
 
 func (v *inviteView) View(ctx *ui.Context, focused bool) string {
@@ -556,45 +534,46 @@ func (v *inviteView) View(ctx *ui.Context, focused bool) string {
 	v.focused = focused
 	v.sync(ctx)
 	t := themeOf(ctx)
+	c := cat(ctx)
 	switch v.mode {
 	case inviteDirectList:
 		if len(v.items) == 0 {
-			return widgets.Empty(t, v.size, "📭", inviteNoneText, inviteNoneHint)
+			return widgets.Empty(t, v.size, "📭", c.Chat.InviteNone(), c.Chat.InviteNoneHint())
 		}
 		lines := strings.Split(v.list.View(ctx, v.size), "\n")
 		return strings.Join(textwidth.Fit(lines, w, h), "\n")
 	case inviteDirectOne:
 		switch {
 		case v.final != nil:
-			return widgets.Empty(t, v.size, "⚠", directErrorText(tOf(ctx), v.final), inviteCloseHint)
+			return widgets.Empty(t, v.size, "⚠", directErrorText(tOf(ctx), v.final), c.Chat.InviteCloseHint())
 		case v.gone || v.invite == nil:
-			return widgets.Empty(t, v.size, "📭", inviteGoneText, inviteCloseHint)
+			return widgets.Empty(t, v.size, "📭", c.Chat.InviteGone(), c.Chat.InviteCloseHint())
 		}
 		in := v.invite
-		return v.card(ctx, t, in.Space, in.Inviter, "", inviteDirectActions)
+		return v.card(ctx, t, in.Space, in.Inviter, "", c.Chat.InviteDirectActions())
 	}
 	switch {
 	case v.err != nil:
-		hint := inviteRetryHint
+		hint := c.Chat.InviteRetryHint()
 		if finalInviteError(v.err) {
-			hint = inviteCloseHint
+			hint = c.Chat.InviteCloseHint()
 		}
 		return widgets.Empty(t, v.size, "⚠", inviteErrorText(tOf(ctx), v.err), hint)
 	case v.preview == nil:
-		return v.centerRows(t, []cardRow{{text: inviteLoadingText, style: t.S.Dim.Render, spin: true}})
+		return v.centerRows(t, []cardRow{{text: c.Chat.InviteLoading(), style: t.S.Dim.Render, spin: true}})
 	}
 	p := v.preview
-	until := inviteNoExpiry
+	until := c.Chat.InviteNoExpiry()
 	if p.ExpiresAt != nil {
 		now := *p.ExpiresAt
 		if ctx != nil && ctx.Now != nil {
 			now = ctx.Now()
 		}
-		until = hz(ctx).MessageTime(now, *p.ExpiresAt, locOf(ctx)) + inviteUntilSuffix
+		until = c.Chat.InviteUntil(hz(ctx).MessageTime(now, *p.ExpiresAt, locOf(ctx)))
 	}
-	actions := inviteLinkActions
+	actions := c.Chat.InviteLinkActions()
 	if p.AlreadyMember {
-		actions = inviteMemberActions
+		actions = c.Chat.InviteMemberActions()
 	}
 	return v.card(ctx, t, p.Space, p.CreatedBy, until, actions)
 }
@@ -604,7 +583,7 @@ func directErrorText(t *i18n.T, err error) string {
 	if api.IsCode(err, "banned_from_space") {
 		return inviteErrorText(t, err)
 	}
-	return inviteGoneText
+	return orKo(t).Chat.InviteGone()
 }
 
 // cardRow is one centered card line; rows with a higher drop rank go first when
@@ -630,8 +609,8 @@ func (v *inviteView) card(ctx *ui.Context, t *theme.Theme, sp api.SpacePreview, 
 		rows = append(rows, cardRow{text: desc, style: t.S.Base.Render, drop: 3})
 	}
 	rows = append(rows,
-		cardRow{text: "멤버 " + strconv.Itoa(liveMemberCount(ctx, sp)) + "명", style: t.S.Dim.Render, drop: 4},
-		cardRow{text: inviteInviterPrefix + strings.TrimSpace(textwidth.Sanitize(displayName(inviter))), style: t.S.Base.Render, drop: 1},
+		cardRow{text: cat(ctx).Chat.MemberCount(liveMemberCount(ctx, sp)), style: t.S.Dim.Render, drop: 4},
+		cardRow{text: cat(ctx).Chat.InviteInviter(strings.TrimSpace(textwidth.Sanitize(displayName(inviter)))), style: t.S.Base.Render, drop: 1},
 	)
 	if until != "" {
 		rows = append(rows, cardRow{text: until, style: t.S.Dim.Render, drop: 2})
