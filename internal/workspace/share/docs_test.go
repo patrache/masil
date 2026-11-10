@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -342,6 +343,8 @@ func TestDiskDeleteRecreate(t *testing.T) {
 func TestSaveAtomicAndAudited(t *testing.T) {
 	d := newDocRig(t, wire.LevelEditor, 1)
 	must(t, os.Chmod(filepath.Join(d.dir, hubTS), 0o640))
+	before, err := os.Stat(filepath.Join(d.dir, hubTS))
+	must(t, err)
 	d.open(hubTS, 1)
 	secret := "const marker = 'Q7ZX-content-not-for-audit';\n"
 	must(t, d.guests[1].Edit(hubTS, insertAt(d.guestText(1, hubTS), 0, secret)))
@@ -356,7 +359,16 @@ func TestSaveAtomicAndAudited(t *testing.T) {
 	}
 	fi, err := os.Stat(filepath.Join(d.dir, hubTS))
 	must(t, err)
-	if fi.Mode().Perm() != 0o640 {
+	// The save keeps the file's mode. Windows has no group/other bits (Go
+	// reports 0666, or 0444 with the read-only attribute), so 0o640 reads
+	// back as 0666 there and access is decided by ACLs: the saved file has
+	// the ACL the folder hands a new file (a custom per-file ACL is not
+	// copied, see exec-log windows-ci-ws.md). The exact 0o640 is checked
+	// where it exists.
+	if fi.Mode().Perm() != before.Mode().Perm() {
+		t.Fatalf("mode = %v, was %v before the save", fi.Mode(), before.Mode())
+	}
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o640 {
 		t.Fatalf("mode = %v", fi.Mode())
 	}
 	size := float64(len(d.diskText(hubTS)))

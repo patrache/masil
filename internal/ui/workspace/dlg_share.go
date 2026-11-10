@@ -124,6 +124,12 @@ func newShareDialog(s *Surface, ctx *ui.Context) *form {
 				files = !files
 				return nil
 			}})
+		if !paneSupported() && len(checks) == 0 {
+			// Windows: programs run full screen, never in a pane, so there is
+			// no terminal row to carry the reason; say it once (spec B
+			// Windows: terminal sharing off, with the reason).
+			rows = append(rows, row{kind: rowText, text: t.WindowsTermShareDisabled(), warn: true})
+		}
 		for _, c := range checks {
 			c := c
 			r := row{kind: rowOption, text: t.ShareTerminal(c.t.n, textwidth.Sanitize(c.t.name)), checked: on(terms[c.t.id])}

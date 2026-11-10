@@ -57,8 +57,7 @@ func newShareRig(t *testing.T, h *uitest.Harness, fake *termpanetest.Fake, membe
 		Owner: api.UserSummary{ID: fixtures.UserSam, Handle: "sam", DisplayName: "sam"}, Members: ms,
 	}})
 	h.API.JSON("DELETE /v1/workspace-shares/{id}", 204, nil)
-	r.s = openFolder(t, h, "workspace:share", copyFixture(t))
-	t.Cleanup(func() { r.s.CloseTool(h.Context()) })
+	r.s = openFolder(t, h, "workspace:share", copyFixture(t)) // closed at the end with its share and audit log
 	return r
 }
 
@@ -239,6 +238,45 @@ func TestBypassProgramCannotBeShared(t *testing.T) {
 		if !strings.Contains(all, "권한 확인을 건너뛰는 모드") {
 			t.Errorf("no block reason in the dialog")
 		}
+	}
+	h.Press("enter")
+	r.settle()
+	if !r.s.sharing() {
+		t.Fatal("files-only share did not start")
+	}
+	if n := len(r.s.own.terms); n != 0 {
+		t.Fatalf("shared terminals = %d", n)
+	}
+}
+
+// Spec B Windows (acceptance 20): terminals cannot be hosted on Windows.
+// The share dialog says so with no pane terminal to hang the reason on (a
+// program there runs full screen, outside the surface), offers no terminal
+// row, and the share starts with the files only.
+func TestWindowsShareDialogNoTerminals(t *testing.T) {
+	fake := setup(t)
+	t.Cleanup(SetPaneSupportedForTest(false))
+	h := uitest.New(t)
+	r := newShareRig(t, h, fake, nil)
+	if n := len(r.s.term.terms); n != 0 {
+		t.Fatalf("pane terminals = %d", n)
+	}
+	h.Press("ctrl+\\", "1", "ctrl+\\", "S")
+	if r.s.dlg == nil {
+		t.Fatalf("no share dialog:\n%s", h.Screen())
+	}
+	all := ""
+	for _, row := range r.s.dlg.build(h.Context()) {
+		if row.checked != nil && strings.Contains(row.text, "터미널") {
+			t.Errorf("terminal row offered: %+v", row)
+		}
+		all += row.text + "\n"
+	}
+	if !strings.Contains(all, "Windows에서는 터미널을 공유할 수 없어요") {
+		t.Fatalf("no Windows reason in the dialog:\n%s", all)
+	}
+	if !strings.Contains(flat(h.Screen()), flat("Windows에서는 터미널을 공유할 수 없어요")) {
+		t.Errorf("the reason is not on screen:\n%s", h.Screen())
 	}
 	h.Press("enter")
 	r.settle()

@@ -21,6 +21,16 @@ import (
 // the tests can run them on any OS).
 var windowsNames = runtime.GOOS == "windows"
 
+// windowsLinks makes follow resolve link targets the way Windows does: the
+// target is joined to the link's folder (and to the elements after the link)
+// and the whole is cleaned lexically, so "s\..\config" is "config" whatever
+// s points to. CreateSymbolicLinkW already stores an absolute target cleaned,
+// and os.Root on Windows follows links the same way (rootCleanPath), so the
+// deny list must see the path cleaned this way too, or a Create/Rename/
+// Remove through os.Root could touch a file Check never looked at. A var so
+// the tests can run the Windows model on any OS.
+var windowsLinks = runtime.GOOS == "windows"
+
 // maxLinkHops bounds symlink resolution in Check (like the kernel's ELOOP).
 const maxLinkHops = 40
 
@@ -285,7 +295,8 @@ func osPath(clean string) string { return filepath.FromSlash(clean) }
 // clean before the links in the target are followed. Missing elements end
 // the walk: the rest is appended as is (a file that does not exist yet
 // cannot be a link; a ".." after a missing element is Invalid, the OS cannot
-// walk it either).
+// walk it either). With windowsLinks the target is cleaned lexically
+// against the link's folder instead, the way Windows opens it.
 func (r *Root) follow(rel, clean string) (string, error) {
 	segs := split(clean)
 	var done []string
@@ -341,7 +352,24 @@ func (r *Root) follow(rel, clean string) (string, error) {
 			if !ok {
 				return "", reject(rel, ReasonEscape)
 			}
+			if windowsLinks {
+				segs, ok = lexicalJoin(nil, in, segs)
+				if !ok {
+					return "", reject(rel, ReasonEscape)
+				}
+				done = nil
+				continue
+			}
 			segs = append(strings.Split(in, "/"), segs...)
+			done = nil
+			continue
+		}
+		if windowsLinks {
+			var ok bool
+			segs, ok = lexicalJoin(done, filepath.ToSlash(target), segs)
+			if !ok {
+				return "", reject(rel, ReasonEscape)
+			}
 			done = nil
 			continue
 		}
@@ -349,6 +377,23 @@ func (r *Root) follow(rel, clean string) (string, error) {
 		segs = append(strings.Split(filepath.ToSlash(target), "/"), segs...)
 	}
 	return joinRel(done), nil
+}
+
+// lexicalJoin is the Windows link step: folder elements, the raw target and
+// the elements after the link, cleaned as one path. false = above the root.
+// The result is walked again from the root (its elements can be links too).
+func lexicalJoin(folder []string, target string, rest []string) ([]string, bool) {
+	parts := make([]string, 0, len(folder)+len(rest)+1)
+	parts = append(parts, folder...)
+	if target != "" {
+		parts = append(parts, target)
+	}
+	parts = append(parts, rest...)
+	c := path.Clean(strings.Join(parts, "/"))
+	if strings.HasPrefix(c, "/") || escapes(c) {
+		return nil, false
+	}
+	return split(c), true
 }
 
 // diskName returns the name stored on disk for the existing element seg of

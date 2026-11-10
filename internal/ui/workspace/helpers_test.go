@@ -4,8 +4,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/termpane/termpanetest"
@@ -48,9 +51,16 @@ func copyFixture(t *testing.T) string {
 }
 
 // setup turns the workspace flag on and fakes the terminal launcher; call it
-// before uitest.New.
+// before uitest.New. Embedded panes are on whatever the OS: the panes are
+// termpanetest fakes (no PTY or ConPTY), so the terminal and sharing logic
+// and the shared goldens are the same on every OS. What Windows does instead
+// (no pane, the notice, no terminal sharing) is tested on every OS by the
+// tests that call SetPaneSupportedForTest(false) after setup
+// (TestWindowsTerminalNotice, TestWindowsShareDialogNoTerminals,
+// TestWindowsGuestCanWatch, TestGoldenSolo/windows).
 func setup(t *testing.T) *termpanetest.Fake {
 	t.Helper()
+	t.Cleanup(SetPaneSupportedForTest(true))
 	t.Setenv("MASIL_FEATURES", "workspace")
 	forgetSurfaces()
 	t.Cleanup(forgetSurfaces)
@@ -72,9 +82,60 @@ func openRoute(id, dir string) ui.Route {
 	return ui.Route{Kind: ui.RouteTool, ID: id, Arg: ui.ToolWorkspace, Query: map[string]string{"open": dir}}
 }
 
-// openFolder opens dir as instance id and returns its surface.
+// closeLiveAtEnd closes every open surface when the test ends, the way the
+// app closes a tool (ui.CloseTool): CloseTool and the commands it returns,
+// which end a share and close its audit log. Windows refuses to delete a
+// file or folder that is still open (the os.Root holds the folder, the audit
+// log its ws_*.jsonl), so a surface left open fails t.TempDir's RemoveAll
+// there. Call it after uitest.New: the harness's t.TempDir comes first and
+// Cleanup is LIFO, so this runs before the temp dirs are removed. Calling it
+// more than once is harmless.
+func closeLiveAtEnd(t *testing.T, h *uitest.Harness) {
+	t.Helper()
+	t.Cleanup(func() {
+		liveMu.Lock()
+		open := append([]*Surface(nil), live...)
+		liveMu.Unlock()
+		for _, s := range open {
+			h.Send(ui.CloseTool(s.id)())
+			if !s.closed { // not (or no longer) an app tool entry
+				runCmds(t, h, s.CloseTool(h.Context()))
+			}
+		}
+	})
+}
+
+// runCmds runs cmd the way the program would: a batch's commands each run,
+// and the messages they return go to the app through h.Send (the harness
+// then runs their follow-up commands). A bubbletea-internal message (a
+// tea.Sequence, for one) cannot be run here: it is reported, not dropped, so
+// a close command inside it (endHostCmd closing the audit log) is not lost
+// unseen and Windows' TempDir removal does not fail for no visible reason.
+func runCmds(t *testing.T, h *uitest.Harness, cmd tea.Cmd) {
+	t.Helper()
+	if cmd == nil {
+		return
+	}
+	switch msg := cmd().(type) {
+	case nil:
+	case tea.BatchMsg:
+		for _, c := range msg {
+			runCmds(t, h, c)
+		}
+	default:
+		if reflect.TypeOf(msg).PkgPath() == "charm.land/bubbletea/v2" {
+			t.Errorf("closeLiveAtEnd: CloseTool returned %T, which cleanup cannot run (its commands would be lost)", msg)
+			return
+		}
+		h.Send(msg)
+	}
+}
+
+// openFolder opens dir as instance id and returns its surface (closed when
+// the test ends, closeLiveAtEnd).
 func openFolder(t *testing.T, h *uitest.Harness, id, dir string) *Surface {
 	t.Helper()
+	closeLiveAtEnd(t, h)
 	r := openRoute(id, dir)
 	h.Send(ui.NavigateMsg{Route: r})
 	s, ok := h.Instance(r.Key()).(*Surface)
