@@ -46,6 +46,7 @@ const (
 	cmdBoard        = "leet.board"
 	cmdSettings     = "leet.settings"
 	cmdDailyToggle  = "leet.daily.toggle"
+	cmdTerminal     = "leet.terminal"
 	hubIcon         = "🧩"
 	hubOrder        = 1
 	stateKey        = toolID           // tools-state.json section
@@ -130,6 +131,20 @@ func init() {
 				return nil
 			}
 			return setDaily(ctx, space, !dailyOn(ctx, space))
+		},
+	})
+	palette.Register(palette.Command{
+		ID:        cmdTerminal,
+		Label:     func(t *i18n.T) string { return t.Leetcode.CmdTerminal() },
+		Group:     palette.GroupCommand,
+		Keywords:  []string{"leetcode", "leet", "terminal", "shell"},
+		Available: func(ctx *ui.Context) bool { return features.On(ui.ToolLeet) && activeInstance(ctx) != "" },
+		Run: func(ctx *ui.Context, _ string) tea.Cmd {
+			id := activeInstance(ctx)
+			if id == "" {
+				return nil
+			}
+			return emit(terminalRequestedMsg{id: id})
 		},
 	})
 	ui.RegisterOverlay(OverlayFirstRun, newFirstRun)

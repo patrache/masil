@@ -74,6 +74,12 @@ func completing(c ui.Component) bool {
 	return ok && capturing(c) && cp.Completing()
 }
 
+// codeCompleting reports whether c is a code editor taking ctrl+n / ctrl+p.
+func codeCompleting(c ui.Component) bool {
+	cc, ok := c.(ui.CodeCompleter)
+	return ok && capturing(c) && cc.CompletionKeys()
+}
+
 // handleKey gives msg to c's HandleKey (not a KeyHandler => not handled).
 func (m *Model) handleKey(c ui.Component, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if kh, ok := c.(ui.KeyHandler); ok {
@@ -128,6 +134,13 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 	keys := m.ctx.Keys
 	comp := m.focusedComponent()
 
+	// 2.4 a code editor's completion keys (v0.1.3-1), before ctrl+n's notifications
+	if s := msg.String(); (s == "ctrl+n" || s == "ctrl+p") && codeCompleting(comp) {
+		if handled, cmd := m.handleKey(comp, msg); handled {
+			return cmd
+		}
+	}
+
 	// 3. hard globals
 	switch {
 	case keys.Matches(msg, keymap.PaletteOpen):
@@ -177,14 +190,10 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Batch(cmd, m.openHelp())
 	case keys.Matches(msg, keymap.FeedToggle):
 		return tea.Batch(cmd, m.applyToggle(m.nav.toggleFeed(m.lay.Mode)))
-	case keys.Matches(msg, keymap.TabPrev) && m.onToolSurface():
-		return tea.Batch(cmd, m.applyTools(m.nav.cycleTool(-1, m.lay.Mode)))
-	case keys.Matches(msg, keymap.TabNext) && m.onToolSurface():
-		return tea.Batch(cmd, m.applyTools(m.nav.cycleTool(+1, m.lay.Mode)))
-	case keys.Matches(msg, keymap.TabPrev):
-		return tea.Batch(cmd, m.switchTab(-1))
+	case keys.Matches(msg, keymap.TabPrev): // the walk of the top tab bar (walk.go)
+		return tea.Batch(cmd, m.walkStep(-1))
 	case keys.Matches(msg, keymap.TabNext):
-		return tea.Batch(cmd, m.switchTab(+1))
+		return tea.Batch(cmd, m.walkStep(+1))
 	case keys.Matches(msg, keymap.NavBack):
 		return tea.Batch(cmd, m.goBack())
 	case keys.Matches(msg, keymap.NavHistoryBack):
@@ -235,7 +244,12 @@ func grabbing(c ui.Component) bool {
 }
 
 // grabbedKey gives msg to the focused component when it grabs the keyboard
-// and nothing (an overlay, the login screen) is above it.
+// and nothing (an overlay, the login screen) is above it — every key but
+// tools.toggle (ctrl+t, in any Korean-layout spelling) while a tool flag is
+// on: that one is the way out of a panel (0.1.3 patch: inside lazygit or nvim
+// esc is theirs, and ctrl+\ is hard to type on a Korean layout). It goes back
+// to the chat and the program keeps running; showing the panel again (the
+// hub's enter) gives it the keyboard again. The program never gets ctrl+t.
 func (m *Model) grabbedKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	if len(m.overlays) > 0 || m.login != nil {
 		return nil, false
@@ -245,6 +259,9 @@ func (m *Model) grabbedKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.prefix = prefixNone
+	if toolsOn() && m.ctx.Keys.MatchesToolsToggle(msg) {
+		return m.toggleTools(), true
+	}
 	_, cmd := m.handleKey(comp, msg)
 	return cmd, true
 }
@@ -377,19 +394,6 @@ func (m *Model) applyToggle(n NavState, intent *FocusIntent) tea.Cmd {
 		m.intent = *intent
 	}
 	return m.relayout()
-}
-
-// switchTab is tab.next/tab.prev (delta +1/-1). When Main had the focus, the focus
-// intent follows what Main shows now.
-func (m *Model) switchTab(delta int) tea.Cmd {
-	wasMain := m.focus.Slot == layout.SlotMain
-	prev := m.toolSnap()
-	m.nav = m.nav.cycleTab(delta, m.lay.Mode)
-	cmd := m.relayout()
-	if wasMain {
-		m.followMain()
-	}
-	return tea.Batch(cmd, m.toolSwitched(prev))
 }
 
 // goBack is nav.back / ui.BackMsg: one step back on the surface of the focused slot.

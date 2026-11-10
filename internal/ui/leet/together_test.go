@@ -14,13 +14,15 @@ import (
 	// The git tool next to leet, as cmd/masil/register_leetgit.go links both.
 	// Only this test binary imports both: the production packages still do
 	// not import each other (CA 2.2).
-	_ "github.com/patrache/masil/internal/ui/gittool"
+	"github.com/patrache/masil/internal/ui/gittool"
 )
 
 // fakeLazygit puts a stand-in lazygit first on PATH (it answers --version
 // and -cd like lazygit; the fake pane never runs it) and returns a folder
-// the git instance can open. gittool's own seams live in its test files, so
-// this test uses its real lookup.
+// the git instance can open. The tool finds it on PATH but runs nothing:
+// gittool.StandInEnvForTest answers --version and -cd itself (v0.1.3-1: a
+// real "lazygit -cd" inside the start Cmd passed the harness's 1 s budget
+// under load).
 func fakeLazygit(t *testing.T) (repo string) {
 	t.Helper()
 	// The fake pane draws only the program's base name ("lazygit pane WxH"),
@@ -35,6 +37,7 @@ func fakeLazygit(t *testing.T) (repo string) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("LG_CONFIG_FILE", "")
+	t.Cleanup(gittool.SetEnvForTest(gittool.StandInEnvForTest(cfg)))
 	return t.TempDir()
 }
 

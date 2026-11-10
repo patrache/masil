@@ -208,11 +208,12 @@ func TestComputeCommand200x60(t *testing.T) {
 		t.Fatalf("header = %+v", l)
 	}
 	mustPanes(t, l, []Pane{
-		p(SlotRail, 0, 0, 6, 59, true),
-		p(SlotSidebar, 6, 0, 26, 59, true),
-		p(SlotMain, 32, 0, 78, 59, true),
-		p(SlotFeed, 110, 0, 56, 59, true),
-		p(SlotMembers, 166, 0, 34, 32, true),
+		p(SlotTabs, 0, 0, 200, 1, false),
+		p(SlotRail, 0, 1, 6, 58, true),
+		p(SlotSidebar, 6, 1, 26, 58, true),
+		p(SlotMain, 32, 1, 78, 58, true),
+		p(SlotFeed, 110, 1, 56, 58, true),
+		p(SlotMembers, 166, 1, 34, 31, true),
 		p(SlotNotifications, 166, 32, 34, 27, true),
 		p(SlotStatus, 0, 59, 200, 1, false),
 	})
@@ -221,7 +222,7 @@ func TestComputeCommand200x60(t *testing.T) {
 		t.Fatal("members shown while thread open")
 	}
 	th, ok := l.Pane(SlotThread)
-	if !ok || th.Rect != (Rect{166, 0, 34, 32}) || !th.Bordered {
+	if !ok || th.Rect != (Rect{166, 1, 34, 31}) || !th.Bordered {
 		t.Fatalf("thread = %+v,%v", th, ok)
 	}
 	if pn, ok := l.At(170, 40); !ok || pn.Slot != SlotNotifications {
@@ -230,6 +231,9 @@ func TestComputeCommand200x60(t *testing.T) {
 	if pn, ok := l.At(0, 59); !ok || pn.Slot != SlotStatus {
 		t.Fatalf("At(0,59) = %+v,%v", pn, ok)
 	}
+	if pn, ok := l.At(10, 0); !ok || pn.Slot != SlotTabs {
+		t.Fatalf("At(10,0) = %+v,%v, want the tab bar", pn, ok)
+	}
 	if _, ok := l.At(200, 0); ok {
 		t.Fatal("At outside screen found a pane")
 	}
@@ -237,19 +241,22 @@ func TestComputeCommand200x60(t *testing.T) {
 
 func TestComputeStandard120x40(t *testing.T) {
 	mustPanes(t, Compute(ModeStandard, 120, 40, State{}), []Pane{
-		p(SlotSidebar, 0, 0, 26, 39, true),
-		p(SlotMain, 26, 0, 94, 39, true),
+		p(SlotTabs, 0, 0, 120, 1, false),
+		p(SlotSidebar, 0, 1, 26, 38, true),
+		p(SlotMain, 26, 1, 94, 38, true),
 		p(SlotStatus, 0, 39, 120, 1, false),
 	})
 	mustPanes(t, Compute(ModeStandard, 120, 40, State{ThreadOpen: true}), []Pane{
-		p(SlotSidebar, 0, 0, 26, 39, true),
-		p(SlotMain, 26, 0, 94, 23, true),
+		p(SlotTabs, 0, 0, 120, 1, false),
+		p(SlotSidebar, 0, 1, 26, 38, true),
+		p(SlotMain, 26, 1, 94, 22, true),
 		p(SlotThread, 26, 23, 94, 16, true),
 		p(SlotStatus, 0, 39, 120, 1, false),
 	})
 	mustPanes(t, Compute(ModeStandard, 120, 40, State{ThreadOpen: true, FeedSwapped: true}), []Pane{
-		p(SlotSidebar, 0, 0, 26, 39, true),
-		p(SlotMain, 26, 0, 94, 39, true),
+		p(SlotTabs, 0, 0, 120, 1, false),
+		p(SlotSidebar, 0, 1, 26, 38, true),
+		p(SlotMain, 26, 1, 94, 38, true),
 		p(SlotStatus, 0, 39, 120, 1, false),
 	})
 }
@@ -257,15 +264,17 @@ func TestComputeStandard120x40(t *testing.T) {
 func TestComputeStandardShortThreadFolds(t *testing.T) {
 	l := Compute(ModeStandard, 80, 24, State{ThreadOpen: true})
 	mustPanes(t, l, []Pane{
-		p(SlotSidebar, 0, 0, 24, 23, true),
-		p(SlotMain, 24, 0, 56, 13, true),
-		p(SlotThread, 24, 13, 56, 10, true),
+		p(SlotTabs, 0, 0, 80, 1, false),
+		p(SlotSidebar, 0, 1, 24, 22, true),
+		p(SlotMain, 24, 1, 56, 13, true),
+		p(SlotThread, 24, 14, 56, 9, true),
 		p(SlotStatus, 0, 23, 80, 1, false),
 	})
 	l = Compute(ModeStandard, 100, 12, State{ThreadOpen: true})
 	mustPanes(t, l, []Pane{
-		p(SlotSidebar, 0, 0, 24, 11, true),
-		p(SlotMain, 24, 0, 76, 11, true),
+		p(SlotTabs, 0, 0, 100, 1, false),
+		p(SlotSidebar, 0, 1, 24, 10, true),
+		p(SlotMain, 24, 1, 76, 10, true),
 		p(SlotStatus, 0, 11, 100, 1, false),
 	})
 }
@@ -447,6 +456,9 @@ func checkFormula(t *testing.T, m Mode, c, r int, st State, l Layout) {
 		}
 		return
 	}
+	if tb := need(SlotTabs); tb.Rect != (Rect{0, 0, c, 1}) || tb.Bordered { // every mode: the [ / ] walk bar
+		t.Fatalf("%s %dx%d tabs = %+v", m.ID(), c, r, tb)
+	}
 	stp := need(SlotStatus)
 	if stp.Rect != (Rect{0, r - 1, c, 1}) || stp.Bordered {
 		t.Fatalf("%s %dx%d status = %+v", m.ID(), c, r, stp)
@@ -473,7 +485,6 @@ func checkFormula(t *testing.T, m Mode, c, r int, st State, l Layout) {
 			t.Fatalf("standard %dx%d %+v has thread pane", c, r, st)
 		}
 	case ModeCompact, ModeWidget, ModeTiny:
-		need(SlotTabs)
 		mn := need(SlotMain)
 		if mn.Bordered == (m == ModeTiny) {
 			t.Fatalf("%s main bordered = %v", m.ID(), mn.Bordered)
@@ -494,10 +505,11 @@ func checkFormula(t *testing.T, m Mode, c, r int, st State, l Layout) {
 func TestComputeToolOpenCommand(t *testing.T) {
 	l := Compute(ModeCommand, 200, 60, State{ToolOpen: true})
 	mustPanes(t, l, []Pane{
-		p(SlotRail, 0, 0, 6, 59, true),
-		p(SlotSidebar, 6, 0, 26, 59, true),
-		p(SlotMain, 32, 0, 78, 59, true),
-		p(SlotTool, 110, 0, 90, 59, true),
+		p(SlotTabs, 0, 0, 200, 1, false),
+		p(SlotRail, 0, 1, 6, 58, true),
+		p(SlotSidebar, 6, 1, 26, 58, true),
+		p(SlotMain, 32, 1, 78, 58, true),
+		p(SlotTool, 110, 1, 90, 58, true),
 		p(SlotStatus, 0, 59, 200, 1, false),
 	})
 	for _, s := range []SlotID{SlotFeed, SlotThread, SlotMembers, SlotNotifications} {
@@ -519,9 +531,10 @@ func TestComputeZoomed(t *testing.T) {
 	// Command: the tool covers chat + feed + right column.
 	l := Compute(ModeCommand, 200, 60, State{ToolOpen: true, Zoomed: true})
 	mustPanes(t, l, []Pane{
-		p(SlotRail, 0, 0, 6, 59, true),
-		p(SlotSidebar, 6, 0, 26, 59, true),
-		p(SlotTool, 32, 0, 168, 59, true),
+		p(SlotTabs, 0, 0, 200, 1, false),
+		p(SlotRail, 0, 1, 6, 58, true),
+		p(SlotSidebar, 6, 1, 26, 58, true),
+		p(SlotTool, 32, 1, 168, 58, true),
 		p(SlotStatus, 0, 59, 200, 1, false),
 	})
 	if _, ok := l.Pane(SlotMain); ok {
@@ -530,7 +543,8 @@ func TestComputeZoomed(t *testing.T) {
 
 	// Standard: Main covers the sidebar.
 	mustPanes(t, Compute(ModeStandard, 120, 40, State{Zoomed: true}), []Pane{
-		p(SlotMain, 0, 0, 120, 39, true),
+		p(SlotTabs, 0, 0, 120, 1, false),
+		p(SlotMain, 0, 1, 120, 38, true),
 		p(SlotStatus, 0, 39, 120, 1, false),
 	})
 	if l := Compute(ModeStandard, 120, 40, State{Zoomed: true, ThreadOpen: true}); checkTiling(l, true) != nil {

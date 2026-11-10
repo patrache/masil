@@ -321,6 +321,7 @@ internal/
   archdraw/                            P3   (격자 그리기: 3단계 확대·직교 선 경로·적중 시험 — ui 없음)
   archexport/                          P3   (텍스트 스냅샷·카드 미니 그림·내보내기)
   ui/arch/                             P3   (도구 `arch`: 캔버스 인스턴스·모드별 배치·읽기 보기·docSink·편집)
+  lsp/                                 v0.1.3-1 (언어 서버 클라이언트: stdio 프레이밍·Client·Manager·서버 표·UTF-16 열 — 편집기의 LSP 완성용 엔진, UI 없음)
 ```
 
 P1(LeetCode 오늘의 문제·lazygit) 행:
@@ -379,9 +380,10 @@ ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keym
 - `internal/api` 는 `internal/secrets`·`internal/termhost`·`internal/collab`·`internal/ui/...`·도구 패키지를 **전이로도** import 하지 않는다 — 도구 비밀값(쿠키·토큰)이 구조적으로 masil 서버 요청에 실릴 수 없게(v0.1.3 설계서 A9.3).
 - `internal/termhost` 는 `internal/ui` 를 전이로도 import 하지 않는다(화면이 아니라 프로그램 실행만).
 - `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
-- 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
+- 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*`·`internal/lsp*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
 - `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
 - (P2) 작업공간 엔진 `internal/workspace/...` 는 `internal/ui`·bubbletea·`internal/secrets` 를 전이로도 import 하지 않는다(화면 없이 시험·재사용) — `internal/workspace/imports_test.go` `TestImportRules` 가 강제한다. 화면 `internal/ui/workspace` 만 엔진과 `ui`·`termpane`·`palette` 를 잇는다.
+- (v0.1.3-1) 언어 서버 클라이언트 `internal/lsp` 는 엔진 코드다 — 표준 라이브러리와 `internal/version` 만 import 한다(`internal/ui`·bubbletea·`internal/secrets`·`internal/api`·제3자 모듈 금지, 프로토콜은 손으로 쓴다). `internal/lsp/imports_test.go` `TestImportRules` 가 강제하고, `internal/api`·`internal/ui/chat` 이 `internal/lsp` 에 기대지 않는 것은 위 `TestImportGraph` 접두사가 강제한다.
 - (P2) `internal/api` 는 `internal/workspace/...` 를 전이로도 import 하지 않는다 — 공유 내용(평문·키)은 구조적으로 REST 요청에 실릴 수 없고, 서버에는 암호문 프레임만 relay 로 간다(같은 시험 + 위 `TestImportGraph` 접두사).
 
 P1 도구 패키지(P1 Task 24 가 맞춘 실제 의존):
@@ -594,6 +596,9 @@ open = "auto"              # auto | pane | exec | window (그 밖 값 => auto). 
 history = true             # false => 기록을 쓰지 않음
 history_max = 500          # 남길 최대 건수
 history_days = 30          # 이보다 오래된 기록은 다음 기록 때 지움
+
+[lsp.go]                   # v0.1.3-1 편집기 LSP 완성. 절 이름 = LSP languageId(go·python·cpp·typescript …) — LeetCode slug(golang·python3)가 아니다
+command = ["gopls"]        # argv. 이 프로그램이 PATH 에 있으면 내장 서버 표보다 먼저 쓴다. 비거나 잘못된 값은 그 키만 버림. typescript·javascript 는 …react 도 덮는다
 ```
 
 ```go
@@ -1891,7 +1896,7 @@ const (
 	SlotThread        SlotID = "thread"        // 지휘소 오른쪽 위 / 표준 아래 분할
 	SlotMembers       SlotID = "members"       // 지휘소 오른쪽 위(스레드 닫힘일 때) (chat)
 	SlotNotifications SlotID = "notifications" // 지휘소 오른쪽 아래 (sns-fun)
-	SlotTabs          SlotID = "tabs"          // 컴팩트·위젯·초소형 상단 탭 (core)
+	SlotTabs          SlotID = "tabs"          // 상단 탭 줄 — TooSmall 을 뺀 모든 모드, y=0 한 줄 (core)
 	SlotContext       SlotID = "context"       // 위젯 탭 아래 "#개발 · 노바 개발방 ▾" (core, 내용은 경로 제목)
 	SlotStatus        SlotID = "status"        // 하단 상태줄 (core)
 )
@@ -1923,16 +1928,17 @@ func (l Layout) At(x, y int) (Pane, bool)
 ```
 
 `Compute` 기하 **[결정]** — `W=cols`, `H=rows`, 본문 높이 `B = H-1`(맨 아래 1줄 상태줄 `SlotStatus`, 모든 모드 공통). `clamp(v, lo, hi)`. 정수 나눗셈은 내림.
+**v0.1.3-1**: TooSmall 을 뺀 모든 모드(지휘소·표준 포함)에서 맨 위 `y=0` 한 줄이 `SlotTabs`(테두리 없음, 폭 W)이다. 그래서 지휘소·표준의 창은 `y=1` 에서 시작하고 아래 식의 높이는 모두 `B-1` 기준이다(내용은 아래 "탭(`SlotTabs`)").
 
 - **지휘소** (`[레일][목록][대화][피드][스레드|멤버 / 알림]`):
   - `rail=6`, `side=clamp(W*13/100, 24, 34)`, `right=clamp(W*17/100, 32, 48)`, `rest=W-rail-side-right`, `chat=rest*7/12`, `feed=rest-chat`.
-  - 오른쪽 열: 위 `top=B*55/100` 는 `ThreadOpen` 이면 `SlotThread` 아니면 `SlotMembers`, 아래 `B-top` 은 `SlotNotifications`.
-  - 200×60 → rail 6, side 26, chat 78, feed 56, right 34(top 32 / bottom 27).
+  - 모든 열은 `y=1` 에서 시작, 높이 `B-1`. 오른쪽 열: 위 `top=(B-1)*55/100` 는 `ThreadOpen` 이면 `SlotThread` 아니면 `SlotMembers`, 아래 `B-1-top` 은 `SlotNotifications`.
+  - 200×60 → tabs 200×1(y=0), rail 6, side 26, chat 78, feed 56(모두 높이 58), right 34(top 31 / bottom 27).
 - **표준** (`[목록(방 드롭다운)][대화]`, 스레드는 아래 분할):
   - `side=clamp(W*22/100, 24, 32)`, `main=W-side`.
-  - `ThreadOpen && !FeedSwapped` 이면 main 열을 위 `max(10, B*60/100)` = `SlotMain`, 아래 나머지 = `SlotThread`(아래가 6줄 미만이면 스레드는 Main 으로 대체 열림).
+  - 두 열은 `y=1` 에서 시작, 높이 `B-1`. `ThreadOpen && !FeedSwapped` 이면 main 열을 위 `max(10, (B-1)*60/100)` = `SlotMain`, 아래 나머지 = `SlotThread`(아래가 6줄 미만이면 스레드는 Main 으로 대체 열림).
   - `FeedSwapped` 이면 `SlotMain` 에 피드 경로가 들어간다(분할 없음, 스레드 상태는 보존).
-  - 120×40 → side 26, main 94.
+  - 120×40 → tabs 120×1(y=0), side 26, main 94(높이 38; 스레드 열림이면 main 22 / thread 16).
 - **컴팩트** (`상단 탭 + 대화 하나`): `SlotTabs` 1줄(테두리 없음) + `SlotMain` W×(B-1). 스레드는 Main 을 **교체**(5.3.3 투영 규칙, `esc` 로 채널로).
 - **위젯** (`탭 채팅/피드/알림 + 맥락 줄 + 말풍선`): `SlotTabs` 1줄 + `SlotContext` 1줄(테두리 없음) + `SlotMain` W×(B-2).
 - **초소형**: `SlotTabs` 1줄(축약형) + `SlotMain` W×(B-1) **테두리 없음**(`Bordered=false`).
@@ -2494,8 +2500,11 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 | 위젯 | `tab 탭` |
 | 초소형 | (없음 — `[초소형] ●` 만, 돌아갈 곳이 있으면 `[초소형] ctrl+o 이전 위치 ●`) |
 
-탭(`SlotTabs`):
-- 컴팩트: `NavState.Tabs` 의 각 루트(`#개발`, `#일반 3`, `홈`) 다음에 고정 `DM 6`·`피드`·`알림 2` 세 칸. 현재 탭(`Front==FrontTab` 이면 `InDM` ? `DM` : `Tabs[Active]`, 아니면 `피드`/`알림`)은 `TabActive`, 고정 칸은 비활성일 때 `dim`. `[`/`]`·`tab`/`shift+tab` 이 이 순서로 순환, 클릭 이동, 넘치면 현재 탭이 보이도록 가로 스크롤 + 양 끝 `‹ ›`. DM 은 탭 루트가 되지 않는다(5.3.3 DM 표면).
+탭(`SlotTabs`) **[v0.1.3-1 결정]** — 상단 탭 줄은 **지금 `[`/`]` 가 오가는 순서 전체**를 그대로 보여 준다(TooSmall 을 뺀 모든 모드):
+- 순서의 출처는 하나다: `NavState.walkPlaces(scope)` — 키(`walkStep`), 클릭(`walkGo`), 탭 줄(`Model.walkItems`)이 모두 이것만 읽으므로 탭 줄과 키 순서가 어긋날 수 없다. `scope`(`Model.walkScope`)는 도구 표면에 포커스가 있으면(`onToolSurface`, 위젯·초소형 제외) **열린 도구들**(허브 포함, `Tools` 순서), 아니면 모드별 대화 쪽 순서: 컴팩트·표준 = 탭 루트들 → `DM` → `피드` → `알림` (→ 도구가 열려 있으면 `도구`), 지휘소 = 탭 루트들 → `DM`, 위젯·초소형 = `채팅` → `DM` → `피드` → `알림` (→ `도구`).
+- 그리는 것은 `widgets.WalkBar`: 현재 항목 `TabActive`, `[` 가 갈 항목 앞에 `[`, `]` 가 갈 항목 뒤에 `]`(끝에서 처음으로 감싸기; 항목이 둘이면 두 표시 모두 다른 하나에, 하나면 표시 없음), 안 읽음 배지(`#일반 3`, `DM 6`, `알림 2`). **스크롤하지 않는다**(`‹ ›` 없음) — 폭이 모자라면 단계적으로 줄인다: 모든 라벨을 같은 폭으로 `…` 자르기 → 짧은 라벨(`Tab.Short`: 도구 아이콘, `도`; 없으면 앞 글자 — 2칸까지, 앞이 `#`·`@` 같은 기호뿐이면 다음 한 글자 더: `#개발`→`#개`) → 칸 사이 여백 빼기 → 배지 빼기. 그래도 넘치면 잘리지만 항목은 빠지지 않고 각자 클릭 가능한 칸을 가진다.
+- 클릭 = 그 항목으로 이동(`walkGo`, 포커스도 Main 으로). `[`/`]` 는 이 순서로 순환하고, 창이 하나뿐인 화면(컴팩트·위젯·초소형)에서는 `tab`/`shift+tab` 도 **같은 순서**(`walkStep`)로 순환한다 — 컴팩트 도구 표면에서는 열린 도구 사이.
+- 컴팩트·표준의 탭 루트 칸: `NavState.Tabs` 의 각 루트(`#개발`, `#일반 3`, `홈`), 현재 탭(`Front==FrontTab` 이면 `InDM` ? `DM` : `Tabs[Active]`, 아니면 `피드`/`알림`/`도구`)이 현재 항목. DM 은 탭 루트가 되지 않는다(5.3.3 DM 표면).
 - 위젯: 고정 4탭 `채팅 / DM / 피드 / 알림(배지)` = `FrontTab / FrontTab+InDM / FrontFeed / FrontNotifications`(5.3.3). 배지: `채팅` = `Store.ChannelUnread`(텍스트 채널만), `DM` = `Store.DMUnread`(1:1·그룹 DM 안 읽음 합, 음소거 제외, 차단한 사람과의 1:1 DM 제외, 멘션이 하나라도 있으면 멘션 스타일), `알림` = `Store.InboxBadge()`(`NotifUnread` + 알림 행이 세지 않은 안 읽은 대화, 아래 알림함 "알림 배지"). 맥락 줄 `SlotContext` = 채팅 표면 제목(활성 탭 경로 제목 + 방 이름, DM 표면이면 열린 DM 이름, 목록이면 `DM`) + `▾`(클릭·`enter` 로 채널 전환 팔레트). `[`/`]`·`tab`/`shift+tab` 이 4탭 순환.
 - 초소형: `챗 / DM / 피 / 알` 축약 + 배지, 현재 탭만 pill. 동작은 위젯과 같다.
 - 지휘소 레일: `홈` 바로 아래 `DM`(DM 안 읽음 표시 `•`/멘션 `●`, 클릭·`enter` = `RouteDMs` 를 Main 에, Main 이 DM 목록이거나 DM 을 보이면 현재 항목). `홈` 에는 이제 DM 표시가 없다(DM 에서 센다). 표준(레일 없음): 사이드바 맨 위 방 이름 `▾` 바로 아래 `DM  6` 줄(같은 동작·배지), 방 전환 메뉴에도 `홈` 다음 `DM`. 홈 화면과 사이드바의 `─ DM` 목록은 그대로 둔다.
@@ -2506,7 +2515,7 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 - `Options` 에 `Locale *i18n.Resolution`(nil = `i18n.Resolve(i18n.DetectOS() + config)`). 앱은 시작 때 `ctx.T = i18n.For(Effective)`, `api.Client.SetLanguage`, `Notifier.SetLocale`, `ctx.Keys.Localize(ctx.T)` 를 한 번 한다.
 - **브리지 줄(A6.2)**: 실시간 콜백(`OnEvent`/`OnState`)은 `tea.Program.Send` 를 부르지 않고 **순서를 지키는 줄(FIFO)** 에 넣고 바로 돌아간다. 배달 고루틴 하나가 줄에서 꺼내 `Send` 한다 — 화면 쪽이 막혀도(화면 전환 중) 실시간 루프는 ping·소켓 읽기를 계속한다. 상한 `bridgeQueueLimit = 4096`: 넘치면 쌓인 `EventMsg` 를 버리고 마지막 `RealtimeStateMsg` 만 남긴 뒤 `resyncNeededMsg` 하나를 넣는다 → 화면이 돌아오면 기존 재동기화(REST 부트스트랩 → Resyncer)를 한 번 탄다. `ctx.Post` 는 같은 배달 고루틴의 별도 줄(상한 4096, 넘치면 가장 오래된 비-Coalesce 항목을 버리고 `slog.Warn`).
 - **화면 전환 복귀 토스트(JA28)**: `termhost.Exclusive()` 가 참인 동안 브리지가 남의 `message.created`·mention alert 를 세고, 끝나면 상태줄 토스트 한 번 `termpane.exec_return` = `{program} 쓰는 동안 · 새 메시지 {messages} · 멘션 {mentions}`(`{program}` = `ExitInfo.Title`, 비면 `filepath.Base(Program)`; 0건이면 토스트 없음).
-- **탭 줄**: 컴팩트·위젯·초소형은 도구가 하나라도 열려 있을 때만 끝에 고정 칸 `도구`(초소형 `도`, 카탈로그 `tools.tab_label`/`tab_label_short`)가 생기고, 모두 닫으면 사라진다(80×24·44×24 에서 넘치지 않음). 위젯 맥락 줄은 도구 표면일 때 `🌿 lazygit · masil ▾` 처럼 도구 제목 + 대상, `▾` 클릭으로 열린 도구 사이 전환(다음 항목, 끝에서 처음으로; 하나만 열려 있으면 지금처럼 팔레트). 위젯·초소형의 `[`/`]` 는 고정 탭 순환 그대로이고, 키보드로 도구 사이를 오가는 길은 팔레트 `tools.next`/`tools.prev` 와 허브다. 초소형(테두리 없음)의 허브는 첫 줄 왼쪽에 제목 `도구` 를 직접 그린다.
+- **탭 줄**: 컴팩트·위젯·초소형은 도구가 하나라도 열려 있을 때만 끝에 고정 칸 `도구`(초소형 `도`, 카탈로그 `tools.tab_label`/`tab_label_short`)가 생기고, 모두 닫으면 사라진다(80×24·44×24 에서 넘치지 않음). 위젯 맥락 줄은 도구 표면일 때 `🌿 lazygit · masil ▾` 처럼 도구 제목 + 대상, `▾` 클릭으로 열린 도구 사이 전환(다음 항목, 끝에서 처음으로; 하나만 열려 있으면 지금처럼 팔레트). 위젯·초소형의 `[`/`]` 는 고정 탭 순환 그대로이고, 키보드로 도구 사이를 오가는 길은 팔레트 `tools.next`/`tools.prev` 와 허브다(v0.1.3-1: 그 밖의 모드는 도구 표면에서 `[`/`]` 가 열린 도구 사이를 오가며 상단 탭 줄이 그 목록을 보인다 — 위 "탭(`SlotTabs`)"). 초소형(테두리 없음)의 허브는 첫 줄 왼쪽에 제목 `도구` 를 직접 그린다.
 - **상태줄**: 포커스 컴포넌트가 `StatusTexter` 면 그 문구가 힌트를 대신한다(패널 포커스 `⌨ lazygit 에 입력 중 · ctrl+\ esc 나가기`, 접두 대기 `ctrl+\ 다음: esc 나가기 · z 확대 · x 끝내기 · p 팔레트 · ? 도움말`). 도움말·상태줄의 `ctrl+t`·`tools.zoom` 줄은 `features.Any()` 일 때만 보인다(플래그가 꺼져 있으면 0.1.2 와 같은 화면).
 - **키 독점**: 포커스 컴포넌트가 `KeyGrabber` 이고 `GrabsKeys()` 면 앱은 하드 전역(`ctrl+c`·`ctrl+k`·`tab` …)을 판단하기 전에 키·붙여넣기·포커스 msg 를 그 컴포넌트로 넘긴다. 빠져나오는 길은 `ctrl+\` 접두키(5.5 `termhost.escape`)뿐. `ui.KillSwitchActive()` 인 동안은 어느 화면에서든 `ctrl+\` 다음 `x` 가 `ui.KillAll`(확인 없음).
 - **끝내기**: 모든 종료 경로(`ctrl+c` 두 번·`/quit`·팔레트 `quit`)가 하나의 `requestQuit()` 를 지나고, `termhost.Running()` 이 비어 있지 않으면 확인 대화상자 `termpane.quit_confirm`(`lazygit 1개, nvim 1개가 실행 중이에요. 함께 끌까요?`, 기본 "아니오") → 예 = `termhost.CloseAll(2s)` 뒤 종료. `MASIL_PANE=1`(masil 이 masil 패널 안에서 뜸)이면 첫 그리기 뒤 경고 토스트 한 번.

@@ -69,6 +69,7 @@ type Editor struct {
 	w, h      int
 	left      int // first shown cell column of the text area
 	cmdResult string
+	as        assist // syntax colors and completion (assist.go)
 }
 
 // memClip is the editor's own clipboard (yank/put stay inside masil).
@@ -79,7 +80,7 @@ func (c *memClip) Read() (string, error) { return c.s, nil }
 
 // New makes an editor over text.
 func New(th *theme.Theme, text string, readOnly bool) *Editor {
-	e := &Editor{th: th, core: core.New(&memClip{}), readOnly: readOnly}
+	e := &Editor{th: th, core: core.New(&memClip{}), readOnly: readOnly, as: assist{highlight: true, complete: true}}
 	e.core.SetMaxHistory(0)
 	e.core.DisableInsertMode(readOnly)
 	e.load([]rune(text), core.Position{})
@@ -91,6 +92,7 @@ func (e *Editor) load(text []rune, pos core.Position) {
 	top := e.core.GetState().TopLine
 	visual := e.core.GetState().VisualStart
 	e.text = text
+	e.as.ver++
 	body := text
 	e.trailNL = len(text) > 0 && text[len(text)-1] == '\n'
 	if e.trailNL {
@@ -171,6 +173,9 @@ func (e *Editor) SetReadOnly(ro bool) {
 	if ro && e.core.IsInsertMode() {
 		e.core.SetNormalMode()
 	}
+	if ro {
+		e.closeMenu()
+	}
 }
 
 // ReadOnly reports whether editing is off.
@@ -229,6 +234,9 @@ func (e *Editor) ApplyRemote(op ot.Op) {
 	}
 	e.load(next, positionOf(next, cur))
 	e.scrollColumn()
+	if e.as.open {
+		e.fillMenu(true)
+	}
 }
 
 // Reset replaces the whole document (a reload), keeping the cursor index
@@ -238,6 +246,7 @@ func (e *Editor) Reset(text string) {
 	r := []rune(text)
 	e.load(r, positionOf(r, min(cur, len(r))))
 	e.ops = nil
+	e.closeMenu()
 	e.scrollColumn()
 }
 
@@ -246,6 +255,20 @@ func (e *Editor) Reset(text string) {
 func (e *Editor) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	defer e.drainSignals()
 	ks := msg.String()
+	if e.as.open && !e.menuLive() {
+		e.closeMenu() // stale (the mode or the level changed under it)
+	}
+	if e.as.open && e.menuKey(ks) {
+		return true, nil
+	}
+	if (ks == "ctrl+n" || ks == "ctrl+space" || ks == "ctrl+@") && e.core.IsInsertMode() {
+		if e.as.complete && !e.readOnly {
+			e.as.forced = true
+			e.refreshMenu()
+			e.ask()
+		}
+		return true, nil
+	}
 	normal := e.core.IsNormalMode()
 	switch {
 	case normal && (ks == "u" || ks == "U"):
@@ -268,6 +291,7 @@ func (e *Editor) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	}
 	e.snapCursor(before, beforeRow)
 	e.afterKey()
+	e.afterAssistKey(msg.Code, msg.Text)
 	return true, nil
 }
 
@@ -309,6 +333,7 @@ func (e *Editor) afterKey() {
 		} else {
 			e.ops = append(e.ops, ot.Diff(e.text, now))
 			e.text = now
+			e.as.ver++
 		}
 	}
 	e.core.ScrollViewport()

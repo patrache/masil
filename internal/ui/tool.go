@@ -140,6 +140,7 @@ type OpenToolInfo struct {
 	Title  string // its tab title with the tool's icon (sanitized)
 	Status string // ToolStatuser.ToolStatus ("" when it has none)
 	Active bool   // it is the tool surface's active entry and the surface is in front
+	Last   bool   // it was active when ctrl+t last brought the hub forward (the hub's cursor starts on it)
 }
 
 // ToolSwitchedMsg is broadcast when the tool surface's active instance, or its
@@ -147,6 +148,10 @@ type OpenToolInfo struct {
 type ToolSwitchedMsg struct {
 	Route  Route
 	Zoomed bool
+	// Toggled: tools.toggle (ctrl+t) brought the surface (the hub) forward
+	// from the chat — not a zoom, tools.next/prev or a navigation. Only then
+	// does the hub move its cursor to the last instance.
+	Toggled bool
 }
 
 // ToolSurfaceAction is a tool-surface command of the shell.
@@ -154,7 +159,7 @@ type ToolSurfaceAction int
 
 // Tool-surface actions (palette tools.toggle / tools.next / tools.prev / tools.zoom).
 const (
-	ToolSurfaceToggle ToolSurfaceAction = iota + 1 // ctrl+t: tool surface <-> chat (the hub the first time)
+	ToolSurfaceToggle ToolSurfaceAction = iota + 1 // ctrl+t: the hub <-> chat (the open tools kept)
 	ToolSurfaceNext                                // the next open tool
 	ToolSurfacePrev                                // the previous open tool
 	ToolSurfaceZoom                                // the active instance's wide view on/off

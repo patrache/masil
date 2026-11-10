@@ -23,15 +23,13 @@ import (
 // and the feed stack (one key, one place). It is in front when Front ==
 // FrontTools. Every entry point (ctrl+t, tools.* commands, the tab) exists only
 // while a tool feature flag is on (features.Any): with no tool open the shell
-// is the 0.1.2 shell byte for byte.
+// is the 0.1.2 shell, but for the top tab bar of the [ / ] walk (walk.go,
+// 0.1.3 patch), which every mode now has.
 
 // maxTools is the tool-surface limit, the hub included (A8.4). One place is
 // always kept for the hub: at most maxTools-1 instances, so the hub (where
 // the limit toast sends the user to close one) can always be opened.
 const maxTools = 6
-
-// widgetTools is the widget/tiny tab index of the tool tab (after 채팅/DM/피드/알림).
-const widgetTools = 4
 
 // hubRoute is the single hub route (key "tools//").
 var hubRoute = ui.Route{Kind: ui.RouteTools}
@@ -65,6 +63,10 @@ func (c *NavState) cloneTools(n NavState) {
 	}
 	if len(c.Tools) == 0 && c.Front == FrontTools {
 		c.Front = FrontTab
+	}
+	c.ToolLast = n.ToolLast
+	if i := c.toolIndex(c.ToolLast); i < 0 || c.Tools[i].Kind != ui.RouteTool {
+		c.ToolLast = ""
 	}
 }
 
@@ -160,6 +162,9 @@ func (n NavState) closeToolEntry(k string) (NavState, bool) {
 	}
 	c.Tools = slices.Delete(c.Tools, i, i+1)
 	delete(c.ToolZoom, k)
+	if c.ToolLast == k {
+		c.ToolLast = ""
+	}
 	switch {
 	case len(c.Tools) == 0:
 		c.ToolActive = 0
@@ -175,30 +180,40 @@ func (n NavState) closeToolEntry(k string) (NavState, bool) {
 }
 
 // toggleTools is tools.toggle (ctrl+t): the tool surface in front goes back to
-// the chat; otherwise the last tool shown comes to the front (the hub when
-// none is open).
+// the chat; otherwise the hub comes to the front (added before the open
+// instances when it is not open), the open instances kept. The instance that
+// was active is remembered as ToolLast, so the hub's cursor starts on it and
+// ctrl+t enter shows that same instance again (0.1.3 patch: the hub used to
+// appear only the first time). When the hub itself was the active entry,
+// ToolLast is cleared: the hub keeps the cursor where the user left it.
 func (n NavState) toggleTools(mode layout.Mode) (NavState, FocusIntent) {
 	c := n.clone()
-	switch {
-	case c.Front == FrontTools:
+	if c.Front == FrontTools {
 		c.Front = FrontTab
 		return c, FocusIntent{Slot: layout.SlotMain, RouteKey: c.shownMain(mode).Key()}
-	case len(c.Tools) == 0:
-		return c.openTool(hubRoute, mode)
 	}
-	c.Front = FrontTools
-	r, _ := c.activeTool()
-	return c, FocusIntent{Slot: toolSlotFor(mode), RouteKey: r.Key()}
+	if r, ok := c.activeTool(); ok && r.Kind == ui.RouteTool {
+		c.ToolLast = r.Key()
+	} else {
+		c.ToolLast = ""
+	}
+	return c.openTool(hubRoute, mode)
 }
 
-// cycleTool shows the next (delta +1) or previous open tool, wrapping.
+// cycleTool shows the next (delta +1) or previous open tool, wrapping: one step
+// along walkTools (walk.go).
 func (n NavState) cycleTool(delta int, mode layout.Mode) (NavState, FocusIntent) {
 	c := n.clone()
 	if len(c.Tools) == 0 {
 		return c, FocusIntent{}
 	}
-	size := len(c.Tools)
-	c.ToolActive = ((c.ToolActive+delta)%size + size) % size
+	return c.showToolAt(wrapWalk(c.ToolActive, delta, len(c.Tools)), mode)
+}
+
+// showToolAt shows the open tool i (in range) on the tool surface.
+func (n NavState) showToolAt(i int, mode layout.Mode) (NavState, FocusIntent) {
+	c := n.clone()
+	c.ToolActive = i
 	c.Front = FrontTools
 	r, _ := c.activeTool()
 	return c, FocusIntent{Slot: toolSlotFor(mode), RouteKey: r.Key()}
@@ -238,25 +253,34 @@ func (m *Model) toolSnap() toolSnap {
 
 // toolSwitched broadcasts ui.ToolSwitchedMsg when the entry in front or its wide
 // view changed since prev (and the surface is in front).
-func (m *Model) toolSwitched(prev toolSnap) tea.Cmd {
+func (m *Model) toolSwitched(prev toolSnap) tea.Cmd { return m.toolSwitchedBy(prev, false) }
+
+// toolSwitchedBy is toolSwitched with the msg's Toggled (tools.toggle made the
+// change).
+func (m *Model) toolSwitchedBy(prev toolSnap, toggled bool) tea.Cmd {
 	now := m.toolSnap()
 	if now.key == "" || now == prev {
 		return nil
 	}
 	r, _ := m.nav.activeTool()
-	return m.broadcast(ui.ToolSwitchedMsg{Route: r, Zoomed: now.zoomed})
+	return m.broadcast(ui.ToolSwitchedMsg{Route: r, Zoomed: now.zoomed, Toggled: toggled})
 }
 
 // applyTools installs a tool-surface transition: the new state, its focus
 // intent (when set), the relayout, then ToolSwitchedMsg.
 func (m *Model) applyTools(n NavState, intent FocusIntent) tea.Cmd {
+	return m.applyToolsBy(n, intent, false)
+}
+
+// applyToolsBy is applyTools with the ToolSwitchedMsg's Toggled.
+func (m *Model) applyToolsBy(n NavState, intent FocusIntent, toggled bool) tea.Cmd {
 	prev := m.toolSnap()
 	m.nav = n
 	if intent.Slot != "" {
 		m.intent = intent
 	}
 	cmd := m.relayout()
-	return tea.Batch(cmd, m.toolSwitched(prev))
+	return tea.Batch(cmd, m.toolSwitchedBy(prev, toggled))
 }
 
 // toolsOn reports whether the tool surface exists in this run (a tool flag is on).
@@ -339,7 +363,8 @@ func (m *Model) toolMsg(msg tea.Msg) (tea.Cmd, bool) {
 
 // toggleTools is tools.toggle.
 func (m *Model) toggleTools() tea.Cmd {
-	return m.applyTools(m.nav.toggleTools(m.lay.Mode))
+	n, intent := m.nav.toggleTools(m.lay.Mode)
+	return m.applyToolsBy(n, intent, true)
 }
 
 // zoomTool is tools.zoom on the active tool (no-op while the surface is not in
@@ -398,7 +423,7 @@ func (m *Model) openTools() []ui.OpenToolInfo {
 		if r.Kind != ui.RouteTool {
 			continue
 		}
-		info := ui.OpenToolInfo{Route: r, Title: m.toolEntryTitle(r), Active: i == m.nav.ToolActive && m.nav.Front == FrontTools}
+		info := ui.OpenToolInfo{Route: r, Title: m.toolEntryTitle(r), Active: i == m.nav.ToolActive && m.nav.Front == FrontTools, Last: r.Key() == m.nav.ToolLast}
 		if in := m.cache.lookup(r.Key()); in != nil {
 			if s, ok := in.comp.(ui.ToolStatuser); ok {
 				info.Status = textwidth.Sanitize(s.ToolStatus(m.ctx))
@@ -447,9 +472,11 @@ func (c *instanceCache) drop(k string) {
 	c.order = slices.DeleteFunc(c.order, func(o string) bool { return o == k })
 }
 
-// toolKey is the hard global ctrl+t (tools.toggle) while a tool flag is on.
+// toolKey is the hard global ctrl+t (tools.toggle) while a tool flag is on —
+// ctrl+ㅅ and BaseCode 't' too (keymap.MatchesToolsToggle), so a Korean
+// layout reaches it from any text field.
 func (m *Model) toolKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
-	if !toolsOn() || !m.ctx.Keys.Matches(msg, keymap.ToolsToggle) {
+	if !toolsOn() || !m.ctx.Keys.MatchesToolsToggle(msg) {
 		return nil, false
 	}
 	return m.toggleTools(), true

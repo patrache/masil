@@ -1155,6 +1155,9 @@ func wrapLine(line string, width int) []string {
 }
 
 func (m *Model) getCursorStyles() lipgloss.Style {
+	if m.cursorCellStyle != nil { // masil
+		return *m.cursorCellStyle
+	}
 	state := m.editor.GetState()
 	switch state.Mode {
 	case core.InsertMode:
@@ -1542,6 +1545,9 @@ func (m *Model) renderSegmentWithSyntax(
 	getBaseStyle := func(col int) lipgloss.Style {
 		token, hasToken := highlighter.FindTokenAtPosition(tokenPositions, col)
 		if hasToken && m.highlighter != nil {
+			if m.syntaxStyle != nil { // masil
+				return m.syntaxStyle(token.Type)
+			}
 			return m.highlighter.GetStyleForToken(token.Type)
 		}
 		return lipgloss.NewStyle()

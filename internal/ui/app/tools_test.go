@@ -166,9 +166,12 @@ func TestCtrlTOpensHubEveryMode(t *testing.T) {
 			t.Fatalf("third ctrl+t: %+v, %v, want the hub (last tool)", r, ok)
 		}
 		openTool(h, ui.ToolGit, "g1")
-		h.Press("ctrl+t", "ctrl+t")
-		if r, ok := shownTool(h); !ok || r.Key() != toolRoute(ui.ToolGit, "g1").Key() {
-			t.Fatalf("ctrl+t ctrl+t after opening git: %+v, %v, want the last tool", r, ok)
+		h.Press("ctrl+t", "ctrl+t") // 0.1.3 patch: the hub again, never straight into the last tool
+		if r, ok := shownTool(h); !ok || r.Kind != ui.RouteTools {
+			t.Fatalf("ctrl+t ctrl+t after opening git: %+v, %v, want the hub", r, ok)
+		}
+		if n := h.Model.Nav(); len(n.Tools) != 2 || n.ToolLast != toolRoute(ui.ToolGit, "g1").Key() {
+			t.Fatalf("ctrl+t ctrl+t after opening git: tools %v last %q, want git kept and remembered", n.Tools, n.ToolLast)
 		}
 		h.Check()
 	})
@@ -208,8 +211,8 @@ func TestCommandModeKeepsChatColumn(t *testing.T) {
 	if got != 1 {
 		t.Errorf("chat column got %d events, want 1", got)
 	}
-	if !strings.Contains(h.Screen(), "git 88x57") {
-		t.Errorf("tool not drawn at 88x57:\n%s", h.Screen())
+	if !strings.Contains(h.Screen(), "git 88x56") { // the top row is the tab bar
+		t.Errorf("tool not drawn at 88x56:\n%s", h.Screen())
 	}
 	// Opening another channel from the chat column keeps the tool beside it.
 	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChGeneral}})
@@ -284,9 +287,41 @@ func TestToolSwitchedBroadcast(t *testing.T) {
 		t.Fatalf("ToolSwitchedMsg = %+v, want %+v", got, want)
 	}
 	for i := range want {
-		if got[i].Route.Key() != want[i].Route.Key() || got[i].Zoomed != want[i].Zoomed {
+		if got[i].Route.Key() != want[i].Route.Key() || got[i].Zoomed != want[i].Zoomed || got[i].Toggled {
 			t.Errorf("ToolSwitchedMsg[%d] = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+// Review fix (tools-nav): Toggled is set only when tools.toggle (ctrl+t)
+// brings the hub forward — not for a zoom of the hub, nor tools.next/prev
+// landing on it — so only then does the hub move its cursor.
+func TestToolSwitchedToggledOnlyByToggle(t *testing.T) {
+	installStubTools(t, "all")
+	h := uitest.New(t)
+	h.Resize(120, 40)
+	var got []ui.ToolSwitchedMsg
+	app.SetObserverForTest(h.Model, func(msg tea.Msg) {
+		if m, ok := msg.(ui.ToolSwitchedMsg); ok {
+			got = append(got, m)
+		}
+	})
+	openTool(h, ui.ToolArch, "a1")
+	got = nil
+	h.Press("ctrl+t", "ctrl+t") // the chat, then the hub
+	h.Press("ctrl+w", "z")      // zoom the hub
+	h.Send(ui.ToolSurfaceMsg{Action: ui.ToolSurfaceNext})
+	h.Send(ui.ToolSurfaceMsg{Action: ui.ToolSurfacePrev})
+	if len(got) != 4 {
+		t.Fatalf("ToolSwitchedMsg = %+v, want hub, hub zoomed, a1, hub", got)
+	}
+	for i, wantToggled := range []bool{true, false, false, false} {
+		if got[i].Toggled != wantToggled {
+			t.Errorf("ToolSwitchedMsg[%d] = %+v, want Toggled %v", i, got[i], wantToggled)
+		}
+	}
+	if got[0].Route.Kind != ui.RouteTools || got[1].Route.Kind != ui.RouteTools || !got[1].Zoomed || got[3].Route.Kind != ui.RouteTools {
+		t.Errorf("ToolSwitchedMsg = %+v, want hub, hub zoomed, a1, hub", got)
 	}
 }
 
@@ -370,6 +405,11 @@ func TestCompactToolTab(t *testing.T) {
 	h.Resize(120, 30)
 	before := tabRow(h)
 	openTool(h, ui.ToolGit, "g1")
+	// On the tool surface the bar lists what [ / ] walk there: the open tools.
+	if row := tabRow(h); !strings.Contains(row, "tool git") || strings.Contains(row, "도구") {
+		t.Errorf("compact tab bar on the tool surface: %q", row)
+	}
+	h.Press("ctrl+t") // back to the chat: the chat walk, with the 도구 tab
 	row := tabRow(h)
 	if !strings.Contains(row, "도구") || strings.Contains(before, "도구") {
 		t.Errorf("compact tab bar: before %q after %q", before, row)

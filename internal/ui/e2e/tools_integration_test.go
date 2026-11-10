@@ -26,6 +26,7 @@ import (
 	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/gittool"
 	"github.com/patrache/masil/internal/ui/leet"
 	"github.com/patrache/masil/internal/ui/termpane/termpanetest"
 	"github.com/patrache/masil/internal/ui/uitest"
@@ -90,6 +91,11 @@ func setupTools(t *testing.T) *toolsRig {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("SHELL", filepath.Join(bin, "sh0"))
+	// The tool finds the stand-in on PATH (a real pane runs it) but asks it
+	// nothing: --version and -cd are answered without a process (v0.1.3-1:
+	// a real "lazygit -cd" inside the start Cmd passed the harness's 1 s
+	// budget under load).
+	t.Cleanup(gittool.SetEnvForTest(gittool.StandInEnvForTest(cfg)))
 	r.lc = leetcodetest.New(t)
 	r.lc.SetDailyDate(toolsDate)
 	t.Cleanup(leet.SetLeetcodeForTest(r.lc.URL))

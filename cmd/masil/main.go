@@ -122,6 +122,7 @@ func realMain() int {
 	}
 	defer closeLog()
 	slog.SetDefault(logger)
+	defer setupLSP(cfg)() // runs before closeLog: the servers' last lines reach the log
 
 	return run(ctx, os.Args[1:], env)
 }

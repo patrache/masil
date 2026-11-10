@@ -45,7 +45,8 @@ const hintThread = "스레드"
 // inputHints replace the mode hints while the focused component captures input.
 var inputHints = []hintItem{{"enter", "보내기"}, {"shift+enter", "줄바꿈"}, {"esc", "나가기"}}
 
-// maxHints caps the hint items (defaults + Helper additions, CA 5.4).
+// maxHints caps the hint items (defaults + Helper additions, CA 5.4); the
+// tool hint (toolsHint) comes on top.
 const maxHints = 5
 
 // statusItem is one right-side item ("● 온라인"). Essential items survive a narrow
@@ -247,6 +248,7 @@ func (m *Model) hints() (out []string, base int) {
 		noThread = th.HidesThread(m.ctx)
 	}
 	shown := map[string]bool{}
+	extra := 0 // the tool hint: on top of maxHints, so it never displaces a component hint
 	for _, h := range defaults {
 		if noThread && h.Desc == hintThread {
 			continue
@@ -256,11 +258,18 @@ func (m *Model) hints() (out []string, base int) {
 		}
 		shown[h.Key] = true
 		out = append(out, h.String())
+		if h.Key == "ctrl+k" {
+			if th, ok := m.toolsHint(); ok {
+				shown[th.Key] = true
+				out = append(out, th.String())
+				extra++
+			}
+		}
 	}
 	base = len(out)
 	if hp, ok := comp.(ui.Helper); ok {
 		for _, b := range hp.Help(m.ctx) {
-			if len(out) >= maxHints {
+			if len(out)-extra >= maxHints {
 				break
 			}
 			if !b.Enabled() || overlaps(b, shown) {
@@ -279,6 +288,21 @@ func (m *Model) hints() (out []string, base int) {
 		}
 	}
 	return out, base
+}
+
+// toolsHint is "ctrl+t 도구" (tools.toggle's help key, from [keys]) shown
+// right after the ctrl+k mode hint while a tool flag is on and the chat is in
+// front (0.1.3 patch: nothing on the chat said how to reach the tools; on the
+// tool surface the hub's first line carries its own close key).
+func (m *Model) toolsHint() (hintItem, bool) {
+	if !toolsOn() || m.nav.Front == FrontTools {
+		return hintItem{}, false
+	}
+	k := m.ctx.Keys.Binding(keymap.ToolsToggle).Help().Key
+	if k == "" {
+		return hintItem{}, false
+	}
+	return hintItem{Key: k, Desc: m.ctx.T.Tools.StatusHint()}, true
 }
 
 // overlaps reports whether any key of b (or its help label) is already shown.

@@ -43,6 +43,7 @@ type NavState struct {
 	Tools      []ui.Route
 	ToolActive int             // index into Tools
 	ToolZoom   map[string]bool // instance Route.Key() -> wide view (missing = ToolSpec.WideDefault)
+	ToolLast   string          // Route.Key() of the instance last active before ctrl+t brought the hub forward ("" = none); the hub's cursor starts on it
 }
 
 // dmPred reports whether a channel id is a DM or group DM (Store.IsDM); nil knows none.
@@ -536,119 +537,32 @@ func (n NavState) toggleNotifications(mode layout.Mode) (NavState, *FocusIntent)
 	return c, &FocusIntent{Slot: layout.SlotMain, RouteKey: c.shownMain(mode).Key()}
 }
 
-// widgetPos is the widget/tiny tab shown: 0 채팅, 1 DM, 2 피드, 3 알림, 4 도구
-// (the tool tab exists while a tool is open).
-func (n NavState) widgetPos() int {
-	switch {
-	case n.Front == FrontTools:
-		return widgetTools
-	case n.Front == FrontFeed:
-		return 2
-	case n.Front == FrontNotifications:
-		return 3
-	case n.InDM:
-		return 1
-	}
-	return 0
-}
-
-// setWidgetPos shows widget/tiny tab i (widgetPos order); the chat tabs keep their place.
-func (n *NavState) setWidgetPos(i int) {
-	switch i {
-	case 0, 1:
-		n.Front, n.InDM = FrontTab, i == 1
-	case 2:
-		n.Front = FrontFeed
-	case 3:
-		n.Front = FrontNotifications
-	case widgetTools:
-		if len(n.Tools) > 0 {
-			n.Front = FrontTools
-		}
-	}
-}
-
-// barPos is the compact/standard tab shown: Tabs indexes, then DM (len(Tabs)), 피드, 알림,
-// then 도구 while a tool is open.
-func (n NavState) barPos() int {
-	nt := len(n.Tabs)
-	switch {
-	case n.Front == FrontTools:
-		return nt + 3
-	case n.Front == FrontFeed:
-		return nt + 1
-	case n.Front == FrontNotifications:
-		return nt + 2
-	case n.InDM:
-		return nt
-	}
-	return n.Active
-}
-
-// setBarPos shows compact/standard tab i (barPos order); selecting a tab marks it seen.
-func (n *NavState) setBarPos(i int) {
-	nt := len(n.Tabs)
-	switch {
-	case i < nt:
-		n.Active, n.Front, n.InDM = i, FrontTab, false
-		n.touch()
-	case i == nt:
-		n.Front, n.InDM = FrontTab, true
-	case i == nt+1:
-		n.Front = FrontFeed
-	case i == nt+3 && len(n.Tools) > 0:
-		n.Front = FrontTools
-	default:
-		n.Front = FrontNotifications
-	}
-}
-
-// cycleTab is tab.next/tab.prev (delta +1/-1, wrapping). Compact and standard walk the tab
-// roots then DM, 피드, 알림; widget and tiny walk the fixed 채팅/DM/피드/알림 tabs; command
-// walks Tabs then DM (Front is not visible there, but becomes FrontTab: Main shows that
-// place, so the switch is a history place and a mode change keeps it); TooSmall is a
-// no-op. Selecting a tab marks it seen; the DM and 채팅 tabs keep their own place.
+// cycleTab is tab.next/tab.prev on the chat side (delta +1/-1, wrapping): one
+// step along chatWalk(mode) — see walk.go. Compact and standard walk the tab
+// roots then DM, 피드, 알림 (then 도구 while a tool is open); widget and tiny
+// walk the fixed 채팅/DM/피드/알림 tabs (then 도구); command walks Tabs then
+// DM; TooSmall is a no-op. Selecting a tab marks it seen; the DM and 채팅 tabs
+// keep their own place.
 func (n NavState) cycleTab(delta int, mode layout.Mode) NavState {
 	c := n.clone()
-	if delta == 0 || mode == layout.ModeTooSmall {
+	if delta == 0 {
 		return c
 	}
-	wrap := func(i, size int) int { return ((i+delta)%size + size) % size }
-	switch mode {
-	case layout.ModeCommand:
-		nt := len(c.Tabs)
-		cur := c.Active
-		if c.InDM {
-			cur = nt
-		}
-		tools := c.Front == FrontTools
-		c.setBarPos(wrap(cur, nt+1))
-		c.Front = FrontTab        // Main shows that place now (the feed column stays as it was)
-		if tools && !c.zoomed() { // ... and the tool column beside it too
-			c.Front = FrontTools
-		}
-	case layout.ModeWidget, layout.ModeTiny:
-		c.setWidgetPos(wrap(c.widgetPos(), 4+c.toolTabs()))
-	default:
-		c.setBarPos(wrap(c.barPos(), len(c.Tabs)+3+c.toolTabs()))
+	s := chatWalk(mode)
+	size := c.walkLen(s)
+	if size == 0 {
+		return c
 	}
-	return c
+	return c.walkTo(s, wrapWalk(c.walkPos(s), delta, size))
 }
 
-// selectTab activates the tab-bar entry i (a click; the order of cycleTab and
-// tabItems): compact walks the tab roots then DM, 피드, 알림, widget and tiny the fixed
-// 채팅/DM/피드/알림 tabs. Out-of-range entries and other modes are no-ops.
+// selectTab activates the chat-side walk entry i (a tab-bar click; the order of
+// cycleTab and walkItems). Out-of-range entries and TooSmall are no-ops.
 func (n NavState) selectTab(i int, mode layout.Mode) NavState {
 	c := n.clone()
-	switch mode {
-	case layout.ModeWidget, layout.ModeTiny:
-		if i >= 0 && i < 4+c.toolTabs() {
-			c.setWidgetPos(i)
-		}
-	case layout.ModeCompact:
-		if i >= 0 && i < len(c.Tabs)+3+c.toolTabs() {
-			c.setBarPos(i)
-		}
+	s := chatWalk(mode)
+	if i < 0 || i >= c.walkLen(s) {
+		return c
 	}
-	return c
+	return c.walkTo(s, i)
 }

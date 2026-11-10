@@ -5,6 +5,7 @@ import (
 
 	"time"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/ui"
@@ -123,4 +124,57 @@ func TakeEnvCookiesForTest(tb interface{ Cleanup(func()) }) {
 		envCookies = saved
 		envCookieMu.Unlock()
 	})
+}
+
+// EditorViewForTest is the built-in editor's own styled view (ok=false: no
+// built-in editor is open).
+func EditorViewForTest(ctx *ui.Context, c ui.Component) (string, bool) {
+	g, ok := c.(*instance).ed.(*goEditor)
+	if !ok {
+		return "", false
+	}
+	return g.View(ctx, true), true
+}
+
+// CompletionMenuForTest reports whether the built-in editor's completion
+// menu is up.
+func CompletionMenuForTest(c ui.Component) bool {
+	g, ok := c.(*instance).ed.(*goEditor)
+	return ok && g.m.CompletionMenuVisible()
+}
+
+// CompletionLabelsForTest is the built-in editor's menu, in order (nil:
+// none up).
+func CompletionLabelsForTest(c ui.Component) []string {
+	g, ok := c.(*instance).ed.(*goEditor)
+	if !ok || !g.m.CompletionMenuVisible() {
+		return nil
+	}
+	var out []string
+	for _, it := range g.srv.menu {
+		out = append(out, it.Label)
+	}
+	return out
+}
+
+// UserShellForTest is the shell t starts on goos with the environment getenv.
+func UserShellForTest(goos string, getenv func(string) string) string { return userShell(goos, getenv) }
+
+// EditorPathForTest is the file the editor slot shows ("" = empty).
+func EditorPathForTest(c ui.Component) string {
+	in := c.(*instance)
+	if in.ed == nil {
+		return ""
+	}
+	return in.ed.Path()
+}
+
+// EditorLangForTest is the built-in editor's highlighting language (its
+// chroma lexer name; "" = no built-in editor).
+func EditorLangForTest(c ui.Component) string {
+	g, ok := c.(*instance).ed.(*goEditor)
+	if !ok {
+		return ""
+	}
+	return codeassist.ChromaName(g.lang)
 }

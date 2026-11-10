@@ -80,7 +80,7 @@ type Model struct {
 
 	cache *instanceCache
 	panes map[layout.SlotID]*instance // pane-factory slots, built once
-	tabs  *widgets.Tabs               // SlotTabs bar (Hit for clicks)
+	tabs  *widgets.WalkBar            // SlotTabs bar: the [ / ] walk (Hit for clicks)
 
 	grab      dragGrab       // the pane following the held left button (mouse.go)
 	dragOwner ui.DragHandler // the component a press last grabbed (its selection is cleared by a press elsewhere)
@@ -160,7 +160,7 @@ func New(o Options) *Model {
 		intent:  FocusIntent{Slot: layout.SlotMain},
 		cache:   newInstanceCache(),
 		panes:   map[layout.SlotID]*instance{},
-		tabs:    widgets.NewTabs(),
+		tabs:    widgets.NewWalkBar(),
 		routes:  map[layout.SlotID]ui.Route{},
 		openPal: palette.Open,
 	}

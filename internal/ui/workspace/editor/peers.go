@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ionut-t/goeditor/core"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -166,6 +167,13 @@ func (e *Editor) View(focused bool) string {
 	dim := lipgloss.NewStyle().Foreground(th.P.Dim)
 	sel := lipgloss.NewStyle().Background(th.P.SelBG).Foreground(th.P.FG)
 	cursorRow := b.GetCursor().Position.Row
+	// My own cursor cell (v0.1.3-1): reverse video of the text colors, so it
+	// stands out in every theme and on every token, also where the
+	// terminal's own cursor is hard to see; only while the cell is focused
+	// and the cursor is in the text (the command line has it otherwise).
+	own := b.GetCursor().Position
+	ownOn := focused && status == ""
+	ownStyle := lipgloss.NewStyle().Foreground(th.P.FG).Background(th.P.BG).Reverse(true)
 
 	// peers by row
 	type mark struct {
@@ -199,6 +207,7 @@ func (e *Editor) View(focused bool) string {
 		return lipgloss.Style{}, false
 	}
 
+	tokens := e.spans(st.TopLine, rows)
 	out := make([]string, 0, e.h)
 	for i := 0; i < rows; i++ {
 		row := st.TopLine + i
@@ -221,6 +230,11 @@ func (e *Editor) View(focused bool) string {
 		}
 		cells := layoutLine(b.GetLineRunes(row))
 		marks := peerAt[row]
+		var rowSpans []codeassist.Span
+		if i < len(tokens) {
+			rowSpans = tokens[i]
+		}
+		si := 0
 		used := 0
 		for _, c := range cells {
 			if c.x < e.left {
@@ -235,6 +249,9 @@ func (e *Editor) View(focused bool) string {
 				break
 			}
 			style := base
+			if tt, ok := spanAt(rowSpans, &si, c.col); ok {
+				style = e.tokenStyle(tt)
+			}
 			if s, ok := inSpan(row, c.col); ok {
 				style = s
 			}
@@ -246,6 +263,9 @@ func (e *Editor) View(focused bool) string {
 					style = m.style
 				}
 			}
+			if ownOn && row == own.Row && own.Col >= c.col && own.Col < c.col+c.n {
+				style = ownStyle
+			}
 			sb.WriteString(style.Render(c.text))
 			used += c.w
 		}
@@ -253,6 +273,14 @@ func (e *Editor) View(focused bool) string {
 		if len(cells) > 0 {
 			last := cells[len(cells)-1]
 			lineEnd = last.x + last.w
+		}
+		// my cursor past the end of the line (insert mode, an empty line)
+		if ownOn && row == own.Row {
+			if endX := cellX(cells, own.Col); endX >= lineEnd && endX-e.left >= used && endX-e.left < tw {
+				gap := endX - e.left - used
+				sb.WriteString(strings.Repeat(" ", gap) + ownStyle.Render(" "))
+				used += gap + 1
+			}
 		}
 		// a peer cursor at the end of the line, then the name tags
 		for _, m := range marks {
@@ -278,6 +306,7 @@ func (e *Editor) View(focused bool) string {
 		}
 		out = append(out, sb.String())
 	}
+	e.drawMenu(out, rows)
 	if status != "" {
 		out = append(out, base.Render(textwidth.PadRight(textwidth.Sanitize(status), e.w)))
 	}

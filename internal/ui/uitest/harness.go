@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -386,9 +387,18 @@ func (h *Harness) call(cmd tea.Cmd) (tea.Msg, bool) {
 		}
 		return r.msg, true
 	case <-timer.C:
-		h.T.Fatalf("Cmd blocked > %v: raw tea.Tick/Every or sleep in UI code?", blockLimit)
+		h.T.Fatalf("Cmd blocked > %v: raw tea.Tick/Every or sleep in UI code? (%s)", blockLimit, cmdName(cmd))
 		return nil, false
 	}
+}
+
+// cmdName is the function behind cmd (its closure's name: the place to
+// look when a Cmd blocks).
+func cmdName(cmd tea.Cmd) string {
+	if f := runtime.FuncForPC(reflect.ValueOf(cmd).Pointer()); f != nil {
+		return f.Name()
+	}
+	return "unknown Cmd"
 }
 
 // Advance moves the FakeClock and delivers due timer msgs via Send, in order: the

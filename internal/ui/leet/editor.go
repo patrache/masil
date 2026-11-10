@@ -120,7 +120,7 @@ func (in *instance) openEditor(ctx *ui.Context) tea.Cmd {
 	}
 	in.tab = tabCode
 	if in.ed != nil {
-		in.edFocus = true
+		in.focusEditor()
 		if p, ok := in.ed.(*paneEditor); ok && !p.GrabsKeys() {
 			p.HandleKey(ctx, tea.KeyPressMsg{Code: tea.KeyEnter}) // back into nvim
 		}
@@ -146,7 +146,8 @@ func (in *instance) openEditor(ctx *ui.Context) tea.Cmd {
 			}})
 		switch {
 		case err == nil && l.View != nil:
-			in.ed, in.edFocus = &paneEditor{Pane: l.View, path: path}, true
+			in.ed = &paneEditor{Pane: l.View, path: path}
+			in.focusEditor()
 			in.layoutEditor(ctx)
 			return cmd
 		case err == nil: // it went to a screen switch after all: that is the edit
@@ -154,14 +155,22 @@ func (in *instance) openEditor(ctx *ui.Context) tea.Cmd {
 		}
 		toast = cmd // the pane limit: the built-in editor instead
 	}
-	ed, err := newGoEditor(path, themeOf(ctx).Dark)
+	ed, err := newGoEditor(path, themeOf(ctx), currentLang(ctx).Slug)
 	if err != nil {
 		return tea.Batch(toast, ui.Toast(ctx.T.Leetcode.EditorFailed(), ui.ToastError))
 	}
 	ed.(*goEditor).id = in.id
-	in.ed, in.edFocus = ed, true
+	ed.(*goEditor).lspSync() // the solution opens in its language server
+	in.ed = ed
+	in.focusEditor()
 	in.layoutEditor(ctx)
 	return toast
+}
+
+// focusEditor moves the tool's own focus to the editor slot.
+func (in *instance) focusEditor() {
+	in.edFocus, in.termFocus = true, false
+	in.syncCells()
 }
 
 // execEdit opens the solution file in nvim (else $EDITOR, split on spaces,
@@ -196,6 +205,9 @@ func (in *instance) execEdit(ctx *ui.Context) tea.Cmd {
 func (in *instance) dropEditor() tea.Cmd {
 	ed := in.ed
 	in.ed, in.edFocus = nil, false
+	if g, ok := ed.(*goEditor); ok {
+		g.lspClose()
+	}
 	if p, ok := ed.(*paneEditor); ok {
 		h := p.Handle()
 		return func() tea.Msg { _ = h.Close(); return nil }
@@ -218,31 +230,88 @@ func (in *instance) cycleLang(ctx *ui.Context) tea.Cmd {
 	if toolConfig(ctx).Lang != "" {
 		unpin = setToolKey(ctx, "lang", nil)
 	}
-	return tea.Batch(unpin, emit(langChangedMsg{}))
+	toast := ui.Toast(ctx.T.Leetcode.LangSwitched(cur.Name, next.Name), ui.ToastInfo)
+	return tea.Batch(unpin, emit(langChangedMsg{}), toast)
+}
+
+// areaRect is the code area inside the instance — the head line, the
+// editor slot and the terminal under it (ok=false: not shown now). The
+// tiny mode has none: the focused editor or terminal takes the screen.
+func (in *instance) areaRect(ctx *ui.Context) (x, y, w, h int, ok bool) {
+	W, H := in.size.W, in.size.H
+	sp := splitFor(ctx.Mode, in.zoomed, W)
+	if sp.Tabbed {
+		return 0, 2, W, H - 3, in.tab == tabCode && H > 3
+	}
+	return sp.Left + 1, 1, sp.Right, H - 2, H > 2 && in.termOK()
+}
+
+// areaParts splits a code area h rows high: the head line (row 0 when
+// there is room), the editor's rows, the terminal's head line and rows
+// (termHead < 0, termH = 0: no terminal shown). Too low for both, only the
+// focused one shows.
+type areaParts struct {
+	head, edY, edH, termHead, termY, termH int
+}
+
+func (in *instance) parts(h int) areaParts {
+	p := areaParts{head: -1, termHead: -1}
+	top := 0
+	if h >= 2 {
+		p.head, top = 0, 1
+	}
+	body := h - top
+	switch {
+	case in.term == nil:
+		p.edY, p.edH = top, body
+	case body >= 4:
+		tb := body / 2
+		p.edY, p.edH = top, body-tb
+		p.termHead = top + p.edH
+		p.termY, p.termH = p.termHead+1, tb-1
+	case in.termFocus:
+		p.termY, p.termH = top, body
+	default:
+		p.edY, p.edH = top, body
+	}
+	return p
 }
 
 // edRect is where the editor is drawn inside the instance (ok=false: not
 // shown now).
 func (in *instance) edRect(ctx *ui.Context) (x, y, w, h int, ok bool) {
 	W, H := in.size.W, in.size.H
-	sp := splitFor(ctx.Mode, in.zoomed, W)
-	switch {
-	case sp.Tiny:
+	if splitFor(ctx.Mode, in.zoomed, W).Tiny {
 		return 0, 0, W, H - 1, in.edFocus && H > 1
-	case sp.Tabbed:
-		return 0, 2, W, H - 3, in.tab == tabCode && H > 3
 	}
-	return sp.Left + 1, 1, sp.Right, H - 2, H > 2 && in.canEdit()
+	x, y, w, h, ok = in.areaRect(ctx)
+	p := in.parts(h)
+	return x, y + p.edY, w, p.edH, ok && in.canEdit() && p.edH > 0
 }
 
-// layoutEditor gives the editor its size.
-func (in *instance) layoutEditor(ctx *ui.Context) {
-	if in.ed == nil {
-		return
+// termRect is where the terminal is drawn inside the instance (ok=false:
+// not shown now).
+func (in *instance) termRect(ctx *ui.Context) (x, y, w, h int, ok bool) {
+	W, H := in.size.W, in.size.H
+	if splitFor(ctx.Mode, in.zoomed, W).Tiny {
+		return 0, 0, W, H - 1, in.termFocus && H > 1
 	}
-	_, _, w, h, _ := in.edRect(ctx)
-	if w > 0 && h > 0 {
-		in.ed.Resize(ctx, ui.Size{W: w, H: h})
+	x, y, w, h, ok = in.areaRect(ctx)
+	p := in.parts(h)
+	return x, y + p.termY, w, p.termH, ok && p.termH > 0
+}
+
+// layoutEditor gives the editor and the terminal their sizes.
+func (in *instance) layoutEditor(ctx *ui.Context) {
+	if in.ed != nil {
+		if _, _, w, h, _ := in.edRect(ctx); w > 0 && h > 0 {
+			in.ed.Resize(ctx, ui.Size{W: w, H: h})
+		}
+	}
+	if in.term != nil {
+		if _, _, w, h, _ := in.termRect(ctx); w > 0 && h > 0 {
+			in.term.Resize(ctx, ui.Size{W: w, H: h})
+		}
 	}
 }
 

@@ -1,10 +1,11 @@
+[도구]  🧩 오늘의 문제 · 1606                                                                                           
 ╔════════════════════════╗╔═ 오늘의 문제 · 1606 ═══════════════════════════════════════════════════════════════════════╗
 ║ 노바 개발방 ▾          ║║🧩 1606 · Hard ── 2026-11-05 (UTC) · 다음 문제까지 21:55                                    ║
-║ DM                     ║║Find Servers That Handled Most Number │   1 func busiestServers(k int, arrival []int, load  ║
-║ # 일반               3 ║║of Requests                           │     []int) []int {                                  ║
-║ # 잡담                 ║║태그 Array · Greedy · Heap (Priority …│   2                                                 ║
-║ # 개발                 ║║                                      │   3 }                                               ║
-║ # 배포알림             ║║Test fixture: k servers take requests │                                                     ║
+║ DM                     ║║Find Servers That Handled Most Number │Go · 2026-11-05-1606-find-servers-that-handled-most-…║
+║ # 일반               3 ║║of Requests                           │   1 func busiestServers(k int, arrival []int, load  ║
+║ # 잡담                 ║║태그 Array · Greedy · Heap (Priority …│     []int) []int {                                  ║
+║ # 개발                 ║║                                      │   2                                                 ║
+║ # 배포알림             ║║Test fixture: k servers take requests │   3 }                                               ║
 ║ ＋ 새 채널             ║║in turn; find the busiest ones.       │                                                     ║
 ║ ─ DM                   ║║                                      │                                                     ║
 ║ ● 민지                 ║║• 1 <= k <= 10⁵                       │                                                     ║
@@ -32,9 +33,8 @@
 ║                        ║║                                      │                                                     ║
 ║                        ║║                                      │                                                     ║
 ║                        ║║                                      │                                                     ║
-║                        ║║                                      │                                                     ║
 ║                        ║║                                      │ NORMAL                                          1/1 ║
 ║                        ║║                                      │                                                     ║
-║                        ║║저장(:w)한 내용으로 실행해요 · :Run · :Submit · esc esc 나가기                              ║
+║                        ║║저장(:w)한 내용으로 실행해요 · :Run · :Submit · esc esc 나가기 · l 언어: Go                 ║
 ╚════════════════════════╝╚════════════════════════════════════════════════════════════════════════════════════════════╝
  표준  enter 보내기 · shift+enter 줄바꿈 · esc 나가기                                           💬 안 읽음 3 · ● 온라인 

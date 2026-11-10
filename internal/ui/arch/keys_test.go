@@ -284,10 +284,12 @@ func TestCanvasLeavesGlobalsAlone(t *testing.T) {
 		}
 	}
 
-	// tab moves the focus on (here: off the tool surface)
+	// tab moves on: on this one-pane screen it walks the top tab bar like ],
+	// here from the second canvas round to the first (0.1.3-1 review fix)
+	from := h.Nav().ToolActive
 	h.Press("tab")
-	if h.Model.Focus().RouteKey == r.Key() {
-		t.Error("tab left the focus on the canvas")
+	if got, n := h.Nav().ToolActive, len(h.Nav().Tools); got != (from+1)%n {
+		t.Errorf("tab: tool %d, want %d (as ])", got, (from+1)%n)
 	}
 
 	// ctrl+t toggles the tool surface

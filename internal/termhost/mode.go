@@ -36,6 +36,44 @@ type Request struct {
 	Title   string // shown in tab titles and the return toast
 	ToolID  string // leet, workspace, arch, git, api
 	Mode    Mode   // "" or ModeAuto = decide; anything else is an explicit choice
+	// Exec, when set, is the argv actually started — the user's login shell
+	// around Program (launch.ViaLoginShell, 0.1.3 patch). Program and Args
+	// stay what masil checks, names and shows (titles, the running list,
+	// ExitInfo).
+	Exec []string
+	// PaneExec, when set, replaces Exec in pane mode: the login-shell wrap
+	// that also wipes the pane emulator's scrollback of rc-file output. Exec
+	// and window mode run on a real terminal whose scrollback is the user's,
+	// so they keep Exec.
+	PaneExec []string
+	// ExecDir, when set, is the working directory Exec and PaneExec start
+	// in instead of Dir (v0.1.3-1 security review: the login shell starts
+	// in the user's home, so the rc files never run inside the workspace
+	// folder; its script changes to Dir itself). Program/Args, when they
+	// run, always start in Dir.
+	ExecDir string
+}
+
+// command is the program and args to start in mode m: PaneExec in pane mode
+// when set, else Exec when set, else Program/Args.
+func (r Request) command(m Mode) (string, []string) {
+	if m == ModePane && len(r.PaneExec) > 0 {
+		return r.PaneExec[0], r.PaneExec[1:]
+	}
+	if len(r.Exec) > 0 {
+		return r.Exec[0], r.Exec[1:]
+	}
+	return r.Program, r.Args
+}
+
+// dir is the working directory for the argv command(m) starts: ExecDir
+// for the Exec/PaneExec wrap when set, else Dir.
+func (r Request) dir(m Mode) string {
+	wrapped := len(r.Exec) > 0 || (m == ModePane && len(r.PaneExec) > 0)
+	if wrapped && r.ExecDir != "" {
+		return r.ExecDir
+	}
+	return r.Dir
 }
 
 // Env is the environment Choose decides in. CurrentEnv fills it; tests build it.

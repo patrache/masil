@@ -4,14 +4,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ionut-t/goeditor/core"
 
+	"github.com/patrache/masil/internal/codeassist"
+	"github.com/patrache/masil/internal/lsp"
 	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/third_party/goeditor"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/codelsp"
 )
 
 // goEditor is the built-in editor (no nvim, no pane: Windows, tiny): a
@@ -30,24 +37,195 @@ type goEditor struct {
 
 	// leave is set when a key asks to leave the editor (esc in normal mode, :q).
 	leave bool
+
+	// v0.1.3-1: syntax colors and completion (the settings' switches).
+	lang   string // codeassist language
+	th     *theme.Theme
+	styles map[chroma.TokenType]lipgloss.Style
+	hlOn   bool
+	cpOn   bool
+	forced bool // ctrl+n / ctrl+space: the menu from the first char
+	words  codeassist.Index
+	srv    lspState // the language server (goeditor_lsp.go)
 }
 
 var _ codeEditor = (*goEditor)(nil)
 
 // newGoEditor opens path (it must exist) in a goeditor buffer, colored for
 // a dark or light background as masil's theme is (goeditor would ask the
-// terminal itself, racing Bubble Tea for its input: third_party/goeditor).
-func newGoEditor(path string, dark bool) (codeEditor, error) {
+// terminal itself, racing Bubble Tea for its input: third_party/goeditor),
+// its syntax in th's colors for lang (a LeetCode slug).
+func newGoEditor(path string, th *theme.Theme, lang string) (codeEditor, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	m := goeditor.New(80, 20, goeditor.WithDarkBackground(dark))
+	m := goeditor.New(80, 20, goeditor.WithDarkBackground(th.Dark))
 	m.SetContent(string(b))
 	m.Focus()
-	e := &goEditor{m: m, path: path}
+	m.WithCompletionAutoTrigger(false) // masil asks and answers (refreshCompletion)
+	m.SetCompletionMenuMaxVisibleItems(codeassist.MaxVisible)
+	e := &goEditor{m: m, path: path, lang: codeassist.FromLeet(lang), th: th, cpOn: true}
+	e.srv.m, e.srv.lang = codelsp.Get(), lsp.LangForLeetCode(lang)
+	e.m.SetSyntaxStyle(e.tokenStyle)
+	e.m.SetCursorCellStyle(cursorCellStyle(th))
+	e.setHighlight(true)
 	e.drain()
 	return e, nil
+}
+
+// tokenStyle is a token's color in masil's theme (cached).
+func (e *goEditor) tokenStyle(tt chroma.TokenType) lipgloss.Style {
+	if e.styles == nil {
+		e.styles = map[chroma.TokenType]lipgloss.Style{}
+	}
+	st, ok := e.styles[tt]
+	if !ok {
+		st = e.th.EditorTokenStyle(tt)
+		e.styles[tt] = st
+	}
+	return st
+}
+
+func (e *goEditor) setHighlight(on bool) {
+	e.hlOn = on
+	if on {
+		e.m.SetLanguage(codeassist.ChromaName(e.lang), "")
+	} else {
+		e.m.SetLanguage("", "")
+	}
+}
+
+// setLang follows a language change that kept the file (python3 / python).
+func (e *goEditor) setLang(slug string) {
+	if l := codeassist.FromLeet(slug); l != e.lang {
+		e.lang = l
+		e.setHighlight(e.hlOn)
+	}
+	e.setLSPLang(slug)
+}
+
+// applyAssist follows the settings' switches and the theme.
+func (e *goEditor) applyAssist(ctx *ui.Context) {
+	if th := themeOf(ctx); th != e.th {
+		e.th, e.styles = th, nil
+		e.m.SetSyntaxStyle(e.tokenStyle)
+		e.m.SetCursorCellStyle(cursorCellStyle(th))
+	}
+	hl, cp := true, true
+	if ctx != nil && ctx.Config != nil {
+		hl, cp = ctx.Config.UI.CodeHighlight, ctx.Config.UI.CodeComplete
+	}
+	if hl != e.hlOn {
+		e.setHighlight(hl)
+	}
+	if e.cpOn = cp; !cp {
+		e.closeCompletion()
+	}
+	e.lspSync()
+}
+
+// completionKeys: ctrl+n / ctrl+p are mine now (insert mode, completion on).
+func (e *goEditor) completionKeys() bool { return e.cpOn && e.m.IsInsertMode() }
+
+// refreshCompletion asks for the menu of the word being typed and answers
+// at once (goeditor's own request goes out on a timer masil never runs).
+func (e *goEditor) refreshCompletion() {
+	if !e.cpOn || !e.m.IsInsertMode() {
+		e.closeCompletion()
+		return
+	}
+	b := e.m.GetEditor().GetBuffer()
+	pos := b.GetCursor().Position
+	line := b.GetLineRunes(pos.Row)
+	prefix := codeassist.Prefix(line, pos.Col)
+	if !e.forced && !e.srv.triggered && len([]rune(prefix)) < codeassist.MinPrefix {
+		e.closeCompletion()
+		return
+	}
+	var words []string
+	if e.forced || len([]rune(prefix)) >= codeassist.MinPrefix {
+		e.words.Update(b.GetLines())
+		words = codeassist.Complete(e.lang, prefix, codeassist.WordAt(line, pos.Col), e.words.Counts())
+	}
+	items := codeassist.Merge(e.serverItems(prefix), words)
+	if len(items) == 0 {
+		if e.lspOn() {
+			e.hideCompletion() // the server's answer may still come
+		} else {
+			e.closeCompletion()
+		}
+		return
+	}
+	for i := range items {
+		items[i].Label = textwidth.Sanitize(items[i].Label)
+	}
+	e.answer(e.completions(items))
+}
+
+// answer opens the menu with cs (none: closes it).
+func (e *goEditor) answer(cs []core.Completion) {
+	e.feed(tea.KeyPressMsg{Code: tea.KeySpace, Mod: tea.ModCtrl}) // the request: its context
+	var req *core.CompletionContext
+	for _, s := range e.drain() {
+		if r, ok := s.(core.CompletionRequestSignal); ok {
+			c := r.Context()
+			req = &c
+		}
+	}
+	if req != nil {
+		e.feed(goeditor.CompletionResponseMsg{Completions: cs, Context: *req})
+	}
+}
+
+// closeCompletion closes the menu for good (a request in flight is dropped).
+func (e *goEditor) closeCompletion() {
+	e.forced = false
+	e.lspForget()
+	e.hideCompletion()
+}
+
+// hideCompletion hides the menu while there is nothing to show.
+func (e *goEditor) hideCompletion() {
+	if e.m.CompletionMenuVisible() && e.m.IsInsertMode() {
+		e.answer(nil)
+	}
+	e.srv.menu = nil
+}
+
+// menuKeys are what goeditor's open menu takes.
+var menuKeys = map[string]bool{"up": true, "down": true, "ctrl+n": true, "ctrl+p": true,
+	"tab": true, "enter": true, "esc": true, "ctrl+y": true, "ctrl+e": true}
+
+// afterTyping updates the menu after a key in insert mode: a word rune
+// refills (or opens) it, a deletion refills an open one, anything else
+// closes it.
+func (e *goEditor) afterTyping(msg tea.KeyPressMsg) {
+	switch {
+	case msg.Text != "":
+		for _, r := range msg.Text {
+			if !codeassist.IsWordRune(r) {
+				e.closeCompletion()
+				if e.lspOn() && codelsp.IsTrigger(e.srv.trigger, msg.Text) {
+					e.srv.triggered = true // "x.": the server's members
+					e.lspSync()
+					e.lspAsk()
+				}
+				return
+			}
+		}
+		e.refreshCompletion()
+		e.lspSync()
+		e.lspAsk()
+	case msg.Code == tea.KeyBackspace || msg.Code == tea.KeyDelete:
+		if e.m.CompletionMenuVisible() || e.srv.triggered {
+			e.refreshCompletion()
+			e.lspSync()
+			e.lspAsk()
+		}
+	default:
+		e.closeCompletion()
+	}
 }
 
 func (e *goEditor) Path() string { return e.path }
@@ -60,11 +238,19 @@ func (e *goEditor) Reload() error {
 	}
 	e.m.SetContent(string(b))
 	e.drain()
+	e.lspSync()
 	return nil
 }
 
-func (e *goEditor) Init(*ui.Context) tea.Cmd            { return nil }
-func (e *goEditor) Update(*ui.Context, tea.Msg) tea.Cmd { return nil }
+func (e *goEditor) Init(*ui.Context) tea.Cmd { return nil }
+
+// Update takes the language server's answers.
+func (e *goEditor) Update(_ *ui.Context, msg tea.Msg) tea.Cmd {
+	if m, ok := msg.(codelsp.ResultMsg); ok {
+		e.lspResult(m)
+	}
+	return nil
+}
 
 func (e *goEditor) Resize(_ *ui.Context, s ui.Size) {
 	e.size = s
@@ -76,8 +262,28 @@ func (e *goEditor) Resize(_ *ui.Context, s ui.Size) {
 // CapturesInput: every printable key is the editor's while it has focus.
 func (e *goEditor) CapturesInput() bool { return true }
 
-// Cursor: goeditor draws its own cursor cell.
-func (e *goEditor) Cursor() *tea.Cursor { return nil }
+// cursorCellStyle is the cursor cell (v0.1.3-1): reverse video of the text
+// colors, so it stands out in every theme, also where the terminal's own
+// cursor is hard to see.
+func cursorCellStyle(th *theme.Theme) *lipgloss.Style {
+	st := lipgloss.NewStyle().Foreground(th.P.FG).Background(th.P.BG).Reverse(true)
+	return &st
+}
+
+// Cursor is the terminal's real cursor on goeditor's cursor cell: a block
+// in normal mode, a bar in insert and command mode (v0.1.3-1; goeditor
+// still draws the cell itself).
+func (e *goEditor) Cursor() *tea.Cursor {
+	x, y, ok := e.m.CursorPosition()
+	if !ok || x >= e.size.W || y >= e.size.H {
+		return nil
+	}
+	c := tea.NewCursor(x, y)
+	if e.m.IsInsertMode() || e.m.IsCommandMode() {
+		c.Shape = tea.CursorBar
+	}
+	return c
+}
 
 // takeLeave reports (once) that the last key asked to leave the editor.
 func (e *goEditor) takeLeave() bool {
@@ -117,9 +323,39 @@ func (e *goEditor) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		}
 		return true, emit(submitRequestedMsg{id: e.id})
 	}
-	e.feed(msg)
+	e.applyAssist(ctx)
+	open := e.m.CompletionMenuVisible()
+	if e.m.IsInsertMode() && !open && (k == "ctrl+n" || k == "ctrl+space" || k == "ctrl+@") {
+		if e.cpOn {
+			e.forced = true
+			e.refreshCompletion()
+			e.lspAsk()
+		}
+		return true, e.lspCmd()
+	}
+	if open && (k == "tab" || k == "enter" || k == "ctrl+y") {
+		if it, ok := e.selectedEdit(); ok { // a server's own range: applied here
+			e.applyEdit(it)
+			e.forced = false
+			e.drain()
+			e.lspSync()
+			return true, nil
+		}
+	}
+	e.feedKey(msg)
 	cmd := e.afterKey(ctx)
-	return true, cmd
+	switch {
+	case !e.m.IsInsertMode():
+		e.forced = false
+	case open && menuKeys[k]:
+		if !e.m.CompletionMenuVisible() {
+			e.forced = false // accepted or closed
+		}
+	default:
+		e.afterTyping(msg)
+	}
+	e.lspSync()
+	return true, tea.Batch(cmd, e.lspCmd())
 }
 
 // normalIdle: normal mode with nothing part typed (no count, operator,
@@ -134,6 +370,19 @@ func (e *goEditor) normalIdle() bool {
 	}
 	idle, ok := ed.GetMode().(interface{ Idle() bool })
 	return ok && idle.Idle()
+}
+
+// feedKey gives goeditor a key: typed text of several runes (an IME
+// committing more than one at once) goes as one key per rune, since
+// goeditor reads one rune from a key (v0.1.3-1).
+func (e *goEditor) feedKey(msg tea.KeyPressMsg) {
+	if msg.Mod&(tea.ModCtrl|tea.ModAlt) != 0 || utf8.RuneCountInString(msg.Text) <= 1 {
+		e.feed(msg)
+		return
+	}
+	for _, r := range msg.Text {
+		e.feed(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
 }
 
 // feed gives goeditor one msg, dropping its Cmds.
@@ -177,6 +426,7 @@ func (e *goEditor) drain() []core.Signal {
 }
 
 func (e *goEditor) View(ctx *ui.Context, _ bool) string {
+	e.applyAssist(ctx)
 	w, h := e.size.W, e.size.H
 	if w <= 0 || h <= 0 {
 		return ""

@@ -41,6 +41,9 @@ type Config struct {
 	// names (ToolConfigSection), not tool IDs; read them through ToolString,
 	// ToolBool, ToolOpen and ToolSection, which take tool IDs.
 	Tools map[string]map[string]any `toml:"tools"`
+	// LSP holds the [lsp.<lang>] tables (language server overrides, keyed
+	// by LSP languageId: go, python, cpp …); read them through LSPCommands.
+	LSP map[string]LSPConfig `toml:"lsp,omitempty"`
 
 	notLoaded bool // Load fell back to Defaults() on a read/parse failure => Save refuses
 }
@@ -67,6 +70,10 @@ type UIConfig struct {
 	// Language is auto | ko | en | zh-Hans (i18n spec 6.2). 0.1.3 opens ko only
 	// and hides the settings row; MASIL_LANG still overrides it.
 	Language string `toml:"language"`
+	// CodeHighlight and CodeComplete are the built-in code editors' syntax
+	// colors and completion menu (v0.1.3-1; default on).
+	CodeHighlight bool `toml:"code_highlight"`
+	CodeComplete  bool `toml:"code_complete"`
 }
 
 // NotifyConfig is the [notify] table.
@@ -79,6 +86,25 @@ type TerminalConfig struct {
 	// Embedded allows the embedded terminal pane (default true). false makes
 	// every tool open in exec (screen switch) mode: the escape hatch of A7.4.
 	Embedded bool `toml:"embedded"`
+}
+
+// LSPConfig is one [lsp.<lang>] table.
+type LSPConfig struct {
+	// Command is the server argv (program first) tried before the built-in one.
+	Command []string `toml:"command"`
+}
+
+// LSPCommands returns the configured server commands by lower-cased
+// languageId, leaving out tables without a command.
+func (c *Config) LSPCommands() map[string][]string {
+	out := map[string][]string{}
+	for lang, l := range c.LSP {
+		if len(l.Command) == 0 || strings.TrimSpace(l.Command[0]) == "" {
+			continue
+		}
+		out[strings.ToLower(strings.TrimSpace(lang))] = append([]string(nil), l.Command...)
+	}
+	return out
 }
 
 // Defaults returns a Config with every field filled (CA 3.3 values).
@@ -103,6 +129,8 @@ func Defaults() *Config {
 			PaintBackground: true,
 			Clock:           "24h",
 			Language:        "auto",
+			CodeHighlight:   true,
+			CodeComplete:    true,
 		},
 		Notify:   NotifyConfig{Desktop: true},
 		Keys:     map[string][]string{},

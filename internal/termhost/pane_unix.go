@@ -26,8 +26,9 @@ func startUnixProc(req Request, size Size, env []string) (proc, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(req.Program, req.Args...)
-	cmd.Dir = req.Dir
+	prog, args := req.command(ModePane)
+	cmd := exec.Command(prog, args...)
+	cmd.Dir = req.dir(ModePane)
 	cmd.Env = env
 	slave := pty.Slave()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = slave, slave, slave

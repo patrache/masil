@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/workspace/editor"
@@ -33,6 +34,9 @@ type openDoc struct {
 	merged   bool
 	mergeSeq int64
 	mergeInv ot.Op
+	// lsp: the path it is open as in a language server ("" = not open);
+	// lspText: the text the server has (lsp.go).
+	lsp, lspText string
 }
 
 type codeCell struct {
@@ -40,6 +44,36 @@ type codeCell struct {
 	cur  int
 	msg  string // why the last chosen file did not open
 	top  int    // rows above the editor (header and banner) as last drawn
+}
+
+// setupAssist gives a new document's editor its language (by the file's
+// extension) and the other open documents' words for completion (local
+// only: the menu is never sent; an accepted item is an ordinary edit).
+func (c *codeCell) setupAssist(ctx *ui.Context, d *openDoc) {
+	d.ed.SetLanguage(codeassist.FromFile(d.rel))
+	d.ed.SetWordSource(func() []map[string]int {
+		var out []map[string]int
+		for _, o := range c.docs {
+			if o != d {
+				out = append(out, o.ed.Words())
+			}
+		}
+		return out
+	})
+	c.applyAssist(ctx, d)
+}
+
+// applyAssist follows the settings' switches (code_highlight, code_complete)
+// and the theme (it can change at run time).
+func (c *codeCell) applyAssist(ctx *ui.Context, d *openDoc) {
+	if ctx != nil {
+		d.ed.SetTheme(ctx.Theme)
+	}
+	hl, cp := true, true
+	if ctx != nil && ctx.Config != nil {
+		hl, cp = ctx.Config.UI.CodeHighlight, ctx.Config.UI.CodeComplete
+	}
+	d.ed.SetAssist(hl, cp)
 }
 
 // current is the shown document (nil when none is open).
@@ -98,7 +132,9 @@ func (s *Surface) attachDoc(ctx *ui.Context, v share.DocView) tea.Cmd {
 	}
 	d := &openDoc{rel: v.Rel, seq: v.Seq, base: []rune(v.Text), readOnly: v.ReadOnly, reason: v.Reason}
 	d.ed = editor.New(ctx.Theme, v.Text, v.ReadOnly)
+	s.code.setupAssist(ctx, d)
 	s.code.docs = append(s.code.docs, d)
+	s.lspSync(ctx, d)
 	s.showPeers(d.rel) // cursors that arrived before the owner opened it
 	s.code.cur = len(s.code.docs) - 1
 	s.code.msg = ""
@@ -113,6 +149,7 @@ func (s *Surface) closeDoc(ctx *ui.Context, d *openDoc) {
 	if i < 0 {
 		return
 	}
+	s.lspClose(d)
 	s.docs.Close(d.rel)
 	s.code.docs = slices.Delete(s.code.docs, i, i+1)
 	if s.code.cur >= len(s.code.docs) {
@@ -135,6 +172,7 @@ func (s *Surface) resync(d *openDoc) {
 	d.ed.Reset(text)
 	d.undo = ot.Undo{}
 	d.merged = false
+	s.lspChanged(d)
 }
 
 // flushOps submits the editor's new edits as the owner's.
@@ -150,6 +188,7 @@ func (s *Surface) flushOps(d *openDoc) {
 		d.undo.Record(op, before)
 		d.merged = false
 	}
+	s.lspChanged(d)
 }
 
 // submit sends one owner edit made against d.seq; false (after a resync)
@@ -188,6 +227,7 @@ func (s *Surface) applyRemote(d *openDoc, seq int64, op ot.Op) {
 	d.undo.Remote(op)
 	d.seq, d.base = seq, after
 	s.shiftCursors(d.rel, op)
+	s.lspChanged(d) // a co-editor's edit or the disk's reaches the server too
 }
 
 // docEvents applies what happened to the open documents on their own.
@@ -238,6 +278,7 @@ func (s *Surface) codeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 				if s.submit(d, inv) {
 					d.ed.ApplyRemote(inv)
 					d.undo.Remote(inv)
+					s.lspChanged(d)
 				}
 				return true, nil
 			}
@@ -248,14 +289,17 @@ func (s *Surface) codeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 			return true, nil
 		}
 	}
+	s.code.applyAssist(ctx, d)
+	s.lspSync(ctx, d) // the setting may have changed; before the key, so the editor knows
 	handled, cmd := d.ed.HandleKey(msg)
 	s.flushOps(d)
 	s.sendPresence(d)
+	ask := s.lspAsk(d)
 	if !handled {
-		return msg.String() == "esc", nil // esc stays in the cell (no accidental leave)
+		return msg.String() == "esc", ask // esc stays in the cell (no accidental leave)
 	}
 	if cmd == nil {
-		return true, nil
+		return true, ask
 	}
 	// The editor's own requests are answered here, at once (no broadcast).
 	switch m := cmd().(type) {
@@ -292,6 +336,7 @@ func (s *Surface) undoRedo(d *openDoc, undo bool) {
 	}
 	if s.submit(d, op) {
 		d.ed.ApplyRemote(op)
+		s.lspChanged(d)
 	}
 }
 
@@ -311,13 +356,7 @@ func (c *codeCell) paste(ctx *ui.Context, s *Surface, text string) {
 	if d == nil || d.readOnly || d.ed.Mode() != "insert" {
 		return
 	}
-	for _, r := range textwidth.SanitizeInput(text) {
-		if r == '\n' {
-			d.ed.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		} else {
-			d.ed.HandleKey(tea.KeyPressMsg{Code: r, Text: string(r)})
-		}
-	}
+	d.ed.Paste(textwidth.SanitizeInput(text))
 	s.flushOps(d)
 }
 
@@ -385,6 +424,7 @@ func (c *codeCell) view(ctx *ui.Context, s *Surface, w, h int, focused bool) []s
 		}
 	}
 	c.top = len(lines)
+	c.applyAssist(ctx, d)
 	eh := max(h-len(lines), 0)
 	d.ed.Resize(w, eh)
 	if eh > 0 {

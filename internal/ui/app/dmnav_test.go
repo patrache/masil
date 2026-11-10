@@ -96,7 +96,7 @@ func TestDMSurfaceKeepsPlaceAcrossTabs(t *testing.T) {
 	}
 	// compact: tab roots, then DM, 피드, 알림
 	c := n.selectTab(len(n.Tabs), layout.ModeCompact)
-	if !c.InDM || c.barPos() != len(n.Tabs) {
+	if !c.InDM || c.walkPos(walkBar) != len(n.Tabs) {
 		t.Fatalf("compact DM entry: %+v", c)
 	}
 	if c = c.selectTab(len(n.Tabs)+1, layout.ModeCompact); c.Front != FrontFeed {

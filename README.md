@@ -111,11 +111,11 @@ Pinning a mode: `ctrl+w` then `1` Command · `2` Standard · `3` Compact · `4` 
 |---|---|
 | `ctrl+k` | Command palette — go to a space, channel, DM or person |
 | `ctrl+f` | Search everything |
-| `ctrl+n` | Notifications |
+| `ctrl+n` | Notifications (in a built-in code editor's insert mode: completion, see [Tools](#tools)) |
 | `?` (`f1`) | Help |
 | `f` | Open/close the feed |
-| `ctrl+t` | Tools hub ↔ chat (see [Tools](#tools)) |
-| `[` / `]` | Previous/next tab — Widget·Tiny `Chat → DM → Feed → Alerts`, Compact·Standard `open tabs → DM → Feed → Alerts`, Command `open tabs → DM` (on single-pane screens also `tab` / `shift+tab`) |
+| `ctrl+t` | Tools hub ↔ chat — also leaves a panel (see [Tools](#tools)) |
+| `[` / `]` | Previous/next tab — Widget·Tiny `Chat → DM → Feed → Alerts`, Compact·Standard `open tabs → DM → Feed → Alerts`, Command `open tabs → DM`; on the tool surface, the open tools (on single-pane screens also `tab` / `shift+tab`). The tab row at the top of every screen lists everything `[` `]` step through right now, in order (`[` marks the previous entry, `]` the next); click a tab to go there |
 | `t` / `enter` | Open the thread of the selected message |
 | `c` (in a thread) | Go to that thread's channel or DM, with the root message selected |
 | `y` | Copy the selected message |
@@ -133,7 +133,7 @@ Change keys in `[keys]` of `config.toml`. The full list is in the in-app `?` hel
 
 ## Tools
 
-masil 0.1.3 adds five tools next to chat. `ctrl+t` opens the tools hub — press a tool's number to open it — and `ctrl+t` again goes back to chat. Chat keeps running while a tool is open: messages and notifications still arrive and friends still see you online.
+masil 0.1.3 adds five tools next to chat. `ctrl+t` always opens the tools hub — press a tool's number to open it, or `enter` to go back to the tool you used last (it is still open, as you left it) — and `ctrl+t` again goes back to chat. In Command and Standard mode the chat status bar shows `ctrl+t tools` next to `ctrl+k` as a reminder. Chat keeps running while a tool is open: messages and notifications still arrive and friends still see you online.
 
 | `ctrl+t` then | Tool | What it does |
 |---|---|---|
@@ -144,7 +144,10 @@ masil 0.1.3 adds five tools next to chat. `ctrl+t` opens the tools hub — press
 | `5` | API test | Send HTTP requests from collections and environments; import and export curl, OpenAPI (JSON) and Postman |
 
 - Programs a tool runs (lazygit, nvim, workspace terminals) open in a panel inside masil, take over the whole terminal until they exit, or open in a tmux popup. The tool picks one; `m` in the hub lets you choose. Windows has no panels (the program takes over the terminal instead). At most 4 panels run at once, across all tools.
-- In a panel, `ctrl+\` is the prefix key: `ctrl+\` then `esc` back to masil, `z` zoom, `x` end the program, `?` help.
+- In a panel every key goes to the program, except `ctrl+t`: it leaves the panel and goes back to chat — the program keeps running, and the hub's `enter` takes you back into it (so the program itself never gets `ctrl+t`). `ctrl+\` is the prefix key: `ctrl+\` then `esc` back to masil, `z` zoom, `x` end the program, `?` help. On a Korean keyboard layout both keys work as typed (`ctrl+ㅅ`, `ctrl+₩`).
+- In Daily LC, `t` (or the palette's "Daily problem: open a terminal") opens your shell (`$SHELL`) in the solutions folder (`~/masil/leetcode` by default) — in a panel under the editor in the code area (on Windows and in the tiny layout it takes over the terminal until it exits); it closes when the shell exits or the tool closes. After `ctrl+\` `esc`, `e` goes back into the editor and `t` into the terminal. The solve language is always shown — in the code area's head line (`Python3 · <file>`) and at the end of the key hints (`l lang: Python3`); `l` switches it with a "Language: Go → Python3" toast, and an open editor switches to that language's file at once.
+- `claude` in a workspace terminal starts through your login shell (`$SHELL -l -i`, zsh or bash, macOS/Linux), so a `claude` shell function or alias in your `~/.zshrc` / `~/.bashrc` — for example one that picks the account by folder — applies. The shell starts in your home folder, so your rc files run there and never inside the workspace folder; it then changes to the folder and runs `claude`.
+- The built-in code editors (Daily LC's built-in editor, the workspace code view) color code in your theme and suggest words as you type — keywords, builtins and words already in your open files, with a language server's suggestions first when one is installed for the file's language (`gopls`, `pyright-langserver`, `clangd`, `rust-analyzer`, `typescript-language-server` …, found on your PATH; pick another with a `[lsp.<lang>]` table, e.g. `[lsp.go]` `command = ["gopls"]`, in config.toml). Only the folder's owner on their own machine uses it — never a share guest — and without one, or when it is slow (1.5 s), the word suggestions stay. In insert mode the menu opens after 2 letters or with `ctrl+n` / `ctrl+space`, `↑`/`↓` or `ctrl+n`/`ctrl+p` pick, `tab`/`enter` insert, `esc` closes it (a second `esc` leaves insert mode); turn either off in Settings → Display (completion off also leaves the language server out).
 - Tool logins and secrets (your LeetCode login, API keys) stay on this PC — in the macOS Keychain, Windows Credential Manager or Linux Secret Service — and are never sent to the masil server. Settings (`ctrl+k` → Settings) → **Tool logins** lists them and forgets them.
 - lazygit — https://github.com/jesseduffield/lazygit (MIT, install it yourself)
 - To run masil without any tool, set `MASIL_FEATURES=none`.

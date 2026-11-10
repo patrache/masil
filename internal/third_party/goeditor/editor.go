@@ -9,12 +9,14 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/alecthomas/chroma/v2"
 	"github.com/atotto/clipboard"
 	"github.com/ionut-t/goeditor/core"
 	"github.com/ionut-t/goeditor/highlighter"
@@ -250,6 +252,8 @@ type Model struct {
 	highlighter      *highlighter.Highlighter
 	language         string
 	highlighterTheme string
+	syntaxStyle      func(chroma.TokenType) lipgloss.Style // masil: token colors from the app's theme (nil: the Chroma theme's)
+	cursorCellStyle  *lipgloss.Style                       // masil: the cursor cell's style in every mode (nil: the mode's)
 
 	searchInput   textinput.Model
 	searchOptions core.SearchOptions
@@ -619,6 +623,68 @@ func (m *Model) SetLanguage(language string, theme string) {
 	}
 
 	m.renderVisibleSlice()
+}
+
+// SetSyntaxStyle colors tokens with style instead of the Chroma theme given
+// to SetLanguage (nil: the Chroma theme's). masil patch: the app's own theme.
+func (m *Model) SetSyntaxStyle(style func(chroma.TokenType) lipgloss.Style) {
+	m.syntaxStyle = style
+	m.renderVisibleSlice()
+}
+
+// CompletionMenuVisible reports whether the completion menu is shown. masil
+// patch: the app drives the menu itself (it runs none of the Model's Cmds,
+// so the debounce timers never fire) and needs to know when it is up.
+func (m Model) CompletionMenuVisible() bool {
+	return m.completionMenuVisible && len(m.completions) > 0
+}
+
+// SelectedCompletion is the open menu's selected item (ok=false: no menu).
+// masil patch: the wrapper applies a language server's text edit for it
+// itself (v0.1.3-1).
+func (m Model) SelectedCompletion() (core.Completion, bool) { // masil
+	if !m.CompletionMenuVisible() || m.selectedCompletionIdx >= len(m.completions) { // masil
+		return core.Completion{}, false // masil
+	} // masil
+	return m.completions[m.selectedCompletionIdx], true // masil
+} // masil
+
+// SetCursorCellStyle draws the cursor cell with style in every mode instead
+// of the mode's colors (nil: the mode's). masil patch: a reverse-video cell
+// that stands out in every theme (v0.1.3-1).
+func (m *Model) SetCursorCellStyle(style *lipgloss.Style) { // masil
+	m.cursorCellStyle = style
+	m.renderVisibleSlice()
+}
+
+// CursorPosition is the cell where View draws the cursor: its column and
+// row in View's output; ok is false while it is not drawn (blurred, off
+// screen) and in search mode. In command mode it is after the command
+// line's text. masil patch: the app puts the terminal's own cursor there
+// (v0.1.3-1).
+func (m *Model) CursorPosition() (x, y int, ok bool) { // masil
+	if !m.isFocused || m.editor.IsSearchMode() || m.width <= 0 || m.height <= 0 {
+		return 0, 0, false
+	}
+	if m.editor.IsCommandMode() {
+		if m.bottomRows() == 0 {
+			return 0, 0, false
+		}
+		return min(lipgloss.Width(m.editor.GetState().CommandLine), m.width-1), m.height - 1, true
+	}
+	top := max(0, m.currentVisualTopLine)
+	if m.fullVisualLayoutHeight == 0 {
+		top = 0
+	}
+	y = m.cursorAbsoluteVisualRow - top
+	if y < 0 || y >= m.viewport.Height() {
+		return 0, 0, false
+	}
+	x = m.cursorScreenCol(m.calculateLineNumberWidth(len(m.editor.GetBuffer().GetLines())))
+	if x < 0 || x >= m.width {
+		return 0, 0, false
+	}
+	return x, y, true
 }
 
 // SetExtraWordChars allows specifying additional characters to be considered part of words for cursor movement and selection.
@@ -1534,7 +1600,7 @@ func convertBubbleKey(msg tea.KeyMsg) core.KeyEvent {
 	result := core.KeyEvent{}
 
 	if k.Text != "" {
-		result.Rune = rune(k.Text[0])
+		result.Rune, _ = utf8.DecodeRuneInString(k.Text) // masil: the first rune, not its first byte (Hangul)
 	}
 
 	if k.Mod&tea.ModAlt != 0 {

@@ -376,3 +376,26 @@ func TestTextSelectIsReverse(t *testing.T) {
 		}
 	}
 }
+
+// The code editors' token colors (v0.1.3-1): CodeStyle's foregrounds with
+// no background (the editor is on the pane's own), and plain names and
+// text in FG rather than Acc3.
+func TestEditorTokenStyle(t *testing.T) {
+	for _, th := range All() {
+		for _, tt := range []chroma.TokenType{chroma.Keyword, chroma.LiteralString, chroma.LiteralNumber,
+			chroma.Comment, chroma.NameFunction, chroma.NameBuiltin, chroma.Operator} {
+			st, code := th.EditorTokenStyle(tt), th.CodeStyle(tt)
+			if st.GetForeground() != code.GetForeground() || st.GetBold() != code.GetBold() || st.GetItalic() != code.GetItalic() {
+				t.Errorf("%s %s: editor style differs from CodeStyle", th.Name, tt)
+			}
+			if _, none := st.GetBackground().(lipgloss.NoColor); !none {
+				t.Errorf("%s %s: editor style has a background %v", th.Name, tt, st.GetBackground())
+			}
+		}
+		for _, tt := range []chroma.TokenType{chroma.Name, chroma.Text, chroma.NameOther} {
+			if fg := th.EditorTokenStyle(tt).GetForeground(); fg != th.P.FG {
+				t.Errorf("%s %s fg = %v, want FG", th.Name, tt, fg)
+			}
+		}
+	}
+}

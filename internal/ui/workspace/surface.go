@@ -12,6 +12,7 @@ import (
 
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/codelsp"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/termpane"
@@ -276,6 +277,9 @@ func (s *Surface) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		return s.onHook(ctx, m.ev)
 	case termpane.NotifyMsg:
 		return s.onNotify(ctx, m)
+	case codelsp.ResultMsg:
+		s.lspResult(m)
+		return nil
 	}
 	s.prefix.Update(msg)
 	for _, t := range s.term.terms {
@@ -320,6 +324,26 @@ func (s *Surface) CapturesInput() bool {
 		return s.guest.composing()
 	}
 	return false
+}
+
+// Completing implements ui.Completer: while the code cell's completion menu
+// is open, tab accepts it instead of moving the focus.
+func (s *Surface) Completing() bool {
+	if s.picker != nil || s.dlg != nil || s.focus != PaneCode {
+		return false
+	}
+	d := s.code.current()
+	return d != nil && d.ed.CompletionOpen()
+}
+
+// CompletionKeys implements ui.CodeCompleter: ctrl+n / ctrl+p are the code
+// cell's while it types with completion on.
+func (s *Surface) CompletionKeys() bool {
+	if s.picker != nil || s.dlg != nil || s.focus != PaneCode {
+		return false
+	}
+	d := s.code.current()
+	return d != nil && d.ed.CompletionKeys()
 }
 
 // HandleKey implements ui.KeyHandler.
@@ -705,6 +729,7 @@ func (s *Surface) CloseTool(ctx *ui.Context) tea.Cmd {
 	}
 	s.closed = true
 	dropLive(s)
+	s.lspCloseAll()
 	cmd := tea.Batch(s.ownerClose(ctx), s.guestClose())
 	for _, t := range s.term.terms {
 		t.close()

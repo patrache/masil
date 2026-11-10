@@ -401,3 +401,62 @@ func TestLoadEscapeGlobalConflict(t *testing.T) {
 		t.Errorf("ctrl+] errs = %v", errs)
 	}
 }
+
+// 0.1.3 patch (tools-nav fix 2): on a Korean layout ctrl+t may arrive as
+// ctrl + the Hangul rune on that key (ㅅ) or with BaseCode 't' (kitty), and
+// ctrl+\ as ctrl+₩ (or the full-width ￦) or with BaseCode '\'. Both keys —
+// and only these two — match in every spelling while their default is bound.
+func TestLayoutRobustToolsAndEscape(t *testing.T) {
+	km := keymap.Default()
+	tools := []tea.KeyPressMsg{
+		{Code: 't', Mod: tea.ModCtrl},
+		{Code: 'ㅅ', Mod: tea.ModCtrl},
+		{Code: 'ㅅ', BaseCode: 't', Mod: tea.ModCtrl},
+		{Code: 'ㅅ', BaseCode: 't', Mod: tea.ModCtrl, Text: "ㅅ"},
+		{Code: 'x', BaseCode: 't', Mod: tea.ModCtrl},
+	}
+	for _, v := range tools {
+		if !km.MatchesToolsToggle(v) {
+			t.Errorf("%+v is not tools.toggle", v)
+		}
+	}
+	escape := []tea.KeyPressMsg{
+		{Code: '₩', Mod: tea.ModCtrl},
+		{Code: '￦', Mod: tea.ModCtrl},
+		{Code: '₩', BaseCode: '\\', Mod: tea.ModCtrl},
+		{Code: '₩', BaseCode: '\\', Mod: tea.ModCtrl, Text: "₩"},
+	}
+	for _, v := range escape {
+		if !km.MatchesEscape(v) {
+			t.Errorf("%+v is not termhost.escape", v)
+		}
+	}
+	for _, v := range []tea.KeyPressMsg{
+		{Code: 'ㅅ'}, {Code: 'ㅅ', Mod: tea.ModAlt}, {Code: 'ㅅ', Mod: tea.ModCtrl | tea.ModShift}, {Code: 't', BaseCode: 't'},
+		{Code: 'ㅆ', Mod: tea.ModCtrl}, {Code: 'ㅋ', Mod: tea.ModCtrl},
+	} {
+		if km.MatchesToolsToggle(v) {
+			t.Errorf("%+v matches tools.toggle", v)
+		}
+	}
+	for _, v := range []tea.KeyPressMsg{{Code: '₩'}, {Code: '₩', Mod: tea.ModAlt}} {
+		if km.MatchesEscape(v) {
+			t.Errorf("%+v matches termhost.escape", v)
+		}
+	}
+	// Other actions get no layout aliases (P7, 0.1.4): ctrl+ㅏ is not ctrl+k.
+	if km.Matches(tea.KeyPressMsg{Code: 'ㅏ', Mod: tea.ModCtrl}, keymap.PaletteOpen) {
+		t.Error("ctrl+ㅏ matches palette.open")
+	}
+	// Rebound: the aliases follow the default key only.
+	km, errs := keymap.Load(map[string][]string{"tools.toggle": {"ctrl+y"}, "termhost.escape": {"ctrl+]"}})
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	if km.MatchesToolsToggle(tea.KeyPressMsg{Code: 'ㅅ', Mod: tea.ModCtrl}) || km.MatchesEscape(tea.KeyPressMsg{Code: '₩', Mod: tea.ModCtrl}) {
+		t.Error("an alias of a rebound key still matches")
+	}
+	if !km.MatchesToolsToggle(tea.KeyPressMsg{Code: 'y', Mod: tea.ModCtrl}) {
+		t.Error("the rebound tools.toggle does not match")
+	}
+}
