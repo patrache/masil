@@ -1155,6 +1155,9 @@ func wrapLine(line string, width int) []string {
 }
 
 func (m *Model) getCursorStyles() lipgloss.Style {
+	if m.cursorCellStyle != nil { // masil
+		return *m.cursorCellStyle
+	}
 	state := m.editor.GetState()
 	switch state.Mode {
 	case core.InsertMode:

@@ -29,6 +29,7 @@ type Fake struct {
 	live    map[string]*handle       // live fake panes by instance id
 	modes   map[string]termhost.Mode // the mode each instance opened in
 	handles map[string]*handle       // every fake pane by instance id
+	cursor  *[2]int                  // SetCursor: where every pane's program puts its cursor
 }
 
 // Install makes termpane.Launch use a new Fake until tb's cleanup.
@@ -54,6 +55,17 @@ func (f *Fake) SetLimit(n int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.limit = n
+}
+
+// SetCursor makes every fake pane's program report its cursor at x, y (in
+// the pane's own cells); without it a fake pane has no cursor.
+func (f *Fake) SetCursor(x, y int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cursor = &[2]int{x, y}
+	for _, h := range f.handles {
+		h.setCursor(f.cursor)
+	}
 }
 
 // Started returns every request Launch got, as given (copies).
@@ -139,6 +151,7 @@ func (f *Fake) launch(ctx *ui.Context, req termhost.Request, opts termpane.Optio
 		return termpane.Launched{}, tea.Batch(toast, termpane.PaneLimitToast(ctx.T, f.limit)), termhost.ErrPaneLimit
 	}
 	h := &handle{program: req.Program, onClose: func() { f.closed(id) }}
+	h.setCursor(f.cursor)
 	f.live[id], f.handles[id], f.modes[id] = h, h, mode
 	return termpane.Launched{Mode: mode, View: termpane.New(h, opts)}, toast, nil
 }
@@ -162,6 +175,13 @@ type handle struct {
 	size    termhost.Size
 	keys    []string
 	onClose func()
+	cursor  *[2]int
+}
+
+func (h *handle) setCursor(c *[2]int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.cursor = c
 }
 
 func (h *handle) Program() string { return h.program }
@@ -189,7 +209,14 @@ func (h *handle) Render() string {
 	defer h.mu.Unlock()
 	return fmt.Sprintf("%s pane %dx%d", filepath.Base(h.program), h.size.W, h.size.H)
 }
-func (h *handle) Cursor() (int, int, bool)       { return 0, 0, false }
+func (h *handle) Cursor() (int, int, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.cursor == nil {
+		return 0, 0, false
+	}
+	return h.cursor[0], h.cursor[1], true
+}
 func (h *handle) Title() string                  { return "" }
 func (h *handle) MouseMode() bool                { return false }
 func (h *handle) Scrollback() []string           { return nil }

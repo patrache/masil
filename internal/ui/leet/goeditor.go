@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -63,6 +64,7 @@ func newGoEditor(path string, th *theme.Theme, lang string) (codeEditor, error) 
 	m.SetCompletionMenuMaxVisibleItems(codeassist.MaxVisible)
 	e := &goEditor{m: m, path: path, lang: codeassist.FromLeet(lang), th: th, cpOn: true}
 	e.m.SetSyntaxStyle(e.tokenStyle)
+	e.m.SetCursorCellStyle(cursorCellStyle(th))
 	e.setHighlight(true)
 	e.drain()
 	return e, nil
@@ -103,6 +105,7 @@ func (e *goEditor) applyAssist(ctx *ui.Context) {
 	if th := themeOf(ctx); th != e.th {
 		e.th, e.styles = th, nil
 		e.m.SetSyntaxStyle(e.tokenStyle)
+		e.m.SetCursorCellStyle(cursorCellStyle(th))
 	}
 	hl, cp := true, true
 	if ctx != nil && ctx.Config != nil {
@@ -221,8 +224,28 @@ func (e *goEditor) Resize(_ *ui.Context, s ui.Size) {
 // CapturesInput: every printable key is the editor's while it has focus.
 func (e *goEditor) CapturesInput() bool { return true }
 
-// Cursor: goeditor draws its own cursor cell.
-func (e *goEditor) Cursor() *tea.Cursor { return nil }
+// cursorCellStyle is the cursor cell (v0.1.3-1): reverse video of the text
+// colors, so it stands out in every theme, also where the terminal's own
+// cursor is hard to see.
+func cursorCellStyle(th *theme.Theme) *lipgloss.Style {
+	st := lipgloss.NewStyle().Foreground(th.P.FG).Background(th.P.BG).Reverse(true)
+	return &st
+}
+
+// Cursor is the terminal's real cursor on goeditor's cursor cell: a block
+// in normal mode, a bar in insert and command mode (v0.1.3-1; goeditor
+// still draws the cell itself).
+func (e *goEditor) Cursor() *tea.Cursor {
+	x, y, ok := e.m.CursorPosition()
+	if !ok || x >= e.size.W || y >= e.size.H {
+		return nil
+	}
+	c := tea.NewCursor(x, y)
+	if e.m.IsInsertMode() || e.m.IsCommandMode() {
+		c.Shape = tea.CursorBar
+	}
+	return c
+}
 
 // takeLeave reports (once) that the last key asked to leave the editor.
 func (e *goEditor) takeLeave() bool {
@@ -271,7 +294,7 @@ func (e *goEditor) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		}
 		return true, nil
 	}
-	e.feed(msg)
+	e.feedKey(msg)
 	cmd := e.afterKey(ctx)
 	switch {
 	case !e.m.IsInsertMode():
@@ -298,6 +321,19 @@ func (e *goEditor) normalIdle() bool {
 	}
 	idle, ok := ed.GetMode().(interface{ Idle() bool })
 	return ok && idle.Idle()
+}
+
+// feedKey gives goeditor a key: typed text of several runes (an IME
+// committing more than one at once) goes as one key per rune, since
+// goeditor reads one rune from a key (v0.1.3-1).
+func (e *goEditor) feedKey(msg tea.KeyPressMsg) {
+	if msg.Mod&(tea.ModCtrl|tea.ModAlt) != 0 || utf8.RuneCountInString(msg.Text) <= 1 {
+		e.feed(msg)
+		return
+	}
+	for _, r := range msg.Text {
+		e.feed(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
 }
 
 // feed gives goeditor one msg, dropping its Cmds.

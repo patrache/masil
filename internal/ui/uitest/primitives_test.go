@@ -542,3 +542,17 @@ func TestAssertTitle(t *testing.T) {
 		t.Error("invalid UTF-8 title not reported")
 	}
 }
+
+func TestReverseCells(t *testing.T) {
+	s := "ab\x1b[38;2;7;7;7;48;5;7mc\x1b[7md\x1b[27me\n\x1b[1;7m한\x1b[0mx\x1b[7m \x1b[m"
+	got := ReverseCells(s)
+	want := []ReverseCell{{X: 3, Y: 0, Text: "d"}, {X: 0, Y: 1, Text: "한"}, {X: 3, Y: 1, Text: " "}}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %+v, want %+v", got, want)
+		}
+	}
+}

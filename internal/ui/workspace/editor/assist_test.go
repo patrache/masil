@@ -40,7 +40,7 @@ func menu(t *testing.T, e *Editor) []string {
 func TestHighlightInView(t *testing.T) {
 	th := theme.Get(theme.Default)
 	e := goEd("func main() {\n\treturn // x\n}\n")
-	v := e.View(true)
+	v := e.View(false) // unfocused: no cursor cell over the first f
 	kw := th.EditorTokenStyle(chroma.Keyword)
 	if !strings.Contains(v, kw.Render("f")) || !strings.Contains(v, kw.Render("r")) {
 		t.Fatalf("keywords are not colored:\n%q", v)
@@ -53,12 +53,12 @@ func TestHighlightInView(t *testing.T) {
 	}
 	// switched off: plain FG again
 	e.SetAssist(false, true)
-	if v := e.View(true); strings.Contains(v, kw.Render("f")) {
+	if v := e.View(false); strings.Contains(v, kw.Render("f")) {
 		t.Fatal("highlighting stays on when switched off")
 	}
 	// an unknown file type stays plain
 	p := newEd("func x", false)
-	if v := p.View(true); strings.Contains(v, kw.Render("f")) {
+	if v := p.View(false); strings.Contains(v, kw.Render("f")) {
 		t.Fatal("no language, still colored")
 	}
 }
@@ -353,11 +353,11 @@ func TestSetThemeRecolorsTokens(t *testing.T) {
 		t.Skip("the two themes color keywords alike")
 	}
 	e := goEd("func main() {}\n")
-	if v := e.View(true); !strings.Contains(v, kwOld) {
+	if v := e.View(false); !strings.Contains(v, kwOld) { // unfocused: no cursor cell over f
 		t.Fatalf("not colored by the first theme:\n%q", v)
 	}
 	e.SetTheme(next)
-	v := e.View(true)
+	v := e.View(false)
 	if !strings.Contains(v, kwNew) || strings.Contains(v, kwOld) {
 		t.Fatalf("still the old theme's colors:\n%q", v)
 	}
