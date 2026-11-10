@@ -211,7 +211,11 @@ func TestTimingPhases(t *testing.T) {
 		t.Fatal(err)
 	}
 	tm := resp.Timing
-	if tm.Connect <= 0 || tm.TLS <= 0 || tm.FirstByte <= 0 || tm.Total < tm.FirstByte {
+	// Windows' monotonic clock moves in timer ticks (about 0.5-15.6ms), so a
+	// loopback connect or handshake can measure as 0 there; it must never be
+	// negative. The 5ms handler sleep keeps FirstByte above 0 on every OS.
+	quick := func(d time.Duration) bool { return d < 0 || (runtime.GOOS != "windows" && d == 0) }
+	if quick(tm.Connect) || quick(tm.TLS) || tm.FirstByte <= 0 || tm.Total < tm.FirstByte {
 		t.Errorf("timing = %+v", tm)
 	}
 	if string(resp.Body) != "hi" {
