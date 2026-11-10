@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image/color"
+	"io"
 	"net/url"
 	"path"
 	"strconv"
@@ -581,14 +582,18 @@ func (v *vtScreen) Responses(out func([]byte)) {
 	}
 }
 
-// stop wakes Responses with an empty write (Emulator.Close would race with
-// the blocked Read) and waits for it to return.
+// stop closes the input pipe's write end, which wakes a blocked Read with
+// EOF, and waits for Responses to return. A wake-up write would block for
+// ever when Responses has already seen stopping and left (it took input
+// just before), and so would every later key, paste or query reply, since
+// nothing reads the pipe after stop. Closing the PipeWriter is safe next to
+// a Read in flight; Emulator.Close is not (it sets a field Read checks).
 func (v *vtScreen) stop() {
 	if !v.stopping.Swap(true) {
-		select {
-		case <-v.respDone:
-		default:
-			v.e.SendText("") // an empty write unblocks Read; Responses then sees stopping
+		if pw, ok := v.e.InputPipe().(interface{ CloseWithError(error) error }); ok {
+			_ = pw.CloseWithError(io.EOF)
+		} else {
+			go v.e.SendText("") // not an io.Pipe: wake Responses without waiting on it
 		}
 	}
 	<-v.respDone
