@@ -20,6 +20,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  tag-check:
+    # Only vX.Y.Z and vX.Y.Z-N (a patch revision, e.g. v0.1.3-1) are released,
+    # always as a normal, latest release (.goreleaser.yaml prerelease: false).
+    # Anything else — a pre-release such as v0.2.0-rc.1 — would be published
+    # as the latest release, so it is refused before anything is built.
+    runs-on: ubuntu-latest
+    steps:
+      - name: tag is vX.Y.Z or vX.Y.Z-N
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; then
+            echo "::error::tag $GITHUB_REF_NAME is not vX.Y.Z or vX.Y.Z-N; pre-release tags are not released by this workflow"
+            exit 1
+          fi
+
   go-test:
     strategy:
       fail-fast: false
@@ -57,7 +71,7 @@ jobs:
         run: npm test
 
   goreleaser:
-    needs: [go-test, server-test]
+    needs: [tag-check, go-test, server-test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -122,8 +136,8 @@ jobs:
 
   homebrew-tap:
     needs: [goreleaser]
-    # Pre-releases (tags with a '-', e.g. v0.2.0-rc.1) never reach the tap.
-    if: ${{ !contains(github.ref_name, '-') }}
+    # Every released tag reaches the tap: tag-check lets only vX.Y.Z and
+    # vX.Y.Z-N through (pre-release tags are never released).
     runs-on: ubuntu-latest
     env:
       TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -183,7 +197,7 @@ jobs:
     needs: [goreleaser, homebrew-tap]
     # Runs even when homebrew-tap was skipped; needs a public repo so the
     # install scripts can download release assets anonymously.
-    if: ${{ always() && needs.goreleaser.result == 'success' && vars.MASIL_PUBLIC == 'true' && !contains(github.ref_name, '-') }}
+    if: ${{ always() && needs.goreleaser.result == 'success' && vars.MASIL_PUBLIC == 'true' }}
     strategy:
       fail-fast: false
       matrix:
