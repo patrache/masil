@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -69,18 +71,18 @@ func TestComplete(t *testing.T) {
 		t.Fatal("a Cmd without a manager")
 	}
 	f := NewFake()
-	if err := f.Open("/r", "/r/main.go", "package main\n\nfunc main() { fmt.Pr }"); err != nil {
+	if err := f.Open(testRoot, testMain, "package main\n\nfunc main() { fmt.Pr }"); err != nil {
 		t.Fatal(err)
 	}
 	f.Answer = func(path string, line, col int) (lsp.List, error) {
 		return lsp.List{Items: []lsp.Item{{Label: "Println", InsertText: "Println"}}, Incomplete: true}, nil
 	}
-	r := Request{Key: "k", Seq: 7, Path: "/r/main.go", Line: 2, Col: 19, LineText: []rune("func main() { fmt.Pr }")}
+	r := Request{Key: "k", Seq: 7, Path: testMain, Line: 2, Col: 19, LineText: []rune("func main() { fmt.Pr }")}
 	m := Complete(f, r)().(ResultMsg)
 	if m.Key != "k" || m.Seq != 7 || m.Err != nil || len(m.Items) != 1 || !m.Incomplete {
 		t.Fatalf("result = %+v", m)
 	}
-	if a := f.Asked(); len(a) != 1 || a[0] != (FakeAsk{"/r/main.go", 2, 19}) {
+	if a := f.Asked(); len(a) != 1 || a[0] != (FakeAsk{testMain, 2, 19}) {
 		t.Fatalf("asked = %+v", a)
 	}
 	f.Answer = func(string, int, int) (lsp.List, error) { return lsp.List{}, lsp.ErrTimeout }
@@ -92,7 +94,7 @@ func TestComplete(t *testing.T) {
 // A manager that ignores its context still ends at Timeout (the words stay).
 func TestCompleteTimeout(t *testing.T) {
 	start := time.Now()
-	m := Complete(&slow{Fake: *NewFake()}, Request{Path: "/r/a.go"})().(ResultMsg)
+	m := Complete(&slow{Fake: *NewFake()}, Request{Path: filepath.Join(testRoot, "a.go")})().(ResultMsg)
 	if m.Err == nil {
 		t.Fatalf("no error from a slow server: %+v", m)
 	}
@@ -135,7 +137,7 @@ func TestIsTrigger(t *testing.T) {
 // filtering a list that lost what sorts after the cut.
 func TestCompleteCutIsIncomplete(t *testing.T) {
 	f := NewFake()
-	if err := f.Open("/r", "/r/main.go", "package main\n\nfunc main() { os. }"); err != nil {
+	if err := f.Open(testRoot, testMain, "package main\n\nfunc main() { os. }"); err != nil {
 		t.Fatal(err)
 	}
 	var many []lsp.Item
@@ -145,7 +147,7 @@ func TestCompleteCutIsIncomplete(t *testing.T) {
 	}
 	many = append(many, lsp.Item{Label: "WriteFile", InsertText: "WriteFile"}) // sorts after the cut
 	f.Answer = func(string, int, int) (lsp.List, error) { return lsp.List{Items: many}, nil }
-	r := Request{Key: "k", Seq: 1, Path: "/r/main.go", Line: 2, Col: 17, LineText: []rune("func main() { os. }")}
+	r := Request{Key: "k", Seq: 1, Path: testMain, Line: 2, Col: 17, LineText: []rune("func main() { os. }")}
 	m := Complete(f, r)().(ResultMsg)
 	if m.Err != nil || len(m.Items) != codeassist.MaxMenuItems {
 		t.Fatalf("result: %d items, err %v", len(m.Items), m.Err)
@@ -160,3 +162,9 @@ func TestCompleteCutIsIncomplete(t *testing.T) {
 		t.Fatalf("an uncut answer: %d items, incomplete %v", len(m.Items), m.Incomplete)
 	}
 }
+
+// testRoot is an absolute folder on every OS (on Windows "/r" has no volume,
+// so lsp.Manager refuses it as not local).
+var testRoot = filepath.Join(os.TempDir(), "masil-codelsp-r")
+
+var testMain = filepath.Join(testRoot, "main.go")
