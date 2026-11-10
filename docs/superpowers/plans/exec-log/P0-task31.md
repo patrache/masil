@@ -45,4 +45,32 @@
 3. `MASIL_FEATURES=` (빈 값)도 모두 끔으로 읽는 것 — README 는 `none` 만 안내.
 4. 출시 PR 인데 도움말·팔레트 기존 골든이 바뀌지 않은 것(도구 줄이 도움말 첫 쪽 밖). 도구 줄을 도움말 앞쪽으로 올릴지는 P0 Task 18 설계 몫 — 지금은 새 골든 `TestReleaseEntriesGolden` 으로 보여 드린다.
 5. README 도구 절의 영어 문장(색인 16행, 원어민 검수 때).
-6. **`termhost` 멈춤(이 Task 밖, P0 Task 14 코드)**: `vtScreen.stop` 은 `stopping` 을 켠 뒤 `respDone` 이 아직 안 닫혔으면 `SendText("")` 로 `Responses` 의 `Read` 를 깨운다. 그런데 그사이 `Responses` 가 다른 응답 바이트(에뮬레이터가 쓴 터미널 응답)를 읽고 `stopping` 을 보고 끝나면, 빈 쓰기를 읽을 사람이 없어 `stop` 이 영원히 막힌다 → `waitLoop` 가 `unregisterPane`·`ExitedMsg` 까지 가지 못함(패널 수가 줄지 않고, 프로그램이 끝나도 포커스가 돌아오지 않을 수 있음 — Review Focus 2). 고치는 길 후보: 깨우는 쓰기를 고루틴으로 보내고 `respDone` 뒤 `Emulator.Close()`(파이프 `done` 을 닫아 막힌 쓰기를 풂). 이 Task 범위 밖이라 고치지 않았다.
+6. ~~**`termhost` 멈춤**~~ — 리뷰 반영에서 고침(아래 "리뷰 반영" 2). 원래 기록: `vtScreen.stop` 은 `stopping` 을 켠 뒤 `respDone` 이 아직 안 닫혔으면 `SendText("")` 로 `Responses` 의 `Read` 를 깨운다. 그런데 그사이 `Responses` 가 다른 응답 바이트(에뮬레이터가 쓴 터미널 응답)를 읽고 `stopping` 을 보고 끝나면, 빈 쓰기를 읽을 사람이 없어 `stop` 이 영원히 막힌다 → `waitLoop` 가 `unregisterPane`·`ExitedMsg` 까지 가지 못함(패널 수가 줄지 않고, 프로그램이 끝나도 포커스가 돌아오지 않을 수 있음 — Review Focus 2). 고치는 길 후보: 깨우는 쓰기를 고루틴으로 보내고 `respDone` 뒤 `Emulator.Close()`(파이프 `done` 을 닫아 막힌 쓰기를 풂). 이 Task 범위 밖이라 고치지 않았다.
+
+## 리뷰 반영 (2026-11-10, 같은 브랜치)
+
+1. **e2e 누출 검사가 헛돌던 것(중)**: `storeSecrets` 가 어느 도구도 읽지 않는 이름(`cookie.session`, `env/prod/TOKEN`)에 값을 넣어, 오늘의 문제는 로그아웃 상태이고 API 도구는 값을 읽은 적이 없었다 — `AssertNoLeak`·`AssertNoLeakFrames` 가 도구가 무엇을 하든 통과. 이제 LeetCode 쿠키는 `leetcode.SaveCredentials`(이 계정 `CredNS`), API 토큰은 시드한 개인 환경의 `apitool.SecretKey("", envID, "token")` 에 넣고, `useSecrets` 가 검사 전에 두 도구가 값을 실제로 쓰게 한다: 오늘의 문제 `r` → 가짜 LeetCode 가 두 쿠키를 받음, API 도구 `enter` → 로컬 API 가 `Bearer <토큰>` 을 받음. 못 쓰면 실패. 킬 스위치 시험은 공유가 살아 있는 동안 이것을 하므로 새면 기록한 프레임에 잡힌다. 돌연변이 확인(이 세션, 되돌림): 쿠키를 다른 계정 이름공간에 넣음 → `today's problem did not run with the stored cookies`, 토큰을 옛 이름 `env/prod/TOKEN` 에 넣음 → `the API tool sent no request`.
+2. **`termhost` 멈춤(중) — 고침**: `vtScreen.stop` 이 `SendText("")` 대신 입력 파이프의 `PipeWriter` 를 `CloseWithError(io.EOF)` 로 닫는다(진행 중인 `Read` 옆에서 안전; `Emulator.Close` 는 `Read` 가 보는 필드를 써서 경합). 막힌 `Read` 는 EOF 로 깨고, stop 뒤의 키·붙여넣기·질의 응답 쓰기는 막히지 않고 바로 실패한다(전에는 이것들도 읽을 사람 없는 파이프에서 영원히 막힐 수 있었다). 실제 원인(이 세션 스택으로 확인): 붙여넣기·키 홍수 중 `Responses` 가 전달할 입력을 읽은 직후 `stopping` 을 보고 끝남 → 깨우는 빈 쓰기를 읽을 사람 없음. `TestPaneNeverBlocksOnStuckChild -count=30` 으로 재현(90초 시간 초과, `vt.go:591` 에서 막힘) → 고친 뒤 30회 통과. 회귀 시험 `TestVTStopWhileInputFlows`(키 홍수 중 stop 300회)·`TestVTInputAfterStopNeverBlocks` — 고치기 전 둘 다 FAIL 확인.
+3. **`setupTools` 의 LeetCode 환경변수 이름(하)**: `LEETCODE_CSRF`·`LEETCODE_CF_CLEARANCE` → `leetcode.EnvSession`·`EnvCSRF`·`EnvCFClearance` 상수.
+4. **`cmd/masil/register_api.go` 주석(하)**: 출시 기본값(켜짐)에 맞게 고침.
+5. **CA 10.3 새 골든 목록(하)**: `TestReleaseEntriesGolden` 을 더하고, 출시 PR 이 기존 도움말·팔레트 골든을 바꾸지 않은 까닭을 한 문장으로. 오너 확인 4 는 그대로.
+6. **시험 이음매 이동·Step 4(하)**: 이음매(`testhooks.go`)는 오너 확인 2 로 그대로 둔다. Step 4 는 이번에 계획 그대로 돌렸다(`make lint`·`make cross`·`go test ./...`, 아래).
+
+- 내 판단: `v0.1.2` 대비 새 골든 디렉터리는 CA 10.3 목록 넷 말고도 도구 패키지 것(`TestGoldenOwner`·`TestArchScreens`·`TestGitGolden` 등)이 많다 — 모두 A(추가)이고 M·D 는 0개. 리뷰가 짚은 `TestReleaseEntriesGolden` 만 목록에 더했고, 목록을 "도구 패키지의 새 골든 전부" 로 넓힐지는 오너 확인 7 로 올린다.
+- 내 판단: 서버(`server/`)는 이 브랜치에서 바뀌지 않아(`git diff --stat 348961d1 -- server` 빈 출력) `npm run typecheck`·`npm test` 는 돌리지 않았다.
+
+### 확인 (이 세션, 리뷰 반영 뒤)
+
+- `go build ./...` → BUILD_OK
+- `make lint`(= `go vet ./...` + 저장소 전체 `gofmt -l .` 빈 출력) → OK
+- `make cross`(darwin·linux·windows `CGO_ENABLED=0 go build ./...`) → OK
+- `GOOS=windows go vet ./...` / `GOOS=linux go vet ./...` → VET_WIN_OK / VET_LINUX_OK
+- `go test -count=1 ./...` → exit 0, ok 84 패키지, FAIL 0(`internal/termhost` ok 28.3s)
+- `gofmt -l`(dev/v0.1.3 `348961d1` 이후 바뀐 .go) → 출력 없음
+- `git status --porcelain -- '*.golden'` → 빈 출력(이번 반영에서 골든 변화 없음). `git diff --name-status v0.1.2 -- '*.golden'` 에 A 아닌 줄 0개.
+- 서버 바뀌지 않음 → `npm` 생략(위 내 판단).
+
+## 오너 확인 (리뷰 반영에서 더함)
+
+7. CA 10.3 의 "새 골든" 목록이 도구 패키지들의 새 골든(`TestGoldenOwner`·`TestArchScreens`·`TestGitGolden` …)을 이름으로 다 적지 않는다 — 넓힐지.
+
