@@ -93,7 +93,8 @@ func (c *processCommand) SetStdout(w io.Writer) { c.stdout = w }
 func (c *processCommand) SetStderr(w io.Writer) { c.stderr = w }
 
 func (c *processCommand) Run() error {
-	cmd := exec.Command(c.req.Program, c.req.Args...)
+	prog, args := c.req.command()
+	cmd := exec.Command(prog, args...)
 	cmd.Dir = c.req.Dir
 	cmd.Env = append(os.Environ(), c.req.Env...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = c.stdin, c.stdout, c.stderr

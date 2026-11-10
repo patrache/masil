@@ -151,7 +151,7 @@ func (f *Fake) closed(id string) {
 }
 
 func cloneReq(r termhost.Request) termhost.Request {
-	r.Args, r.Env = slices.Clone(r.Args), slices.Clone(r.Env)
+	r.Args, r.Env, r.Exec = slices.Clone(r.Args), slices.Clone(r.Env), slices.Clone(r.Exec)
 	return r
 }
 

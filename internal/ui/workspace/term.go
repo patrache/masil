@@ -3,6 +3,7 @@ package workspace
 import (
 	"errors"
 	"log/slog"
+	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -23,6 +24,9 @@ import (
 // own termpane instance ("<surface id>#<n>"), one shown.
 
 const termhostExec = termhost.ModeExec
+
+// loginShell is the user's login shell ($SHELL; tests set it).
+var loginShell = func() string { return os.Getenv("SHELL") }
 
 // paneSupported reports whether embedded panes can run here (not on
 // Windows; export_test.go swaps it).
@@ -113,6 +117,10 @@ func (s *Surface) launchTerm(ctx *ui.Context, argv []string, mode termhost.Mode)
 		out, cleanup = o, c
 	}
 	req := termhost.Request{Program: out[0], Args: out[1:], Dir: s.dir, Title: name, ToolID: ui.ToolWorkspace, Mode: mode}
+	// claude through the user's login shell (zsh/bash): their functions,
+	// aliases and PATH apply (0.1.3 patch: a claude() function picking the
+	// account by folder). req keeps masil's own argv for every check.
+	req.Exec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS)
 	opts := termpane.Options{ToolID: ui.ToolWorkspace, InstanceID: id, OnPrefix: s.prefixKey}
 	l, cmd, err := termpane.Launch(ctx, req, opts)
 	if err != nil {

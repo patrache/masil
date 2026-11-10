@@ -36,6 +36,19 @@ type Request struct {
 	Title   string // shown in tab titles and the return toast
 	ToolID  string // leet, workspace, arch, git, api
 	Mode    Mode   // "" or ModeAuto = decide; anything else is an explicit choice
+	// Exec, when set, is the argv actually started — the user's login shell
+	// around Program (launch.ViaLoginShell, 0.1.3 patch). Program and Args
+	// stay what masil checks, names and shows (titles, the running list,
+	// ExitInfo).
+	Exec []string
+}
+
+// command is the program and args to start: Exec when set, else Program/Args.
+func (r Request) command() (string, []string) {
+	if len(r.Exec) > 0 {
+		return r.Exec[0], r.Exec[1:]
+	}
+	return r.Program, r.Args
 }
 
 // Env is the environment Choose decides in. CurrentEnv fills it; tests build it.

@@ -60,12 +60,13 @@ func popupArgs(req Request, version string) []string {
 		args = append(args, "-T", tmuxEscape(title))
 	}
 	args = append(args, "--")
-	if len(req.Env) > 0 || len(req.Args) == 0 {
+	prog, pargs := req.command()
+	if len(req.Env) > 0 || len(pargs) == 0 {
 		args = append(args, "env")
 		args = append(args, req.Env...)
 	}
-	args = append(args, req.Program)
-	return append(args, req.Args...)
+	args = append(args, prog)
+	return append(args, pargs...)
 }
 
 // tmuxEscape makes s literal in a tmux format.
