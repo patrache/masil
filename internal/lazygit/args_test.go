@@ -16,9 +16,10 @@ import (
 func modeOf(s string) termhost.Mode { return termhost.Mode(s) }
 
 func TestArgsUserFirst(t *testing.T) {
-	got := Args("/r/masil", []string{"/a.yml", "/b.yml"}, "/c/lazygit/theme-x.yml")
-	want := []string{"-p", filepath.Clean("/r/masil"), "--use-config-file", "/a.yml,/b.yml,/c/lazygit/theme-x.yml"}
-	if filepath.IsAbs("/r/masil") && !slices.Equal(got, want) {
+	repo := native("/r/masil")
+	got := Args(repo, []string{"/a.yml", "/b.yml"}, "/c/lazygit/theme-x.yml")
+	want := []string{"-p", repo, "--use-config-file", "/a.yml,/b.yml,/c/lazygit/theme-x.yml"}
+	if !slices.Equal(got, want) {
 		t.Fatalf("Args = %q, want %q", got, want)
 	}
 	if got := Args("/r/masil", nil, "/o.yml"); got[3] != "/o.yml" {
