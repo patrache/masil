@@ -26,7 +26,7 @@ func startUnixProc(req Request, size Size, env []string) (proc, error) {
 	if err != nil {
 		return nil, err
 	}
-	prog, args := req.command()
+	prog, args := req.command(ModePane)
 	cmd := exec.Command(prog, args...)
 	cmd.Dir = req.Dir
 	cmd.Env = env

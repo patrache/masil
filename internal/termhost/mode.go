@@ -41,10 +41,19 @@ type Request struct {
 	// stay what masil checks, names and shows (titles, the running list,
 	// ExitInfo).
 	Exec []string
+	// PaneExec, when set, replaces Exec in pane mode: the login-shell wrap
+	// that also wipes the pane emulator's scrollback of rc-file output. Exec
+	// and window mode run on a real terminal whose scrollback is the user's,
+	// so they keep Exec.
+	PaneExec []string
 }
 
-// command is the program and args to start: Exec when set, else Program/Args.
-func (r Request) command() (string, []string) {
+// command is the program and args to start in mode m: PaneExec in pane mode
+// when set, else Exec when set, else Program/Args.
+func (r Request) command(m Mode) (string, []string) {
+	if m == ModePane && len(r.PaneExec) > 0 {
+		return r.PaneExec[0], r.PaneExec[1:]
+	}
 	if len(r.Exec) > 0 {
 		return r.Exec[0], r.Exec[1:]
 	}

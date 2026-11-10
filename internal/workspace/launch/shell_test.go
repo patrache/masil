@@ -19,10 +19,12 @@ func TestViaLoginShell(t *testing.T) {
 	args := []string{"claude", "--permission-mode", "manual", "--settings", "/tmp/masil-claude-1.json", "-c"}
 	for _, shell := range []string{"/bin/zsh", "/usr/local/bin/bash", "/opt/homebrew/bin/zsh"} {
 		for _, goos := range []string{"darwin", "linux"} {
-			got := ViaLoginShell(args, shell, goos)
-			want := append([]string{shell, "-l", "-i", "-c", LoginShellScript, "claude"}, args[1:]...)
-			if !slices.Equal(got, want) {
-				t.Errorf("%s %s: %q, want %q", shell, goos, got, want)
+			for pane, script := range map[bool]string{true: PaneShellScript, false: ExecShellScript} {
+				got := ViaLoginShell(args, shell, goos, pane)
+				want := append([]string{shell, "-l", "-i", "-c", script, "claude"}, args[1:]...)
+				if !slices.Equal(got, want) {
+					t.Errorf("%s %s pane=%v: %q, want %q", shell, goos, pane, got, want)
+				}
 			}
 		}
 	}
@@ -41,14 +43,28 @@ func TestViaLoginShell(t *testing.T) {
 		{[]string{"zsh"}, "/bin/zsh", "darwin"},
 		{nil, "/bin/zsh", "darwin"},
 	} {
-		if got := ViaLoginShell(tc.argv, tc.shell, tc.goos); got != nil {
-			t.Errorf("%q shell %q %s: %q, want direct exec (nil)", tc.argv, tc.shell, tc.goos, got)
+		for _, pane := range []bool{true, false} {
+			if got := ViaLoginShell(tc.argv, tc.shell, tc.goos, pane); got != nil {
+				t.Errorf("%q shell %q %s: %q, want direct exec (nil)", tc.argv, tc.shell, tc.goos, got)
+			}
 		}
 	}
-	// The script runs claude by name, after clearing what the rc files printed.
-	if strings.Contains(LoginShellScript, "exec ") || strings.Contains(LoginShellScript, "command ") ||
-		!strings.Contains(LoginShellScript, `claude "$@"`) {
-		t.Errorf("script = %q", LoginShellScript)
+	// The script turns job control off (claude stays in the shell's process
+	// group, which Close signals) and runs claude by name, after clearing what
+	// the rc files printed.
+	for _, s := range []string{PaneShellScript, ExecShellScript} {
+		if strings.Contains(s, "exec ") || strings.Contains(s, "command ") ||
+			!strings.HasPrefix(s, "set +m; ") || !strings.HasSuffix(s, `; claude "$@"`) {
+			t.Errorf("script = %q", s)
+		}
+	}
+	// Review fix: only the pane script erases scrollback (\033[3J) — in exec
+	// and window mode that is the user's real terminal's scrollback.
+	if !strings.Contains(PaneShellScript, `\033[3J`) {
+		t.Errorf("pane script %q does not clear the emulator's scrollback", PaneShellScript)
+	}
+	if strings.Contains(ExecShellScript, "3J") {
+		t.Errorf("exec script %q erases the terminal's scrollback", ExecShellScript)
 	}
 }
 
@@ -65,17 +81,20 @@ func TestLoginShellScriptPassesArgs(t *testing.T) {
 	}
 	dir := t.TempDir()
 	out := filepath.Join(dir, "args")
-	script := `claude() { for a in "$@"; do printf '%s\n' "$a"; done > ` + out + `; }; ` + LoginShellScript
 	args := []string{"-p", "two words", `"quoted"`, "$HOME", "a;b", "--settings", "/tmp/x y.json"}
-	cmd := exec.Command(sh, append([]string{"-c", script, "claude"}, args...)...)
-	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("sh: %v: %s", err, b)
-	}
-	b, err := os.ReadFile(out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n"); !slices.Equal(got, args) {
-		t.Errorf("claude got %q, want %q", got, args)
+	for _, ls := range []string{PaneShellScript, ExecShellScript} {
+		_ = os.Remove(out)
+		script := `claude() { for a in "$@"; do printf '%s\n' "$a"; done > ` + out + `; }; ` + ls
+		cmd := exec.Command(sh, append([]string{"-c", script, "claude"}, args...)...)
+		if b, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("sh: %v: %s", err, b)
+		}
+		b, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n"); !slices.Equal(got, args) {
+			t.Errorf("%q: claude got %q, want %q", ls, got, args)
+		}
 	}
 }

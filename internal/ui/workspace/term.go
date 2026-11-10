@@ -119,8 +119,10 @@ func (s *Surface) launchTerm(ctx *ui.Context, argv []string, mode termhost.Mode)
 	req := termhost.Request{Program: out[0], Args: out[1:], Dir: s.dir, Title: name, ToolID: ui.ToolWorkspace, Mode: mode}
 	// claude through the user's login shell (zsh/bash): their functions,
 	// aliases and PATH apply (0.1.3 patch: a claude() function picking the
-	// account by folder). req keeps masil's own argv for every check.
-	req.Exec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS)
+	// account by folder). req keeps masil's own argv for every check. Only
+	// the pane argv wipes scrollback: in exec mode it is the user's terminal.
+	req.Exec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS, false)
+	req.PaneExec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS, true)
 	opts := termpane.Options{ToolID: ui.ToolWorkspace, InstanceID: id, OnPrefix: s.prefixKey}
 	l, cmd, err := termpane.Launch(ctx, req, opts)
 	if err != nil {

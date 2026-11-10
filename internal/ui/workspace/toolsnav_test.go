@@ -83,14 +83,20 @@ func TestClaudeStartsThroughLoginShell(t *testing.T) {
 				t.Fatalf("request = %+v, want %s in %s", req, tc.argv[0], s.dir)
 			}
 			if !tc.wrap {
-				if req.Exec != nil {
-					t.Fatalf("exec = %q, want a direct exec", req.Exec)
+				if req.Exec != nil || req.PaneExec != nil {
+					t.Fatalf("exec = %q, pane exec %q, want a direct exec", req.Exec, req.PaneExec)
 				}
 				return
 			}
-			want := append([]string{tc.shell, "-l", "-i", "-c", launch.LoginShellScript, "claude"}, req.Args...)
-			if !slices.Equal(req.Exec, want) {
-				t.Fatalf("exec = %q, want %q", req.Exec, want)
+			// Review fix: only the pane argv wipes scrollback (\033[3J); exec
+			// mode (the macOS fallback) writes to the user's real terminal.
+			want := append([]string{tc.shell, "-l", "-i", "-c", launch.PaneShellScript, "claude"}, req.Args...)
+			if !slices.Equal(req.PaneExec, want) {
+				t.Fatalf("pane exec = %q, want %q", req.PaneExec, want)
+			}
+			want = append([]string{tc.shell, "-l", "-i", "-c", launch.ExecShellScript, "claude"}, req.Args...)
+			if !slices.Equal(req.Exec, want) || strings.Contains(strings.Join(req.Exec, " "), "3J") {
+				t.Fatalf("exec = %q, want %q (no scrollback erase)", req.Exec, want)
 			}
 			if !slices.Contains(req.Args, "--settings") || !slices.Contains(req.Args, "--permission-mode") {
 				t.Fatalf("masil's claude args lost: %q", req.Args)

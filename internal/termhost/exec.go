@@ -93,7 +93,7 @@ func (c *processCommand) SetStdout(w io.Writer) { c.stdout = w }
 func (c *processCommand) SetStderr(w io.Writer) { c.stderr = w }
 
 func (c *processCommand) Run() error {
-	prog, args := c.req.command()
+	prog, args := c.req.command(ModeExec)
 	cmd := exec.Command(prog, args...)
 	cmd.Dir = c.req.Dir
 	cmd.Env = append(os.Environ(), c.req.Env...)

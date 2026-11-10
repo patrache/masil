@@ -60,7 +60,7 @@ func popupArgs(req Request, version string) []string {
 		args = append(args, "-T", tmuxEscape(title))
 	}
 	args = append(args, "--")
-	prog, pargs := req.command()
+	prog, pargs := req.command(ModeWindow)
 	if len(req.Env) > 0 || len(pargs) == 0 {
 		args = append(args, "env")
 		args = append(args, req.Env...)

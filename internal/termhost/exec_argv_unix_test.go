@@ -42,7 +42,8 @@ func TestPaneStartsExecArgv(t *testing.T) {
 	sh := fakeShell(t)
 	req := Request{
 		Program: "claude", Args: []string{"--settings", "/tmp/a b.json"}, Title: "claude",
-		Exec: []string{sh, "-l", "-i", "-c", `printf '\033[3J\033[H\033[2J'; claude "$@"`, "claude", "--settings", "/tmp/a b.json"},
+		Exec:     []string{"/nonexistent/exec-mode-only"},
+		PaneExec: []string{sh, "-l", "-i", "-c", `set +m; printf '\033[3J\033[H\033[2J'; claude "$@"`, "claude", "--settings", "/tmp/a b.json"},
 	}
 	p, err := StartPane(req, Size{W: 60, H: 6}, PaneOptions{})
 	if err != nil {
@@ -70,7 +71,8 @@ func TestPaneStartsExecArgv(t *testing.T) {
 }
 
 func TestPopupArgsUseExec(t *testing.T) {
-	req := Request{Program: "claude", Args: []string{"-c"}, Exec: []string{"/bin/zsh", "-l", "-i", "-c", "s", "claude", "-c"}}
+	req := Request{Program: "claude", Args: []string{"-c"}, Exec: []string{"/bin/zsh", "-l", "-i", "-c", "s", "claude", "-c"},
+		PaneExec: []string{"/bin/zsh", "-l", "-i", "-c", "pane-only", "claude", "-c"}}
 	got := strings.Join(popupArgs(req, "3.2"), " ")
 	if want := "display-popup -E -w 90% -h 90% -- /bin/zsh -l -i -c s claude -c"; got != want {
 		t.Fatalf("popup args = %q, want %q", got, want)
@@ -99,11 +101,11 @@ func TestLoginShellCloseKillsFunctionChild(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			argv := launch.ViaLoginShell([]string{"claude", "-c"}, shell, runtime.GOOS)
+			argv := launch.ViaLoginShell([]string{"claude", "-c"}, shell, runtime.GOOS, true)
 			if argv == nil {
 				t.Fatalf("ViaLoginShell(%s) = nil", shell)
 			}
-			req := Request{Program: "claude", Args: []string{"-c"}, Title: "claude", Exec: argv,
+			req := Request{Program: "claude", Args: []string{"-c"}, Title: "claude", PaneExec: argv,
 				Env: []string{"HOME=" + home, "ZDOTDIR=" + home}}
 			p, err := StartPane(req, Size{W: 60, H: 6}, PaneOptions{})
 			if err != nil {
@@ -133,5 +135,29 @@ func TestLoginShellCloseKillsFunctionChild(t *testing.T) {
 				time.Sleep(50 * time.Millisecond)
 			}
 		})
+	}
+}
+
+// Review fix (tools-nav): exec mode runs Exec, never PaneExec — the pane
+// script erases scrollback (\033[3J), and in exec mode that would be the
+// user's real terminal's own, from before masil started.
+func TestExecModeRunsExecNotPaneExec(t *testing.T) {
+	sh := fakeShell(t)
+	req := Request{
+		Program: "claude", Args: []string{"-c"}, Title: "claude",
+		Exec:     launch.ViaLoginShell([]string{"claude", "-c"}, sh, "darwin", false),
+		PaneExec: launch.ViaLoginShell([]string{"claude", "-c"}, sh, "darwin", true),
+	}
+	if req.Exec == nil || req.PaneExec == nil {
+		t.Fatalf("fake shell %q not wrapped", sh)
+	}
+	if prog, args := req.command(ModeExec); prog != sh || strings.Contains(strings.Join(args, " "), "3J") {
+		t.Fatalf("exec mode starts %q %q", prog, args)
+	}
+	if _, args := req.command(ModeWindow); strings.Contains(strings.Join(args, " "), "3J") {
+		t.Fatalf("window mode starts %q", args)
+	}
+	if _, args := req.command(ModePane); !strings.Contains(strings.Join(args, " "), "3J") {
+		t.Fatalf("pane mode starts %q, want the pane script", args)
 	}
 }
