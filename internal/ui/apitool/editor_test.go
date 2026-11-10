@@ -340,7 +340,7 @@ func TestInFlightDoesNotBlockUI(t *testing.T) {
 	if h.Nav().Front == app.FrontTools {
 		t.Fatalf("ctrl+t did not go to chat while sending")
 	}
-	h.Press("ctrl+t")
+	h.Press("ctrl+t", "enter") // the hub (0.1.3 patch), its cursor on this instance
 	if h.Nav().Front != app.FrontTools {
 		t.Fatalf("ctrl+t did not come back")
 	}
@@ -398,7 +398,7 @@ func TestSaveAndExternalChange(t *testing.T) {
 	if err := ls.SaveCollection(c); err != nil {
 		t.Fatal(err)
 	}
-	h.Press("ctrl+t", "ctrl+t") // away and back: the tool looks at its files
+	h.Press("ctrl+t", "ctrl+t", "enter") // away and back (through the hub): the tool looks at its files
 	waitScreen(t, h, ko.FileChanged())
 	h.Press("R")
 	if got := toolOf(h).req.URL; got != "https://example.com/changed" {
