@@ -16,14 +16,6 @@ func SetPaneSupportedForTest(on bool) (restore func()) {
 	return func() { paneSupported = old }
 }
 
-// SetDialForTest makes shares connect through dial with the engine on
-// ManualTick (the pump ticks it on the harness clock).
-func SetDialForTest(dial share.DialFunc) (restore func()) {
-	oldDial, oldManual := dialFor, manualTick
-	dialFor, manualTick = dial, true
-	return func() { dialFor, manualTick = oldDial, oldManual }
-}
-
 // SetOwnerActivityForTest replaces the owner-activity report.
 func SetOwnerActivityForTest(f func(*share.Host, time.Time)) (restore func()) {
 	old := ownerActivity

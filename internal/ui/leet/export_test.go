@@ -1,9 +1,6 @@
 package leet
 
 import (
-	"image"
-	"net/http"
-
 	tea "charm.land/bubbletea/v2"
 
 	"time"
@@ -12,21 +9,6 @@ import (
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/ui"
 )
-
-// SetLeetcodeForTest points every LeetCode client this package makes at
-// baseURL (a leetcodetest fake) instead of leetcode.com; the returned func
-// restores it. Production code has no way to change the address.
-func SetLeetcodeForTest(baseURL string) (restore func()) {
-	clientMu.Lock()
-	saved := leetcodeURL
-	leetcodeURL = baseURL
-	clientMu.Unlock()
-	return func() {
-		clientMu.Lock()
-		leetcodeURL = saved
-		clientMu.Unlock()
-	}
-}
 
 // SetOpenURLForTest replaces the browser opener; the returned func restores it.
 func SetOpenURLForTest(f func(url string) error) (restore func()) {
@@ -126,26 +108,6 @@ func SetLoginAccountForTest(ctx *ui.Context, user string, premium bool) {
 // ShareToggleForTest is the friends switch's request for next, as the
 // settings dialog sends it (no dialog needed to take the answer).
 func ShareToggleForTest(ctx *ui.Context, next bool) tea.Cmd { return shareToggle(ctx, next) }
-
-// SetImageTransportForTest answers every problem-image fetch with f (and
-// forgets the images of this run); the returned func restores it.
-func SetImageTransportForTest(f func(*http.Request) (*http.Response, error)) (restore func()) {
-	reset := func(tr http.RoundTripper) {
-		imageMu.Lock()
-		defer imageMu.Unlock()
-		imageTransport = tr
-		images, asked = map[string]image.Image{}, map[string]bool{}
-	}
-	imageMu.Lock()
-	saved := imageTransport
-	imageMu.Unlock()
-	reset(roundTrip(f))
-	return func() { reset(saved) }
-}
-
-type roundTrip func(*http.Request) (*http.Response, error)
-
-func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // TakeEnvCookiesForTest does what masil's start does with the LEETCODE_*
 // variables now in the environment (t.Setenv them first): moves them out of

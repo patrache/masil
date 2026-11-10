@@ -111,6 +111,7 @@ func hasHangul(s string) bool {
 }
 
 func TestCatalogOrder(t *testing.T) {
+	t.Setenv("MASIL_FEATURES", "none") // the 0.1.2 table: every tool flag off (the release adds /tools)
 	want := []Name{Me, Shrug, Poll, Status, Focus, Roll, Invite}
 	cat := Catalog(nil)
 	if len(cat) != len(want) {
@@ -140,6 +141,7 @@ func TestCatalogOrder(t *testing.T) {
 }
 
 func TestSlashCatalogLocale(t *testing.T) {
+	t.Setenv("MASIL_FEATURES", "none") // the 0.1.2 table: every tool flag off (the release adds /tools)
 	want := []Spec{
 		{Me, "/me <행동>", "행동을 3인칭으로 보내요"},
 	}

@@ -114,6 +114,7 @@ Pinning a mode: `ctrl+w` then `1` Command · `2` Standard · `3` Compact · `4` 
 | `ctrl+n` | Notifications |
 | `?` (`f1`) | Help |
 | `f` | Open/close the feed |
+| `ctrl+t` | Tools hub ↔ chat (see [Tools](#tools)) |
 | `[` / `]` | Previous/next tab — Widget·Tiny `Chat → DM → Feed → Alerts`, Compact·Standard `open tabs → DM → Feed → Alerts`, Command `open tabs → DM` (on single-pane screens also `tab` / `shift+tab`) |
 | `t` / `enter` | Open the thread of the selected message |
 | `c` (in a thread) | Go to that thread's channel or DM, with the root message selected |
@@ -129,6 +130,28 @@ Pinning a mode: `ctrl+w` then `1` Command · `2` Standard · `3` Compact · `4` 
 | `ctrl+c` twice (within 1 s) | Quit — if the input box has text, the first press clears it |
 
 Change keys in `[keys]` of `config.toml`. The full list is in the in-app `?` help.
+
+## Tools
+
+masil 0.1.3 adds five tools next to chat. `ctrl+t` opens the tools hub — press a tool's number to open it — and `ctrl+t` again goes back to chat. Chat keeps running while a tool is open: messages and notifications still arrive and friends still see you online.
+
+| `ctrl+t` then | Tool | What it does |
+|---|---|---|
+| `1` | Daily LC | Today's LeetCode problem: read it, solve it in nvim (in a panel) or the built-in editor, run and submit with your own LeetCode login, and share the result with friends and spaces |
+| `2` | Workspace | A folder with a file tree, code view and terminals; share it with friends, end-to-end encrypted, and cut the share at once from anywhere with `ctrl+\` `x` |
+| `3` | Architecture design | Draw a system architecture, simulate its traffic and cost, export it (Terraform and more), and edit it together in a channel |
+| `4` | lazygit | Run your own lazygit on a repository, inside masil |
+| `5` | API test | Send HTTP requests from collections and environments; import and export curl, OpenAPI (JSON) and Postman |
+
+- Programs a tool runs (lazygit, nvim, workspace terminals) open in a panel inside masil, take over the whole terminal until they exit, or open in a tmux popup. The tool picks one; `m` in the hub lets you choose. Windows has no panels (the program takes over the terminal instead). At most 4 panels run at once, across all tools.
+- In a panel, `ctrl+\` is the prefix key: `ctrl+\` then `esc` back to masil, `z` zoom, `x` end the program, `?` help.
+- Tool logins and secrets (your LeetCode login, API keys) stay on this PC — in the macOS Keychain, Windows Credential Manager or Linux Secret Service — and are never sent to the masil server. Settings (`ctrl+k` → Settings) → **Tool logins** lists them and forgets them.
+- lazygit — https://github.com/jesseduffield/lazygit (MIT, install it yourself)
+- To run masil without any tool, set `MASIL_FEATURES=none`.
+
+```sh
+MASIL_FEATURES=none masil   # chat only, every tool hidden
+```
 
 ## Notification daemon
 
