@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -98,22 +99,35 @@ func closeLiveAtEnd(t *testing.T, h *uitest.Harness) {
 		for _, s := range open {
 			h.Send(ui.CloseTool(s.id)())
 			if !s.closed { // not (or no longer) an app tool entry
-				runCmds(s.CloseTool(h.Context()))
+				runCmds(t, h, s.CloseTool(h.Context()))
 			}
 		}
 	})
 }
 
-// runCmds runs cmd and the commands of any batch it returns, dropping the
-// other messages (test cleanup only).
-func runCmds(cmd tea.Cmd) {
+// runCmds runs cmd the way the program would: a batch's commands each run,
+// and the messages they return go to the app through h.Send (the harness
+// then runs their follow-up commands). A bubbletea-internal message (a
+// tea.Sequence, for one) cannot be run here: it is reported, not dropped, so
+// a close command inside it (endHostCmd closing the audit log) is not lost
+// unseen and Windows' TempDir removal does not fail for no visible reason.
+func runCmds(t *testing.T, h *uitest.Harness, cmd tea.Cmd) {
+	t.Helper()
 	if cmd == nil {
 		return
 	}
-	if b, ok := cmd().(tea.BatchMsg); ok {
-		for _, c := range b {
-			runCmds(c)
+	switch msg := cmd().(type) {
+	case nil:
+	case tea.BatchMsg:
+		for _, c := range msg {
+			runCmds(t, h, c)
 		}
+	default:
+		if reflect.TypeOf(msg).PkgPath() == "charm.land/bubbletea/v2" {
+			t.Errorf("closeLiveAtEnd: CloseTool returned %T, which cleanup cannot run (its commands would be lost)", msg)
+			return
+		}
+		h.Send(msg)
 	}
 }
 
