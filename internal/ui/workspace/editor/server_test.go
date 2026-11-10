@@ -176,10 +176,11 @@ func TestServerTextEdit(t *testing.T) {
 	}
 	e.TakeOps()
 	before := e.Text()
-	it := codeassist.Item{Label: "Println", Text: "Println()", Edit: true, From: 3, After: 1, Server: true}
+	// From 2: the "." too, so only the server's own range gives "->"
+	it := codeassist.Item{Label: "Println", Text: "->Println()", Edit: true, From: 2, After: 1, Server: true}
 	e.SetServerItems(r.Seq, []codeassist.Item{it}, false, nil)
 	press(t, e, "tab")
-	if e.Text() != "한글.Println()\n" {
+	if e.Text() != "한글->Println()\n" {
 		t.Fatalf("text = %q", e.Text())
 	}
 	ops := e.TakeOps()
@@ -189,7 +190,7 @@ func TestServerTextEdit(t *testing.T) {
 	if after, err := ops[0].Apply([]rune(before)); err != nil || string(after) != e.Text() {
 		t.Fatalf("op %v: %q %v", ops[0], string(after), err)
 	}
-	if e.CursorIndex() != len([]rune("한글.Println()")) {
+	if e.CursorIndex() != len([]rune("한글->Println()")) {
 		t.Fatalf("cursor %d", e.CursorIndex())
 	}
 }

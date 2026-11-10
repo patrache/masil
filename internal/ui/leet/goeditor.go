@@ -13,10 +13,12 @@ import (
 	"github.com/ionut-t/goeditor/core"
 
 	"github.com/patrache/masil/internal/codeassist"
+	"github.com/patrache/masil/internal/lsp"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/third_party/goeditor"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/codelsp"
 )
 
 // goEditor is the built-in editor (no nvim, no pane: Windows, tiny): a
@@ -44,6 +46,7 @@ type goEditor struct {
 	cpOn   bool
 	forced bool // ctrl+n / ctrl+space: the menu from the first char
 	words  codeassist.Index
+	srv    lspState // the language server (goeditor_lsp.go)
 }
 
 var _ codeEditor = (*goEditor)(nil)
@@ -63,6 +66,7 @@ func newGoEditor(path string, th *theme.Theme, lang string) (codeEditor, error) 
 	m.WithCompletionAutoTrigger(false) // masil asks and answers (refreshCompletion)
 	m.SetCompletionMenuMaxVisibleItems(codeassist.MaxVisible)
 	e := &goEditor{m: m, path: path, lang: codeassist.FromLeet(lang), th: th, cpOn: true}
+	e.srv.m, e.srv.lang = codelsp.Get(), lsp.LangForLeetCode(lang)
 	e.m.SetSyntaxStyle(e.tokenStyle)
 	e.m.SetCursorCellStyle(cursorCellStyle(th))
 	e.setHighlight(true)
@@ -98,6 +102,7 @@ func (e *goEditor) setLang(slug string) {
 		e.lang = l
 		e.setHighlight(e.hlOn)
 	}
+	e.setLSPLang(slug)
 }
 
 // applyAssist follows the settings' switches and the theme.
@@ -117,6 +122,7 @@ func (e *goEditor) applyAssist(ctx *ui.Context) {
 	if e.cpOn = cp; !cp {
 		e.closeCompletion()
 	}
+	e.lspSync()
 }
 
 // completionKeys: ctrl+n / ctrl+p are mine now (insert mode, completion on).
@@ -133,21 +139,28 @@ func (e *goEditor) refreshCompletion() {
 	pos := b.GetCursor().Position
 	line := b.GetLineRunes(pos.Row)
 	prefix := codeassist.Prefix(line, pos.Col)
-	if !e.forced && len([]rune(prefix)) < codeassist.MinPrefix {
+	if !e.forced && !e.srv.triggered && len([]rune(prefix)) < codeassist.MinPrefix {
 		e.closeCompletion()
 		return
 	}
-	e.words.Update(b.GetLines())
-	items := codeassist.Complete(e.lang, prefix, codeassist.WordAt(line, pos.Col), e.words.Counts())
+	var words []string
+	if e.forced || len([]rune(prefix)) >= codeassist.MinPrefix {
+		e.words.Update(b.GetLines())
+		words = codeassist.Complete(e.lang, prefix, codeassist.WordAt(line, pos.Col), e.words.Counts())
+	}
+	items := codeassist.Merge(e.serverItems(prefix), words)
 	if len(items) == 0 {
-		e.closeCompletion()
+		if e.lspOn() {
+			e.hideCompletion() // the server's answer may still come
+		} else {
+			e.closeCompletion()
+		}
 		return
 	}
-	cs := make([]core.Completion, len(items))
-	for i, it := range items {
-		cs[i] = core.Completion{Text: it, Label: textwidth.Sanitize(it)}
+	for i := range items {
+		items[i].Label = textwidth.Sanitize(items[i].Label)
 	}
-	e.answer(cs)
+	e.answer(e.completions(items))
 }
 
 // answer opens the menu with cs (none: closes it).
@@ -165,11 +178,19 @@ func (e *goEditor) answer(cs []core.Completion) {
 	}
 }
 
+// closeCompletion closes the menu for good (a request in flight is dropped).
 func (e *goEditor) closeCompletion() {
 	e.forced = false
+	e.lspForget()
+	e.hideCompletion()
+}
+
+// hideCompletion hides the menu while there is nothing to show.
+func (e *goEditor) hideCompletion() {
 	if e.m.CompletionMenuVisible() && e.m.IsInsertMode() {
 		e.answer(nil)
 	}
+	e.srv.menu = nil
 }
 
 // menuKeys are what goeditor's open menu takes.
@@ -185,13 +206,22 @@ func (e *goEditor) afterTyping(msg tea.KeyPressMsg) {
 		for _, r := range msg.Text {
 			if !codeassist.IsWordRune(r) {
 				e.closeCompletion()
+				if e.lspOn() && codelsp.IsTrigger(e.srv.trigger, msg.Text) {
+					e.srv.triggered = true // "x.": the server's members
+					e.lspSync()
+					e.lspAsk()
+				}
 				return
 			}
 		}
 		e.refreshCompletion()
+		e.lspSync()
+		e.lspAsk()
 	case msg.Code == tea.KeyBackspace || msg.Code == tea.KeyDelete:
-		if e.m.CompletionMenuVisible() {
+		if e.m.CompletionMenuVisible() || e.srv.triggered {
 			e.refreshCompletion()
+			e.lspSync()
+			e.lspAsk()
 		}
 	default:
 		e.closeCompletion()
@@ -208,11 +238,19 @@ func (e *goEditor) Reload() error {
 	}
 	e.m.SetContent(string(b))
 	e.drain()
+	e.lspSync()
 	return nil
 }
 
-func (e *goEditor) Init(*ui.Context) tea.Cmd            { return nil }
-func (e *goEditor) Update(*ui.Context, tea.Msg) tea.Cmd { return nil }
+func (e *goEditor) Init(*ui.Context) tea.Cmd { return nil }
+
+// Update takes the language server's answers.
+func (e *goEditor) Update(_ *ui.Context, msg tea.Msg) tea.Cmd {
+	if m, ok := msg.(codelsp.ResultMsg); ok {
+		e.lspResult(m)
+	}
+	return nil
+}
 
 func (e *goEditor) Resize(_ *ui.Context, s ui.Size) {
 	e.size = s
@@ -291,8 +329,18 @@ func (e *goEditor) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		if e.cpOn {
 			e.forced = true
 			e.refreshCompletion()
+			e.lspAsk()
 		}
-		return true, nil
+		return true, e.lspCmd()
+	}
+	if open && (k == "tab" || k == "enter" || k == "ctrl+y") {
+		if it, ok := e.selectedEdit(); ok { // a server's own range: applied here
+			e.applyEdit(it)
+			e.forced = false
+			e.drain()
+			e.lspSync()
+			return true, nil
+		}
 	}
 	e.feedKey(msg)
 	cmd := e.afterKey(ctx)
@@ -306,7 +354,8 @@ func (e *goEditor) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 	default:
 		e.afterTyping(msg)
 	}
-	return true, cmd
+	e.lspSync()
+	return true, tea.Batch(cmd, e.lspCmd())
 }
 
 // normalIdle: normal mode with nothing part typed (no count, operator,

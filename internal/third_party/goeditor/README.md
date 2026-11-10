@@ -32,4 +32,8 @@ masil's changes (each changed line is marked `masil`):
    several runes (an IME committing more than one at once) is split into one
    key per rune by masil's wrapper (`internal/ui/leet/goeditor.go`).
 
+7. `SelectedCompletion()` is the open menu's selected item: masil applies a
+   language server's own text edit (a range other than the word before the
+   cursor) itself instead of `InsertCompletion` (v0.1.3-1).
+
 Upgrading: copy the three files from the new version and apply the patches again.

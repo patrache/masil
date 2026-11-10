@@ -159,6 +159,7 @@ func (in *instance) openEditor(ctx *ui.Context) tea.Cmd {
 		return tea.Batch(toast, ui.Toast(ctx.T.Leetcode.EditorFailed(), ui.ToastError))
 	}
 	ed.(*goEditor).id = in.id
+	ed.(*goEditor).lspSync() // the solution opens in its language server
 	in.ed, in.edFocus = ed, true
 	in.layoutEditor(ctx)
 	return toast
@@ -196,6 +197,9 @@ func (in *instance) execEdit(ctx *ui.Context) tea.Cmd {
 func (in *instance) dropEditor() tea.Cmd {
 	ed := in.ed
 	in.ed, in.edFocus = nil, false
+	if g, ok := ed.(*goEditor); ok {
+		g.lspClose()
+	}
 	if p, ok := ed.(*paneEditor); ok {
 		h := p.Handle()
 		return func() tea.Msg { _ = h.Close(); return nil }

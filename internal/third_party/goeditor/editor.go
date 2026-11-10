@@ -639,6 +639,16 @@ func (m Model) CompletionMenuVisible() bool {
 	return m.completionMenuVisible && len(m.completions) > 0
 }
 
+// SelectedCompletion is the open menu's selected item (ok=false: no menu).
+// masil patch: the wrapper applies a language server's text edit for it
+// itself (v0.1.3-1).
+func (m Model) SelectedCompletion() (core.Completion, bool) { // masil
+	if !m.CompletionMenuVisible() || m.selectedCompletionIdx >= len(m.completions) { // masil
+		return core.Completion{}, false // masil
+	} // masil
+	return m.completions[m.selectedCompletionIdx], true // masil
+} // masil
+
 // SetCursorCellStyle draws the cursor cell with style in every mode instead
 // of the mode's colors (nil: the mode's). masil patch: a reverse-video cell
 // that stands out in every theme (v0.1.3-1).

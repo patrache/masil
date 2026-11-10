@@ -97,8 +97,10 @@ func TestOwnerLSPTextEdit(t *testing.T) {
 	setup(t)
 	f := installLSP(t)
 	f.Answer = func(_ string, line, col int) (lsp.List, error) {
-		return lsp.List{Items: []lsp.Item{{Label: "Println", InsertText: "Println()",
-			Edit: &lsp.TextEdit{Range: lsp.Range{Start: lsp.Position{Line: line, Character: 3}, End: lsp.Position{Line: line, Character: col}}, NewText: "Println()"}}}}, nil
+		// the range takes the "." too (UTF-16 2 = after the emoji): only the
+		// server's own range gives "->"
+		return lsp.List{Items: []lsp.Item{{Label: "Println", InsertText: "->Println()",
+			Edit: &lsp.TextEdit{Range: lsp.Range{Start: lsp.Position{Line: line, Character: 2}, End: lsp.Position{Line: line, Character: col}}, NewText: "->Println()"}}}}, nil
 	}
 	h := uitest.New(t)
 	s, d := openHub(t, h)
@@ -107,11 +109,11 @@ func TestOwnerLSPTextEdit(t *testing.T) {
 		t.Fatalf("asked %+v (want UTF-16 column 5)", a)
 	}
 	h.Press("tab")
-	if line, _, _ := strings.Cut(d.ed.Text(), "\n"); line != "😀.Println()" {
+	if line, _, _ := strings.Cut(d.ed.Text(), "\n"); line != "😀->Println()" {
 		t.Fatalf("line %q", line)
 	}
 	h.Press("esc")
-	if _, text, _ := f.Opened(s.lspPath(d)); !strings.HasPrefix(text, "😀.Println()\n") {
+	if _, text, _ := f.Opened(s.lspPath(d)); !strings.HasPrefix(text, "😀->Println()\n") {
 		t.Fatalf("server text %.20q", text)
 	}
 }

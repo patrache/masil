@@ -133,3 +133,35 @@ func TestTypesHangul(t *testing.T) {
 		t.Fatalf("content = %q", got)
 	}
 }
+
+// masil's patch (v0.1.3-1): SelectedCompletion is the menu's selected item,
+// so the wrapper can apply a language server's own text edit for it.
+func TestSelectedCompletion(t *testing.T) {
+	m := New(40, 5, WithDarkBackground(true))
+	m.SetContent("")
+	m.Focus()
+	if _, ok := m.SelectedCompletion(); ok {
+		t.Fatal("selected with no menu")
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'i', Text: "i"})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Mod: tea.ModCtrl})
+	var ctx core.CompletionContext
+	for done := false; !done; {
+		select {
+		case s := <-m.GetEditor().GetUpdateSignalChan():
+			if r, ok := s.(core.CompletionRequestSignal); ok {
+				ctx = r.Context()
+			}
+		default:
+			done = true
+		}
+	}
+	m, _ = m.Update(CompletionResponseMsg{Completions: []core.Completion{{Text: "a", Label: "a"}, {Text: "b", Label: "b"}}, Context: ctx})
+	if c, ok := m.SelectedCompletion(); !ok || c.Label != "a" {
+		t.Fatalf("selected %+v %v", c, ok)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if c, ok := m.SelectedCompletion(); !ok || c.Label != "b" {
+		t.Fatalf("after down: %+v %v", c, ok)
+	}
+}

@@ -141,3 +141,17 @@ func CompletionMenuForTest(c ui.Component) bool {
 	g, ok := c.(*instance).ed.(*goEditor)
 	return ok && g.m.CompletionMenuVisible()
 }
+
+// CompletionLabelsForTest is the built-in editor's menu, in order (nil:
+// none up).
+func CompletionLabelsForTest(c ui.Component) []string {
+	g, ok := c.(*instance).ed.(*goEditor)
+	if !ok || !g.m.CompletionMenuVisible() {
+		return nil
+	}
+	var out []string
+	for _, it := range g.srv.menu {
+		out = append(out, it.Label)
+	}
+	return out
+}
