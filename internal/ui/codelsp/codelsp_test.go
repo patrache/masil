@@ -3,9 +3,11 @@ package codelsp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/lsp"
 )
 
@@ -22,7 +24,10 @@ func TestItems(t *testing.T) {
 		{Label: "\x1b[31mevil", InsertText: "evil\x07", SortText: "0003"},
 		{Label: "far", InsertText: "far", SortText: "0004", Edit: &lsp.TextEdit{Range: lsp.Range{Start: lsp.Position{Line: 3}, End: lsp.Position{Line: 3, Character: 1}}, NewText: "far"}},
 	}}
-	got := Items(l, line, 4, col)
+	got, cut := Items(l, line, 4, col)
+	if cut {
+		t.Fatal("five items were cut")
+	}
 	var labels []string
 	for _, it := range got {
 		labels = append(labels, it.Label)
@@ -122,5 +127,36 @@ func TestGetInTests(t *testing.T) {
 func TestIsTrigger(t *testing.T) {
 	if !IsTrigger([]string{".", ":"}, ".") || IsTrigger([]string{"."}, "x") || IsTrigger(nil, ".") || IsTrigger([]string{""}, "") {
 		t.Fatal("IsTrigger")
+	}
+}
+
+// A complete answer longer than the menu is cut — and a cut answer is
+// incomplete, so the editors ask again as the word grows instead of
+// filtering a list that lost what sorts after the cut.
+func TestCompleteCutIsIncomplete(t *testing.T) {
+	f := NewFake()
+	if err := f.Open("/r", "/r/main.go", "package main\n\nfunc main() { os. }"); err != nil {
+		t.Fatal(err)
+	}
+	var many []lsp.Item
+	for i := range codeassist.MaxMenuItems + 50 {
+		l := fmt.Sprintf("A%03d", i)
+		many = append(many, lsp.Item{Label: l, InsertText: l})
+	}
+	many = append(many, lsp.Item{Label: "WriteFile", InsertText: "WriteFile"}) // sorts after the cut
+	f.Answer = func(string, int, int) (lsp.List, error) { return lsp.List{Items: many}, nil }
+	r := Request{Key: "k", Seq: 1, Path: "/r/main.go", Line: 2, Col: 17, LineText: []rune("func main() { os. }")}
+	m := Complete(f, r)().(ResultMsg)
+	if m.Err != nil || len(m.Items) != codeassist.MaxMenuItems {
+		t.Fatalf("result: %d items, err %v", len(m.Items), m.Err)
+	}
+	if !m.Incomplete {
+		t.Fatal("a cut answer was marked complete: WriteFile could never show")
+	}
+
+	// Exactly the menu's size is not cut: a complete answer stays complete.
+	f.Answer = func(string, int, int) (lsp.List, error) { return lsp.List{Items: many[:codeassist.MaxMenuItems]}, nil }
+	if m := Complete(f, r)().(ResultMsg); m.Incomplete || len(m.Items) != codeassist.MaxMenuItems {
+		t.Fatalf("an uncut answer: %d items, incomplete %v", len(m.Items), m.Incomplete)
 	}
 }

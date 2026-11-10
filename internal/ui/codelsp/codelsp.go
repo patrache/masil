@@ -109,7 +109,10 @@ func Complete(m Manager, r Request) tea.Cmd {
 		if err != nil {
 			return ResultMsg{Key: r.Key, Seq: r.Seq, Err: err}
 		}
-		return ResultMsg{Key: r.Key, Seq: r.Seq, Items: Items(l, r.LineText, r.Line, r.Col), Incomplete: l.Incomplete}
+		items, cut := Items(l, r.LineText, r.Line, r.Col)
+		// A cut answer is incomplete too: the editors filter a complete one
+		// as the word grows, and what sorted past the cut would never show.
+		return ResultMsg{Key: r.Key, Seq: r.Seq, Items: items, Incomplete: l.Incomplete || cut}
 	}
 }
 
@@ -126,7 +129,8 @@ const detailWidth = 28
 // ordered by SortText, then FilterText (Label when empty); a text edit on
 // the cursor's line that spans the cursor keeps its range (UTF-16 columns
 // to rune columns), any other edit inserts its text as a plain item.
-func Items(l lsp.List, line []rune, row, col int) []codeassist.Item {
+// cut reports that items were left out past codeassist.MaxMenuItems.
+func Items(l lsp.List, line []rune, row, col int) (out []codeassist.Item, cut bool) {
 	src := slices.Clone(l.Items)
 	key := func(it lsp.Item) (string, string) {
 		f := cmp.Or(it.FilterText, it.Label)
@@ -138,11 +142,8 @@ func Items(l lsp.List, line []rune, row, col int) []codeassist.Item {
 		return cmp.Or(strings.Compare(as, bs), strings.Compare(af, bf))
 	})
 	text := string(line)
-	out := make([]codeassist.Item, 0, min(len(src), codeassist.MaxMenuItems))
+	out = make([]codeassist.Item, 0, min(len(src), codeassist.MaxMenuItems))
 	for _, it := range src {
-		if len(out) == codeassist.MaxMenuItems {
-			break
-		}
 		label := textwidth.Sanitize(it.Label)
 		ins := it.InsertText
 		if ins == "" {
@@ -151,6 +152,9 @@ func Items(l lsp.List, line []rune, row, col int) []codeassist.Item {
 		ins = textwidth.SanitizeInput(ins)
 		if label == "" || ins == "" {
 			continue
+		}
+		if len(out) == codeassist.MaxMenuItems {
+			return out, true
 		}
 		item := codeassist.Item{Label: label, Detail: short(it.Detail, it.Kind), Text: ins,
 			Filter: textwidth.Sanitize(it.FilterText), Server: true}
@@ -162,7 +166,7 @@ func Items(l lsp.List, line []rune, row, col int) []codeassist.Item {
 		}
 		out = append(out, item)
 	}
-	return out
+	return out, false
 }
 
 // short is a menu item's detail: the first line of the server's detail,
