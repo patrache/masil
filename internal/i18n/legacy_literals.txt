@@ -8,7 +8,6 @@ cmd/masil 85
 internal/admincli 77
 internal/api 47
 internal/autostart 7
-internal/humanize 24
 internal/markup 3
 internal/slash 25
 internal/textwidth 2

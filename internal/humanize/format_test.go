@@ -9,8 +9,8 @@ import (
 
 // TestFormatterKoMatchesLegacy: For(i18n.Ko) prints exactly what the 0.1.2
 // package functions print (the tables in humanize_test.go run against those
-// package functions, which now delegate to For(i18n.Ko)). In 0.1.3 every
-// locale prints Korean (en/zh-Hans tables are P5).
+// package functions, which now delegate to For(i18n.Ko)). en and zh-Hans
+// have their own tables (humanize_locale_test.go).
 func TestFormatterKoMatchesLegacy(t *testing.T) {
 	// Spot values straight from humanize_test.go's tables.
 	ko := For(i18n.Ko)
@@ -34,12 +34,12 @@ func TestFormatterKoMatchesLegacy(t *testing.T) {
 		}
 	}
 
-	// A grid: every locale's Formatter equals the package functions.
+	// A grid: the ko Formatter equals the package functions.
 	times := []time.Time{now, now.Add(-30 * time.Second), now.Add(-59 * time.Minute), now.Add(-5 * time.Hour),
 		now.Add(-26 * time.Hour), now.AddDate(0, -2, 0), now.AddDate(-1, 0, 0), kst(2026, 11, 5, 0, 30), kst(2026, 11, 5, 12, 30)}
 	counts := []int{-1500, 0, 7, 999, 1000, 1234, 9999, 10000, 34567, 99999999, 100000000, 123456789}
 	durs := []time.Duration{0, -time.Second, 45 * time.Second, time.Minute, 25 * time.Minute, time.Hour, 90 * time.Minute}
-	for _, l := range []i18n.Locale{i18n.Ko, i18n.En, i18n.ZhHans, i18n.Pseudo} {
+	for _, l := range []i18n.Locale{i18n.Ko} {
 		f := For(l)
 		for _, tm := range times {
 			for _, h12 := range []bool{false, true} {

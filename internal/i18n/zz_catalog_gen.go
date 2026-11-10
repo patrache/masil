@@ -16,6 +16,7 @@ type T struct {
 	Leetcode   LeetcodeT
 	Termpane   TermpaneT
 	Testonly   TestonlyT
+	Time       TimeT
 	Tools      ToolsT
 	Workspace  WorkspaceT
 }
@@ -30,6 +31,7 @@ func newT(l Locale) *T {
 	t.Leetcode = LeetcodeT{t}
 	t.Termpane = TermpaneT{t}
 	t.Testonly = TestonlyT{t}
+	t.Time = TimeT{t}
 	t.Tools = ToolsT{t}
 	t.Workspace = WorkspaceT{t}
 	return t
@@ -45,6 +47,7 @@ var areas = map[string]*area{
 	"leetcode":   &areaLeetcode,
 	"termpane":   &areaTermpane,
 	"testonly":   &areaTestonly,
+	"time":       &areaTime,
 	"tools":      &areaTools,
 	"workspace":  &areaWorkspace,
 }
