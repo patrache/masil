@@ -1,7 +1,6 @@
 package fun
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -9,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -18,16 +17,10 @@ import (
 	"github.com/patrache/masil/internal/ui/layout"
 )
 
-// Focus summary copy and sizes.
+// Focus summary sizes (copy: the fun catalog area).
 const (
-	textSummaryTitle   = "집중 모드 끝"
-	textSummaryLoading = "요약을 불러오는 중…"
-	textSummaryEmpty   = "놓친 알림이 없어요"
-	textSummaryKeys    = "enter 이동 · j/k 선택 · esc 닫기"
-	textSummaryClose   = "esc 닫기"
-	textSummaryFocused = "%s 집중했어요 (%s–%s)"
-	summaryDialogW     = 64
-	summaryMaxItems    = 20 // api.md FocusSummary.items: <= 20
+	summaryDialogW  = 64
+	summaryMaxItems = 20 // api.md FocusSummary.items: <= 20
 	// summaryChrome is the outer rows besides the item rows: border 2, the
 	// duration line, the counts line, the rule and the key hint.
 	summaryChrome = 6
@@ -268,17 +261,18 @@ func (d *focusSummary) Bounds(body layout.Rect) layout.Rect {
 
 func (d *focusSummary) Modal() bool { return true }
 
-func (d *focusSummary) Title(*ui.Context) (string, ui.Badge) { return textSummaryTitle, ui.Badge{} }
-
-func (d *focusSummary) Help(*ui.Context) []key.Binding {
-	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
-	return []key.Binding{b("enter", "이동"), b("j/k", "선택"), b("esc", "닫기")}
+func (d *focusSummary) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Fun.SummaryTitle(), ui.Badge{}
 }
 
-// countsLine is "멘션 3 · DM 2 · 스레드 1 · 초대 0 · 친구 요청 0 · 기타 1".
-func countsLine(c api.FocusCounts) string {
-	return fmt.Sprintf("멘션 %d · DM %d · 스레드 %d · 초대 %d · 친구 요청 %d · 기타 %d",
-		c.Mention, c.DM, c.ThreadReply, c.Invite, c.FriendRequest, c.Other)
+func (d *focusSummary) Help(ctx *ui.Context) []key.Binding {
+	t := cat(ctx)
+	return []key.Binding{helpKey("enter", t.Fun.HelpGo()), helpKey("j/k", t.Common.HelpSelect()), helpKey("esc", t.Common.HelpClose())}
+}
+
+// countsLine is "<mentions> 3 · DM 2 · <threads> 1 · …" (fun.summary_counts).
+func countsLine(t *i18n.T, c api.FocusCounts) string {
+	return t.Fun.SummaryCounts(c.Mention, c.DM, c.ThreadReply, c.Invite, c.FriendRequest, c.Other)
 }
 
 // clockOf is the HH:MM (or 12-hour, per ui.clock) local time of t.
@@ -288,10 +282,10 @@ func clockOf(ctx *ui.Context, t time.Time) string {
 	if ctx != nil {
 		loc = ctx.Loc
 	}
-	return humanize.Clock(t, loc, h12)
+	return hz(ctx).Clock(t, loc, h12)
 }
 
-// itemLine is "› @ 민지 · #개발  @sam 배포 언제?      11:12" in exactly w cells.
+// itemLine is "› @ <title>  <body>      11:12" in exactly w cells.
 func itemLine(ctx *ui.Context, t *theme.Theme, a api.Alert, selected bool, w int) string {
 	prefix, st := rowStyle(t, selected, false)
 	clock := " " + clockOf(ctx, a.CreatedAt)
@@ -318,7 +312,7 @@ func itemLine(ctx *ui.Context, t *theme.Theme, a api.Alert, selected bool, w int
 // line), then the key hint; the item rows scroll to keep the selection.
 func (d *focusSummary) View(ctx *ui.Context, _ bool) string {
 	d.sync(ctx)
-	t := themeOf(ctx)
+	t, c := themeOf(ctx), cat(ctx)
 	w, h := d.size.W, d.size.H
 	items := d.items()
 	d.sel = min(d.sel, max(len(items)-1, 0))
@@ -337,18 +331,18 @@ func (d *focusSummary) View(ctx *ui.Context, _ bool) string {
 
 	var head, body []string
 	if sum := d.summary(); sum != nil {
-		dur := humanize.Duration(sum.EndedAt.Sub(sum.StartedAt).Round(time.Minute))
+		dur := hz(ctx).Duration(sum.EndedAt.Sub(sum.StartedAt).Round(time.Minute))
 		head = append(head,
-			t.S.Base.Bold(true).Render(fmt.Sprintf(textSummaryFocused, dur, clockOf(ctx, sum.StartedAt), clockOf(ctx, sum.EndedAt))),
-			t.S.Base.Render(countsLine(sum.Counts)))
+			t.S.Base.Bold(true).Render(c.Fun.SummaryFocused(dur, clockOf(ctx, sum.StartedAt), clockOf(ctx, sum.EndedAt))),
+			t.S.Base.Render(countsLine(c, sum.Counts)))
 		for i, a := range items {
 			body = append(body, itemLine(ctx, t, a, i == d.sel, cw))
 		}
 		if len(items) == 0 {
-			body = append(body, t.S.Dim.Render(textSummaryEmpty))
+			body = append(body, t.S.Dim.Render(c.Fun.SummaryEmpty()))
 		}
 	} else {
-		title, text := textSummaryTitle, ""
+		title, text := c.Fun.SummaryTitle(), ""
 		if a, ok := d.alert(); ok {
 			if s := textwidth.Sanitize(a.Title); s != "" {
 				title = s
@@ -356,12 +350,12 @@ func (d *focusSummary) View(ctx *ui.Context, _ bool) string {
 			text = markup.Plain(a.Body, cw)
 		}
 		head = append(head, t.S.Base.Bold(true).Render(title), t.S.Base.Render(text))
-		body = append(body, t.S.Dim.Render(textSummaryLoading))
+		body = append(body, t.S.Dim.Render(c.Fun.SummaryLoading()))
 	}
 	head = append(head, t.S.Dim.Render(strings.Repeat("─", cw)))
-	keys := textSummaryKeys
+	keys := c.Fun.SummaryKeys()
 	if len(items) == 0 {
-		keys = textSummaryClose
+		keys = c.Fun.SummaryClose()
 	}
 	hint := t.S.Dim.Render(textwidth.Truncate(keys, cw, "…"))
 

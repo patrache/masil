@@ -1,3 +1,18 @@
+[help_cancel]
+other = "cancel"
+
+[help_close]
+other = "close"
+
+[help_move]
+other = "move"
+
+[help_save]
+other = "save"
+
+[help_select]
+other = "select"
+
 [lang_name_en]
 other = "English"
 
@@ -15,3 +30,6 @@ other = "Go to"
 
 [palette_group_settings]
 other = "Settings"
+
+[sending]
+other = "Sending…"

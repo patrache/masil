@@ -11,7 +11,7 @@ import (
 	"github.com/patrache/masil/internal/ui"
 )
 
-// A palette command run with arguments ("/status 🎧 듣는 중") opens no dialog,
+// A palette command run with arguments ("/status 🎧 lunch") opens no dialog,
 // so no live ui/fun component receives its ui.Do result — and a tea.Cmd runs off
 // the UI goroutine, where it must not touch the Store. overlayApply hands such a
 // result back to the UI goroutine: the Cmd parks the Store update under a token

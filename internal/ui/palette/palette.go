@@ -4,6 +4,7 @@ package palette
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -26,13 +27,17 @@ type Command struct {
 	Title string // 0.1.2 rows only (Korean, e.g. "테마: 레트로 앰버"); ignored when Label is set
 	// Label is the title in the screen's language, called at draw time with
 	// ctx.T. Every 0.1.3 command registers with Label, never Title.
-	Label     func(t *i18n.T) string
-	Keywords  []string
-	Group     string // GroupNav | GroupCommand | GroupSettings ("" = GroupCommand)
-	KeyHint   string // "ctrl+w 1"
-	Available func(ctx *ui.Context) bool
-	Run       func(ctx *ui.Context, args string) tea.Cmd
-	Badge     func(ctx *ui.Context) ui.Badge // drawn on the item (nil = none), e.g. the 알림함's unread count
+	Label    func(t *i18n.T) string
+	Keywords []string
+	// KeywordsIn are extra search words in t's language (called with the
+	// screen's catalog at search time), e.g. palette.Words(t.Chat.FriendsKeywords()).
+	// Keywords stay the language-independent (ASCII) words.
+	KeywordsIn func(t *i18n.T) []string
+	Group      string // GroupNav | GroupCommand | GroupSettings ("" = GroupCommand)
+	KeyHint    string // "ctrl+w 1"
+	Available  func(ctx *ui.Context) bool
+	Run        func(ctx *ui.Context, args string) tea.Cmd
+	Badge      func(ctx *ui.Context) ui.Badge // drawn on the item (nil = none), e.g. the 알림함's unread count
 }
 
 var (
@@ -94,6 +99,18 @@ func GroupTitle(t *i18n.T, g string) string {
 	default:
 		return t.Common.PaletteGroupCommand()
 	}
+}
+
+// Words splits a catalog keyword list "a, b c, d" on commas (keywords may hold
+// spaces), dropping blanks.
+func Words(s string) []string {
+	var out []string
+	for _, w := range strings.Split(s, ",") {
+		if w = strings.TrimSpace(w); w != "" {
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 func cloneCommand(c Command) Command {

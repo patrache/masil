@@ -1,0 +1,201 @@
+# Fun area: status messages, presence, focus mode and its summary, the
+# guestbook write dialog.
+
+[cmd_focus_start]
+other = "Start focus mode"
+
+[cmd_focus_stop]
+other = "End focus mode"
+
+[cmd_presence_set]
+other = "Change presence"
+
+[cmd_status_clear]
+other = "Clear status message"
+
+[cmd_status_set]
+other = "Set status message"
+
+[expiry_1h]
+other = "1 hour"
+
+[expiry_1w]
+other = "1 week"
+
+[expiry_30m]
+other = "30 min"
+
+[expiry_4h]
+other = "4 hours"
+
+[expiry_none]
+other = "Never"
+
+[expiry_today]
+other = "Today"
+
+[focus_err_format]
+other = "Write the focus time like 25m, 1h30m or 90 (minutes)"
+
+[focus_err_range]
+other = "Focus time is 1 minute to 12 hours"
+
+[focus_not_focusing]
+other = "You're not in focus mode"
+
+[focus_started]
+other = "🎯 Focus mode — holding alerts for {dur}"
+
+[guestbook_empty]
+other = "Write something first"
+
+[guestbook_hint]
+other = "Leave a note for the owner"
+
+[guestbook_keys]
+other = "enter post · tab move · space secret"
+
+[guestbook_secret]
+other = "Post as secret"
+
+[guestbook_title]
+other = "Write in guestbook"
+
+[guestbook_title_owner]
+other = "Write in guestbook · {owner}"
+
+[guestbook_written]
+other = "Posted to the guestbook"
+
+[help_change]
+other = "change"
+
+[help_clear]
+other = "clear"
+
+[help_expiry]
+other = "duration"
+
+[help_go]
+other = "go to"
+
+[help_leave]
+other = "post"
+
+[help_secret]
+other = "secret"
+
+[help_switch]
+other = "move"
+
+[kw_focus_start]
+other = "focus, do not disturb"
+
+[kw_focus_stop]
+other = "focus, end"
+
+[kw_presence_set]
+other = "away, do not disturb, online"
+
+[kw_status_clear]
+other = "status"
+
+[kw_status_set]
+other = "status, listening, deploying"
+
+[now_label]
+other = "Now"
+
+[presence_alias_online]
+other = "online"
+
+[presence_auto]
+other = "Auto"
+
+[presence_away]
+other = "Away"
+
+[presence_changed]
+other = "Presence changed"
+
+[presence_dnd]
+other = "Do not disturb"
+
+[presence_invalid]
+other = "Choose one of auto, away or dnd"
+
+[presence_keys]
+other = "enter change · j/k move"
+
+[presence_title]
+other = "Presence"
+
+[preset_deploying]
+other = "Deploying"
+
+[preset_listening]
+other = "Listening"
+
+[preset_lunch]
+other = "Out for lunch"
+
+[preset_sick]
+other = "Out sick"
+
+[preset_vacation]
+other = "On vacation"
+
+[status_changed]
+other = "Status changed"
+
+[status_chip]
+other = "Emoji"
+
+[status_cleared]
+other = "Status message cleared"
+
+[status_custom]
+other = "Type your own…"
+
+[status_empty]
+other = "Enter a status message"
+
+[status_expiry]
+other = "Keep"
+
+[status_keys]
+other = "enter save · tab duration · ctrl+x clear"
+
+[status_none]
+other = "No status set"
+
+[status_title]
+other = "Status message"
+
+[status_too_long]
+other = "Status messages are at most 64 characters"
+
+[summary_close]
+other = "esc close"
+
+[summary_counts]
+other = "Mentions {mention} · DMs {dm} · Threads {thread} · Invites {invite} · Friend requests {friend} · Other {other}"
+
+[summary_empty]
+other = "You didn't miss any alerts"
+
+[summary_focused]
+other = "Focused for {dur} ({from}–{to})"
+
+[summary_keys]
+other = "enter go to · j/k select · esc close"
+
+[summary_loading]
+other = "Loading the summary…"
+
+[summary_title]
+other = "Focus mode ended"
+
+[too_long]
+one = "Over {n} character"
+other = "Over {n} characters"

@@ -1,3 +1,28 @@
+[help_cancel]
+desc = "상태줄 키 안내: 창을 닫고 취소(esc)"
+max = 10
+other = "취소"
+
+[help_close]
+desc = "상태줄 키 안내: 창 닫기(esc)"
+max = 10
+other = "닫기"
+
+[help_move]
+desc = "상태줄 키 안내: 목록 안에서 위아래로 옮기기(j/k)"
+max = 10
+other = "이동"
+
+[help_save]
+desc = "상태줄 키 안내: 저장(enter)"
+max = 10
+other = "저장"
+
+[help_select]
+desc = "상태줄 키 안내: 목록에서 고르기(j/k)"
+max = 10
+other = "선택"
+
 [lang_name_en]
 desc = "언어 목록의 영어 이름 — 모든 언어에서 그 언어 자신의 이름"
 other = "English"
@@ -21,3 +46,7 @@ other = "이동"
 [palette_group_settings]
 desc = "명령 팔레트의 묶음 머리: 설정"
 other = "설정"
+
+[sending]
+desc = "요청을 보내는 동안 창 아래 키 안내 자리에 나오는 진행 줄"
+other = "보내는 중…"

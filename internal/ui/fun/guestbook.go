@@ -31,19 +31,12 @@ const (
 	tagGuestbookOwner = "fun.guestbook_owner:" // + owner id: the owner's handle for the title
 )
 
-// Guestbook dialog copy, limits and sizes.
+// Guestbook dialog limits and sizes (copy: the fun catalog area).
 const (
-	textGuestbookTitle   = "방명록 남기기"
-	textGuestbookHint    = "주인에게 한마디 남겨 보세요"
-	textGuestbookSecret  = "비밀글로 남기기"
-	textGuestbookKeys    = "enter 남기기 · tab 이동 · space 비밀글"
-	textGuestbookSending = "보내는 중…"
-	textGuestbookEmpty   = "내용을 입력해 주세요"
-	textGuestbookWritten = "방명록을 남겼어요"
-	guestbookLimit       = 300 // api.md 0.3: 1..300 code points
-	guestbookW           = 56
-	guestbookH           = 12
-	guestbookMaxRows     = 5
+	guestbookLimit   = 300 // api.md 0.3: 1..300 code points
+	guestbookW       = 56
+	guestbookH       = 12
+	guestbookMaxRows = 5
 )
 
 func init() {
@@ -55,11 +48,8 @@ func init() {
 	})
 }
 
-// tooLongText is the over-limit toast.
-func tooLongText(limit int) string { return strconv.Itoa(limit) + "자를 넘었어요" }
-
 // guestbookWrite is fun.guestbook_write: a Composer (1..300, N/300) above the
-// [ ] 비밀글로 남기기 toggle. tab moves between them, space flips the toggle,
+// [ ] secret toggle. tab moves between them, space flips the toggle,
 // enter sends. A refusal (403 private_account / action_not_allowed, …) is a
 // toast and the dialog stays with its draft.
 type guestbookWrite struct {
@@ -91,7 +81,7 @@ func newGuestbookWrite(ctx *ui.Context, ownerID string) *guestbookWrite {
 	if ownerID == "" {
 		return nil
 	}
-	g := &guestbookWrite{ownerID: ownerID, input: widgets.NewComposer(textGuestbookHint), toggleY: -1}
+	g := &guestbookWrite{ownerID: ownerID, input: widgets.NewComposer(cat(ctx).Fun.GuestbookHint()), toggleY: -1}
 	g.input.Focus()
 	g.owner = knownHandle(ctx, ownerID)
 	return g
@@ -150,7 +140,7 @@ func (g *guestbookWrite) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			}
 			return ui.Toast(errtext.Describe(ctx.T, err), ui.ToastError)
 		}
-		return tea.Batch(closeOverlay, ui.Toast(textGuestbookWritten, ui.ToastSuccess))
+		return tea.Batch(closeOverlay, ui.Toast(cat(ctx).Fun.GuestbookWritten(), ui.ToastSuccess))
 	}
 	return nil
 }
@@ -165,9 +155,9 @@ func (g *guestbookWrite) submit(ctx *ui.Context) tea.Cmd {
 	body := strings.TrimSpace(g.input.Value())
 	switch n := utf8.RuneCountInString(body); {
 	case n == 0:
-		return ui.Toast(textGuestbookEmpty, ui.ToastError)
+		return ui.Toast(cat(ctx).Fun.GuestbookEmpty(), ui.ToastError)
 	case n > guestbookLimit:
-		return ui.Toast(tooLongText(guestbookLimit), ui.ToastError)
+		return ui.Toast(cat(ctx).Fun.TooLong(guestbookLimit), ui.ToastError)
 	}
 	g.busy = true
 	owner, secret := g.ownerID, g.secret
@@ -246,17 +236,18 @@ func (g *guestbookWrite) Bounds(body layout.Rect) layout.Rect {
 
 func (g *guestbookWrite) Modal() bool { return true }
 
-// Title is "방명록 남기기 · @owner".
-func (g *guestbookWrite) Title(*ui.Context) (string, ui.Badge) {
+// Title is "<write in guestbook> · @owner".
+func (g *guestbookWrite) Title(ctx *ui.Context) (string, ui.Badge) {
 	if g.owner == "" {
-		return textGuestbookTitle, ui.Badge{}
+		return cat(ctx).Fun.GuestbookTitle(), ui.Badge{}
 	}
-	return textGuestbookTitle + " · " + g.owner, ui.Badge{}
+	return cat(ctx).Fun.GuestbookTitleOwner(g.owner), ui.Badge{}
 }
 
-func (g *guestbookWrite) Help(*ui.Context) []key.Binding {
-	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
-	return []key.Binding{b("enter", "남기기"), b("tab", "이동"), b("space", "비밀글"), b("esc", "취소")}
+func (g *guestbookWrite) Help(ctx *ui.Context) []key.Binding {
+	t := cat(ctx)
+	return []key.Binding{helpKey("enter", t.Fun.HelpLeave()), helpKey("tab", t.Fun.HelpSwitch()),
+		helpKey("space", t.Fun.HelpSecret()), helpKey("esc", t.Common.HelpCancel())}
 }
 
 func (g *guestbookWrite) Cursor() *tea.Cursor {
@@ -289,7 +280,8 @@ func fit(t *theme.Theme, s string, w int) string {
 // View is the N/300 counter, the input box, the toggle and the key hint, cut
 // to the inner size so the focused row stays visible.
 func (g *guestbookWrite) View(ctx *ui.Context, _ bool) string {
-	t := themeOf(ctx)
+	t, c := themeOf(ctx), cat(ctx)
+	g.input.SetPlaceholder(c.Fun.GuestbookHint()) // follows a language switch
 	w, h := g.size.W, g.size.H
 	g.cursor, g.toggleY, g.inputY = nil, -1, [2]int{}
 	if w <= 0 || h <= 0 {
@@ -327,13 +319,13 @@ func (g *guestbookWrite) View(ctx *ui.Context, _ bool) string {
 		st, prefix = t.S.Base.Foreground(t.P.Acc).Bold(true), t.S.Base.Foreground(t.P.Acc).Render("› ")
 	}
 	toggleRow := len(rows)
-	rows = append(rows, prefix+st.Render(textwidth.Truncate(mark+textGuestbookSecret, max(cw-2, 0), "…")))
+	rows = append(rows, prefix+st.Render(textwidth.Truncate(mark+c.Fun.GuestbookSecret(), max(cw-2, 0), "…")))
 	if g.onToggle {
 		focusRow = toggleRow
 	}
-	hint := textGuestbookKeys
+	hint := c.Fun.GuestbookKeys()
 	if g.busy {
-		hint = textGuestbookSending
+		hint = c.Common.Sending()
 	}
 	rows = append(rows, t.S.Dim.Render(textwidth.Truncate(hint, cw, "…")))
 

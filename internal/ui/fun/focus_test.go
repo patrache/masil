@@ -12,6 +12,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/palette"
@@ -189,8 +190,8 @@ func TestFocusCommandsAvailable(t *testing.T) {
 	h := focusHarness(t, nil)
 	ctx := h.Context()
 	start, stop := paletteCommand(t, "focus.start"), paletteCommand(t, "focus.stop")
-	if start.Title != "집중 모드 시작" || stop.Title != "집중 모드 끝내기" {
-		t.Fatalf("titles %q / %q", start.Title, stop.Title)
+	if a, b := start.TitleIn(i18n.KoT()), stop.TitleIn(i18n.KoT()); a != "집중 모드 시작" || b != "집중 모드 끝내기" {
+		t.Fatalf("titles %q / %q", a, b)
 	}
 	if !start.Available(ctx) || stop.Available(ctx) {
 		t.Fatal("not focusing: want focus.start available and focus.stop not")

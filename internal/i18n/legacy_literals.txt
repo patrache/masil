@@ -12,7 +12,6 @@ internal/ui 2
 internal/ui/app 101
 internal/ui/chat 573
 internal/ui/feed 342
-internal/ui/fun 85
 internal/ui/keymap 43
 internal/ui/layout 5
 internal/ui/palette 11

@@ -10,20 +10,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/palette"
 )
 
-// Focus mode copy and limits.
+// Focus mode limits (copy: the fun catalog area).
 const (
-	textFocusRange       = "집중 시간은 1분~12시간이에요"
-	textFocusFormat      = "집중 시간은 25m · 1h30m · 90(분)처럼 적어 주세요"
-	textFocusNotFocusing = "집중 모드가 아니에요"
-	textFocusStartedPre  = "🎯 집중 모드 — "
-	textFocusStartedPost = " 동안 알림을 모아 둘게요"
-	focusMinSec          = 60    // api.md POST /v1/me/focus: duration_sec 60..43200
-	focusMaxSec          = 43200 // 12 hours
+	focusMinSec = 60    // api.md POST /v1/me/focus: duration_sec 60..43200
+	focusMaxSec = 43200 // 12 hours
 )
 
 var (
@@ -33,16 +28,18 @@ var (
 
 func init() {
 	palette.Register(palette.Command{
-		ID: "focus.start", Title: "집중 모드 시작", Group: palette.GroupCommand,
-		Keywords:  []string{"focus", "집중", "방해금지", "dnd"},
-		Available: func(ctx *ui.Context) bool { return ctx.Store != nil && ctx.Store.Focus == nil },
-		Run:       runFocusStart,
+		ID: "focus.start", Label: func(t *i18n.T) string { return t.Fun.CmdFocusStart() }, Group: palette.GroupCommand,
+		Keywords:   []string{"focus", "dnd"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Fun.KwFocusStart()) },
+		Available:  func(ctx *ui.Context) bool { return ctx.Store != nil && ctx.Store.Focus == nil },
+		Run:        runFocusStart,
 	})
 	palette.Register(palette.Command{
-		ID: "focus.stop", Title: "집중 모드 끝내기", Group: palette.GroupCommand,
-		Keywords:  []string{"focus", "집중", "stop", "off"},
-		Available: func(ctx *ui.Context) bool { return ctx.Store != nil && ctx.Store.Focus != nil },
-		Run:       runFocusStop,
+		ID: "focus.stop", Label: func(t *i18n.T) string { return t.Fun.CmdFocusStop() }, Group: palette.GroupCommand,
+		Keywords:   []string{"focus", "stop", "off"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Fun.KwFocusStop()) },
+		Available:  func(ctx *ui.Context) bool { return ctx.Store != nil && ctx.Store.Focus != nil },
+		Run:        runFocusStop,
 	})
 }
 
@@ -78,30 +75,31 @@ func parseFocusArgs(args string) (api.Opt[int], error) {
 // toast how long alerts are held.
 func runFocusStart(ctx *ui.Context, args string) tea.Cmd {
 	sec, err := parseFocusArgs(args)
+	c, f := cat(ctx), hz(ctx)
 	switch {
 	case errors.Is(err, errFocusFormat):
-		return ui.Toast(textFocusFormat, ui.ToastError)
+		return ui.Toast(c.Fun.FocusErrFormat(), ui.ToastError)
 	case err != nil:
-		return ui.Toast(textFocusRange, ui.ToastError)
+		return ui.Toast(c.Fun.FocusErrRange(), ui.ToastError)
 	}
 	client := clientOf(ctx)
 	return func() tea.Msg {
 		if client == nil {
 			return ui.ErrorMsg{Err: &api.Error{Code: "network"}}
 		}
-		f, err := client.StartFocus(context.Background(), sec)
+		fs, err := client.StartFocus(context.Background(), sec)
 		if err != nil {
 			return ui.ErrorMsg{Err: err}
 		}
-		if f == nil {
+		if fs == nil {
 			return ui.ErrorMsg{Err: &api.Error{Code: "network"}}
 		}
-		text := textFocusStartedPre + humanize.Duration(f.EndsAt.Sub(f.StartedAt).Round(time.Second)) + textFocusStartedPost
+		text := c.Fun.FocusStarted(f.Duration(fs.EndsAt.Sub(fs.StartedAt).Round(time.Second)))
 		return tea.BatchMsg{
 			func() tea.Msg {
 				return onUI(func(c *ui.Context) {
 					if c.Store != nil {
-						c.Store.Focus = f
+						c.Store.Focus = fs
 					}
 				})
 			},
@@ -114,7 +112,7 @@ func runFocusStart(ctx *ui.Context, args string) tea.Cmd {
 // overlay opens solely for alert{kind:"focus_summary"} (CA 9.1). A 409 (not
 // focusing) is an info toast.
 func runFocusStop(ctx *ui.Context, _ string) tea.Cmd {
-	client := clientOf(ctx)
+	client, notFocusing := clientOf(ctx), cat(ctx).Fun.FocusNotFocusing()
 	return func() tea.Msg {
 		if client == nil {
 			return ui.ErrorMsg{Err: &api.Error{Code: "network"}}
@@ -131,7 +129,7 @@ func runFocusStop(ctx *ui.Context, _ string) tea.Cmd {
 							}
 						})
 					},
-					ui.Toast(textFocusNotFocusing, ui.ToastInfo),
+					ui.Toast(notFocusing, ui.ToastInfo),
 				}
 			}
 			return ui.ErrorMsg{Err: err}
