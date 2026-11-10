@@ -40,6 +40,7 @@ irm https://raw.githubusercontent.com/patrache/masil/main/scripts/install.ps1 | 
 |---|---|---|
 | `MASIL_VERSION` | Version to install (e.g. `0.1.0`; a leading `v` is fine) | Latest release |
 | `MASIL_INSTALL_DIR` | Folder to install into | macOS · Linux `~/.local/bin`, Windows `%LOCALAPPDATA%\Programs\masil` |
+| `MASIL_INSTALL_LANG` | Language of the install script's messages (`ko` · `en`) | Korean when `LC_ALL` (or `LANG` when unset) — on Windows the UI language — starts with `ko`, English otherwise |
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/patrache/masil/main/scripts/install.sh | MASIL_VERSION=0.1.0 MASIL_INSTALL_DIR="$HOME/bin" sh

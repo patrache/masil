@@ -38,6 +38,7 @@ irm https://raw.githubusercontent.com/patrache/masil/main/scripts/install.ps1 | 
 |---|---|---|
 | `MASIL_VERSION` | 설치할 버전 (예: `0.1.0`, 앞의 `v` 는 있어도 됨) | 최신 릴리스 |
 | `MASIL_INSTALL_DIR` | 설치할 폴더 | macOS·Linux `~/.local/bin`, Windows `%LOCALAPPDATA%\Programs\masil` |
+| `MASIL_INSTALL_LANG` | 설치 스크립트 메시지 언어 (`ko` · `en`) | `LC_ALL`(없으면 `LANG`) · Windows 는 UI 언어가 `ko` 로 시작하면 한국어, 아니면 영어 |
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/patrache/masil/main/scripts/install.sh | MASIL_VERSION=0.1.0 MASIL_INSTALL_DIR="$HOME/bin" sh
