@@ -18,24 +18,26 @@ No test was skipped. No security assertion was touched (the `LEETCODE*` env chec
 
 ## Golden: `TestGitRunningGolden`
 
-The fake pane (termpanetest) draws `<Program> pane WxH` with the full path, and on Windows that path is `C:\usr\local\bin\lazygit`. A single golden cannot hold both, so on Windows the test compares `git_running_windows.golden` (`goldenName()` in picker_test.go).
+On Windows the tool hands the pane `C:\usr\local\bin\lazygit` (the `native()` fixture), and the fake pane (termpanetest) used to draw `<Program> pane WxH` with that full path, so the frame differed by OS.
 
-How the Windows files were made (no Windows machine): a throwaway edit made `Locate` answer `C:\usr\local\bin\lazygit` on macOS, `-update` wrote the `_windows` files, and the edit was reverted (not committed). macOS `filepath.Base` does not split on `\`, so the status bar came out as `⌨ C:\usr\local\bin\lazygit 에 입력 중`; on Windows `filepath.Base` gives `lazygit`, so those status-bar lines were put back to the macOS text by hand. Result: the `_windows` files differ from the macOS ones only in the one pane line (sizes 80x24, 120x30, 120x40, 200x60; 40x14 and 50x20 are the same as macOS).
+First fix (698f2289): a second set of `git_running_windows.golden` files, picked by `goldenName()`. Review finding (low): those files were hand-made on macOS (a throwaway `Locate` hack plus hand edits), `-update` on macOS/Linux never rewrites them, so any later intended change to this screen would leave them stale and Windows CI would fail with no local way to refresh them; 40x14 and 50x20 were byte-identical copies.
 
-- 내 판단: a per-OS golden is better than skipping the golden on Windows — the layout is the same behaviour on Windows, only the fixture path differs.
-- 내 판단: a fixed `C:` drive in `native()` instead of `filepath.Abs` keeps fixtures and goldens independent of the runner's working drive (`D:` on GitHub runners).
+Review fix: the fake pane now draws `filepath.Base(program) pane WxH` (`internal/ui/termpane/termpanetest/fake.go`). The full program stays in `Program()` and in `Started()`, which is what the request checks use (`req.Program != lgBin`). One golden per size again; the six `_windows` files and `goldenName()` are gone, and the four macOS goldens that draw the pane were regenerated with `-update` (only the pane line changed: `/usr/local/bin/lazygit pane …` → `lazygit pane …`). `leet.fakeLazygit` no longer needs a short `/tmp` folder for the old full-path label to fit 40 columns, so it uses `t.TempDir()`. No other golden in the repo draws the fake pane label; the other users only check `Contains "lazygit pane"` / `"nvim pane"`, which still holds.
+
+- 내 판단: an OS-independent fake label is better than per-OS goldens — the layout is the same behaviour on every OS, and one golden that `-update` refreshes everywhere cannot drift. The fake's label is test scaffolding, not something a user sees.
+- 내 판단: a fixed `C:` drive in `native()` instead of `filepath.Abs` keeps fixtures independent of the runner's working drive (`D:` on GitHub runners).
 
 ## Verified locally (macOS)
 
 - `GOOS=windows go vet ./...` — exit 0
-- `GOOS=windows go test -c -o /dev/null ./internal/lazygit` and `./internal/ui/gittool` — compile
-- `go test -count=1 ./internal/lazygit ./internal/ui/gittool` — ok (macOS goldens unchanged)
-- `gofmt -l internal/lazygit internal/ui/gittool` — clean
+- `GOOS=windows go test -c -o /dev/null` for `./internal/lazygit`, `./internal/ui/gittool`, and (after the review fix) `./internal/ui/termpane/termpanetest`, `./internal/ui/leet`, `./internal/ui/workspace`, `./internal/ui/e2e` — compile
+- `go test -count=1 ./internal/lazygit ./internal/ui/gittool ./internal/ui/leet ./internal/ui/termpane/... ./internal/ui/workspace ./internal/ui/e2e` — ok
+- `gofmt -l internal` — clean
 
 ## Still uncertain until the next Windows CI run
 
 - Whether the rest of `ui/gittool` passes on Windows: it has never run there (the panic stopped it). Reasoned through, not seen: `TestPickerTabCompletes` (real temp folder `C:\Users\RUNNER~1\…` after EvalSymlinks; typing `C:\…\ma` + tab), the `TestGitGolden` picker/install goldens (the recents are shown as given, `filepath.Base` splits `/` on Windows too), the hub/probe tests.
-- The hand-made `git_running_windows.golden` files: right only if nothing else in the frame differs on Windows.
+- `TestGitRunningGolden` on Windows now compares the same goldens as macOS: right only if nothing else in the frame differs on Windows (reasoned: status bar `filepath.Base` → `lazygit`, folder name `masil`). Not seen on Windows.
 - `native()` assumes `C:\r`, `C:\usr\local\bin`, `C:\cfg` do not exist on the runner (EvalSymlinks then fails and the path stays as given). If one ever exists, EvalSymlinks could change its case.
 - Not fixed, cosmetic, outside this group: with a real Windows lazygit the status bar says `⌨ lazygit.exe 에 입력 중` (`filepath.Base` of the Program; `internal/ui/app/exclusive.go`, `internal/ui/termpane/pane.go`). Worth a look by the termpane owner.
 - Not fixed, minor: on Windows the recent list compares paths by exact string, so `C:\R\masil` and `c:\r\masil` would be two rows. `git rev-parse --show-toplevel` + EvalSymlinks give one canonical form in practice.

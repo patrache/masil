@@ -240,6 +240,6 @@ func TestGitRunningGolden(t *testing.T) {
 	running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	uitest.ForEachSize(t, leetSizes, func(t *testing.T, h *uitest.Harness) {
 		openMasil(t, h)
-		h.Golden(goldenName("git_running"))
+		h.Golden("git_running")
 	})
 }

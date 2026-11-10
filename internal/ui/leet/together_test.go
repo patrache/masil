@@ -23,13 +23,9 @@ import (
 // this test uses its real lookup.
 func fakeLazygit(t *testing.T) (repo string) {
 	t.Helper()
-	// A short folder: the fake pane draws "<program path> pane WxH", which
-	// must fit the 40-column tiny layout.
-	bin, err := os.MkdirTemp("/tmp", "lg")
-	if err != nil {
-		t.Skipf("no short temp folder: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(bin) })
+	// The fake pane draws only the program's base name ("lazygit pane WxH"),
+	// so where this folder is does not change the frame.
+	bin := t.TempDir()
 	cfg := t.TempDir()
 	script := "#!/bin/sh\ncase \"$1\" in\n" +
 		"--version) echo 'commit=abc, build date=2026-11-07T00:00:00Z, build source=homebrew, version=0.66.3, os=darwin, arch=arm64, git version=2.47.1' ;;\n" +

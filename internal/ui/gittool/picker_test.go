@@ -42,15 +42,6 @@ func native(p string) string {
 	return p
 }
 
-// goldenName is name, with "_windows" on Windows: the running pane draws
-// lazygit's absolute path, which is C:\usr\local\bin\lazygit there.
-func goldenName(name string) string {
-	if runtime.GOOS == "windows" {
-		return name + "_windows"
-	}
-	return name
-}
-
 // runner answers "name arg…" from out; anything else fails like git outside
 // a repository.
 type runner struct {
