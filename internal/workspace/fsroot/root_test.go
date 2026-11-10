@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -220,6 +221,53 @@ func TestReadTextLinkDotDotReadsOSTarget(t *testing.T) {
 		if err != nil || text != want {
 			t.Errorf("ReadText(%s) = %q, %v; want %q (the file the OS opens)", rel, text, err, want)
 		}
+		// want is the model's answer; the OS must agree on this OS.
+		assertOSOpens(t, proj, rel, want, rel != "abs")
+	}
+}
+
+// kernelText reads proj/rel with a plain open, so the OS itself follows the
+// links: the file a tool or the terminal agent outside fsroot would get.
+func kernelText(t *testing.T, proj, rel string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(proj, filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatalf("os.ReadFile(%s) err = %v", rel, err)
+	}
+	return string(b)
+}
+
+// osRootText reads rel through os.Root, the way Create/Rename/Remove reach
+// files (on Windows os.Root cleans each link target with rootCleanPath, on
+// Unix it walks the target's elements). os.Root refuses absolute link
+// targets, so only relative links are compared with it.
+func osRootText(t *testing.T, proj, rel string) string {
+	t.Helper()
+	root, err := os.OpenRoot(proj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = root.Close() }()
+	b, err := root.ReadFile(filepath.FromSlash(rel))
+	if err != nil {
+		t.Fatalf("os.Root.ReadFile(%s) err = %v", rel, err)
+	}
+	return string(b)
+}
+
+// assertOSOpens checks that want is the file the OS really opens for rel,
+// both by a plain open and (for relative links, osRoot) through os.Root, so
+// the link model in follow is checked against the OS and not only against
+// itself.
+func assertOSOpens(t *testing.T, proj, rel, want string, osRoot bool) {
+	t.Helper()
+	if got := kernelText(t, proj, rel); got != want {
+		t.Errorf("os.ReadFile(%s) = %q; the model says %q (link model differs from the OS)", rel, got, want)
+	}
+	if osRoot {
+		if got := osRootText(t, proj, rel); got != want {
+			t.Errorf("os.Root.ReadFile(%s) = %q; the model says %q (link model differs from os.Root)", rel, got, want)
+		}
 	}
 }
 
@@ -263,6 +311,15 @@ func TestCheckLinkDotDotWindowsModel(t *testing.T) {
 	if text, _, err := r.ReadText("e"); err != nil || text != "root" {
 		t.Errorf("ReadText(e) = %q, %v; want %q", text, err, "root")
 	}
+	// On Windows the model is the OS's own: check it against what the
+	// kernel and os.Root open (the model is forced on other OSes, where
+	// the OS walks the Unix way and gives other files).
+	if runtime.GOOS == "windows" {
+		for rel, want := range map[string]string{"d/config": "root", "a": "root", "e": "root"} {
+			assertOSOpens(t, proj, rel, want, true)
+		}
+		assertOSOpens(t, proj, "abs", "root", false)
+	}
 }
 
 // The case the Windows model closes: a lexical target that lands on a
@@ -286,6 +343,11 @@ func TestCheckLinkWindowsModelDeniesLexicalSecret(t *testing.T) {
 	}
 	if text, _, err := r.ReadText("k/d"); err != nil || text != "SECRET" {
 		t.Errorf("owner ReadText(k/d) = %q, %v; want the file Windows opens", text, err)
+	}
+	// The denied link must really be the secret on Windows: os.Root (what
+	// Create/Rename/Remove use) and a plain open both reach .ssh/config.
+	if runtime.GOOS == "windows" {
+		assertOSOpens(t, proj, "k/d", "SECRET", true)
 	}
 }
 
