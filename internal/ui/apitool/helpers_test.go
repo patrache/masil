@@ -54,11 +54,15 @@ func toolOf(h *uitest.Harness) *Tool {
 // real 2ms pause, until the screen shows want (400 rounds at most).
 func waitScreen(t testing.TB, h *uitest.Harness, want string) {
 	t.Helper()
-	for range 400 {
+	for i, start := 0, time.Now(); i < 400 || time.Since(start) < 10*time.Second; i++ {
 		if strings.Contains(h.Screen(), want) {
 			return
 		}
-		h.Advance(50 * time.Millisecond)
+		// the fake clock moves at most 20s (as before); after that only real time
+		// passes, so slow machines (Windows CI) get up to 10s more for real I/O.
+		if i < 400 {
+			h.Advance(50 * time.Millisecond)
+		}
 		time.Sleep(2 * time.Millisecond)
 	}
 	t.Fatalf("screen never showed %q:\n%s", want, h.Screen())

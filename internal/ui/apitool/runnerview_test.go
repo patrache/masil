@@ -25,11 +25,15 @@ func runRequests(srv *httptest.Server) []*apitool.Request {
 // waitRun advances until the run ends.
 func waitRun(t *testing.T, h *uitest.Harness, tl *Tool) {
 	t.Helper()
-	for range 400 {
+	for i, start := 0, time.Now(); i < 400 || time.Since(start) < 10*time.Second; i++ {
 		if tl.run != nil && tl.run.done {
 			return
 		}
-		h.Advance(50 * time.Millisecond)
+		// the fake clock moves at most 20s (as before); after that only real time
+		// passes, so slow machines (Windows CI) get up to 10s more for real I/O.
+		if i < 400 {
+			h.Advance(50 * time.Millisecond)
+		}
 		time.Sleep(2 * time.Millisecond)
 	}
 	t.Fatalf("the run never ended:\n%s", h.Screen())

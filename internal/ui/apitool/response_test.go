@@ -82,11 +82,15 @@ func TestFoldKeepsAfterResend(t *testing.T) {
 		t.Fatalf("enter did not fold customer:\n%s", h.Screen())
 	}
 	h.Press("[", "enter") // back to the request, send again
-	for range 400 {
+	for i, start := 0, time.Now(); i < 400 || time.Since(start) < 10*time.Second; i++ {
 		if hits.Load() == 2 && !tl.running(jobSend) {
 			break
 		}
-		h.Advance(50 * time.Millisecond)
+		// the fake clock moves at most 20s (as before); after that only real time
+		// passes, so slow machines (Windows CI) get up to 10s more for real I/O.
+		if i < 400 {
+			h.Advance(50 * time.Millisecond)
+		}
 		time.Sleep(2 * time.Millisecond)
 	}
 	waitScreen(t, h, "201 Created")
