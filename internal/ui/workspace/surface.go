@@ -12,6 +12,7 @@ import (
 
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
+	"github.com/patrache/masil/internal/ui/codelsp"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/termpane"
@@ -276,6 +277,9 @@ func (s *Surface) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		return s.onHook(ctx, m.ev)
 	case termpane.NotifyMsg:
 		return s.onNotify(ctx, m)
+	case codelsp.ResultMsg:
+		s.lspResult(m)
+		return nil
 	}
 	s.prefix.Update(msg)
 	for _, t := range s.term.terms {
@@ -725,6 +729,7 @@ func (s *Surface) CloseTool(ctx *ui.Context) tea.Cmd {
 	}
 	s.closed = true
 	dropLive(s)
+	s.lspCloseAll()
 	cmd := tea.Batch(s.ownerClose(ctx), s.guestClose())
 	for _, t := range s.term.terms {
 		t.close()

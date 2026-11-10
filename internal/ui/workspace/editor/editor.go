@@ -265,6 +265,7 @@ func (e *Editor) HandleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		if e.as.complete && !e.readOnly {
 			e.as.forced = true
 			e.refreshMenu()
+			e.ask()
 		}
 		return true, nil
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -29,6 +30,23 @@ type ManagerOptions struct {
 	Find func(lang string) (Server, bool)
 	// Start runs one server (default Client.Options.Start).
 	Start func(ctx context.Context, srv Server, root string) (*Client, error)
+	// Check runs a server's Check argv (default: run it, CheckTimeout).
+	Check func(ctx context.Context, argv []string) error
+}
+
+// CheckTimeout bounds a server's Check command.
+const CheckTimeout = 5 * time.Second
+
+// runCheck runs argv with its output discarded; any failure (not found,
+// non-zero exit, CheckTimeout) is an error.
+func runCheck(ctx context.Context, argv []string) error {
+	ctx, cancel := context.WithTimeout(ctx, CheckTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Env = scrubEnv(os.Environ())
+	cmd.WaitDelay = time.Second
+	procAttr(cmd)
+	return cmd.Run()
 }
 
 // Manager runs one Client per (language, root folder) for the editors. Open,
@@ -67,6 +85,7 @@ type entry struct {
 	client   *Client       // nil while starting, after a crash or a failed start
 	starting chan struct{} // non-nil while a start runs; closed when it ends
 	started  bool          // a start was attempted before (a new one is a restart)
+	ran      bool          // a start succeeded once (a failed first start gives up at once)
 	restarts int
 	gaveUp   bool
 	lastUsed time.Time
@@ -90,6 +109,9 @@ func NewManager(o ManagerOptions) *Manager {
 	if o.Start == nil {
 		co := o.Client
 		o.Start = co.Start
+	}
+	if o.Check == nil {
+		o.Check = runCheck
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
@@ -342,14 +364,26 @@ func (m *Manager) start(e *entry, srv Server, ch chan struct{}) {
 		}
 		m.mu.Unlock()
 	}
+	if len(srv.Check) > 0 {
+		if err := m.opts.Check(m.startCtx, srv.Check); err != nil {
+			m.unavailable(e, "lsp server check failed; no server for it", "lsp", srv.Name, "err", err)
+			return
+		}
+	}
 	c, err := m.opts.Start(m.startCtx, srv, e.key.root)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	e.starting = nil
 	if err != nil {
+		if !e.ran { // never initialized once: not installed right (v0.1.3-1), quietly none
+			e.gaveUp = true
+			m.log.Info("lsp server did not start; no server for it", "lsp", e.srv.Name, "err", err)
+			return
+		}
 		m.log.Warn("lsp server failed to start", "lsp", e.srv.Name, "err", err)
 		return
 	}
+	e.ran = true
 	if m.closed || m.servers[e.key] != e {
 		m.shutdownAsyncLocked(c)
 		return

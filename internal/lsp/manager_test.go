@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -25,6 +26,8 @@ type managerFixture struct {
 	// wait for it to close.
 	finds    map[string]int
 	findGate chan struct{}
+	// failAfter > 0: every start after the first failAfter fails.
+	failAfter int
 }
 
 func newManagerFixture(t *testing.T, modes ...string) *managerFixture {
@@ -48,6 +51,15 @@ func newManagerFixture(t *testing.T, modes ...string) *managerFixture {
 			return srv, true
 		},
 		Start: func(ctx context.Context, s Server, root string) (*Client, error) {
+			f.mu.Lock()
+			fail := f.failAfter > 0 && len(f.runs)+f.errs >= f.failAfter
+			f.mu.Unlock()
+			if fail {
+				f.mu.Lock()
+				defer f.mu.Unlock()
+				f.errs++
+				return nil, errors.New("start failed")
+			}
 			c, err := opts.Start(ctx, s, root)
 			f.mu.Lock()
 			defer f.mu.Unlock()
@@ -238,7 +250,10 @@ func TestManagerRestartLimit(t *testing.T) {
 	}
 }
 
-func TestManagerStartFailuresCountAsCrashes(t *testing.T) {
+// v0.1.3-1: a server whose very first start fails (it exits before
+// answering initialize — rust-analyzer's rustup proxy without the
+// component) is unavailable for the run at once, quietly: no restarts.
+func TestManagerFirstStartFailureIsUnavailable(t *testing.T) {
 	f := newManagerFixture(t, "crashstart")
 	path := filepath.Join(f.root, "main.go")
 	if err := f.m.Open(f.root, path, "x"); err != nil {
@@ -247,8 +262,61 @@ func TestManagerStartFailuresCountAsCrashes(t *testing.T) {
 	for range 10 {
 		_, _ = f.m.Complete(context.Background(), path, 0, 0)
 	}
+	if got := f.starts(); got != 1 {
+		t.Errorf("starts = %d, want 1 (no restarts of a server that never started)", got)
+	}
+	if _, err := f.m.Complete(context.Background(), path, 0, 0); !errors.Is(err, ErrUnavailable) {
+		t.Errorf("Complete = %v, want ErrUnavailable", err)
+	}
+	if err := f.m.Open(f.root, path, "x"); !errors.Is(err, ErrUnavailable) {
+		t.Errorf("Open = %v, want ErrUnavailable", err)
+	}
+}
+
+// A server that did run once and then crashed: failed restarts count
+// toward the restart limit like crashes.
+func TestManagerStartFailuresCountAsCrashes(t *testing.T) {
+	f := newManagerFixture(t, "crash")
+	f.failAfter = 1
+	path := filepath.Join(f.root, "main.go")
+	if err := f.m.Open(f.root, path, "x"); err != nil {
+		t.Fatal(err)
+	}
+	c := f.waitClient(t, path)
+	_, _ = f.m.Complete(context.Background(), path, 0, 1) // crashes it
+	waitDone(t, c)
+	for f.m.Client(path) == c {
+		time.Sleep(time.Millisecond)
+	}
+	for range 10 {
+		_, _ = f.m.Complete(context.Background(), path, 0, 0)
+	}
 	if got := f.starts(); got != 1+MaxRestarts {
 		t.Errorf("starts = %d, want %d", got, 1+MaxRestarts)
+	}
+}
+
+// A server with a check command (rust-analyzer --version) that fails is
+// unavailable without being started.
+func TestManagerCheckFailureIsUnavailable(t *testing.T) {
+	f := newManagerFixture(t)
+	f.m.opts.Find = func(lang string) (Server, bool) {
+		return Server{Lang: "go", Name: "rust-analyzer", Command: []string{"/x/rust-analyzer"}, Check: []string{"/x/rust-analyzer", "--version"}}, true
+	}
+	var checked []string
+	f.m.opts.Check = func(_ context.Context, argv []string) error {
+		checked = argv
+		return errors.New("error: Unknown binary 'rust-analyzer' in official toolchain")
+	}
+	path := filepath.Join(f.root, "main.go")
+	if err := f.m.Open(f.root, path, "x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.m.Complete(context.Background(), path, 0, 0); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Complete = %v, want ErrUnavailable", err)
+	}
+	if f.starts() != 0 || strings.Join(checked, " ") != "/x/rust-analyzer --version" {
+		t.Fatalf("starts %d, checked %q", f.starts(), checked)
 	}
 }
 

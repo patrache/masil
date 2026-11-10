@@ -15,6 +15,10 @@ type Server struct {
 	Name string
 	// Command is argv; Command[0] is the resolved program path.
 	Command []string
+	// Check, when set, is an argv that must succeed before the server is
+	// started (v0.1.3-1: "rust-analyzer --version" fails for rustup's proxy
+	// when the component is not installed); a failure means no server.
+	Check []string
 }
 
 // serverTable lists, per languageId, the commands to try in order (first one
@@ -36,6 +40,12 @@ var serverTable = map[string][][]string{
 	"kotlin":          {{"kotlin-language-server"}},
 	"ruby":            {{"solargraph", "stdio"}},
 	"scala":           {{"metals"}},
+}
+
+// serverChecks are the check arguments (Server.Check) by program name: a
+// proxy that is on PATH but cannot run the server fails them.
+var serverChecks = map[string][]string{
+	"rust-analyzer": {"--version"},
 }
 
 // extLang maps a lower-cased file extension to its languageId.
@@ -130,7 +140,11 @@ func Find(lang string) (Server, bool) {
 		}
 		cmd := append([]string{p}, argv[1:]...)
 		name := strings.TrimSuffix(filepath.Base(argv[0]), filepath.Ext(argv[0]))
-		return Server{Lang: lang, Name: name, Command: cmd}, true
+		srv := Server{Lang: lang, Name: name, Command: cmd}
+		if args, ok := serverChecks[name]; ok {
+			srv.Check = append([]string{p}, args...)
+		}
+		return srv, true
 	}
 	return Server{}, false
 }

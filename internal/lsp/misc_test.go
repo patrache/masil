@@ -256,6 +256,16 @@ func TestFind(t *testing.T) {
 	if _, ok := Find("rust"); ok {
 		t.Error("rust found without rust-analyzer")
 	}
+	// v0.1.3-1: rust-analyzer must pass --version first (rustup's proxy
+	// without the component is on PATH but fails it); gopls has no check.
+	onPath["rust-analyzer"] = "/bin/rust-analyzer"
+	if s, ok := Find("rust"); !ok || !slices.Equal(s.Check, []string{abs("/bin/rust-analyzer"), "--version"}) {
+		t.Errorf("rust: %+v %v", s, ok)
+	}
+	if s, _ := Find("go"); s.Check != nil {
+		t.Errorf("go has a check: %q", s.Check)
+	}
+	delete(onPath, "rust-analyzer")
 	if _, ok := Find("cobol"); ok {
 		t.Error("unknown language found")
 	}

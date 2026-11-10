@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/workspace/ot"
 )
@@ -335,7 +336,7 @@ func TestReadOnlyClosesMenu(t *testing.T) {
 	}
 	// the stale-state backstop: a menu left open outside insert mode is not drawn and eats no key
 	e.SetReadOnly(false)
-	e.as.open, e.as.items = true, []string{"result"}
+	e.as.open, e.as.items = true, []codeassist.Item{{Label: "result", Text: "result"}}
 	if v := ansi.Strip(e.View(true)); strings.Count(v, "result") > 1 {
 		t.Fatalf("menu drawn in normal mode:\n%s", v)
 	}

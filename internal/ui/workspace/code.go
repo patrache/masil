@@ -34,6 +34,9 @@ type openDoc struct {
 	merged   bool
 	mergeSeq int64
 	mergeInv ot.Op
+	// lsp: the path it is open as in a language server ("" = not open);
+	// lspText: the text the server has (lsp.go).
+	lsp, lspText string
 }
 
 type codeCell struct {
@@ -131,6 +134,7 @@ func (s *Surface) attachDoc(ctx *ui.Context, v share.DocView) tea.Cmd {
 	d.ed = editor.New(ctx.Theme, v.Text, v.ReadOnly)
 	s.code.setupAssist(ctx, d)
 	s.code.docs = append(s.code.docs, d)
+	s.lspSync(ctx, d)
 	s.showPeers(d.rel) // cursors that arrived before the owner opened it
 	s.code.cur = len(s.code.docs) - 1
 	s.code.msg = ""
@@ -145,6 +149,7 @@ func (s *Surface) closeDoc(ctx *ui.Context, d *openDoc) {
 	if i < 0 {
 		return
 	}
+	s.lspClose(d)
 	s.docs.Close(d.rel)
 	s.code.docs = slices.Delete(s.code.docs, i, i+1)
 	if s.code.cur >= len(s.code.docs) {
@@ -167,6 +172,7 @@ func (s *Surface) resync(d *openDoc) {
 	d.ed.Reset(text)
 	d.undo = ot.Undo{}
 	d.merged = false
+	s.lspChanged(d)
 }
 
 // flushOps submits the editor's new edits as the owner's.
@@ -182,6 +188,7 @@ func (s *Surface) flushOps(d *openDoc) {
 		d.undo.Record(op, before)
 		d.merged = false
 	}
+	s.lspChanged(d)
 }
 
 // submit sends one owner edit made against d.seq; false (after a resync)
@@ -220,6 +227,7 @@ func (s *Surface) applyRemote(d *openDoc, seq int64, op ot.Op) {
 	d.undo.Remote(op)
 	d.seq, d.base = seq, after
 	s.shiftCursors(d.rel, op)
+	s.lspChanged(d) // a co-editor's edit or the disk's reaches the server too
 }
 
 // docEvents applies what happened to the open documents on their own.
@@ -270,6 +278,7 @@ func (s *Surface) codeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 				if s.submit(d, inv) {
 					d.ed.ApplyRemote(inv)
 					d.undo.Remote(inv)
+					s.lspChanged(d)
 				}
 				return true, nil
 			}
@@ -281,14 +290,16 @@ func (s *Surface) codeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 		}
 	}
 	s.code.applyAssist(ctx, d)
+	s.lspSync(ctx, d) // the setting may have changed; before the key, so the editor knows
 	handled, cmd := d.ed.HandleKey(msg)
 	s.flushOps(d)
 	s.sendPresence(d)
+	ask := s.lspAsk(d)
 	if !handled {
-		return msg.String() == "esc", nil // esc stays in the cell (no accidental leave)
+		return msg.String() == "esc", ask // esc stays in the cell (no accidental leave)
 	}
 	if cmd == nil {
-		return true, nil
+		return true, ask
 	}
 	// The editor's own requests are answered here, at once (no broadcast).
 	switch m := cmd().(type) {
@@ -325,6 +336,7 @@ func (s *Surface) undoRedo(d *openDoc, undo bool) {
 	}
 	if s.submit(d, op) {
 		d.ed.ApplyRemote(op)
+		s.lspChanged(d)
 	}
 }
 
