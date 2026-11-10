@@ -321,6 +321,7 @@ internal/
   archdraw/                            P3   (격자 그리기: 3단계 확대·직교 선 경로·적중 시험 — ui 없음)
   archexport/                          P3   (텍스트 스냅샷·카드 미니 그림·내보내기)
   ui/arch/                             P3   (도구 `arch`: 캔버스 인스턴스·모드별 배치·읽기 보기·docSink·편집)
+  lsp/                                 v0.1.3-1 (언어 서버 클라이언트: stdio 프레이밍·Client·Manager·서버 표·UTF-16 열 — 편집기의 LSP 완성용 엔진, UI 없음)
 ```
 
 P1(LeetCode 오늘의 문제·lazygit) 행:
@@ -379,9 +380,10 @@ ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keym
 - `internal/api` 는 `internal/secrets`·`internal/termhost`·`internal/collab`·`internal/ui/...`·도구 패키지를 **전이로도** import 하지 않는다 — 도구 비밀값(쿠키·토큰)이 구조적으로 masil 서버 요청에 실릴 수 없게(v0.1.3 설계서 A9.3).
 - `internal/termhost` 는 `internal/ui` 를 전이로도 import 하지 않는다(화면이 아니라 프로그램 실행만).
 - `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
-- 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
+- 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*`·`internal/lsp*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
 - `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
 - (P2) 작업공간 엔진 `internal/workspace/...` 는 `internal/ui`·bubbletea·`internal/secrets` 를 전이로도 import 하지 않는다(화면 없이 시험·재사용) — `internal/workspace/imports_test.go` `TestImportRules` 가 강제한다. 화면 `internal/ui/workspace` 만 엔진과 `ui`·`termpane`·`palette` 를 잇는다.
+- (v0.1.3-1) 언어 서버 클라이언트 `internal/lsp` 는 엔진 코드다 — 표준 라이브러리와 `internal/version` 만 import 한다(`internal/ui`·bubbletea·`internal/secrets`·`internal/api`·제3자 모듈 금지, 프로토콜은 손으로 쓴다). `internal/lsp/imports_test.go` `TestImportRules` 가 강제하고, `internal/api`·`internal/ui/chat` 이 `internal/lsp` 에 기대지 않는 것은 위 `TestImportGraph` 접두사가 강제한다.
 - (P2) `internal/api` 는 `internal/workspace/...` 를 전이로도 import 하지 않는다 — 공유 내용(평문·키)은 구조적으로 REST 요청에 실릴 수 없고, 서버에는 암호문 프레임만 relay 로 간다(같은 시험 + 위 `TestImportGraph` 접두사).
 
 P1 도구 패키지(P1 Task 24 가 맞춘 실제 의존):
@@ -594,6 +596,9 @@ open = "auto"              # auto | pane | exec | window (그 밖 값 => auto). 
 history = true             # false => 기록을 쓰지 않음
 history_max = 500          # 남길 최대 건수
 history_days = 30          # 이보다 오래된 기록은 다음 기록 때 지움
+
+[lsp.go]                   # v0.1.3-1 편집기 LSP 완성. 절 이름 = LSP languageId(go·python·cpp·typescript …) — LeetCode slug(golang·python3)가 아니다
+command = ["gopls"]        # argv. 이 프로그램이 PATH 에 있으면 내장 서버 표보다 먼저 쓴다. 비거나 잘못된 값은 그 키만 버림. typescript·javascript 는 …react 도 덮는다
 ```
 
 ```go

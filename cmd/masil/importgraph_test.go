@@ -28,6 +28,7 @@ var toolPackagePrefixes = []string{
 	"internal/apitool",
 	"internal/arch",
 	"internal/workspace",
+	"internal/lsp",
 }
 
 // listedPackage is the part of `go list -json` the rules read.
