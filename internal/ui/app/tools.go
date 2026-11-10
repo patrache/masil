@@ -66,6 +66,10 @@ func (c *NavState) cloneTools(n NavState) {
 	if len(c.Tools) == 0 && c.Front == FrontTools {
 		c.Front = FrontTab
 	}
+	c.ToolLast = n.ToolLast
+	if i := c.toolIndex(c.ToolLast); i < 0 || c.Tools[i].Kind != ui.RouteTool {
+		c.ToolLast = ""
+	}
 }
 
 // activeTool is the tool-surface entry shown when it is in front.
@@ -160,6 +164,9 @@ func (n NavState) closeToolEntry(k string) (NavState, bool) {
 	}
 	c.Tools = slices.Delete(c.Tools, i, i+1)
 	delete(c.ToolZoom, k)
+	if c.ToolLast == k {
+		c.ToolLast = ""
+	}
 	switch {
 	case len(c.Tools) == 0:
 		c.ToolActive = 0
@@ -175,20 +182,21 @@ func (n NavState) closeToolEntry(k string) (NavState, bool) {
 }
 
 // toggleTools is tools.toggle (ctrl+t): the tool surface in front goes back to
-// the chat; otherwise the last tool shown comes to the front (the hub when
-// none is open).
+// the chat; otherwise the hub comes to the front (added before the open
+// instances when it is not open), the open instances kept. The instance that
+// was active is remembered as ToolLast, so the hub's cursor starts on it and
+// ctrl+t enter shows that same instance again (0.1.3 patch: the hub used to
+// appear only the first time).
 func (n NavState) toggleTools(mode layout.Mode) (NavState, FocusIntent) {
 	c := n.clone()
-	switch {
-	case c.Front == FrontTools:
+	if c.Front == FrontTools {
 		c.Front = FrontTab
 		return c, FocusIntent{Slot: layout.SlotMain, RouteKey: c.shownMain(mode).Key()}
-	case len(c.Tools) == 0:
-		return c.openTool(hubRoute, mode)
 	}
-	c.Front = FrontTools
-	r, _ := c.activeTool()
-	return c, FocusIntent{Slot: toolSlotFor(mode), RouteKey: r.Key()}
+	if r, ok := c.activeTool(); ok && r.Kind == ui.RouteTool {
+		c.ToolLast = r.Key()
+	}
+	return c.openTool(hubRoute, mode)
 }
 
 // cycleTool shows the next (delta +1) or previous open tool, wrapping.
@@ -398,7 +406,7 @@ func (m *Model) openTools() []ui.OpenToolInfo {
 		if r.Kind != ui.RouteTool {
 			continue
 		}
-		info := ui.OpenToolInfo{Route: r, Title: m.toolEntryTitle(r), Active: i == m.nav.ToolActive && m.nav.Front == FrontTools}
+		info := ui.OpenToolInfo{Route: r, Title: m.toolEntryTitle(r), Active: i == m.nav.ToolActive && m.nav.Front == FrontTools, Last: r.Key() == m.nav.ToolLast}
 		if in := m.cache.lookup(r.Key()); in != nil {
 			if s, ok := in.comp.(ui.ToolStatuser); ok {
 				info.Status = textwidth.Sanitize(s.ToolStatus(m.ctx))

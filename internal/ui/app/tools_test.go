@@ -166,9 +166,12 @@ func TestCtrlTOpensHubEveryMode(t *testing.T) {
 			t.Fatalf("third ctrl+t: %+v, %v, want the hub (last tool)", r, ok)
 		}
 		openTool(h, ui.ToolGit, "g1")
-		h.Press("ctrl+t", "ctrl+t")
-		if r, ok := shownTool(h); !ok || r.Key() != toolRoute(ui.ToolGit, "g1").Key() {
-			t.Fatalf("ctrl+t ctrl+t after opening git: %+v, %v, want the last tool", r, ok)
+		h.Press("ctrl+t", "ctrl+t") // 0.1.3 patch: the hub again, never straight into the last tool
+		if r, ok := shownTool(h); !ok || r.Kind != ui.RouteTools {
+			t.Fatalf("ctrl+t ctrl+t after opening git: %+v, %v, want the hub", r, ok)
+		}
+		if n := h.Model.Nav(); len(n.Tools) != 2 || n.ToolLast != toolRoute(ui.ToolGit, "g1").Key() {
+			t.Fatalf("ctrl+t ctrl+t after opening git: tools %v last %q, want git kept and remembered", n.Tools, n.ToolLast)
 		}
 		h.Check()
 	})

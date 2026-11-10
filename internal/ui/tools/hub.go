@@ -54,9 +54,23 @@ type hub struct {
 
 func newHub(*ui.Context) *hub { return &hub{} }
 
-func (h *hub) Init(*ui.Context) tea.Cmd            { return nil }
-func (h *hub) Update(*ui.Context, tea.Msg) tea.Cmd { return nil }
-func (h *hub) Resize(_ *ui.Context, size ui.Size)  { h.size = size }
+func (h *hub) Init(*ui.Context) tea.Cmd           { return nil }
+func (h *hub) Resize(_ *ui.Context, size ui.Size) { h.size = size }
+
+// Update: when the hub comes to the front (ctrl+t from the chat), the cursor
+// goes to the open instance that was last active (OpenToolInfo.Last), so
+// enter shows it again; with none marked the cursor stays where it was.
+func (h *hub) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
+	if m, ok := msg.(ui.ToolSwitchedMsg); ok && m.Route.Kind == ui.RouteTools && h.menu == nil {
+		for i, r := range h.rows(ctx) {
+			if r.kind == rowOpen && r.open.Last {
+				h.sel = i
+				break
+			}
+		}
+	}
+	return nil
+}
 
 // rows are the hub's selectable rows now: the flagged-on tools by Order, then
 // the open instances.

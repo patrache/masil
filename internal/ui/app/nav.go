@@ -43,6 +43,7 @@ type NavState struct {
 	Tools      []ui.Route
 	ToolActive int             // index into Tools
 	ToolZoom   map[string]bool // instance Route.Key() -> wide view (missing = ToolSpec.WideDefault)
+	ToolLast   string          // Route.Key() of the instance last active before ctrl+t brought the hub forward ("" = none); the hub's cursor starts on it
 }
 
 // dmPred reports whether a channel id is a DM or group DM (Store.IsDM); nil knows none.
