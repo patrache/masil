@@ -166,6 +166,13 @@ var areaTermpane = area{
 				En: {Other: "Pane keys"},
 			},
 		},
+		"help_tools_leave": {
+			desc: "패널 도움말: ctrl+t(접두키 없이) — 패널에서 나와 채팅으로, 프로그램은 계속 돎",
+			text: map[Locale]Forms{
+				Ko: {Other: "채팅으로 나가기 (프로그램은 계속 돎)"},
+				En: {Other: "Back to the chat (the program keeps running)"},
+			},
+		},
 		"help_zoom": {
 			desc: "패널 도움말: 접두키 다음 z — 확대(넓게 보기)",
 			text: map[Locale]Forms{
@@ -179,6 +186,14 @@ var areaTermpane = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "⌨ {program} 에 입력 중 · {key} esc 나가기"},
 				En: {Other: "⌨ Typing in {program} · {key} esc to leave"},
+			},
+		},
+		"input_hint_tools": {
+			desc:   "상태줄: 패널이 키보드를 쥐고 있을 때 늘 보임(도구가 켜져 있을 때). program = 프로그램 이름(번역하지 않음), key = 패널에서 나와 채팅으로 가는 키(ctrl+t 등, 키맵에서)",
+			params: []Param{{Name: "program", Type: "string"}, {Name: "key", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "⌨ {program} 에 입력 중 · {key} 나가기"},
+				En: {Other: "⌨ Typing in {program} · {key} to leave"},
 			},
 		},
 		"kbd_limits": {
@@ -373,6 +388,11 @@ func (a_ TermpaneT) HelpTitle() string {
 	return a_.t.render(&areaTermpane, "help_title", false, 0)
 }
 
+// HelpToolsLeave: 패널 도움말: ctrl+t(접두키 없이) — 패널에서 나와 채팅으로, 프로그램은 계속 돎
+func (a_ TermpaneT) HelpToolsLeave() string {
+	return a_.t.render(&areaTermpane, "help_tools_leave", false, 0)
+}
+
 // HelpZoom: 패널 도움말: 접두키 다음 z — 확대(넓게 보기)
 func (a_ TermpaneT) HelpZoom() string {
 	return a_.t.render(&areaTermpane, "help_zoom", false, 0)
@@ -381,6 +401,11 @@ func (a_ TermpaneT) HelpZoom() string {
 // InputHint: 상태줄: 패널이 키보드를 쥐고 있을 때 늘 보임. program = 프로그램 이름(번역하지 않음), key = 접두키(ctrl+\ 등, 키맵에서)
 func (a_ TermpaneT) InputHint(program string, key string) string {
 	return a_.t.render(&areaTermpane, "input_hint", false, 0, "program", program, "key", key)
+}
+
+// InputHintTools: 상태줄: 패널이 키보드를 쥐고 있을 때 늘 보임(도구가 켜져 있을 때). program = 프로그램 이름(번역하지 않음), key = 패널에서 나와 채팅으로 가는 키(ctrl+t 등, 키맵에서)
+func (a_ TermpaneT) InputHintTools(program string, key string) string {
+	return a_.t.render(&areaTermpane, "input_hint_tools", false, 0, "program", program, "key", key)
 }
 
 // KbdLimits: 패널 도움말·안내 한 줄(A7.6): 패널 안에서는 확장 키가 안 감, Claude Code 줄바꿈 대신 ctrl+j

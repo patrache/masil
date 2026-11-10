@@ -398,7 +398,8 @@ func TestPaneStatusHint(t *testing.T) {
 		lines := strings.Split(rig.h.Screen(), "\n")
 		return lines[len(lines)-1]
 	}
-	if s := status(); !strings.Contains(s, "⌨ lazygit 에 입력 중 · ctrl+\\ esc 나가기") {
+	// 0.1.3 patch (tools-nav fix 3): with a tool flag on the way out is ctrl+t.
+	if s := status(); !strings.Contains(s, "⌨ lazygit 에 입력 중 · ctrl+t 나가기") {
 		t.Errorf("status = %q", s)
 	}
 	rig.h.Press("ctrl+\\")
@@ -566,4 +567,19 @@ func TestPaneGolden(t *testing.T) {
 		rig.f.shared = true
 		rig.h.Golden("pane")
 	})
+}
+
+// The pane help (ctrl+\ ?) lists ctrl+t first: the way back to the chat
+// without the prefix (0.1.3 patch).
+func TestPaneHelpListsCtrlT(t *testing.T) {
+	rig := newRig(t, termpane.Options{})
+	rig.h.Resize(120, 40)
+	rig.h.Press("ctrl+\\", "?")
+	s := rig.h.Screen()
+	if !strings.Contains(s, "ctrl+t ") || !strings.Contains(s, "채팅으로 나가기 (프로그램은 계속 돎)") {
+		t.Fatalf("the pane help lacks ctrl+t:\n%s", s)
+	}
+	if strings.Index(s, "채팅으로 나가기") > strings.Index(s, "패널에서 나가기") {
+		t.Errorf("ctrl+t is not the first row:\n%s", s)
+	}
 }

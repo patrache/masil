@@ -209,7 +209,7 @@ func TestStatusConnectionItem(t *testing.T) {
 		w, h int
 		hint string
 	}{
-		{200, 60, "ctrl+k 이동 · tab 패널 전환 · t 스레드 · ? 도움말"},
+		{200, 60, "ctrl+k 이동 · ctrl+t 도구 · tab 패널 전환 · t 스레드 · ? 도움말"}, // ctrl+t: the release turns the tools on (0.1.3 patch)
 		{120, 30, "[ ] 탭 이동 · enter 스레드"},
 		{80, 24, "tab 탭"},
 	} {

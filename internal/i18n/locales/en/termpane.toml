@@ -61,11 +61,17 @@ other = "Tools ↔ chat"
 [help_title]
 other = "Pane keys"
 
+[help_tools_leave]
+other = "Back to the chat (the program keeps running)"
+
 [help_zoom]
 other = "Zoom"
 
 [input_hint]
 other = "⌨ Typing in {program} · {key} esc to leave"
+
+[input_hint_tools]
+other = "⌨ Typing in {program} · {key} to leave"
 
 [kbd_limits]
 other = "Extended keys like shift+enter do not reach a pane · for a Claude Code newline use ctrl+j"

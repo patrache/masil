@@ -92,6 +92,10 @@ other = "도구 ↔ 채팅"
 desc = "패널 도움말 창 제목"
 other = "패널 키"
 
+[help_tools_leave]
+desc = "패널 도움말: ctrl+t(접두키 없이) — 패널에서 나와 채팅으로, 프로그램은 계속 돎"
+other = "채팅으로 나가기 (프로그램은 계속 돎)"
+
 [help_zoom]
 desc = "패널 도움말: 접두키 다음 z — 확대(넓게 보기)"
 other = "확대"
@@ -100,6 +104,11 @@ other = "확대"
 desc = "상태줄: 패널이 키보드를 쥐고 있을 때 늘 보임. program = 프로그램 이름(번역하지 않음), key = 접두키(ctrl+\\ 등, 키맵에서)"
 params = { program = "string", key = "string" }
 other = "⌨ {program} 에 입력 중 · {key} esc 나가기"
+
+[input_hint_tools]
+desc = "상태줄: 패널이 키보드를 쥐고 있을 때 늘 보임(도구가 켜져 있을 때). program = 프로그램 이름(번역하지 않음), key = 패널에서 나와 채팅으로 가는 키(ctrl+t 등, 키맵에서)"
+params = { program = "string", key = "string" }
+other = "⌨ {program} 에 입력 중 · {key} 나가기"
 
 [kbd_limits]
 desc = "패널 도움말·안내 한 줄(A7.6): 패널 안에서는 확장 키가 안 감, Claude Code 줄바꿈 대신 ctrl+j"

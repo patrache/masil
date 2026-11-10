@@ -41,7 +41,7 @@ other = "enter open · m open with… · x close · {range} jump"
 other = "Open"
 
 [key_toggle]
-other = "Tools ↔ chat"
+other = "Tools hub ↔ chat · leave a pane"
 
 [key_zoom]
 other = "Wide tool view"
@@ -114,6 +114,9 @@ other = "enter save · esc cancel"
 
 [slash_desc]
 other = "Open the tool hub"
+
+[status_hint]
+other = "tools"
 
 [tab_label]
 other = "Tools"

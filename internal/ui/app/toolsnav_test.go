@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -120,5 +121,56 @@ func TestCtrlTLeavesToolTextField(t *testing.T) {
 				t.Fatalf("text field keys = %q, want only x", g.keys)
 			}
 		})
+	}
+}
+
+// 0.1.3 patch (tools-nav fix 3): while a tool flag is on, the chat/home status
+// line says how to reach the tools — "ctrl+t 도구" right after the ctrl+k
+// hint (command and standard, the modes whose hints show ctrl+k), with the
+// key from [keys]. Off, or on the tool surface (the hub shows its own close
+// key), the 0.1.2 hints are unchanged.
+func TestStatusShowsToolsHint(t *testing.T) {
+	cases := []struct {
+		w, h int
+		want string
+	}{
+		{200, 60, "ctrl+k 이동 · ctrl+t 도구 · tab 패널 전환"},
+		{120, 40, "t 스레드 · ctrl+k · ctrl+t 도구"},
+	}
+	for _, tc := range cases {
+		installStubTools(t, "all")
+		h := uitest.New(t)
+		h.Resize(tc.w, tc.h)
+		if s := statusRow(h); !strings.Contains(s, tc.want) {
+			t.Errorf("%dx%d: status = %q, want %q", tc.w, tc.h, s, tc.want)
+		}
+		h.Press("ctrl+t") // the hub: its first line has "ctrl+t 닫기", the status line no tool hint
+		if s := statusRow(h); strings.Contains(s, "ctrl+t 도구") {
+			t.Errorf("%dx%d on the hub: status = %q", tc.w, tc.h, s)
+		}
+		h.Press("ctrl+t")
+		if s := statusRow(h); !strings.Contains(s, tc.want) {
+			t.Errorf("%dx%d back on the chat: status = %q", tc.w, tc.h, s)
+		}
+	}
+	for _, sz := range [][2]int{{80, 24}, {50, 20}, {40, 14}} { // no ctrl+k hint there: no tool hint either
+		installStubTools(t, "all")
+		h := uitest.New(t)
+		h.Resize(sz[0], sz[1])
+		if s := statusRow(h); strings.Contains(s, "ctrl+t") {
+			t.Errorf("%dx%d: status = %q", sz[0], sz[1], s)
+		}
+	}
+	installStubTools(t, "none")
+	h := uitest.New(t)
+	h.Resize(200, 60)
+	if s := statusRow(h); strings.Contains(s, "ctrl+t") {
+		t.Errorf("flags off: status = %q", s)
+	}
+	installStubTools(t, "all")
+	h = uitest.New(t, uitest.WithKeys(map[string][]string{"tools.toggle": {"ctrl+y"}}))
+	h.Resize(200, 60)
+	if s := statusRow(h); !strings.Contains(s, "ctrl+k 이동 · ctrl+y 도구") {
+		t.Errorf("rebound: status = %q", s)
 	}
 }

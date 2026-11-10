@@ -65,8 +65,8 @@ desc = "허브의 열린 도구 인스턴스 목록 머리(앞뒤에 ── 가 
 other = "열려 있음"
 
 [key_toggle]
-desc = "도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기"
-other = "도구 ↔ 채팅"
+desc = "도움말 키 설명: ctrl+t — 도구 허브와 채팅 사이 오가기, 키보드를 쥔 패널(lazygit·nvim 등)에서도 나와 채팅으로"
+other = "도구 허브 ↔ 채팅 · 패널에서 나가기"
 
 [key_zoom]
 desc = "도움말 키 설명: ctrl+w z — 활성 도구의 넓게 보기 켜고 끄기"
@@ -169,6 +169,11 @@ other = "enter 저장 · esc 취소"
 [slash_desc]
 desc = "입력창 /tools 자동 완성·도움말 설명"
 other = "도구 허브를 열어요"
+
+[status_hint]
+desc = "채팅·홈 상태줄 힌트: 도구 허브를 여는 키(ctrl+t 등, 키맵에서 — 앞에 따로 붙음) 다음 말"
+max = 8
+other = "도구"
 
 [tab_label]
 desc = "컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)"

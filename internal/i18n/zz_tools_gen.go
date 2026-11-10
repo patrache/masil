@@ -116,10 +116,10 @@ var areaTools = area{
 			},
 		},
 		"key_toggle": {
-			desc: "도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기",
+			desc: "도움말 키 설명: ctrl+t — 도구 허브와 채팅 사이 오가기, 키보드를 쥔 패널(lazygit·nvim 등)에서도 나와 채팅으로",
 			text: map[Locale]Forms{
-				Ko: {Other: "도구 ↔ 채팅"},
-				En: {Other: "Tools ↔ chat"},
+				Ko: {Other: "도구 허브 ↔ 채팅 · 패널에서 나가기"},
+				En: {Other: "Tools hub ↔ chat · leave a pane"},
 			},
 		},
 		"key_zoom": {
@@ -296,6 +296,14 @@ var areaTools = area{
 				En: {Other: "Open the tool hub"},
 			},
 		},
+		"status_hint": {
+			desc: "채팅·홈 상태줄 힌트: 도구 허브를 여는 키(ctrl+t 등, 키맵에서 — 앞에 따로 붙음) 다음 말",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "도구"},
+				En: {Other: "tools"},
+			},
+		},
 		"tab_label": {
 			desc: "컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)",
 			max:  6,
@@ -377,7 +385,7 @@ func (a_ ToolsT) HubOpenHeader() string {
 	return a_.t.render(&areaTools, "hub_open_header", false, 0)
 }
 
-// KeyToggle: 도움말 키 설명: ctrl+t — 도구 표면과 채팅 사이 오가기
+// KeyToggle: 도움말 키 설명: ctrl+t — 도구 허브와 채팅 사이 오가기, 키보드를 쥔 패널(lazygit·nvim 등)에서도 나와 채팅으로
 func (a_ ToolsT) KeyToggle() string {
 	return a_.t.render(&areaTools, "key_toggle", false, 0)
 }
@@ -500,6 +508,11 @@ func (a_ ToolsT) PromptFooter() string {
 // SlashDesc: 입력창 /tools 자동 완성·도움말 설명
 func (a_ ToolsT) SlashDesc() string {
 	return a_.t.render(&areaTools, "slash_desc", false, 0)
+}
+
+// StatusHint: 채팅·홈 상태줄 힌트: 도구 허브를 여는 키(ctrl+t 등, 키맵에서 — 앞에 따로 붙음) 다음 말
+func (a_ ToolsT) StatusHint() string {
+	return a_.t.render(&areaTools, "status_hint", false, 0)
 }
 
 // TabLabel: 컴팩트·위젯 탭 줄의 도구 표면 칸(초소형은 짧은 형)

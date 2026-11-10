@@ -99,7 +99,7 @@ func TestHelpToolRowsOnlyWithFlags(t *testing.T) {
 		t.Fatalf("flags on: %d rows, want %d", len(got), len(base)+4)
 	}
 	tail := got[len(base):]
-	if tail[1].text != "도구" || tail[2].key != "ctrl+t" || tail[2].text != "도구 ↔ 채팅" ||
+	if tail[1].text != "도구" || tail[2].key != "ctrl+t" || tail[2].text != "도구 허브 ↔ 채팅 · 패널에서 나가기" ||
 		tail[3].key != "ctrl+w z" || tail[3].text != "도구 넓게 보기" {
 		t.Errorf("tool rows = %+v", tail)
 	}

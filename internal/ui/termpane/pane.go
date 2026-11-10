@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/features"
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -337,9 +338,22 @@ func (p *Pane) StatusText(ctx *ui.Context) (string, bool) {
 	case p.scroll.on:
 		return ctx.T.Termpane.ScrollHint(), true
 	case p.grab:
+		if k := toolsKey(ctx); k != "" {
+			return ctx.T.Termpane.InputHintTools(p.program(), k), true
+		}
 		return ctx.T.Termpane.InputHint(p.program(), escapeKey(ctx)), true
 	}
 	return "", false
+}
+
+// toolsKey is the key that leaves a pane for the chat (tools.toggle, ctrl+t:
+// the shell takes it from a pane that has the keyboard, 0.1.3 patch), or ""
+// while no tool flag is on (no tool surface, the shell lets it through).
+func toolsKey(ctx *ui.Context) string {
+	if !features.Any() {
+		return ""
+	}
+	return ctx.Keys.Binding(keymap.ToolsToggle).Help().Key
 }
 
 // Help implements ui.Helper (status hints while the pane does not have the
@@ -525,7 +539,11 @@ type helpOverlay struct {
 func newHelpOverlay(ctx *ui.Context, extra []ui.PrefixKey) *helpOverlay {
 	t := ctx.T.Termpane
 	k := escapeKey(ctx)
-	rows := [][2]string{
+	var rows [][2]string
+	if tk := toolsKey(ctx); tk != "" {
+		rows = append(rows, [2]string{tk, t.HelpToolsLeave()})
+	}
+	rows = append(rows, [][2]string{
 		{k + " esc", t.HelpLeave()},
 		{k + " h/j/k/l", t.HelpFocus()},
 		{k + " z", t.HelpZoom()},
@@ -535,7 +553,7 @@ func newHelpOverlay(ctx *ui.Context, extra []ui.PrefixKey) *helpOverlay {
 		{k + " x", t.HelpKill()},
 		{k + " ?", t.HelpHelp()},
 		{k + " " + k, t.HelpLiteral()},
-	}
+	}...)
 	for _, e := range extra {
 		if e.Help != nil {
 			rows = append(rows, [2]string{k + " " + e.Key, e.Help(ctx.T)})
