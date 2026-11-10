@@ -8,8 +8,10 @@
 
 | id | 결과 | 근거 / 시험 |
 |---|---|---|
-| (af) 폴더 밖 무시 규칙 변경을 못 봄 | 고침 | `share/docs.go` `pollRules`: 규칙 파일이 바뀌었는지와 상관없이 **DiskPoll(0.5초)마다** 참가자가 연 문서 전부(숨김 표시 전인 것)를 `fsroot.Root.CheckBatch(rels, true)` 로 한 번에 다시 검사하고, 통과 못 한 문서는 `hide` → 같은 틱의 `closeHidden`(`30545481` 의 닫기 경로 그대로)으로 모든 자리에서 닫는다. 무시 규칙 질문은 한 번의 `Ignorer.Ignored`(git 이면 `git check-ignore` 한 번)로 묶는다. 출처를 하나하나 추적하지 않으므로 상위 저장소 `.gitignore`, gitfile 워크트리의 gitdir `info/exclude`, `core.excludesFile`, git 전역 제외 파일 무엇이 바뀌어도 다음 폴링에 닫힌다. `TestOutsideRuleClosesPeerDocNextPoll`(규칙 파일 변화 없이 규칙만 바뀜 → 다음 폴링에 두 자리 모두 `ignored` 로 닫힘, 뒤 편집 프레임 없음), `TestOutsideGitRuleSourcesClosePeerDoc`(실제 git: `core.excludesFile`·`--separate-git-dir` 의 gitdir `info/exclude`·폴더 위 저장소 top `.gitignore` 세 경우), `TestRecheckBatchedPerPoll` |
+| (af) 폴더 밖 무시 규칙 변경을 못 봄 | 고침 | `share/docs.go` `pollRules`: 규칙 파일이 바뀌었는지와 상관없이 **DiskPoll(0.5초)마다** 참가자가 연 문서 전부(숨김 표시 전인 것)를 `fsroot.Root.CheckBatch(rels, true)` 로 한 번에 다시 검사하고, 통과 못 한 문서는 `hide` → 같은 틱의 `closeHidden`(`30545481` 의 닫기 경로 그대로)으로 모든 자리에서 닫는다. 무시 규칙 질문은 한 번의 `Ignorer.Ignored`(git 이면 `git check-ignore` 한 번)로 묶는다. 출처를 하나하나 추적하지 않으므로 **지금 쓰는 Ignorer 가 보는 출처**라면 무엇이 바뀌어도 다음 폴링에 닫힌다 — 폴더에 `.git` 이 있어 git 에게 물을 때는 `core.excludesFile`·git 전역 제외 파일·gitdir(gitfile 워크트리 포함)의 `info/exclude`·폴더 안 `.gitignore`, 아니면 폴더 안 `.gitignore`·`.masilignore`. **폴더에 `.git` 이 없는 저장소 하위 폴더의 상위 저장소 `.gitignore` 는 여전히 적용되지 않는다**(처음 열 때도 안 봄, 오너 확인 1 결정 전까지). `TestOutsideRuleClosesPeerDocNextPoll`(규칙 파일 변화 없이 규칙만 바뀜 → 다음 폴링에 두 자리 모두 `ignored` 로 닫힘, 뒤 편집 프레임 없음), `TestOutsideGitRuleSourcesClosePeerDoc`(실제 git: `core.excludesFile`·`--separate-git-dir` 의 gitdir `info/exclude` 는 앱 동작 그대로. 세 번째 "폴더 위 저장소 top `.gitignore`" 는 `NewGitIgnorer` 를 손으로 넣어 **재검사 경로만** 확인한 것이고 앱 동작이 아니다), `TestRecheckBatchedPerPoll` |
 | 오너 확인 3 (내용이 같은 파일로의 링크 교체) | 고침(같은 변경으로) | 매 폴링의 `Check` 가 링크를 다시 따라가므로 디스크 병합이 없어도 닫힌다. `TestLinkRetargetedToSameContentCloses`(무시 폴더의 같은 내용 파일로 링크를 바꿈 → 고치기 전 열린 채, 고친 뒤 닫힘) |
+| 검토 지적 1 (위 행·커밋 문구가 상위 저장소 `.gitignore` 까지 고쳐졌다고 씀) | 문구 좁힘 | 위 행을 고쳤다. `986d0f65` 커밋 메시지의 "a parent repository's .gitignore" 도 같은 과장이지만 이미 만든 커밋이라 고쳐 쓰지 않고(이력 덮어쓰기 안 함) 이 행으로 정정한다. 시험 이름도 `repository top above the folder (re-check path only)` 로 바꾸고 주석에 앱 동작이 아님을 적었다. |
+| 검토 지적 2 (한 경로 때문에 git 이 묶음 전체를 128 로 거부 → 묶음 전체가 내장 해석기로, 폴더 밖 규칙 꺼짐) | 고침 | 재현함: `real/a.txt`·`b.txt`·`lnk -> real`, `info/exclude` 에 `b.txt` → `CheckBatch(["lnk/a.txt","b.txt"])` 가 `b.txt` 를 통과시킴(`Check("b.txt")` 는 숨김). `gitIgnorer`: 묶음이 128 이면 경로 없이 한 번 더 물어(빈 탐침) 저장소 자체가 멀쩡한지 보고, 멀쩡하면 반씩 나눠 다시 묻는다. git 이 혼자서도 거부하는 경로(링크 폴더 너머, 하위 모듈 안)만 내장 해석기, 나머지는 git 답. `TestCheckBatchLinkedFolderKeepsGitRules`(실제 git, 고치기 전 실패 확인), `TestGitIgnorerSplitsRefusedBatch`(가짜 git: 나눠 묻기·호출 수 상한·저장소 자체 거부면 재시도 없음). `TestGitIgnorerFallsBack` 의 호출 수 1→2(빈 탐침). |
 
 ### 만든 것·바꾼 것
 
@@ -24,10 +26,12 @@
 - 내 판단: 비용 상한 — 참가자가 연 문서가 있을 때만, DiskPoll 마다 `git check-ignore` 프로세스 1개(경로 최대 `MaxOpenDocs`=20, 링크면 실제 경로 포함 40), 편집(키 입력)마다는 0, 아무도 연 게 없으면 0. 경로 문법·링크 따라가기(`diskName` 의 폴더 읽기 포함)는 문서마다 매 폴링 돈다(최대 20개).
 - 내 판단: 재검사는 지금처럼 `Host.Tick` 의 `h.mu` 안에서 동기로 돈다(이전 규칙 변경 재검사·디스크 병합 재검사와 같은 자리). 보통 수 ms 지만 git 이 멈추면 한 번에 최대 2초(`gitTimeout`) 오너 엔진이 그동안 멈춘다. 비동기로 빼면 시험이 비결정적이 되고 숨김 전 틈이 늘어 택하지 않았다.
 - 내 판단: 닫기 문구·코드는 기존 그대로(`doc_state{error: ignored|denied|...}` → 참가자 탭 닫힘, "열 수 없음"). 새 i18n 키 없음.
+- 내 판단(검토 지적 2): 나눠 묻기를 고른 이유 — 링크 폴더 경로를 git 에 안 보내는 방법(지적의 안 2)은 하위 모듈 경로 등 git 이 거부하는 다른 경우를 못 막는다. 나눠 묻기는 원인과 상관없이 "각 답 = 그 경로 하나의 `Check`" 를 지킨다. 비용: 보통 폴링은 그대로 1회. 거부되는 경로가 섞이면 1(묶음)+1(탐침)+반씩 나눈 호출, n 경로에 최대 2n+1 회(경로 40개면 81회 상한, 거부 경로 1개면 약 2·log2 n ≈ 12회). 이 호출 전부가 한 번의 `gitTimeout`(2초) 안에 들어가므로 `h.mu` 를 잡는 최대 시간은 전과 같다. 저장소 자체를 git 이 거부하면(깨진 `.git`) 탐침도 실패해 재시도 없이 2회로 끝나고 전처럼 내장 해석기(오너 확인 2와 같음).
+- 내 판단(검토 지적 2): 시간 초과(종료 코드 128 이 아닌 실패)는 나누지 않고 그 부분을 내장 해석기로 — 전과 같은 동작(오너 확인 2).
 
 ## 오너 확인
 
 1. **폴더에 `.git` 이 없는 저장소 하위 폴더 공유**: `fsroot.Open` 은 폴더 자체에 `.git` 이 있을 때만 git 에게 묻고, 아니면 내장 해석기(폴더 안 `.gitignore`·`.masilignore` 만)를 쓴다. 그래서 저장소 하위 폴더를 공유하면 상위 저장소 top 의 `.gitignore`·`info/exclude`·`core.excludesFile` 은 **처음부터 적용되지 않는다**(연 뒤 숨김 문제가 아니라 적용 범위 문제). 이번 시험의 "폴더 위 저장소 top" 경우는 `NewGitIgnorer` 를 직접 넣어 재검사 경로를 확인한 것이다. 상위 work tree 를 감지해 git 을 쓰게 할지(`git rev-parse --is-inside-work-tree`) 결정 필요 — 쓰면 `$HOME` 이 `*` 를 무시하는 dotfiles 저장소인 사람은 `.git` 없는 폴더를 공유할 때 참가자에게 아무것도 안 보이게 된다(fail-closed 지만 사용성 문제).
-2. **git 실패 시 대체 해석기**: `gitIgnorer` 는 git 이 실패(시간 초과·종료 128)하면 내장 해석기로 넘어가 폴더 밖 규칙을 못 본다. 그 폴링 동안은 fail-open 이다(다음 폴링에 git 이 살아나면 닫힘). 실패를 "숨김"으로 바꾸면 깨진 `.git`(끊긴 gitfile 등)인 폴더에서 참가자에게 아무것도 안 보인다 — 바꾸지 않았다.
+2. **git 실패 시 대체 해석기**: `gitIgnorer` 는 git 이 실패(시간 초과·종료 128)하면 내장 해석기로 넘어가 폴더 밖 규칙을 못 본다. 그 폴링 동안은 fail-open 이다(다음 폴링에 git 이 살아나면 닫힘). (묶음 안 한 경로 때문에 나는 128 은 검토 지적 2 로 그 경로에만 내장 해석기를 쓰게 좁혔다. 남은 것은 저장소 자체를 거부할 때와 시간 초과.) 실패를 "숨김"으로 바꾸면 깨진 `.git`(끊긴 gitfile 등)인 폴더에서 참가자에게 아무것도 안 보인다 — 바꾸지 않았다.
 3. 매 폴링 동기 `git check-ignore`(위 판단) 비용·멈춤 상한이 괜찮은지.
 4. `security-fixes.md` 의 (af) 행·오너 확인 1·3번은 이 브랜치를 병합할 때 갱신할 것(통합 기록이라 이 브랜치에서는 손대지 않았다).

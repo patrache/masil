@@ -154,6 +154,13 @@ func appendFile(t *testing.T, p, s string) {
 
 // Each rule source outside the shared folder that git applies: hiding an
 // open document there closes it for the participant on the next poll.
+//
+// The cases inject NewGitIgnorer by hand. In the app fsroot.Open uses git
+// only when the shared folder itself has a .git entry, so the first two
+// cases are app behaviour, while "repository top above the folder" checks
+// the per-poll re-check path only: a subfolder of a repository without its
+// own .git gets the built-in parser, which never reads the parent
+// repository's rules (owner item 1 in exec-log security-fixes-af.md).
 func TestOutsideGitRuleSourcesClosePeerDoc(t *testing.T) {
 	cases := map[string]func(t *testing.T, dir string) (hide func()){
 		"core.excludesFile": func(t *testing.T, dir string) func() {
@@ -167,7 +174,7 @@ func TestOutsideGitRuleSourcesClosePeerDoc(t *testing.T) {
 			git(t, "init", "-q", "--separate-git-dir", gitdir, dir)
 			return func() { appendFile(t, filepath.Join(gitdir, "info", "exclude"), "src/server/\n") }
 		},
-		"repository top above the folder": func(t *testing.T, dir string) func() {
+		"repository top above the folder (re-check path only)": func(t *testing.T, dir string) func() {
 			top := filepath.Dir(dir)
 			git(t, "init", "-q", top)
 			return func() { appendFile(t, filepath.Join(top, ".gitignore"), filepath.Base(dir)+"/src/server/\n") }
