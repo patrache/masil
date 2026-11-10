@@ -111,7 +111,7 @@ Pinning a mode: `ctrl+w` then `1` Command · `2` Standard · `3` Compact · `4` 
 |---|---|
 | `ctrl+k` | Command palette — go to a space, channel, DM or person |
 | `ctrl+f` | Search everything |
-| `ctrl+n` | Notifications |
+| `ctrl+n` | Notifications (in a built-in code editor's insert mode: completion, see [Tools](#tools)) |
 | `?` (`f1`) | Help |
 | `f` | Open/close the feed |
 | `ctrl+t` | Tools hub ↔ chat (see [Tools](#tools)) |

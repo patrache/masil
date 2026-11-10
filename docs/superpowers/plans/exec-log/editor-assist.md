@@ -51,7 +51,9 @@ Branch `feat/editor-assist` (origin/main 309d23fb = v0.1.3 에서). push·tag·�
 
 ## 내 판단 (오너가 정하지 않은 것)
 
-- **자동추천은 LSP 없이** — 후보 = 그 언어의 키워드·내장 이름 + 버퍼에 이미 있는 단어(작업공간은 다른 열린 문서까지).
+- **자동추천은 LSP 없이 — 오너 요구에 못 미침.** 오너는 16:41 에 "lsp 수준의 추천이 있어야 한다." 라고 분명히 요구했다.
+  이번 패치는 LSP 수준이 아니라 **키워드 + 버퍼 단어 추천**이다(LSP 연동은 들어 있지 않음 — 아래 오너 확인 참고).
+  후보 = 그 언어의 키워드·내장 이름 + 버퍼에 이미 있는 단어(작업공간은 다른 열린 문서까지).
   순위는 대소문자까지 맞는 접두 → 대소문자 무시 접두 → 빈도 → 짧은 것 → abc. 커서 아래 단어 자체는 빼고, 두 글자 미만 단어와
   숫자로 시작하는 것은 세지 않음.
 - **넣기는 커서 아래 단어 전체를 바꿈**(goeditor 의 `InsertCompletion` 과 같은 규칙으로 두 편집기를 맞춤). 단어 한가운데서
@@ -72,8 +74,33 @@ Branch `feat/editor-assist` (origin/main 309d23fb = v0.1.3 에서). push·tag·�
 
 ## 오너 확인
 
+- [ ] 오너는 "lsp 수준의 추천"을 요구함 — 이번 패치는 LSP 없음(키워드·버퍼 단어). LSP 연동을 이번 0.1.3-1 에 넣을지,
+  다음 패치로 미룰지 결정 필요. (README.md / README.ko.md 도구 절도 "no LSP" / "LSP 없음" 이라고 적혀 있음.)
 - [ ] 넣기가 커서 뒤 단어 나머지까지 바꾸는 규칙이 괜찮은지(아니면 접두만 바꾸기로).
 - [ ] 입력 모드에서 ctrl+n 이 알림 대신 자동추천인 것.
 - [ ] 라벨 "코드 하이라이트" / "코드 자동추천", 설정 → 화면 위치.
 - [ ] 실제 터미널에서 색·메뉴 모양 확인(테스트는 가짜 화면) — Windows 실기기 미확인(vet·컴파일만).
 - [ ] fix/tools-nav 와 합칠 때 `internal/ui/app/keys.go`, `internal/ui/component.go` 충돌 여부.
+
+## 리뷰 반영
+
+리뷰 7건을 하나씩 직접 재현·확인한 뒤 반영함(모두 타당, 건너뛴 것 없음). 동작 버그 4건은 TDD — 실패하는 테스트를 먼저 보고 고침.
+
+| # | 지적 | 처리 | 테스트 |
+|---|------|------|--------|
+| 1 | 짧은 창(예: 50x10, 커서가 중간)에서 메뉴가 8줄보다 적게 그려지는데 `moveMenu` 는 8줄 기준으로 스크롤 → 안 보이는 단어가 선택·넣기됨 | `drawMenu` 가 실제 그린 줄 수 `n` 으로 창(`top`)을 선택 항목에 맞춰 다시 잡고 `e.as.top` 에 저장 | `TestCompletionShortPaneKeepsSelectionVisible`(아래로 6번·위로 9번 모두 선택 항목이 화면에 있음) |
+| 2 | 공동 편집자의 원격 op 마다 `refreshMenu` 가 선택을 0 으로 되돌림 | `fillMenu(keep)`: `ApplyRemote` 에서는 선택한 단어가 새 목록에 있으면 그 자리를 유지(없으면 0). 내가 타이핑할 때는 지금처럼 0 | `TestRemoteEditKeepsSelection` |
+| 3 | `SetReadOnly(true)`(참가자 등급 하락) 후에도 메뉴가 열린 채 일반 모드에서 그려지고 다음 enter/tab/esc 를 먹음 | `SetReadOnly(true)` 가 메뉴를 닫음. 방어선: `menuLive()`(입력 모드·편집 가능·자동추천 켜짐)가 아니면 `HandleKey` 가 메뉴를 닫고 키를 그대로 넘기고, `drawMenu` 는 그리지 않음 | `TestReadOnlyClosesMenu` |
+| 4 | 실행 중 테마 바꾸기 후 작업공간 코드 칸이 옛 테마 토큰 색을 유지 | `Editor.SetTheme(th)`(바뀌면 `e.th` 교체·토큰 색 캐시 비움). `codeCell.applyAssist` 가 `ctx.Theme` 으로 부름(그리기·키마다). 기존부터 있던 바탕 글자색 고착도 같이 풀림 | `TestSetThemeRecolorsTokens` |
+| 5 | 로그가 "LSP 없이"를 내 판단으로 적었으나 오너는 16:41 "lsp 수준의 추천이 있어야 한다." 라고 요구함 | 내 판단 항목에 오너 요구를 인용하고 이번 패치는 키워드·버퍼 단어 추천(LSP 수준 아님)이라고 명시. 오너 확인에 미결 항목 추가 | — |
+| 6 | 오늘의 문제 편집기에서 언어 변경(python3 → python, 같은 .py) 때 키워드·하이라이트를 다시 적용하는 규칙이 테스트 안 됨 | 테스트 추가: python3 에서 `nonl` → `nonlocal` 메뉴, `l` 로 python 으로 바꾼 뒤 편집기가 유지되고 키워드 색이 나오며 `nonl` 메뉴가 안 뜸. `instance.go` 의 `g.setLang(...)` 호출을 빼면 실패함을 확인(뮤턴트 검사) | `TestGoeditorLanguageChangeKeepsEditor` |
+| 7 | 키 표의 `ctrl+n` = 알림에 코드 편집기 예외가 없음 | README.md / README.ko.md 키 표 행에 예외 표기(도구 절 링크). 앱 안 `?` 도움말(i18n 카탈로그)은 선택 사항이라 이번엔 바꾸지 않음 | — |
+
+커밋: 4738e531 fix(ui/editor) (코드 1–4·6), (이 커밋) docs (5·7, 이 절).
+
+실행 결과(macOS):
+- `go vet ./...`, `GOOS=windows go vet ./...` — 깨끗.
+- 전체 `go test -count=1 ./...` (-short 없음): 첫 실행에서 `internal/ui/leet` `TestModeSwitchKeepsBothTools` 가 "Cmd blocked > 1s"
+  로 한 번 실패(앞 절에 적은 것과 같은 부하 시간 초과, 이번 변경과 무관한 nvim 패널 + 가짜 lazygit 경로) — 바로 다시 돌린 전체
+  실행은 85개 패키지 ok, 실패 0. 그 테스트 단독 `-count=5` 도 ok.
+- `go test -race` (ui/workspace/..., ui/leet) — ok.
