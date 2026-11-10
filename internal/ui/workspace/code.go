@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/workspace/editor"
@@ -40,6 +41,32 @@ type codeCell struct {
 	cur  int
 	msg  string // why the last chosen file did not open
 	top  int    // rows above the editor (header and banner) as last drawn
+}
+
+// setupAssist gives a new document's editor its language (by the file's
+// extension) and the other open documents' words for completion (local
+// only: the menu is never sent; an accepted item is an ordinary edit).
+func (c *codeCell) setupAssist(ctx *ui.Context, d *openDoc) {
+	d.ed.SetLanguage(codeassist.FromFile(d.rel))
+	d.ed.SetWordSource(func() []map[string]int {
+		var out []map[string]int
+		for _, o := range c.docs {
+			if o != d {
+				out = append(out, o.ed.Words())
+			}
+		}
+		return out
+	})
+	c.applyAssist(ctx, d)
+}
+
+// applyAssist follows the settings' switches (code_highlight, code_complete).
+func (c *codeCell) applyAssist(ctx *ui.Context, d *openDoc) {
+	hl, cp := true, true
+	if ctx != nil && ctx.Config != nil {
+		hl, cp = ctx.Config.UI.CodeHighlight, ctx.Config.UI.CodeComplete
+	}
+	d.ed.SetAssist(hl, cp)
 }
 
 // current is the shown document (nil when none is open).
@@ -98,6 +125,7 @@ func (s *Surface) attachDoc(ctx *ui.Context, v share.DocView) tea.Cmd {
 	}
 	d := &openDoc{rel: v.Rel, seq: v.Seq, base: []rune(v.Text), readOnly: v.ReadOnly, reason: v.Reason}
 	d.ed = editor.New(ctx.Theme, v.Text, v.ReadOnly)
+	s.code.setupAssist(ctx, d)
 	s.code.docs = append(s.code.docs, d)
 	s.showPeers(d.rel) // cursors that arrived before the owner opened it
 	s.code.cur = len(s.code.docs) - 1
@@ -248,6 +276,7 @@ func (s *Surface) codeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) 
 			return true, nil
 		}
 	}
+	s.code.applyAssist(ctx, d)
 	handled, cmd := d.ed.HandleKey(msg)
 	s.flushOps(d)
 	s.sendPresence(d)
@@ -311,13 +340,7 @@ func (c *codeCell) paste(ctx *ui.Context, s *Surface, text string) {
 	if d == nil || d.readOnly || d.ed.Mode() != "insert" {
 		return
 	}
-	for _, r := range textwidth.SanitizeInput(text) {
-		if r == '\n' {
-			d.ed.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		} else {
-			d.ed.HandleKey(tea.KeyPressMsg{Code: r, Text: string(r)})
-		}
-	}
+	d.ed.Paste(textwidth.SanitizeInput(text))
 	s.flushOps(d)
 }
 
@@ -385,6 +408,7 @@ func (c *codeCell) view(ctx *ui.Context, s *Surface, w, h int, focused bool) []s
 		}
 	}
 	c.top = len(lines)
+	c.applyAssist(ctx, d)
 	eh := max(h-len(lines), 0)
 	d.ed.Resize(w, eh)
 	if eh > 0 {

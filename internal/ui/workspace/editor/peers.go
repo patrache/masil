@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ionut-t/goeditor/core"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -199,6 +200,7 @@ func (e *Editor) View(focused bool) string {
 		return lipgloss.Style{}, false
 	}
 
+	tokens := e.spans(st.TopLine, rows)
 	out := make([]string, 0, e.h)
 	for i := 0; i < rows; i++ {
 		row := st.TopLine + i
@@ -221,6 +223,11 @@ func (e *Editor) View(focused bool) string {
 		}
 		cells := layoutLine(b.GetLineRunes(row))
 		marks := peerAt[row]
+		var rowSpans []codeassist.Span
+		if i < len(tokens) {
+			rowSpans = tokens[i]
+		}
+		si := 0
 		used := 0
 		for _, c := range cells {
 			if c.x < e.left {
@@ -235,6 +242,9 @@ func (e *Editor) View(focused bool) string {
 				break
 			}
 			style := base
+			if tt, ok := spanAt(rowSpans, &si, c.col); ok {
+				style = e.tokenStyle(tt)
+			}
 			if s, ok := inSpan(row, c.col); ok {
 				style = s
 			}
@@ -278,6 +288,7 @@ func (e *Editor) View(focused bool) string {
 		}
 		out = append(out, sb.String())
 	}
+	e.drawMenu(out, rows)
 	if status != "" {
 		out = append(out, base.Render(textwidth.PadRight(textwidth.Sanitize(status), e.w)))
 	}

@@ -322,6 +322,26 @@ func (s *Surface) CapturesInput() bool {
 	return false
 }
 
+// Completing implements ui.Completer: while the code cell's completion menu
+// is open, tab accepts it instead of moving the focus.
+func (s *Surface) Completing() bool {
+	if s.picker != nil || s.dlg != nil || s.focus != PaneCode {
+		return false
+	}
+	d := s.code.current()
+	return d != nil && d.ed.CompletionOpen()
+}
+
+// CompletionKeys implements ui.CodeCompleter: ctrl+n / ctrl+p are the code
+// cell's while it types with completion on.
+func (s *Surface) CompletionKeys() bool {
+	if s.picker != nil || s.dlg != nil || s.focus != PaneCode {
+		return false
+	}
+	d := s.code.current()
+	return d != nil && d.ed.CompletionKeys()
+}
+
 // HandleKey implements ui.KeyHandler.
 func (s *Surface) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	s.cursorAt = s.drawn // a key reached me: no overlay is above
