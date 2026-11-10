@@ -133,7 +133,7 @@ Change keys in `[keys]` of `config.toml`. The full list is in the in-app `?` hel
 
 ## Tools
 
-masil 0.1.3 adds five tools next to chat. `ctrl+t` always opens the tools hub — press a tool's number to open it, or `enter` to go back to the tool you used last (it is still open, as you left it) — and `ctrl+t` again goes back to chat. The status bar shows `ctrl+t tools` as a reminder. Chat keeps running while a tool is open: messages and notifications still arrive and friends still see you online.
+masil 0.1.3 adds five tools next to chat. `ctrl+t` always opens the tools hub — press a tool's number to open it, or `enter` to go back to the tool you used last (it is still open, as you left it) — and `ctrl+t` again goes back to chat. In Command and Standard mode the chat status bar shows `ctrl+t tools` next to `ctrl+k` as a reminder. Chat keeps running while a tool is open: messages and notifications still arrive and friends still see you online.
 
 | `ctrl+t` then | Tool | What it does |
 |---|---|---|
