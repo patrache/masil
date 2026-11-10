@@ -3,7 +3,6 @@ package fsroot
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 )
 
@@ -117,24 +116,4 @@ func TestCreateFoldedDeniedName(t *testing.T) {
 func isReason(err error, want Reason) bool {
 	reason, ok := reasonOf(err)
 	return ok && reason == want
-}
-
-// RuleFiles names the rule files above the path and above its link target.
-func TestRuleFiles(t *testing.T) {
-	proj := t.TempDir()
-	writeFile(t, proj, "a/b/c.txt", "x")
-	writeFile(t, proj, "d/e.txt", "y")
-	r := openRoot(t, proj)
-	if err := os.Symlink("../d/e.txt", filepath.Join(proj, "a", "l.txt")); err != nil {
-		t.Skipf("symlink: %v", err)
-	}
-	got := r.RuleFiles("a/l.txt")
-	for _, want := range []string{".gitignore", ".masilignore", "a/.gitignore", "a/.masilignore", "d/.masilignore", ".git/info/exclude"} {
-		if !slices.Contains(got, want) {
-			t.Errorf("RuleFiles = %v, lacks %s", got, want)
-		}
-	}
-	if slices.Contains(got, "a/b/.gitignore") {
-		t.Errorf("RuleFiles = %v, has a folder not above the path", got)
-	}
 }

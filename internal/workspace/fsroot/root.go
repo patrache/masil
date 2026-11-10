@@ -6,6 +6,7 @@
 package fsroot
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -88,26 +89,104 @@ func (r *Root) Dir() string { return r.dir }
 // the folder -> Escape, a denied real target -> Denied, a loop -> Invalid.
 // With forPeer the ignore rules apply too (-> Ignored).
 func (r *Root) Check(rel string, forPeer bool) (string, error) {
-	clean, err := cleanRel(rel)
-	if err != nil {
-		return "", err
+	cleans, errs := r.CheckBatch([]string{rel}, forPeer)
+	return cleans[0], errs[0]
+}
+
+// CheckBatch runs Check on every path of rels and asks the ignore rules once
+// for all of them (one git check-ignore, not one per path): cleans[i] and
+// errs[i] are what Check(rels[i], forPeer) returns. An ignore-rule failure
+// hides every path it was asked about (fail closed).
+func (r *Root) CheckBatch(rels []string, forPeer bool) (cleans []string, errs []error) {
+	cleans, errs = make([]string, len(rels)), make([]error, len(rels))
+	type pending struct {
+		i           int
+		clean, real string
 	}
-	if Denied(clean) {
-		return "", reject(rel, ReasonDenied)
+	var ask []pending
+	for i, rel := range rels {
+		clean, real, err := r.checkPath(rel)
+		if err != nil {
+			errs[i] = err
+			continue
+		}
+		if forPeer {
+			if isRuleFile(clean) || isRuleFile(real) {
+				errs[i] = reject(rel, ReasonIgnored)
+				continue
+			}
+			if clean != "." {
+				ask = append(ask, pending{i, clean, real})
+				continue
+			}
+		}
+		cleans[i] = clean
 	}
-	real, err := r.follow(rel, clean)
-	if err != nil {
-		return "", err
+	if len(ask) == 0 {
+		return cleans, errs
 	}
-	if Denied(real) {
-		return "", reject(rel, ReasonDenied)
+	ig := r.ignorer()
+	if ig == nil {
+		for _, p := range ask {
+			cleans[p.i] = p.clean
+		}
+		return cleans, errs
 	}
-	if forPeer {
-		if err := r.checkIgnored(rel, clean, real); err != nil {
-			return "", err
+	var paths []string
+	var dirs []bool
+	for _, p := range ask {
+		dir := false
+		if fi, err := r.root.Stat(osPath(p.real)); err == nil {
+			dir = fi.IsDir()
+		}
+		paths, dirs = append(paths, p.clean), append(dirs, dir)
+		if p.real != p.clean {
+			paths, dirs = append(paths, p.real), append(dirs, dir)
 		}
 	}
-	return clean, nil
+	res, err := ig.Ignored(paths, dirs)
+	if err == nil && len(res) != len(paths) {
+		err = errIgnorerAnswer
+	}
+	k := 0
+	for _, p := range ask {
+		hidden := err != nil || res[k]
+		k++
+		if p.real != p.clean {
+			hidden = hidden || (err == nil && res[k])
+			k++
+		}
+		if hidden {
+			errs[p.i] = reject(rels[p.i], ReasonIgnored)
+		} else {
+			cleans[p.i] = p.clean
+		}
+	}
+	return cleans, errs
+}
+
+// errIgnorerAnswer: an Ignorer gave a different number of answers than it
+// was asked (treated like any ignore-rule failure: hidden).
+var errIgnorerAnswer = errors.New("fsroot: ignorer answered the wrong number of paths")
+
+// checkPath is Check without the ignore rules: syntax, escape, deny list on
+// the cleaned path and on the real path after links.
+func (r *Root) checkPath(rel string) (clean, real string, err error) {
+	clean, err = cleanRel(rel)
+	if err != nil {
+		return "", "", err
+	}
+	if Denied(clean) {
+		return "", "", reject(rel, ReasonDenied)
+	}
+	real, err = r.follow(rel, clean)
+	if err != nil {
+		return "", "", err
+	}
+	if Denied(real) {
+		return "", "", reject(rel, ReasonDenied)
+	}
+	return clean, real, nil
 }
 
 // resolve is the owner-side gate used by the file operations: syntax and
@@ -320,35 +399,4 @@ func (r *Root) insideAbs(target string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// checkIgnored rejects rule files and paths the ignore rules hide (checked
-// on both the cleaned path and the real target of links). An ignorer error
-// fails closed.
-func (r *Root) checkIgnored(rel, clean, real string) error {
-	if isRuleFile(clean) || isRuleFile(real) {
-		return reject(rel, ReasonIgnored)
-	}
-	ig := r.ignorer()
-	if ig == nil || clean == "." {
-		return nil
-	}
-	dir := false
-	if fi, err := r.root.Stat(osPath(real)); err == nil {
-		dir = fi.IsDir()
-	}
-	rels, dirs := []string{clean}, []bool{dir}
-	if real != clean {
-		rels, dirs = append(rels, real), append(dirs, dir)
-	}
-	res, err := ig.Ignored(rels, dirs)
-	if err != nil {
-		return reject(rel, ReasonIgnored)
-	}
-	for _, v := range res {
-		if v {
-			return reject(rel, ReasonIgnored)
-		}
-	}
-	return nil
 }
