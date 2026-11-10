@@ -6,6 +6,7 @@ package termpanetest
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -75,6 +76,13 @@ func (f *Fake) Keys(instanceID string) []string {
 		return nil
 	}
 	return h.gotKeys()
+}
+
+// IDs returns the instance ids of every fake pane launched, sorted.
+func (f *Fake) IDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Sorted(maps.Keys(f.handles))
 }
 
 // Exit ends instance instanceID's program with code: the msg to Send (the

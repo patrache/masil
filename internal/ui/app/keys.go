@@ -235,7 +235,12 @@ func grabbing(c ui.Component) bool {
 }
 
 // grabbedKey gives msg to the focused component when it grabs the keyboard
-// and nothing (an overlay, the login screen) is above it.
+// and nothing (an overlay, the login screen) is above it — every key but
+// tools.toggle (ctrl+t, in any Korean-layout spelling) while a tool flag is
+// on: that one is the way out of a panel (0.1.3 patch: inside lazygit or nvim
+// esc is theirs, and ctrl+\ is hard to type on a Korean layout). It goes back
+// to the chat and the program keeps running; showing the panel again (the
+// hub's enter) gives it the keyboard again. The program never gets ctrl+t.
 func (m *Model) grabbedKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	if len(m.overlays) > 0 || m.login != nil {
 		return nil, false
@@ -245,6 +250,9 @@ func (m *Model) grabbedKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.prefix = prefixNone
+	if toolsOn() && m.ctx.Keys.MatchesToolsToggle(msg) {
+		return m.toggleTools(), true
+	}
 	_, cmd := m.handleKey(comp, msg)
 	return cmd, true
 }

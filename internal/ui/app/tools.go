@@ -455,9 +455,11 @@ func (c *instanceCache) drop(k string) {
 	c.order = slices.DeleteFunc(c.order, func(o string) bool { return o == k })
 }
 
-// toolKey is the hard global ctrl+t (tools.toggle) while a tool flag is on.
+// toolKey is the hard global ctrl+t (tools.toggle) while a tool flag is on —
+// ctrl+ㅅ and BaseCode 't' too (keymap.MatchesToolsToggle), so a Korean
+// layout reaches it from any text field.
 func (m *Model) toolKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
-	if !toolsOn() || !m.ctx.Keys.Matches(msg, keymap.ToolsToggle) {
+	if !toolsOn() || !m.ctx.Keys.MatchesToolsToggle(msg) {
 		return nil, false
 	}
 	return m.toggleTools(), true

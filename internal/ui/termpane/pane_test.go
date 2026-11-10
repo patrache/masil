@@ -188,9 +188,9 @@ func hasQuit(h *uitest.Harness) bool {
 
 func TestPaneGetsAllKeys(t *testing.T) {
 	rig := newRig(t, termpane.Options{})
-	rig.h.Press("ctrl+c", "ctrl+c", "ctrl+k", "tab", "ctrl+t", "a")
+	rig.h.Press("ctrl+c", "ctrl+c", "ctrl+k", "tab", "a")
 	rig.h.Paste("붙여넣기")
-	if got, want := rig.f.gotKeys(), []string{"ctrl+c", "ctrl+c", "ctrl+k", "tab", "ctrl+t", "a"}; !slices.Equal(got, want) {
+	if got, want := rig.f.gotKeys(), []string{"ctrl+c", "ctrl+c", "ctrl+k", "tab", "a"}; !slices.Equal(got, want) {
 		t.Errorf("keys = %q, want %q", got, want)
 	}
 	if !slices.Equal(rig.f.pastes, []string{"붙여넣기"}) {
@@ -203,10 +203,49 @@ func TestPaneGetsAllKeys(t *testing.T) {
 		t.Error("ctrl+c armed quitting")
 	}
 	if rig.h.Nav().Front != app.FrontTools {
-		t.Error("ctrl+t left the tool surface")
+		t.Error("a key left the tool surface")
 	}
 	if !rig.pane.GrabsKeys() {
 		t.Error("GrabsKeys = false while the program runs")
+	}
+}
+
+// 0.1.3 patch (tools-nav fix 2): ctrl+t is the one key a running pane never
+// gets — in any spelling a Korean layout gives it — it goes back to the chat,
+// the program keeps running, and the hub's enter shows the pane again with
+// the keyboard.
+func TestPaneCtrlTLeavesToChat(t *testing.T) {
+	for _, key := range []tea.KeyPressMsg{
+		{Code: 't', Mod: tea.ModCtrl},
+		{Code: 'ㅅ', Mod: tea.ModCtrl},
+		{Code: 'ㅅ', BaseCode: 't', Mod: tea.ModCtrl},
+	} {
+		t.Run(key.String(), func(t *testing.T) { paneCtrlTLeaves(t, key) })
+	}
+}
+
+func paneCtrlTLeaves(t *testing.T, key tea.KeyPressMsg) {
+	{
+		rig := newRig(t, termpane.Options{})
+		rig.h.Press("a")
+		rig.h.Send(key)
+		if got := rig.f.gotKeys(); !slices.Equal(got, []string{"a"}) {
+			t.Fatalf("%q: the program got %q", key.String(), got)
+		}
+		if rig.h.Nav().Front == app.FrontTools {
+			t.Fatalf("%q did not leave the panel", key.String())
+		}
+		if rig.f.closed != 0 || len(rig.h.Nav().Tools) != 1 {
+			t.Fatalf("%q ended the program or closed the panel", key.String())
+		}
+		rig.h.Send(key)           // the hub, its cursor on the running pane
+		rig.h.Press("enter", "b") // the pane again: typing goes to the program
+		if got := rig.f.gotKeys(); !slices.Equal(got, []string{"a", "b"}) {
+			t.Fatalf("back on the pane: the program got %q", got)
+		}
+		if rig.h.Model.Focus().RouteKey != (ui.Route{Kind: ui.RouteTool, ID: paneID, Arg: ui.ToolGit}).Key() {
+			t.Fatalf("hub enter: focus = %+v", rig.h.Model.Focus())
+		}
 	}
 }
 
@@ -230,7 +269,7 @@ func TestPrefixLeave(t *testing.T) {
 	if got := rig.f.gotKeys(); len(got) != 0 {
 		t.Errorf("the program got %q after leaving", got)
 	}
-	rig.h.Press("ctrl+t", "enter", "b") // back on the pane: enter types into it again
+	rig.h.Press("ctrl+t", "enter", "enter", "b") // the hub, the pane, then enter types into it again
 	if !rig.pane.GrabsKeys() || !slices.Equal(rig.f.gotKeys(), []string{"b"}) {
 		t.Errorf("enter did not give the pane the keyboard back: grabs %v keys %q", rig.pane.GrabsKeys(), rig.f.gotKeys())
 	}
@@ -260,6 +299,8 @@ func TestPrefixAcceptsCtrlBackslashVariants(t *testing.T) {
 		{Code: '\\', Mod: tea.ModCtrl},
 		{Code: '4', Mod: tea.ModCtrl},
 		{Code: 0x1c},
+		{Code: '₩', Mod: tea.ModCtrl},                 // a Korean layout (0.1.3 patch)
+		{Code: '₩', BaseCode: '\\', Mod: tea.ModCtrl}, // ... reported with its US key
 	}
 	for _, v := range variants {
 		rig.h.Send(v)
@@ -272,7 +313,7 @@ func TestPrefixAcceptsCtrlBackslashVariants(t *testing.T) {
 		rig.h.Send(v)
 		rig.h.Send(v) // twice: the prefix key itself, sent as ctrl+\
 	}
-	if got := rig.f.gotKeys(); !slices.Equal(got, []string{"ctrl+\\", "ctrl+\\", "ctrl+\\"}) {
+	if got := rig.f.gotKeys(); !slices.Equal(got, []string{"ctrl+\\", "ctrl+\\", "ctrl+\\", "ctrl+\\", "ctrl+\\"}) {
 		t.Errorf("literal keys = %q", got)
 	}
 }
@@ -462,7 +503,7 @@ func TestPaneFocusFollowsShell(t *testing.T) {
 	if got := rig.f.gotFocus(); !slices.Equal(got, []bool{true, false}) {
 		t.Fatalf("a hidden pane got %v after blur+focus, want [true false]", got)
 	}
-	rig.h.Press("ctrl+t")
+	rig.h.Press("ctrl+t", "enter") // the hub, then the pane
 	rig.h.Screen()
 	if got := rig.f.gotFocus(); !slices.Equal(got, []bool{true, false, true}) {
 		t.Fatalf("focus reports after coming back = %v, want [true false true]", got)

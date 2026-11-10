@@ -354,7 +354,7 @@ const rawFS = 0x1c
 // — by default ctrl+\ and ctrl+4, the same byte — or, while ctrl+\ is bound,
 // the raw 0x1c code a terminal may deliver for it.
 func (k *Keymap) MatchesEscape(msg tea.KeyPressMsg) bool {
-	if k.Matches(msg, TermhostEscape) {
+	if k.Matches(msg, TermhostEscape) || k.matchesLayout(msg, TermhostEscape) {
 		return true
 	}
 	if msg.Code != rawFS || msg.Mod&^tea.ModShift != 0 {
@@ -362,6 +362,48 @@ func (k *Keymap) MatchesEscape(msg tea.KeyPressMsg) bool {
 	}
 	b, _ := k.lookup(TermhostEscape)
 	return slices.Contains(b.Keys(), "ctrl+\\")
+}
+
+// MatchesToolsToggle reports whether msg is tools.toggle, in any spelling a
+// Korean layout gives ctrl+t (layoutAliases).
+func (k *Keymap) MatchesToolsToggle(msg tea.KeyPressMsg) bool {
+	return k.Matches(msg, ToolsToggle) || k.matchesLayout(msg, ToolsToggle)
+}
+
+// layoutAlias is how a ctrl key may arrive on a non-US layout: ctrl + the
+// rune that layout puts on the key (Code), or the US key in BaseCode (kitty
+// keyboard protocol, Windows console).
+type layoutAlias struct {
+	base  rune
+	runes []rune
+}
+
+// layoutAliases are the two keys that must work on a Korean 2-set layout
+// whatever the terminal reports (0.1.3 patch): ctrl+t (ㅅ on that key) — the
+// way out of a panel — and the panel prefix ctrl+\ (₩, or the full-width ￦).
+// Every other key's layout independence is P7 (0.1.4).
+var layoutAliases = map[string]layoutAlias{
+	"ctrl+t":  {base: 't', runes: []rune{'ㅅ'}},
+	"ctrl+\\": {base: '\\', runes: []rune{'₩', '￦'}},
+}
+
+// matchesLayout reports whether msg is ctrl + an alias of one of a's keys
+// that has layoutAliases (only while that default key is bound to a).
+func (k *Keymap) matchesLayout(msg tea.KeyPressMsg, a Action) bool {
+	if msg.Mod != tea.ModCtrl {
+		return false
+	}
+	b, ok := k.lookup(a)
+	if !ok || !b.Enabled() {
+		return false
+	}
+	for _, name := range b.Keys() {
+		al, ok := layoutAliases[name]
+		if ok && (msg.BaseCode == al.base || slices.Contains(al.runes, msg.Code)) {
+			return true
+		}
+	}
+	return false
 }
 
 // Bound reports whether msg triggers any action (a nil Keymap behaves like Default).

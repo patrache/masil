@@ -440,9 +440,11 @@ func (p *Pane) onPrefix(ctx *ui.Context, k string) tea.Cmd {
 }
 
 // literal is the prefix key to send to the program: any spelling of ctrl+\
-// (ctrl+4, the raw 0x1c) goes as ctrl+\; a rebound prefix key goes as is.
+// (ctrl+4, the raw 0x1c, a Korean layout's ctrl+₩ or BaseCode '\') goes as
+// ctrl+\; a rebound prefix key goes as is.
 func literal(msg tea.KeyPressMsg) tea.KeyPressMsg {
-	if msg.Code == 0x1c || (msg.Mod == tea.ModCtrl && (msg.Code == '\\' || msg.Code == '4')) {
+	if msg.Code == 0x1c || (msg.Mod == tea.ModCtrl && (msg.Code == '\\' || msg.Code == '4' ||
+		msg.Code == '₩' || msg.Code == '￦' || msg.BaseCode == '\\')) {
 		return tea.KeyPressMsg{Code: '\\', Mod: tea.ModCtrl}
 	}
 	return msg
