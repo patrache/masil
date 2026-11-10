@@ -27,6 +27,9 @@ type tabSpan struct{ x0, x1, index int }
 type Tab struct {
 	Label string
 	Badge ui.Badge
+	// Short is the narrowest label WalkBar falls back to (an icon, an
+	// initial); "" means the label's first two cells. Tabs ignores it.
+	Short string
 }
 
 const (
