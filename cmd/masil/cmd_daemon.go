@@ -213,7 +213,7 @@ func daemonInstall(env *Env) error {
 // autostartDetail is where autostart is registered, with a note in t's
 // language when the registered executable is gone (sanitized by the caller).
 func autostartDetail(t *i18n.T, st autostart.Status) string {
-	if st.ExeMissing != "" {
+	if st.ExeMissing != "" || st.ExeUnknown {
 		return t.Daemon.DetailExeMissing(st.Detail, st.ExeMissing)
 	}
 	return st.Detail

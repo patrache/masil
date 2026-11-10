@@ -44,15 +44,15 @@ func configDirFor(p config.Paths) (string, error) {
 }
 
 // withExeCheck sets st.ExeMissing to exe when the registered executable is
-// gone (the CLI renders the note); a registration naming no executable reports "?".
+// gone (the CLI renders the note); a registration naming no executable sets
+// st.ExeUnknown instead (the note with an empty path, as in 0.1.2).
 func withExeCheck(st *Status, exe string) {
-	if exe != "" {
-		if fi, err := os.Stat(exe); err == nil && fi.Mode().IsRegular() {
-			return
-		}
-	}
 	if exe == "" {
-		exe = "?"
+		st.ExeUnknown = true
+		return
+	}
+	if fi, err := os.Stat(exe); err == nil && fi.Mode().IsRegular() {
+		return
 	}
 	st.ExeMissing = exe
 }

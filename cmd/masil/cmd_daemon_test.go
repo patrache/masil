@@ -18,6 +18,7 @@ import (
 	"github.com/patrache/masil/internal/autostart"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/daemon"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/instance"
 )
 
@@ -418,5 +419,18 @@ func TestDaemonStatusCommand(t *testing.T) {
 func TestDaemonInHelp(t *testing.T) {
 	if !strings.Contains(helpText(nil), "  masil daemon run|install|uninstall|status — 알림 데몬") {
 		t.Fatalf("help:\n%s", helpText(nil))
+	}
+}
+
+// A registration naming no executable renders the 0.1.2 ko note with an
+// empty path, byte for byte (P5 M5; review of Task 10).
+func TestAutostartDetailUnknownExeKO(t *testing.T) {
+	st := autostart.Status{Installed: true, Detail: "launchd /x.plist", ExeUnknown: true}
+	if got, want := autostartDetail(i18n.KoT(), st), "launchd /x.plist · 실행 파일 없음: "; got != want {
+		t.Fatalf("autostartDetail(ko) = %q, want %q", got, want)
+	}
+	st = autostart.Status{Installed: true, Detail: "launchd /x.plist", ExeMissing: "/old/masil"}
+	if got, want := autostartDetail(i18n.KoT(), st), "launchd /x.plist · 실행 파일 없음: /old/masil"; got != want {
+		t.Fatalf("autostartDetail(ko) = %q, want %q", got, want)
 	}
 }

@@ -85,8 +85,15 @@ func TestExeMissingField(t *testing.T) {
 	exe := writeExe(t)
 	st = Status{Detail: "d"}
 	withExeCheck(&st, exe)
-	if st.ExeMissing != "" {
+	if st.ExeMissing != "" || st.ExeUnknown {
 		t.Fatalf("present exe: %+v", st)
+	}
+	// A registration naming no executable (broken plist/unit/value): gone,
+	// with no path to show (0.1.2 printed "… · 실행 파일 없음: " — review).
+	st = Status{Detail: "d"}
+	withExeCheck(&st, "")
+	if st.ExeMissing != "" || !st.ExeUnknown {
+		t.Fatalf("unnamed exe: %+v, want ExeMissing \"\" and ExeUnknown", st)
 	}
 }
 

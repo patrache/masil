@@ -19,6 +19,7 @@ type Status struct {
 	Installed, Running bool
 	Detail             string // where it is registered ("launchd <plist>", …)
 	ExeMissing         string // the registered executable when it no longer exists ("" = present)
+	ExeUnknown         bool   // the registration names no executable (broken plist/unit/value): gone, no path to show
 }
 
 // Fixed registration names (contract 9.2).

@@ -3010,7 +3010,7 @@ func Run(ctx context.Context, o Options) error // AcquireDaemon; loop: load cred
 
 ```go
 package autostart
-type Status struct{ Installed, Running bool; Detail string; ExeMissing string } // ExeMissing: the registered exe when it is gone (the CLI renders the note)
+type Status struct{ Installed, Running bool; Detail string; ExeMissing string; ExeUnknown bool } // ExeMissing: the registered exe when it is gone; ExeUnknown: the registration names none (the CLI renders the note, empty path)
 // Errors (P5 Task 10): *ExeError{Kind ExeErrKind; Exe string; Err error} (ExeNotAbsolute, ExeMissing, ExeNotRegular, ExeTemporary),
 // ErrRunKeyConfigDir, ErrNoSystemd; Message(t *i18n.T, err error) string renders them (Error() = ko).
 func Install(exe string, p config.Paths) error   // macOS: ~/Library/LaunchAgents/com.patrache.masil.daemon.plist (RunAtLoad, KeepAlive{SuccessfulExit:false}, ProgramArguments [exe, "daemon", "run"], EnvironmentVariables MASIL_CONFIG_DIR if set) + `launchctl bootstrap gui/<uid>`;
