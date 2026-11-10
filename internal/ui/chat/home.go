@@ -3,7 +3,6 @@ package chat
 import (
 	"cmp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -50,18 +49,7 @@ const (
 )
 
 // Home texts.
-const (
-	homeTitle       = "홈"
-	homeDMLabel     = "─ DM"
-	homeOnlineLabel = "─ 접속 중인 친구"
-	homeSpaceNew    = "＋ 방 만들기"
-	homeSpaceJoin   = "초대 코드로 방 참여"
-	homeEmptyTitle  = "아직 대화가 없어요" // only without a Store: a bootstrapped home always has rows
-	textNotLoaded   = "불러오는 중…"
-	textOffline     = "서버에 연결할 수 없어요"
-	textReconnect   = "다시 연결 중"
-	homeEmptyHint   = "ctrl+k 로 명령을 찾아 보세요"
-)
+const ()
 
 // homeItem is one home row (rebuilt from the Store on every View; every row is
 // exactly one line). Label and Detail are sanitized display text; Route is what
@@ -143,23 +131,24 @@ func homeItems(ctx *ui.Context) []homeItem {
 		}
 	}
 
+	c := cat(ctx)
 	var items []homeItem
 	if nInv > 0 {
-		items = append(items, homeItem{ID: homeInvitesID, Label: "받은 방 초대 " + strconv.Itoa(nInv),
+		items = append(items, homeItem{ID: homeInvitesID, Label: c.Chat.HomeInvites(nInv),
 			Route: ui.Route{Kind: ui.RouteInvite, Arg: "direct"}})
 	}
 	if nReq > 0 {
-		items = append(items, homeItem{ID: homeRequestsID, Label: "친구 요청 " + strconv.Itoa(nReq),
+		items = append(items, homeItem{ID: homeRequestsID, Label: c.Chat.HomeRequests(nReq),
 			Route: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsIncoming}})
 	}
 	items = append(items,
-		homeItem{ID: homeFeedID, Label: "피드 보기", Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}},
-		homeItem{ID: homeFriendsID, Label: "친구 목록", Route: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsList}},
-		homeItem{ID: homeSpaceNewID, Label: homeSpaceNew, Overlay: overlaySpaceCreate},
-		homeItem{ID: homeSpaceJoinID, Label: homeSpaceJoin, Overlay: overlaySpaceJoin},
+		homeItem{ID: homeFeedID, Label: c.Chat.HomeFeed(), Route: ui.Route{Kind: ui.RouteFeed, Arg: "following"}},
+		homeItem{ID: homeFriendsID, Label: c.Chat.HomeFriends(), Route: ui.Route{Kind: ui.RouteFriends, Anchor: ui.FriendsList}},
+		homeItem{ID: homeSpaceNewID, Label: c.Chat.HomeSpaceNew(), Overlay: overlaySpaceCreate},
+		homeItem{ID: homeSpaceJoinID, Label: c.Chat.HomeSpaceJoin(), Overlay: overlaySpaceJoin},
 	)
 	if len(dms) > 0 {
-		items = append(items, homeItem{ID: "label:dms", Label: homeDMLabel, kind: homeLabel})
+		items = append(items, homeItem{ID: "label:dms", Label: "─ " + c.Chat.DmsTitle(), kind: homeLabel})
 		for _, ch := range dms {
 			items = append(items, homeItem{
 				ID: homeDMPrefix + ch.ID, Label: textwidth.Sanitize(s.ChannelLabel(ch.ID)), Badge: sideBadge(ch),
@@ -168,7 +157,7 @@ func homeItems(ctx *ui.Context) []homeItem {
 		}
 	}
 	if len(friends) > 0 {
-		items = append(items, homeItem{ID: "label:online", Label: homeOnlineLabel, kind: homeLabel})
+		items = append(items, homeItem{ID: "label:online", Label: "─ " + c.Chat.HomeOnlineLabel(), kind: homeLabel})
 		items = append(items, friends...)
 	}
 	return items
@@ -219,7 +208,7 @@ func homeSpaceItems(ctx *ui.Context, expanded map[string]bool, keep string) []ho
 		}
 		name := strings.TrimSpace(textwidth.Sanitize(sd.Name))
 		if name == "" {
-			name = "방"
+			name = cat(ctx).Chat.SpaceUnnamed()
 		}
 		items = append(items, homeItem{ID: homeSpacePrefix + sid, Label: "─ " + name, kind: homeSpace, space: sid})
 		collapse := len(chs) > homeSpaceMax && !expanded[sid]
@@ -236,7 +225,7 @@ func homeSpaceItems(ctx *ui.Context, expanded map[string]bool, keep string) []ho
 			})
 		}
 		if hidden > 0 {
-			items = append(items, homeItem{ID: homeMorePrefix + sid, Label: "…" + strconv.Itoa(hidden) + "개 더", kind: homeMore, space: sid})
+			items = append(items, homeItem{ID: homeMorePrefix + sid, Label: cat(ctx).Chat.HomeMore(hidden), kind: homeMore, space: sid})
 		}
 	}
 	return items
@@ -454,7 +443,7 @@ func (v *homeView) View(ctx *ui.Context, focused bool) string {
 			}
 			return widgets.Empty(themeOf(ctx), v.size, icon, title, hint)
 		}
-		return widgets.Empty(themeOf(ctx), v.size, "💬", homeEmptyTitle, homeEmptyHint)
+		return widgets.Empty(themeOf(ctx), v.size, "💬", cat(ctx).Chat.HomeEmptyTitle(), cat(ctx).Chat.HomeEmptyHint())
 	}
 	lines := strings.Split(v.list.View(ctx, v.size), "\n")
 	return strings.Join(textwidth.Fit(lines, w, h), "\n")
@@ -469,17 +458,17 @@ func notLoaded(ctx *ui.Context) (title, hint string, ok bool) {
 		return "", "", false
 	}
 	if ctx.Store.Sync.Err != nil {
-		return textOffline, textReconnect, true
+		return cat(ctx).Chat.Offline(), cat(ctx).Chat.Reconnecting(), true
 	}
-	return textNotLoaded, "", true
+	return cat(ctx).Chat.Loading(), "", true
 }
 
 // Title is "홈", badged with the pending invites + friend requests.
 func (v *homeView) Title(ctx *ui.Context) (string, ui.Badge) {
 	if ctx == nil || ctx.Store == nil {
-		return homeTitle, ui.Badge{}
+		return cat(ctx).Chat.HomeTitle(), ui.Badge{}
 	}
-	return homeTitle, ui.Badge{Count: len(ctx.Store.DirectInvites) + len(ctx.Store.FriendReqIn)}
+	return cat(ctx).Chat.HomeTitle(), ui.Badge{Count: len(ctx.Store.DirectInvites) + len(ctx.Store.FriendReqIn)}
 }
 
 func (v *homeView) Help(ctx *ui.Context) []key.Binding {

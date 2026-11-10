@@ -1,5 +1,281 @@
 # Chat area: channels, DMs, threads, the composer and slash commands.
 
+[accept_failed]
+other = "Couldn't accept the friend request"
+
+[cancel]
+other = "Cancel"
+
+[cancel_failed]
+other = "Couldn't cancel the friend request"
+
+[channel_row_new]
+other = "＋ New channel"
+
+[cmd_dm_new]
+other = "New conversation (DM, group DM)"
+
+[cmd_friend_add]
+other = "Add friend"
+
+[cmd_friends]
+other = "Friends"
+
+[decline_failed]
+other = "Couldn't decline the friend request"
+
+[dm_new_submit]
+other = "Start chat"
+
+[dm_new_title]
+other = "New conversation"
+
+[dm_open_failed]
+other = "Couldn't open the DM"
+
+[dms_deleted]
+other = "Deleted message"
+
+[dms_empty_hint]
+other = "Press ctrl+k to find a friend and start chatting"
+
+[dms_empty_title]
+other = "No DMs yet"
+
+[dms_mine]
+other = "Me: {body}"
+
+[dms_title]
+other = "DMs"
+
+[friend_accepted]
+other = "You and {name} are now friends"
+
+[friend_add_label]
+other = "＋ Add friend"
+
+[friend_add_submit]
+other = "Send request"
+
+[friend_add_title]
+other = "Add friend"
+
+[friend_canceled]
+other = "Friend request canceled"
+
+[friend_declined]
+other = "Friend request declined"
+
+[friends_tab_friends]
+other = "Friends {n}"
+
+[friends_tab_incoming]
+other = "Received {n}"
+
+[friends_tab_outgoing]
+other = "Sent {n}"
+
+[friends_title]
+other = "Friends"
+
+[group_dm_refused]
+other = "Some of these people can't be in a conversation together"
+
+[help_name_field]
+other = "name field"
+
+[help_pick_then]
+other = "pick·{submit}"
+
+[help_run]
+other = "run"
+
+[help_tabs]
+other = "tabs"
+
+[home_empty_hint]
+other = "Press ctrl+k to find commands"
+
+[home_empty_title]
+other = "No conversations yet"
+
+[home_feed]
+other = "Open feed"
+
+[home_friends]
+other = "Friends"
+
+[home_invites]
+other = "Space invites {n}"
+
+[home_more]
+other = "…{n} more"
+
+[home_online_label]
+other = "Friends online"
+
+[home_requests]
+other = "Friend requests {n}"
+
+[home_space_join]
+other = "Join a space with a code"
+
+[home_space_new]
+other = "＋ Create a space"
+
+[home_title]
+other = "Home"
+
+[invite_space_title]
+other = "Invite to which space?"
+
+[item_accept]
+other = "Accept"
+
+[item_block_user]
+other = "Block"
+
+[item_cancel_request]
+other = "Cancel request"
+
+[item_decline]
+other = "Decline"
+
+[item_invite_to_space]
+other = "Invite to a space"
+
+[item_profile]
+other = "View profile"
+
+[item_report_user]
+other = "Report user"
+
+[item_send_dm]
+other = "Send DM"
+
+[item_unfriend]
+other = "Unfriend"
+
+[kw_dm_new]
+other = "conversation, chat, send message"
+
+[kw_friend_add]
+other = "send friend request"
+
+[kw_friends]
+other = "friend requests"
+
+[loading]
+other = "Loading…"
+
+[member_count]
+one = "{n} member"
+other = "{n} members"
+
+[members_failed]
+other = "Couldn't load members"
+
+[members_more]
+other = "+ {n} more"
+
+[members_none]
+other = "Open a conversation to see its members"
+
+[members_title]
+other = "Members"
+
+[members_title_n]
+one = "{n} member"
+other = "{n} members"
+
+[menu_space_create]
+other = "Create a space"
+
+[menu_space_join]
+other = "Join with a code"
+
+[no_incoming]
+other = "No friend requests"
+
+[no_outgoing]
+other = "No sent friend requests"
+
+[no_outgoing_hint]
+other = "Send one with ＋ Add friend on the Friends tab"
+
+[now_friends]
+other = "You and {name} are friends now"
+
+[offline]
+other = "Can't reach the server"
+
+[out_failed]
+other = "Couldn't load sent requests"
+
+[picker_max]
+one = "You can pick up to {n} person"
+other = "You can pick up to {n} people"
+
+[picker_more_hint]
+other = "Type two or more characters to search"
+
+[picker_name_holder]
+other = "Conversation name (optional)"
+
+[picker_no_chips]
+other = "No one picked yet"
+
+[picker_no_match]
+other = "No one found"
+
+[picker_ok]
+other = "OK"
+
+[picker_placeholder]
+other = "Search by name or @handle"
+
+[picker_search_failed]
+other = "Couldn't search for people"
+
+[picker_searching]
+other = "Searching…"
+
+[picker_status]
+other = "enter pick · ↑↓ move · esc close"
+
+[picker_status_submit]
+other = "enter {submit} · esc close"
+
+[picker_type_hint]
+other = "Type a name or @handle"
+
+[rail_home]
+other = "⌂"
+
+[reaction_users_empty]
+other = "Nobody yet"
+
+[reaction_users_failed]
+other = "Couldn't load the list"
+
+[reaction_users_title]
+other = "Reacted with {emoji}"
+
+[reconnecting]
+other = "Reconnecting"
+
+[request_sent]
+other = "Friend request sent to {name}"
+
+[role_owner]
+other = "Owner"
+
+[side_channels_label]
+other = "Channels"
+
+[side_no_space]
+other = "No spaces · + to create one"
+
 [slash_err_dice]
 other = "Write dice like 2d6 (1–20 dice, 2–1000 sides, modifier ±1000)"
 
@@ -80,3 +356,39 @@ other = "Usage: {usage}"
 
 [slash_usage_check]
 other = "Check the command usage"
+
+[space_add_title]
+other = "Add a space"
+
+[space_switch_title]
+other = "Switch space"
+
+[space_unnamed]
+other = "Space"
+
+[typing_many]
+other = "Several people are typing…"
+
+[typing_one]
+other = "{name} is typing…"
+
+[typing_someone]
+other = "Someone"
+
+[typing_two]
+other = "{a} and {b} are typing…"
+
+[unfriend_ask]
+other = "Unfriend {name}?"
+
+[unfriend_body]
+other = "Past DMs stay but may become read-only"
+
+[unfriend_failed]
+other = "Couldn't unfriend"
+
+[unfriend_yes]
+other = "Unfriend"
+
+[unfriended]
+other = "You unfriended {name}"

@@ -3,12 +3,673 @@
 
 package i18n
 
+import "strconv"
+
 // ChatT holds the "chat" area messages (locales/*/chat.toml).
 type ChatT struct{ t *T }
 
 var areaChat = area{
 	name: "chat",
 	keys: map[string]*entry{
+		"accept_failed": {
+			desc: "오류 알림 머리: 친구 요청 수락 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청을 수락하지 못했어요"},
+				En: {Other: "Couldn't accept the friend request"},
+			},
+		},
+		"cancel": {
+			desc: "확인 창 취소 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "Cancel"},
+			},
+		},
+		"cancel_failed": {
+			desc: "오류 알림 머리: 친구 요청 취소 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청을 취소하지 못했어요"},
+				En: {Other: "Couldn't cancel the friend request"},
+			},
+		},
+		"channel_row_new": {
+			desc: "사이드바 줄: 새 채널 만들기(방장·관리자)",
+			text: map[Locale]Forms{
+				Ko: {Other: "＋ 새 채널"},
+				En: {Other: "＋ New channel"},
+			},
+		},
+		"cmd_dm_new": {
+			desc: "명령 팔레트: 새 대화",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 대화 (DM·그룹 DM)"},
+				En: {Other: "New conversation (DM, group DM)"},
+			},
+		},
+		"cmd_friend_add": {
+			desc: "명령 팔레트: 친구 추가",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 추가"},
+				En: {Other: "Add friend"},
+			},
+		},
+		"cmd_friends": {
+			desc: "명령 팔레트: 친구 목록",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 목록"},
+				En: {Other: "Friends"},
+			},
+		},
+		"decline_failed": {
+			desc: "오류 알림 머리: 친구 요청 거절 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청을 거절하지 못했어요"},
+				En: {Other: "Couldn't decline the friend request"},
+			},
+		},
+		"dm_new_submit": {
+			desc: "새 대화 창 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화 시작"},
+				En: {Other: "Start chat"},
+			},
+		},
+		"dm_new_title": {
+			desc: "새 대화 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 대화"},
+				En: {Other: "New conversation"},
+			},
+		},
+		"dm_open_failed": {
+			desc: "오류 알림 머리: DM 열기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "DM을 열지 못했어요"},
+				En: {Other: "Couldn't open the DM"},
+			},
+		},
+		"dms_deleted": {
+			desc: "DM 목록 미리보기: 삭제된 메시지",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제된 메시지"},
+				En: {Other: "Deleted message"},
+			},
+		},
+		"dms_empty_hint": {
+			desc: "DM 목록 빈 상태 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "ctrl+k 로 친구를 찾아 대화를 시작해 보세요"},
+				En: {Other: "Press ctrl+k to find a friend and start chatting"},
+			},
+		},
+		"dms_empty_title": {
+			desc: "DM 목록이 빔",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 DM 이 없어요"},
+				En: {Other: "No DMs yet"},
+			},
+		},
+		"dms_mine": {
+			desc:   "DM 목록 미리보기: 내가 보낸 마지막 메시지. body = 본문",
+			params: []Param{{Name: "body", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "나: {body}"},
+				En: {Other: "Me: {body}"},
+			},
+		},
+		"dms_title": {
+			desc: "DM 판 제목·사이드바 줄",
+			max:  8,
+			text: map[Locale]Forms{
+				Ko: {Other: "DM"},
+				En: {Other: "DMs"},
+			},
+		},
+		"friend_accepted": {
+			desc:   "알림: 친구 요청 수락",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구가 되었어요"},
+				En: {Other: "You and {name} are now friends"},
+			},
+		},
+		"friend_add_label": {
+			desc: "친구 목록 첫 줄: 친구 추가",
+			text: map[Locale]Forms{
+				Ko: {Other: "＋ 친구 추가"},
+				En: {Other: "＋ Add friend"},
+			},
+		},
+		"friend_add_submit": {
+			desc: "친구 추가 창 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 보내기"},
+				En: {Other: "Send request"},
+			},
+		},
+		"friend_add_title": {
+			desc: "친구 추가 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 추가"},
+				En: {Other: "Add friend"},
+			},
+		},
+		"friend_canceled": {
+			desc: "알림: 친구 요청 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청을 취소했어요"},
+				En: {Other: "Friend request canceled"},
+			},
+		},
+		"friend_declined": {
+			desc: "알림: 친구 요청 거절",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청을 거절했어요"},
+				En: {Other: "Friend request declined"},
+			},
+		},
+		"friends_tab_friends": {
+			desc:   "친구 판 탭: 친구 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 {n}"},
+				En: {Other: "Friends {n}"},
+			},
+		},
+		"friends_tab_incoming": {
+			desc:   "친구 판 탭: 받은 요청 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "받은 요청 {n}"},
+				En: {Other: "Received {n}"},
+			},
+		},
+		"friends_tab_outgoing": {
+			desc:   "친구 판 탭: 보낸 요청 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "보낸 요청 {n}"},
+				En: {Other: "Sent {n}"},
+			},
+		},
+		"friends_title": {
+			desc: "친구 판 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구"},
+				En: {Other: "Friends"},
+			},
+		},
+		"group_dm_refused": {
+			desc: "그룹 DM 생성·추가가 차단 관계로 거부됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "함께 대화할 수 없는 참여자가 있어요"},
+				En: {Other: "Some of these people can't be in a conversation together"},
+			},
+		},
+		"help_name_field": {
+			desc: "키 도움말: 이름 칸으로",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름 칸"},
+				En: {Other: "name field"},
+			},
+		},
+		"help_pick_then": {
+			desc:   "키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글",
+			params: []Param{{Name: "submit", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "고르기·{submit}"},
+				En: {Other: "pick·{submit}"},
+			},
+		},
+		"help_run": {
+			desc: "키 도움말: 메뉴 항목 실행",
+			text: map[Locale]Forms{
+				Ko: {Other: "실행"},
+				En: {Other: "run"},
+			},
+		},
+		"help_tabs": {
+			desc: "키 도움말: 탭 옮기기",
+			text: map[Locale]Forms{
+				Ko: {Other: "탭"},
+				En: {Other: "tabs"},
+			},
+		},
+		"home_empty_hint": {
+			desc: "홈 빈 상태 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "ctrl+k 로 명령을 찾아 보세요"},
+				En: {Other: "Press ctrl+k to find commands"},
+			},
+		},
+		"home_empty_title": {
+			desc: "홈이 비었음(Store 없을 때만)",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 대화가 없어요"},
+				En: {Other: "No conversations yet"},
+			},
+		},
+		"home_feed": {
+			desc: "홈 줄: 피드로 가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "피드 보기"},
+				En: {Other: "Open feed"},
+			},
+		},
+		"home_friends": {
+			desc: "홈 줄: 친구 목록",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 목록"},
+				En: {Other: "Friends"},
+			},
+		},
+		"home_invites": {
+			desc:   "홈 줄: 받은 방 초대 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "받은 방 초대 {n}"},
+				En: {Other: "Space invites {n}"},
+			},
+		},
+		"home_more": {
+			desc:   "홈: 접힌 방의 숨은 채널 수(enter 로 펼침)",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "…{n}개 더"},
+				En: {Other: "…{n} more"},
+			},
+		},
+		"home_online_label": {
+			desc: "홈 목록의 접속 중인 친구 절 머리(앞에 '─ ')",
+			text: map[Locale]Forms{
+				Ko: {Other: "접속 중인 친구"},
+				En: {Other: "Friends online"},
+			},
+		},
+		"home_requests": {
+			desc:   "홈 줄: 받은 친구 요청 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청 {n}"},
+				En: {Other: "Friend requests {n}"},
+			},
+		},
+		"home_space_join": {
+			desc: "홈 줄: 초대 코드로 방 참여",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 코드로 방 참여"},
+				En: {Other: "Join a space with a code"},
+			},
+		},
+		"home_space_new": {
+			desc: "홈 줄: 방 만들기 창 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "＋ 방 만들기"},
+				En: {Other: "＋ Create a space"},
+			},
+		},
+		"home_title": {
+			desc: "홈 판 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "홈"},
+				En: {Other: "Home"},
+			},
+		},
+		"invite_space_title": {
+			desc: "친구를 초대할 방 고르기 메뉴 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "어느 방에 초대할까요?"},
+				En: {Other: "Invite to which space?"},
+			},
+		},
+		"item_accept": {
+			desc: "친구 요청 메뉴: 수락",
+			text: map[Locale]Forms{
+				Ko: {Other: "수락"},
+				En: {Other: "Accept"},
+			},
+		},
+		"item_block_user": {
+			desc: "사용자 메뉴: 차단",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단"},
+				En: {Other: "Block"},
+			},
+		},
+		"item_cancel_request": {
+			desc: "보낸 친구 요청 메뉴: 요청 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 취소"},
+				En: {Other: "Cancel request"},
+			},
+		},
+		"item_decline": {
+			desc: "친구 요청 메뉴: 거절",
+			text: map[Locale]Forms{
+				Ko: {Other: "거절"},
+				En: {Other: "Decline"},
+			},
+		},
+		"item_invite_to_space": {
+			desc: "친구 메뉴: 방에 초대",
+			text: map[Locale]Forms{
+				Ko: {Other: "방에 초대"},
+				En: {Other: "Invite to a space"},
+			},
+		},
+		"item_profile": {
+			desc: "사용자 메뉴: 프로필 보기",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필 보기"},
+				En: {Other: "View profile"},
+			},
+		},
+		"item_report_user": {
+			desc: "사용자 메뉴: 사용자 신고",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용자 신고"},
+				En: {Other: "Report user"},
+			},
+		},
+		"item_send_dm": {
+			desc: "사용자 메뉴: DM 보내기",
+			text: map[Locale]Forms{
+				Ko: {Other: "DM 보내기"},
+				En: {Other: "Send DM"},
+			},
+		},
+		"item_unfriend": {
+			desc: "친구 메뉴: 친구 끊기",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 끊기"},
+				En: {Other: "Unfriend"},
+			},
+		},
+		"kw_dm_new": {
+			desc: "명령 팔레트 검색어(쉼표로 나눔): 새 대화",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화, 그룹 DM, 메시지 보내기"},
+				En: {Other: "conversation, chat, send message"},
+			},
+		},
+		"kw_friend_add": {
+			desc: "명령 팔레트 검색어: 친구 추가",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청 보내기"},
+				En: {Other: "send friend request"},
+			},
+		},
+		"kw_friends": {
+			desc: "명령 팔레트 검색어: 친구 목록",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구, 친구 요청"},
+				En: {Other: "friend requests"},
+			},
+		},
+		"loading": {
+			desc: "불러오는 중 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "불러오는 중…"},
+				En: {Other: "Loading…"},
+			},
+		},
+		"member_count": {
+			desc:   "방 카드·방 설정: 멤버 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버 {n}명"},
+				En: {One: "{n} member", Other: "{n} members"},
+			},
+		},
+		"members_failed": {
+			desc: "멤버 목록을 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버를 불러오지 못했어요"},
+				En: {Other: "Couldn't load members"},
+			},
+		},
+		"members_more": {
+			desc:   "멤버 목록 끝: 더 있는 멤버 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "+ {n}명 더"},
+				En: {Other: "+ {n} more"},
+			},
+		},
+		"members_none": {
+			desc: "멤버 판: 열린 대화가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화를 열면 멤버가 보여요"},
+				En: {Other: "Open a conversation to see its members"},
+			},
+		},
+		"members_title": {
+			desc: "멤버 판 제목(수를 모를 때)",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버"},
+				En: {Other: "Members"},
+			},
+		},
+		"members_title_n": {
+			desc:   "멤버 판 제목: 멤버 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "멤버 {n}"},
+				En: {One: "{n} member", Other: "{n} members"},
+			},
+		},
+		"menu_space_create": {
+			desc: "방 전환·추가 메뉴: 방 만들기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 만들기"},
+				En: {Other: "Create a space"},
+			},
+		},
+		"menu_space_join": {
+			desc: "방 전환·추가 메뉴: 초대 코드로 참여",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 코드로 참여"},
+				En: {Other: "Join with a code"},
+			},
+		},
+		"no_incoming": {
+			desc: "받은 요청 탭이 빔",
+			text: map[Locale]Forms{
+				Ko: {Other: "받은 친구 요청이 없어요"},
+				En: {Other: "No friend requests"},
+			},
+		},
+		"no_outgoing": {
+			desc: "보낸 요청 탭이 빔",
+			text: map[Locale]Forms{
+				Ko: {Other: "보낸 친구 요청이 없어요"},
+				En: {Other: "No sent friend requests"},
+			},
+		},
+		"no_outgoing_hint": {
+			desc: "보낸 요청 탭 빈 상태 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 탭의 ＋ 친구 추가로 요청을 보내 보세요"},
+				En: {Other: "Send one with ＋ Add friend on the Friends tab"},
+			},
+		},
+		"now_friends": {
+			desc:   "알림: 친구 요청이 바로 수락됨",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 이제 친구예요"},
+				En: {Other: "You and {name} are friends now"},
+			},
+		},
+		"offline": {
+			desc: "첫 동기화 실패: 서버에 닿지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "서버에 연결할 수 없어요"},
+				En: {Other: "Can't reach the server"},
+			},
+		},
+		"out_failed": {
+			desc: "보낸 요청 목록을 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "보낸 요청을 불러오지 못했어요"},
+				En: {Other: "Couldn't load sent requests"},
+			},
+		},
+		"picker_max": {
+			desc:   "사람 고르기: 고를 수 있는 최대 인원 초과",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "최대 {n}명까지 고를 수 있어요"},
+				En: {One: "You can pick up to {n} person", Other: "You can pick up to {n} people"},
+			},
+		},
+		"picker_more_hint": {
+			desc: "사람 고르기: 검색어가 짧음",
+			text: map[Locale]Forms{
+				Ko: {Other: "두 글자 이상 입력하면 찾아봐요"},
+				En: {Other: "Type two or more characters to search"},
+			},
+		},
+		"picker_name_holder": {
+			desc: "사람 고르기: 그룹 대화 이름 칸 자리 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "대화 이름(선택)"},
+				En: {Other: "Conversation name (optional)"},
+			},
+		},
+		"picker_no_chips": {
+			desc: "사람 고르기: 고른 사람이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 고른 사람이 없어요"},
+				En: {Other: "No one picked yet"},
+			},
+		},
+		"picker_no_match": {
+			desc: "사람 고르기: 맞는 사람이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "찾는 사람이 없어요"},
+				En: {Other: "No one found"},
+			},
+		},
+		"picker_ok": {
+			desc: "사람 고르기 기본 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "확인"},
+				En: {Other: "OK"},
+			},
+		},
+		"picker_placeholder": {
+			desc: "사람 고르기 검색 칸 자리 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름이나 @아이디로 찾기"},
+				En: {Other: "Search by name or @handle"},
+			},
+		},
+		"picker_search_failed": {
+			desc: "사람 고르기: 서버 검색 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "사람을 찾지 못했어요"},
+				En: {Other: "Couldn't search for people"},
+			},
+		},
+		"picker_searching": {
+			desc: "사람 고르기: 찾는 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "찾는 중…"},
+				En: {Other: "Searching…"},
+			},
+		},
+		"picker_status": {
+			desc: "사람 고르기 아래 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 고르기 · ↑↓ 이동 · esc 닫기"},
+				En: {Other: "enter pick · ↑↓ move · esc close"},
+			},
+		},
+		"picker_status_submit": {
+			desc:   "사람 고르기 아래 줄(고른 사람이 있을 때)",
+			params: []Param{{Name: "submit", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "enter {submit} · esc 닫기"},
+				En: {Other: "enter {submit} · esc close"},
+			},
+		},
+		"picker_type_hint": {
+			desc: "사람 고르기: 검색어 입력 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름이나 @아이디를 입력해 보세요"},
+				En: {Other: "Type a name or @handle"},
+			},
+		},
+		"rail_home": {
+			desc: "레일의 홈 글자(가운데 3칸 안)",
+			max:  3,
+			text: map[Locale]Forms{
+				Ko: {Other: "홈"},
+				En: {Other: "⌂"},
+			},
+		},
+		"reaction_users_empty": {
+			desc: "리액션 누른 사람이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 아무도 없어요"},
+				En: {Other: "Nobody yet"},
+			},
+		},
+		"reaction_users_failed": {
+			desc: "리액션 누른 사람 목록 실패(뒤에 ': 이유')",
+			text: map[Locale]Forms{
+				Ko: {Other: "목록을 불러오지 못했어요"},
+				En: {Other: "Couldn't load the list"},
+			},
+		},
+		"reaction_users_title": {
+			desc:   "리액션 누른 사람 창 제목. emoji = 리액션",
+			params: []Param{{Name: "emoji", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{emoji} 누른 사람"},
+				En: {Other: "Reacted with {emoji}"},
+			},
+		},
+		"reconnecting": {
+			desc: "첫 동기화 실패 안내: 다시 연결 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 연결 중"},
+				En: {Other: "Reconnecting"},
+			},
+		},
+		"request_sent": {
+			desc:   "알림: 친구 요청 보냄",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님에게 친구 요청을 보냈어요"},
+				En: {Other: "Friend request sent to {name}"},
+			},
+		},
+		"role_owner": {
+			desc: "멤버 줄의 역할: 방장",
+			text: map[Locale]Forms{
+				Ko: {Other: "방장"},
+				En: {Other: "Owner"},
+			},
+		},
+		"side_channels_label": {
+			desc: "사이드바 채널 절 머리(앞에 '─ ')",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널"},
+				En: {Other: "Channels"},
+			},
+		},
+		"side_no_space": {
+			desc: "사이드바: 방이 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "방이 없어요 · + 로 만들기"},
+				En: {Other: "No spaces · + to create one"},
+			},
+		},
 		"slash_err_dice": {
 			desc:       "입력창 오류: /roll 형식. 2d6·±1000 은 그대로",
 			noTruncate: true,
@@ -214,7 +875,552 @@ var areaChat = area{
 				En: {Other: "Check the command usage"},
 			},
 		},
+		"space_add_title": {
+			desc: "레일 + 메뉴 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 추가"},
+				En: {Other: "Add a space"},
+			},
+		},
+		"space_switch_title": {
+			desc: "방 전환 메뉴 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 전환"},
+				En: {Other: "Switch space"},
+			},
+		},
+		"space_unnamed": {
+			desc: "이름이 빈 방",
+			text: map[Locale]Forms{
+				Ko: {Other: "방"},
+				En: {Other: "Space"},
+			},
+		},
+		"typing_many": {
+			desc: "입력 중 줄: 세 명 이상",
+			text: map[Locale]Forms{
+				Ko: {Other: "여러 명이 입력 중…"},
+				En: {Other: "Several people are typing…"},
+			},
+		},
+		"typing_one": {
+			desc:   "입력 중 줄: 한 명. name = 이름(6칸까지 자름)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name} 입력 중…"},
+				En: {Other: "{name} is typing…"},
+			},
+		},
+		"typing_someone": {
+			desc: "입력 중 줄: 이름 모르는 사람",
+			text: map[Locale]Forms{
+				Ko: {Other: "누군가"},
+				En: {Other: "Someone"},
+			},
+		},
+		"typing_two": {
+			desc:   "입력 중 줄: 두 명",
+			params: []Param{{Name: "a", Type: "string"}, {Name: "b", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{a}, {b} 입력 중…"},
+				En: {Other: "{a} and {b} are typing…"},
+			},
+		},
+		"unfriend_ask": {
+			desc:       "친구 끊기 확인 질문. name = 상대 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구를 끊을까요?"},
+				En: {Other: "Unfriend {name}?"},
+			},
+		},
+		"unfriend_body": {
+			desc:       "친구 끊기 확인 설명",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "지난 DM은 남지만 읽기 전용이 될 수 있어요"},
+				En: {Other: "Past DMs stay but may become read-only"},
+			},
+		},
+		"unfriend_failed": {
+			desc: "오류 알림 머리: 친구 끊기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구를 끊지 못했어요"},
+				En: {Other: "Couldn't unfriend"},
+			},
+		},
+		"unfriend_yes": {
+			desc: "친구 끊기 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "끊기"},
+				En: {Other: "Unfriend"},
+			},
+		},
+		"unfriended": {
+			desc:   "알림: 친구를 끊음",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구를 끊었어요"},
+				En: {Other: "You unfriended {name}"},
+			},
+		},
 	},
+}
+
+// AcceptFailed: 오류 알림 머리: 친구 요청 수락 실패
+func (a_ ChatT) AcceptFailed() string {
+	return a_.t.render(&areaChat, "accept_failed", false, 0)
+}
+
+// Cancel: 확인 창 취소 단추
+func (a_ ChatT) Cancel() string {
+	return a_.t.render(&areaChat, "cancel", false, 0)
+}
+
+// CancelFailed: 오류 알림 머리: 친구 요청 취소 실패
+func (a_ ChatT) CancelFailed() string {
+	return a_.t.render(&areaChat, "cancel_failed", false, 0)
+}
+
+// ChannelRowNew: 사이드바 줄: 새 채널 만들기(방장·관리자)
+func (a_ ChatT) ChannelRowNew() string {
+	return a_.t.render(&areaChat, "channel_row_new", false, 0)
+}
+
+// CmdDmNew: 명령 팔레트: 새 대화
+func (a_ ChatT) CmdDmNew() string {
+	return a_.t.render(&areaChat, "cmd_dm_new", false, 0)
+}
+
+// CmdFriendAdd: 명령 팔레트: 친구 추가
+func (a_ ChatT) CmdFriendAdd() string {
+	return a_.t.render(&areaChat, "cmd_friend_add", false, 0)
+}
+
+// CmdFriends: 명령 팔레트: 친구 목록
+func (a_ ChatT) CmdFriends() string {
+	return a_.t.render(&areaChat, "cmd_friends", false, 0)
+}
+
+// DeclineFailed: 오류 알림 머리: 친구 요청 거절 실패
+func (a_ ChatT) DeclineFailed() string {
+	return a_.t.render(&areaChat, "decline_failed", false, 0)
+}
+
+// DmNewSubmit: 새 대화 창 확인 단추
+func (a_ ChatT) DmNewSubmit() string {
+	return a_.t.render(&areaChat, "dm_new_submit", false, 0)
+}
+
+// DmNewTitle: 새 대화 창 제목
+func (a_ ChatT) DmNewTitle() string {
+	return a_.t.render(&areaChat, "dm_new_title", false, 0)
+}
+
+// DmOpenFailed: 오류 알림 머리: DM 열기 실패
+func (a_ ChatT) DmOpenFailed() string {
+	return a_.t.render(&areaChat, "dm_open_failed", false, 0)
+}
+
+// DmsDeleted: DM 목록 미리보기: 삭제된 메시지
+func (a_ ChatT) DmsDeleted() string {
+	return a_.t.render(&areaChat, "dms_deleted", false, 0)
+}
+
+// DmsEmptyHint: DM 목록 빈 상태 안내
+func (a_ ChatT) DmsEmptyHint() string {
+	return a_.t.render(&areaChat, "dms_empty_hint", false, 0)
+}
+
+// DmsEmptyTitle: DM 목록이 빔
+func (a_ ChatT) DmsEmptyTitle() string {
+	return a_.t.render(&areaChat, "dms_empty_title", false, 0)
+}
+
+// DmsMine: DM 목록 미리보기: 내가 보낸 마지막 메시지. body = 본문
+func (a_ ChatT) DmsMine(body string) string {
+	return a_.t.render(&areaChat, "dms_mine", false, 0, "body", body)
+}
+
+// DmsTitle: DM 판 제목·사이드바 줄
+func (a_ ChatT) DmsTitle() string {
+	return a_.t.render(&areaChat, "dms_title", false, 0)
+}
+
+// FriendAccepted: 알림: 친구 요청 수락
+func (a_ ChatT) FriendAccepted(name string) string {
+	return a_.t.render(&areaChat, "friend_accepted", false, 0, "name", name)
+}
+
+// FriendAddLabel: 친구 목록 첫 줄: 친구 추가
+func (a_ ChatT) FriendAddLabel() string {
+	return a_.t.render(&areaChat, "friend_add_label", false, 0)
+}
+
+// FriendAddSubmit: 친구 추가 창 확인 단추
+func (a_ ChatT) FriendAddSubmit() string {
+	return a_.t.render(&areaChat, "friend_add_submit", false, 0)
+}
+
+// FriendAddTitle: 친구 추가 창 제목
+func (a_ ChatT) FriendAddTitle() string {
+	return a_.t.render(&areaChat, "friend_add_title", false, 0)
+}
+
+// FriendCanceled: 알림: 친구 요청 취소
+func (a_ ChatT) FriendCanceled() string {
+	return a_.t.render(&areaChat, "friend_canceled", false, 0)
+}
+
+// FriendDeclined: 알림: 친구 요청 거절
+func (a_ ChatT) FriendDeclined() string {
+	return a_.t.render(&areaChat, "friend_declined", false, 0)
+}
+
+// FriendsTabFriends: 친구 판 탭: 친구 수
+func (a_ ChatT) FriendsTabFriends(n int) string {
+	return a_.t.render(&areaChat, "friends_tab_friends", false, 0, "n", strconv.Itoa(n))
+}
+
+// FriendsTabIncoming: 친구 판 탭: 받은 요청 수
+func (a_ ChatT) FriendsTabIncoming(n int) string {
+	return a_.t.render(&areaChat, "friends_tab_incoming", false, 0, "n", strconv.Itoa(n))
+}
+
+// FriendsTabOutgoing: 친구 판 탭: 보낸 요청 수
+func (a_ ChatT) FriendsTabOutgoing(n int) string {
+	return a_.t.render(&areaChat, "friends_tab_outgoing", false, 0, "n", strconv.Itoa(n))
+}
+
+// FriendsTitle: 친구 판 제목
+func (a_ ChatT) FriendsTitle() string {
+	return a_.t.render(&areaChat, "friends_title", false, 0)
+}
+
+// GroupDmRefused: 그룹 DM 생성·추가가 차단 관계로 거부됨
+func (a_ ChatT) GroupDmRefused() string {
+	return a_.t.render(&areaChat, "group_dm_refused", false, 0)
+}
+
+// HelpNameField: 키 도움말: 이름 칸으로
+func (a_ ChatT) HelpNameField() string {
+	return a_.t.render(&areaChat, "help_name_field", false, 0)
+}
+
+// HelpPickThen: 키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글
+func (a_ ChatT) HelpPickThen(submit string) string {
+	return a_.t.render(&areaChat, "help_pick_then", false, 0, "submit", submit)
+}
+
+// HelpRun: 키 도움말: 메뉴 항목 실행
+func (a_ ChatT) HelpRun() string {
+	return a_.t.render(&areaChat, "help_run", false, 0)
+}
+
+// HelpTabs: 키 도움말: 탭 옮기기
+func (a_ ChatT) HelpTabs() string {
+	return a_.t.render(&areaChat, "help_tabs", false, 0)
+}
+
+// HomeEmptyHint: 홈 빈 상태 안내
+func (a_ ChatT) HomeEmptyHint() string {
+	return a_.t.render(&areaChat, "home_empty_hint", false, 0)
+}
+
+// HomeEmptyTitle: 홈이 비었음(Store 없을 때만)
+func (a_ ChatT) HomeEmptyTitle() string {
+	return a_.t.render(&areaChat, "home_empty_title", false, 0)
+}
+
+// HomeFeed: 홈 줄: 피드로 가기
+func (a_ ChatT) HomeFeed() string {
+	return a_.t.render(&areaChat, "home_feed", false, 0)
+}
+
+// HomeFriends: 홈 줄: 친구 목록
+func (a_ ChatT) HomeFriends() string {
+	return a_.t.render(&areaChat, "home_friends", false, 0)
+}
+
+// HomeInvites: 홈 줄: 받은 방 초대 수
+func (a_ ChatT) HomeInvites(n int) string {
+	return a_.t.render(&areaChat, "home_invites", false, 0, "n", strconv.Itoa(n))
+}
+
+// HomeMore: 홈: 접힌 방의 숨은 채널 수(enter 로 펼침)
+func (a_ ChatT) HomeMore(n int) string {
+	return a_.t.render(&areaChat, "home_more", false, 0, "n", strconv.Itoa(n))
+}
+
+// HomeOnlineLabel: 홈 목록의 접속 중인 친구 절 머리(앞에 '─ ')
+func (a_ ChatT) HomeOnlineLabel() string {
+	return a_.t.render(&areaChat, "home_online_label", false, 0)
+}
+
+// HomeRequests: 홈 줄: 받은 친구 요청 수
+func (a_ ChatT) HomeRequests(n int) string {
+	return a_.t.render(&areaChat, "home_requests", false, 0, "n", strconv.Itoa(n))
+}
+
+// HomeSpaceJoin: 홈 줄: 초대 코드로 방 참여
+func (a_ ChatT) HomeSpaceJoin() string {
+	return a_.t.render(&areaChat, "home_space_join", false, 0)
+}
+
+// HomeSpaceNew: 홈 줄: 방 만들기 창 열기
+func (a_ ChatT) HomeSpaceNew() string {
+	return a_.t.render(&areaChat, "home_space_new", false, 0)
+}
+
+// HomeTitle: 홈 판 제목
+func (a_ ChatT) HomeTitle() string {
+	return a_.t.render(&areaChat, "home_title", false, 0)
+}
+
+// InviteSpaceTitle: 친구를 초대할 방 고르기 메뉴 제목
+func (a_ ChatT) InviteSpaceTitle() string {
+	return a_.t.render(&areaChat, "invite_space_title", false, 0)
+}
+
+// ItemAccept: 친구 요청 메뉴: 수락
+func (a_ ChatT) ItemAccept() string {
+	return a_.t.render(&areaChat, "item_accept", false, 0)
+}
+
+// ItemBlockUser: 사용자 메뉴: 차단
+func (a_ ChatT) ItemBlockUser() string {
+	return a_.t.render(&areaChat, "item_block_user", false, 0)
+}
+
+// ItemCancelRequest: 보낸 친구 요청 메뉴: 요청 취소
+func (a_ ChatT) ItemCancelRequest() string {
+	return a_.t.render(&areaChat, "item_cancel_request", false, 0)
+}
+
+// ItemDecline: 친구 요청 메뉴: 거절
+func (a_ ChatT) ItemDecline() string {
+	return a_.t.render(&areaChat, "item_decline", false, 0)
+}
+
+// ItemInviteToSpace: 친구 메뉴: 방에 초대
+func (a_ ChatT) ItemInviteToSpace() string {
+	return a_.t.render(&areaChat, "item_invite_to_space", false, 0)
+}
+
+// ItemProfile: 사용자 메뉴: 프로필 보기
+func (a_ ChatT) ItemProfile() string {
+	return a_.t.render(&areaChat, "item_profile", false, 0)
+}
+
+// ItemReportUser: 사용자 메뉴: 사용자 신고
+func (a_ ChatT) ItemReportUser() string {
+	return a_.t.render(&areaChat, "item_report_user", false, 0)
+}
+
+// ItemSendDm: 사용자 메뉴: DM 보내기
+func (a_ ChatT) ItemSendDm() string {
+	return a_.t.render(&areaChat, "item_send_dm", false, 0)
+}
+
+// ItemUnfriend: 친구 메뉴: 친구 끊기
+func (a_ ChatT) ItemUnfriend() string {
+	return a_.t.render(&areaChat, "item_unfriend", false, 0)
+}
+
+// KwDmNew: 명령 팔레트 검색어(쉼표로 나눔): 새 대화
+func (a_ ChatT) KwDmNew() string {
+	return a_.t.render(&areaChat, "kw_dm_new", false, 0)
+}
+
+// KwFriendAdd: 명령 팔레트 검색어: 친구 추가
+func (a_ ChatT) KwFriendAdd() string {
+	return a_.t.render(&areaChat, "kw_friend_add", false, 0)
+}
+
+// KwFriends: 명령 팔레트 검색어: 친구 목록
+func (a_ ChatT) KwFriends() string {
+	return a_.t.render(&areaChat, "kw_friends", false, 0)
+}
+
+// Loading: 불러오는 중 표시
+func (a_ ChatT) Loading() string {
+	return a_.t.render(&areaChat, "loading", false, 0)
+}
+
+// MemberCount: 방 카드·방 설정: 멤버 수
+func (a_ ChatT) MemberCount(n int) string {
+	return a_.t.render(&areaChat, "member_count", false, n, "n", strconv.Itoa(n))
+}
+
+// MembersFailed: 멤버 목록을 불러오지 못함
+func (a_ ChatT) MembersFailed() string {
+	return a_.t.render(&areaChat, "members_failed", false, 0)
+}
+
+// MembersMore: 멤버 목록 끝: 더 있는 멤버 수
+func (a_ ChatT) MembersMore(n int) string {
+	return a_.t.render(&areaChat, "members_more", false, 0, "n", strconv.Itoa(n))
+}
+
+// MembersNone: 멤버 판: 열린 대화가 없음
+func (a_ ChatT) MembersNone() string {
+	return a_.t.render(&areaChat, "members_none", false, 0)
+}
+
+// MembersTitle: 멤버 판 제목(수를 모를 때)
+func (a_ ChatT) MembersTitle() string {
+	return a_.t.render(&areaChat, "members_title", false, 0)
+}
+
+// MembersTitleN: 멤버 판 제목: 멤버 수
+func (a_ ChatT) MembersTitleN(n int) string {
+	return a_.t.render(&areaChat, "members_title_n", false, n, "n", strconv.Itoa(n))
+}
+
+// MenuSpaceCreate: 방 전환·추가 메뉴: 방 만들기
+func (a_ ChatT) MenuSpaceCreate() string {
+	return a_.t.render(&areaChat, "menu_space_create", false, 0)
+}
+
+// MenuSpaceJoin: 방 전환·추가 메뉴: 초대 코드로 참여
+func (a_ ChatT) MenuSpaceJoin() string {
+	return a_.t.render(&areaChat, "menu_space_join", false, 0)
+}
+
+// NoIncoming: 받은 요청 탭이 빔
+func (a_ ChatT) NoIncoming() string {
+	return a_.t.render(&areaChat, "no_incoming", false, 0)
+}
+
+// NoOutgoing: 보낸 요청 탭이 빔
+func (a_ ChatT) NoOutgoing() string {
+	return a_.t.render(&areaChat, "no_outgoing", false, 0)
+}
+
+// NoOutgoingHint: 보낸 요청 탭 빈 상태 안내
+func (a_ ChatT) NoOutgoingHint() string {
+	return a_.t.render(&areaChat, "no_outgoing_hint", false, 0)
+}
+
+// NowFriends: 알림: 친구 요청이 바로 수락됨
+func (a_ ChatT) NowFriends(name string) string {
+	return a_.t.render(&areaChat, "now_friends", false, 0, "name", name)
+}
+
+// Offline: 첫 동기화 실패: 서버에 닿지 못함
+func (a_ ChatT) Offline() string {
+	return a_.t.render(&areaChat, "offline", false, 0)
+}
+
+// OutFailed: 보낸 요청 목록을 불러오지 못함
+func (a_ ChatT) OutFailed() string {
+	return a_.t.render(&areaChat, "out_failed", false, 0)
+}
+
+// PickerMax: 사람 고르기: 고를 수 있는 최대 인원 초과
+func (a_ ChatT) PickerMax(n int) string {
+	return a_.t.render(&areaChat, "picker_max", false, n, "n", strconv.Itoa(n))
+}
+
+// PickerMoreHint: 사람 고르기: 검색어가 짧음
+func (a_ ChatT) PickerMoreHint() string {
+	return a_.t.render(&areaChat, "picker_more_hint", false, 0)
+}
+
+// PickerNameHolder: 사람 고르기: 그룹 대화 이름 칸 자리 표시
+func (a_ ChatT) PickerNameHolder() string {
+	return a_.t.render(&areaChat, "picker_name_holder", false, 0)
+}
+
+// PickerNoChips: 사람 고르기: 고른 사람이 없음
+func (a_ ChatT) PickerNoChips() string {
+	return a_.t.render(&areaChat, "picker_no_chips", false, 0)
+}
+
+// PickerNoMatch: 사람 고르기: 맞는 사람이 없음
+func (a_ ChatT) PickerNoMatch() string {
+	return a_.t.render(&areaChat, "picker_no_match", false, 0)
+}
+
+// PickerOk: 사람 고르기 기본 확인 단추
+func (a_ ChatT) PickerOk() string {
+	return a_.t.render(&areaChat, "picker_ok", false, 0)
+}
+
+// PickerPlaceholder: 사람 고르기 검색 칸 자리 표시
+func (a_ ChatT) PickerPlaceholder() string {
+	return a_.t.render(&areaChat, "picker_placeholder", false, 0)
+}
+
+// PickerSearchFailed: 사람 고르기: 서버 검색 실패
+func (a_ ChatT) PickerSearchFailed() string {
+	return a_.t.render(&areaChat, "picker_search_failed", false, 0)
+}
+
+// PickerSearching: 사람 고르기: 찾는 중
+func (a_ ChatT) PickerSearching() string {
+	return a_.t.render(&areaChat, "picker_searching", false, 0)
+}
+
+// PickerStatus: 사람 고르기 아래 줄
+func (a_ ChatT) PickerStatus() string {
+	return a_.t.render(&areaChat, "picker_status", false, 0)
+}
+
+// PickerStatusSubmit: 사람 고르기 아래 줄(고른 사람이 있을 때)
+func (a_ ChatT) PickerStatusSubmit(submit string) string {
+	return a_.t.render(&areaChat, "picker_status_submit", false, 0, "submit", submit)
+}
+
+// PickerTypeHint: 사람 고르기: 검색어 입력 안내
+func (a_ ChatT) PickerTypeHint() string {
+	return a_.t.render(&areaChat, "picker_type_hint", false, 0)
+}
+
+// RailHome: 레일의 홈 글자(가운데 3칸 안)
+func (a_ ChatT) RailHome() string {
+	return a_.t.render(&areaChat, "rail_home", false, 0)
+}
+
+// ReactionUsersEmpty: 리액션 누른 사람이 없음
+func (a_ ChatT) ReactionUsersEmpty() string {
+	return a_.t.render(&areaChat, "reaction_users_empty", false, 0)
+}
+
+// ReactionUsersFailed: 리액션 누른 사람 목록 실패(뒤에 ': 이유')
+func (a_ ChatT) ReactionUsersFailed() string {
+	return a_.t.render(&areaChat, "reaction_users_failed", false, 0)
+}
+
+// ReactionUsersTitle: 리액션 누른 사람 창 제목. emoji = 리액션
+func (a_ ChatT) ReactionUsersTitle(emoji string) string {
+	return a_.t.render(&areaChat, "reaction_users_title", false, 0, "emoji", emoji)
+}
+
+// Reconnecting: 첫 동기화 실패 안내: 다시 연결 중
+func (a_ ChatT) Reconnecting() string {
+	return a_.t.render(&areaChat, "reconnecting", false, 0)
+}
+
+// RequestSent: 알림: 친구 요청 보냄
+func (a_ ChatT) RequestSent(name string) string {
+	return a_.t.render(&areaChat, "request_sent", false, 0, "name", name)
+}
+
+// RoleOwner: 멤버 줄의 역할: 방장
+func (a_ ChatT) RoleOwner() string {
+	return a_.t.render(&areaChat, "role_owner", false, 0)
+}
+
+// SideChannelsLabel: 사이드바 채널 절 머리(앞에 '─ ')
+func (a_ ChatT) SideChannelsLabel() string {
+	return a_.t.render(&areaChat, "side_channels_label", false, 0)
+}
+
+// SideNoSpace: 사이드바: 방이 없을 때
+func (a_ ChatT) SideNoSpace() string {
+	return a_.t.render(&areaChat, "side_no_space", false, 0)
 }
 
 // SlashErrDice: 입력창 오류: /roll 형식. 2d6·±1000 은 그대로
@@ -350,4 +1556,64 @@ func (a_ ChatT) SlashUsage(usage string) string {
 // SlashUsageCheck: 입력창 오류: 명령 형식이 틀림(사용법 줄이 없는 명령)
 func (a_ ChatT) SlashUsageCheck() string {
 	return a_.t.render(&areaChat, "slash_usage_check", false, 0)
+}
+
+// SpaceAddTitle: 레일 + 메뉴 제목
+func (a_ ChatT) SpaceAddTitle() string {
+	return a_.t.render(&areaChat, "space_add_title", false, 0)
+}
+
+// SpaceSwitchTitle: 방 전환 메뉴 제목
+func (a_ ChatT) SpaceSwitchTitle() string {
+	return a_.t.render(&areaChat, "space_switch_title", false, 0)
+}
+
+// SpaceUnnamed: 이름이 빈 방
+func (a_ ChatT) SpaceUnnamed() string {
+	return a_.t.render(&areaChat, "space_unnamed", false, 0)
+}
+
+// TypingMany: 입력 중 줄: 세 명 이상
+func (a_ ChatT) TypingMany() string {
+	return a_.t.render(&areaChat, "typing_many", false, 0)
+}
+
+// TypingOne: 입력 중 줄: 한 명. name = 이름(6칸까지 자름)
+func (a_ ChatT) TypingOne(name string) string {
+	return a_.t.render(&areaChat, "typing_one", false, 0, "name", name)
+}
+
+// TypingSomeone: 입력 중 줄: 이름 모르는 사람
+func (a_ ChatT) TypingSomeone() string {
+	return a_.t.render(&areaChat, "typing_someone", false, 0)
+}
+
+// TypingTwo: 입력 중 줄: 두 명
+func (a_ ChatT) TypingTwo(a string, b string) string {
+	return a_.t.render(&areaChat, "typing_two", false, 0, "a", a, "b", b)
+}
+
+// UnfriendAsk: 친구 끊기 확인 질문. name = 상대 이름
+func (a_ ChatT) UnfriendAsk(name string) string {
+	return a_.t.render(&areaChat, "unfriend_ask", false, 0, "name", name)
+}
+
+// UnfriendBody: 친구 끊기 확인 설명
+func (a_ ChatT) UnfriendBody() string {
+	return a_.t.render(&areaChat, "unfriend_body", false, 0)
+}
+
+// UnfriendFailed: 오류 알림 머리: 친구 끊기 실패
+func (a_ ChatT) UnfriendFailed() string {
+	return a_.t.render(&areaChat, "unfriend_failed", false, 0)
+}
+
+// UnfriendYes: 친구 끊기 확인 단추
+func (a_ ChatT) UnfriendYes() string {
+	return a_.t.render(&areaChat, "unfriend_yes", false, 0)
+}
+
+// Unfriended: 알림: 친구를 끊음
+func (a_ ChatT) Unfriended(name string) string {
+	return a_.t.render(&areaChat, "unfriended", false, 0, "name", name)
 }

@@ -1,5 +1,391 @@
 # Chat area: channels, DMs, threads, the composer and slash commands.
 
+[accept_failed]
+desc = "오류 알림 머리: 친구 요청 수락 실패"
+other = "친구 요청을 수락하지 못했어요"
+
+[cancel]
+desc = "확인 창 취소 단추"
+other = "취소"
+
+[cancel_failed]
+desc = "오류 알림 머리: 친구 요청 취소 실패"
+other = "친구 요청을 취소하지 못했어요"
+
+[channel_row_new]
+desc = "사이드바 줄: 새 채널 만들기(방장·관리자)"
+other = "＋ 새 채널"
+
+[cmd_dm_new]
+desc = "명령 팔레트: 새 대화"
+other = "새 대화 (DM·그룹 DM)"
+
+[cmd_friend_add]
+desc = "명령 팔레트: 친구 추가"
+other = "친구 추가"
+
+[cmd_friends]
+desc = "명령 팔레트: 친구 목록"
+other = "친구 목록"
+
+[decline_failed]
+desc = "오류 알림 머리: 친구 요청 거절 실패"
+other = "친구 요청을 거절하지 못했어요"
+
+[dm_new_submit]
+desc = "새 대화 창 확인 단추"
+other = "대화 시작"
+
+[dm_new_title]
+desc = "새 대화 창 제목"
+other = "새 대화"
+
+[dm_open_failed]
+desc = "오류 알림 머리: DM 열기 실패"
+other = "DM을 열지 못했어요"
+
+[dms_deleted]
+desc = "DM 목록 미리보기: 삭제된 메시지"
+other = "삭제된 메시지"
+
+[dms_empty_hint]
+desc = "DM 목록 빈 상태 안내"
+other = "ctrl+k 로 친구를 찾아 대화를 시작해 보세요"
+
+[dms_empty_title]
+desc = "DM 목록이 빔"
+other = "아직 DM 이 없어요"
+
+[dms_mine]
+desc = "DM 목록 미리보기: 내가 보낸 마지막 메시지. body = 본문"
+params = { body = "string" }
+other = "나: {body}"
+
+[dms_title]
+desc = "DM 판 제목·사이드바 줄"
+max = 8
+other = "DM"
+
+[friend_accepted]
+desc = "알림: 친구 요청 수락"
+params = { name = "string" }
+other = "{name}님과 친구가 되었어요"
+
+[friend_add_label]
+desc = "친구 목록 첫 줄: 친구 추가"
+other = "＋ 친구 추가"
+
+[friend_add_submit]
+desc = "친구 추가 창 확인 단추"
+other = "요청 보내기"
+
+[friend_add_title]
+desc = "친구 추가 창 제목"
+other = "친구 추가"
+
+[friend_canceled]
+desc = "알림: 친구 요청 취소"
+other = "친구 요청을 취소했어요"
+
+[friend_declined]
+desc = "알림: 친구 요청 거절"
+other = "친구 요청을 거절했어요"
+
+[friends_tab_friends]
+desc = "친구 판 탭: 친구 수"
+params = { n = "int" }
+other = "친구 {n}"
+
+[friends_tab_incoming]
+desc = "친구 판 탭: 받은 요청 수"
+params = { n = "int" }
+other = "받은 요청 {n}"
+
+[friends_tab_outgoing]
+desc = "친구 판 탭: 보낸 요청 수"
+params = { n = "int" }
+other = "보낸 요청 {n}"
+
+[friends_title]
+desc = "친구 판 제목"
+other = "친구"
+
+[group_dm_refused]
+desc = "그룹 DM 생성·추가가 차단 관계로 거부됨"
+other = "함께 대화할 수 없는 참여자가 있어요"
+
+[help_name_field]
+desc = "키 도움말: 이름 칸으로"
+other = "이름 칸"
+
+[help_pick_then]
+desc = "키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글"
+params = { submit = "string" }
+other = "고르기·{submit}"
+
+[help_run]
+desc = "키 도움말: 메뉴 항목 실행"
+other = "실행"
+
+[help_tabs]
+desc = "키 도움말: 탭 옮기기"
+other = "탭"
+
+[home_empty_hint]
+desc = "홈 빈 상태 안내"
+other = "ctrl+k 로 명령을 찾아 보세요"
+
+[home_empty_title]
+desc = "홈이 비었음(Store 없을 때만)"
+other = "아직 대화가 없어요"
+
+[home_feed]
+desc = "홈 줄: 피드로 가기"
+other = "피드 보기"
+
+[home_friends]
+desc = "홈 줄: 친구 목록"
+other = "친구 목록"
+
+[home_invites]
+desc = "홈 줄: 받은 방 초대 수"
+params = { n = "int" }
+other = "받은 방 초대 {n}"
+
+[home_more]
+desc = "홈: 접힌 방의 숨은 채널 수(enter 로 펼침)"
+params = { n = "int" }
+other = "…{n}개 더"
+
+[home_online_label]
+desc = "홈 목록의 접속 중인 친구 절 머리(앞에 '─ ')"
+other = "접속 중인 친구"
+
+[home_requests]
+desc = "홈 줄: 받은 친구 요청 수"
+params = { n = "int" }
+other = "친구 요청 {n}"
+
+[home_space_join]
+desc = "홈 줄: 초대 코드로 방 참여"
+other = "초대 코드로 방 참여"
+
+[home_space_new]
+desc = "홈 줄: 방 만들기 창 열기"
+other = "＋ 방 만들기"
+
+[home_title]
+desc = "홈 판 제목"
+other = "홈"
+
+[invite_space_title]
+desc = "친구를 초대할 방 고르기 메뉴 제목"
+other = "어느 방에 초대할까요?"
+
+[item_accept]
+desc = "친구 요청 메뉴: 수락"
+other = "수락"
+
+[item_block_user]
+desc = "사용자 메뉴: 차단"
+other = "차단"
+
+[item_cancel_request]
+desc = "보낸 친구 요청 메뉴: 요청 취소"
+other = "요청 취소"
+
+[item_decline]
+desc = "친구 요청 메뉴: 거절"
+other = "거절"
+
+[item_invite_to_space]
+desc = "친구 메뉴: 방에 초대"
+other = "방에 초대"
+
+[item_profile]
+desc = "사용자 메뉴: 프로필 보기"
+other = "프로필 보기"
+
+[item_report_user]
+desc = "사용자 메뉴: 사용자 신고"
+other = "사용자 신고"
+
+[item_send_dm]
+desc = "사용자 메뉴: DM 보내기"
+other = "DM 보내기"
+
+[item_unfriend]
+desc = "친구 메뉴: 친구 끊기"
+other = "친구 끊기"
+
+[kw_dm_new]
+desc = "명령 팔레트 검색어(쉼표로 나눔): 새 대화"
+other = "대화, 그룹 DM, 메시지 보내기"
+
+[kw_friend_add]
+desc = "명령 팔레트 검색어: 친구 추가"
+other = "친구 요청 보내기"
+
+[kw_friends]
+desc = "명령 팔레트 검색어: 친구 목록"
+other = "친구, 친구 요청"
+
+[loading]
+desc = "불러오는 중 표시"
+other = "불러오는 중…"
+
+[member_count]
+desc = "방 카드·방 설정: 멤버 수"
+params = { n = "int" }
+count = "n"
+other = "멤버 {n}명"
+
+[members_failed]
+desc = "멤버 목록을 불러오지 못함"
+other = "멤버를 불러오지 못했어요"
+
+[members_more]
+desc = "멤버 목록 끝: 더 있는 멤버 수"
+params = { n = "int" }
+other = "+ {n}명 더"
+
+[members_none]
+desc = "멤버 판: 열린 대화가 없음"
+other = "대화를 열면 멤버가 보여요"
+
+[members_title]
+desc = "멤버 판 제목(수를 모를 때)"
+other = "멤버"
+
+[members_title_n]
+desc = "멤버 판 제목: 멤버 수"
+params = { n = "int" }
+count = "n"
+other = "멤버 {n}"
+
+[menu_space_create]
+desc = "방 전환·추가 메뉴: 방 만들기"
+other = "방 만들기"
+
+[menu_space_join]
+desc = "방 전환·추가 메뉴: 초대 코드로 참여"
+other = "초대 코드로 참여"
+
+[no_incoming]
+desc = "받은 요청 탭이 빔"
+other = "받은 친구 요청이 없어요"
+
+[no_outgoing]
+desc = "보낸 요청 탭이 빔"
+other = "보낸 친구 요청이 없어요"
+
+[no_outgoing_hint]
+desc = "보낸 요청 탭 빈 상태 안내"
+other = "친구 탭의 ＋ 친구 추가로 요청을 보내 보세요"
+
+[now_friends]
+desc = "알림: 친구 요청이 바로 수락됨"
+params = { name = "string" }
+other = "{name}님과 이제 친구예요"
+
+[offline]
+desc = "첫 동기화 실패: 서버에 닿지 못함"
+other = "서버에 연결할 수 없어요"
+
+[out_failed]
+desc = "보낸 요청 목록을 불러오지 못함"
+other = "보낸 요청을 불러오지 못했어요"
+
+[picker_max]
+desc = "사람 고르기: 고를 수 있는 최대 인원 초과"
+params = { n = "int" }
+count = "n"
+other = "최대 {n}명까지 고를 수 있어요"
+
+[picker_more_hint]
+desc = "사람 고르기: 검색어가 짧음"
+other = "두 글자 이상 입력하면 찾아봐요"
+
+[picker_name_holder]
+desc = "사람 고르기: 그룹 대화 이름 칸 자리 표시"
+other = "대화 이름(선택)"
+
+[picker_no_chips]
+desc = "사람 고르기: 고른 사람이 없음"
+other = "아직 고른 사람이 없어요"
+
+[picker_no_match]
+desc = "사람 고르기: 맞는 사람이 없음"
+other = "찾는 사람이 없어요"
+
+[picker_ok]
+desc = "사람 고르기 기본 확인 단추"
+other = "확인"
+
+[picker_placeholder]
+desc = "사람 고르기 검색 칸 자리 표시"
+other = "이름이나 @아이디로 찾기"
+
+[picker_search_failed]
+desc = "사람 고르기: 서버 검색 실패"
+other = "사람을 찾지 못했어요"
+
+[picker_searching]
+desc = "사람 고르기: 찾는 중"
+other = "찾는 중…"
+
+[picker_status]
+desc = "사람 고르기 아래 줄"
+other = "enter 고르기 · ↑↓ 이동 · esc 닫기"
+
+[picker_status_submit]
+desc = "사람 고르기 아래 줄(고른 사람이 있을 때)"
+params = { submit = "string" }
+other = "enter {submit} · esc 닫기"
+
+[picker_type_hint]
+desc = "사람 고르기: 검색어 입력 안내"
+other = "이름이나 @아이디를 입력해 보세요"
+
+[rail_home]
+desc = "레일의 홈 글자(가운데 3칸 안)"
+max = 3
+other = "홈"
+
+[reaction_users_empty]
+desc = "리액션 누른 사람이 없음"
+other = "아직 아무도 없어요"
+
+[reaction_users_failed]
+desc = "리액션 누른 사람 목록 실패(뒤에 ': 이유')"
+other = "목록을 불러오지 못했어요"
+
+[reaction_users_title]
+desc = "리액션 누른 사람 창 제목. emoji = 리액션"
+params = { emoji = "string" }
+other = "{emoji} 누른 사람"
+
+[reconnecting]
+desc = "첫 동기화 실패 안내: 다시 연결 중"
+other = "다시 연결 중"
+
+[request_sent]
+desc = "알림: 친구 요청 보냄"
+params = { name = "string" }
+other = "{name}님에게 친구 요청을 보냈어요"
+
+[role_owner]
+desc = "멤버 줄의 역할: 방장"
+other = "방장"
+
+[side_channels_label]
+desc = "사이드바 채널 절 머리(앞에 '─ ')"
+other = "채널"
+
+[side_no_space]
+desc = "사이드바: 방이 없을 때"
+other = "방이 없어요 · + 로 만들기"
+
 [slash_err_dice]
 desc = "입력창 오류: /roll 형식. 2d6·±1000 은 그대로"
 no_truncate = true
@@ -123,3 +509,57 @@ other = "사용법: {usage}"
 desc = "입력창 오류: 명령 형식이 틀림(사용법 줄이 없는 명령)"
 no_truncate = true
 other = "사용법을 확인해 주세요"
+
+[space_add_title]
+desc = "레일 + 메뉴 제목"
+other = "방 추가"
+
+[space_switch_title]
+desc = "방 전환 메뉴 제목"
+other = "방 전환"
+
+[space_unnamed]
+desc = "이름이 빈 방"
+other = "방"
+
+[typing_many]
+desc = "입력 중 줄: 세 명 이상"
+other = "여러 명이 입력 중…"
+
+[typing_one]
+desc = "입력 중 줄: 한 명. name = 이름(6칸까지 자름)"
+params = { name = "string" }
+other = "{name} 입력 중…"
+
+[typing_someone]
+desc = "입력 중 줄: 이름 모르는 사람"
+other = "누군가"
+
+[typing_two]
+desc = "입력 중 줄: 두 명"
+params = { a = "string", b = "string" }
+other = "{a}, {b} 입력 중…"
+
+[unfriend_ask]
+desc = "친구 끊기 확인 질문. name = 상대 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}님과 친구를 끊을까요?"
+
+[unfriend_body]
+desc = "친구 끊기 확인 설명"
+no_truncate = true
+other = "지난 DM은 남지만 읽기 전용이 될 수 있어요"
+
+[unfriend_failed]
+desc = "오류 알림 머리: 친구 끊기 실패"
+other = "친구를 끊지 못했어요"
+
+[unfriend_yes]
+desc = "친구 끊기 확인 단추"
+other = "끊기"
+
+[unfriended]
+desc = "알림: 친구를 끊음"
+params = { name = "string" }
+other = "{name}님과 친구를 끊었어요"

@@ -131,15 +131,15 @@ func memberRowActions(ctx *ui.Context, spaceID string, m api.SpaceMember) []menu
 		)
 	}
 	items = append(items,
-		menuItem{Label: itemSendDM, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		menuItem{Label: cat(ctx).Chat.ItemSendDm(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return openDMCmd(ctx, []api.UserRef{userRef(u)}, ""), nil
 		}},
-		menuItem{Label: itemReportUser, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+		menuItem{Label: cat(ctx).Chat.ItemReportUser(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.ReportDialog("user", u.ID, name)
 		}},
 	)
 	if !ctx.Store.IsBlocked(u.ID) {
-		items = append(items, menuItem{Label: itemBlockUser, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: cat(ctx).Chat.ItemBlockUser(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, blockConfirm(ctx, u)
 		}})
 	}

@@ -16,7 +16,7 @@ import (
 
 func init() {
 	ui.RegisterPane(layout.SlotRail, newRail)
-	ui.RegisterOverlay(overlaySpaceAdd, func(*ui.Context, string) ui.Overlay { return newSpaceAddMenu() })
+	ui.RegisterOverlay(overlaySpaceAdd, func(ctx *ui.Context, _ string) ui.Overlay { return newSpaceAddMenu(ctx) })
 }
 
 // overlaySpaceAdd is the registered rail "+" menu.
@@ -116,7 +116,7 @@ func railItems(ctx *ui.Context) []railItem {
 		it.Current = it.ID == cur
 		return append(its, it)
 	}
-	items := add(nil, railItem{ID: railHome, Glyph: "홈"}, nil)
+	items := add(nil, railItem{ID: railHome, Glyph: cat(ctx).Chat.RailHome()}, nil)
 	items = add(items, railItem{ID: railDM, Glyph: "DM"}, visibleDMs(ctx))
 	if ctx != nil && ctx.Store != nil {
 		s := ctx.Store
@@ -272,7 +272,7 @@ func (p *railPane) run(ctx *ui.Context, it railItem) tea.Cmd {
 	case it.ID == railDM:
 		return goDMs()
 	case it.ID == railAdd:
-		return ui.OpenOverlay(newSpaceAddMenu())
+		return ui.OpenOverlay(newSpaceAddMenu(ctx))
 	case strings.HasPrefix(it.ID, railSpacePrefix):
 		return goSpace(ctx, strings.TrimPrefix(it.ID, railSpacePrefix))
 	}
@@ -315,10 +315,11 @@ func goSpace(ctx *ui.Context, id string) tea.Cmd {
 
 // newSpaceAddMenu is the rail "+" menu (chat.space_add):
 // 방 만들기 → chat.space_create, 초대 코드로 참여 → chat.space_join.
-func newSpaceAddMenu() ui.Overlay {
-	return newMenu("방 추가", []menuItem{
-		{Label: "방 만들기", Run: openRegistered(overlaySpaceCreate, "")},
-		{Label: "초대 코드로 참여", Run: openRegistered(overlaySpaceJoin, "")},
+func newSpaceAddMenu(ctx *ui.Context) ui.Overlay {
+	c := cat(ctx)
+	return newMenu(c.Chat.SpaceAddTitle(), []menuItem{
+		{Label: c.Chat.MenuSpaceCreate(), Run: openRegistered(overlaySpaceCreate, "")},
+		{Label: c.Chat.MenuSpaceJoin(), Run: openRegistered(overlaySpaceJoin, "")},
 	})
 }
 

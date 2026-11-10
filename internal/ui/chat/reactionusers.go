@@ -9,6 +9,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -23,13 +24,10 @@ func init() {
 
 // Reaction users overlay texts and sizes.
 const (
-	reactionUsersSuffix = " 누른 사람"
-	reactionUsersEmpty  = "아직 아무도 없어요"
-	reactionUsersFailed = "목록을 불러오지 못했어요"
-	reactionUsersMaxW   = 40
-	reactionUsersMaxH   = 14
-	reactionUsersMinH   = 6 // the app degrades shorter overlays to the whole body
-	reactionUsersPage   = 50
+	reactionUsersMaxW = 40
+	reactionUsersMaxH = 14
+	reactionUsersMinH = 6 // the app degrades shorter overlays to the whole body
+	reactionUsersPage = 50
 )
 
 // reactionUsersResult is one ListReactionUsers page of an overlay instance.
@@ -104,7 +102,7 @@ func (o *reactionUsers) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	}
 	o.loading = false
 	if m.Err != nil || m.Value.page == nil {
-		o.failed = reactionUsersFailed + ": " + errtext.Describe(ctx.T, m.Err)
+		o.failed = cat(ctx).Chat.ReactionUsersFailed() + ": " + errtext.Describe(ctx.T, m.Err)
 		return nil
 	}
 	o.failed = ""
@@ -154,16 +152,18 @@ func (o *reactionUsers) Bounds(body layout.Rect) layout.Rect {
 
 func (o *reactionUsers) Modal() bool { return true }
 
-func (o *reactionUsers) title() string {
-	return textwidth.Sanitize(o.emoji) + reactionUsersSuffix
+func (o *reactionUsers) title(c *i18n.T) string {
+	return c.Chat.ReactionUsersTitle(textwidth.Sanitize(o.emoji))
 }
 
-func (o *reactionUsers) Title(*ui.Context) (string, ui.Badge) { return o.title(), ui.Badge{} }
+func (o *reactionUsers) Title(ctx *ui.Context) (string, ui.Badge) {
+	return o.title(cat(ctx)), ui.Badge{}
+}
 
-func (o *reactionUsers) Help(*ui.Context) []key.Binding {
+func (o *reactionUsers) Help(ctx *ui.Context) []key.Binding {
 	return []key.Binding{
-		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "이동")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")),
+		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", cat(ctx).Common.HelpMove())),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", cat(ctx).Common.HelpClose())),
 	}
 }
 
@@ -251,7 +251,7 @@ func (o *reactionUsers) View(ctx *ui.Context, _ bool) string {
 	cw := w - 2*p
 	var head []string
 	if n := o.headRows(); n > 0 {
-		head = append(head, cell(t.S.Title.Render, o.title(), cw))
+		head = append(head, cell(t.S.Title.Render, o.title(cat(ctx)), cw))
 		if n > 1 {
 			head = append(head, "")
 		}
@@ -262,9 +262,9 @@ func (o *reactionUsers) View(ctx *ui.Context, _ bool) string {
 	case o.failed != "" && len(o.items) == 0:
 		body = []string{cell(t.S.Error.Render, textwidth.Sanitize(o.failed), cw)}
 	case !o.loaded:
-		body = []string{cell(t.S.Dim.Render, loadingText, cw)}
+		body = []string{cell(t.S.Dim.Render, cat(ctx).Chat.Loading(), cw)}
 	case len(o.items) == 0:
-		body = []string{cell(t.S.Dim.Render, reactionUsersEmpty, cw)}
+		body = []string{cell(t.S.Dim.Render, cat(ctx).Chat.ReactionUsersEmpty(), cw)}
 	default:
 		body = strings.Split(o.list.View(ctx, ui.Size{W: cw, H: bodyH}), "\n")
 	}

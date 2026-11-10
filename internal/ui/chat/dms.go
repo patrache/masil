@@ -21,13 +21,7 @@ func init() {
 }
 
 // DM list texts.
-const (
-	dmsTitle      = "DM"
-	dmsEmptyTitle = "아직 DM 이 없어요"
-	dmsEmptyHint  = "ctrl+k 로 친구를 찾아 대화를 시작해 보세요"
-	dmsMine       = "나: "
-	dmsDeleted    = "삭제된 메시지"
-)
+const ()
 
 // dmsSaved is the Persistent state of the DM list.
 type dmsSaved struct {
@@ -210,7 +204,7 @@ func dmPreview(ctx *ui.Context, ch *api.Channel) string {
 	}
 	body := m.Body
 	if m.Deleted {
-		body = dmsDeleted
+		body = cat(ctx).Chat.DmsDeleted()
 	}
 	body, _, _ = strings.Cut(strings.TrimSpace(body), "\n")
 	body = strings.TrimSpace(textwidth.Sanitize(body))
@@ -220,7 +214,7 @@ func dmPreview(ctx *ui.Context, ch *api.Channel) string {
 	s := ctx.Store
 	switch {
 	case s.IsMe(m.Author.ID):
-		body = dmsMine + body
+		body = cat(ctx).Chat.DmsMine(body)
 	case ch.Kind == api.ChannelGroupDM:
 		u := m.Author
 		if cu := s.User(u.ID); cu != nil {
@@ -253,7 +247,7 @@ func (v *dmListView) View(ctx *ui.Context, focused bool) string {
 			}
 			return widgets.Empty(themeOf(ctx), v.size, icon, title, hint)
 		}
-		return widgets.Empty(themeOf(ctx), v.size, "💬", dmsEmptyTitle, dmsEmptyHint)
+		return widgets.Empty(themeOf(ctx), v.size, "💬", cat(ctx).Chat.DmsEmptyTitle(), cat(ctx).Chat.DmsEmptyHint())
 	}
 	lines := strings.Split(v.list.View(ctx, v.size), "\n")
 	return strings.Join(textwidth.Fit(lines, w, h), "\n")
@@ -261,7 +255,7 @@ func (v *dmListView) View(ctx *ui.Context, focused bool) string {
 
 // Title is "DM", badged with the DM unread (Store.DMUnread).
 func (v *dmListView) Title(ctx *ui.Context) (string, ui.Badge) {
-	return dmsTitle, dmUnreadBadge(ctx)
+	return cat(ctx).Chat.DmsTitle(), dmUnreadBadge(ctx)
 }
 
 // dmUnreadBadge is the DM tab / rail / sidebar entry badge: the unread of the visible

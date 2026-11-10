@@ -193,7 +193,7 @@ func TestSpaceAddMenuMorphs(t *testing.T) {
 		id   string
 	}{{[]string{"enter"}, "chat.space_create"}, {[]string{"j", "enter"}, "chat.space_join"}} {
 		h := devChannel(t, uitest.Size{W: 120, H: 40})
-		h.Send(ui.OpenOverlayMsg{Overlay: newSpaceAddMenu()})
+		h.Send(ui.OpenOverlayMsg{Overlay: newSpaceAddMenu(h.Context())})
 		h.Press(tc.keys...)
 		if n := len(h.Model.Frame().Overlays); n != 1 {
 			t.Fatalf("%s: %d overlays (the menu must morph in place, never close-then-open)", tc.id, n)

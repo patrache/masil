@@ -41,7 +41,6 @@ const (
 	privateMembersTitle = "비공개 채널 멤버"
 	privateMembersNone  = "함께할 멤버가 없어요 · enter 로 나만 있는 채널 만들기"
 	channelCreatedSfx   = " 채널을 만들었어요"
-	channelRowNew       = "＋ 새 채널"
 	channelRowNewID     = "new"
 	tagChannelCreate    = "chat.channel_create:"
 	tagPrivateMembers   = "chat.channel_create_members:"
@@ -163,7 +162,7 @@ func newSpaceChannels(v *spaceSettingsView) *channelTab {
 }
 
 func (b *channelTab) sync(ctx *ui.Context) {
-	rows := []channelItem{{id: channelRowNewID, label: channelRowNew}}
+	rows := []channelItem{{id: channelRowNewID, label: cat(ctx).Chat.ChannelRowNew()}}
 	if ctx != nil && ctx.Store != nil {
 		for _, ch := range ctx.Store.SpaceChannels(b.v.spaceID) {
 			rows = append(rows, channelItem{id: ch.ID, label: channelTitle(ctx, ch, true)})

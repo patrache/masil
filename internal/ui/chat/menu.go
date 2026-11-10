@@ -240,9 +240,9 @@ func (m *menu) Help(ctx *ui.Context) []key.Binding {
 		return m.morph.help(ctx)
 	}
 	return []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "실행")),
-		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "이동")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", cat(ctx).Chat.HelpRun())),
+		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", cat(ctx).Common.HelpMove())),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", cat(ctx).Common.HelpClose())),
 	}
 }
 
