@@ -3,10 +3,12 @@ package fsroot
 import (
 	"path"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // deniedNames are glob patterns (path.Match syntax) matched against every
-// lowercased slash-separated element of a path.
+// case-folded (foldName) slash-separated element of a path.
 var deniedNames = []string{
 	".env", ".env.*",
 	"*.pem", "*.key", "*.p12", "*.pfx", "*.kdbx",
@@ -37,16 +39,34 @@ func Denied(rel string) bool {
 }
 
 func deniedElement(el string) bool {
+	low := foldName(el)
 	for _, d := range deniedDirs {
-		if strings.EqualFold(el, d) {
+		if low == d {
 			return true
 		}
 	}
-	low := strings.ToLower(el)
 	for _, p := range deniedNames {
 		if ok, _ := path.Match(p, low); ok {
 			return true
 		}
 	}
 	return false
+}
+
+// foldName lowercases el the way case-insensitive file systems compare
+// names: every rune whose simple case-fold orbit holds an ASCII letter
+// becomes that letter in lower case (U+017F "ſ" -> "s", U+212A KELVIN SIGN
+// -> "k"), the rest unicode.ToLower. strings.ToLower leaves "ſ" alone, yet
+// APFS and NTFS store "ſecrets.json" as the same entry as "secrets.json", so
+// a name that does not exist yet (no stored name to compare) could be
+// created under a spelling the deny list misses (v0.1.3 security (h)).
+func foldName(el string) string {
+	return strings.Map(func(r rune) rune {
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			if f < utf8.RuneSelf {
+				return unicode.ToLower(f)
+			}
+		}
+		return unicode.ToLower(r)
+	}, el)
 }

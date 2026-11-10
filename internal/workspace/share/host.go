@@ -118,6 +118,14 @@ type Host struct {
 	// those are relayed); under peerMu, a leaf lock.
 	peerMu   sync.Mutex
 	peerDocs map[string]int
+	// hidden: open documents that stopped passing the participant check,
+	// with the doc_state error; not relayed, closed on the next tick (under
+	// peerMu).
+	hidden map[string]string
+	// rules watches the ignore-rule files of the documents participants
+	// have open; a change re-checks them all.
+	rules        *fsroot.Watcher
+	lastRulePoll time.Time
 
 	props     []*proposal
 	propSeq   int
@@ -168,13 +176,15 @@ func NewHost(cfg HostConfig) *Host {
 		joins: map[uint8]*joinState{}, members: map[uint8]*member{},
 		propTimes: map[uint8][]time.Time{}, rate: map[uint8]*peerRate{},
 		opens: map[uint8]map[string]bool{}, peerDocs: map[string]int{},
+		hidden: map[string]string{},
 	}
 	h.docs = cfg.Docs
 	if h.docs == nil && cfg.Root != nil {
 		h.docs = NewDocManager(cfg.Root, nil, cfg.Clock)
 	}
 	if h.docs != nil {
-		h.docs.setHook(h, h.onDocSequenced)
+		h.rules = fsroot.NewWatcher(h.docs.root)
+		h.docs.setHook(h, h.onDocSequenced, h.onDocDisk)
 	}
 	return h
 }

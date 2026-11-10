@@ -118,7 +118,9 @@ func TestPreparePinsMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup2()
-	if slices.Contains(out2, "--permission-mode") {
-		t.Errorf("out = %v, the user's own mode flag is kept as is", out2)
+	// The user's own flag is kept and the checked mode is pinned right after
+	// the program name (v0.1.3 security (o)).
+	if out2[1] != "--permission-mode" || out2[2] != "plan" || out2[len(out2)-1] != "--permission-mode=plan" {
+		t.Errorf("out = %v, want --permission-mode plan pinned first and the user's flag kept", out2)
 	}
 }

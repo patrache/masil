@@ -3,6 +3,7 @@ package share
 import (
 	"errors"
 	"io/fs"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -175,7 +176,8 @@ type DocManager struct {
 	lastPoll time.Time
 	events   []DocEvent
 	onSeq    seqHook
-	hookBy   *Host // the host onSeq belongs to
+	onDisk   func(rel string) // told before an outside change of rel is merged
+	hookBy   *Host            // the host onSeq and onDisk belong to
 }
 
 // NewDocManager manages the documents of root; j may be nil (no recovery
@@ -187,9 +189,9 @@ func NewDocManager(root *fsroot.Root, j *journal.Journal, clock Clock) *DocManag
 	return &DocManager{root: root, j: j, clock: clock, watcher: fsroot.NewWatcher(root), docs: map[string]*doc{}}
 }
 
-func (m *DocManager) setHook(by *Host, f seqHook) {
+func (m *DocManager) setHook(by *Host, f seqHook, onDisk func(rel string)) {
 	m.mu.Lock()
-	m.onSeq, m.hookBy = f, by
+	m.onSeq, m.onDisk, m.hookBy = f, onDisk, by
 	m.mu.Unlock()
 }
 
@@ -197,7 +199,7 @@ func (m *DocManager) setHook(by *Host, f seqHook) {
 func (m *DocManager) clearHook(by *Host) {
 	m.mu.Lock()
 	if m.hookBy == by {
-		m.onSeq, m.hookBy = nil, nil
+		m.onSeq, m.onDisk, m.hookBy = nil, nil, nil
 	}
 	m.mu.Unlock()
 }
@@ -412,6 +414,11 @@ func (m *DocManager) mergeDisk(d *doc) error {
 	}
 	if err != nil {
 		return err
+	}
+	// The file may now be something else (a retargeted link, a folder
+	// swapped in): the host re-checks it before anything is relayed.
+	if m.onDisk != nil {
+		m.onDisk(d.rel)
 	}
 	x, err := d.disk.DiskChanged([]rune(text))
 	if err != nil {
@@ -690,13 +697,103 @@ func (h *Host) pathViolation(seat uint8, rel string, err error) string {
 	return code
 }
 
-// peerVisible reports whether some participant has rel open. peerMu is a
-// leaf lock: it is taken under h.mu or under DocManager.mu (the seq hook,
-// which also runs for the owner's own edits without h.mu).
+// peerVisible reports whether some participant has rel open and it was not
+// found hidden since. peerMu is a leaf lock: it is taken under h.mu or under
+// DocManager.mu (the seq hook, which also runs for the owner's own edits
+// without h.mu).
 func (h *Host) peerVisible(rel string) bool {
 	h.peerMu.Lock()
 	defer h.peerMu.Unlock()
-	return h.peerDocs[rel] > 0
+	return h.peerDocs[rel] > 0 && h.hidden[rel] == ""
+}
+
+// hide stops relaying rel at once; closeHidden then closes it for the
+// participants (code = the doc_state error they get).
+func (h *Host) hide(rel, code string) {
+	h.peerMu.Lock()
+	defer h.peerMu.Unlock()
+	if h.peerDocs[rel] > 0 && h.hidden[rel] == "" {
+		h.hidden[rel] = code
+	}
+}
+
+// recheckPeerDoc runs the participant path check on rel again and hides it
+// when it no longer passes. Opening checked rel once; what it names can
+// change afterwards: an ignore rule added, a link retargeted, a folder
+// swapped (v0.1.3 security (v)).
+func (h *Host) recheckPeerDoc(rel string) {
+	if !h.peerVisible(rel) {
+		return
+	}
+	for _, f := range h.docs.root.RuleFiles(rel) {
+		h.rules.TrackNow(f)
+	}
+	if _, err := h.docs.root.Check(rel, true); err != nil {
+		h.hide(rel, DocErrorCode(err))
+	}
+}
+
+// onDocDisk is the DocManager's hook before an outside change of rel is
+// merged (DocManager.mu held): a document that is hidden now is never
+// relayed again.
+func (h *Host) onDocDisk(rel string) { h.recheckPeerDoc(rel) }
+
+// pollRules re-checks every document participants have open when an
+// ignore-rule file that bears on one of them changed (every DiskPoll; the
+// rule files are stat'ed, git runs only after a change).
+func (h *Host) pollRules(now time.Time) {
+	if h.rules == nil || now.Sub(h.lastRulePoll) < DiskPoll {
+		return
+	}
+	h.lastRulePoll = now
+	if len(h.rules.Poll()) == 0 {
+		return
+	}
+	h.peerMu.Lock()
+	rels := make([]string, 0, len(h.peerDocs))
+	for rel := range h.peerDocs {
+		rels = append(rels, rel)
+	}
+	h.peerMu.Unlock()
+	slices.Sort(rels)
+	for _, rel := range rels {
+		h.recheckPeerDoc(rel)
+	}
+}
+
+// closeHidden closes the hidden documents for every seat that has them
+// open: each gets a doc_state with the reason and its edits are refused
+// from then on (h.mu held).
+func (h *Host) closeHidden() {
+	h.peerMu.Lock()
+	hidden := maps.Clone(h.hidden)
+	h.peerMu.Unlock()
+	if len(hidden) == 0 {
+		return
+	}
+	rels := slices.Collect(maps.Keys(hidden))
+	slices.Sort(rels)
+	seats := make([]uint8, 0, len(h.opens))
+	for seat := range h.opens {
+		seats = append(seats, seat)
+	}
+	slices.Sort(seats)
+	for _, rel := range rels {
+		for _, seat := range seats {
+			if !h.opens[seat][rel] {
+				continue
+			}
+			delete(h.opens[seat], rel)
+			h.peerOpen(rel, -1)
+			h.docs.Close(rel)
+			h.sendToPeer(h.members[seat], wire.KindDocState, mustJSON(wire.DocState{Doc: rel, Error: hidden[rel]}))
+		}
+		// Only now, with no seat left on it, may rel leave the hidden set:
+		// the owner's edits keep arriving without h.mu.
+		h.peerMu.Lock()
+		delete(h.hidden, rel)
+		h.peerMu.Unlock()
+	}
 }
 
 // peerOpen counts one participant's open of rel (delta +1 / -1).
@@ -741,6 +838,9 @@ func (h *Host) onDocOpen(seat uint8, m wire.DocOpen) {
 		clean = v.Rel
 		opens[clean] = true
 		h.peerOpen(clean, 1)
+		for _, f := range h.docs.root.RuleFiles(clean) {
+			h.rules.TrackNow(f)
+		}
 	}
 	// The state goes out under the manager's lock: no edit can be broadcast
 	// between reading seq and queueing doc_state.
@@ -826,7 +926,7 @@ func (h *Host) onDocSave(seat uint8, m wire.DocSave) {
 }
 
 func (h *Host) onDocPresence(seat uint8, m wire.DocPresence) {
-	if !h.opens[seat][m.Doc] {
+	if !h.opens[seat][m.Doc] || !h.peerVisible(m.Doc) {
 		return
 	}
 	m.Seat = seat
@@ -888,7 +988,9 @@ func (h *Host) tickDocs(now time.Time) {
 	if h.docs == nil {
 		return
 	}
+	h.pollRules(now)
 	h.pumpDocEvents(h.docs.Tick(now))
+	h.closeHidden()
 	h.unsaved = len(h.docs.Dirty())
 }
 

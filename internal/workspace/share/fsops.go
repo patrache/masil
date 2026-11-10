@@ -3,6 +3,7 @@ package share
 import (
 	"errors"
 	"io/fs"
+	"os"
 	"strconv"
 
 	"github.com/patrache/masil/internal/workspace/audit"
@@ -60,6 +61,14 @@ func (h *Host) onFsReq(seat uint8, m wire.FsReq) {
 				return
 			}
 		}
+		if err := root.CheckSubtree(from); err != nil {
+			reply(h.pathViolation(seat, m.From, err))
+			return
+		}
+		if m.Op == wire.FsRename && h.renameTargetTaken(from, to) {
+			reply(FsErrExists)
+			return
+		}
 		if len(h.props) >= ProposalQueueMax {
 			reply(FsErrFull)
 			return
@@ -85,6 +94,8 @@ func (h *Host) handleFsProposal(i int, p *proposal, action ProposalAction) {
 	act := "approve"
 	if action == ActReject {
 		act, res.Error = "reject", FsErrRejected
+	} else if code := h.recheckFs(p); code != "" {
+		res.Error = code
 	} else {
 		var err error
 		if p.Kind == wire.FsRename {
@@ -98,6 +109,42 @@ func (h *Host) handleFsProposal(i int, p *proposal, action ProposalAction) {
 	}
 	h.record(audit.EvFsAction, int(p.Seat), user, map[string]any{"id": p.ID, "op": p.Kind, "from": p.From, "to": p.To, "action": act, "error": res.Error})
 	h.sendToPeer(mb, wire.KindFsResult, mustJSON(res))
+}
+
+// renameTargetTaken reports an existing to: a participant's rename never
+// replaces a file or folder (v0.1.3 security (x)). The same entry under
+// another spelling (a case-only rename on a case-insensitive disk) is not
+// taken.
+func (h *Host) renameTargetTaken(from, to string) bool {
+	root := h.docs.root
+	tfi, err := root.Lstat(to)
+	if err != nil {
+		return !errors.Is(err, fs.ErrNotExist)
+	}
+	ffi, err := root.Lstat(from)
+	return err != nil || !os.SameFile(ffi, tfi)
+}
+
+// recheckFs repeats the request checks when the owner approves: the folder
+// and the ignore rules may have changed while the request waited. It
+// returns the fs_result error code ("" = go ahead).
+func (h *Host) recheckFs(p *proposal) string {
+	root := h.docs.root
+	if _, err := root.Check(p.From, true); err != nil {
+		return DocErrorCode(err)
+	}
+	if p.Kind == wire.FsRename {
+		if _, err := root.Check(p.To, true); err != nil {
+			return DocErrorCode(err)
+		}
+	}
+	if err := root.CheckSubtree(p.From); err != nil {
+		return DocErrorCode(err)
+	}
+	if p.Kind == wire.FsRename && h.renameTargetTaken(p.From, p.To) {
+		return FsErrExists
+	}
+	return ""
 }
 
 // RequestFs asks the owner to create (at once), rename or delete (after the

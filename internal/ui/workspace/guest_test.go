@@ -488,3 +488,25 @@ func TestPickerListsInvites(t *testing.T) {
 		t.Fatalf("no invited share in the picker:\n%s", h.Screen())
 	}
 }
+
+// v0.1.3 security (v): the owner closes a document I have open once it no
+// longer passes the participant check (a doc_state error for it): the tab
+// goes and its text is not shown any more.
+func TestGuestDocClosedByOwner(t *testing.T) {
+	setup(t)
+	h := uitest.New(t)
+	r := newGuestRig(t, h, nil)
+	r.admit(wire.LevelEditor)
+	r.s.guestOpen(h.Context(), hubTS)
+	r.settle()
+	if r.s.code.find(hubTS) == nil {
+		t.Fatalf("document not open:\n%s", h.Screen())
+	}
+	r.s.guestEvent(h.Context(), share.EventDocState{DocState: wire.DocState{Doc: hubTS, Error: share.DocErrIgnored}})
+	if r.s.code.find(hubTS) != nil {
+		t.Fatal("closed document still open")
+	}
+	if strings.Contains(h.Screen(), "DurableObject") {
+		t.Fatalf("closed document's text still shown:\n%s", h.Screen())
+	}
+}

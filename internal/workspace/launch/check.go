@@ -7,6 +7,7 @@ package launch
 import (
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // Reason says why Check blocked a program.
@@ -23,7 +24,8 @@ const (
 	// ReasonUserSettings: a --settings of the user's own (file or inline
 	// JSON). It can set permissions.defaultMode outside ClaudeModes, and how
 	// claude combines it with masil's --settings is not known, so it blocks.
-	// masil's own file from Prepare is recognised and allowed.
+	// masil's own file from Prepare (that exact path, until its cleanup) is
+	// allowed.
 	ReasonUserSettings
 )
 
@@ -60,18 +62,36 @@ const (
 	defaultClaudeMode  = "manual"
 	permissionModeFlag = "--permission-mode"
 	settingsFlag       = "--settings"
-	// settingsPrefix/settingsSuffix name Prepare's temp file.
+	// settingsPrefix/settingsSuffix name Prepare's temp file (the name
+	// alone never makes a --settings masil's; see isMasilSettings).
 	settingsPrefix = "masil-claude-"
 	settingsSuffix = ".json"
 )
 
-// isMasilSettings reports a --settings value that is Prepare's temp file.
-func isMasilSettings(v string) bool {
-	base := filepath.Base(filepath.ToSlash(v))
-	if i := strings.LastIndexByte(base, '/'); i >= 0 {
-		base = base[i+1:]
+// prepared holds the settings files Prepare wrote and has not cleaned up.
+// Only those exact paths pass Check as masil's own --settings: a file that
+// merely follows the name pattern may hold the user's own settings
+// (v0.1.3 security (n)).
+var prepared = struct {
+	sync.Mutex
+	paths map[string]bool
+}{paths: map[string]bool{}}
+
+func markPrepared(p string, on bool) {
+	prepared.Lock()
+	defer prepared.Unlock()
+	if on {
+		prepared.paths[p] = true
+	} else {
+		delete(prepared.paths, p)
 	}
-	return strings.HasPrefix(base, settingsPrefix) && strings.HasSuffix(base, settingsSuffix)
+}
+
+// isMasilSettings reports a --settings value that is a live Prepare file.
+func isMasilSettings(v string) bool {
+	prepared.Lock()
+	defer prepared.Unlock()
+	return prepared.paths[v]
 }
 
 // ProgramName is the lowercased base name of argv[0] without a Windows
@@ -104,14 +124,17 @@ func Check(argv []string) Verdict {
 		}
 		return Verdict{Allowed: true, Warnings: []Warning{WarnUnknownProgram}}
 	}
-	mode := defaultClaudeMode
+	// Every option-like token counts, after "--" too: claude's parser can
+	// take a "--" as the value of the option before it ("--append-system-
+	// prompt -- --permission-mode dontAsk"), leaving what follows live
+	// (v0.1.3 security (n)(o)). A prompt word after "--" that merely starts
+	// with "-" and names one of these flags is blocked as well; that costs
+	// nothing real.
+	mode, explicit := defaultClaudeMode, false
 	args := argv[1:]
 	for i := 0; i < len(args); i++ {
 		a := args[i]
-		if a == "--" {
-			break
-		}
-		if !strings.HasPrefix(a, "-") {
+		if a == "--" || !strings.HasPrefix(a, "-") {
 			continue
 		}
 		flag, value, hasValue := strings.Cut(a, "=")
@@ -144,7 +167,12 @@ func Check(argv []string) Verdict {
 		if !allowedMode(value) {
 			return Verdict{Reason: ReasonModeNotAllowed, Mode: value}
 		}
-		mode = value
+		// Two different modes: which one claude keeps depends on how it
+		// parses the options in between, so the mode cannot be named.
+		if explicit && value != mode {
+			return Verdict{Reason: ReasonModeNotAllowed, Mode: value}
+		}
+		mode, explicit = value, true
 	}
 	v := Verdict{Allowed: true, Mode: mode}
 	if mode == "acceptEdits" {

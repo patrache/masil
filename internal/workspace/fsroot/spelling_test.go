@@ -3,6 +3,7 @@ package fsroot
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -76,5 +77,64 @@ func TestCheckSpellingAliasIgnored(t *testing.T) {
 	}
 	if text, _, err := r.ReadText("DOCS/open.txt"); err != nil || text != "open" {
 		t.Errorf("ReadText(DOCS/open.txt) = %q, %v", text, err)
+	}
+}
+
+// Names that do not exist yet have no stored name to compare, so the deny
+// list itself must fold the way APFS and NTFS do: U+017F "ſ" is "s", U+212A
+// KELVIN SIGN is "k". Otherwise a participant creates "ſecrets.json" and the
+// owner's tools later write "secrets.json" into that same entry (v0.1.3
+// security (h) follow-up).
+func TestDeniedFoldsUnicodeCase(t *testing.T) {
+	for _, rel := range []string{
+		"ſecrets.json", "credentialſ.json", "id_rſa", ".git-credentialſ", "x.Key",
+		"x.Key", "a/.Kube/../.ſſh/config", ".ſsh/config", "ſub/.ENV",
+	} {
+		if !Denied(rel) {
+			t.Errorf("Denied(%q) = false, want true", rel)
+		}
+	}
+	for _, rel := range []string{"ſecret.go", "Key.go", "straße.md"} {
+		if Denied(rel) {
+			t.Errorf("Denied(%q) = true, want false", rel)
+		}
+	}
+}
+
+func TestCreateFoldedDeniedName(t *testing.T) {
+	proj := t.TempDir()
+	r := openRoot(t, proj)
+	for _, rel := range []string{"ſecrets.json", "id_rſa", "x.Key", "x.Key"} {
+		if _, err := r.Check(rel, true); !isReason(err, ReasonDenied) {
+			t.Errorf("Check(%q, peer) err = %v, want Denied", rel, err)
+		}
+		if err := r.Create(rel); !isReason(err, ReasonDenied) {
+			t.Errorf("Create(%q) err = %v, want Denied", rel, err)
+		}
+	}
+}
+
+func isReason(err error, want Reason) bool {
+	reason, ok := reasonOf(err)
+	return ok && reason == want
+}
+
+// RuleFiles names the rule files above the path and above its link target.
+func TestRuleFiles(t *testing.T) {
+	proj := t.TempDir()
+	writeFile(t, proj, "a/b/c.txt", "x")
+	writeFile(t, proj, "d/e.txt", "y")
+	r := openRoot(t, proj)
+	if err := os.Symlink("../d/e.txt", filepath.Join(proj, "a", "l.txt")); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+	got := r.RuleFiles("a/l.txt")
+	for _, want := range []string{".gitignore", ".masilignore", "a/.gitignore", "a/.masilignore", "d/.masilignore", ".git/info/exclude"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("RuleFiles = %v, lacks %s", got, want)
+		}
+	}
+	if slices.Contains(got, "a/b/.gitignore") {
+		t.Errorf("RuleFiles = %v, has a folder not above the path", got)
 	}
 }

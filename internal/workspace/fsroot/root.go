@@ -11,9 +11,14 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 )
+
+// windowsNames enables the Windows-only name checks in cleanRel (a var so
+// the tests can run them on any OS).
+var windowsNames = runtime.GOOS == "windows"
 
 // maxLinkHops bounds symlink resolution in Check (like the kernel's ELOOP).
 const maxLinkHops = 40
@@ -141,7 +146,31 @@ func cleanRel(rel string) (string, error) {
 	if escapes(clean) {
 		return "", reject(rel, ReasonEscape)
 	}
+	if windowsNames && windowsAlias(clean) {
+		return "", reject(rel, ReasonInvalid)
+	}
 	return clean, nil
+}
+
+// windowsAlias reports an element Windows does not store literally: a ':'
+// (alternate data stream, ".env::$DATA" is ".env") or a trailing dot or
+// space (".env." and ".env " are ".env"). Such spellings reach or create a
+// file under a name the deny list and the ignore rules never see (v0.1.3
+// security (g)). Win32 cannot create these names, so refusing them costs the
+// owner nothing. 8.3 short names ("SECRET~1.JSO") are not refused here: an
+// existing one is mapped to its stored long name by diskName, and one that
+// does not exist is an ordinary long name ("Copy~1.txt"), which the owner
+// must keep being able to open.
+func windowsAlias(clean string) bool {
+	for _, el := range split(clean) {
+		if el == "." || el == ".." {
+			continue
+		}
+		if strings.ContainsRune(el, ':') || strings.HasSuffix(el, ".") || strings.HasSuffix(el, " ") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasDrive(p string) bool {
