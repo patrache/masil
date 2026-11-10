@@ -80,3 +80,26 @@ Verification after the fixes:
 - `GOOS=windows go vet ./...`: OK.
 - `go vet ./...`: OK.
 - Final verify (main session, workflow wzf1tbh3j): full `go test ./...` PASS; tmux QA of ctrl+t hub/leave/x-label/status hint PASS; login-shell account switch PASS (glowb → ~/.claude-work, elsewhere unset).
+
+## 7. [ ] 안내
+
+Owner 16:56 / 16:58 / 16:59 (final): the top of the screen shows **everything `[` / `]` walk through right now**, all entries, in every mode (standard included), and a click on an entry goes there. Branch `release/v0.1.3-1` (worktree rel0131).
+
+| Commit | What |
+|---|---|
+| 273d5c7d | `widgets.WalkBar`: every entry on one line, current one `TabActive`, `[` before the `[` target and `]` after the `]` target (wrapping; two entries → both marks on the other; one → none). When too wide: labels cut to a common width with `…`, then `Tab.Short` (icon / first two cells), then no padding, then no badges. Never scrolls an entry away. `Hit` for clicks. `widgets.Tabs` (friends, profile, feed tabs) is unchanged. |
+| 95d2546f | `app/walk.go`: `NavState.walkPlaces(scope)` is the single order. `walkLen` / `walkPos` / `walkTo`, the keys (`walkStep`), the click (`walkGo`) and the bar (`walkItems`) all read it, so the bar cannot drift from the keys. Scopes: compact/standard = tab roots, DM, 피드, 알림 (+도구); widget/tiny = 채팅, DM, 피드, 알림 (+도구); command = tab roots, DM; tool surface focused (not widget/tiny) = the open tools, hub included. Layout: standard and command get `SlotTabs` on row 0. Goldens regenerated after checking several by eye (list in the commit message). |
+| a4673a54 | README ko/en: the `[` / `]` row says the top tab bar lists the walk and is clickable. |
+
+Tests (red first where the code did not exist yet: the WalkBar and walk tests failed to compile before the code was added):
+- `widgets`: `TestWalkBarWideShowsEveryLabelAndMarks`, `TestWalkBarWrapsMarks`, `TestWalkBarNarrowKeepsEveryEntry` (widths 70…16, every active index: `[`/`]` visible and every entry clickable), `TestWalkBarHitMapsTheLabel`.
+- `app`: `TestWalkBarOnTopEveryMode`, `TestWalkBarAgreesWithKeys` (`]` and `[` all the way round, five modes, chat side and tool surface, plus the shown place checked against the marked label), `TestWalkBarClick` (every entry, every mode), `TestWalkBarStandardGolden` (`standard_tools`, `standard_chat`). Mutation check: swapping the 피드/알림 labels in `walkItems` makes `TestWalkBarAgreesWithKeys` fail.
+- Full `go test ./...` (no -short): PASS. `go vet` with GOOS=darwin/windows/linux: OK. Hangul ratchet: PASS (no new literals; the bar reuses the existing labels and `Tools.TabLabel/TabLabelShort`).
+
+Deviations:
+- 내 판단: the marks are `[` / `]` written **in place of the padding blank** of the target tab (`[알림 `, ` DM]`), so the bar is no wider than before. The current entry uses the existing `TabActive` pill rather than `▸ ◂`. Both themes already style `Tab`/`TabActive`.
+- 내 판단: the bar is a full-width row 0 in standard and command (not the pane title line). This is the same place compact/widget/tiny already use, and it gives one look everywhere. The body is one row shorter in those modes.
+- 내 판단: in compact (and standard/command) on the tool surface, the bar lists the open tools, because that is what `[` / `]` walk there. The chat side's `도구` entry shows again after ctrl+t. Widget/tiny keep their fixed 채팅/DM/피드/알림/도구 walk (they never walk tools with `[` `]`), so their bar is unchanged except for the marks. Their context line still shows the active tool.
+- 내 판단: a click on a chat-side entry always moves the focus to Main (`followMain`), as clicks did before. A key does that only when Main had the focus.
+- The old claim "with no tool open the shell is 0.1.2 byte for byte" no longer holds, because standard/command gained the bar and every bar gained the marks. The tools.go comment says so now.
+- `TestHostileScreens/channel` looked for the head of the hostile long message at 120x40. With one row less, that head scrolls above the view, so the test now checks the same message's tail (`x`×60).
