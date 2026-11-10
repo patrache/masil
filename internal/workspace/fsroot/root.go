@@ -153,10 +153,14 @@ func cleanRel(rel string) (string, error) {
 }
 
 // windowsAlias reports an element Windows does not store literally: a ':'
-// (alternate data stream, ".env::$DATA" is ".env"), a trailing dot or space
-// (".env." and ".env " are ".env") or an 8.3 short-name form ("~" and a
-// digit, "SECRET~1.JSO"). Such spellings reach or create a file under a name
-// the deny list and the ignore rules never see (v0.1.3 security (g)).
+// (alternate data stream, ".env::$DATA" is ".env") or a trailing dot or
+// space (".env." and ".env " are ".env"). Such spellings reach or create a
+// file under a name the deny list and the ignore rules never see (v0.1.3
+// security (g)). Win32 cannot create these names, so refusing them costs the
+// owner nothing. 8.3 short names ("SECRET~1.JSO") are not refused here: an
+// existing one is mapped to its stored long name by diskName, and one that
+// does not exist is an ordinary long name ("Copy~1.txt"), which the owner
+// must keep being able to open.
 func windowsAlias(clean string) bool {
 	for _, el := range split(clean) {
 		if el == "." || el == ".." {
@@ -164,11 +168,6 @@ func windowsAlias(clean string) bool {
 		}
 		if strings.ContainsRune(el, ':') || strings.HasSuffix(el, ".") || strings.HasSuffix(el, " ") {
 			return true
-		}
-		for i := 0; i+1 < len(el); i++ {
-			if el[i] == '~' && el[i+1] >= '0' && el[i+1] <= '9' {
-				return true
-			}
 		}
 	}
 	return false

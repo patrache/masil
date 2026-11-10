@@ -15,7 +15,7 @@ func TestCheckRejectsWindowsAliasForms(t *testing.T) {
 	r := openRoot(t, proj)
 	for _, rel := range []string{
 		".env.", ".env ", ".env::$DATA", "ok.txt:stream", "sub./x", "sub /x",
-		"SECRET~1.JSO", "dir/CREDEN~2", "a/.env..",
+		"a/.env..",
 	} {
 		_, err := r.Check(rel, true)
 		if reason, ok := reasonOf(err); !ok || reason != ReasonInvalid {
@@ -43,5 +43,38 @@ func TestCheckKeepsUnixNamesOffWindows(t *testing.T) {
 		if _, err := r.Check(rel, true); err != nil {
 			t.Errorf("Check(%q) = %v, want ok", rel, err)
 		}
+	}
+}
+
+// "~" and a digit is an ordinary long name on Windows too (Copy~1.txt,
+// v1~2/). Existing 8.3 aliases are mapped to their stored name by diskName,
+// and a name that does not exist cannot be an alias, so neither the owner
+// nor a participant is refused it (v0.1.3 security (g) follow-up).
+func TestWindowsTildeDigitNamesUsable(t *testing.T) {
+	old := windowsNames
+	windowsNames = true
+	t.Cleanup(func() { windowsNames = old })
+	proj := t.TempDir()
+	writeFile(t, proj, "Copy~1.txt", "x")
+	writeFile(t, proj, "v1~2/a.txt", "y")
+	r := openRoot(t, proj)
+	for _, forPeer := range []bool{false, true} {
+		for _, rel := range []string{"Copy~1.txt", "v1~2", "v1~2/a.txt", "NEW~3.txt"} {
+			if _, err := r.Check(rel, forPeer); err != nil {
+				t.Errorf("Check(%q, %v) = %v, want ok", rel, forPeer, err)
+			}
+		}
+	}
+	if _, _, err := r.List("v1~2", false); err != nil {
+		t.Errorf("List(v1~2) = %v", err)
+	}
+	if _, _, err := r.ReadText("Copy~1.txt"); err != nil {
+		t.Errorf("ReadText(Copy~1.txt) = %v", err)
+	}
+	if err := r.Rename("Copy~1.txt", "Copy~2.txt"); err != nil {
+		t.Errorf("Rename = %v", err)
+	}
+	if err := r.Remove("Copy~2.txt"); err != nil {
+		t.Errorf("Remove = %v", err)
 	}
 }
