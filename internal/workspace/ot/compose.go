@@ -42,5 +42,5 @@ func Compose(a, b Op) (Op, error) {
 		}
 		ib.consume(n)
 	}
-	return out.op, nil
+	return out.result(), nil
 }

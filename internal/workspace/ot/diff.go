@@ -21,7 +21,7 @@ func Diff(a, b []rune) Op {
 	bl.retain(p)
 	diffLines(&bl, a[p:len(a)-s], b[p:len(b)-s])
 	bl.retain(s)
-	return bl.op
+	return bl.result()
 }
 
 // splitLines cuts after every '\n' (the last line may lack one).

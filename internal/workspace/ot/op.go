@@ -154,7 +154,7 @@ func (o Op) Invert(doc []rune) Op {
 			b.delete(utf8.RuneCountInString(c.Insert))
 		}
 	}
-	return b.op
+	return b.result()
 }
 
 // Insert builds "insert s at rune index at" over a baseLen-rune document.
@@ -163,7 +163,7 @@ func Insert(at int, s string, baseLen int) Op {
 	b.retain(at)
 	b.insert(s)
 	b.retain(baseLen - at)
-	return b.op
+	return b.result()
 }
 
 // Delete builds "delete n runes from at" over a baseLen-rune document.
@@ -172,14 +172,14 @@ func Delete(at, n, baseLen int) Op {
 	b.retain(at)
 	b.delete(n)
 	b.retain(baseLen - at - n)
-	return b.op
+	return b.result()
 }
 
 // Noop is the identity operation over an n-rune document.
 func Noop(n int) Op {
 	var b builder
 	b.retain(n)
-	return b.op
+	return b.result()
 }
 
 // TransformIndex moves a cursor index over o. Inserts before the index push
@@ -210,48 +210,56 @@ func TransformIndex(o Op, idx int) int {
 
 // builder appends components in canonical form (ot.js TextOperation):
 // no empty components, adjacent same kinds merged, insert before delete.
-type builder struct{ op Op }
+//
+// Between two retains the canonical form is one insert (all inserted text,
+// in order) followed by one delete (the sum). That trailing run is gathered
+// in ins/del and written out once, when a retain arrives or result is read:
+// merging with Insert += s would copy the growing text on every insert
+// (quadratic in one participant op; v0.1.3 security (a)).
+type builder struct {
+	ops Op
+	ins strings.Builder
+	del int
+}
+
+// flush writes the pending insert/delete run into ops.
+func (b *builder) flush() {
+	if b.ins.Len() > 0 {
+		b.ops = append(b.ops, Component{Insert: b.ins.String()})
+		b.ins = strings.Builder{}
+	}
+	if b.del > 0 {
+		b.ops = append(b.ops, Component{Delete: b.del})
+		b.del = 0
+	}
+}
 
 func (b *builder) retain(n int) {
 	if n <= 0 {
 		return
 	}
-	if l := len(b.op); l > 0 && b.op[l-1].isRetain() {
-		b.op[l-1].Retain += n
+	b.flush()
+	if l := len(b.ops); l > 0 && b.ops[l-1].isRetain() {
+		b.ops[l-1].Retain += n
 		return
 	}
-	b.op = append(b.op, Component{Retain: n})
+	b.ops = append(b.ops, Component{Retain: n})
 }
 
 func (b *builder) delete(n int) {
-	if n <= 0 {
-		return
+	if n > 0 {
+		b.del += n
 	}
-	if l := len(b.op); l > 0 && b.op[l-1].isDelete() {
-		b.op[l-1].Delete += n
-		return
-	}
-	b.op = append(b.op, Component{Delete: n})
 }
 
 func (b *builder) insert(s string) {
-	if s == "" {
-		return
-	}
-	l := len(b.op)
-	switch {
-	case l > 0 && b.op[l-1].isInsert():
-		b.op[l-1].Insert += s
-	case l > 0 && b.op[l-1].isDelete():
-		if l > 1 && b.op[l-2].isInsert() {
-			b.op[l-2].Insert += s
-		} else {
-			b.op = append(b.op, b.op[l-1])
-			b.op[l-1] = Component{Insert: s}
-		}
-	default:
-		b.op = append(b.op, Component{Insert: s})
-	}
+	b.ins.WriteString(s)
+}
+
+// result is the built operation. The builder may be used further.
+func (b *builder) result() Op {
+	b.flush()
+	return b.ops
 }
 
 // MarshalJSON writes the ot.js array form; a nil Op is [].
@@ -289,20 +297,7 @@ func (o *Op) UnmarshalJSON(data []byte) error {
 	if items == nil && !bytes.Equal(bytes.TrimSpace(data), []byte("[]")) {
 		return fmt.Errorf("ot: operation must be an array")
 	}
-	// Between two retains the canonical form is one insert (all inserted
-	// text, in order) followed by one delete (the sum), exactly what the
-	// builder produces. The run is gathered in a strings.Builder and flushed
-	// once: merging with Insert += s would copy the growing text on every
-	// element (quadratic within one frame; v0.1.3 security (a)).
 	var b builder
-	var ins strings.Builder
-	del := 0
-	flush := func() {
-		b.insert(ins.String())
-		b.delete(del)
-		ins.Reset()
-		del = 0
-	}
 	for _, it := range items {
 		it = bytes.TrimSpace(it)
 		if len(it) == 0 {
@@ -313,7 +308,7 @@ func (o *Op) UnmarshalJSON(data []byte) error {
 			if err := json.Unmarshal(it, &s); err != nil {
 				return fmt.Errorf("ot: %w", err)
 			}
-			ins.WriteString(s)
+			b.insert(s)
 			continue
 		}
 		n, err := strconv.Atoi(string(it))
@@ -322,16 +317,14 @@ func (o *Op) UnmarshalJSON(data []byte) error {
 		}
 		switch {
 		case n > 0:
-			flush()
 			b.retain(n)
 		case n < 0:
-			if del > MaxLen {
+			if b.del > MaxLen {
 				return fmt.Errorf("%w: delete run too long", ErrInvalid)
 			}
-			del -= n
+			b.delete(-n)
 		}
 	}
-	flush()
-	*o = b.op
+	*o = b.result()
 	return nil
 }

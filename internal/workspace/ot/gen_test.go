@@ -38,7 +38,7 @@ func randOp(r *rand.Rand, baseLen int) Op {
 	if r.Intn(2) == 0 {
 		b.insert(randString(r, 4))
 	}
-	return b.op
+	return b.result()
 }
 
 func newRand(seed int64) *rand.Rand { return rand.New(rand.NewSource(seed)) }

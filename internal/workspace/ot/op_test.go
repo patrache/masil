@@ -268,8 +268,125 @@ func TestUnmarshalMatchesBuilder(t *testing.T) {
 		if err := json.Unmarshal(data, &got); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(got, b.op) {
-			t.Fatalf("%s: got %#v want %#v", data, got, b.op)
+		if !reflect.DeepEqual(got, b.result()) {
+			t.Fatalf("%s: got %#v want %#v", data, got, b.result())
 		}
+	}
+}
+
+// staleInsertsOverDeleteAll is the (a) follow-up shape: op2 is n one-rune
+// inserts each followed by a one-rune retain, made against a base that op1
+// has since deleted whole. Transforming op2 over op1 drops every retain, so
+// the n inserts become adjacent and are merged by the builder.
+func staleInsertsOverDeleteAll(n int) (op1, op2 Op) {
+	op1 = Op{{Delete: n}}
+	op2 = make(Op, 0, 2*n)
+	for range n {
+		op2 = append(op2, Component{Insert: "a"}, Component{Retain: 1})
+	}
+	return op1, op2
+}
+
+func allocDuring(f func()) uint64 {
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
+// The builder merges adjacent inserts in linear time (v0.1.3 security (a)
+// follow-up): Transform used to copy the growing text on every merge.
+func TestTransformInsertMergeLinear(t *testing.T) {
+	const n = 60000
+	op1, op2 := staleInsertsOverDeleteAll(n)
+	var a2 Op
+	var err error
+	alloc := allocDuring(func() { a2, _, err = Transform(op2, op1) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alloc > 64<<20 {
+		t.Fatalf("Transform allocated %d bytes", alloc)
+	}
+	if want := (Op{{Insert: strings.Repeat("a", n)}}); !reflect.DeepEqual(a2, want) {
+		t.Fatalf("wrong transform (len %d)", len(a2))
+	}
+}
+
+// The same shape through the owner's Sequencer: a participant chooses the
+// stale base, so this is reachable from one frame.
+func TestSequencerStaleInsertsLinear(t *testing.T) {
+	const n = 60000
+	s := NewSequencer([]rune(strings.Repeat("x", n)))
+	op1, op2 := staleInsertsOverDeleteAll(n)
+	if _, _, err := s.Submit(0, op1); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	alloc := allocDuring(func() { _, _, err = s.Submit(0, op2) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alloc > 64<<20 {
+		t.Fatalf("Submit allocated %d bytes", alloc)
+	}
+	if got := string(s.Text()); got != strings.Repeat("a", n) {
+		t.Fatalf("wrong text (len %d)", len(got))
+	}
+}
+
+// Compose and Invert go through the same builder.
+func TestComposeInvertInsertMergeLinear(t *testing.T) {
+	const n = 60000
+	doc := []rune(strings.Repeat("x", n))
+	// a: delete every other rune; b: insert one rune at each of n/2 gaps.
+	// del: n one-rune deletes (not canonical), so Invert merges n inserts.
+	var a, b, del Op
+	for range n / 2 {
+		a = append(a, Component{Retain: 1}, Component{Delete: 1})
+		b = append(b, Component{Insert: "a"}, Component{Delete: 1})
+	}
+	for range n {
+		del = append(del, Component{Delete: 1})
+	}
+	alloc := allocDuring(func() {
+		if _, err := Compose(a, b); err != nil {
+			t.Fatal(err)
+		}
+		inv := del.Invert(doc)
+		if want := (Op{{Insert: string(doc)}}); !reflect.DeepEqual(inv, want) {
+			t.Fatalf("Invert: %d components", len(inv))
+		}
+	})
+	if alloc > 64<<20 {
+		t.Fatalf("Compose+Invert allocated %d bytes", alloc)
+	}
+}
+
+// Compose walking a long unsaved insert in one-rune steps must not copy the
+// rest of the insert on every step: the owner's DiskTracker composes every
+// sequenced participant edit into its unsaved edits.
+func TestComposeSplitInsertLinear(t *testing.T) {
+	const n = 20000
+	d := NewDiskTracker(nil)
+	if err := d.Edited(Op{{Insert: strings.Repeat("x", n)}}); err != nil {
+		t.Fatal(err)
+	}
+	var op Op
+	for range n / 2 {
+		op = append(op, Component{Retain: 1}, Component{Delete: 1})
+	}
+	var err error
+	alloc := allocDuring(func() { err = d.Edited(op) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alloc > 64<<20 {
+		t.Fatalf("Edited allocated %d bytes", alloc)
+	}
+	if want := (Op{{Insert: strings.Repeat("x", n/2)}}); !reflect.DeepEqual(d.unsaved, want) {
+		t.Fatalf("unsaved %d components", len(d.unsaved))
 	}
 }

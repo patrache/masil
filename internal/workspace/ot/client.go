@@ -232,5 +232,5 @@ func trimDiff(a, b []rune) Op {
 	bl.delete(len(a) - p - s)
 	bl.insert(string(b[p : len(b)-s]))
 	bl.retain(s)
-	return bl.op
+	return bl.result()
 }
