@@ -105,7 +105,7 @@ func TestQueryDetectsMissingExe(t *testing.T) {
 	launchdInstall(exe, config.Paths{})
 	os.Remove(exe)
 	st, err := launchdQuery()
-	if err != nil || !st.Installed || st.Running || !strings.HasSuffix(st.Detail, " · 실행 파일 없음: "+exe) {
+	if err != nil || !st.Installed || st.Running || st.ExeMissing != exe || strings.Contains(st.Detail, exe) {
 		t.Fatalf("status %+v, %v (home %s)", st, err, home)
 	}
 }

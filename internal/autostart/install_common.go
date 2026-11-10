@@ -18,14 +18,14 @@ import (
 // checkExe requires exe to be an absolute path to an existing regular file.
 func checkExe(exe string) error {
 	if !filepath.IsAbs(exe) {
-		return fmt.Errorf("자동 시작에 등록할 실행 파일 경로가 절대 경로가 아닙니다: %s", exe)
+		return &ExeError{Kind: ExeNotAbsolute, Exe: exe}
 	}
 	fi, err := os.Stat(exe)
 	if err != nil {
-		return fmt.Errorf("자동 시작에 등록할 실행 파일을 찾지 못했습니다: %s: %w", exe, err)
+		return &ExeError{Kind: ExeMissing, Exe: exe, Err: err}
 	}
 	if !fi.Mode().IsRegular() {
-		return fmt.Errorf("자동 시작에 등록할 실행 파일이 일반 파일이 아닙니다: %s", exe)
+		return &ExeError{Kind: ExeNotRegular, Exe: exe}
 	}
 	return nil
 }
@@ -43,14 +43,18 @@ func configDirFor(p config.Paths) (string, error) {
 	return dir, nil
 }
 
-// withExeCheck appends " · 실행 파일 없음: <exe>" to detail when the registered executable is gone.
-func withExeCheck(detail, exe string) string {
+// withExeCheck sets st.ExeMissing to exe when the registered executable is
+// gone (the CLI renders the note); a registration naming no executable reports "?".
+func withExeCheck(st *Status, exe string) {
 	if exe != "" {
 		if fi, err := os.Stat(exe); err == nil && fi.Mode().IsRegular() {
-			return detail
+			return
 		}
 	}
-	return detail + " · 실행 파일 없음: " + exe
+	if exe == "" {
+		exe = "?"
+	}
+	st.ExeMissing = exe
 }
 
 // fileExists reports whether path exists; errors other than "not exist" are returned.

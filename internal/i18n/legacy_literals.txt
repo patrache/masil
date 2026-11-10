@@ -3,10 +3,9 @@
 #   go test ./internal/i18n -run TestHangulLiteralRatchet -args -write-ratchet
 # Packages not listed (all new 0.1.3 packages) allow 0 — use the catalog.
 
-cmd/masil 85
+cmd/masil 4
 # permanent: operator CLI stays Korean (i18n 1.3)
 internal/admincli 77
-internal/autostart 7
 internal/markup 3
 internal/textwidth 2
 internal/theme 4

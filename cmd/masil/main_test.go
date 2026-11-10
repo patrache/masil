@@ -16,6 +16,7 @@ import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/app"
 	"github.com/patrache/masil/internal/version"
@@ -23,7 +24,7 @@ import (
 
 // Hidden test commands, registered once for the whole test binary.
 func init() {
-	register(command{Name: "zz-hidden", Usage: "masil zz-hidden — 시험용", Hidden: true,
+	register(command{Name: "zz-hidden", Usage: func(*i18n.T) string { return "masil zz-hidden — 시험용" }, Hidden: true,
 		Run: func(context.Context, *Env, []string) error { return nil }})
 	register(command{Name: "zz-ok", Hidden: true,
 		Run: func(context.Context, *Env, []string) error { return nil }})

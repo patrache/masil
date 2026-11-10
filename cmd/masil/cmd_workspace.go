@@ -24,14 +24,15 @@ import (
 const workspaceStopTimeout = 30 * time.Second
 
 func init() {
-	register(command{Name: "workspace", Usage: wsT().CliUsage(), Hidden: !features.On("workspace"), Run: cmdWorkspace})
+	register(command{Name: "workspace", Usage: func(t *i18n.T) string { return t.Workspace.CliUsage() },
+		Hidden: !features.On("workspace"), Run: cmdWorkspace})
 }
 
-// wsT is the CLI's words (the CLI speaks Korean, like the rest of cmd/masil).
-func wsT() i18n.WorkspaceT { return i18n.For(i18n.Ko).Workspace }
+// wsT is the CLI's workspace words in env's language.
+func wsT(env *Env) i18n.WorkspaceT { return env.cat().Workspace }
 
 func cmdWorkspace(ctx context.Context, env *Env, args []string) error {
-	t := wsT()
+	t := wsT(env)
 	if !features.On("workspace") || len(args) == 0 {
 		return usageError(env, t.CliUsage(), "", nil)
 	}
@@ -46,7 +47,7 @@ func cmdWorkspace(ctx context.Context, env *Env, args []string) error {
 
 // cmdWorkspaceOpen starts the TUI on the folder.
 func cmdWorkspaceOpen(ctx context.Context, env *Env, args []string) error {
-	t := wsT()
+	t := wsT(env)
 	pos, done, err := parseArgs(env, "workspace open", t.CliOpenUsage(), args, nil)
 	if done {
 		return err
@@ -69,7 +70,7 @@ func cmdWorkspaceOpen(ctx context.Context, env *Env, args []string) error {
 
 // cmdWorkspaceStop ends one share of mine, or every live one.
 func cmdWorkspaceStop(ctx context.Context, env *Env, args []string) error {
-	t := wsT()
+	t := wsT(env)
 	pos, done, err := parseArgs(env, "workspace stop", t.CliStopUsage(), args, nil)
 	if done {
 		return err
@@ -91,7 +92,7 @@ func cmdWorkspaceStop(ctx context.Context, env *Env, args []string) error {
 	} else {
 		shares, err := client.ListWorkspaceShares(c, "owner", "live")
 		if err != nil {
-			fmt.Fprintln(env.Stderr, t.CliStopFailed(errtext.Describe(i18n.For(i18n.Ko), err)))
+			fmt.Fprintln(env.Stderr, t.CliStopFailed(errtext.Describe(env.cat(), err)))
 			return err
 		}
 		for _, s := range shares {
@@ -106,7 +107,7 @@ func cmdWorkspaceStop(ctx context.Context, env *Env, args []string) error {
 	n := 0
 	for _, id := range ids {
 		if err := client.EndWorkspaceShare(c, id); err != nil {
-			fmt.Fprintln(env.Stderr, t.CliStopFailed(errtext.Describe(i18n.For(i18n.Ko), err)))
+			fmt.Fprintln(env.Stderr, t.CliStopFailed(errtext.Describe(env.cat(), err)))
 			if firstErr == nil {
 				firstErr = err
 			}

@@ -13,7 +13,9 @@ type T struct {
 	Archcanvas ArchcanvasT
 	Auth       AuthT
 	Chat       ChatT
+	Cli        CliT
 	Common     CommonT
+	Daemon     DaemonT
 	Errors     ErrorsT
 	Lazygit    LazygitT
 	Leetcode   LeetcodeT
@@ -32,7 +34,9 @@ func newT(l Locale) *T {
 	t.Archcanvas = ArchcanvasT{t}
 	t.Auth = AuthT{t}
 	t.Chat = ChatT{t}
+	t.Cli = CliT{t}
 	t.Common = CommonT{t}
+	t.Daemon = DaemonT{t}
 	t.Errors = ErrorsT{t}
 	t.Lazygit = LazygitT{t}
 	t.Leetcode = LeetcodeT{t}
@@ -52,7 +56,9 @@ var areas = map[string]*area{
 	"archcanvas": &areaArchcanvas,
 	"auth":       &areaAuth,
 	"chat":       &areaChat,
+	"cli":        &areaCli,
 	"common":     &areaCommon,
+	"daemon":     &areaDaemon,
 	"errors":     &areaErrors,
 	"lazygit":    &areaLazygit,
 	"leetcode":   &areaLeetcode,

@@ -416,7 +416,7 @@ package main
 
 type command struct {
 	Name   string   // "daemon", "admin", "login", ...
-	Usage  string   // one line, Korean
+	Usage  func(t *i18n.T) string // one line in t's language (P5 Task 10); nil = "masil <name>"
 	Hidden bool     // not listed in `masil help`
 	Run    func(ctx context.Context, env *Env, args []string) error
 }
@@ -427,6 +427,8 @@ type Env struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	T      *i18n.T          // CLI words in the resolved language (main: localize; nil = ko)
+	Lang   i18n.Resolution  // how it was chosen (`MASIL_LANG=en masil …` for one run)
 }
 
 func register(c command) // panics on duplicate Name; call from init()
@@ -3008,7 +3010,9 @@ func Run(ctx context.Context, o Options) error // AcquireDaemon; loop: load cred
 
 ```go
 package autostart
-type Status struct{ Installed, Running bool; Detail string }
+type Status struct{ Installed, Running bool; Detail string; ExeMissing string } // ExeMissing: the registered exe when it is gone (the CLI renders the note)
+// Errors (P5 Task 10): *ExeError{Kind ExeErrKind; Exe string; Err error} (ExeNotAbsolute, ExeMissing, ExeNotRegular, ExeTemporary),
+// ErrRunKeyConfigDir, ErrNoSystemd; Message(t *i18n.T, err error) string renders them (Error() = ko).
 func Install(exe string, p config.Paths) error   // macOS: ~/Library/LaunchAgents/com.patrache.masil.daemon.plist (RunAtLoad, KeepAlive{SuccessfulExit:false}, ProgramArguments [exe, "daemon", "run"], EnvironmentVariables MASIL_CONFIG_DIR if set) + `launchctl bootstrap gui/<uid>`;
                                                  // Linux: ~/.config/systemd/user/masil-daemon.service + `systemctl --user enable --now`;
                                                  // Windows: HKCU\Software\Microsoft\Windows\CurrentVersion\Run "masil-daemon" = "\"exe\" daemon run" (x/sys/windows/registry), console window hidden by daemon self-respawn
