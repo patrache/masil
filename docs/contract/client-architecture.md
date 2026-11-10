@@ -3188,7 +3188,7 @@ daemon-release: `daemon` 판정 시험(락 있음/없음/오류 × 서버 신호
 
 **v0.1.3 추가 — P0 필수 시험** (계획 P0 의 각 Task 가 이름까지 정함):
 
-- **기존 골든 무변화**: 도구는 출시 PR(P0 Task 31) 전까지 `features.On` 기본 꺼짐 — 허브·`ctrl+t` 도움말 줄·팔레트 항목까지 숨는다. 출시 PR 뒤 기본값은 출시 집합(다섯 도구)이고 `MASIL_FEATURES=none` 이 0.1.2 화면이다. v0.1.2 태그 대비 바뀐 골든은 새 골든(`TestPaneGolden`·`TestHubGolden`·`TestCardGolden`·`TestDiagramGolden/tool_*`)뿐이고, 기능을 켜는 출시 PR(P0 Task 31)만 도움말·팔레트 목록 골든을 바꾸며 그 파일 이름을 적는다(JX9). `MASIL_FEATURES=all` 이어도 도구를 열지 않은 셸 화면은 플래그 끔 화면과 같다(`TestFeaturesOnShellUnchanged`).
+- **기존 골든 무변화**: 도구는 출시 PR(P0 Task 31) 전까지 `features.On` 기본 꺼짐 — 허브·`ctrl+t` 도움말 줄·팔레트 항목까지 숨는다. 출시 PR 뒤 기본값은 출시 집합(다섯 도구)이고 `MASIL_FEATURES=none` 이 0.1.2 화면이다. v0.1.2 태그 대비 바뀐 골든은 새 골든(`TestPaneGolden`·`TestHubGolden`·`TestCardGolden`·`TestDiagramGolden/tool_*`·`TestReleaseEntriesGolden`)뿐이고, 기능을 켜는 출시 PR(P0 Task 31)만 도움말·팔레트 목록 골든을 바꾸며 그 파일 이름을 적는다(JX9). 0.1.3 출시 PR 은 기존 도움말·팔레트 골든을 하나도 바꾸지 않았다(도구 줄이 도움말 첫 쪽 밖, 팔레트 골든 검색어에 도구 명령 없음) — 그 대신 새 골든 `TestReleaseEntriesGolden`(e2e: 도움말 끝·팔레트 `도구` 검색)이 출시 항목을 보인다. `MASIL_FEATURES=all` 이어도 도구를 열지 않은 셸 화면은 플래그 끔 화면과 같다(`TestFeaturesOnShellUnchanged`).
 - **`termhost`**: 에뮬레이터 화면(한글 2칸 폭), 창 크기 변경 신호(SIGWINCH — Setsid/Setctty), 자식이 입력을 안 읽어도 막히지 않음, 0 크기 Resize 생존, 고아 프로세스 없음(부모 SIGKILL 뒤 자식 종료), 패널 4개 상한, OSC 52·OSC 8 무시·제목 Sanitize, 패널 바이트 로그 0.
 - **`termpane`**: `ctrl+\` 의 세 가지 표기(`ctrl+\`·`ctrl+4`·0x1c) 모두 접두키, 자식 종료 시 포커스 반환, TooSmall 왕복 생존, 공유 표시.
 - **import 그래프**: `cmd/masil` `TestImportGraph`(2.2 v0.1.3 규칙).
