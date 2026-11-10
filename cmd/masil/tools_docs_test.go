@@ -37,3 +37,16 @@ func TestFormulaCaveatsMentionLazygit(t *testing.T) {
 		}
 	}
 }
+
+// v0.1.3 A11.7: lazygit is MIT and not bundled, so the README tools section
+// names it and links it — in both READMEs (P1 Task 17 Step 6).
+func TestReadmeLazygitLink(t *testing.T) {
+	for _, c := range []struct{ rel, heading, line string }{
+		{"README.md", "## Tools", "lazygit — https://github.com/jesseduffield/lazygit (MIT, install it yourself)"},
+		{"README.ko.md", "## 도구", "lazygit — https://github.com/jesseduffield/lazygit (MIT, 직접 설치)"},
+	} {
+		if sec := readmeSection(t, readRepo(t, c.rel), c.heading); !strings.Contains(sec, c.line) {
+			t.Errorf("%s %s: no line %q", c.rel, c.heading, c.line)
+		}
+	}
+}

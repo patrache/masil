@@ -146,6 +146,7 @@ masil 0.1.3 adds five tools next to chat. `ctrl+t` opens the tools hub — press
 - Programs a tool runs (lazygit, nvim, workspace terminals) open in a panel inside masil, take over the whole terminal until they exit, or open in a tmux popup. The tool picks one; `m` in the hub lets you choose. Windows has no panels (the program takes over the terminal instead). At most 4 panels run at once, across all tools.
 - In a panel, `ctrl+\` is the prefix key: `ctrl+\` then `esc` back to masil, `z` zoom, `x` end the program, `?` help.
 - Tool logins and secrets (your LeetCode login, API keys) stay on this PC — in the macOS Keychain, Windows Credential Manager or Linux Secret Service — and are never sent to the masil server. Settings (`ctrl+k` → Settings) → **Tool logins** lists them and forgets them.
+- lazygit — https://github.com/jesseduffield/lazygit (MIT, install it yourself)
 - To run masil without any tool, set `MASIL_FEATURES=none`.
 
 ```sh
