@@ -1,0 +1,16 @@
+{
+ "schema_version": 1, "title": "09-external", "seed": 109, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 400, "read_permille": 700}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": ""},
+  {"id": "pay", "kind": "external", "label": "pay", "pos": [40, 0], "parent": "", "params": {"fixed_latency_ms": 250, "error_permille": 20, "max_rps": 200}},
+  {"id": "maps", "kind": "external", "label": "maps", "pos": [40, 6], "parent": "", "params": {"fixed_latency_ms": 80, "max_rps": 1000}}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "api", "to": "pay", "read_permille": 0, "write_permille": 1000},
+  {"id": "e3", "from": "api", "to": "maps", "read_permille": 300, "write_permille": 0}
+ ],
+ "faults": []
+}

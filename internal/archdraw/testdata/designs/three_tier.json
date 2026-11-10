@@ -1,0 +1,37 @@
+{
+ "schema_version": 1, "title": "결제 3계층", "seed": 7, "duration_s": 120,
+ "boxes": [
+  {"id": "seoul", "kind": "region", "label": "서울 리전", "parent": "", "rect": [0, 0, 120, 60], "region_code": "ap-northeast-2"},
+  {"id": "vpc", "kind": "vpc", "label": "본 VPC", "parent": "seoul", "rect": [2, 2, 116, 56]},
+  {"id": "az-a", "kind": "az", "label": "가용 영역 A", "parent": "vpc", "rect": [4, 10, 54, 46]},
+  {"id": "az-b", "kind": "az", "label": "가용 영역 B", "parent": "vpc", "rect": [62, 10, 54, 46]}
+ ],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "사용자", "pos": [0, 70], "traffic": {"rps": 1200}},
+  {"id": "cdn", "kind": "cdn", "label": "CDN", "pos": [20, 70]},
+  {"id": "lb", "kind": "lb", "label": "부하 분산기", "pos": [50, 4], "parent": "vpc"},
+  {"id": "api-a", "kind": "api", "label": "결제 API", "pos": [10, 14], "parent": "az-a", "instances": 3},
+  {"id": "api-b", "kind": "api", "label": "결제 API", "pos": [70, 14], "parent": "az-b", "instances": 3},
+  {"id": "cache", "kind": "cache", "label": "세션 캐시", "pos": [10, 24], "parent": "az-a"},
+  {"id": "jobs", "kind": "queue", "label": "작업 큐", "pos": [70, 24], "parent": "az-b"},
+  {"id": "primary", "kind": "db_primary", "label": "주 DB", "pos": [10, 34], "parent": "az-a", "params": {"failover_to": "replica", "failover_s": 30}},
+  {"id": "replica", "kind": "db_replica", "label": "읽기 복제본", "pos": [70, 44], "parent": "az-b"},
+  {"id": "files", "kind": "object_storage", "label": "영수증 저장소", "pos": [100, 70]},
+  {"id": "search", "kind": "search", "label": "주문 검색", "pos": [40, 44], "parent": "vpc"},
+  {"id": "pg", "kind": "external", "label": "PG사", "pos": [120, 70]}
+ ],
+ "edges": [
+  {"id": "e01", "from": "users", "to": "cdn"},
+  {"id": "e02", "from": "cdn", "to": "lb", "protocol": "http2", "latency_micros": 2000},
+  {"id": "e03", "from": "lb", "to": "api-a"},
+  {"id": "e04", "from": "lb", "to": "api-b"},
+  {"id": "e05", "from": "api-a", "to": "cache", "protocol": "tcp", "write_permille": 0},
+  {"id": "e06", "from": "api-a", "to": "primary", "protocol": "tcp", "latency_micros": 200},
+  {"id": "e07", "from": "api-b", "to": "replica", "protocol": "tcp", "latency_micros": 1500, "write_permille": 0},
+  {"id": "e08", "from": "api-b", "to": "jobs", "protocol": "async", "read_permille": 0},
+  {"id": "e09", "from": "jobs", "to": "files"},
+  {"id": "e10", "from": "api-a", "to": "search", "protocol": "grpc", "write_permille": 0},
+  {"id": "e11", "from": "api-b", "to": "pg", "read_permille": 0}
+ ],
+ "faults": []
+}

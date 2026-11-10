@@ -2,8 +2,10 @@ package notify
 
 import (
 	"log/slog"
+	"sync"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 )
 
 // Notifier combines a backend, the ledger and a logger.
@@ -11,6 +13,9 @@ type Notifier struct {
 	backend Backend
 	ledger  *Ledger
 	log     *slog.Logger
+
+	mu     sync.Mutex
+	locale i18n.Locale // catalog for Format (default ko)
 }
 
 // New creates a Notifier. A nil logger discards.
@@ -18,7 +23,25 @@ func New(b Backend, l *Ledger, log *slog.Logger) *Notifier {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Notifier{backend: b, ledger: l, log: log}
+	return &Notifier{backend: b, ledger: l, log: log, locale: i18n.Ko}
+}
+
+// SetLocale picks the language OS notifications are rendered in (the
+// effective UI language). Safe on a nil Notifier and from any goroutine.
+func (n *Notifier) SetLocale(l i18n.Locale) {
+	if n == nil {
+		return
+	}
+	n.mu.Lock()
+	n.locale = l
+	n.mu.Unlock()
+}
+
+// Locale is the language set by SetLocale (default ko).
+func (n *Notifier) Locale() i18n.Locale {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.locale
 }
 
 // Handle runs Decide; if Popup => Show (ledger.MarkIfNew; only new => backend.Show).
@@ -49,5 +72,5 @@ func (n *Notifier) Show(a api.Alert) error {
 	if !isNew || n.backend == nil {
 		return nil
 	}
-	return n.backend.Show(Format(a))
+	return n.backend.Show(Format(a, i18n.For(n.Locale())))
 }

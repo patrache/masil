@@ -1,0 +1,706 @@
+# API test tool area (v0.1.3 spec C3).
+
+[big_body]
+other = "Showing the first 10MB · Save to a file"
+
+[binary_body]
+other = "Binary · {type} · {size} — Save to a file"
+
+[body_copied]
+other = "Copied the body"
+
+[body_none]
+other = "none"
+
+[body_overwritten]
+other = "{name} changed the body · Restore mine"
+
+[body_save_failed]
+other = "Could not save · {err}"
+
+[body_saved]
+other = "Saved to {path}"
+
+[cancel]
+other = "Cancel"
+
+[card_open_hint]
+other = "⏎ Open in the shared collection"
+
+[card_result_body]
+other = "🧪 {method} {path} · {status} · {ms}ms · ✓{ok}/{total}"
+
+[card_result_meta]
+other = "{status} · {ms}ms · {size} · ✓{ok}/{total}"
+
+[card_run_body]
+other = "🧪 {name} run · {n} requests · ✓{ok} ✕{fail} · {ms}ms"
+
+[card_run_meta]
+other = "✓{ok} ✕{fail} · {ms}ms"
+
+[card_run_title]
+other = "🧪 {name} run · {n} requests"
+
+[cmd_env]
+other = "API test: environments"
+
+[cmd_history_clear]
+other = "API test: clear history"
+
+[cmd_import]
+other = "API test: import"
+
+[cmd_new]
+other = "API test: new request"
+
+[cmd_open]
+other = "Open API test"
+
+[cmd_runner]
+other = "API test: runner"
+
+[cmd_send]
+other = "API test: send"
+
+[col_check]
+other = "check"
+
+[col_field]
+other = "field"
+
+[col_from]
+other = "from"
+
+[col_header]
+other = "header"
+
+[col_key]
+other = "key"
+
+[col_target]
+other = "target"
+
+[col_value]
+other = "value"
+
+[col_var]
+other = "variable"
+
+[default_collection]
+other = "My requests"
+
+[ed_asserts]
+other = "Checks {n}"
+
+[ed_body]
+other = "Body {kind}"
+
+[ed_extracts]
+other = "Extract {n}"
+
+[ed_headers]
+other = "Headers {n}"
+
+[ed_query]
+other = "Query {n}"
+
+[ed_settings]
+other = "Settings"
+
+[env_add_prompt]
+other = "Variable name (letters, digits, _ . -)"
+
+[env_add_title]
+other = "Add a variable"
+
+[env_cookies]
+one = "{n} cookie · C clear"
+other = "{n} cookies · C clear"
+
+[env_cookies_cleared]
+other = "Cleared the cookies"
+
+[env_empty]
+other = "No variables · a to add"
+
+[env_global_mark]
+other = "global"
+
+[env_hint]
+other = "a add · ⏎ value · s make secret · d delete · esc close"
+
+[env_hosts]
+other = "Allowed hosts {hosts} · H change"
+
+[env_hosts_prompt]
+other = "Hosts this secret may be sent to (comma separated)"
+
+[env_hosts_title]
+other = "Allowed hosts"
+
+[env_new_prompt]
+other = "Environment name"
+
+[env_new_title]
+other = "New environment"
+
+[env_none]
+other = "(no environment)"
+
+[env_picker]
+other = "Environment ‹ {name} › · h/l switch · N new"
+
+[env_source]
+other = "From {src}"
+
+[env_storage]
+other = "Secret values kept in: {where}"
+
+[env_storage_unset]
+other = "Secret values kept in: no value yet"
+
+[env_title]
+other = "Environment · {name}"
+
+[env_value_title]
+other = "{name} value"
+
+[err_bad_method]
+other = "Check the method"
+
+[err_bad_url]
+other = "Check the URL (http or https and a host)"
+
+[err_form_file]
+other = "A form file cannot be read"
+
+[err_not_found]
+other = "No such file or folder"
+
+[err_permission]
+other = "No permission for the file"
+
+[err_redirects]
+other = "Too many redirects"
+
+[err_tls]
+other = "The server certificate could not be verified"
+
+[err_too_large]
+other = "The response is too large (1GB at most)"
+
+[export_copied]
+other = "Copied the curl command"
+
+[export_curl]
+other = "Copy curl · variables as they are"
+
+[export_curl_plain]
+other = "Copy curl · non-secret variables filled in"
+
+[export_failed]
+other = "Could not export · {err}"
+
+[export_path]
+other = "File to save to"
+
+[export_postman]
+other = "Save the collection as a Postman v2.1 file"
+
+[export_saved]
+other = "Saved to {path}"
+
+[export_title]
+other = "Export"
+
+[extract_host_blocked]
+other = "Didn't store the extracted value: {host} is not an allowed host of {{{var}}}"
+
+[extract_not_shared]
+other = "Blocked a shared request from changing my secret {{{var}}}"
+
+[file_changed]
+other = "The file changed · Reload"
+
+[file_exists_body]
+other = "{path} already exists. Overwrite it?"
+
+[file_exists_title]
+other = "The file exists"
+
+[find_none]
+other = "No '{q}'"
+
+[find_prompt]
+other = "Find "
+
+[held_field]
+other = "Field: {field}"
+
+[held_field_named]
+other = "Field: {name} ({field})"
+
+[held_request]
+other = "Request: {request}"
+
+[held_title]
+other = "Check before sharing"
+
+[help_close]
+other = "esc close"
+
+[help_env]
+other = "env"
+
+[help_help]
+other = "help"
+
+[help_keys_1]
+other = "⏎ send · esc cancel sending · [ ] move between panes"
+
+[help_keys_2]
+other = "j/k up/down · enter open/edit · n new request · ctrl+s save"
+
+[help_keys_3]
+other = "1-6 request tabs · u edit URL · m method · ctrl+v paste curl"
+
+[help_keys_4]
+other = "e environments · r runner · i import · x export"
+
+[help_keys_5]
+other = "Response: 1-4 tabs · h/l fold/unfold · / find · o raw · y copy · w save"
+
+[help_runner]
+other = "runner"
+
+[help_send]
+other = "send"
+
+[help_tabs]
+other = "tabs"
+
+[help_terms]
+other = "Requests leave from my PC and my IP. Following the target service's terms is my responsibility"
+
+[help_title]
+other = "API test help"
+
+[history_cleared]
+other = "History cleared"
+
+[host_allow]
+other = "Allow this host"
+
+[host_block]
+other = "About to send {{{var}}} to {host} · Allow this host / Cancel"
+
+[host_block_title]
+other = "Where a secret goes"
+
+[hub_status]
+other = "{col} (local) · {env}"
+
+[hub_status_empty]
+other = "New request · paste curl"
+
+[hub_status_no_env]
+other = "{col} (local)"
+
+[import_done]
+one = "Imported {n} request into {name}"
+other = "Imported {n} requests into {name}"
+
+[import_dropped]
+other = "Dropped: {list}"
+
+[import_env_done]
+other = "Imported the environment {name}"
+
+[import_failed]
+other = "Could not import · {err}"
+
+[import_ignored]
+other = "Not read: {list}"
+
+[import_prompt]
+other = "File to import · curl, OpenAPI JSON, Postman v2.1 collection or environment"
+
+[import_secret_where]
+other = "Found in: {list}"
+
+[import_title]
+other = "Import"
+
+[import_too_large]
+other = "Files over 10MB can't be imported"
+
+[import_unknown]
+other = "Not curl, OpenAPI JSON or Postman v2.1"
+
+[insecure_peer]
+other = "This shared request has the certificate check off (last changed by {name}). Send it without checking the certificate?"
+
+[insecure_send]
+other = "Send without checking"
+
+[insecure_title]
+other = "Shared request, cert check off"
+
+[insecure_unknown]
+other = "This shared request has the certificate check off (who changed it last is not known). Send it without checking the certificate?"
+
+[kv_empty]
+other = "No rows · a to add"
+
+[last_changed]
+other = "Last changed: {name} · {ago}"
+
+[need_bigger]
+other = "Make the window bigger"
+
+[new_request]
+other = "New request"
+
+[no_value]
+other = "No value (set mine)"
+
+[openapi_yaml_unsupported]
+other = "OpenAPI YAML can't be read yet · Convert it to JSON and import again"
+
+[overwrite_body]
+other = "This collection's files were changed outside masil. Overwrite them with my edits?"
+
+[overwrite_title]
+other = "The file changed"
+
+[overwrite_yes]
+other = "Overwrite"
+
+[phases]
+other = "DNS {dns} · connect {connect} · TLS {tls} · first byte {first}"
+
+[private_send]
+other = "Send anyway"
+
+[private_target]
+other = "This request goes to an address on my PC or my network (last changed by {name})"
+
+[private_target_unknown]
+other = "This request goes to an address on my PC or my network (who changed it last is not known)"
+
+[private_title]
+other = "Request to my PC or network"
+
+[redirect_blocked]
+other = "Stopped the redirect to {host} because of {{{var}}}"
+
+[reject_body_too_large]
+other = "The body is too large to share"
+
+[reject_invalid_op]
+other = "The server didn't accept this edit"
+
+[reject_limit_requests]
+other = "Over 1,000 requests, not shared"
+
+[reject_locked]
+other = "The collection is locked"
+
+[reject_other]
+other = "The edit wasn't applied ({code})"
+
+[reject_secret_value]
+other = "A secret variable's value is never shared"
+
+[reject_too_large]
+other = "The shared collection is too large for this edit"
+
+[report_close]
+other = "esc close"
+
+[resp_body]
+other = "Body"
+
+[resp_checks]
+other = "Checks {ok}/{total}"
+
+[resp_empty]
+other = "Press ⏎ to send; the response shows here"
+
+[resp_headers]
+other = "Headers {n}"
+
+[resp_raw]
+other = "Raw"
+
+[restore_mine]
+other = "Restore mine"
+
+[restored_mine]
+other = "Restored your version"
+
+[run_bad_iterations]
+other = "Iterations are 1 to 1000"
+
+[run_delay]
+other = "Delay between requests {ms}ms"
+
+[run_done_hint]
+other = "⏎ Open a failed row's response · s Share as card · esc Close"
+
+[run_env]
+other = "Environment ‹ {name} › · h/l"
+
+[run_failed_net]
+other = "failed {reason}"
+
+[run_hosts_body]
+other = "A teammate may have changed requests. This run sends requests to these hosts:"
+
+[run_hosts_title]
+other = "Where this run sends"
+
+[run_iterations]
+other = "Iterations {n} (at most 1000)"
+
+[run_progress]
+other = "Run {i}/{n} · passed {ok} · failed {fail}"
+
+[run_progress_short]
+other = "Run {i}/{n} ✓{ok} ✕{fail}"
+
+[run_resp_not_kept]
+other = "Response not kept (first {n} only)"
+
+[run_running_hint]
+other = "esc stop the run"
+
+[run_start]
+other = "[Run ⏎]"
+
+[run_stop_on_fail]
+other = "Stop on failure {state} · space"
+
+[run_target]
+other = "Scope {name}"
+
+[run_title]
+other = "Runner"
+
+[save_body_path]
+other = "File to save to (this PC only, readable by me)"
+
+[save_body_title]
+other = "Save the body"
+
+[save_failed]
+other = "Could not save · {err}"
+
+[save_first]
+other = "Save it first with ctrl+s"
+
+[saved]
+other = "Saved to {name}"
+
+[scripts_dropped]
+one = "{n} script was not imported"
+other = "{n} scripts were not imported"
+
+[secret_bad_name]
+other = "Variable names use letters, digits, _ . - only"
+
+[secret_detected]
+other = "Looks like a secret → Make it a variable"
+
+[secret_keep]
+other = "Keep as is"
+
+[secret_label]
+other = "Value of {{{name}}} (not shown on screen)"
+
+[secret_name]
+other = "Variable name (the value stays in this PC's secret store)"
+
+[secret_saved]
+other = "Replaced with {{{name}}} · the value is in {where}"
+
+[secret_title]
+other = "Secret found"
+
+[secret_to_var]
+other = "Make it a variable"
+
+[send_button]
+other = "[Send ⏎]"
+
+[send_canceled]
+other = "Send canceled"
+
+[send_failed]
+other = "Could not send · {err}"
+
+[send_timeout]
+other = "Timed out · raise the timeout in the Settings tab"
+
+[sending]
+other = "Sending… esc to cancel"
+
+[set_follow]
+other = "Follow redirects {state} · space toggle"
+
+[set_max]
+other = "Redirects at most {n} · ⏎ change"
+
+[set_timeout]
+other = "Timeout {ms}ms · ⏎ change"
+
+[set_tls]
+other = "TLS certificate check {state} · space toggle"
+
+[share_failed]
+other = "Couldn't send the card · {err}"
+
+[share_no_channel]
+other = "No channel to send the card to"
+
+[share_opt_body]
+other = "Include the first 20 body lines · {state}"
+
+[share_opt_headers]
+other = "Include request headers · {state}"
+
+[share_opt_host]
+other = "Show host · {state}"
+
+[share_pick]
+other = "This is exactly what will be posted (hidden values show •••). Pick a channel."
+
+[share_sent]
+other = "Card sent · {channel}"
+
+[share_title]
+other = "Share as card"
+
+[shared_kicked]
+other = "You can no longer see this shared collection · {name}"
+
+[shared_too_large]
+other = "Over the shared collection limits, not shared (1,000 requests · 64KB body · 2MB total)"
+
+[src_collection]
+other = "collection"
+
+[src_dynamic]
+other = "dynamic"
+
+[src_global]
+other = "global"
+
+[src_mine]
+other = "my value"
+
+[src_shared]
+other = "shared env"
+
+[src_temp]
+other = "temporary"
+
+[state_off]
+other = "off"
+
+[state_on]
+other = "on"
+
+[status_line]
+other = "{status} {text} · {ms}ms ({phases}) · {size} · checks {ok}/{total} {mark}"
+short = "{status} · {ms}ms · ✓{ok}/{total}"
+
+[tab_list]
+other = "List"
+
+[tab_request]
+other = "Request"
+
+[tab_response]
+other = "Response"
+
+[tiny_hint]
+other = "⏎ resend · r run"
+
+[tls_off_warning]
+other = "⚠ Certificate check off"
+
+[tool_login_account]
+one = "{n} secret variable"
+other = "{n} secret variables"
+
+[tool_name]
+other = "API test"
+
+[tree_count]
+one = "{n} item"
+other = "{n} items"
+
+[tree_empty]
+other = "No collections · n new request · i import"
+
+[tree_history]
+other = "History"
+
+[tree_local]
+other = "My collections (local)"
+
+[tree_shared]
+other = "{name} (shared)"
+
+[undefined_var]
+other = "{{{name}}} has no value · set it in e Environments"
+
+[upload_anyway]
+other = "Share anyway"
+
+[upload_done]
+other = "Shared to the room · {name}"
+
+[upload_failed]
+other = "Couldn't share · {err}"
+
+[upload_no_space]
+other = "No room to share to"
+
+[upload_pick]
+other = "Pick the room to share to"
+
+[upload_plaintext_note]
+other = "A shared collection's definition (URLs, header names, non-secret values, body examples) is stored in plain text on the masil server and room members and operators can see it"
+
+[upload_title]
+other = "Share to a room"
+
+[version_auto]
+other = "auto"
+
+[version_preview]
+other = "#{no} · {n} requests"
+
+[version_restore]
+other = "Restore this version"
+
+[version_restored]
+other = "Restored · new version #{no}"
+
+[version_restored_row]
+other = "#{no} · restored #{from} · {when} · {who}"
+
+[version_row]
+other = "#{no} · {when} · {who}"
+
+[versions_empty]
+other = "No saved versions"
+
+[versions_failed]
+other = "Couldn't read the versions · {err}"
+
+[versions_title]
+other = "Versions · {name}"

@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
@@ -26,17 +25,6 @@ const (
 	maxReplyDepth = 6  // deepest reply level drawn as a card; deeper => "↳ 이어서 보기"
 	treeIndent    = 3  // cells per reply level ("├─ ", "│  ")
 	minReplyCardW = 10 // the tree prefix shrinks before a reply card gets narrower than this
-)
-
-// Post detail copy.
-const (
-	textPostTitle      = "글"
-	textMoreReplies    = "답글 더 보기"
-	textContinue       = "↳ 이어서 보기"
-	textNoReplies      = "아직 답글이 없어요 · r 로 답글 쓰기"
-	textPostLoadFailed = "글을 불러오지 못했어요"
-	hintPostLoadFailed = "esc 로 돌아가기"
-	errContextPost     = "글"
 )
 
 // Post detail result tags (ui.Do).
@@ -227,11 +215,12 @@ func (v *postView) Init(ctx *ui.Context) tea.Cmd {
 	return tea.Batch(v.loadContext(ctx), v.loadReplies(ctx, v.id, ""), v.sync(ctx, true))
 }
 
-func postErr(err error) tea.Cmd {
+func postErr(ctx *ui.Context, err error) tea.Cmd {
 	if err == nil {
 		return nil
 	}
-	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errContextPost} }
+	where := cat(ctx).Feed.ErrCtxPost()
+	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: where} }
 }
 
 func (v *postView) loadContext(ctx *ui.Context) tea.Cmd {
@@ -294,10 +283,10 @@ func (v *postView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	imagesChanged := false
 	switch m := msg.(type) {
 	case ui.ResultMsg[*api.PostContext]:
-		cmds = append(cmds, v.onContext(fs, m))
+		cmds = append(cmds, v.onContext(ctx, fs, m))
 	case ui.ResultMsg[*api.Page[api.Post]]:
-		cmds = append(cmds, v.onReplies(fs, m))
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+		cmds = append(cmds, v.onReplies(ctx, fs, m))
+	case ui.ModeChangedMsg, ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		imagesChanged = true
 	default:
 		if rt := reflect.TypeOf(msg); rt != nil && rt.PkgPath() == widgetsPkg {
@@ -321,7 +310,7 @@ func (v *postView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 
 // onContext caches the post and its ancestors. A 404 turns the post into the
 // deleted placeholder.
-func (v *postView) onContext(fs *feedstore.FeedStore, m ui.ResultMsg[*api.PostContext]) tea.Cmd {
+func (v *postView) onContext(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultMsg[*api.PostContext]) tea.Cmd {
 	if m.Tag != tagPostContext+v.id || !v.ctxLoading {
 		return nil
 	}
@@ -336,7 +325,7 @@ func (v *postView) onContext(fs *feedstore.FeedStore, m ui.ResultMsg[*api.PostCo
 		if fs.Post(v.id) == nil {
 			v.loadFailed = true
 		}
-		return postErr(m.Err)
+		return postErr(ctx, m.Err)
 	}
 	fs.ObservePosts(m.Value.Ancestors...)
 	fs.ObservePosts(m.Value.Post)
@@ -351,7 +340,7 @@ func (v *postView) onContext(fs *feedstore.FeedStore, m ui.ResultMsg[*api.PostCo
 }
 
 // onReplies stores a replies page this instance requested.
-func (v *postView) onReplies(fs *feedstore.FeedStore, m ui.ResultMsg[*api.Page[api.Post]]) tea.Cmd {
+func (v *postView) onReplies(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultMsg[*api.Page[api.Post]]) tea.Cmd {
 	var parent string
 	more := false
 	switch {
@@ -367,7 +356,7 @@ func (v *postView) onReplies(fs *feedstore.FeedStore, m ui.ResultMsg[*api.Page[a
 	}
 	delete(v.loading, parent)
 	if m.Err != nil || m.Value == nil {
-		return postErr(m.Err)
+		return postErr(ctx, m.Err)
 	}
 	page := m.Value
 	if more {
@@ -632,7 +621,7 @@ func (v *postView) ancestorView(ctx *ui.Context, r treeRow, selected bool, width
 		if selected {
 			g = th.S.Base.Foreground(th.P.Acc).Render("▎") + th.S.Base.Render(" ")
 		}
-		return rowView{Lines: []string{fit(th, g+bar+th.S.Deleted.Render(textNotVisible), width)}}
+		return rowView{Lines: []string{fit(th, g+bar+th.S.Deleted.Render(cat(ctx).Feed.CardNotVisible()), width)}}
 	}
 	c := renderCard(ctx, api.TimelineItem{ID: p.ID, Type: "post", Post: *p}, p, cardOpts{
 		Width: cw, Density: ui.DensityLine, Selected: selected, PollSel: -1,
@@ -665,14 +654,14 @@ func (v *postView) mainView(ctx *ui.Context, selected bool, width int) rowView {
 	if v.notFound && fsPost(v.fs(ctx), v.id) == nil {
 		return rowView{Lines: lines, Hits: c.Hits}
 	}
-	rule := fit(th, th.S.Dim.Render("── 답글 "+humanize.Count(p.ReplyCount)+" ──"), width)
+	rule := fit(th, th.S.Dim.Render("── "+cat(ctx).Feed.PostRepliesRule(hz(ctx).Count(p.ReplyCount))+" ──"), width)
 	if n := len(lines); n > 0 && isRule(lines[n-1]) {
 		lines = append(lines[:n-1:n-1], rule)
 	} else {
 		lines = append(lines, rule)
 	}
 	if v.noReplies {
-		lines = append(lines, fit(th, th.S.Base.Render("  ")+th.S.Dim.Render(textNoReplies), width))
+		lines = append(lines, fit(th, th.S.Base.Render("  ")+th.S.Dim.Render(cat(ctx).Feed.PostNoReplies()), width))
 	}
 	return rowView{Lines: lines, Hits: c.Hits}
 }
@@ -717,11 +706,11 @@ func (v *postView) linkView(ctx *ui.Context, r treeRow, selected bool, width int
 	if selected {
 		g = th.S.Base.Foreground(th.P.Acc).Render("▎") + th.S.Base.Render(" ")
 	}
-	text := textContinue
+	text := cat(ctx).Feed.PostContinue()
 	if r.Kind == rowMore {
-		text = textMoreReplies
+		text = cat(ctx).Feed.PostMoreReplies()
 		if v.loading[r.ParentID] {
-			text = textLoading
+			text = cat(ctx).Feed.Loading()
 		}
 	}
 	line := fit(th, th.S.Base.Foreground(th.P.Line).Render(first), pw) + fit(th, g+th.S.Base.Foreground(th.P.Acc).Render(text), width-pw)
@@ -738,9 +727,9 @@ func (v *postView) View(ctx *ui.Context, _ bool) string {
 	v.visible = nil
 	switch {
 	case len(v.rows) == 0 && v.loadFailed:
-		out = strings.Split(widgets.Empty(th, v.size, "⚠", textPostLoadFailed, hintPostLoadFailed), "\n")
+		out = strings.Split(widgets.Empty(th, v.size, "⚠", cat(ctx).Feed.PostLoadFailed(), cat(ctx).Feed.PostLoadFailedHint()), "\n")
 	case len(v.rows) == 0:
-		out = []string{fit(th, th.S.Base.Render("  ")+v.spin.View(th)+th.S.Dim.Render(" "+textLoading), w)}
+		out = []string{fit(th, th.S.Base.Render("  ")+v.spin.View(th)+th.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)}
 	default:
 		out = strings.Split(v.list.View(ctx, v.size), "\n")
 		v.visible = v.visibleTopics(ctx)
@@ -945,7 +934,9 @@ func (v *postView) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 
 // ---- optional capabilities ----
 
-func (v *postView) Title(*ui.Context) (string, ui.Badge) { return textPostTitle, ui.Badge{} }
+func (v *postView) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.PostTitle(), ui.Badge{}
+}
 
 func (v *postView) Help(ctx *ui.Context) []key.Binding {
 	relabel := func(a keymap.Action, desc string) key.Binding {
@@ -953,11 +944,12 @@ func (v *postView) Help(ctx *ui.Context) []key.Binding {
 		b.SetHelp(b.Help().Key, desc)
 		return b
 	}
+	c := cat(ctx)
 	return []key.Binding{
-		relabel(keymap.ListOpen, "열기"),
-		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "펼치기")),
-		relabel(keymap.PostLike, "좋아요"),
-		relabel(keymap.PostReply, "답글"),
+		relabel(keymap.ListOpen, c.Feed.HelpOpen()),
+		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", c.Feed.HelpExpand())),
+		relabel(keymap.PostLike, c.Feed.HelpLike()),
+		relabel(keymap.PostReply, c.Feed.HelpReply()),
 	}
 }
 

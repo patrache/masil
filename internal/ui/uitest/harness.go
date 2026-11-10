@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 	_ "time/tzdata" // Asia/Seoul without a system zoneinfo (CA 10.1)
@@ -22,8 +23,10 @@ import (
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/clipboard"
 	mconfig "github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/app"
@@ -65,6 +68,7 @@ type Harness struct {
 	clock   *FakeClock
 	teaMsgs []tea.Msg
 	seq     int64 // last injected logged-event seq
+	posts   *recPoster
 }
 
 // New builds a harness with a temp MASIL_CONFIG_DIR/MASIL_CACHE_DIR, an apitest server
@@ -121,7 +125,16 @@ func New(tb testing.TB, opts ...Option) *Harness {
 	clock := NewFakeClock(Start)
 	rec := &notify.Recorder{}
 	h := &Harness{T: tb, API: srv, Notify: rec, Clip: &clipboard.Recorder{}, clock: clock}
+	lang := c.locale
+	if lang == "" {
+		lang = i18n.Ko
+	}
+	sec := c.secrets
+	if sec == nil {
+		sec = secrettest.NewStore(tb, true)
+	}
 	h.Model = app.New(app.Options{
+		Locale:          &i18n.Resolution{Requested: lang, Effective: lang, Source: i18n.SourceEnv},
 		Paths:           paths,
 		Config:          cfg,
 		Credentials:     creds,
@@ -132,7 +145,18 @@ func New(tb testing.TB, opts ...Option) *Harness {
 		Notifier:        notify.New(rec, notify.OpenLedger(paths), slog.New(slog.DiscardHandler)),
 		Timers:          clock,
 		Clipboard:       h.Clip,
+		Secrets:         sec,
+		NestedPane:      c.nestedPane,
 	})
+	h.posts = newRecPoster()
+	h.Model.Context().Post = h.posts // recorded; Flush delivers
+	if c.collab != nil {
+		h.Model.Context().CollabDial = c.collab.Dial
+		c.collab.Register(srv)
+		if creds != nil {
+			c.collab.MapToken(creds.Token, creds.UserID)
+		}
+	}
 	seed := c.seed
 	if seed == nil {
 		seed = fixtures.Seed
@@ -388,6 +412,35 @@ func (h *Harness) Advance(d time.Duration) {
 	h.clock.mu.Unlock()
 }
 
+// Flush Sends every msg posted through ctx.Post so far, oldest first (a
+// Coalesce key once, with its latest msg); posts made while flushing are
+// delivered too. Send never flushes on its own.
+func (h *Harness) Flush() {
+	h.T.Helper()
+	for round := 0; ; round++ {
+		msgs := h.posts.take()
+		if len(msgs) == 0 {
+			return
+		}
+		if round > maxDepth {
+			h.T.Fatalf("uitest: Flush: posts keep coming after %d rounds (a post loop?)", maxDepth)
+			return
+		}
+		for _, m := range msgs {
+			h.Send(m)
+		}
+	}
+}
+
+// WaitPosted waits until at least n msgs are waiting for Flush (goroutines post
+// on their own time); Fatal after timeout.
+func (h *Harness) WaitPosted(n int, timeout time.Duration) {
+	h.T.Helper()
+	if !h.posts.wait(n, timeout) {
+		h.T.Fatalf("uitest: WaitPosted: %d posted msgs after %v, want %d", h.posts.count(), timeout, n)
+	}
+}
+
 // Clock returns the fake clock.
 func (h *Harness) Clock() *FakeClock {
 	return h.clock
@@ -500,4 +553,78 @@ func (h *Harness) Nav() app.NavState {
 // Instance is Model.Instance; tests type-assert to *stub.Chat etc.
 func (h *Harness) Instance(routeKey string) ui.Component {
 	return h.Model.Instance(routeKey)
+}
+
+// recPoster is the harness's ctx.Post: it records posts for Flush.
+type recPoster struct {
+	mu    sync.Mutex
+	cond  *sync.Cond
+	items []postedMsg
+}
+
+type postedMsg struct {
+	key string
+	msg tea.Msg
+}
+
+func newRecPoster() *recPoster {
+	p := &recPoster{}
+	p.cond = sync.NewCond(&p.mu)
+	return p
+}
+
+func (p *recPoster) Post(msg tea.Msg) { p.add("", msg) }
+
+func (p *recPoster) Coalesce(key string, msg tea.Msg) { p.add(key, msg) }
+
+func (p *recPoster) add(key string, msg tea.Msg) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if key != "" {
+		for i := range p.items {
+			if p.items[i].key == key {
+				p.items[i].msg = msg
+				return
+			}
+		}
+	}
+	p.items = append(p.items, postedMsg{key: key, msg: msg})
+	p.cond.Broadcast()
+}
+
+func (p *recPoster) take() []tea.Msg {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]tea.Msg, len(p.items))
+	for i, it := range p.items {
+		out[i] = it.msg
+	}
+	p.items = nil
+	return out
+}
+
+func (p *recPoster) count() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.items)
+}
+
+// wait blocks until n items are queued or timeout passes.
+func (p *recPoster) wait(n int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	stop := time.AfterFunc(timeout, func() {
+		p.mu.Lock()
+		p.cond.Broadcast()
+		p.mu.Unlock()
+	})
+	defer stop.Stop()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for len(p.items) < n {
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		p.cond.Wait()
+	}
+	return true
 }

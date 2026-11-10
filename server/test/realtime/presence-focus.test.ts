@@ -33,6 +33,7 @@ function fakeAlert(kind: AlertKind = "dm"): Alert {
     created_at: new Date().toISOString(),
     suppressed: false,
     suppressed_reason: null,
+    template: null,
   };
 }
 

@@ -76,7 +76,7 @@ func TestDecideTable(t *testing.T) {
 }
 
 func TestFormat(t *testing.T) {
-	n := notify.Format(api.Alert{ID: "01JC9ZA", Title: "민지\x1b[31m님이\x07 ❤️", Body: "안녕\r\n\x00하세요\u0085"})
+	n := notify.Format(api.Alert{ID: "01JC9ZA", Title: "민지\x1b[31m님이\x07 ❤️", Body: "안녕\r\n\x00하세요\u0085"}, nil)
 	if n.AlertID != "01JC9ZA" {
 		t.Errorf("AlertID = %q", n.AlertID)
 	}
@@ -87,7 +87,7 @@ func TestFormat(t *testing.T) {
 		t.Errorf("Body = %q", n.Body)
 	}
 
-	long := notify.Format(api.Alert{Title: strings.Repeat("가", 81), Body: strings.Repeat("b", 201)})
+	long := notify.Format(api.Alert{Title: strings.Repeat("가", 81), Body: strings.Repeat("b", 201)}, nil)
 	if c := utf8.RuneCountInString(long.Title); c != 80 || !strings.HasSuffix(long.Title, "…") ||
 		long.Title != strings.Repeat("가", 79)+"…" {
 		t.Errorf("title %d cps: %q", c, long.Title)
@@ -96,13 +96,13 @@ func TestFormat(t *testing.T) {
 		t.Errorf("body %d cps: %q", c, long.Body)
 	}
 
-	exact := notify.Format(api.Alert{Title: strings.Repeat("가", 80), Body: strings.Repeat("b", 200)})
+	exact := notify.Format(api.Alert{Title: strings.Repeat("가", 80), Body: strings.Repeat("b", 200)}, nil)
 	if exact.Title != strings.Repeat("가", 80) || exact.Body != strings.Repeat("b", 200) {
 		t.Errorf("exact limits must not be truncated: %q / %q", exact.Title, exact.Body)
 	}
 
 	// Sanitize may expand (tab -> 4 spaces); the limit still holds afterwards.
-	tabs := notify.Format(api.Alert{Title: strings.Repeat("\t", 30)})
+	tabs := notify.Format(api.Alert{Title: strings.Repeat("\t", 30)}, nil)
 	if c := utf8.RuneCountInString(tabs.Title); c > 80 {
 		t.Errorf("tab title %d cps > 80", c)
 	}

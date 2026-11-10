@@ -11,6 +11,10 @@ import (
 )
 
 func TestIsTransientRenameErrWindows(t *testing.T) {
+	// The local constant must stay the real Windows value (see rename_windows.go).
+	if errSharingViolation != windows.ERROR_SHARING_VIOLATION {
+		t.Fatalf("errSharingViolation = %d, want windows.ERROR_SHARING_VIOLATION (%d)", errSharingViolation, windows.ERROR_SHARING_VIOLATION)
+	}
 	for _, errno := range []error{windows.ERROR_ACCESS_DENIED, windows.ERROR_SHARING_VIOLATION, windows.ERROR_FILE_NOT_FOUND} {
 		err := &os.LinkError{Op: "rename", Old: "a", New: "b", Err: errno}
 		if !isTransientRenameErr(err) {

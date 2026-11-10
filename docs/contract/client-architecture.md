@@ -8,6 +8,7 @@
   - **daemon-release** — `masil daemon`, OS 자동 시작 등록, goreleaser·설치 스크립트·Homebrew tap
 - 표기: **[결정]** = 이 문서가 정한 것(설계서가 빌더 재량으로 남긴 부분). **[검증]** = 2026-11-05 에 실제 모듈을 내려받아 `go doc`·소스·시험 코드로 확인한 사실.
 - 문서 언어는 한국어, 코드 식별자·JSON 필드·경로·주석은 영어.
+- **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: 설계서 `docs/superpowers/specs/2026-11-09-masil-v0.1.3-design.md`(이하 v0.1.3 설계서)·`2026-11-09-masil-v0.1.4-i18n-design.md`(이하 i18n 설계서)와 계획 `docs/superpowers/plans/2026-11-09-masil-v013-*.md` 의 공통 기반(P0)을 각 절 끝의 **"v0.1.3 추가"** 블록으로 더한다. 기존 문장은 바꾸지 않는다(예외: 1.1 툴체인, 4.6 `Format`·4.9 `slash.Catalog` 시그니처 — 그 블록에 적음). 도구 줄기(P1~P4)와 0.1.4 이관(P5)은 `docs/superpowers/plans/2026-11-09-masil-v013-00-index.md` 2장의 공유 파일 표가 허락한 절에만 자기 행을 더한다.
 
 ---
 
@@ -28,10 +29,11 @@
 ```
 module github.com/patrache/masil
 
-go 1.26
+go 1.26.6
 ```
 
-- 로컬 툴체인은 go1.26.1 **[검증]**. `go mod tidy` 는 `go 1.26.0` 으로 적을 수 있으며 그대로 둔다.
+- (v0.1.2 까지) 로컬 툴체인은 go1.26.1 **[검증]**, `go` 지시어 `1.26.0`.
+- **v0.1.3 [오너 결정 OD12]**: 로컬 툴체인 **go1.26.6**, `go` 지시어 **`1.26.6`** — `ionut-t/goeditor v0.19.0` 의 go.mod 가 `go 1.26.6` 을 요구한다 **[검증 2026-11-09]**. CI(`.github/workflows/ci.yml`)의 `setup-go` 도 `'1.26.6'`, `release.yml` 은 `go-version-file: go.mod`. 이보다 낮은 툴체인은 `GOTOOLCHAIN=auto` 로 1.26.6 을 받아 쓴다. `cmd/masil/notices_test.go` 의 `TestGoDirective` 가 go.mod·ci.yml 을 강제한다.
 - `toolchain` 지시어는 넣지 않는다.
 
 ### 1.2 직접 의존성 (정확한 버전)
@@ -88,6 +90,30 @@ require (
 - golden 은 태그 `v0.1.0` 을 쓴다(teatest 가 요구하는 의사 버전보다 높음, 최소 버전 선택으로 이것이 채택됨) **[검증]**.
 - `github.com/gen2brain/beeep` 는 **쓰지 않는다 [보안 결정, 2026-11-06]**. beeep 는 알림 제목·본문(다른 사용자가 보낸 텍스트)을 macOS 에선 AppleScript 문자열(`%q`)에, Windows 에선 go-toast 의 CDATA 템플릿과 PowerShell here-string 폴백 스크립트에 끼워 넣는다 → `]]>`·`"@` 등으로 명령 실행이 가능하다. OS 알림은 4.6 의 "OS 백엔드 규칙" 대로 `notify` 가 직접 한다.
 
+**v0.1.3 추가 — 새 직접 의존성 [오너 결정 OD12: "전부 승인"]** (정확한 버전 고정, P0 Task 1):
+
+```
+	github.com/charmbracelet/x/vt v0.1.0
+	github.com/charmbracelet/x/xpty v0.1.4
+	github.com/ionut-t/goeditor v0.19.0
+```
+
+| 모듈 | 쓰는 곳 |
+|---|---|
+| `charmbracelet/x/vt` | `termhost` 내장 패널·재생 화면의 터미널 흉내 엔진(VT 에뮬레이터). **`internal/termhost/vt.go` 한 파일만** import 하고 나머지는 그 어댑터만 쓴다 |
+| `charmbracelet/x/xpty` | `termhost` 내장 패널의 가짜 터미널(PTY). Unix 는 `creack/pty`, Windows 는 `x/conpty` 를 감싼다(0.1.3 내장 패널은 macOS·Linux 만) |
+| `ionut-t/goeditor` | 내장 편집기(vim 모드) — P1 LeetCode(nvim 이 없을 때)·P2 작업공간. import 경로는 모듈 루트 `github.com/ionut-t/goeditor`(패키지 `goeditor`, 생성자 `goeditor.New(w, h, opts...)`) **[검증: `go list github.com/ionut-t/goeditor/...` → `goeditor`, `goeditor/core`, `goeditor/highlighter`]** |
+| `golang.org/x/text/language` (기존 모듈의 새 패키지) | `i18n.Parse`·언어 매칭(OS 언어 태그 → ko/en/zh-Hans) |
+| `golang.org/x/sys/windows` (기존) | v0.1.3: `secrets` 의 Windows 자격 증명 관리자(`CredWriteW`/`CredReadW`/`CredDeleteW`) |
+| `godbus/dbus/v5` (기존) | v0.1.3: `secrets` 의 Linux Secret Service(`org.freedesktop.secrets`) |
+| `ebitengine/purego v0.11.2` (Apache-2.0) | v0.1.3: `secrets` 의 macOS 키체인 — `Security.framework` 의 `SecItemAdd`/`SecItemUpdate`/`SecItemCopyMatching`/`SecItemDelete` 를 cgo 없이(`CGO_ENABLED=0`) 프로세스 안에서 부른다. darwin 파일만 import **[오너 결정 2026-11-09 "purego 의존해라"]** |
+
+- 간접 의존(직접 import 안 함) **[검증 2026-11-09 `go list -m`]**: `creack/pty v1.1.24`·`charmbracelet/x/conpty v0.2.0`(xpty), `charmbracelet/x/exp/ordered v0.1.0`(x/vt). `dlclark/regexp2/v2` 는 goeditor 가 요구해 `v2.2.1 → v2.7.1` 로 올라간다(chroma 가 쓰는 간접 의존 — 기존 골든 무변화 확인).
+- **ultraviolet 선택 결과** **[검증]**: x/vt v0.1.0 은 `ultraviolet v0.0.0-20260303162955-0b88c25f3fff`, goeditor 는 `…-20260812204455-68fa937c71be` 를 요구하지만, 최소 버전 선택이 masil(bubbletea v2.1.1 경유)의 더 새 **`v0.0.0-20261008173134-6b8d4baf91b4`** 를 유지한다. 빌드·기존 골든으로 API 차이 없음을 확인.
+- 그 밖의 새 모듈은 쓰지 않는다(v0.1.3 설계서 3장 JX16): 암호는 표준 라이브러리, 키체인은 `x/sys`·`godbus`·`purego`(macOS 는 `/usr/bin/security` 대신 `Security.framework` 를 직접 — 그 도구가 만든 항목은 그 도구를 믿어 같은 사용자의 다른 프로그램이 `security find-generic-password -w` 로 창 없이 읽을 수 있었다. masil 이 만든 항목은 masil 을 믿고, 다른 프로그램엔 허용 창이 뜬다. 업그레이드로 바이너리가 바뀌면 masil 에도 창이 다시 뜰 수 있다), 시뮬레이션·내보내기·HTTP 는 표준 라이브러리. `go.yaml.in/yaml/v3` 는 계속 **시험 전용**(배포 바이너리에 쓰는 용도 변경은 오너 확인 사항, v0.1.3 설계서 8.5 Q6).
+- x/vt·x/xpty 는 하위 호환을 약속하지 않는 실험 저장소다. 버전을 올릴 때마다 `termhost` 화면 비교 시험을 다시 돈다.
+- **제3자 고지** (A11.7·JA30): 배포 압축 파일마다 `THIRD_PARTY_NOTICES`(저장소 루트)를 넣는다. 내용은 Go 표준 라이브러리 + go.mod 의 모든 `require` 모듈(직접·간접)에 대해 `== <module> <version> ==` 머리줄과 모듈 폴더의 라이선스 파일(`LICENSE*`·`LICENCE*`·`COPYING*`·`NOTICE*`·`PATENTS*`) 전문. 의존성을 바꾸면 `sh scripts/notices.sh` 로 다시 만든다 — `TestThirdPartyNoticesCoversModules` 가 머리줄 누락과 `.goreleaser.yaml` archives `files` 의 `THIRD_PARTY_NOTICES` 를 강제한다.
+
 ### 1.3 go.mod 관리 규칙
 
 - core 의 첫 작업(Phase 0)에서 `go.mod`·`go.sum` 과 함께 `internal/deps/deps.go` 를 만든다:
@@ -132,6 +158,17 @@ import (
 - `go mod tidy` 는 빌드 태그가 붙은 파일도 고려하므로 이 파일이 있으면 위 목록이 유지된다.
 - chat·sns-fun·daemon-release 는 위 모듈의 **어떤 하위 패키지든** import 해도 된다(같은 모듈이므로 go.sum 이 이미 덮는다). 목록에 없는 모듈이 필요하면 이 문서 1.2 를 먼저 고친다.
 - 표준 라이브러리 외 추가 금지 목록: 다른 TUI 프레임워크, 다른 웹소켓 라이브러리, cgo 가 필요한 라이브러리(goreleaser 크로스 빌드가 `CGO_ENABLED=0`).
+
+**v0.1.3 추가** — `internal/deps/deps.go` 고정 목록에 더한 import(P0 Task 1):
+
+```go
+	_ "github.com/charmbracelet/x/vt"
+	_ "github.com/charmbracelet/x/xpty"
+	_ "github.com/ionut-t/goeditor"
+	_ "golang.org/x/text/language"
+```
+
+- 0.1.3 에서 `go.mod`·`go.sum`·`deps.go` 는 **P0 만** 고친다(위 1.3 의 "core 만" 과 같은 규칙, 줄기 이름만 바뀜). P1~P5 는 위 모듈의 어떤 하위 패키지든 import 해도 되지만 `go get`·`go mod tidy` 로 파일을 바꾸지 않는다.
 
 ### 1.4 v2 API 확인 사항 [검증]
 
@@ -235,6 +272,75 @@ internal/
 - 각 패키지의 `testdata/` 는 그 패키지 소유 계획 것이다.
 - `server/`, `docs/contract/*` 는 이 네 계획 범위 밖이다(읽기만).
 
+**v0.1.3 추가** — 줄기(P0~P5)별 소유. 공유 파일과 "덧붙이기" 범위는 계획 색인 `docs/superpowers/plans/2026-11-09-masil-v013-00-index.md` 2장이 단일 출처다.
+
+```
+THIRD_PARTY_NOTICES, scripts/notices.sh   P0   (제3자 고지, 1.2)
+cmd/masil/
+  register_tools.go                    P0   (blank import of internal/ui/tools, internal/ui/secretsui)
+  register_<tool>.go                   P1~P4 (각 도구 패키지 blank import — 도구 연결은 여기서만)
+  register_workspace.go                P2   (blank import of internal/ui/workspace)
+  cmd_workspace.go                     P2   (`masil workspace open <경로>`·`stop [공유 ID]`, 출시 전 숨김)
+  importgraph_test.go                  P0   (2.2 규칙 강제; 각 줄기는 자기 패키지 접두사 상수 한 줄)
+  notices_test.go                      P0
+internal/
+  i18n/                                P0   (언어 결정·열린 언어 관문·카탈로그 런타임)
+  i18n/gen/                            P0   (생성기 `go generate ./internal/i18n`; P5 = report.go)
+  i18n/locales/<언어>/<영역>.toml      영역 소유 표(P0 Task 4): tools·termpane·common·alerts = P0, leetcode·lazygit = P1, workspace = P2, archcanvas = P3, apitest = P4, 0.1.4 이관 영역 = P5
+  features/                            P0   (기능 플래그)
+  toolstate/                           P0   (tools-state.json, 3.2)
+  termhost/                            P0   (프로그램 띄우기: 화면 전환 exec·tmux 팝업·내장 패널·갈래·재생)
+  secrets/                             P0   (도구 자격증명 저장소)
+  secrets/secrettest/                  P0   (시험 대역 — 시험에서만 import)
+  collab/                              P0   (방 문서 클라이언트: reducer·세션)
+  collab/collabtest/                   P0   (시험 대역 — 시험에서만 import)
+  ui/termpane/                         P0   (패널 화면·`ctrl+\` 접두키·Launch)
+  ui/termpane/termpanetest/            P0   (시험 대역 — 시험에서만 import)
+  ui/tools/                            P0   (도구 허브·도구 표면 명령·팔레트 소스)
+  ui/secretsui/                        P0   (동의·가림 입력 오버레이)
+  workspace/ot/                        P2   (평문 OT: 변환·합성·무작위 수렴 시험)
+  workspace/wire/                      P2   (공유 프레임·종류·평문 헤더)
+  workspace/wscrypto/                  P2   (키 교환·SAS·프레임 암호·키 회전)
+  workspace/fsroot/                    P2   (폴더 뿌리 안 경로 검사·비밀 파일 차단·원자적 쓰기)
+  workspace/journal/                   P2   (저장 안 된 편집 복구 일지)
+  workspace/audit/                     P2   (공유 감사 기록, 덧붙이기만·0600)
+  workspace/hooks/                     P2   (claude HTTP hook 수신기 — 관찰만)
+  workspace/launch/                    P2   (터미널 프로그램 목록·우회 모드 점검)
+  workspace/share/                     P2   (공유 엔진: Host·Guest·DocManager·터미널 중계)
+  workspace/share/sharetest/           P2   (가짜 relay — 시험에서만 import)
+  store/wsstore/                       P2   (초대받은 공유·내 공유 목록 reducer)
+  ui/workspace/                        P2   (작업공간 화면: 폴더 고르기·혼자 쓰기·오너·참가자, ws.* 팔레트, 즉시 끊기 가드, alert 대상)
+  (도구 패키지)                         P1 LeetCode·lazygit, P2 작업공간, P3 아키텍처 설계, P4 API 시험 — 이름과 행은 각 줄기가 더한다
+  apitool/                             P4   (API 시험 엔진, UI 없음: 모델·로컬 파일·변수·전송·가드·검사·가리기·탐지·기록·실행기·공유 매핑·카드 데이터)
+  apitool/convert/                     P4   (curl·OpenAPI JSON·Postman v2.1 가져오기/내보내기)
+  ui/apitool/                          P4   (API 시험 도구 화면·도구/팔레트/카드 등록)
+  archdoc/                             P3   (설계 문서 모델·JSON·검증·객체 키·되돌리기·자동 정리·점검·개인 저장소)
+  archsim/                             P3   (즉시 분석·시간 실행 시뮬레이터 — 순수 계산, ui 없음)
+  archsim/pricing/                     P3   (내장 가격표 `AsOf`)
+  archsim/challenge/                   P3   (선택: 일일 도전 시나리오 15개·점수 — 순수 계산, ui 없음)
+  archdraw/                            P3   (격자 그리기: 3단계 확대·직교 선 경로·적중 시험 — ui 없음)
+  archexport/                          P3   (텍스트 스냅샷·카드 미니 그림·내보내기)
+  ui/arch/                             P3   (도구 `arch`: 캔버스 인스턴스·모드별 배치·읽기 보기·docSink·편집)
+```
+
+P1(LeetCode 오늘의 문제·lazygit) 행:
+
+```
+cmd/masil/register_leetgit.go          P1   (blank import of internal/ui/leet, internal/ui/gittool)
+internal/
+  api/ep_leet.go, api/types_leet.go    P1   (masil 서버의 /v1/leet·#daily 엔드포인트와 타입 — 4.3.3 규칙대로 core api 안의 파일)
+  config/tools_leetgit.go              P1   ([tools.leet]·[tools.lazygit] 절의 구조체, 읽기는 cfg.ToolSection)
+  admincli/leet.go                     P1   (masil admin leet-daily set)
+  leetcode/                            P1   (LeetCode GraphQL·실행·제출·간격·캐시·쿠키 자격증명 — UI 없음)
+  leetcode/htmldoc/                    P1   (문제 HTML → 문서 블록 — UI 없음)
+  leetcode/leetcodetest/               P1   (가짜 LeetCode — 시험에서만 import)
+  lazygit/                             P1   (lazygit 찾기·버전·저장소·색 덧씌움·실행 인자 — UI 없음)
+  third_party/goeditor/                P1   (github.com/ionut-t/goeditor v0.19.0 루트 패키지 고정 사본, MIT — WithDarkBackground 만 더함)
+  ui/leet/                             P1   (도구 leet: 문제 보기·편집기 자리·로그인·실행·제출·카드 남기기·leet.* 카드 그리기·순위)
+  ui/gittool/                          P1   (도구 git: 저장소 고르기·설치 안내·lazygit 인스턴스)
+  i18n/locales/<언어>/leetcode.toml, lazygit.toml   P1
+```
+
 ### 2.2 의존 방향 (import 규칙)
 
 ```
@@ -253,6 +359,46 @@ api ─▶ version
 - **금지**: core 패키지가 chat/sns-fun/daemon-release 패키지를 import(예외: `ui/e2e` 테스트와 `cmd/masil/register_*.go`). chat ↔ sns-fun 상호 import 금지(`ui/chat` 이 `ui/feed` 를 부르지 않는다. 화면 이동은 `ui.Route` 로만).
 - `ui/app` 은 chat/sns 화면을 **등록 레지스트리**(5.3.6)로만 알고 import 하지 않는다.
 
+**v0.1.3 추가** (P0 Task 23 의 `cmd/masil/importgraph_test.go` `TestImportGraph` 가 `go list -deps -json` 으로 강제):
+
+```
+i18n, features ─▶ 어디서든 import 가능 (i18n ─▶ textwidth, x/text/language 만; features ─▶ 표준 라이브러리만)
+termhost ─▶ config, textwidth, i18n (+ x/vt·x/xpty) — ui 와 도구 패키지는 금지
+secrets ─▶ config
+toolstate ─▶ config, termhost(Mode 타입)
+collab ─▶ api, realtime
+ui ─▶ (기존) + i18n, features, toolstate, secrets, termhost(타입·Exec), realtime(Conn 타입)
+ui/termpane ─▶ ui, termhost, keymap, i18n, textwidth
+ui/tools, ui/secretsui ─▶ ui, palette, widgets, keymap, termhost, toolstate, secrets, i18n
+도구 패키지(P1~P4) ─▶ ui, ui/termpane, termhost, secrets, collab, api, … (자기 줄기 계획)
+apitool, apitool/convert ─▶ secrets, collab(타입), config, ids, textwidth (api·ui·realtime·store 금지 — 직접 import 금지, 전이도 금지. 예외는 collab 을 거쳐서만 닿는 경로 하나: import 그래프에서 collab 으로 들어가지 않는 경로로 닿으면 위반)
+  - `apitool` 이 `collab` 에서 쓰는 것은 타입(`Snapshot`·`Object`·`Op`)과 순수 함수 `collab.NewDoc(…).Snapshot()`(스냅숏을 정규형으로 만들기)·`collab.IsName`(1.2 이름 규칙)까지다. `Session`·`Open` 등 연결·상태를 가진 것은 쓰지 않는다(그것은 `ui/apitool` 몫).
+ui/apitool ─▶ ui, ui/secretsui, ui/settings, ui/widgets, ui/palette, ui/keymap, ui/layout, apitool, apitool/convert, collab, secrets, api, errtext, features, i18n, termhost(Mode 타입 — ToolSpec.Open), theme, textwidth, humanize (ui/termpane 금지)
+```
+
+- `internal/api` 는 `internal/secrets`·`internal/termhost`·`internal/collab`·`internal/ui/...`·도구 패키지를 **전이로도** import 하지 않는다 — 도구 비밀값(쿠키·토큰)이 구조적으로 masil 서버 요청에 실릴 수 없게(v0.1.3 설계서 A9.3).
+- `internal/termhost` 는 `internal/ui` 를 전이로도 import 하지 않는다(화면이 아니라 프로그램 실행만).
+- `internal/ui/chat` 은 `internal/ui/tools`·`internal/ui/termpane`·`internal/secrets`·`internal/termhost`·도구 패키지를 **직접** import 하지 않는다(`ui.Context.Secrets`·`ui.ToolSpec` 때문에 `internal/ui` 를 거친 전이 의존은 허용). 채팅 카드는 core `ui` 의 카드 등록부(5.3.6 `RegisterCard`)로만 그린다.
+- 도구 패키지는 `cmd/masil/register_<도구>.go` 의 blank import 로만 연결된다(core·chat·sns-fun 은 도구 패키지를 import 하지 않음, 예외: `ui/e2e` 시험). 이름이 `internal/leetcode`·`internal/apitool*`·`internal/arch*`·`internal/workspace*` 로 시작하는 패키지는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(접두사 목록은 시험의 상수, 각 줄기가 자기 접두사를 더한다).
+- `secrettest`·`collabtest`·`termpanetest` 는 시험 파일에서만 import 한다(`uitest/stub` 과 같은 규칙).
+- (P2) 작업공간 엔진 `internal/workspace/...` 는 `internal/ui`·bubbletea·`internal/secrets` 를 전이로도 import 하지 않는다(화면 없이 시험·재사용) — `internal/workspace/imports_test.go` `TestImportRules` 가 강제한다. 화면 `internal/ui/workspace` 만 엔진과 `ui`·`termpane`·`palette` 를 잇는다.
+- (P2) `internal/api` 는 `internal/workspace/...` 를 전이로도 import 하지 않는다 — 공유 내용(평문·키)은 구조적으로 REST 요청에 실릴 수 없고, 서버에는 암호문 프레임만 relay 로 간다(같은 시험 + 위 `TestImportGraph` 접두사).
+
+P1 도구 패키지(P1 Task 24 가 맞춘 실제 의존):
+
+```
+leetcode ─▶ config, secrets                         (UI·api·realtime·store 금지 — internal/leetcode 의 TestNoForbiddenImports)
+leetcode/htmldoc ─▶ textwidth
+lazygit ─▶ config, termhost(Mode 타입), theme        (UI·api·realtime·store 금지 — 같은 시험)
+ui/leet ─▶ ui, ui/termpane, ui/secretsui, ui/settings, ui/palette, ui/keymap, ui/layout, api, leetcode, leetcode/htmldoc, third_party/goeditor, secrets, termhost, imgrender, markup, termcaps, features, i18n, config, theme, textwidth
+ui/gittool ─▶ ui, ui/termpane, ui/palette, ui/layout, lazygit, termhost, features, i18n, config, theme, textwidth
+```
+
+- `internal/leetcode`·`internal/lazygit` 는 `internal/api`·`internal/ui/chat` 의 의존에 없어야 한다(`toolPackagePrefixes` 의 P1 두 줄). `internal/api` 의 leet 엔드포인트는 쿠키를 모른다 — LeetCode 쿠키는 `ui/leet` → `leetcode` → LeetCode 로만 간다.
+- `ui/leet`·`ui/gittool` 은 서로, 그리고 `ui/chat`·`ui/feed`·`ui/fun` 을 import 하지 않는다. #daily·풀이 카드는 `ui.RegisterCard`, 순위·설정은 팔레트 명령으로만 닿는다.
+- `leetcodetest` 는 시험 파일에서만 import 한다.
+- **P3**: `archdoc ─▶ config(원자적 쓰기), ids, textwidth` · `archsim ─▶ archdoc, archsim/pricing` · `archsim/pricing ─▶ archdoc` · `archsim/challenge ─▶ archdoc, archsim` · `archdraw ─▶ archdoc, textwidth` · `archexport ─▶ archdoc, archsim, archsim/pricing, archdraw, textwidth` — 이 넷은 `internal/ui/...`·`api`·`collab` 을 전이로도 import 하지 않는다(화면 없이 시험·내보내기에 쓰는 순수 계산). `ui/arch ─▶ ui, ui/layout, ui/palette, features, i18n, ids, theme, textwidth, humanize, termhost(Mode 타입), archdoc, archsim, archsim/pricing, archsim/challenge, archdraw, archexport` 이고, `cmd/masil/register_arch.go` 의 blank import 로만 연결된다.
+
 ### 2.3 실행 순서 (병렬 작성, 단계적 실행)
 
 - 네 계획은 병렬로 **작성**한다. 실행은:
@@ -270,7 +416,7 @@ package main
 
 type command struct {
 	Name   string   // "daemon", "admin", "login", ...
-	Usage  string   // one line, Korean
+	Usage  func(t *i18n.T) string // one line in t's language (P5 Task 10); nil = "masil <name>"
 	Hidden bool     // not listed in `masil help`
 	Run    func(ctx context.Context, env *Env, args []string) error
 }
@@ -281,6 +427,8 @@ type Env struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	T      *i18n.T          // CLI words in the resolved language (main: localize; nil = ko)
+	Lang   i18n.Resolution  // how it was chosen (`MASIL_LANG=en masil …` for one run)
 }
 
 func register(c command) // panics on duplicate Name; call from init()
@@ -324,6 +472,26 @@ func main() // `masil` (no args) or `masil tui` -> app.Run; else dispatch comman
 | `tui.lock` | TUI(공유 잠금 유지) | 3.8 |
 | `daemon.lock` | 데몬(배타 잠금 유지) | 3.8 |
 | `logs/masil.log`, `logs/daemon.log` | 각 프로세스 | `log/slog` 텍스트, 5MB 넘으면 `.1` 로 한 번 회전 |
+
+**v0.1.3 추가** (v0.1.3 설계서 A8.5·A9.2, P0 Task 19·21):
+
+| 파일 | 쓰는 쪽 | 형식 |
+|---|---|---|
+| `tools-state.json` | TUI(도구들) | 기기 전용 기억. 맨 위 객체의 키 = 도구 ID(`leet`·`workspace`·`arch`·`git`·`api`), 값 = 그 도구가 정한 JSON 섹션(`toolstate.Section/SetSection` — 도구는 자기 섹션만). 공통 칸 `last_open`(마지막 여는 방식 `auto\|pane\|exec\|window`)·`zoomed`(넓게 보기)는 `toolstate.Common`. 0600, 원자적 쓰기, 없거나 깨지면 빈 값. masil 서버로 보내지 않는다 |
+| `api/collections/<이름>/collection.json` | TUI(API 시험, P4) | 개인 컬렉션: 이름·폴더 나무(요청 id 순서)·컬렉션 변수. 키 정렬·2칸 들여쓰기·끝 줄바꿈, 0600(폴더 0700), 원자적 쓰기. 비밀 변수는 이름과 `secret` 표시만(값 없음) |
+| `api/collections/<이름>/requests/<id>.json` | TUI(API 시험, P4) | 요청 하나에 파일 하나(같은 형식 규칙). 치환 전 템플릿 그대로, multipart 파일 필드는 내 PC 경로 유지. 나무에서 빠진 요청 파일은 저장 때 지운다. 밖에서 고치면 `LocalStore.Changed` 가 알린다 |
+| `api/envs/<이름>.json` | TUI(API 시험, P4) | 개인 환경: 변수 이름·비밀이 아닌 값·`secret` 표시·`allowed_hosts`. 비밀 값은 `secrets` 저장소에만 |
+| `api/globals.json` | TUI(API 시험, P4) | 내 전역 변수(환경과 같은 규칙) |
+| `api/history/<ULID>.json` | TUI(API 시험, P4) | 로컬 기록 한 건(치환 전 요청 + 치환 후 URL, 상태·시간·크기·헤더, 본문 앞 256KB). 비밀 헤더 값·비밀 변수 값은 `•••`. 최근 500건·30일. 서버로 가지 않음 |
+| `api/shared/<doc_id>.json` | TUI(API 시험, P4) | 공유 컬렉션(`apicol`) 오프라인 사본 — 비밀 값 없음 |
+| `api/shared/<doc_id>.mine.json` | TUI(API 시험, P4) | 그 공유 컬렉션의 "내 값"(비밀이 아닌 값)·비밀 변수의 허용 호스트·내가 비밀로 아는 이름. 비밀 값은 `secrets` 저장소에만 |
+| `api/shared/<doc_id>.lost.json` | TUI(API 시험, P4) | 동시 편집에서 덮어써진 내 본문(최근 20개) |
+| `tools-state.json` 의 P1 섹션 | `ui/leet`·`ui/gittool` | `leet` = `{"lang": "<언어 ID — l 로 마지막에 고른 것>", "first_run_done": bool, "accounts": {"<masil 서버 호스트>/<masil 사용자 ID>": {"username": "<LeetCode 사용자 이름>", "premium": bool}}}` — 쿠키 값은 여기 없다(`secrets` 만). `git` = `{"recent": ["<저장소 절대 경로>", …]}`(최근 연 저장소, 앞이 최근). 둘 다 masil 서버로 보내지 않는다 |
+| 캐시 `leetcode/`, `lazygit/` | `leetcode`·`lazygit` | `<캐시>/leetcode/{daily/<date>.json, questions/<slug>.json, fetched/<UTC 날짜>.json}`(오늘의 문제·연 문제, 0600 — 쿠키 없음), `<캐시>/lazygit/theme-<해시>.yml`(패널 lazygit 의 색만 덧씌움, 0600). 풀이 파일은 설정 폴더 밖 `[tools.leet] dir`(기본 `~/masil/leetcode/<date>-<번호>-<slug>.<확장자>`) |
+| `workspace-audit/<공유 ID>.jsonl` | TUI(작업공간 오너, P2) | 공유 감사 기록(설계서 B8.5): 한 줄 JSON 덧붙이기만, 폴더 0700·파일 0600. 참가 요청·SAS 결과·권한 단계·제안·제안 처리·키보드 입력(참가자 것만)·참가자 저장. 캐시가 아니라 설정 폴더에 둔다(지워지지 않게). masil 서버로 보내지 않는다 |
+| `<캐시>/workspace-journal/<폴더 해시>/` | TUI(작업공간, P2) | 저장 안 된 편집의 복구 일지(파일마다). 저장하면 지우고, 다음에 같은 폴더를 열면 되살릴지 묻는다. 폴더 경로는 해시로만. masil 서버로 보내지 않는다 |
+| `arch/` | TUI(`ui/arch`) | 개인 아키텍처 설계(P3). `arch/<이름>.json` = `archdoc.Encode` 결과 한 파일(이름은 `archdoc.SafeName` 으로 거른 것), 폴더 0700·파일 0600, 원자적 쓰기, 마지막 편집 1초 뒤 저장. 읽을 때 `Validate` — 깨진 파일은 읽기 전용으로 연다. masil 서버로 보내지 않는다(공유는 방 문서·카드로만) |
+| `secrets/` | TUI | 도구 자격증명 저장소(`internal/secrets`)의 대체 자리. 폴더 0700. `tools.json`(0600) = 사용자가 "파일에 저장"에 동의한 값, `index.json`(0600) = 저장한 값 **이름**만(값 없음, `Store.List`), `.gitignore` = `*` 한 줄. 파일 형식은 `secrets` 패키지 내부(다른 패키지가 직접 읽지 않음). OS 키체인에 저장된 값은 여기 없다 |
 
 ### 3.3 `config.toml`
 
@@ -407,6 +575,64 @@ var ErrNotLoaded = errors.New("config: config.toml did not load; not overwriting
 ```
 
 - **고장 난 config.toml 보호**: 파일을 읽지 못했거나 TOML 문법 오류로 `Load` 가 `Defaults()` 로 물러선 경우, 그 `Config` 로 `Save` 하면 사용자 파일(서버 주소·키 재정의 등)이 기본값으로 덮인다. 그래서 `Save` 는 `ErrNotLoaded` 로 거절하고 아무것도 쓰지 않는다. 호출자(테마 전환·설정 화면)는 바뀐 값을 이번 실행의 메모리에만 적용하고 `config.toml 을 고친 뒤 다시 해 주세요` 를 보인다(토스트 또는 행 아래 오류). 값 일부만 잘못된 경우(파싱은 됨)는 지금처럼 저장한다.
+
+**v0.1.3 추가** (P0 Task 3·11; 모든 키는 기본값이 있어 기존 파일은 그대로 동작):
+
+```toml
+[ui]
+language = "auto"          # auto | ko | en | zh-Hans. 0.1.3 은 ko 만 열린 언어(설정 화면 줄은 숨김). 그 밖 값 => auto + ErrPartial
+
+[terminal]
+embedded = true            # false => 내장 패널을 쓰지 않음(도구는 화면 전환·외부 창으로만)
+
+[tools.lazygit]            # [tools.<절>] — 절 이름 = config.ToolConfigSection(도구 ID): git → lazygit, leet·workspace·arch·api 는 ID 그대로
+open = "auto"              # auto | pane | exec | window (그 밖 값 => auto). 모든 도구 공통 키
+# 나머지 키는 그 도구 소유: P1 [tools.lazygit] path·repo·theme_overlay, [tools.leet] lang·dir·auto_status / P4 [tools.api] …
+# [tools.arch] export_dir = "~/masil/arch-exports"  # 내보내기(파일로 저장) 폴더. 비거나 없으면 이 기본값, "~/" 는 홈 (P3 Task 20)
+
+[tools.api]                # P4 API 시험 — 로컬 기록(api/history/)
+history = true             # false => 기록을 쓰지 않음
+history_max = 500          # 남길 최대 건수
+history_days = 30          # 이보다 오래된 기록은 다음 기록 때 지움
+```
+
+```go
+type UIConfig struct { /* 기존 필드 */ ; Language string `toml:"language"` } // default "auto"
+type TerminalConfig struct{ Embedded bool `toml:"embedded"` }           // default true
+// Config 에 추가:
+//   Terminal TerminalConfig            `toml:"terminal"`
+//   Tools    map[string]map[string]any `toml:"tools"`   // 절 이름 -> 키 -> 값 (접근자로만 읽는다)
+func (c *Config) ToolString(tool, key, def string) string
+func (c *Config) ToolBool(tool, key string, def bool) bool
+func (c *Config) ToolOpen(tool string) string          // "auto"|"pane"|"exec"|"window", 그 밖 => "auto"
+func (c *Config) ToolSection(tool string, v any) error // [tools.<절>] 을 구조체 v(toml 태그)로; 절 없음 => v 그대로·nil, 형이 틀린 키 => 기본값 유지 + ErrPartial
+func ToolConfigSection(toolID string) string           // "git" -> "lazygit", 나머지 -> ID 그대로
+// Paths 에 추가: ToolsState (<Dir>/tools-state.json), SecretsDir (<Dir>/secrets)
+```
+- 접근자는 모두 도구 **ID** 를 받고 안에서 `ToolConfigSection` 으로 절을 찾는다(`[tools.git]` 절은 읽지 않는다). 각 도구의 나머지 키 구조체(P1 `LeetToolConfig`·`LazygitToolConfig`, P4 `[tools.api]`)는 그 도구 소유.
+
+**P1 도구 키** (P1 Task 14 — `internal/config/tools_leetgit.go`, 읽기는 `cfg.ToolSection`):
+
+```toml
+[tools.lazygit]
+path = ""                  # lazygit 실행 파일. "" => PATH 의 lazygit. 앞의 ~ 는 홈 폴더
+repo = ""                  # 열 저장소. "" => masil 을 켠 폴더의 저장소, 아니면 고르기 화면. 저장소가 아니면 다음 단계로
+theme_overlay = true       # 패널 방식에서만 masil 테마 색 덧씌움(색 4개). false => 덧씌우지 않음
+
+[tools.leet]
+lang = ""                  # LeetCode 언어 slug(golang, python3 …). "" => 기기 기억, 없으면 기본
+dir = ""                   # 풀이 폴더. "" => ~/masil/leetcode
+auto_status = false        # 풀면 상태 메시지에 자동 표시
+```
+
+```go
+type LeetToolConfig struct{ Open, Lang, Dir string; AutoStatus bool }            // toml: open lang dir auto_status
+type LazygitToolConfig struct{ Open, Path, Repo string; ThemeOverlay *bool }      // toml: open path repo theme_overlay
+func DefaultLeetToolConfig() LeetToolConfig       // {Open: "auto"}
+func DefaultLazygitToolConfig() LazygitToolConfig // {Open: "auto"}
+func (c LazygitToolConfig) OverlayOn() bool       // nil => true
+// lg := config.DefaultLazygitToolConfig(); err := cfg.ToolSection("git", &lg)
+```
 
 ### 3.4 `credentials.json`
 
@@ -930,10 +1156,108 @@ func New(tb testing.TB) *Server                                    // httptest.S
 func (s *Server) Handle(pattern string, h http.HandlerFunc)        // Go 1.22 mux pattern, e.g. "GET /v1/channels/{id}/messages"
 func (s *Server) JSON(pattern string, status int, body any)        // canned JSON
 func (s *Server) Error(pattern string, status int, code string)    // error envelope
-func (s *Server) Requests() []Recorded                             // method, path, query, body (token redacted)
+func (s *Server) Requests() []Recorded                             // method, path, query, header, body (token redacted)
 func (s *Server) Client(opts ...api.Option) *api.Client            // token "msl_test"
-type Recorded struct{ Method, Path, Query string; Body []byte }
+type Recorded struct {
+	Method, Path, Query string
+	Header              http.Header // v0.1.3 (P0 Task 23): as sent, masil tokens redacted — secrettest.AssertNoLeak reads it
+	Body                []byte
+}
 ```
+
+#### 4.3.4 v0.1.3 추가 (P0 Task 7·9·25·30)
+
+```go
+// 언어 (api.md 0.1)
+func (c *Client) SetLanguage(tag string) // 이후 모든 REST 요청과 AuthHeader() 에 "Accept-Language: <tag>" ("" = 헤더 없음). 0.1.3 클라이언트는 실효 언어 "ko"
+
+// 카드 메시지 (api.md 2장 Message.card)
+const MessageKindCard = "card"
+type Card struct {
+	Type string          `json:"type"` // "leet.daily" | "leet.solve" | "arch.design" | "arch.sim" | "api.result" | "api.run"
+	V    int             `json:"v"`
+	Data json.RawMessage `json:"data"`
+}
+// Message.Card *Card `json:"card"`                       (Kind == "card" 일 때만 non-nil)
+// SendMessageRequest.Card *Card `json:"card,omitempty"`  (Kind "card" 와 함께)
+// ThreadReplyRequest.Card *Card `json:"card,omitempty"`
+
+// alert 템플릿 (api.md 2장 Alert.template)
+type AlertTemplate struct {
+	ID     string         `json:"id"`     // docs/contract/i18n/alert-templates.json 의 id
+	Params map[string]any `json:"params"` // string | number(JSON 숫자 → float64)
+}
+// Alert.Template *AlertTemplate `json:"template"`         (nil = 옛 서버·옛 기록)
+// AlertTarget.DocType string `json:"doc_type,omitempty"`  ("arch" | "apicol", Type == "doc" 일 때)
+
+// 방 문서 (api.md 5.24, docs/contract/collab.md)
+type Doc struct { ID, SpaceID, Type, Title string; CreatedBy UserSummary; CreatedAt, UpdatedAt time.Time; HeadSeq int64; Locked bool } // json snake_case
+type DocVersion struct { No int; Seq int64; Name *string; Auto bool; RestoredFrom *int; CreatedBy *UserSummary; CreatedAt time.Time }
+type DocVersionSnapshot struct { Version DocVersion; Snapshot json.RawMessage } // collab.DecodeSnapshot 으로 푼다 (api 는 collab 을 import 하지 않음)
+type DocComment struct { ID, DocID, Anchor string; Author UserSummary; Body string; RootID *string; ResolvedAt *time.Time; CreatedAt time.Time; Deleted bool }
+type CreateDocRequest struct { Type, Title string; Snapshot json.RawMessage }   // Snapshot 생략 가능
+type UpdateDocRequest struct { Title *string; Locked *bool }
+type CreateDocCommentRequest struct { Anchor, Body string; RootID *string }
+type UpdateDocCommentRequest struct { Body *string; Resolved *bool }
+
+func (c *Client) ListDocs(ctx context.Context, spaceID, typ string, p PageOpts) (*Page[Doc], error) // Page — []Doc 아님
+func (c *Client) CreateDoc(ctx context.Context, spaceID string, r CreateDocRequest) (*Doc, error)
+func (c *Client) GetDoc(ctx context.Context, docID string) (*Doc, error)
+func (c *Client) UpdateDoc(ctx context.Context, docID string, r UpdateDocRequest) (*Doc, error)
+func (c *Client) DeleteDoc(ctx context.Context, docID string) error
+func (c *Client) ListDocVersions(ctx context.Context, docID string) ([]DocVersion, error)
+func (c *Client) CreateDocVersion(ctx context.Context, docID, name string) (*DocVersion, error)
+func (c *Client) GetDocVersion(ctx context.Context, docID string, no int) (*DocVersionSnapshot, error)
+func (c *Client) RestoreDocVersion(ctx context.Context, docID string, no int) (*DocVersion, error) // 되돌리기로 새로 생긴 버전
+func (c *Client) ListDocComments(ctx context.Context, docID string, p PageOpts) (*Page[DocComment], error)
+func (c *Client) CreateDocComment(ctx context.Context, docID string, r CreateDocCommentRequest) (*DocComment, error)
+func (c *Client) UpdateDocComment(ctx context.Context, docID, commentID string, r UpdateDocCommentRequest) (*DocComment, error)
+func (c *Client) DeleteDocComment(ctx context.Context, docID, commentID string) error
+func (c *Client) DocSocketURL(docID string) string // ws(s)://.../v1/docs/<doc_id>/ws (internal/collab 이 AuthHeader 로 dial)
+```
+
+LeetCode 오늘의 문제 (api.md 5.25, P1 Task 6 — `internal/api/types_leet.go`·`ep_leet.go`):
+
+```go
+const CardLeetDaily, CardLeetSolve = "leet.daily", "leet.solve"
+type LeetDailyFacts struct { FrontendID, Slug, Title, Difficulty string; Tags []string; IsPaidOnly bool } // json snake_case
+type LeetDaily struct { Date string; LeetDailyFacts; FirstReporter *UserSummary; FirstReportedAt time.Time; MismatchCount int }
+type LeetDailyRoot struct { SpaceID, ChannelID, MessageID string }
+type LeetDailyReport struct { Daily LeetDaily; Roots []LeetDailyRoot }
+type LeetSolveRequest struct { Slug, Lang, FrontendID string; RuntimePercentile *float64; SubmissionID *string; ShareSpaceIDs []string; Code *string } // status "accepted" 은 메서드가 채움
+type LeetSolve struct { Date, Slug, Lang string; PassedAt time.Time; RuntimePercentile *float64; CountsForStreak bool }
+type LeetSolveCardRef struct { SpaceID, MessageID string }
+type LeetSolveResult struct { Solve LeetSolve; Cards []LeetSolveCardRef }
+type LeetDailySpace struct { SpaceID, ChannelID string }
+type LeetMe struct { Current, Best int; Recent []LeetSolve; DailySpaces []LeetDailySpace }
+type LeetBoard struct { Period string; Items []LeetBoardEntry }
+type LeetBoardEntry struct { User UserSummary; Solved, Streak int }
+type LeetFriendsBoard struct { Items []LeetFriendStreak }
+type LeetFriendStreak struct { User UserSummary; Current, Best int }
+type LeetSpaceSettings struct { SpaceID string; Enabled bool; ChannelID, EnabledBy *string; EnabledAt *time.Time }
+type LeetDailyCard struct { Date string; LeetDailyFacts }                       // Card.Data of leet.daily v1
+type LeetSolveCard struct { Date, FrontendID, Slug, Lang string; RuntimePercentile *float64; Code *LeetSolveCode; Spoiler bool } // leet.solve v1
+type LeetSolveCode struct { Lang, Text string }
+// Settings.LeetShareWithFriends bool `json:"leet_share_with_friends"`; UpdateSettingsRequest.LeetShareWithFriends Opt[bool]
+
+func (c *Client) SetSpaceLeet(ctx context.Context, spaceID string, enabled bool, channelID *string) (*LeetSpaceSettings, error) // RL_SOCIAL
+func (c *Client) ReportLeetDaily(ctx context.Context, date string, f LeetDailyFacts) (*LeetDailyReport, error)               // RL_SOCIAL (서버는 루트를 만들 때 RL_MESSAGE 도 셈)
+func (c *Client) PutLeetSolve(ctx context.Context, date string, r LeetSolveRequest) (*LeetSolveResult, error)                // RL_SOCIAL
+func (c *Client) DeleteLeetSolve(ctx context.Context, date string) error                                                    // RL_SOCIAL
+func (c *Client) LeetMe(ctx context.Context) (*LeetMe, error)
+func (c *Client) LeetSpaceBoard(ctx context.Context, spaceID, period string) (*LeetBoard, error) // period "" = 서버 기본(week)
+func (c *Client) LeetFriendsBoard(ctx context.Context) (*LeetFriendsBoard, error)
+func (c *Client) AdminSetLeetDaily(ctx context.Context, date string, f LeetDailyFacts) (*LeetDaily, error) // admin (api.md 5.22, P1 Task 7 — masil admin leet-daily set)
+```
+
+- api.md 6장의 `PUT /v1/leet/daily/{date}` 행은 리미터가 둘(`RL_SOCIAL, RL_MESSAGE`)이다. `request.Limiter` 는 하나만 들므로 늘 세는 `RL_SOCIAL` 을 쓰고, `contract_limiters_test.go` 는 "행이 여럿이면 그중 하나" 로 대조한다.
+- `internal/api` 는 LeetCode 를 모른다 — 문제 본문·쿠키는 `internal/leetcode`(P1) 몫이고 이 메서드들은 masil 서버의 사실 정보·풀이 기록만 오간다.
+
+- `Message.Kind` 값에 `"card"` 가 더해진다. 0.1.2 이하 클라이언트는 모르는 kind 의 `body`(대체 요약)를 그대로 그린다.
+- `AlertTarget.Type` 값에 `"doc"` 가 더해진다.
+- 쓰기 엔드포인트의 리미터 정적 표(4.3.1 "속도 제한")에 `RL_DOC` 행이 api.md 6장과 같은 커밋에서 더해진다(`contract_limiters_test.go` 가 대조).
+- `internal/api` 는 도구 비밀값을 모른다(2.2) — 도구가 다른 서비스(LeetCode 등)를 부를 때는 자기 패키지의 HTTP 클라이언트를 쓴다.
+- realtime(4.4)은 이 블록의 `Doc`·`DocComment` 로 `doc.created`·`doc.updated`·`doc.comment_created`(events.md 4.10)를 `DocCreatedEvent{Doc}`·`DocUpdatedEvent{Doc; Deleted bool}`·`DocCommentCreatedEvent{DocID; Comment}` 로 해독한다(P0 Task 30). 소켓 dial 헤더는 `AuthHeader()` 그대로이므로 `Accept-Language` 도 함께 간다.
 
 ### 4.4 `internal/realtime` — WebSocket 클라이언트 (TUI·데몬 공용)
 
@@ -1273,6 +1597,16 @@ func (n *Notifier) Show(a api.Alert) error                         // ledger.Mar
 - 구조: 각 OS 의 `show`(실제 실행 경로)는 빌드 제약 없는 `backend_platform.go` 에 두고 마지막 OS 호출만 주입받는다 — macOS `darwinPlatform.run`(실물 `execRun` = `exec.CommandContext(ctx, name, args...).CombinedOutput()`, 셸 없음), Windows `windowsPlatform.setAppID`/`push`(실물 `wintoast.SetAppData`/`wintoast.Push(doc)`), Linux `dbusPlatform.dial`(실물 세션 버스 연결; `alive`·`close`·GetCapabilities·Notify). GOOS 전용 파일(`backend_darwin.go`·`backend_windows.go`·`backend_dbus.go`)은 그 실물을 끼우는 배선만 하고 `OSNotification`·텍스트 빌더를 참조하지 않는다.
 - 시험: 각 OS 의 인자/XML/D-Bus 호출을 만드는 순수 함수를 모든 OS 에서 적대적 입력(`$(...)`, 백틱, `"@`, `]]>`, `" & do shell script "id" & "`, 줄바꿈, U+2028/U+2029, `-e`, `<a href>`, bidi 제어(U+202E 등)·보이지 않는 서식 문자)으로 단언한다. 그리고 **모든 OS 에서** 가짜 실행기를 넣은 각 플랫폼으로 `Show` 를 불러, 실제로 넘긴 argv·토스트 XML·Notify 인자가 빌더 결과(`darwinCommand`·`toastXML`·`dbusCall`)와 같고 비활성인지 단언한다(빌더만 시험하면 `show` 가 빌더를 건너뛰어도 잡히지 않음). `Show` 자체가 sanitize·길이 제한을 하는지도 `Show` 를 불러 단언하며, macOS 에선 `Show`→`execRun` 으로 실제 osascript 를 돌려 같은 argv 가 그대로 돌아오는지(명령 미실행) 확인한다. 각 OS 에선 `NewOSBackend` 가 실물 배선(`execRun`·`setToastAppID`/`pushToast`·`dialSessionBus`)을 쓰는지, Linux 에선 godbus 어댑터가 Notify 인자를 그대로 넘기는지 단언한다. 소스 검사: beeep·PowerShell 옵션·셸 리터럴·CDATA 리터럴 금지, `show` 메서드는 `backend_platform.go` 에만, `os/exec` 는 `execRun` 에서만(본문 고정), `wintoast.Push` 는 문서 인자 하나만.
 
+**v0.1.3 추가** (P0 Task 7·9):
+
+```go
+func Render(a api.Alert, t *i18n.T) (title, body string) // a.Template 의 id 를 카탈로그가 알면 그 문구(인자 중 문자열은 textwidth.Sanitize), 모르는 id·nil 이면 a.Title / a.Body
+func Format(a api.Alert, t *i18n.T) OSNotification       // v0.1.3: 인자 t 가 더해진다(시그니처 변경 — 호출부 ui/app·daemon 을 같은 커밋에서). 제목·본문은 Render 결과, sanitize·길이 제한 규칙은 위와 같음
+func (n *Notifier) SetLocale(l i18n.Locale)                // Show 가 Format 에 넘길 사전(기본 i18n.Ko)
+```
+- 카탈로그 키 규칙: `template.id` 의 `.` → `_`, 뒤에 `_title`, body 가 `"template"` 인 id 는 `_body` 도 — 영역 `alerts`(예: `social.follow` → `alerts.social_follow_title`). body 가 `"verbatim"` 인 id 는 `a.Body`(사용자 글) 그대로(Sanitize). 목록·인자는 `docs/contract/i18n/alert-templates.json`(단일 출처, 서버 시험과 Go 시험이 함께 읽음).
+- 카탈로그의 ko 문구는 서버 `server/src/lib/i18n.ts` 의 ko 문구와 바이트가 같다 → 0.1.3 의 TUI·데몬 OS 알림은 0.1.2 와 같은 글자다.
+
 ### 4.7 `internal/textwidth` — 폭 계산 (8장 상세)
 
 ```go
@@ -1377,6 +1711,31 @@ type Caps struct {
 func Detect(env []string, override string) Caps // override = config.ui.images
 ```
 - 감지: `override != "auto"` 면 그 값(`off`=None). 아니면 `$TMUX` 있거나 `TERM` 이 `screen*`/`tmux*` → HalfBlock. `TERM=xterm-kitty` 또는 `KITTY_WINDOW_ID` 또는 `TERM_PROGRAM=ghostty` → Kitty. `TERM_PROGRAM=iTerm.app` 또는 `WezTerm` → ITerm2. 그 외 HalfBlock.
+
+**v0.1.3 추가** (P0 Task 7·9a·19):
+
+```go
+package humanize
+type Formatter struct{ /* locale */ }
+func For(l i18n.Locale) Formatter // 0.1.3: 모든 언어가 ko 출력(en·zh-Hans 표는 P5). 기존 패키지 함수는 For(i18n.Ko) 위임 — 출력 그대로
+func (f Formatter) Clock(t time.Time, loc *time.Location, h12 bool) string
+func (f Formatter) MessageTime(now, t time.Time, loc *time.Location) string
+func (f Formatter) Relative(now, t time.Time) string
+func (f Formatter) Count(n int) string
+func (f Formatter) Duration(d time.Duration) string
+func (f Formatter) DayDivider(t time.Time, loc *time.Location) string
+```
+
+```go
+package slash
+const Tools Name = "tools"           // /tools → ui.RunCommand("tools.hub", ""); 도구 기능 플래그(features.Any())가 꺼져 있으면 행이 없고 기존 "알 수 없는 명령" 동작
+func Catalog(t *i18n.T) []Spec        // v0.1.3: 인자 t 가 더해진다(시그니처 변경, P0 Task 9a). Catalog(i18n.KoT()) == 0.1.2 의 Catalog() 표. 새 행(/tools)의 설명은 t 에서. ctx 가 없는 곳(CLI)은 함수 안에서 i18n.KoT()
+```
+
+```go
+package textwidth
+func MaxWidth(ss ...string) int // Width 의 최댓값, 인자 없으면 0 — 표 열 너비는 고정 숫자 대신 이것(언어마다 폭이 다름)
+```
 
 ---
 
@@ -1580,6 +1939,24 @@ func (l Layout) At(x, y int) (Pane, bool)
 - **TooSmall**: `SlotStatus` 없이 화면 전체에 가운데 정렬 안내 한 줄(없으면 잘림 없이 `…`). `Panes` = `[{SlotMain, {0,0,W,H}, Bordered:false}]`, `W==0 || H==0` 이면 빈 목록. 이 모드에서는 경로·오버레이를 그리지 않는다(상태는 그대로 보존).
 - `Compute` 는 **어떤 입력에도** 패닉하지 않는다(`cols`/`rows` 0·음수 포함 — 음수는 0 으로 본다). 테두리 있는 창의 내부 크기가 1×1 미만이 되는 일은 위 최소값으로 생기지 않으며, 이는 골든이 아니라 `Compute` 전수 속성 시험(10.3)이 보장한다.
 
+**v0.1.3 추가 — 도구 자리** (v0.1.3 설계서 A8.3·A8.4, P0 Task 17):
+
+```go
+const SlotTool SlotID = "tool" // 지휘소 전용 도구 표면 열 (core; 내용은 도구 인스턴스 경로)
+// State 에 추가 (app.NavState.LayoutState 가 투영, 5.3.3):
+//   ToolOpen bool // 지휘소 기하 분기: 도구 표면이 앞(Front == FrontTools)
+//   Zoomed   bool // 넓게 보기: 도구 표면이 앞이고 활성 인스턴스의 넓게 보기가 켜짐(없으면 ToolSpec.WideDefault)
+```
+
+| 모드 | `ToolOpen` | `+Zoomed` |
+|---|---|---|
+| 지휘소 | rail·sidebar·`SlotMain`(대화) 그대로, `SlotFeed`·오른쪽 열(`SlotThread`/`SlotMembers`/`SlotNotifications`) 대신 `SlotTool` 하나(폭 = feed+right, 높이 = B; 200×60 이면 90×59, Main 78) | rail·sidebar·`SlotTool`(폭 = chat+feed+right; 200×60 이면 168), `SlotMain` 없음 |
+| 표준 | (쓰지 않음 — `SlotMain` 이 도구) | sidebar 없음, `SlotMain` 이 전체 폭(120×40 이면 120, 넓게 보기 끔은 94) |
+| 컴팩트·위젯·초소형 | 쓰지 않음 | 변화 없음(원래 Main 이 전체 폭) |
+
+- `ToolOpen`·`Zoomed` 가 모두 거짓이면 `Compute` 결과는 0.1.2 와 바이트 같다(기존 골든 무변화). 표준의 `ThreadOpen` 은 도구 표면이 앞이면 거짓으로 투영한다.
+- 10.3 `Compute` 전수 속성 시험의 `State` 조합에 `ToolOpen`·`Zoomed` 를 더한다(겹침 없음·전체 덮음·`Inner()` ≥ 1×1 그대로).
+
 ### 5.3 UI 계약 — `internal/ui`
 
 #### 5.3.1 컴포넌트
@@ -1678,6 +2055,40 @@ const (DensityFull Density = iota /*command, standard*/; DensityLine /*compact: 
 - 해당 타이머: 새 메시지 페이드(250ms×4), 토스트(4초), `watch` 디바운스(300ms), 유휴(10분), 팔레트 사람 검색 디바운스(300ms), 멤버 접속 상태(60초), 발견 피드 새 글 확인(30초), 트렌드(5분), 스피너 프레임, `ctrl+c` 두 번(1초) 판정. 시각 비교는 `ctx.Now()` 로만 한다.
 - bubbles 의 textarea/textinput 은 `SetVirtualCursor(false)` 면 커서 모드가 `CursorHide` 가 되어 `Focus()` 가 깜빡임 Cmd 를 내지 않는다 **[검증: bubbles v2.2.1 textarea.go `updateVirtualCursorStyle`, cursor.go `Focus`]** → 입력 위젯은 항상 실제 커서 모드로 쓴다. bubbles `spinner.Model` 의 `Tick` 은 내부에서 `tea.Tick` 을 쓰므로 직접 쓰지 않고 `widgets.Spinner`(5.7)를 쓴다.
 - realtime 클라이언트 내부 타이머(하트비트·백오프·120초 watch 재전송)는 Bubble Tea 밖 고루틴이라 이 규칙 대상이 아니다(하네스는 실시간을 끈다).
+
+**v0.1.3 추가 — `Context` 필드** (P0 Task 7·10·19·21·30):
+
+```go
+// Context 에 추가:
+	T          *i18n.T          // 현재 언어의 사전 — never nil (0.1.3 실효 언어 = ko)
+	Lang       i18n.Locale      // 실효 언어
+	Post       Poster           // 고루틴에서 화면으로 msg 를 보내는 유일한 길 — never nil
+	ToolState  *toolstate.File  // tools-state.json (3.2) — never nil (하네스는 t.TempDir() 의 빈 파일)
+	OpenTools  func() []OpenToolInfo // 도구 표면에 열린 인스턴스(허브 빼고, 표면 순서) — 앱이 채움, nil = 없음. 허브의 "열려 있음" 목록이 씀(5.3.6)
+	Secrets    *secrets.Store   // 도구 자격증명 저장소 — never nil (하네스는 secrettest.NewStore(tb, true))
+	CollabDial func(ctx context.Context, url string, h http.Header) (realtime.Conn, error) // 방 문서 소켓 dial; nil = 진짜 연결
+
+type Poster interface {
+	Post(msg tea.Msg)                 // 어느 고루틴에서나, 절대 막히지 않음, FIFO
+	Coalesce(key string, msg tea.Msg) // 같은 key 는 아직 배달 안 된 것 하나만 남김(최신으로 교체) — 예: termpane.DirtyMsg
+}
+```
+- 화면에 그리는 모든 문구는 `ctx.T` 에서 꺼낸다(새 패키지는 한글 문자열 리터럴 0개 — `internal/i18n/ratchet_test.go`). 패키지 수준 변수·`init()` 에서 `i18n.KoT()`/`i18n.For` 로 문구를 굳히지 않는다(언어 바꾸기 대비, P5 `TestNoPackageLevelCatalog`).
+- **고루틴 규칙**: `internal/ui/...` 의 고루틴(패널 출력·외부 창 대기·방 문서 세션 콜백 등)이 화면에 무언가 알리려면 `ctx.Post` 만 쓴다(`tea.Program.Send` 직접 호출 금지). 지연은 지금처럼 `ui.After` 만(타이머 규칙 그대로).
+- 도구는 비밀값을 `ctx.Secrets` 로만 읽고 쓴다(전역 저장소·도구별 생성자 없음). 기기 전용 기억은 `ctx.ToolState.Section(<도구 ID>, &v)`·`SetSection` 으로 자기 섹션만.
+
+**v0.1.3 추가 — 비밀값 키** (P0 Task 23, `internal/ui/secretkey.go`):
+
+```go
+// 로그인한 masil 계정의 비밀값 범위(v0.1.3 A9.1 규칙 3). ok=false = 로그아웃 상태.
+// server = API 클라이언트 기본 URL(ctx.API.BaseURL())의 host — 포트 포함(url.URL.Host 그대로),
+//          API 가 없으면 ctx.Config.ServerURL() 의 host. userID = ctx.Me().ID.
+func (c *Context) SecretScope() (server, userID string, ok bool)
+// secrets.Key{Tool: tool, Server: server, UserID: userID, Name: name}
+func (c *Context) SecretKey(tool, name string) (secrets.Key, bool)
+```
+- **키 규칙 [결정]**: 도구는 비밀값 키를 언제나 `ctx.SecretKey(<도구 ID>, <값 이름>)` 로 만든다. 이름 목록·지우기에 쓰는 `(server, userID)` 도 `ctx.SecretScope()` 로만 얻는다(`ctx.Secrets.List(ctx, tool, server, userID)` 등). host 를 설정 `ServerURL` 에서 따로 구하거나 포트를 빼지 않는다 — 로그아웃 `DeleteAll`·설정 [지우기]가 같은 함수를 써서, 다른 방식으로 만든 키는 지워지지 않고 남는다.
+- `secrets.Store` 겉모양(P0 계획 Interfaces 요약과 같음): `Put(ctx, Key, Secret) (Backend, error)`·`Get(ctx, Key) (Secret, Backend, error)`·`Delete`·`List(ctx, tool, server, userID)`·`DeleteAll(ctx, server, userID)`·`Where(Key) Backend`(OS 를 부르지 않음)·`SetFallback(Fallback)`·`Fallback() Fallback`. OS 저장소 실패는 `ErrUnavailable`(그 실행 동안 Put·Get 은 OS 를 다시 부르지 않음 → `ErrNeedConsent`), **ctx 취소·만료는 ctx 의 오류**(`errors.Is(err, context.Canceled)` 등 — 동의를 묻지 않고 OS 를 내려 두지도 않음). 지우기처럼 꼭 끝나야 하는 호출에는 다른 요청과 나누지 않은 자기 ctx 를 준다.
 
 #### 5.3.3 경로(Route)와 내비게이션
 
@@ -1818,6 +2229,36 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route
 - `f`(`feed.toggle`): 지휘소 → 포커스를 `SlotFeed` 로. 그 외 → `Front` 를 `FrontTab`↔`FrontFeed` 토글(`InDM` 유지 — 돌아오면 떠난 채팅 표면). `ctrl+n`(`notifications.open`): 지휘소 → 포커스를 `SlotNotifications` 로, 그 외 → `Front` 를 `FrontNotifications`↔`FrontTab` 토글.
 - 앱은 경로별 컴포넌트 인스턴스를 `Route.Key()` 로 캐시한다(최근 32개, 그 이상은 가장 오래 안 본 것부터 `Persistent` 상태만 남기고 해제 — 단 `NavState.Keys()` 에 있는 키는 해제하지 않는다). 같은 채널로 돌아오면 같은 인스턴스(초안·스크롤 유지). 한 인스턴스는 한 프레임에 한 슬롯에만 있으므로 `Resize` 크기는 늘 하나다.
 
+**v0.1.3 추가 — 도구 표면** (v0.1.3 설계서 A8.1·A8.4, P0 Task 18):
+
+```go
+// ui
+const (
+	RouteTools RouteKind = "tools" // core ui/tools: 도구 허브
+	RouteTool  RouteKind = "tool"  // core ui/tools: 도구 인스턴스. ID = 인스턴스 ID, Arg = 도구 ID (leet|workspace|arch|git|api)
+)
+
+// app
+const FrontTools Front = ... // 새 Front: 단일 창 모드는 Main 에, 지휘소는 SlotTool 에 도구 표면
+// NavState 에 추가:
+//   Tools      []ui.Route      // 도구 표면 목록: [0] = 허브(열려 있으면), 그 뒤 인스턴스. 최대 6 — 허브 자리 하나는 늘 남긴다(인스턴스는 5개까지, 허브 없이 열어도). 넘으면 거절 + 토스트 tools.limit_toast
+//   ToolActive int             // Tools 의 활성 인덱스
+//   ToolZoom   map[string]bool // 인스턴스 Route.Key() -> 넓게 보기(없으면 ToolSpec.WideDefault)
+```
+
+- 도구별 경로 종류(`RouteArch`·`RouteAPI` 등)는 만들지 않는다 — 모든 도구 화면은 `RouteTool` 인스턴스다(JX3). 두 종류는 도구 표면(`NavState.Tools`)에만 있고 채팅 탭·피드 스택·기록(뒤로/앞으로)에 들어가지 않는다("한 키는 한 곳" 불변식 유지).
+- 같은 `Route.Key()` 의 인스턴스를 다시 열면 새로 만들지 않고 그 인스턴스로 간다. `NavState.Keys()` 는 `Tools` 의 키를 포함한다(살아 있는 패널을 캐시에서 버리지 않게). `app.Options.InitialRoute` 가 `RouteTool` 이면 도구 표면으로 시작한다(P2 `masil workspace open`).
+- 도구 표면은 `state.json` 에 저장하지 않는다(재시작하면 비어 있음, 패널 프로세스는 되살릴 수 없음). `Front == FrontTools` 인 상태로 저장하면 `front = "tab"` 으로 적는다.
+
+`Project` 표 추가:
+
+| 모드 | `Front == FrontTools` 일 때 |
+|---|---|
+| 지휘소 | `SlotTool` ← `Tools[ToolActive]`, `SlotMain` 은 채팅 표면 그대로(넓게 보기면 `SlotMain` 없음) |
+| 표준·컴팩트·위젯·초소형 | `SlotMain` ← `Tools[ToolActive]` |
+
+- `LayoutState`: `ToolOpen = mode == ModeCommand && Front == FrontTools`, `Zoomed = Front == FrontTools && (ToolZoom[활성 키], 없으면 WideDefault)`. 도구 표면이 비어 있으면(`Tools` 없음) 화면은 0.1.2 와 한 글자도 같다.
+
 #### 5.3.4 메시지 흐름과 라우팅
 
 `app.Update` 처리 순서:
@@ -1850,7 +2291,7 @@ type FocusChangedMsg struct{ Slot layout.SlotID; RouteKey string }
 type ToastMsg struct{ Text string; Kind ToastKind; Route *Route } // shown 4s (ui.After) as a bordered box at the body's top-right (status line in tiny); rect reported in app.FrameInfo.Toast
 type ToastKind int
 const (ToastInfo ToastKind = iota; ToastSuccess; ToastError; ToastAlert)
-type ErrorMsg struct{ Err error; Context string }        // => ToastError with api.Describe(err)
+type ErrorMsg struct{ Err error; Context string }        // => ToastError with errtext.Describe(ctx.T, err)
 type OpenOverlayMsg struct{ Overlay Overlay; ID, Args string } // Overlay != nil => push it; else build RegisterOverlay(ID) with Args (unknown ID => ignored + debug log)
 type CloseOverlayMsg struct{}
 type RunCommandMsg struct{ ID string; Args string }      // palette command by id
@@ -1858,6 +2299,8 @@ type LoggedOutMsg struct{ Reason string }
 type ResyncStartedMsg struct{}
 type ResyncDoneMsg struct{ Err error }
 type FriendRequestsChangedMsg struct{} // my sent friend requests changed outside the friends screen (profile menu, v0.1.1 C2): the friends screen fetches 보낸 요청 again
+type SetLocaleMsg struct{ Choice string }          // P5: "auto" or a locale code; consumed by the app (never broadcast) — resolved like [ui] language (closed => fallback, unknown => auto; MASIL_LANG still wins, spec 6.2) => ctx.T, ctx.Lang, API Accept-Language, Notifier.SetLocale, Keys.Localize, then LocaleChangedMsg
+type LocaleChangedMsg struct{ From, To i18n.Locale } // P5: broadcast to every live component and overlay after the shown language changed (only when From != To); nothing is rebuilt — drafts, scroll, selection, open overlays stay; drop text cached in the old language
 
 func Toast(text string, kind ToastKind) tea.Cmd
 func RunCommand(id, args string) tea.Cmd
@@ -1870,7 +2313,7 @@ type ResultMsg[T any] struct{ Tag string; Value T; Err error }
 func Do[T any](c *Context, tag string, fn func(ctx context.Context, api *api.Client) (T, error)) tea.Cmd
 ```
 - **태그 규칙**: `"<계획>.<동작>:<대상ID>"`, 예 `"chat.history:01JB…"`, `"feed.like:01JD…"`. 각 계획은 자기 접두사(`core.`, `chat.`, `feed.`, `fun.`)만 쓴다.
-- 오류는 컴포넌트가 처리하지 않으면 `ErrorMsg` 를 돌려 앱이 토스트로 띄운다(`api.Describe`).
+- 오류는 컴포넌트가 처리하지 않으면 `ErrorMsg` 를 돌려 앱이 토스트로 띄운다(`errtext.Describe`).
 
 #### 5.3.5 포커스 관리
 
@@ -1898,6 +2341,79 @@ const OverlayFocusSummary = "fun.focus_summary" // sns-fun ui/fun; args = alert 
 
 - 등록되지 않은 슬롯/경로는 앱이 `widgets.Placeholder("준비 중")` 로 그린다 → core 골든은 chat/sns 없이도 깨지지 않는다. core 시험은 `uitest/stub`(10.2)을 등록해 실제 상호작용을 시험한다.
 - **경로 슬롯** `SlotMain`·`SlotThread`·`SlotFeed`·`SlotNotifications` 는 PaneFactory 가 없고 `app.Project`(5.3.3) 가 정한 **경로 인스턴스**를 띄운다: `SlotFeed` ← 피드 표면 맨 위(`RouteFeed` 등), `SlotNotifications` ← `RouteNotifications` 인스턴스, `SlotThread` ← 활성 탭의 `RouteThread` 인스턴스. 그래서 모드가 바뀌어 같은 경로가 Main 으로 내려오거나 전용 창으로 올라가도 **같은 인스턴스**(선택·스크롤·초안 유지)다.
+
+**v0.1.3 추가 — 등록부** (P0 Task 9·9a·16·18·25). 모두 `init()` 에서만 부르고 중복은 panic, `Registry` 스냅샷(`Registered()`·`clone()`·`SnapshotRegistryForTest`)이 함께 복사·복원한다(`Registry.Tools`·`Cards`·`KillSwitches`·`AlertTargets`). 각 필드는 그 등록 함수를 만드는 Task 가 `internal/ui/registry.go` 의 `Registry`·`emptyRegistry`·`clone` 에 함께 더한다(`Tools` = Task 18, `AlertTargets` = Task 9, `KillSwitches` = Task 16, `Cards` = Task 25) — 패키지 수준 변수에 따로 두지 않는다.
+
+```go
+// 도구 (v0.1.3 설계서 A8.2)
+const (ToolLeet = "leet"; ToolWorkspace = "workspace"; ToolArch = "arch"; ToolGit = "git"; ToolAPI = "api")
+type PrefixKey struct { Key string; Help func(t *i18n.T) string } // ctrl+\ 다음 키의 도움말 표시 전용
+var ReservedPrefixKeys = []string{"esc", "h", "j", "k", "l", "left", "down", "up", "right", "z", "p", "t", "[", "x", "?", "ctrl+\\"} // 단일 정의
+type ToolSpec struct {
+	ID          string
+	Order       int                                   // 허브 순서: leet 1, workspace 2, arch 3, git 4, api 5
+	Icon        string
+	Name        func(t *i18n.T) string
+	Available   func(ctx *Context) bool                // 거짓이면 허브 줄은 보이되 Status 가 안내
+	Status      func(ctx *Context) string              // 허브 상태 문구(허브가 Sanitize·자름)
+	New         func(ctx *Context, r Route) Component  // RouteTool 인스턴스
+	Open        func(ctx *Context, mode termhost.Mode) tea.Cmd
+	PrefixKeys  []PrefixKey                            // 접두키 추가분(ReservedPrefixKeys 와 겹치면 panic)
+	WideDefault bool                                   // workspace·arch·api = true, leet·git = false
+}
+func RegisterTool(s ToolSpec)                                // 위 다섯 ID 밖의 ID·중복 ID·중복 Order·ReservedPrefixKeys 접두키 => panic (시험 대역도 다섯 ID 중 하나로 등록)
+func Tools() []ToolSpec                                      // Order 순, features.On(ID) 인 것만
+func ToolByID(id string) (ToolSpec, bool)                    // 등록됐고 features.On(id) 일 때만 ok — 꺼진 도구는 없는 것과 같다
+func OpenTool(toolID, instanceID string, query map[string]string) tea.Cmd // NavigateMsg{RouteTool}
+func CloseTool(instanceID string) tea.Cmd                    // 인스턴스의 Closer.CloseTool(있으면) 뒤 도구 표면에서 뺌; 없는 ID 무시
+type CloseToolMsg struct{ InstanceID string }                // CloseTool 이 보내는 msg — 앱이 소비(방송 안 함)
+type Closer interface{ CloseTool(ctx *Context) tea.Cmd }
+type ToolSwitchedMsg struct{ Route Route; Zoomed bool }      // 도구 표면 활성 인스턴스가 바뀔 때 방송
+type ToolStatuser interface{ ToolStatus(ctx *Context) string } // 선택: 허브 "열려 있음" 줄의 "방식 · 상태"(A8.2, 예 "패널 · 실행 중") — 없으면 빈칸. 앱이 Sanitize
+type OpenToolInfo struct {                                   // Context.OpenTools 의 한 줄
+	Route  Route  // 그 RouteTool 경로
+	Title  string // 탭 제목(Titled, 없으면 도구 이름) + 도구 아이콘, Sanitize
+	Status string // ToolStatuser.ToolStatus, 없으면 ""
+	Active bool   // 도구 표면이 앞에 있고 그 활성 항목
+}
+type ToolSurfaceAction int                                   // ToolSurfaceToggle | ToolSurfaceNext | ToolSurfacePrev | ToolSurfaceZoom
+type ToolSurfaceMsg struct{ Action ToolSurfaceAction }       // 팔레트 tools.toggle/next/prev/zoom 이 보냄 — 앱이 소비(플래그 꺼짐이면 무시)
+```
+
+- **인스턴스 ID 는 도구 표면 전체에서 하나**다(`CloseTool` 은 ID 만 받으므로). 다른 도구의 인스턴스가 이미 그 ID 로 열려 있으면 앱은 그 `RouteTool` 을 거절한다(로그만, 토스트 없음). 그래서 도구는 인스턴스 ID 를 `"<도구 ID>:"` 로 시작한다(예 `"git:"+repo`, `"arch:doc:"+id`).
+- 열기 거절(가득 참·ID 겹침)·플래그 꺼짐은 `OpenTool` 의 Cmd 를 아무 일 없이 끝낸다 — 도구는 열렸다고 가정하지 않는다.
+
+```go
+
+// 채팅 카드 (v0.1.3 설계서 C1.2) — ui/chat 이 그리고, 도구 패키지가 등록
+const (CardLeetDaily = "leet.daily"; CardLeetSolve = "leet.solve"; CardArchDesign = "arch.design"; CardArchSim = "arch.sim"; CardAPIResult = "api.result"; CardAPIRun = "api.run")
+type CardRenderer struct {
+	Lines func(ctx *Context, m *api.Message, width int) []string // 각 줄 ≤ width 칸, data 의 문자열은 Sanitize; 좁은 그림 판단은 ctx.Mode·width 로
+	Open  func(ctx *Context, m *api.Message) tea.Cmd            // nil = enter 는 지금처럼 스레드
+	Key   func(ctx *Context, m *api.Message, k tea.KeyPressMsg) (handled bool, cmd tea.Cmd) // 선택된 카드가 키를 먼저 받음; nil/handled=false => 채팅 기본 처리
+}
+func RegisterCard(cardType string, r CardRenderer)
+func CardFor(cardType string) (CardRenderer, bool)
+
+// 즉시 끊기 (P2 공유)
+type KillSwitch struct { Active func() bool; Kill func(ctx *Context) tea.Cmd }
+func RegisterKillSwitch(k KillSwitch)
+func KillSwitchActive() bool
+func KillAll(ctx *Context) tea.Cmd
+
+// alert 대상 → 화면 (P2 "workspace_share", P3 "doc:arch", P4 "doc:apicol")
+func RegisterAlertTarget(targetType string, f func(ctx *Context, a api.Alert) tea.Cmd)
+func AlertTargetCmd(ctx *Context, a api.Alert) (tea.Cmd, bool) // 등록이 없으면 false
+
+// 선택 능력 (5.3.1 에 더함)
+type KeyGrabber interface{ GrabsKeys() bool }                         // 참이면 앱이 하드 전역보다 먼저 모든 키·붙여넣기를 넘김(내장 패널)
+type StatusTexter interface{ StatusText(ctx *Context) (string, bool) } // 상태줄 힌트를 통째로 바꿈
+```
+
+- **카드 그리기**: chat 은 `Kind == "card"` 이고 `CardFor(card.type)` 가 있으면 `Lines`, 없으면 `body` 를 지금 방식(markup)으로 그린다. 카드 메시지에서 `enter` = `Open`(있을 때), `t` = 스레드, `e` 수정은 숨김. 도구 패키지가 카드를 그리므로 chat 은 도구 패키지를 import 하지 않는다(2.2).
+- **alert 대상**: `ui/app` 의 알림 이동은 지금 아는 대상(channel·message·post·space·user·notification)을 그대로 처리하고, 모르는 대상만 `AlertTargetCmd` 에 묻는다. 찾는 키는 `target.doc_type` 이 있으면 `"<type>:<doc_type>"` 먼저, 없거나 등록이 없으면 `"<type>"`. 등록 함수가 nil Cmd 를 돌려주면(그 도구 플래그가 꺼짐 등) 아무 화면도 열지 않는다.
+- 도구·카드·alert 대상·즉시 끊기 등록은 도구 패키지의 `init()` 이 하고, 도구 패키지는 `cmd/masil/register_<도구>.go` 로만 연결된다. 기능 플래그(`internal/features`)가 꺼진 도구는 `Tools()` 에 없다.
+- **문구 이음매(P0 Task 9a)**: 0.1.3 의 새 팔레트 명령·키맵 행·슬래시 행·도구 이름·접두키 도움말은 `func(*i18n.T) string` 으로 등록한다(등록 시점에 한국어로 굳히지 않음). 5.5·5.6 참고.
 
 #### 5.3.7 오버레이
 
@@ -1930,6 +2446,7 @@ type Options struct {
 	Notifier     *notify.Notifier  // nil => notify.New(NewOSBackend("masil"), OpenLedger(paths), log)
 	API          *api.Client       // nil => api.New(config.ServerURL(), WithToken(...))
 	Timers       ui.Timers         // nil => ui.RealTimers(); uitest passes its FakeClock
+	Secrets      *secrets.Store    // v0.1.3 (P0 Task 21): ctx.Secrets; nil => secrets.Open(Paths) with this OS's store
 }
 
 type Model struct{ /* implements tea.Model */ }
@@ -1942,6 +2459,7 @@ func (m *Model) Nav() NavState        // tests: current logical navigation state
 func (m *Model) Instance(routeKey string) ui.Component // tests: cached route instance or nil
 func (m *Model) Focus() FocusIntent   // tests: resolved focus slot + route key this frame
 func (m *Model) Frame() FrameInfo     // tests: geometry of the last View() (10.2 AssertIntegrity)
+func (m *Model) Locale() i18n.Resolution // P5 Task 2: the current language decision (start, then each SetLocaleMsg); Task 24 shows its source
 
 type FocusIntent struct{ Slot layout.SlotID; RouteKey string }
 
@@ -1951,7 +2469,7 @@ type FrameInfo struct {
 	Overlays []Box                      // bottom -> top, final clamped rects (5.3.7)
 	Toast    *Box                       // nil when no toast box is drawn (or tiny: shown in status line)
 }
-type Box struct{ Rect layout.Rect; Bordered bool }
+type Box struct{ Rect layout.Rect; Bordered bool; ID string } // ID(P5 Task 4): overlay's OpenOverlayMsg.ID, else its Go type without "*" ("palette.overlay"); "" for the toast
 
 func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Program (alt screen via View), start realtime bridge, run, save state.json on exit
 ```
@@ -1982,6 +2500,17 @@ func Run(ctx context.Context, o Options) error // AcquireTUI lock, build tea.Pro
 - 초소형: `챗 / DM / 피 / 알` 축약 + 배지, 현재 탭만 pill. 동작은 위젯과 같다.
 - 지휘소 레일: `홈` 바로 아래 `DM`(DM 안 읽음 표시 `•`/멘션 `●`, 클릭·`enter` = `RouteDMs` 를 Main 에, Main 이 DM 목록이거나 DM 을 보이면 현재 항목). `홈` 에는 이제 DM 표시가 없다(DM 에서 센다). 표준(레일 없음): 사이드바 맨 위 방 이름 `▾` 바로 아래 `DM  6` 줄(같은 동작·배지), 방 전환 메뉴에도 `홈` 다음 `DM`. 홈 화면과 사이드바의 `─ DM` 목록은 그대로 둔다.
 - DM 목록(`RouteDMs`, chat): `visibleDMs`(= `Store.DMOrder` 최근 활동 순, 차단한 사람과의 1:1 DM 숨김) 한 줄씩 — 1:1 은 접속 점 + 이름, 그룹 DM 은 `◇ 라벨`, 그 뒤 마지막 메시지 미리보기(캐시에 있을 때만, 내 글 `나: `, 그룹 DM 은 `이름: `, 자리가 모자라면 먼저 빠짐), 오른쪽에 상대 시간(`3분`)과 안 읽음 배지(`sideBadge`). `enter`/두 번 클릭 = 그 DM 을 DM 표면에서 열기. 제목 `DM` + DM 안 읽음 배지.
+
+**v0.1.3 추가** (v0.1.3 설계서 A6.2·A7·A8, P0 Task 7·10·12·16·18·20):
+
+- `Options` 에 `Locale *i18n.Resolution`(nil = `i18n.Resolve(i18n.DetectOS() + config)`). 앱은 시작 때 `ctx.T = i18n.For(Effective)`, `api.Client.SetLanguage`, `Notifier.SetLocale`, `ctx.Keys.Localize(ctx.T)` 를 한 번 한다.
+- **브리지 줄(A6.2)**: 실시간 콜백(`OnEvent`/`OnState`)은 `tea.Program.Send` 를 부르지 않고 **순서를 지키는 줄(FIFO)** 에 넣고 바로 돌아간다. 배달 고루틴 하나가 줄에서 꺼내 `Send` 한다 — 화면 쪽이 막혀도(화면 전환 중) 실시간 루프는 ping·소켓 읽기를 계속한다. 상한 `bridgeQueueLimit = 4096`: 넘치면 쌓인 `EventMsg` 를 버리고 마지막 `RealtimeStateMsg` 만 남긴 뒤 `resyncNeededMsg` 하나를 넣는다 → 화면이 돌아오면 기존 재동기화(REST 부트스트랩 → Resyncer)를 한 번 탄다. `ctx.Post` 는 같은 배달 고루틴의 별도 줄(상한 4096, 넘치면 가장 오래된 비-Coalesce 항목을 버리고 `slog.Warn`).
+- **화면 전환 복귀 토스트(JA28)**: `termhost.Exclusive()` 가 참인 동안 브리지가 남의 `message.created`·mention alert 를 세고, 끝나면 상태줄 토스트 한 번 `termpane.exec_return` = `{program} 쓰는 동안 · 새 메시지 {messages} · 멘션 {mentions}`(`{program}` = `ExitInfo.Title`, 비면 `filepath.Base(Program)`; 0건이면 토스트 없음).
+- **탭 줄**: 컴팩트·위젯·초소형은 도구가 하나라도 열려 있을 때만 끝에 고정 칸 `도구`(초소형 `도`, 카탈로그 `tools.tab_label`/`tab_label_short`)가 생기고, 모두 닫으면 사라진다(80×24·44×24 에서 넘치지 않음). 위젯 맥락 줄은 도구 표면일 때 `🌿 lazygit · masil ▾` 처럼 도구 제목 + 대상, `▾` 클릭으로 열린 도구 사이 전환(다음 항목, 끝에서 처음으로; 하나만 열려 있으면 지금처럼 팔레트). 위젯·초소형의 `[`/`]` 는 고정 탭 순환 그대로이고, 키보드로 도구 사이를 오가는 길은 팔레트 `tools.next`/`tools.prev` 와 허브다. 초소형(테두리 없음)의 허브는 첫 줄 왼쪽에 제목 `도구` 를 직접 그린다.
+- **상태줄**: 포커스 컴포넌트가 `StatusTexter` 면 그 문구가 힌트를 대신한다(패널 포커스 `⌨ lazygit 에 입력 중 · ctrl+\ esc 나가기`, 접두 대기 `ctrl+\ 다음: esc 나가기 · z 확대 · x 끝내기 · p 팔레트 · ? 도움말`). 도움말·상태줄의 `ctrl+t`·`tools.zoom` 줄은 `features.Any()` 일 때만 보인다(플래그가 꺼져 있으면 0.1.2 와 같은 화면).
+- **키 독점**: 포커스 컴포넌트가 `KeyGrabber` 이고 `GrabsKeys()` 면 앱은 하드 전역(`ctrl+c`·`ctrl+k`·`tab` …)을 판단하기 전에 키·붙여넣기·포커스 msg 를 그 컴포넌트로 넘긴다. 빠져나오는 길은 `ctrl+\` 접두키(5.5 `termhost.escape`)뿐. `ui.KillSwitchActive()` 인 동안은 어느 화면에서든 `ctrl+\` 다음 `x` 가 `ui.KillAll`(확인 없음).
+- **끝내기**: 모든 종료 경로(`ctrl+c` 두 번·`/quit`·팔레트 `quit`)가 하나의 `requestQuit()` 를 지나고, `termhost.Running()` 이 비어 있지 않으면 확인 대화상자 `termpane.quit_confirm`(`lazygit 1개, nvim 1개가 실행 중이에요. 함께 끌까요?`, 기본 "아니오") → 예 = `termhost.CloseAll(2s)` 뒤 종료. `MASIL_PANE=1`(masil 이 masil 패널 안에서 뜸)이면 첫 그리기 뒤 경고 토스트 한 번.
+- **화면 전환 중 OS 알림**: 9.1 v0.1.3 추가.
 
 ### 5.5 키맵 — `internal/ui/keymap`
 
@@ -2056,6 +2585,23 @@ func (k *Keymap) Help(as ...Action) []key.Binding
 - 움직임 없는 누르기+놓기는 클릭이다: 누르기에서 지금처럼 선택(·리액션 칩/투표 칸)하고, **선택된 행 다시 클릭 = 열기는 놓을 때** 한다(드래그하려다 스레드가 열리지 않게). `uitest` 의 `h.Click` 은 누르기와 놓기를 보내고, `h.Drag(x0,y0,x1,y1)` 은 그 사이 칸마다 움직임을 보낸다.
 - 글자 단위 선택은 터미널 자체 선택으로 안내한다(도움말 `메시지` 무리, README 문제 해결): iTerm2 ⌥, Terminal.app fn(또는 ⌘R 마우스 보고 끄기), Linux·Windows Terminal Shift, 또는 `ui.mouse` 끄기.
 
+**v0.1.3 추가** (v0.1.3 설계서 A7.5·A8.1·A8.3, P0 Task 9a·16·18):
+
+| Action | 키 | 범위 |
+|---|---|---|
+| `tools.toggle` | `ctrl+t` — 도구 표면 ↔ 채팅(처음이면 허브, 다음엔 마지막 도구). 입력창의 transpose 보다 먼저 받는다(`ctrl+n` 과 같은 처리). 패널 포커스 중에는 프로그램으로 가므로 `ctrl+\ t`. **기능 플래그(`features.Any()`)가 꺼져 있으면 묶이지 않는다**(입력창 transpose 로 감 — 0.1.2 와 같음) | 하드 |
+| `tools.zoom` | `ctrl+w z` — 활성 도구 인스턴스의 넓게 보기 토글(인스턴스마다 기억). 칸이 하나뿐인 도구의 패널 포커스 중에는 `ctrl+\ z` | 하드(입력 캡처 중 제외, `window.prefix` 와 같음) |
+| `termhost.escape` | `ctrl+\` — 내장 패널 포커스 중 접두키. 다음 키: `esc` 나가기, `h j k l`/화살표 포커스 이동, `z` 넓게 보기, `p` 팔레트, `t` 도구 표면, `[` 보기 스크롤, `x` 끝내기(공유 중이면 즉시 끊기), `?` 도움말, `ctrl+\` 글자 그대로. 2초 안에 다음 키가 없으면 취소. `ctrl+4`·0x1c 코드로 오는 터미널도 같은 키로 받는다 | 패널 포커스(그리고 공유 중에는 하드 — `ctrl+\ x`) |
+
+- 예약 접두키 목록은 `ui.ReservedPrefixKeys`(5.3.6) 하나다. 도구가 더하는 접두키(`ToolSpec.PrefixKeys`)는 이와 겹치면 panic.
+- **행 설명 이음매 (P0 Task 9a)**: 키맵 행 설명은 `Desc func(t *i18n.T) string` 으로 받는다.
+
+```go
+func Lit(s string) func(*i18n.T) string // 기존 행 임시 감싸기(한국어 그대로; P5 Task 18 에서 삭제)
+func (k *Keymap) Localize(t *i18n.T)    // 도움말 key.Binding 설명을 t 로 다시 채움 — 앱 시작 때 한 번, P5 언어 바꾸기 때 다시
+```
+- 기존 행의 한국어 설명은 `Lit("...")` 로 감싸 그대로 둔다(0.1.4 이관은 P5). 새 행은 카탈로그 함수(`func(t *i18n.T) string { return t.Termpane.HelpEscape() }` 꼴)로만.
+
 ### 5.6 명령 팔레트 — `internal/ui/palette` (core)
 
 ```go
@@ -2104,6 +2650,28 @@ func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Ko
 | chat `ui/chat` | `space.create`, `space.join`, `space.leave`, `space.settings`, `channel.create`, `channel.prefs`, `dm.new`, `friends`, `friend.add`, `invite.create`, `invite.direct`, `invites.inbox`(받은 방 초대 목록), `search.messages`, `pins.show` |
 | sns-fun `ui/feed` | `post.new`, `story.new`, `feed.following`, `feed.discover`, `trends`, `notifications`, `profile.me`, `profile.edit`, `follow_requests` |
 | sns-fun `ui/fun` | `status.set`, `status.clear`, `presence.set`, `focus.start`, `focus.stop` |
+
+**v0.1.3 추가** (P0 Task 9a·19, v0.1.3 설계서 A8.2):
+
+```go
+// Command 에 추가 (기존 필드 그대로):
+//   Label func(t *i18n.T) string // 있으면 Title 대신(그릴 때마다 ctx.T 로 부름). 0.1.3 의 새 명령은 Label 로만 등록
+// Group 은 아래 상수만(모르는 값 => Register 가 panic). 머리 글자는 카탈로그 common.palette_group_* — ko 는 지금 "이동"·"명령"·"설정" 과 바이트 같음
+const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
+```
+- 검색 후보 = `Label(ctx.T)` + `Label(i18n.For(i18n.En))` + `Keywords`(Label 이 없으면 기존 `Title`) — 한국어 화면에서도 영어 이름으로 찾는다(i18n 설계서 6.4.4). 기존 `Group: "명령"` 같은 호출부는 상수로 바꾼다(문구는 그대로).
+- **P5 2묶음 추가**(Task 11~16 — chat·feed·fun 의 한국어 검색어를 Go 소스에서 카탈로그로 옮기려고): `Command.KeywordsIn func(t *i18n.T) []string`(선택 — 검색할 때 화면 언어 `ctx.T` 로 불러 후보에 더함, nil 이면 없음), `func Words(s string) []string`(카탈로그의 쉼표 목록 `"친구, 친구 요청"` 을 나눔, 빈 낱말 버림). `Keywords` 는 언어와 무관한(ASCII) 낱말만. 검색 후보 = 위 + `KeywordsIn(ctx.T)`. 다른 언어의 검색어는 찾지 않는다.
+- 도구 팔레트 항목(`ui/tools`): `palette.Source` 가 아니라 도구 ID 마다 명령 하나 `tools.open.<id>`(다섯 개, `Group: GroupNav`) — 팔레트는 고른 명령 항목을 등록된 id 로 `ui.RunCommand` 하므로 항목이 등록된 명령이어야 한다. 제목 `Label` = `<아이콘> <spec.Name(ctx.T)>`(그릴 때마다), `Keywords` = `tools`·도구 ID, `Available` = `ui.ToolByID(id)` 가 ok(등록됨·플래그 켜짐), 실행 = `spec.Open(ctx, termhost.ModeAuto)`.
+
+| 등록 패키지 | 명령 id |
+|---|---|
+| core `ui/tools` (v0.1.3) | `tools.hub`, `tools.toggle`, `tools.next`, `tools.prev`, `tools.zoom` — 모두 `Available = features.Any()`, `Group: GroupNav`, `Label func(*i18n.T)`. `tools.open.<id>`(`leet`·`workspace`·`arch`·`git`·`api`) — `Available` = 그 도구가 등록·켜짐(위) |
+| P1 LeetCode·lazygit | `ui/leet`: `leet.open`(오늘의 문제 열기), `leet.board`(지금 방의 순위·친구 순위 — 방 안에서만), `leet.settings`(도구 설정 창), `leet.daily.toggle`(지금 방의 #daily 켜기·끄기 — 방 owner·admin 만) — 모두 `Available` 에 `features.On(ui.ToolLeet)`. `ui/gittool`: `git.open`(저장소 고르기) — `features.On(ui.ToolGit)`. 전부 `Label func(*i18n.T)` |
+| P2 작업공간 `ui/workspace` | `ws.open`, `ws.share.start`, `ws.share.end`, `ws.people`, `ws.proposals`, `ws.join`, `ws.term.new`, `ws.autosave.toggle`, `ws.notify.toggle` — 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("workspace")`(공유 중일 때만 `ws.share.end`·`ws.people`·`ws.proposals`, 폴더가 열렸을 때 `ws.term.new`·`ws.autosave.toggle`, 초대가 있을 때 `ws.join`). `ws.notify.toggle` = `PATCH /v1/me/settings {notify:{workspace}}`(설정 화면 줄은 없음) |
+| P3 `ui/arch` | `arch.new`, `arch.open`(둘 다 `Available` = `features.On("arch")`), `arch.share`, `arch.export`, `arch.send_card`, `arch.run`, `arch.save_copy`(이 다섯은 플래그 + 앞에 연 arch 인스턴스가 있을 때만; 그 인스턴스에 실행을 보낸다. `arch.save_copy` = 방 문서를 개인 설계 사본으로 저장, 개인 설계에서는 안내만), `arch.versions`(플래그 + 앞의 arch 인스턴스가 방 문서(`doc` 쿼리)일 때만), `arch.challenge`(선택 — 플래그만; 오늘(UTC)의 일일 도전 시나리오를 `arch:challenge:<date>` 인스턴스로 연다) — 모두 `Group: GroupCommand`, `Label func(*i18n.T)` |
+| P4 API 시험 | `api.*` — `api.open`(도구 열기), `api.new`(새 요청), `api.import`(curl·OpenAPI JSON·Postman v2.1 가져오기), `api.env`(환경 화면), `api.runner`(실행기), `api.send`(지금 요청 보내기, 도구가 열려 있을 때만), `api.history.clear`(로컬 기록 모두 지우기). 모두 `Group: GroupCommand`, `Label func(*i18n.T)`, `Available` 첫 조건 `features.On("api")`. 명령은 경로 Query `cmd`(+ `n` nonce)로 인스턴스 `api:main` 에 전달(`ui.OpenTool`). 여는 대상은 Query 개인 컬렉션 `col`·`req`(이름·요청 ID), 공유 컬렉션 `doc`·`req`(인스턴스 `api:doc:<doc_id>`, P4 Task 18·20) |
+
+- 도구 줄기(P1~P4)는 자기 접두사 안에서만 id 를 만들고 자기 패키지 `init()` 에서 `palette.Register` 한다(각 줄기가 이 표의 자기 행에 실제 id 를 더한다).
 
 ### 5.7 공용 위젯 — `internal/ui/widgets` (core)
 
@@ -2173,6 +2741,9 @@ func ReactionChips(t *theme.Theme, rs []api.ReactionSummary, width int) []string
 func PollView(t *theme.Theme, p api.Poll, width int, selected int) []string // bars "국밥 ████████░░ 4", chat + feed
 func Empty(t *theme.Theme, size ui.Size, icon, title, hint string) string
 func Confirm(title, body, yes, no string, onYes tea.Cmd) ui.Overlay
+// v0.1.3 (P0 Task 23): Confirm + one checkbox line "[ ] <check>" (default off; space/x toggles).
+// onYes gets the box's state. Used by the logout dialog ("이 기기의 도구 로그인도 지우기").
+func ConfirmCheck(title, body, check, yes, no string, onYes func(checked bool) tea.Cmd) ui.Overlay
 func EmojiPicker(onPick func(emoji string) tea.Cmd) ui.Overlay // recent + common set, search by Korean/English name
 // ReportDialog: reason list (spam|harassment|illegal|sexual|violence|other, Korean labels) + optional note (textinput, 5.3.7 rules),
 // submits api.Report via ui.Do tag "core.report:<targetID>"; 201 => ToastSuccess "신고했어요", 409 already_exists => ToastInfo "이미 신고한 대상이에요".
@@ -2189,8 +2760,10 @@ func (f *Fade) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd
 
 ### 5.8 core 화면
 
-- `internal/ui/authui`: 로그인·가입 화면(`RouteLogin`). 서버 주소 표시, handle/비밀번호/표시 이름, 오류는 `api.Describe`. 성공 시 `auth.Save` + `LoggedInMsg{Credentials, Me}` → 앱이 API 토큰 설정·realtime 시작.
+- `internal/ui/authui`: 로그인·가입 화면(`RouteLogin`). 서버 주소 표시, handle/비밀번호/표시 이름, 오류는 `errtext.Describe`. 성공 시 `auth.Save` + `LoggedInMsg{Credentials, Me}` → 앱이 API 토큰 설정·realtime 시작.
 - `internal/ui/settings`(`RouteSettings`): 테마(미리보기 4종), 레이아웃 고정, 마우스·이미지·애니메이션, 데스크톱 알림(로컬 스위치 + 서버 `notify.*` 토글), DM 정책, 비공개 계정, 집중 기본 시간, **차단 목록**(`ListBlocks` 로 표시 — `Store.Blocks` 와 같은 집합, 항목마다 `Unblock` + `widgets.Confirm`, `block.updated` 이벤트로 갱신; 팔레트 `blocks` 가 이 섹션으로 연다), 세션 목록·폐기, 비밀번호 변경, 로그아웃.
+- **v0.1.3 `도구 로그인` 묶음** (P0 Task 23, v0.1.3 A9.4): 로그아웃 바로 앞. 줄 = `<도구 이름> · <계정> · <보관 위치> · [지우기]`(값은 안 보임, 보관 위치는 `Store.Where` — OS 를 부르지 않음). 도구는 `settings.RegisterToolLogin(tool, describe func(*ui.Context) (account string, ok bool), forget func(*ui.Context) tea.Cmd)` 로 init() 에서 등록한다(P1 LeetCode, P4 API 시험). 그 도구가 등록돼 있고 기능 플래그가 켜져 있고 `describe` 가 ok 일 때만 줄이 생기고, 줄이 없으면 묶음 자체가 안 보인다(0.1.2 화면 그대로). [지우기] → 확인 대화상자 → `forget`(nil 이면 그 도구의 `SecretScope` 범위 값 전부 `Delete`).
+- **v0.1.3 로그아웃 선택지** (P0 Task 23, A9.4): 기능 플래그가 하나라도 켜졌을 때 로그아웃 확인은 `widgets.ConfirmCheck` 로 `이 기기의 도구 로그인도 지우기`(기본 꺼짐)를 보인다(모두 꺼짐 = 0.1.2 `Confirm`). 켜고 확인하면 `ctx.Secrets.DeleteAll(SecretScope())` 를 **자기 ctx(30초)로, POST /v1/auth/logout 보다 먼저** 부른다(서버가 늦어도 지우기는 끝까지). 범위는 세션이 끝나기 전에 읽는다. 실패는 로그만.
 - **차단·신고 동작의 소유 [결정]**: 차단 **해제 목록**은 core(설정). 차단·신고를 **거는** 동작은 대상이 보이는 화면의 소유 계획이 단다 — chat: 메시지(`message`), 메시지 작성자·멤버 목록의 사용자(`user`), 방(`space`, 방 설정·초대 미리보기); sns-fun: 프로필의 사용자(`user`), 글(`post`), 스토리(`story`), 방명록 글(`guestbook_entry`). 신고 UI 는 모두 `widgets.ReportDialog`, 차단은 `widgets.Confirm` 후 `api.Block`.
 
 ---
@@ -2396,6 +2969,12 @@ func PrepareUpload(path string) (data []byte, contentType string, err error) // 
 - **집중 요약 [결정]**: 요약 오버레이의 **유일한 트리거**는 `alert{kind:"focus_summary"}` 다. 앱(core `ui/app`)은 그 alert 에 대해 토스트 대신 `ui.OpenRegisteredOverlay(ui.OverlayFocusSummary, alert.ID)` 를 낸다(오버레이는 sns-fun `ui/fun` 이 등록, 5.3.6 — core 는 import 하지 않는다). 조건: `Decide` 결과가 `Skip` 이 아니고, `!(Replayed && now - created_at > 10분)`, 그리고 **이 프로세스에서 같은 `alert.id` 로 연 적이 없음**(앱이 연 id 집합을 최근 50개 기억). 미등록이면 무시(오버레이 대신 일반 `ToastAlert`).
   - `DELETE /v1/me/focus` 응답(`EndFocus` 의 `FocusSummary`)과 `focus.ended` 이벤트는 `Store.FocusEnded` 로 **상태만** 갱신한다(`Store.Focus=nil`, `LastFocusSummary`). 둘 다 UI 를 열지 않으므로 조기 종료든 자연 종료든 요약은 정확히 한 번 뜬다.
 
+**v0.1.3 추가 — 화면 전환 중 OS 알림** (v0.1.3 설계서 A6.2 JA1, P0 Task 12):
+
+- `termhost.Exclusive()` 가 참인 동안(외부 프로그램이 터미널을 쓰는 화면 전환 — Bubble Tea 의 이벤트 루프가 막혀 있음) 브리지는 `alert` 이벤트를 줄에 넣는 것과 별개로 **그 자리에서** `notify.Decide(alert, Input{Role: RoleTUI, Now, Replayed, DesktopEnabled, TerminalFocusKnown: false})` 를 하고 `Popup` 이면 별도 고루틴에서 `Notifier.Show` 를 부른다. 브리지는 Store 를 만지지 않는다.
+- 화면이 돌아와 Update 가 같은 alert 를 다시 처리해도 기기 안 중복 방지 원장(`alerts-shown.json`, 3.7)이 두 번 띄우지 않는다.
+- 같은 동안 남의 `message.created`·mention alert 수를 원자 카운터로 세어 복귀 토스트(5.4 v0.1.3 추가)에 쓴다.
+
 ### 9.2 데몬 (`internal/daemon`, daemon-release)
 
 ```go
@@ -2432,7 +3011,9 @@ func Run(ctx context.Context, o Options) error // AcquireDaemon; loop: load cred
 
 ```go
 package autostart
-type Status struct{ Installed, Running bool; Detail string }
+type Status struct{ Installed, Running bool; Detail string; ExeMissing string; ExeUnknown bool } // ExeMissing: the registered exe when it is gone; ExeUnknown: the registration names none (the CLI renders the note, empty path)
+// Errors (P5 Task 10): *ExeError{Kind ExeErrKind; Exe string; Err error} (ExeNotAbsolute, ExeMissing, ExeNotRegular, ExeTemporary),
+// ErrRunKeyConfigDir, ErrNoSystemd; Message(t *i18n.T, err error) string renders them (Error() = ko).
 func Install(exe string, p config.Paths) error   // macOS: ~/Library/LaunchAgents/com.patrache.masil.daemon.plist (RunAtLoad, KeepAlive{SuccessfulExit:false}, ProgramArguments [exe, "daemon", "run"], EnvironmentVariables MASIL_CONFIG_DIR if set) + `launchctl bootstrap gui/<uid>`;
                                                  // Linux: ~/.config/systemd/user/masil-daemon.service + `systemctl --user enable --now`;
                                                  // Windows: HKCU\Software\Microsoft\Windows\CurrentVersion\Run "masil-daemon" = "\"exe\" daemon run" (x/sys/windows/registry), console window hidden by daemon self-respawn
@@ -2553,6 +3134,35 @@ func Install() // sync.Once; RegisterRoute(RouteChannel, RouteThread -> *Chat; R
 ```
 - 키: `j/k` 선택, `ctrl+u/d` 스크롤, `t`·`enter`(선택 메시지) → `ui.Navigate(RouteThread{ID: 선택 ID, Arg: 채널})`, `i` 입력, `esc` 입력 해제(입력 중 아니면 처리 안 함 → 앱의 뒤로).
 
+**v0.1.3 추가 — 하네스·시험 대역** (P0 Task 7·10·16a·21·30):
+
+```go
+package uitest
+func WithLocale(l i18n.Locale) Option      // ctx.T·ctx.Lang (열린 언어 관문 무시 — MASIL_LANG 과 같음); 기본 i18n.Ko
+func WithSecrets(s *secrets.Store) Option  // ctx.Secrets; 기본 secrettest.NewStore(tb, true)
+func WithCollab(h *collabtest.Hub) Option  // ctx.CollabDial = h.Dial, h.Register(하네스의 apitest 서버)
+func (h *Harness) Flush()                                  // ctx.Post 로 게시된 msg 를 순서대로 Send (Send 가 끝나도 자동으로 비우지 않음)
+func (h *Harness) WaitPosted(n int, timeout time.Duration) // 고루틴이 n 개를 게시할 때까지 기다림
+func (h *Harness) SetLocale(choice string)                 // P5: Send(ui.SetLocaleMsg{Choice}) — 실행 중 언어 바꾸기(열린 언어 관문을 지남, i18n.SetOpenForTest 로 먼저 연다; 환경에 MASIL_LANG 이 있으면 그것이 이김)
+var Tiny = Size{40, 14}                                    // P5: 언어 검사(x-pseudo·언어별 무결성)의 가장 작은 크기
+func PseudoRegions(h *Harness) map[string]string           // P5: Screen() 을 Frame() 상자로 나눈 영역 키 => 글 — pane/<SlotID>/<RouteKind>(경로 없는 판 pane/<SlotID>), status, overlay/<app.Box.ID>(열 때 쓴 등록 id, 없으면 Go 타입 이름), toast, screen(상자 밖)
+func AssertPseudoWrapped(tb testing.TB, region, text string, allow []string) // P5: x-pseudo 에서 ⟦⟧ 밖에 두 글자 이상 낱말(allow 의 낱말 제외)이 남으면 Errorf(영역·낱말)
+func PseudoAllow(h *Harness) []string                     // P5: fixtures.UserData() + 키 이름 + 슬래시 명령 이름 + "masil"
+// fixtures.UserData() []string — 픽스처의 사용자 글(이름·handle·@handle·채널 #이름·본문·투표·해시태그·미리보기), 원문과 Sanitize 결과
+// e2e: TestPseudoSweep·TestPseudoAfterSwitch·TestPseudoPendingNoStale, 대기 목록 internal/ui/e2e/testdata/pseudo_pending.txt(이관 작업이 자기 영역 키를 지운다)
+// 하네스 기본: ctx.ToolState = t.TempDir() 의 빈 tools-state.json, 기능 플래그 = 출시 집합(MASIL_FEATURES 없음 — 0.1.3 은 다섯 도구 모두 켬, P0 Task 31)
+```
+
+시험 대역(모두 **시험 전용** — `_test.go` 에서만 import):
+
+| 패키지 | 무엇 | 주요 겉모양 |
+|---|---|---|
+| `internal/ui/termpane/termpanetest` | 진짜 PTY 없이 `termpane.Launch` 를 가짜로 | `Install(tb) *Fake`, `Started() []termhost.Request`, `Exit(id, code)`·`Cwd(id, dir)`·`Notify(id, kind)` → msg, `SetLimit(n)`, `SetEnv(termhost.Env)` |
+| `internal/secrets/secrettest` | 메모리 저장소·누출 확인 | `NewStore(tb, osAvailable) *secrets.Store`, `Values(s) map[string]string`, `AssertNoLeak(t, srv *apitest.Server, logDir, values...)`(요청 메서드·경로·쿼리·헤더·본문 + `logs/`), `AssertNoLeakFrames(t, frames [][]byte, values...)`(보낸 WebSocket 프레임 — apitest 는 소켓을 기록하지 않으므로 시험의 가짜 소켓이 모은 프레임을 넘김) |
+| `internal/collab/collabtest` | CollabHub 가짜(서버와 같은 reducer) | `New(tb) *Hub`, `Seed`, `Dial`, `Ops`, `Inject`, `Kick`, `SetOnline`, `RejectNext`, `Register(srv)` |
+
+- 기능 플래그 시험은 `t.Setenv("MASIL_FEATURES", "<id>"|"all"|"none")`. 환경변수가 있으면(빈 값 포함) 출시 집합(`features.Released()`)보다 이기고, `none`·빈 값은 모두 끔 — 플래그를 끈 0.1.2 화면을 보는 시험은 `none` 을 쓴다. 없으면 출시 집합만 켜짐(`TestReleaseFlagsDefault`).
+
 ### 10.3 필수 시험 목록
 
 core:
@@ -2575,6 +3185,25 @@ core:
 chat / sns-fun: 자기 화면마다 `uitest.ForEachSize(t, uitest.AllSizes(), …)` 골든(해당 경로를 `WithRoute` 로 연 셸 전체), `fixtures.Hostile` 무결성 전용 시험 × `AllSizes`(10.4), 자기 오버레이(`chat.reaction_users`, `fun.focus_summary` 등) × {Required, 44×16, 20×6}, 그리고 자기 리듀서의 이벤트 규칙 단위 시험. 타이머가 있는 동작(페이드·토스트·폴링)은 `h.Advance` 로 시험한다. sns-fun 은 추가로 "조기 종료(`EndFocus` 응답) + `focus.ended` + `alert{focus_summary}` 를 모두 받아도 요약 오버레이가 정확히 1번", "`alert` 재전송(같은 id)에도 1번" 을 시험한다.
 
 daemon-release: `daemon` 판정 시험(락 있음/없음/오류 × 서버 신호 × 3초 유예), `autostart` 는 생성 파일 내용 골든(실제 `launchctl`/`systemctl` 호출은 인터페이스 뒤로 빼서 시험에서 기록만).
+
+**v0.1.3 추가 — P0 필수 시험** (계획 P0 의 각 Task 가 이름까지 정함):
+
+- **기존 골든 무변화**: 도구는 출시 PR(P0 Task 31) 전까지 `features.On` 기본 꺼짐 — 허브·`ctrl+t` 도움말 줄·팔레트 항목까지 숨는다. 출시 PR 뒤 기본값은 출시 집합(다섯 도구)이고 `MASIL_FEATURES=none` 이 0.1.2 화면이다. v0.1.2 태그 대비 바뀐 골든은 새 골든(`TestPaneGolden`·`TestHubGolden`·`TestCardGolden`·`TestDiagramGolden/tool_*`·`TestReleaseEntriesGolden`)뿐이고, 기능을 켜는 출시 PR(P0 Task 31)만 도움말·팔레트 목록 골든을 바꾸며 그 파일 이름을 적는다(JX9). 0.1.3 출시 PR 은 기존 도움말·팔레트 골든을 하나도 바꾸지 않았다(도구 줄이 도움말 첫 쪽 밖, 팔레트 골든 검색어에 도구 명령 없음) — 그 대신 새 골든 `TestReleaseEntriesGolden`(e2e: 도움말 끝·팔레트 `도구` 검색)이 출시 항목을 보인다. `MASIL_FEATURES=all` 이어도 도구를 열지 않은 셸 화면은 플래그 끔 화면과 같다(`TestFeaturesOnShellUnchanged`).
+- **`termhost`**: 에뮬레이터 화면(한글 2칸 폭), 창 크기 변경 신호(SIGWINCH — Setsid/Setctty), 자식이 입력을 안 읽어도 막히지 않음, 0 크기 Resize 생존, 고아 프로세스 없음(부모 SIGKILL 뒤 자식 종료), 패널 4개 상한, OSC 52·OSC 8 무시·제목 Sanitize, 패널 바이트 로그 0.
+- **`termpane`**: `ctrl+\` 의 세 가지 표기(`ctrl+\`·`ctrl+4`·0x1c) 모두 접두키, 자식 종료 시 포커스 반환, TooSmall 왕복 생존, 공유 표시.
+- **import 그래프**: `cmd/masil` `TestImportGraph`(2.2 v0.1.3 규칙).
+- **i18n**: 생성 파일 신선도(`TestGeneratedFresh`), 한글 리터럴 래칫(`TestHangulLiteralRatchet`, `internal/i18n/legacy_literals.txt`), 알림 템플릿 카탈로그 범위(`TestAlertTemplatesCatalogCoverage` — `docs/contract/i18n/alert-templates.json` 을 읽음).
+- **비밀값**: `Secret` 이 어떤 출력에도 `(redacted)`, 사용자·도구별 분리, `secrettest.AssertNoLeak` 으로 masil 서버 요청·`logs/` 에 값 0회.
+- **방 문서**: Go reducer 가 `docs/contract/collab-vectors.json`(서버 시험과 같은 파일)을 모두 통과(`TestDocVectors`, `collabtest` `TestHubVectors`).
+- P3 의 시뮬레이션 결정성(amd64·arm64), P2 의 OT 무작위 시험은 각 줄기가 이 목록에 더한다.
+
+**v0.1.3 추가 — P2 필수 시험** (작업공간):
+
+- **OT 무작위 수렴**: `internal/workspace/ot` `TestFuzzConvergence`(시드 고정, 셋 이상이 같은 줄을 동시에 편집해도 모두 같은 글로 수렴), `share` `TestThreeWayLiveEditing`.
+- **키 교환·SAS**: `wscrypto` 키 교환·프레임 암호·키 회전 시험, `share` `TestMITMSASDiffers`(중간자면 SAS 가 다름)·`TestTamperedFramesDroppedAndWarned`·`TestKickRekeysAndKickedCannotRead`.
+- **경로**: `fsroot` `TestCheckRejects`(`..`·절대 경로·심볼릭 링크 탈출·비밀 파일·조작 이름), `share` `TestPeerCannotOpenSecrets`, `ui/workspace` `TestGuestTreeSanitizesHostileNames`.
+- **수락 기준 B16**: `internal/workspace/share/acceptance_test.go`·`internal/ui/workspace/acceptance_test.go`(`TestNoFolderDataInAnyRequest`·`TestEndFromOtherDevice`·`TestAuditCoversLadder`) 와 각 Task 의 시험 이름 표(P2 계획 Task 25).
+- **즉시 끊기**: `ui/workspace` `TestKillFromChatScreen`(다른 화면에서 `ctrl+\ x` 가 확인 없이 끊음)·`TestKillOnWorkspaceItself`, `share` `TestKillStopsInputWithinOneSecond`.
 
 ### 10.4 `internal/ui/uitest/fixtures` (core)
 

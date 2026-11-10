@@ -193,7 +193,7 @@ func (h *helpView) ensureRows(ctx *ui.Context) {
 		return
 	}
 	h.keys = ctx.Keys
-	h.rows = helpRows(ctx.Keys)
+	h.rows = withToolHelp(ctx, helpRows(ctx.Keys))
 	h.list.SetItems(h.rows)
 	if len(h.rows) > 0 {
 		h.list.Restore(widgets.ScrollAnchor{ItemID: h.rows[0].id})

@@ -1,5 +1,7 @@
 # masil 데이터 모델 계약 (D1 · R2 · 보존 정책)
 
+> **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: 마이그레이션 번호 예약(2장), `messages.card_json`(3.12), `collab_docs`·`collab_versions`·`collab_comments`(3.13). P1(`leet_*`, `0006` — 3.14)·P2(`workspace_*`, `0007`)는 자기 표 절을 더한다.
+
 - 상태: 확정 계약 v1 (2026-11-05). 상위 출처: `docs/superpowers/specs/2026-11-05-masil-design.md`.
 - 짝 문서: `api.md`(REST), `events.md`(WebSocket), `server-architecture.md`(서버 코드 구조).
 - 이 문서의 SQL은 **그대로** `server/migrations/0001_init.sql`, `0002_search.sql`, 그리고 이후 추가 마이그레이션(`0003_...`, 해당 표 바로 아래에 따로 적음)에 옮긴다. 테이블·컬럼 이름을 바꾸려면 이 문서를 먼저 고친다.
@@ -60,6 +62,7 @@
   - `0002_search.sql` — 4장의 FTS5 가상 테이블·트리거
   - `0003_focus_started_at.sql` — 3.9 `user_presence.focus_started_at` 열 추가(집중 시작 시각)
   - 이후 변경은 `0004_...` 부터 **추가만** 한다. 적용된 마이그레이션 파일은 고치지 않는다.
+  - **v0.1.3 번호 예약** (계획 색인 2장): `0004_cards.sql`(P0 — 3.12 `messages.card_json`), `0005_collab.sql`(P0 — 3.13 `collab_*`), `0006_leet.sql`(P1 — 3.14 `leet_*` + `user_settings.leet_share_with_friends`), `0007_workspace.sql`(P2). 그 뒤 번호가 필요하면 `0008` 부터 머지 순서대로, 먼저 이 목록과 색인을 고친다.
 - 로컬 적용: `npx wrangler d1 migrations apply DB --local`. 테스트는 `readD1Migrations()` + `applyD1Migrations()` 로 같은 파일을 적용(`server-architecture.md` 7장).
 - 원격 적용은 **오너 건별 승인 후**에만.
 - 전역 운영자 지정(최초 1회, 오너가 직접): `UPDATE users SET role = 'admin' WHERE handle = '<handle>';` — 운영자 승격 API는 두지 않는다.
@@ -254,7 +257,7 @@ CREATE TABLE channels (
   id              TEXT PRIMARY KEY,
   kind            TEXT NOT NULL CHECK (kind IN ('text','dm','group_dm')),
   space_id        TEXT REFERENCES spaces(id) ON DELETE CASCADE,
-  name            TEXT,                                   -- text: ^[a-z0-9가-힣_-]{1,32}$ ; group_dm: optional 1..50 free text ; dm: NULL
+  name            TEXT,                                   -- text: ^[a-z0-9가-힣㐀-䶿一-鿿_-]{1,32}$ ; group_dm: optional 1..50 free text ; dm: NULL
   topic           TEXT NOT NULL DEFAULT '',               -- 0..250
   is_private      INTEGER NOT NULL DEFAULT 0 CHECK (is_private IN (0,1)),
   position        INTEGER NOT NULL DEFAULT 0,
@@ -640,6 +643,156 @@ CREATE INDEX idx_admin_actions_created ON admin_actions(id);
 | 상태 메시지 | users.status_* |
 | 접속 상태·집중 모드 | user_presence (+ UserHub DO) |
 | 신고·운영자 | reports, admin_actions, users.role / suspended_* |
+| 채팅 카드 (v0.1.3) | messages.card_json (3.12) |
+| 방 문서·버전·댓글 (v0.1.3) | collab_docs, collab_versions, collab_comments (3.13) + CollabHub DO SQLite |
+| LeetCode 오늘의 문제 (v0.1.3) | leet_daily, leet_space_settings, leet_daily_roots, leet_solves, user_settings.leet_share_with_friends (3.14) |
+
+### 3.12 채팅 카드 — `0004_cards.sql` (v0.1.3)
+
+```sql
+ALTER TABLE messages ADD COLUMN card_json TEXT;   -- JSON {type, v, data} (api.md 2장 Card); NULL = not a card
+```
+
+- DB 의 `kind` 는 `'text'` 로 둔다. 응답 직렬화는 `card_json` 이 있으면 `kind:"card"`, `card = JSON.parse(card_json)`, 없으면 `card: null`. 기존 `kind` CHECK 제약에 `'card'` 를 넣으려고 **테이블을 다시 만들지 않는다** — SQLite 의 테이블 재생성은 `ON DELETE CASCADE` 로 이어진 자식 행(리액션·멘션·고정·스레드 참여자)을 지운다.
+- 검색 색인(`messages_fts`)은 `body`(대체 요약)를 그대로 쓴다. 카드 `data` 는 색인하지 않는다.
+- 카드 메시지 삭제는 기존 메시지 삭제 규칙(1.4) 그대로이며 `card_json` 도 비운다(`NULL`).
+
+### 3.13 방 문서 — `0005_collab.sql` (v0.1.3, v0.1.3 설계서 C1.4)
+
+```sql
+CREATE TABLE collab_docs (
+  id          TEXT PRIMARY KEY,
+  space_id    TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL CHECK (type IN ('arch','apicol')),
+  title       TEXT NOT NULL,                              -- 1..80
+  created_by  TEXT NOT NULL REFERENCES users(id),
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,                           -- last edit reflected by the DO (batched, <= 30s late)
+  head_seq    INTEGER NOT NULL DEFAULT 0,                 -- mirrored from the CollabHub DO
+  locked      INTEGER NOT NULL DEFAULT 0 CHECK (locked IN (0,1)),
+  deleted_at  INTEGER
+);
+CREATE INDEX idx_collab_docs_space ON collab_docs(space_id, type, updated_at) WHERE deleted_at IS NULL;
+
+CREATE TABLE collab_versions (                            -- metadata; the snapshot body lives in the DO
+  doc_id        TEXT NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+  no            INTEGER NOT NULL,                         -- 1.. per doc
+  seq           INTEGER NOT NULL,
+  name          TEXT,                                     -- 1..60 for named versions; NULL for auto / restore versions
+  auto          INTEGER NOT NULL DEFAULT 0 CHECK (auto IN (0,1)),
+  restored_from INTEGER,                                  -- version no a restore copied
+  created_by    TEXT REFERENCES users(id),                -- NULL for auto versions
+  created_at    INTEGER NOT NULL,
+  PRIMARY KEY (doc_id, no)
+);
+
+CREATE TABLE collab_comments (
+  id          TEXT PRIMARY KEY,
+  doc_id      TEXT NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+  anchor      TEXT NOT NULL,                              -- 1..128
+  author_id   TEXT NOT NULL REFERENCES users(id),
+  body        TEXT NOT NULL,                              -- 1..2000; '' when deleted
+  root_id     TEXT REFERENCES collab_comments(id),
+  resolved_at INTEGER,
+  created_at  INTEGER NOT NULL,
+  deleted     INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0,1))
+);
+CREATE INDEX idx_collab_comments_doc ON collab_comments(doc_id, created_at);
+```
+
+- 문서 **내용**(편집 기록·최신 스냅숏·버전 스냅숏 본문·잠금/삭제 표시)은 D1 이 아니라 문서마다 `CollabHub` DO 의 SQLite 에 있다: `ops(seq INTEGER PRIMARY KEY, author TEXT, ts INTEGER, client_op_id TEXT UNIQUE, ops TEXT)`, `snapshot(id INTEGER PRIMARY KEY CHECK(id=1), seq, body)`, `versions(no INTEGER PRIMARY KEY, seq, body)`, `meta(k PRIMARY KEY, v)`. 접속자 커서·선택(presence)은 메모리에만. 형식은 `docs/contract/collab.md`.
+- 문서 삭제는 소프트(`deleted_at`). 방 삭제도 소프트(`spaces.deleted_at`, api.md 5.7)라 `ON DELETE CASCADE` 는 실행되지 않고 문서 행은 `deleted_at IS NULL` 로 남는다. 그래서 삭제된 방의 문서는 모든 문서 경로(REST·`/ws`)가 `spaces.deleted_at` 을 보고 `404` 로 숨기고(api.md 5.24), 열린 소켓은 방 삭제 batch 커밋 뒤 `kickFromSpaceDocs(…, "space_deleted")` 로 닫는다(collab.md 4.1). `ON DELETE CASCADE` 는 행을 실제로 지울 때(운영자 정리 등)만 작동한다. 기록 버전(자동·되돌리기)의 보관 정리(30일·문서당 200개, api.md 5.24)는 DO alarm 이 하고 D1 `collab_versions` 행도 함께 지운다.
+- R2 는 쓰지 않는다(JC2 — 문서 한도가 작아 DO SQLite 로 충분).
+
+### 3.14 LeetCode 오늘의 문제 — `0006_leet.sql` (v0.1.3, P1 · 설계서 A10.3)
+
+```sql
+CREATE TABLE leet_daily (
+  date              TEXT PRIMARY KEY,                       -- UTC YYYY-MM-DD
+  frontend_id       TEXT NOT NULL,                          -- ^[0-9]{1,6}$
+  slug              TEXT NOT NULL,                          -- ^[a-z0-9-]{1,100}$
+  title             TEXT NOT NULL,                          -- 1..200
+  difficulty        TEXT NOT NULL CHECK (difficulty IN ('Easy','Medium','Hard')),
+  tags_json         TEXT NOT NULL DEFAULT '[]',             -- JSON string array, <= 20 x 1..50
+  is_paid_only      INTEGER NOT NULL CHECK (is_paid_only IN (0,1)),
+  first_reporter_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  first_reported_at INTEGER NOT NULL,
+  mismatch_count    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE leet_space_settings (
+  space_id   TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+  enabled    INTEGER NOT NULL CHECK (enabled IN (0,1)),
+  channel_id TEXT REFERENCES channels(id),
+  enabled_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  enabled_at INTEGER,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE leet_daily_roots (
+  channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  date       TEXT NOT NULL,
+  message_id TEXT REFERENCES messages(id),                  -- NULL = a request claimed the day and is creating the root
+  claimed_at INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, date)
+);
+
+CREATE TABLE leet_solves (
+  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date               TEXT NOT NULL,                         -- the problem's UTC day
+  slug               TEXT NOT NULL,
+  lang               TEXT NOT NULL,
+  passed_at          INTEGER NOT NULL,                      -- server time of the first record (kept on re-PUT)
+  runtime_percentile REAL,
+  submission_id      TEXT,
+  PRIMARY KEY (user_id, date)
+);
+CREATE INDEX idx_leet_solves_date ON leet_solves(date);
+
+ALTER TABLE user_settings ADD COLUMN leet_share_with_friends INTEGER NOT NULL DEFAULT 1 CHECK (leet_share_with_friends IN (0,1));
+```
+
+- **문제 본문·HTML·코드 스니펫·예제는 어떤 표에도 없다.** 서버는 LeetCode 를 부르지 않는다(fetch·Cron 없음). 저장하는 것은 사실 정보(`leet_daily`)와 풀이 기록(`leet_solves`)뿐이고, 사용자가 고른 공유 코드만 풀이 카드의 `messages.card_json`(3.12, `data.code.text`)에 들어간다. LeetCode 가 사실 정보 저장도 문제 삼으면 `leet_daily` 하나만 비우면 된다.
+- `leet_daily` 는 처음 보고한 값을 지킨다. 같은 날 다른 값의 보고는 `mismatch_count` 만 올린다(운영자 `PUT /v1/admin/leet/daily/{date}` 만 덮어쓴다).
+- `leet_daily_roots` 는 채널·날짜마다 #daily 루트를 하나로 묶는 경합 장치다: `INSERT OR IGNORE`(`message_id` NULL)로 먼저 차지한 요청만 루트 카드를 만들고 `message_id` 를 채운다. 만들다 실패하면 그 NULL 행을 지운다. NULL 로 30초 넘게 남은 행은 다음 요청이 `claimed_at` 비교로 넘겨받는다(api.md 5.25).
+- `leet_solves.passed_at` 은 첫 기록의 서버 시각을 그대로 둔다. 연속 풀이는 `utcDate(passed_at) = date` 인 날만 채운다(유예 없음, 설계서 JA26).
+- 삭제(1.4 와의 관계): `leet_*` 는 메시지가 아니라 관계·기록 표라 **실제 삭제**한다 — `DELETE /v1/leet/solves/{date}` 는 `leet_solves` 행을 지우고 풀이 카드 메시지는 1.4 의 소프트 삭제를 따른다. 방이 지워져도(소프트) `leet_space_settings` 는 남지만 방이 살아 있는 동안만 읽힌다. 채널을 지우면(소프트) 그 방의 #daily 는 꺼진 것과 같이 취급되고 루트를 만들지 않는다.
+### 3.15 작업공간 공유 — `0007_workspace.sql` (v0.1.3 P2, 설계서 B10)
+
+```sql
+CREATE TABLE workspace_shares (
+  id          TEXT PRIMARY KEY,
+  owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,                              -- 1..40 code points (user data)
+  status      TEXT NOT NULL CHECK (status IN ('live','ended')),
+  created_at  INTEGER NOT NULL,
+  ended_at    INTEGER,
+  end_reason  TEXT CHECK (end_reason IN ('ended','timeout'))
+);
+CREATE INDEX idx_workspace_shares_owner ON workspace_shares(owner_id, status, created_at);
+CREATE INDEX idx_workspace_shares_ended ON workspace_shares(status, ended_at);
+
+CREATE TABLE workspace_share_members (
+  share_id    TEXT NOT NULL REFERENCES workspace_shares(id) ON DELETE CASCADE,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seat        INTEGER NOT NULL CHECK (seat BETWEEN 1 AND 8),
+  invited_at  INTEGER NOT NULL,
+  joined_at   INTEGER,                                    -- last share-socket connect
+  left_at     INTEGER,                                    -- last share-socket close
+  removed_at  INTEGER,                                    -- the owner removed them, or they left (DELETE .../participants/@me)
+  max_level   TEXT CHECK (max_level IN ('viewer','prompter','editor','keyboard')),
+  verified    INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0,1)),
+  PRIMARY KEY (share_id, user_id),
+  UNIQUE (share_id, seat)
+);
+CREATE INDEX idx_workspace_share_members_user ON workspace_share_members(user_id, share_id);
+
+ALTER TABLE user_settings ADD COLUMN notify_workspace INTEGER NOT NULL DEFAULT 1 CHECK (notify_workspace IN (0,1));
+```
+
+- 이 두 표에는 위 열만 있다(서버 시험이 `PRAGMA table_info` 로 확인). 경로·파일 이름·명령·화면·키·확인 숫자는 D1 에도 DO 저장소에도 쓰지 않는다. `WorkspaceHub` DO 는 공유가 살아 있는 동안 공유 메타(id·오너·제목)와 단계표·확인 여부(평문 메타정보)만 DO 저장소에 두고, 공유가 끝나면 이를 지우고 끝남 표시만 남긴다. 최근 키프레임 묶음 암호문은 메모리에만 둔다(`docs/contract/workspace.md` 4장).
+- "60분에 10회" 공유 만들기 한도는 `idx_workspace_shares_owner` 로 `created_at` 을 센다(api.md 0.7).
+- `max_level`·`verified` 는 오너가 보낸 `ctl_levels` 의 최고 단계·확인 여부를 DO 가 옮겨 적는다. `joined_at`·`left_at` 은 DO 가 연결·종료 때 적는다.
 
 ## 4. 검색 — `0002_search.sql` (FTS5)
 
@@ -718,6 +871,7 @@ cleanup 작업 목록:
 7. **상태 메시지 만료**: `status_expires_at < now` → `status_emoji/status_text/status_expires_at = NULL` (API 응답은 이미 만료분을 null 로 보여 줌).
 8. **정지 만료**: `suspended_until < now` → `suspended_at/suspended_until/suspend_reason = NULL` (인증 미들웨어는 이미 만료를 활성으로 취급).
 9. **접속 상태 정정**: `status <> 'offline' AND online_until < now` → `status='offline'`.
+10. **끝난 작업공간 공유** (v0.1.3 P2): `status='ended' AND ended_at < now - 30일` 인 `workspace_shares` 행 → DELETE(멤버 행은 `ON DELETE CASCADE`).
 
 DO 내부 보존(D1 아님): UserHub 이벤트 로그는 사용자당 최근 2,000건 또는 24시간 중 짧은 쪽(`events.md` 6.2). TopicHub 시청자 임대는 300초.
 

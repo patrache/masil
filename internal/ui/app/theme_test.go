@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -188,7 +189,8 @@ func TestNavCommands(t *testing.T) {
 	}
 
 	runCmd(h2, "logout")
-	if got := overlayTypes(h2.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) {
+	// The release has tools on, so logout asks with the tool-login wipe option (P0 Task 23).
+	if got := overlayTypes(h2.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmCheck"}) {
 		t.Fatalf("logout: overlays %v, want the Confirm", got)
 	}
 	if s := h2.Screen(); !strings.Contains(s, "로그아웃할까요?") || !strings.Contains(s, "이 기기에서 로그아웃해요.") {
@@ -206,23 +208,23 @@ func TestNavCommands(t *testing.T) {
 // title, group and key hint.
 func TestCoreCommandsRegistered(t *testing.T) {
 	want := []struct{ id, title, group, hint string }{
-		{"theme.cycle", "테마 바꾸기", "설정", ""},
-		{"theme.set.charm", "테마: Charm 보라", "설정", ""},
-		{"theme.set.midnight", "테마: 미드나잇 블루", "설정", ""},
-		{"theme.set.cream", "테마: 크림 파스텔", "설정", ""},
-		{"theme.set.amber", "테마: 레트로 앰버", "설정", ""},
-		{"layout.pin.command", "레이아웃 고정: 지휘소", "설정", "ctrl+w 1"},
-		{"layout.pin.standard", "레이아웃 고정: 표준", "설정", "ctrl+w 2"},
-		{"layout.pin.compact", "레이아웃 고정: 컴팩트", "설정", "ctrl+w 3"},
-		{"layout.pin.widget", "레이아웃 고정: 위젯", "설정", "ctrl+w 4"},
-		{"layout.pin.tiny", "레이아웃 고정: 초소형", "설정", "ctrl+w 5"},
-		{"layout.auto", "레이아웃 자동", "설정", "ctrl+w 0"},
-		{"help", "도움말", "이동", "?"},
-		{"settings", "설정", "이동", ""},
-		{"blocks", "차단 목록", "이동", ""},
-		{"logout", "로그아웃", "명령", ""},
-		{"quit", "종료", "명령", "ctrl+c ctrl+c"},
-		{"reconnect", "다시 연결", "명령", ""},
+		{"theme.cycle", "테마 바꾸기", palette.GroupSettings, ""},
+		{"theme.set.charm", "테마: Charm 보라", palette.GroupSettings, ""},
+		{"theme.set.midnight", "테마: 미드나잇 블루", palette.GroupSettings, ""},
+		{"theme.set.cream", "테마: 크림 파스텔", palette.GroupSettings, ""},
+		{"theme.set.amber", "테마: 레트로 앰버", palette.GroupSettings, ""},
+		{"layout.pin.command", "레이아웃 고정: 지휘소", palette.GroupSettings, "ctrl+w 1"},
+		{"layout.pin.standard", "레이아웃 고정: 표준", palette.GroupSettings, "ctrl+w 2"},
+		{"layout.pin.compact", "레이아웃 고정: 컴팩트", palette.GroupSettings, "ctrl+w 3"},
+		{"layout.pin.widget", "레이아웃 고정: 위젯", palette.GroupSettings, "ctrl+w 4"},
+		{"layout.pin.tiny", "레이아웃 고정: 초소형", palette.GroupSettings, "ctrl+w 5"},
+		{"layout.auto", "레이아웃 자동", palette.GroupSettings, "ctrl+w 0"},
+		{"help", "도움말", palette.GroupNav, "?"},
+		{"settings", "설정", palette.GroupNav, ""},
+		{"blocks", "차단 목록", palette.GroupNav, ""},
+		{"logout", "로그아웃", palette.GroupCommand, ""},
+		{"quit", "종료", palette.GroupCommand, "ctrl+c ctrl+c"},
+		{"reconnect", "다시 연결", palette.GroupCommand, ""},
 	}
 	for _, w := range want {
 		c, ok := palette.Lookup(w.id)
@@ -255,5 +257,24 @@ func TestThemeKeepsBrokenConfigFile(t *testing.T) {
 	}
 	if s := h.Screen(); !strings.Contains(s, "config.toml 을 고친 뒤 다시 해 주세요") {
 		t.Fatalf("fix-the-file toast missing:\n%s", s)
+	}
+}
+
+// TestThemeSetCommandsFollowLocale: theme.set.* palette rows say the theme
+// name in the shown language (P5 Task 9: theme names come from theme.Label);
+// ko is the 0.1.2 Title.
+func TestThemeSetCommandsFollowLocale(t *testing.T) {
+	en := i18n.For(i18n.En)
+	for _, th := range theme.All() {
+		c, ok := palette.Lookup("theme.set." + string(th.Name))
+		if !ok {
+			t.Fatalf("theme.set.%s not registered", th.Name)
+		}
+		if got, want := c.TitleIn(en), "Theme: "+theme.Label(en, th.Name); got != want {
+			t.Errorf("theme.set.%s en = %q, want %q", th.Name, got, want)
+		}
+		if got := c.TitleIn(i18n.KoT()); got != c.Title {
+			t.Errorf("theme.set.%s ko = %q, want the 0.1.2 Title %q", th.Name, got, c.Title)
+		}
 	}
 }

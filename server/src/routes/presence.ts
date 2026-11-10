@@ -4,9 +4,11 @@
 import { Hono } from "hono";
 import * as z from "zod";
 import type { AppEnv } from "../env";
+import { localizeSummary } from "../lib/alerts";
 import { getAuth, requireAuth } from "../lib/auth";
 import { first } from "../lib/db";
 import { err } from "../lib/errors";
+import { langOf } from "../lib/i18n";
 import { isId } from "../lib/ids";
 import { presenceVisible } from "../lib/permissions";
 import { loadPresenceItems } from "../lib/serialize";
@@ -68,5 +70,5 @@ presenceRoutes.delete("/me/focus", requireAuth, async (c) => {
   const me = getAuth(c).userId;
   const summary = await c.env.USER_HUB.getByName(me).endFocus(me);
   if (summary === null) throw err.conflict("conflict", "not_focusing");
-  return c.json({ summary });
+  return c.json({ summary: localizeSummary(summary, langOf(c.req.header("Accept-Language"))) });
 });

@@ -38,6 +38,7 @@ type Client struct {
 
 	mu          sync.Mutex
 	token       string
+	lang        string               // Accept-Language ("" = none)
 	unauthFired map[string]bool      // tokens whose OnUnauthorized already ran
 	cooldown    map[string]time.Time // limiter -> cooldown end
 }
@@ -115,6 +116,21 @@ func (c *Client) SetToken(token string) {
 	c.mu.Unlock()
 }
 
+// SetLanguage sets the Accept-Language of every later REST request and of
+// AuthHeader (the realtime dial). It is the effective UI language ("ko" in
+// 0.1.3); "" sends no header.
+func (c *Client) SetLanguage(tag string) {
+	c.mu.Lock()
+	c.lang = tag
+	c.mu.Unlock()
+}
+
+func (c *Client) language() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lang
+}
+
 // Token returns the current bearer token.
 func (c *Client) Token() string {
 	c.mu.Lock()
@@ -156,13 +172,17 @@ func (c *Client) WebSocketURL(mode, deviceID string) string {
 	return u.String()
 }
 
-// AuthHeader returns Authorization + User-Agent, for the realtime dial.
+// AuthHeader returns Authorization + User-Agent (+ Accept-Language when set),
+// for the realtime dial.
 func (c *Client) AuthHeader() http.Header {
 	h := http.Header{}
 	if t := c.Token(); t != "" {
 		h.Set("Authorization", "Bearer "+t)
 	}
 	h.Set("User-Agent", c.ua)
+	if l := c.language(); l != "" {
+		h.Set("Accept-Language", l)
+	}
 	return h
 }
 
@@ -360,6 +380,9 @@ func (c *Client) do(ctx context.Context, r request, out any, checkCooldown bool)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.ua)
+	if l := c.language(); l != "" {
+		req.Header.Set("Accept-Language", l)
+	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}

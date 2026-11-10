@@ -35,6 +35,13 @@ type Config struct {
 	Notify NotifyConfig        `toml:"notify"`
 	Keys   map[string][]string `toml:"keys"`
 
+	// Terminal is the [terminal] table (embedded panes, spec A7.4).
+	Terminal TerminalConfig `toml:"terminal"`
+	// Tools holds the raw [tools.<section>] tables. Keys are config section
+	// names (ToolConfigSection), not tool IDs; read them through ToolString,
+	// ToolBool, ToolOpen and ToolSection, which take tool IDs.
+	Tools map[string]map[string]any `toml:"tools"`
+
 	notLoaded bool // Load fell back to Defaults() on a read/parse failure => Save refuses
 }
 
@@ -57,11 +64,21 @@ type UIConfig struct {
 	Animations      bool   `toml:"animations"`
 	PaintBackground bool   `toml:"paint_background"`
 	Clock           string `toml:"clock"`
+	// Language is auto | ko | en | zh-Hans (i18n spec 6.2). 0.1.3 opens ko only
+	// and hides the settings row; MASIL_LANG still overrides it.
+	Language string `toml:"language"`
 }
 
 // NotifyConfig is the [notify] table.
 type NotifyConfig struct {
 	Desktop bool `toml:"desktop"`
+}
+
+// TerminalConfig is the [terminal] table.
+type TerminalConfig struct {
+	// Embedded allows the embedded terminal pane (default true). false makes
+	// every tool open in exec (screen switch) mode: the escape hatch of A7.4.
+	Embedded bool `toml:"embedded"`
 }
 
 // Defaults returns a Config with every field filled (CA 3.3 values).
@@ -85,9 +102,11 @@ func Defaults() *Config {
 			Animations:      true,
 			PaintBackground: true,
 			Clock:           "24h",
+			Language:        "auto",
 		},
-		Notify: NotifyConfig{Desktop: true},
-		Keys:   map[string][]string{},
+		Notify:   NotifyConfig{Desktop: true},
+		Keys:     map[string][]string{},
+		Terminal: TerminalConfig{Embedded: true},
 	}
 }
 
@@ -98,6 +117,8 @@ var (
 	validPins   = []string{"auto", "command", "standard", "compact", "widget", "tiny"}
 	validImages = []string{"auto", "kitty", "iterm2", "halfblock", "off"}
 	validClocks = []string{"24h", "12h"}
+	validLangs  = []string{"auto", "ko", "en", "zh-hans"} // compared lower-cased
+
 )
 
 // Load reads config.toml: missing file => Defaults(); unknown keys ignored;
@@ -257,6 +278,7 @@ func (c *Config) validate() []string {
 	positive("layout.widget_min_rows", &c.Layout.WidgetMinRows, d.Layout.WidgetMinRows)
 	enum("ui.images", &c.UI.Images, d.UI.Images, validImages)
 	enum("ui.clock", &c.UI.Clock, d.UI.Clock, validClocks)
+	enum("ui.language", &c.UI.Language, d.UI.Language, validLangs)
 	return bad
 }
 

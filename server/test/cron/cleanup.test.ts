@@ -82,3 +82,23 @@ test("dead invite links, responded direct invites and expired sessions deleted; 
   expect(await env.DB.prepare("SELECT 1 FROM sessions WHERE user_id=?").bind(s.user.id).first()).toBeNull();
   expect(await env.DB.prepare("SELECT 1 FROM sessions WHERE user_id=?").bind(o.user.id).first()).not.toBeNull();
 });
+test("removes ended workspace shares after 30 days", async () => {
+  const o = await signup(); const f = await signup();
+  const now = Date.now();
+  const ins = (id: string, status: string, endedAt: number | null) =>
+    env.DB.prepare("INSERT INTO workspace_shares (id, owner_id, title, status, created_at, ended_at, end_reason) VALUES (?1, ?2, 'x', ?3, ?4, ?5, ?6)")
+      .bind(id, o.user.id, status, now - 40 * D, endedAt, endedAt === null ? null : "ended");
+  const ids = { old: `ws-old-${o.user.id}`, recent: `ws-recent-${o.user.id}`, live: `ws-live-${o.user.id}` };
+  await env.DB.batch([
+    ins(ids.old, "ended", now - 31 * D),
+    ins(ids.recent, "ended", now - 29 * D),
+    ins(ids.live, "live", null),
+    env.DB.prepare("INSERT INTO workspace_share_members (share_id, user_id, seat, invited_at) VALUES (?1, ?2, 1, ?3)").bind(ids.old, f.user.id, now - 40 * D),
+  ]);
+  await run();
+  const has = async (id: string) => (await env.DB.prepare("SELECT 1 FROM workspace_shares WHERE id=?").bind(id).first()) !== null;
+  expect(await has(ids.old)).toBe(false);
+  expect(await env.DB.prepare("SELECT 1 FROM workspace_share_members WHERE share_id=?").bind(ids.old).first()).toBeNull();
+  expect(await has(ids.recent)).toBe(true);
+  expect(await has(ids.live)).toBe(true);
+});

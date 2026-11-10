@@ -11,6 +11,7 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -63,8 +64,8 @@ func TestMeta(t *testing.T) {
 		t.Fatalf("All() len = %d, want 4", len(all))
 	}
 	for i, th := range all {
-		if th.Name != wantNames[i] || th.Letter != wantLetters[i] || th.Label != wantLabels[i] || th.Dark != wantDark[i] {
-			t.Errorf("All()[%d] = %s/%s/%s/%v, want %s/%s/%s/%v", i, th.Name, th.Letter, th.Label, th.Dark,
+		if th.Name != wantNames[i] || th.Letter != wantLetters[i] || Label(i18n.KoT(), th.Name) != wantLabels[i] || th.Dark != wantDark[i] {
+			t.Errorf("All()[%d] = %s/%s/%s/%v, want %s/%s/%s/%v", i, th.Name, th.Letter, Label(i18n.KoT(), th.Name), th.Dark,
 				wantNames[i], wantLetters[i], wantLabels[i], wantDark[i])
 		}
 		if th.Border != wantBorder[i] {

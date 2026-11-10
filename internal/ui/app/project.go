@@ -57,5 +57,10 @@ func Project(l layout.Layout, n NavState) map[layout.SlotID]ui.Route {
 		}
 		set(layout.SlotMain, main)
 	}
+	// The tool surface in front (v0.1.3 A8.4): its active entry goes to the mode's
+	// tool slot (toolSlots), over what that slot got above.
+	if r, ok := n.activeTool(); ok && n.Front == FrontTools {
+		set(toolSlotFor(l.Mode), r)
+	}
 	return out
 }

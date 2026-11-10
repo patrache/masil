@@ -13,6 +13,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/features"
+	"github.com/patrache/masil/internal/i18n"
 )
 
 // Name is a slash command name.
@@ -27,6 +29,9 @@ const (
 	Focus       = "focus"
 	Roll        = "roll"
 	Invite      = "invite"
+	// Tools opens the tool hub (v0.1.3 A8.1) — only while a tool feature flag
+	// is on (features.Any); otherwise it is an unknown command, as before.
+	Tools Name = "tools"
 )
 
 // Command is a parsed slash command.
@@ -69,14 +74,92 @@ const (
 	maxDiceModifier = 1000
 )
 
-var catalog = []Spec{
-	{Me, "/me <행동>", "행동을 3인칭으로 보내요"},
-	{Shrug, "/shrug [글]", shrugFace + " 를 붙여요"},
-	{Poll, `/poll "질문" "선택지"… [--multi] [--for 1h]`, "투표를 만들어요"},
-	{Status, "/status [이모지] <글>", "상태 메시지를 바꿔요"},
-	{Focus, "/focus [25m|off]", "집중 모드를 켜거나 꺼요"},
-	{Roll, "/roll 2d6", "주사위를 굴려요"},
-	{Invite, "/invite @아이디 | link [7d] [횟수]", "방에 초대해요"},
+// rows is the command order of Catalog (completion & help).
+var rows = []Name{Me, Shrug, Poll, Status, Focus, Roll, Invite}
+
+// spec is n's catalog row in t's language.
+func spec(t *i18n.T, n Name) Spec {
+	c := t.Chat
+	switch n {
+	case Me:
+		return Spec{Me, c.SlashMeUsage(), c.SlashMeDesc()}
+	case Shrug:
+		return Spec{Shrug, c.SlashShrugUsage(), c.SlashShrugDesc(shrugFace)}
+	case Poll:
+		return Spec{Poll, c.SlashPollUsage(), c.SlashPollDesc()}
+	case Status:
+		return Spec{Status, c.SlashStatusUsage(), c.SlashStatusDesc()}
+	case Focus:
+		return Spec{Focus, c.SlashFocusUsage(), c.SlashFocusDesc()}
+	case Roll:
+		return Spec{Roll, c.SlashRollUsage(), c.SlashRollDesc()}
+	case Invite:
+		return Spec{Invite, c.SlashInviteUsage(), c.SlashInviteDesc()}
+	}
+	return Spec{Name: n}
+}
+
+// UsageError is a command written the wrong way: the message shows Name's
+// usage line.
+type UsageError struct{ Name Name }
+
+// Error is the ko message (screens use Message(ctx.T, err)).
+func (e UsageError) Error() string { return Message(nil, e) }
+
+// UnknownError is an ASCII name that is no command (here); Head is as typed.
+type UnknownError struct{ Head string }
+
+// Error is the ko message (screens use Message(ctx.T, err)).
+func (e UnknownError) Error() string { return Message(nil, e) }
+
+// parseError is a fixed parse error; its value is the catalog key suffix
+// (chat.slash_err_<value>).
+type parseError string
+
+// Error is the ko message (screens use Message(ctx.T, err)).
+func (e parseError) Error() string { return Message(nil, e) }
+
+// Parse errors with a fixed message (errors.Is).
+var (
+	ErrFocusRange    error = parseError("focus_range")
+	ErrDice          error = parseError("dice")
+	ErrInviteUses    error = parseError("invite_uses")
+	ErrInviteExpiry  error = parseError("invite_expiry")
+	ErrInviteHandle  error = parseError("invite_handle")
+	ErrUnclosedQuote error = parseError("unclosed_quote")
+	ErrPollDuration  error = parseError("poll_duration")
+	ErrPollEmpty     error = parseError("poll_empty")
+	ErrPollOptions   error = parseError("poll_few")
+	ErrPollTooMany   error = parseError("poll_many")
+)
+
+// Message is err (from Parse) in t's language (nil t = ko); any other error
+// is its own text, nil is "".
+func Message(t *i18n.T, err error) string {
+	if err == nil {
+		return ""
+	}
+	if t == nil {
+		t = i18n.KoT()
+	}
+	var u UsageError
+	var un UnknownError
+	var p parseError
+	switch {
+	case errors.As(err, &u):
+		if s := spec(t, u.Name); s.Usage != "" {
+			return t.Chat.SlashUsage(s.Usage)
+		}
+		return t.Chat.SlashUsageCheck()
+	case errors.As(err, &un):
+		return t.Chat.SlashUnknown(un.Head)
+	case errors.As(err, &p):
+		if s, ok := t.Lookup("chat", "slash_err_"+string(p), nil); ok {
+			return s
+		}
+		return "slash: " + string(p) // never: every parseError has a key
+	}
+	return err.Error()
 }
 
 var (
@@ -87,7 +170,8 @@ var (
 	digitsRE = regexp.MustCompile(`^\d+$`)
 )
 
-// Parse: ok=false => not a slash command (send as text); err => Korean usage message.
+// Parse: ok=false => not a slash command (send as text); err => a typed parse
+// error (UsageError, UnknownError, Err*) — show it with Message(ctx.T, err).
 //
 // Only "/" followed by ASCII letters is a command; anything else ("/", "/ x",
 // "//x", "/usr/bin", "/없는명령") is ordinary text. Unknown ASCII names are
@@ -118,8 +202,13 @@ func Parse(input string) (cmd *Command, ok bool, err error) {
 		c, err = parseRoll(rest)
 	case Invite:
 		c, err = parseInvite(rest)
+	case Tools:
+		if !features.Any() {
+			return nil, true, unknownCommand(head)
+		}
+		c = &Command{Name: Tools} // arguments are ignored
 	default:
-		return nil, true, errors.New("알 수 없는 명령이에요: /" + head)
+		return nil, true, unknownCommand(head)
 	}
 	if err != nil {
 		return nil, true, err
@@ -127,21 +216,26 @@ func Parse(input string) (cmd *Command, ok bool, err error) {
 	return c, true, nil
 }
 
-// Catalog lists every command for composer completion & help.
-func Catalog() []Spec {
-	out := make([]Spec, len(catalog))
-	copy(out, catalog)
+// Catalog lists every command for composer completion & help in t's language
+// (nil = ko). Names are never translated.
+func Catalog(t *i18n.T) []Spec {
+	if t == nil {
+		t = i18n.KoT()
+	}
+	out := make([]Spec, 0, len(rows)+1)
+	for _, n := range rows {
+		out = append(out, spec(t, n))
+	}
+	if features.Any() {
+		out = append(out, Spec{Tools, "/tools", t.Tools.SlashDesc()})
+	}
 	return out
 }
 
-func usage(n Name) error {
-	for _, s := range catalog {
-		if s.Name == n {
-			return errors.New("사용법: " + s.Usage)
-		}
-	}
-	return errors.New("사용법을 확인해 주세요")
-}
+// unknownCommand is Parse's error for an ASCII name that is no command (here).
+func unknownCommand(head string) error { return UnknownError{Head: head} }
+
+func usage(n Name) error { return UsageError{Name: n} }
 
 // cutSpace splits s at the first whitespace run; rest is trimmed.
 func cutSpace(s string) (head, rest string) {
@@ -203,7 +297,7 @@ func parseFocus(rest string) (*Command, error) {
 	if digitsRE.MatchString(rest) {
 		n, err := strconv.Atoi(rest)
 		if err != nil || n > maxFocusSec {
-			return nil, errFocusRange
+			return nil, ErrFocusRange
 		}
 		d = time.Duration(n) * time.Minute
 	} else {
@@ -213,18 +307,16 @@ func parseFocus(rest string) (*Command, error) {
 		}
 	}
 	if d < minFocusSec*time.Second || d > maxFocusSec*time.Second {
-		return nil, errFocusRange
+		return nil, ErrFocusRange
 	}
 	return &Command{Name: Focus, FocusDuration: d}, nil
 }
-
-var errFocusRange = errors.New("집중 시간은 1분~12시간이에요")
 
 func parseRoll(rest string) (*Command, error) {
 	expr := strings.ToLower(rest)
 	m := diceRE.FindStringSubmatch(expr)
 	if m == nil {
-		return nil, errDice
+		return nil, ErrDice
 	}
 	count, _ := strconv.Atoi(m[1])
 	faces, _ := strconv.Atoi(m[2])
@@ -234,12 +326,10 @@ func parseRoll(rest string) (*Command, error) {
 	}
 	if count < 1 || count > maxDiceCount || faces < minDiceFaces || faces > maxDiceFaces ||
 		mod < -maxDiceModifier || mod > maxDiceModifier {
-		return nil, errDice
+		return nil, ErrDice
 	}
 	return &Command{Name: Roll, Dice: expr}, nil
 }
-
-var errDice = errors.New("주사위는 2d6 처럼 적어 주세요 (1~20개, 2~1000면, 보정 ±1000)")
 
 func parseInvite(rest string) (*Command, error) {
 	fields := strings.Fields(rest)
@@ -257,7 +347,7 @@ func parseInvite(rest string) (*Command, error) {
 			if digitsRE.MatchString(a) {
 				n, err := strconv.Atoi(a)
 				if seenUses || err != nil || n < 1 || n > maxInviteUses {
-					return nil, errors.New("초대 횟수는 1~1000번이에요")
+					return nil, ErrInviteUses
 				}
 				c.LinkMaxUses, seenUses = n, true
 				continue
@@ -267,7 +357,7 @@ func parseInvite(rest string) (*Command, error) {
 				return nil, usage(Invite)
 			}
 			if d < minInviteSec*time.Second || d > maxInviteSec*time.Second {
-				return nil, errors.New("초대 링크 만료는 5분~30일이에요")
+				return nil, ErrInviteExpiry
 			}
 			c.LinkExpires, seenExp = d, true
 		}
@@ -278,7 +368,7 @@ func parseInvite(rest string) (*Command, error) {
 	}
 	h := strings.ToLower(strings.TrimPrefix(fields[0], "@"))
 	if !handleRE.MatchString(h) {
-		return nil, errors.New("아이디는 영문 소문자·숫자·_ 3~20자예요")
+		return nil, ErrInviteHandle
 	}
 	return &Command{Name: Invite, InviteUser: h}, nil
 }
@@ -328,7 +418,7 @@ func tokenize(s string) ([]token, error) {
 				j++
 			}
 			if j >= len(rs) {
-				return nil, errors.New("따옴표가 닫히지 않았어요")
+				return nil, ErrUnclosedQuote
 			}
 			toks = append(toks, token{text: strings.TrimSpace(string(rs[i+1 : j])), quoted: true})
 			i = j + 1
@@ -375,7 +465,7 @@ func parsePoll(rest string) (*Command, error) {
 				}
 				sec := int(d / time.Second)
 				if sec < minPollDuration || sec > maxPollDuration {
-					return nil, errors.New("투표 기간은 1분~7일이에요")
+					return nil, ErrPollDuration
 				}
 				in.DurationSec = &sec
 			default:
@@ -384,7 +474,7 @@ func parsePoll(rest string) (*Command, error) {
 			continue
 		}
 		if t.text == "" {
-			return nil, errors.New("질문과 선택지는 비울 수 없어요")
+			return nil, ErrPollEmpty
 		}
 		pos = append(pos, t.text)
 	}
@@ -393,10 +483,10 @@ func parsePoll(rest string) (*Command, error) {
 	}
 	in.Question, in.Options = pos[0], pos[1:]
 	if len(in.Options) < 2 {
-		return nil, errors.New("선택지를 2개 이상 적어 주세요")
+		return nil, ErrPollOptions
 	}
 	if len(in.Options) > maxPollOptions {
-		return nil, errors.New("선택지는 10개까지예요")
+		return nil, ErrPollTooMany
 	}
 	return &Command{Name: Poll, Poll: in}, nil
 }

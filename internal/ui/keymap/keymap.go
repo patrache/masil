@@ -11,6 +11,8 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/patrache/masil/internal/i18n"
 )
 
 // Action is a stable action id, used in config [keys].
@@ -61,6 +63,15 @@ const (
 	PostOpenMedia     Action = "post.open_media"
 	PostAuthor        Action = "post.author"
 	PostCompose       Action = "post.compose"
+	// v0.1.3 tool surface (P0 Task 18). The shell binds them only while a tool
+	// feature flag is on (features.Any); off, ctrl+t reaches the composer.
+	ToolsToggle Action = "tools.toggle" // ctrl+t: tool surface <-> chat (hard)
+	ToolsZoom   Action = "tools.zoom"   // the key after ctrl+w (z): the active tool's wide view
+	// TermhostEscape is the embedded pane's prefix key (A7.5, P0 Task 16):
+	// ctrl+\ — the same byte 0x1c some terminals report as ctrl+4 (both
+	// bound; MatchesEscape also takes the raw code). It is read only by a
+	// focused pane, and by the shell while a kill switch is active.
+	TermhostEscape Action = "termhost.escape"
 )
 
 // Keymap maps actions to bindings.
@@ -68,61 +79,87 @@ type Keymap struct {
 	b map[Action]key.Binding // action -> key.Binding
 }
 
-// spec is one default row: keys, help key label ("" = keys joined by "/"), Korean description.
+// spec is one default row: keys, help key label ("" = keys joined by "/") and
+// the help description, read from the catalog when the keymap is built or
+// localized. New rows pass a catalog func (t.Area.Key); 0.1.2 rows are Lit.
+// Desc is exported in name only (CA 5.5): rows are keyed literals such as
+// {keys: ..., Desc: func(t *i18n.T) string { ... }}.
 type spec struct {
 	keys    []string
 	helpKey string
-	desc    string
+	Desc    func(t *i18n.T) string
+}
+
+// Lit wraps a 0.1.2 Korean description as a row description. Temporary: P5
+// Task 18 moves every Lit row to the catalog and removes Lit.
+func Lit(s string) func(*i18n.T) string {
+	return func(*i18n.T) string { return s }
 }
 
 // defaults is the CA 5.5 table. Help descriptions are this plan's decision (Task 19).
 var defaults = map[Action]spec{
-	AppQuit:           {[]string{"ctrl+c"}, "", "종료"},
-	PaletteOpen:       {[]string{"ctrl+k"}, "", "이동"},
-	SearchGlobal:      {[]string{"ctrl+f"}, "", "검색"},
-	NotificationsOpen: {[]string{"ctrl+n"}, "", "알림"},
-	WindowPrefix:      {[]string{"ctrl+w"}, "", "창"},
-	FocusNext:         {[]string{"tab"}, "", "다음 패널"},
-	FocusPrev:         {[]string{"shift+tab"}, "", "이전 패널"},
-	HelpToggle:        {[]string{"?", "f1"}, "", "도움말"},
-	FeedToggle:        {[]string{"f"}, "", "피드"},
-	TabPrev:           {[]string{"["}, "", "이전 탭"},
-	TabNext:           {[]string{"]"}, "", "다음 탭"},
-	NavBack:           {[]string{"esc"}, "", "뒤로"},
+	AppQuit:           {[]string{"ctrl+c"}, "", Lit("종료")},
+	PaletteOpen:       {[]string{"ctrl+k"}, "", Lit("이동")},
+	SearchGlobal:      {[]string{"ctrl+f"}, "", Lit("검색")},
+	NotificationsOpen: {[]string{"ctrl+n"}, "", Lit("알림")},
+	WindowPrefix:      {[]string{"ctrl+w"}, "", Lit("창")},
+	FocusNext:         {[]string{"tab"}, "", Lit("다음 패널")},
+	FocusPrev:         {[]string{"shift+tab"}, "", Lit("이전 패널")},
+	HelpToggle:        {[]string{"?", "f1"}, "", Lit("도움말")},
+	FeedToggle:        {[]string{"f"}, "", Lit("피드")},
+	TabPrev:           {[]string{"["}, "", Lit("이전 탭")},
+	TabNext:           {[]string{"]"}, "", Lit("다음 탭")},
+	NavBack:           {[]string{"esc"}, "", Lit("뒤로")},
 	// ctrl+o is the same byte in every terminal and no composer edit key, so it also
 	// works while a chat message is being typed; alt+left is CSI 1;3D (iTerm2, kitty,
 	// Ghostty, WezTerm), alt+b what macOS Terminal.app sends for option+left (ESC b).
-	NavHistoryBack:    {[]string{"ctrl+o", "alt+left", "alt+b"}, "ctrl+o/alt+←", "이전 위치"},
-	NavHistoryForward: {[]string{"alt+right", "alt+f"}, "alt+→", "다음 위치"},
-	ListUp:            {[]string{"k", "up"}, "", "위"},
-	ListDown:          {[]string{"j", "down"}, "", "아래"},
-	ListTop:           {[]string{"home"}, "gg/home", "맨 위"}, // "g g" is a sequence handled by widgets.List
-	ListBottom:        {[]string{"G", "end"}, "", "맨 아래"},
-	ListPageUp:        {[]string{"ctrl+u", "pgup"}, "", "한 쪽 위"},
-	ListPageDown:      {[]string{"ctrl+d", "pgdown"}, "", "한 쪽 아래"},
-	ListOpen:          {[]string{"enter"}, "", "열기"},
-	ComposeFocus:      {[]string{"i", "a"}, "", "입력"},
-	ComposeSend:       {[]string{"enter"}, "", "보내기"},
-	ComposeNewline:    {[]string{"shift+enter", "alt+enter", "ctrl+j"}, "", "줄바꿈"},
-	ComposeComplete:   {[]string{"tab"}, "", "자동완성"},
-	ComposeEditLast:   {[]string{"up"}, "", "마지막 글 고치기"},
-	ComposeLeave:      {[]string{"esc"}, "", "나가기"},
-	MsgThread:         {[]string{"t", "enter"}, "", "스레드"},
-	MsgReact:          {[]string{"r"}, "", "리액션"},
-	MsgEdit:           {[]string{"e"}, "", "수정"},
-	MsgDelete:         {[]string{"d"}, "", "삭제"},
-	MsgPin:            {[]string{"p"}, "", "고정"},
-	MsgCopy:           {[]string{"y"}, "", "복사"},
-	MsgActions:        {[]string{"m"}, "", "메뉴"},
-	ChannelSearch:     {[]string{"/"}, "", "채널 검색"},
-	ThreadChannel:     {[]string{"c"}, "", "스레드에서 채널로"},
-	PostLike:          {[]string{"l"}, "", "좋아요"},
-	PostRepost:        {[]string{"b"}, "", "리포스트"},
-	PostQuote:         {[]string{"q"}, "", "인용"},
-	PostReply:         {[]string{"r"}, "", "답글"},
-	PostOpenMedia:     {[]string{"o"}, "", "이미지"},
-	PostAuthor:        {[]string{"u"}, "", "작성자"},
-	PostCompose:       {[]string{"c"}, "", "글쓰기"},
+	NavHistoryBack:    {[]string{"ctrl+o", "alt+left", "alt+b"}, "ctrl+o/alt+←", Lit("이전 위치")},
+	NavHistoryForward: {[]string{"alt+right", "alt+f"}, "alt+→", Lit("다음 위치")},
+	ListUp:            {[]string{"k", "up"}, "", Lit("위")},
+	ListDown:          {[]string{"j", "down"}, "", Lit("아래")},
+	ListTop:           {[]string{"home"}, "gg/home", Lit("맨 위")}, // "g g" is a sequence handled by widgets.List
+	ListBottom:        {[]string{"G", "end"}, "", Lit("맨 아래")},
+	ListPageUp:        {[]string{"ctrl+u", "pgup"}, "", Lit("한 쪽 위")},
+	ListPageDown:      {[]string{"ctrl+d", "pgdown"}, "", Lit("한 쪽 아래")},
+	ListOpen:          {[]string{"enter"}, "", Lit("열기")},
+	ComposeFocus:      {[]string{"i", "a"}, "", Lit("입력")},
+	ComposeSend:       {[]string{"enter"}, "", Lit("보내기")},
+	ComposeNewline:    {[]string{"shift+enter", "alt+enter", "ctrl+j"}, "", Lit("줄바꿈")},
+	ComposeComplete:   {[]string{"tab"}, "", Lit("자동완성")},
+	ComposeEditLast:   {[]string{"up"}, "", Lit("마지막 글 고치기")},
+	ComposeLeave:      {[]string{"esc"}, "", Lit("나가기")},
+	MsgThread:         {[]string{"t", "enter"}, "", Lit("스레드")},
+	MsgReact:          {[]string{"r"}, "", Lit("리액션")},
+	MsgEdit:           {[]string{"e"}, "", Lit("수정")},
+	MsgDelete:         {[]string{"d"}, "", Lit("삭제")},
+	MsgPin:            {[]string{"p"}, "", Lit("고정")},
+	MsgCopy:           {[]string{"y"}, "", Lit("복사")},
+	MsgActions:        {[]string{"m"}, "", Lit("메뉴")},
+	ChannelSearch:     {[]string{"/"}, "", Lit("채널 검색")},
+	ThreadChannel:     {[]string{"c"}, "", Lit("스레드에서 채널로")},
+	PostLike:          {[]string{"l"}, "", Lit("좋아요")},
+	PostRepost:        {[]string{"b"}, "", Lit("리포스트")},
+	PostQuote:         {[]string{"q"}, "", Lit("인용")},
+	PostReply:         {[]string{"r"}, "", Lit("답글")},
+	PostOpenMedia:     {[]string{"o"}, "", Lit("이미지")},
+	PostAuthor:        {[]string{"u"}, "", Lit("작성자")},
+	PostCompose:       {[]string{"c"}, "", Lit("글쓰기")},
+	ToolsToggle:       {keys: []string{"ctrl+t"}, Desc: func(t *i18n.T) string { return t.Tools.KeyToggle() }},
+	// tools.zoom is matched on the key after the ctrl+w prefix (like its digits),
+	// so its help label names the prefix too.
+	ToolsZoom:      {keys: []string{"z"}, helpKey: "ctrl+w z", Desc: func(t *i18n.T) string { return t.Tools.KeyZoom() }},
+	TermhostEscape: {keys: []string{"ctrl+\\", "ctrl+4"}, helpKey: "ctrl+\\", Desc: func(t *i18n.T) string { return t.Termpane.HelpEscape() }},
+}
+
+// descIn is the row description in t (ko when t is nil).
+func (s spec) descIn(t *i18n.T) string {
+	if s.Desc == nil {
+		return ""
+	}
+	if t == nil {
+		t = i18n.KoT()
+	}
+	return s.Desc(t)
 }
 
 func newBinding(keys []string, helpKey, desc string) key.Binding {
@@ -136,14 +173,31 @@ func newBinding(keys []string, helpKey, desc string) key.Binding {
 func Default() *Keymap {
 	k := &Keymap{b: make(map[Action]key.Binding, len(defaults))}
 	for a, s := range defaults {
-		k.b[a] = newBinding(s.keys, s.helpKey, s.desc)
+		k.b[a] = newBinding(s.keys, s.helpKey, s.descIn(nil))
 	}
 	return k
 }
 
+// Localize rewrites every binding's help description in t's language, keeping
+// its keys and help key label (overrides included). The app calls it once at
+// start and again when the language changes (P5).
+func (k *Keymap) Localize(t *i18n.T) {
+	if k == nil || k.b == nil {
+		return
+	}
+	for a, b := range k.b {
+		s, ok := defaults[a]
+		if !ok {
+			continue
+		}
+		b.SetHelp(b.Help().Key, s.descIn(t))
+		k.b[a] = b
+	}
+}
+
 // Load applies overrides; unknown action/invalid key => error, default kept.
 // An override replaces all keys of its action; the help label becomes the
-// new keys joined by "/" and the Korean description is kept. One invalid key
+// new keys joined by "/" and the description is kept. One invalid key
 // (or an empty list) rejects that action's whole override. Errors are sorted
 // by action id.
 func Load(overrides map[string][]string) (*Keymap, []error) {
@@ -176,9 +230,51 @@ func Load(overrides map[string][]string) (*Keymap, []error) {
 			errs = append(errs, fmt.Errorf("keymap: %s: invalid key %s (default kept)", id, strings.Join(bad, ", ")))
 			continue
 		}
-		k.b[a] = newBinding(keys, "", s.desc)
+		k.b[a] = newBinding(keys, "", s.descIn(nil))
 	}
-	return k, errs
+	return k, append(errs, k.escapeConflicts(overrides)...)
+}
+
+// escapeGlobals are the masil keys decided before the focused component —
+// the ones termhost.escape (A7.5) must not share.
+var escapeGlobals = []Action{AppQuit, PaletteOpen, SearchGlobal, NotificationsOpen, WindowPrefix, FocusNext, FocusPrev, ToolsToggle}
+
+// escapeConflicts is A7.5 "masil 전역 키와 겹치게 바꾸면 경고": an override that
+// puts termhost.escape and a global key on the same key is refused — the
+// overridden side goes back to its default (escape first) — and reported.
+func (k *Keymap) escapeConflicts(overrides map[string][]string) []error {
+	var errs []error
+	_, escMoved := overrides[string(TermhostEscape)]
+	for _, g := range escapeGlobals {
+		// A swap (escape onto a global, that global onto ctrl+\) needs both
+		// sides back: escape first, then the global if they still meet.
+		for range 2 {
+			shared := sharedKeys(k.b[TermhostEscape].Keys(), k.b[g].Keys())
+			if len(shared) == 0 {
+				break
+			}
+			back := g
+			if escMoved {
+				back, escMoved = TermhostEscape, false
+			}
+			s := defaults[back]
+			k.b[back] = newBinding(s.keys, s.helpKey, s.descIn(nil))
+			errs = append(errs, fmt.Errorf("keymap: %s and %s share %s, a masil global key (%s default kept)",
+				TermhostEscape, g, strings.Join(shared, ", "), back))
+		}
+	}
+	return errs
+}
+
+// sharedKeys is the keys in both a and b.
+func sharedKeys(a, b []string) []string {
+	var out []string
+	for _, x := range a {
+		if slices.Contains(b, x) {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // namedKeys are the non-character key names tea.KeyPressMsg.String() produces.
@@ -232,7 +328,7 @@ func (k *Keymap) lookup(a Action) (key.Binding, bool) {
 		if !ok {
 			return key.Binding{}, false
 		}
-		return newBinding(s.keys, s.helpKey, s.desc), true
+		return newBinding(s.keys, s.helpKey, s.descIn(nil)), true
 	}
 	b, ok := k.b[a]
 	return b, ok
@@ -248,6 +344,24 @@ func (k *Keymap) Binding(a Action) key.Binding {
 func (k *Keymap) Matches(msg tea.KeyPressMsg, a Action) bool {
 	b, ok := k.lookup(a)
 	return ok && key.Matches(msg, b)
+}
+
+// rawFS is the byte ctrl+\ sends (0x1c, ASCII FS). A decoder that does not map
+// it to ctrl+\ hands it over as the bare code.
+const rawFS = 0x1c
+
+// MatchesEscape reports whether msg is termhost.escape (A7.5): one of its keys
+// — by default ctrl+\ and ctrl+4, the same byte — or, while ctrl+\ is bound,
+// the raw 0x1c code a terminal may deliver for it.
+func (k *Keymap) MatchesEscape(msg tea.KeyPressMsg) bool {
+	if k.Matches(msg, TermhostEscape) {
+		return true
+	}
+	if msg.Code != rawFS || msg.Mod&^tea.ModShift != 0 {
+		return false
+	}
+	b, _ := k.lookup(TermhostEscape)
+	return slices.Contains(b.Keys(), "ctrl+\\")
 }
 
 // Bound reports whether msg triggers any action (a nil Keymap behaves like Default).

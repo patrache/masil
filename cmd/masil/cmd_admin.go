@@ -9,6 +9,7 @@ import (
 	"github.com/patrache/masil/internal/admincli"
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -16,7 +17,8 @@ import (
 const usageAdmin = "운영자 명령 (reports | report | resolve | remove | suspend | unsuspend | users | actions)"
 
 func init() {
-	register(command{Name: "admin", Usage: usageAdmin, Hidden: true, Run: adminCmd})
+	// The operator CLI stays Korean in every language (i18n 1.3).
+	register(command{Name: "admin", Usage: func(*i18n.T) string { return usageAdmin }, Hidden: true, Run: adminCmd})
 }
 
 // adminClientFn builds the API client for `masil admin`; tests replace it.
@@ -55,5 +57,7 @@ func adminClient(env *Env) (*api.Client, error) {
 		fmt.Fprintf(env.Stderr, "로그인한 서버(%s)와 설정 서버(%s)가 다릅니다\n", textwidth.Sanitize(cr.Server), textwidth.Sanitize(server))
 		return nil, fmt.Errorf("%w: server mismatch", errAdminClient)
 	}
-	return api.New(server, api.WithToken(cr.Token)), nil
+	c := api.New(server, api.WithToken(cr.Token))
+	c.SetLanguage(string(i18n.Ko)) // the operator CLI stays Korean (i18n 1.3); the header is still sent
+	return c, nil
 }

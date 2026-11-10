@@ -172,7 +172,7 @@ func TestRunCommandMsgDispatch(t *testing.T) {
 	var calls []string
 	avail := true
 	palette.Register(palette.Command{
-		ID: "core.test.echo", Title: "시험 echo", Group: "명령",
+		ID: "core.test.echo", Title: "시험 echo", Group: palette.GroupCommand,
 		Available: func(*ui.Context) bool { return avail },
 		Run: func(_ *ui.Context, args string) tea.Cmd {
 			calls = append(calls, args)
@@ -180,9 +180,9 @@ func TestRunCommandMsgDispatch(t *testing.T) {
 		},
 	})
 	var nilCalls int
-	palette.Register(palette.Command{ID: "core.test.nilavail", Title: "시험 nil", Group: "명령",
+	palette.Register(palette.Command{ID: "core.test.nilavail", Title: "시험 nil", Group: palette.GroupCommand,
 		Run: func(*ui.Context, string) tea.Cmd { nilCalls++; return nil }})
-	palette.Register(palette.Command{ID: "core.test.norun", Title: "시험 norun", Group: "명령"})
+	palette.Register(palette.Command{ID: "core.test.norun", Title: "시험 norun", Group: palette.GroupCommand})
 
 	dev := ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChDev}
 	h := uitest.New(t, uitest.WithRoute(dev))
@@ -237,7 +237,8 @@ func TestRunCommandMsgDispatch(t *testing.T) {
 	// Run from an open palette: the palette closes first, the Confirm is not stacked on it.
 	h.Press("ctrl+k")
 	h.Send(ui.RunCommandMsg{ID: "logout"})
-	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) {
+	// The release has tools on, so logout asks with the tool-login wipe option (P0 Task 23).
+	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmCheck"}) {
 		t.Fatalf("logout from the palette: overlays %v, want only the Confirm", got)
 	}
 	h.Press("esc")
@@ -248,7 +249,7 @@ func TestRunCommandMsgDispatch(t *testing.T) {
 	h.Press("ctrl+k")
 	h.Type("로그아웃")
 	h.Press("enter")
-	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) {
+	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmCheck"}) {
 		t.Fatalf("palette enter on 로그아웃: overlays %v, want only the Confirm", got)
 	}
 	h.Press("esc")

@@ -8,9 +8,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
-	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 )
 
@@ -116,13 +116,48 @@ func (m *Model) alertUI(ev realtime.Event, a api.Alert, viewing bool, now time.T
 		return nil
 	}
 	r := m.alertTargetRoute(a)
-	return m.toasts.push(m.ctx, ui.ToastMsg{Text: alertToastText(a), Kind: ui.ToastAlert, Route: &r})
+	toast := ui.ToastMsg{Text: alertToastText(a, m.ctx.T), Kind: ui.ToastAlert, Route: &r}
+	if coreKnowsTarget(a) {
+		return m.toasts.push(m.ctx, toast)
+	}
+	return m.toasts.pushAlert(m.ctx, toast, a)
 }
 
-// alertToastText is "<title> — <body>" (sanitized, one line); the title alone when the
-// body is empty.
-func alertToastText(a api.Alert) string {
-	title, body := textwidth.Sanitize(a.Title), textwidth.Sanitize(a.Body)
+// coreKnowsTarget reports whether alertTargetRoute resolves a's target itself; the
+// others (doc, workspace_share, ...) open through ui.AlertTargetCmd when a screen
+// registered them (nothing opens when its opener gives nil), and fall back to the
+// inbox route otherwise.
+func coreKnowsTarget(a api.Alert) bool {
+	switch a.Kind {
+	case api.AlertFocusSummary, api.AlertFriendRequest:
+		return true
+	}
+	switch a.Target.Type {
+	case "message", "channel", "post", "space", "user", "notification":
+		return true
+	}
+	return false
+}
+
+// openToastTarget is what opening an alert toast does: the registered opener of an
+// unknown target (a nil Cmd — its tool's flag is off — opens nothing, CA 5.3.6),
+// else navigating to the toast's route.
+func (m *Model) openToastTarget(it toastItem) tea.Cmd {
+	if it.alert != nil {
+		if cmd, ok := ui.AlertTargetCmd(m.ctx, *it.alert); ok {
+			return cmd
+		}
+	}
+	if it.msg.Route == nil {
+		return nil
+	}
+	return m.applyNavigate(ui.NavigateMsg{Route: *it.msg.Route})
+}
+
+// alertToastText is "<title> — <body>" (notify.Render in the shown language,
+// sanitized, one line); the title alone when the body is empty.
+func alertToastText(a api.Alert, t *i18n.T) string {
+	title, body := notify.Render(a, t)
 	switch {
 	case body == "":
 		return title

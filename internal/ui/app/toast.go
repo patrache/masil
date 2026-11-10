@@ -9,6 +9,8 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/widgets"
@@ -30,6 +32,9 @@ type toastExpireMsg struct{ id int }
 type toastItem struct {
 	id  int
 	msg ui.ToastMsg
+	// alert is set on an alert toast whose target core does not know: opening it
+	// asks ui.AlertTargetCmd first (Model.openToastTarget).
+	alert *api.Alert
 }
 
 // toastHit maps screen rows [y0, y1) of the toast box to the toast drawn there.
@@ -54,6 +59,13 @@ func (s *toastState) push(ctx *ui.Context, t ui.ToastMsg) tea.Cmd {
 	return ui.After(ctx, toastTTL, toastExpireMsg{id: s.next})
 }
 
+// pushAlert is push for an alert toast whose target opens through ui.AlertTargetCmd.
+func (s *toastState) pushAlert(ctx *ui.Context, t ui.ToastMsg, a api.Alert) tea.Cmd {
+	cmd := s.push(ctx, t)
+	s.items[len(s.items)-1].alert = &a
+	return cmd
+}
+
 // remove drops the toast with id (no-op when it is already gone).
 func (s *toastState) remove(id int) {
 	s.items = slices.DeleteFunc(s.items, func(it toastItem) bool { return it.id == id })
@@ -68,10 +80,10 @@ func (s *toastState) newestFirst() []toastItem {
 
 // errorToast turns an ErrorMsg into its toast text: "<Context>: <Describe>" (Describe
 // alone when Context is empty).
-func errorToast(e ui.ErrorMsg) ui.ToastMsg {
-	text := api.Describe(e.Err)
+func errorToast(t *i18n.T, e ui.ErrorMsg) ui.ToastMsg {
+	text := errtext.Describe(t, e.Err)
 	if text == "" {
-		text = api.Describe(errUnknown)
+		text = errtext.Describe(t, errUnknown)
 	}
 	if e.Context != "" {
 		text = e.Context + ": " + text
@@ -167,16 +179,20 @@ func (m *Model) clickToast(msg tea.MouseClickMsg) (tea.Cmd, bool) {
 			hit = h
 		}
 	}
-	var route *ui.Route
+	var open *toastItem
 	for _, it := range m.toasts.items {
 		if it.id == hit.id && it.msg.Route != nil {
-			rt := *it.msg.Route
-			route = &rt
+			open = &it
 		}
 	}
 	m.toasts.remove(hit.id)
-	if route == nil {
+	if open == nil {
 		return nil, true
 	}
-	return ui.Navigate(*route), true
+	if open.alert != nil {
+		if cmd, ok := ui.AlertTargetCmd(m.ctx, *open.alert); ok {
+			return cmd, true // nil when its tool's flag is off: nothing opens
+		}
+	}
+	return ui.Navigate(*open.msg.Route), true
 }

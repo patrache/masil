@@ -1,0 +1,120 @@
+[backend_credman]
+other = "Credential Manager"
+
+[backend_file]
+other = "Plain file (mode 600) — anyone with access to this PC can read it"
+
+[backend_keychain]
+other = "Keychain"
+
+[backend_memory]
+other = "This run only"
+
+[backend_secret_service]
+other = "Secret Service"
+
+[consent_file]
+other = "① Save to a file"
+
+[consent_footer]
+other = "1·2 choose · enter confirm · esc cancel"
+
+[consent_question]
+other = "The keychain is unavailable. ① Save to a file (only your account on this PC can read it) ② Remember for this run only"
+
+[consent_session]
+other = "② Remember for this run only"
+
+[help_group]
+other = "Tools"
+
+[hub_close]
+other = "{key} close"
+
+[hub_empty]
+other = "No tools available yet"
+
+[hub_footer]
+other = "enter open · m open with… · x close · {range} jump"
+
+[hub_open_header]
+other = "Open"
+
+[key_toggle]
+other = "Tools ↔ chat"
+
+[key_zoom]
+other = "Wide tool view"
+
+[limit_toast]
+other = "Up to {max} tools can be open · close one in the hub"
+
+[logins_forget]
+other = "[Forget]"
+
+[logins_forget_body]
+other = "Removes the login saved on this device. You will need to sign in again to use it."
+
+[logins_forget_failed]
+other = "Couldn't forget it"
+
+[logins_forget_no]
+other = "Cancel"
+
+[logins_forget_title]
+other = "Forget the {tool} login?"
+
+[logins_forget_yes]
+other = "Forget"
+
+[logins_section]
+other = "Tool logins"
+
+[logout_wipe]
+other = "Also forget tool logins on this device"
+
+[logout_wipe_failed]
+other = "Couldn't remove the tool logins on this device"
+
+[menu_footer]
+other = "enter choose · esc cancel"
+
+[menu_title]
+other = "Open with · {tool}"
+
+[mode_auto]
+other = "Auto"
+
+[mode_exec]
+other = "Full screen"
+
+[mode_pane]
+other = "Pane"
+
+[mode_window]
+other = "Window"
+
+[palette_hub]
+other = "Tool hub"
+
+[palette_next]
+other = "Next tool"
+
+[palette_prev]
+other = "Previous tool"
+
+[palette_toggle]
+other = "Tools ↔ chat"
+
+[palette_zoom]
+other = "Wide tool view"
+
+[prompt_footer]
+other = "enter save · esc cancel"
+
+[slash_desc]
+other = "Open the tool hub"
+
+[tab_label]
+other = "Tools"
+short = "Tl"

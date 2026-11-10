@@ -1,0 +1,22 @@
+{
+ "id": "cache_restart", "goal_p99_ms": 250, "goal_err_permille": 5, "budget_usd_month": 12000,
+ "start": {
+  "schema_version": 1, "title": "cache_restart", "seed": 2811008, "duration_s": 150,
+  "boxes": [],
+  "nodes": [
+   {"id": "readers", "kind": "client", "label": "readers", "pos": [0, 0], "parent": "", "traffic": {"rps": 2500, "read_permille": 950}},
+   {"id": "api", "kind": "api", "label": "feed-api", "pos": [20, 0], "parent": "", "instances": 12},
+   {"id": "cache", "kind": "cache", "label": "cache", "pos": [40, 0], "parent": ""},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [60, 0], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "readers", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "api", "to": "cache", "read_permille": 1000, "write_permille": 0},
+   {"id": "e3", "from": "cache", "to": "db", "read_permille": 1000, "write_permille": 0},
+   {"id": "e4", "from": "api", "to": "db", "read_permille": 0, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 40, "kind": "node_off", "target": "cache", "dur_s": 30}
+  ]
+ }
+}

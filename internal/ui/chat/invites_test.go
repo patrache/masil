@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -452,7 +454,7 @@ func TestChannelCreatePublicPrivate(t *testing.T) {
 	}
 	mustJSONObject(t, r[0].Body, `{"name":"혼자","is_private":true}`)
 
-	// 409 already_exists stays in the form with api.Describe
+	// 409 already_exists stays in the form with errtext.Describe
 	f := devChannel(t, sz)
 	f.API.Error("POST "+path, http.StatusConflict, "already_exists")
 	f.Send(ui.OpenOverlayMsg{ID: "chat.channel_create", Args: fixtures.SpaceNova})
@@ -461,7 +463,7 @@ func TestChannelCreatePublicPrivate(t *testing.T) {
 	if overlays(f) != 1 {
 		t.Fatalf("409 keeps the form:\n%s", f.Screen())
 	}
-	mustContain(t, overlayText(t, f), api.Describe(&api.Error{Status: http.StatusConflict, Code: "already_exists"}))
+	mustContain(t, overlayText(t, f), errtext.Describe(i18n.KoT(), &api.Error{Status: http.StatusConflict, Code: "already_exists"}))
 }
 
 func TestChannelsTab(t *testing.T) {
@@ -548,5 +550,29 @@ func TestCreatePaletteAvailability(t *testing.T) {
 	empty := &ui.Context{Store: store.New()}
 	if canCreateInvite(empty) || canCreateChannel(empty) || canDirectInvite(empty) {
 		t.Fatal("no current space: none available")
+	}
+}
+
+// TestInviteExpiryDateLocales pins the expiry date in ko and en, this year and
+// another year (the date is built from the time catalog, not a humanize
+// export — humanize/format.go belongs to P0 and P5 Task 5).
+func TestInviteExpiryDateLocales(t *testing.T) {
+	seoul := time.FixedZone("KST", 9*3600)
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, seoul)
+	for _, c := range []struct {
+		l    i18n.Locale
+		at   time.Time
+		want string
+	}{
+		{i18n.Ko, time.Date(2026, 11, 12, 9, 0, 0, 0, seoul), "11월 12일 만료"},
+		{i18n.Ko, time.Date(2027, 1, 3, 9, 0, 0, 0, seoul), "2027년 1월 3일 만료"},
+		{i18n.En, time.Date(2026, 11, 12, 9, 0, 0, 0, seoul), "Expires Nov 12"},
+		{i18n.En, time.Date(2027, 1, 3, 9, 0, 0, 0, seoul), "Expires Jan 3, 2027"},
+		{i18n.Ko, time.Date(2026, 11, 9, 9, 0, 0, 0, seoul), "만료됨"},
+	} {
+		ctx := &ui.Context{T: i18n.For(c.l), Loc: seoul, Now: func() time.Time { return now }}
+		if got := inviteExpiryDate(ctx, c.at); got != c.want {
+			t.Errorf("%s %s: got %q, want %q", c.l, c.at.Format("2006-01-02"), got, c.want)
+		}
 	}
 }

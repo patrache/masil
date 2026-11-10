@@ -1,0 +1,9 @@
+{
+  "date": "2026-11-09",
+  "frontend_id": "1606",
+  "slug": "find-servers-that-handled-most-number-of-requests",
+  "title": "Find Servers That Handled Most Number of Requests",
+  "difficulty": "Hard",
+  "tags": ["Array", "Heap (Priority Queue)", "Ordered Set"],
+  "is_paid_only": false
+}

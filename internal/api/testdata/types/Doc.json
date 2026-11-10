@@ -1,0 +1,23 @@
+{
+  "id": "01JD0000000000000000000001",
+  "space_id": "01JS0000000000000000000001",
+  "type": "arch",
+  "title": "결제 시스템 v3",
+  "created_by": {
+  "id": "01JA0000000000000000000001",
+  "handle": "minji",
+  "display_name": "민지",
+  "avatar_url": "/v1/media/01JU0000000000000000000001",
+  "status": {
+    "emoji": "🎧",
+    "text": "듣는 중…",
+    "expires_at": "2026-11-05T03:00:00.000Z"
+  },
+  "is_private": false,
+  "suspended": false
+},
+  "created_at": "2026-11-05T02:00:00.000Z",
+  "updated_at": "2026-11-05T02:05:00.000Z",
+  "head_seq": 42,
+  "locked": false
+}

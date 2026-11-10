@@ -15,6 +15,7 @@ const SESSION_RETENTION_MS = 30 * DAY_MS;
 const NOTIFICATION_RETENTION_MS = 90 * DAY_MS;
 const REQUEST_RETENTION_MS = 30 * DAY_MS;
 const INVITE_RETENTION_MS = 30 * DAY_MS;
+const WORKSPACE_SHARE_RETENTION_MS = 30 * DAY_MS; // v0.1.3 P2: ended workspace shares
 
 /** 1. Stories expired more than an hour ago: R2 media + uploads.status='removed', then story_views and stories rows. */
 async function expireStories(env: Env, t: number): Promise<void> {
@@ -97,6 +98,13 @@ const SIMPLE_TASKS: ReadonlyArray<{ name: string; sql: string; params: (t: numbe
     sql: `UPDATE user_presence SET status = 'offline', updated_at = ?1
            WHERE user_id IN (SELECT user_id FROM user_presence WHERE status <> 'offline' AND online_until < ?1 LIMIT ?2)`,
     params: (t) => [t, BATCH_LIMIT],
+  },
+  {
+    // v0.1.3 P2 (data-model.md 6 item 10): ended workspace shares 30 days on; member rows go by ON DELETE CASCADE
+    name: "workspace_shares",
+    sql: `DELETE FROM workspace_shares WHERE id IN (
+            SELECT id FROM workspace_shares WHERE status = 'ended' AND ended_at < ?1 LIMIT ?2)`,
+    params: (t) => [t - WORKSPACE_SHARE_RETENTION_MS, BATCH_LIMIT],
   },
 ];
 

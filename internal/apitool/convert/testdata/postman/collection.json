@@ -1,0 +1,69 @@
+{
+  "info": {
+    "_postman_id": "8a1f2c3d-0000-4000-8000-000000000001",
+    "name": "Payments",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+  "variable": [
+    {"key": "base_url", "value": "https://api.test"},
+    {"key": "client_secret", "value": "s3cr3t-value", "type": "secret"},
+    {"key": "retries", "value": 3},
+    {"key": "off", "value": "1", "disabled": true}
+  ],
+  "event": [{"listen": "prerequest", "script": {"type": "text/javascript", "exec": [""]}}],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [{"listen": "prerequest", "script": {"exec": ["pm.environment.set('x', 1);"]}}],
+          "request": {
+            "method": "POST",
+            "auth": {"type": "basic", "basic": [{"key": "username", "value": "{{user}}"}, {"key": "password", "value": "{{pass}}"}]},
+            "header": [{"key": "Accept", "value": "application/json"}, {"key": "X-Off", "value": "1", "disabled": true}],
+            "url": {
+              "raw": "{{base_url}}/login?mode=fast",
+              "host": ["{{base_url}}"], "path": ["login"],
+              "query": [{"key": "mode", "value": "fast"}, {"key": "debug", "value": "1", "disabled": true}]
+            },
+            "body": {"mode": "urlencoded", "urlencoded": [{"key": "grant", "value": "password"}, {"key": "scope", "value": "all", "disabled": true}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create payment",
+      "event": [{"listen": "test", "script": {"exec": "pm.test('ok', function () {});"}}],
+      "request": {
+        "method": "POST", "header": [], "url": "{{base_url}}/v1/payments",
+        "body": {"mode": "raw", "raw": "{\"amount\": 12000}", "options": {"raw": {"language": "json"}}}
+      }
+    },
+    {
+      "name": "Upload",
+      "request": {
+        "method": "PUT",
+        "auth": {"type": "apikey", "apikey": [{"key": "key", "value": "X-Api-Key"}, {"key": "value", "value": "{{api_key}}"}, {"key": "in", "value": "header"}]},
+        "url": {"raw": "{{base_url}}/files/:fileId", "host": ["{{base_url}}"], "path": ["files", ":fileId"], "variable": [{"key": "fileId", "value": "f1"}]},
+        "body": {"mode": "formdata", "formdata": [{"key": "title", "value": "doc", "type": "text"}, {"key": "file", "type": "file", "src": "/home/me/a.png"}]}
+      },
+      "protocolProfileBehavior": {"followRedirects": false, "strictSSL": false, "maxRedirects": 3}
+    },
+    {
+      "name": "Plain text",
+      "request": {
+        "method": "POST", "auth": {"type": "noauth"}, "url": "{{base_url}}/echo",
+        "header": "X-A: 1\nX-B: two",
+        "body": {"mode": "raw", "raw": "hello", "options": {"raw": {"language": "text"}}}
+      }
+    },
+    {"name": "OAuth thing", "request": {"method": "GET", "auth": {"type": "oauth2", "oauth2": []}, "url": "{{base_url}}/o"}},
+    {
+      "name": "GraphQL",
+      "request": {"method": "POST", "url": "{{base_url}}/gql", "body": {"mode": "graphql", "graphql": {"query": "{ me { id } }", "variables": "{\"a\":1}"}}}
+    },
+    {"name": "String request", "request": "https://example.test/ping?x=1&flag"}
+  ]
+}

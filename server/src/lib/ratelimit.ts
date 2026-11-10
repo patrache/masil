@@ -14,7 +14,10 @@ export type LimiterName =
   | "RL_SOCIAL"
   | "RL_SEARCH"
   | "RL_WS"
-  | "RL_API";
+  | "RL_API"
+  | "RL_DOC" // v0.1.3: room document / version / comment writes (api.md 0.7)
+  | "RL_SHARE" // v0.1.3: P2 workspace share create / invite (the 60-minute window is counted in D1 by P2)
+  | "RL_SHARE_WS"; // v0.1.3: P2 workspace share socket connects
 
 /** Must equal `simple.period` of each binding in wrangler.jsonc (Retry-After / details.retry_after_sec). */
 export const LIMITER_PERIOD_SEC: Record<LimiterName, 10 | 60> = {
@@ -28,6 +31,9 @@ export const LIMITER_PERIOD_SEC: Record<LimiterName, 10 | 60> = {
   RL_SEARCH: 60,
   RL_WS: 60,
   RL_API: 60,
+  RL_DOC: 60,
+  RL_SHARE: 60,
+  RL_SHARE_WS: 60,
 };
 
 /** Counts one hit for `key`; throws 429 rate_limited when the binding says no. */

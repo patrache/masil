@@ -8,6 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/palette"
 )
@@ -15,8 +17,10 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayDMNew, newDMDialog)
 	palette.Register(palette.Command{
-		ID: "dm.new", Title: "새 대화 (DM·그룹 DM)", Keywords: []string{"dm", "direct message", "group", "대화", "그룹 DM", "메시지 보내기"}, Group: "명령",
-		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayDMNew, args) },
+		ID: "dm.new", Label: func(t *i18n.T) string { return t.Chat.CmdDmNew() }, Group: palette.GroupCommand,
+		Keywords:   []string{"dm", "direct message", "group"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwDmNew()) },
+		Run:        func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayDMNew, args) },
 	})
 }
 
@@ -25,15 +29,9 @@ const overlayDMNew = "chat.dm_new"
 
 // DM dialog texts and limits.
 const (
-	dmNewTitle   = "새 대화"
-	dmNewSubmit  = "대화 시작"
 	dmMaxPeers   = 9  // POST /v1/dms: 1..9 users besides me (api.md 0.3)
 	groupDMLimit = 10 // group DM members, me included (api.md 3.1)
 	tagDMOpen    = "chat.dm_open:"
-
-	// groupDMRefusedText is a group DM create/add refused over a block between two
-	// would-be members: 403 dm_not_allowed with no details.user_ids (api.md 3.1, D2).
-	groupDMRefusedText = "함께 대화할 수 없는 참여자가 있어요"
 )
 
 // dmRequest is the POST /v1/dms body: one user = the 1:1 DM (never named),
@@ -84,30 +82,30 @@ func userRefs(users []api.UserSummary) []api.UserRef {
 
 // describeGroupDMErr words a failed group DM create/add: dm_not_allowed without
 // details.user_ids is a block between two would-be members, which the server never
-// names (api.md 3.1, D2); everything else (can_dm failures included) is api.Describe.
-func describeGroupDMErr(err error, _ []api.UserSummary) string {
+// names (api.md 3.1, D2); everything else (can_dm failures included) is errtext.Describe.
+func describeGroupDMErr(t *i18n.T, err error, _ []api.UserSummary) string {
 	var e *api.Error
 	if errors.As(err, &e) && e.Code == "dm_not_allowed" && len(e.UserIDs()) == 0 {
-		return groupDMRefusedText
+		return orKo(t).Chat.GroupDmRefused() // a block between two would-be members (api.md 3.1, D2)
 	}
-	return api.Describe(err)
+	return errtext.Describe(t, err)
 }
 
 // describeDMErr is dm.new's DescribeErr: two picks or more are a group DM.
-func describeDMErr(err error, picked []api.UserSummary) string {
+func describeDMErr(t *i18n.T, err error, picked []api.UserSummary) string {
 	if len(picked) >= 2 {
-		return describeGroupDMErr(err, picked)
+		return describeGroupDMErr(t, err, picked)
 	}
-	return api.Describe(err)
+	return errtext.Describe(t, err)
 }
 
 // newDMDialog is the dm.new picker: friends (online first) plus a server search,
 // blocked users hidden, at most 9 people; from 2 picks on the "대화 이름(선택)"
 // field appears. Submitting opens (or creates) the DM and navigates to it; an
 // error (e.g. 403 dm_not_allowed) stays in the dialog.
-func newDMDialog(_ *ui.Context, args string) ui.Overlay {
+func newDMDialog(ctx *ui.Context, args string) ui.Overlay {
 	return newUserPicker(pickerSpec{
-		Title: dmNewTitle, Submit: dmNewSubmit, Max: dmMaxPeers, Search: true, Query: args,
+		Title: cat(ctx).Chat.DmNewTitle(), Submit: cat(ctx).Chat.DmNewSubmit(), Max: dmMaxPeers, Search: true, Query: args,
 		Candidates: friendCandidates, Exclude: blockedUser, Order: byPresence,
 		NameField: true, NameFrom: 2, DescribeErr: describeDMErr,
 		OnPick: func(ctx *ui.Context, users []api.UserSummary, name string) (string, tea.Cmd) {

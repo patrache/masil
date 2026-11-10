@@ -1,5 +1,7 @@
 // api.md section 2 object schemas, field-for-field. These are the return types of lib/serialize.ts.
 // Response fields always exist (null when absent, [] for empty lists).
+import type { Card } from "../lib/cards/index";
+import type { AlertTemplate } from "../lib/i18n";
 
 export type ID = string; // ULID
 export type Timestamp = string; // RFC 3339 UTC, ms precision
@@ -55,8 +57,10 @@ export interface Settings {
     friend_request: boolean;
     thread_reply: boolean;
     social: boolean;
+    workspace: boolean; // v0.1.3 P2: workspace_invite / workspace_attention alerts, default true
   };
   focus_default_min: number; // 1..720, default 25
+  leet_share_with_friends: boolean; // v0.1.3 P1: friends see my leet streak (friends board); default true
 }
 
 export interface Focus {
@@ -288,8 +292,8 @@ export interface Message {
   id: ID;
   channel_id: ID;
   author: UserSummary;
-  kind: "text" | "me" | "roll" | "poll" | "system";
-  body: string;
+  kind: "text" | "me" | "roll" | "poll" | "system" | "card"; // "card": v0.1.3 (C1.2)
+  body: string; // card: the required human-readable fallback summary
   mentions: MentionRef[];
   mention_here: boolean;
   thread_root_id: ID | null;
@@ -299,6 +303,7 @@ export interface Message {
   poll: Poll | null;
   roll: RollResult | null;
   system: SystemEvent | null;
+  card: Card | null; // v0.1.3: set iff kind == "card"
   client_nonce: string | null;
   created_at: Timestamp;
   edited_at: Timestamp | null;
@@ -402,7 +407,9 @@ export type AlertKind =
   | "friend_request"
   | "channel_message"
   | "social"
-  | "focus_summary";
+  | "focus_summary"
+  | "workspace_invite" // v0.1.3 P2 (api.md 5.26)
+  | "workspace_attention";
 
 export interface Alert {
   id: ID;
@@ -411,18 +418,25 @@ export interface Alert {
   body: string; // <= 200 code points, plain text
   actor: UserSummary | null;
   target: {
-    type: "channel" | "message" | "post" | "space" | "user" | "notification";
+    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc" | "workspace_share"; // workspace_share: v0.1.3 P2
     id: ID;
     channel_id: ID | null;
     message_id: ID | null;
     thread_root_id: ID | null;
     post_id: ID | null;
     space_id: ID | null;
+    doc_type?: DocType; // v0.1.3: only when type == "doc" (api.md 2 — other targets keep their 0.1.2 shape)
   };
   created_at: Timestamp;
   suppressed: boolean;
   suppressed_reason: "focus" | "dnd" | null;
+  template: AlertTemplate | null; // v0.1.3 (i18n 7.3): null = stored by an older server (fallback text only)
 }
+
+/** v0.1.3: what an alert says, as data (docs/contract/i18n/alert-templates.json). title/body are fallback text. */
+export type { AlertTemplate } from "../lib/i18n";
+/** v0.1.3 (C1.2): Message.card. */
+export type { Card, CardType } from "../lib/cards/index";
 
 export interface FocusSummary {
   started_at: Timestamp;
@@ -484,4 +498,66 @@ export interface AdminAction {
   report_id: ID | null;
   reason: string;
   created_at: Timestamp;
+}
+
+// ---- v0.1.3 room documents (api.md 5.24, docs/contract/collab.md) ----
+
+export type DocType = "arch" | "apicol";
+
+export interface Doc {
+  id: ID;
+  space_id: ID;
+  type: DocType;
+  title: string; // 1..80
+  created_by: UserSummary;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  head_seq: number; // last sequenced op; 0 = empty
+  locked: boolean;
+}
+
+export interface DocVersion {
+  no: number;
+  seq: number;
+  name: string | null; // null for auto and restore versions
+  auto: boolean;
+  restored_from: number | null;
+  created_by: UserSummary | null; // null for auto versions
+  created_at: Timestamp;
+}
+
+export interface DocComment {
+  id: ID;
+  doc_id: ID;
+  anchor: string;
+  author: UserSummary;
+  body: string; // "" when deleted
+  root_id: ID | null;
+  resolved_at: Timestamp | null;
+  created_at: Timestamp;
+  deleted: boolean;
+}
+
+/** v0.1.3 P2 (api.md 2 / 5.26): a workspace share's metadata — the content never reaches the server. */
+export type WorkspaceLevel = "viewer" | "prompter" | "editor" | "keyboard";
+
+export interface WorkspaceShareMember {
+  user: UserSummary;
+  seat: number; // 1..8 (the owner is seat 0)
+  invited_at: Timestamp;
+  joined_at: Timestamp | null;
+  left_at: Timestamp | null;
+  max_level: WorkspaceLevel | null;
+  verified: boolean;
+}
+
+export interface WorkspaceShare {
+  id: ID;
+  owner: UserSummary;
+  title: string; // 1..40 code points, user data
+  status: "live" | "ended";
+  created_at: Timestamp;
+  ended_at: Timestamp | null;
+  end_reason: "ended" | "timeout" | null;
+  members: WorkspaceShareMember[]; // seat order, removed members left out
 }

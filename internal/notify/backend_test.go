@@ -78,7 +78,7 @@ func TestFormatDropsSpoofing(t *testing.T) {
 		{"\u202a\u202b\u202c\u202d\u2066\u2068x", "줄1\u2028[관리자] 줄2\u2029끝", "x", "줄1[관리자] 줄2끝"},
 	}
 	for _, c := range cases {
-		got := Format(api.Alert{ID: "A", Title: c.title, Body: c.body})
+		got := Format(api.Alert{ID: "A", Title: c.title, Body: c.body}, nil)
 		if got.Title != c.wantTitle || got.Body != c.wantBody {
 			t.Errorf("Format(%q, %q) = %q, %q; want %q, %q", c.title, c.body, got.Title, got.Body, c.wantTitle, c.wantBody)
 		}

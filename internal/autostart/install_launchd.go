@@ -98,6 +98,6 @@ func launchdQuery() (Status, error) {
 	if err != nil {
 		return st, fmt.Errorf("autostart: read %s: %w", plist, err)
 	}
-	st.Detail = withExeCheck(st.Detail, plistExe(b))
+	withExeCheck(&st, plistExe(b))
 	return st, nil
 }

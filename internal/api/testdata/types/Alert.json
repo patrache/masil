@@ -27,5 +27,13 @@
   },
   "created_at": "2026-11-05T02:03:04.567Z",
   "suppressed": true,
-  "suppressed_reason": "focus"
+  "suppressed_reason": "focus",
+  "template": {
+    "id": "message.channel",
+    "params": {
+      "actor": "민지",
+      "space": "노바",
+      "channel": "개발"
+    }
+  }
 }

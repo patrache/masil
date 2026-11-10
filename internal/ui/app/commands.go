@@ -7,6 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/features"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -29,7 +31,8 @@ const (
 type helpMsg struct{}
 
 // logoutConfirmedMsg is sent when the logout Confirm is accepted (logoutConfirmed, sync.go).
-type logoutConfirmedMsg struct{}
+// wipeTools: the dialog's "이 기기의 도구 로그인도 지우기" was checked (v0.1.3 A9.4).
+type logoutConfirmedMsg struct{ wipeTools bool }
 
 // reconnectMsg restarts the realtime client (the "reconnect" command, bridge.go).
 type reconnectMsg struct{}
@@ -59,7 +62,7 @@ func msgCmd(msg tea.Msg) tea.Cmd { return func() tea.Msg { return msg } }
 
 func init() {
 	palette.Register(palette.Command{
-		ID: "theme.cycle", Title: "테마 바꾸기", Group: "설정",
+		ID: "theme.cycle", Title: "테마 바꾸기", Group: palette.GroupSettings,
 		Keywords: []string{"theme", "cycle", "color", "색"},
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {
 			return msgCmd(ui.SetThemeMsg{Name: nextTheme(ctx.Theme)})
@@ -68,7 +71,8 @@ func init() {
 	for _, t := range theme.All() {
 		name := t.Name
 		palette.Register(palette.Command{
-			ID: "theme.set." + string(name), Title: "테마: " + t.Label, Group: "설정",
+			ID: "theme.set." + string(name), Title: "테마: " + theme.Label(nil, name), Group: palette.GroupSettings,
+			Label:    func(t *i18n.T) string { return t.Settings.ThemeCommand(theme.Label(t, name)) },
 			Keywords: themeKeywords[name],
 			Run:      func(*ui.Context, string) tea.Cmd { return msgCmd(ui.SetThemeMsg{Name: name}) },
 		})
@@ -76,54 +80,51 @@ func init() {
 	for _, p := range pinCommands {
 		mode := p.mode
 		palette.Register(palette.Command{
-			ID: "layout.pin." + mode.ID(), Title: "레이아웃 고정: " + p.title, Group: "설정", KeyHint: p.hint,
+			ID: "layout.pin." + mode.ID(), Title: "레이아웃 고정: " + p.title, Group: palette.GroupSettings, KeyHint: p.hint,
 			Keywords: []string{"layout", "pin", mode.ID()},
 			Run:      func(*ui.Context, string) tea.Cmd { return msgCmd(pinMsg{mode: &mode}) },
 		})
 	}
 	palette.Register(palette.Command{
-		ID: "layout.auto", Title: "레이아웃 자동", Group: "설정", KeyHint: "ctrl+w 0",
+		ID: "layout.auto", Title: "레이아웃 자동", Group: palette.GroupSettings, KeyHint: "ctrl+w 0",
 		Keywords: []string{"layout", "auto", "unpin"},
 		Run:      func(*ui.Context, string) tea.Cmd { return msgCmd(pinMsg{}) },
 	})
 	palette.Register(palette.Command{
-		ID: "help", Title: "도움말", Group: "이동", KeyHint: "?",
+		ID: "help", Title: "도움말", Group: palette.GroupNav, KeyHint: "?",
 		Keywords: []string{"help", "keys", "단축키"},
 		Run:      func(*ui.Context, string) tea.Cmd { return msgCmd(helpMsg{}) },
 	})
 	palette.Register(palette.Command{
-		ID: "settings", Title: "설정", Group: "이동",
+		ID: "settings", Title: "설정", Group: palette.GroupNav,
 		Keywords: []string{"settings", "preferences", "config"},
 		Run: func(*ui.Context, string) tea.Cmd {
 			return ui.Navigate(ui.Route{Kind: ui.RouteSettings})
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "blocks", Title: "차단 목록", Group: "이동",
+		ID: "blocks", Title: "차단 목록", Group: palette.GroupNav,
 		Keywords: []string{"blocks", "blocked", "차단 해제"},
 		Run: func(*ui.Context, string) tea.Cmd {
 			return ui.Navigate(ui.Route{Kind: ui.RouteSettings, Anchor: "blocks"})
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "logout", Title: "로그아웃", Group: "명령",
+		ID: "logout", Title: "로그아웃", Group: palette.GroupCommand,
 		Keywords: []string{"logout", "sign out"},
-		Run: func(*ui.Context, string) tea.Cmd {
-			return ui.OpenOverlay(widgets.Confirm("로그아웃할까요?", "이 기기에서 로그아웃해요.", "로그아웃", "취소",
-				msgCmd(logoutConfirmedMsg{})))
-		},
+		Run:      func(ctx *ui.Context, _ string) tea.Cmd { return logoutDialog(ctx) },
 	})
 	palette.Register(palette.Command{
-		ID: "quit", Title: "종료", Group: "명령", KeyHint: "ctrl+c ctrl+c",
+		ID: "quit", Title: "종료", Group: palette.GroupCommand, KeyHint: "ctrl+c ctrl+c",
 		Keywords: []string{"quit", "exit"},
 		// Confirmed like logout: the empty palette lists it among the commands, so a
 		// stray enter must not skip the ctrl+c-twice guard.
 		Run: func(*ui.Context, string) tea.Cmd {
-			return ui.OpenOverlay(widgets.Confirm("종료할까요?", "masil을 닫아요.", "종료", "취소", tea.Quit))
+			return msgCmd(quitRequestMsg{confirm: true}) // quit.go: asks about live panes first
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "reconnect", Title: "다시 연결", Group: "명령",
+		ID: "reconnect", Title: "다시 연결", Group: palette.GroupCommand,
 		Keywords: []string{"reconnect", "connect", "연결"},
 		Run:      func(*ui.Context, string) tea.Cmd { return msgCmd(reconnectMsg{}) },
 	})
@@ -186,4 +187,17 @@ func (m *Model) setTheme(n theme.Name) tea.Cmd {
 	}
 	cmds = append(cmds, m.broadcast(ui.ThemeChangedMsg{Theme: t}))
 	return tea.Batch(cmds...)
+}
+
+// logoutDialog is the logout Confirm. With a tool feature on it carries the
+// "이 기기의 도구 로그인도 지우기" option (off at first, v0.1.3 A9.4); with every
+// flag off it is the 0.1.2 dialog unchanged.
+func logoutDialog(ctx *ui.Context) tea.Cmd {
+	const title, body, yes, no = "로그아웃할까요?", "이 기기에서 로그아웃해요.", "로그아웃", "취소"
+	if !features.Any() {
+		return ui.OpenOverlay(widgets.Confirm(title, body, yes, no, msgCmd(logoutConfirmedMsg{})))
+	}
+	return ui.OpenOverlay(widgets.ConfirmCheck(title, body, ctx.T.Tools.LogoutWipe(), yes, no, func(wipe bool) tea.Cmd {
+		return msgCmd(logoutConfirmedMsg{wipeTools: wipe})
+	}))
 }

@@ -23,6 +23,7 @@ type SendMessageRequest struct {
 	Kind        string
 	Body        string
 	Poll        *PollInput
+	Card        *Card // with Kind MessageKindCard (Body = the fallback summary)
 }
 
 // sendMessageBody is the POST /v1/channels/{id}/messages wire body (api.md 5.10).
@@ -31,6 +32,7 @@ type sendMessageBody struct {
 	Kind        string     `json:"kind,omitempty"`
 	Body        string     `json:"body"`
 	Poll        *PollInput `json:"poll,omitempty"`
+	Card        *Card      `json:"card,omitempty"`
 }
 
 // messageEnvelope is {"message": Message}.
@@ -81,7 +83,7 @@ func (c *Client) SendMessage(ctx context.Context, channelID string, r SendMessag
 		r.ClientNonce = ids.New()
 	}
 	var out messageEnvelope
-	body := sendMessageBody{ClientNonce: r.ClientNonce, Kind: r.Kind, Body: r.Body, Poll: r.Poll}
+	body := sendMessageBody{ClientNonce: r.ClientNonce, Kind: r.Kind, Body: r.Body, Poll: r.Poll, Card: r.Card}
 	st, err := c.callRetryOnce(ctx, request{Method: "POST", Path: escPath("v1", "channels", channelID, "messages"), Body: body, Limiter: rlMessage, Auth: true}, &out)
 	if err != nil {
 		return nil, false, err
@@ -118,14 +120,19 @@ type ThreadQuery struct {
 	Limit         int
 }
 
-// ThreadReplyRequest is POST /v1/messages/{id}/thread. Kind "" = text (no polls).
-type ThreadReplyRequest struct{ ClientNonce, Kind, Body string }
+// ThreadReplyRequest is POST /v1/messages/{id}/thread. Kind "" = text (no
+// polls); Card goes with Kind MessageKindCard.
+type ThreadReplyRequest struct {
+	ClientNonce, Kind, Body string
+	Card                    *Card
+}
 
 // threadReplyBody is the POST /v1/messages/{id}/thread wire body (api.md 5.11).
 type threadReplyBody struct {
 	ClientNonce string `json:"client_nonce"`
 	Kind        string `json:"kind,omitempty"`
 	Body        string `json:"body"`
+	Card        *Card  `json:"card,omitempty"`
 }
 
 // GetThread: GET /v1/messages/{id}/thread?before=|after=&limit= (rootID may be
@@ -154,7 +161,7 @@ func (c *Client) ReplyThread(ctx context.Context, rootID string, r ThreadReplyRe
 		r.ClientNonce = ids.New()
 	}
 	var out messageEnvelope
-	body := threadReplyBody{ClientNonce: r.ClientNonce, Kind: r.Kind, Body: r.Body}
+	body := threadReplyBody{ClientNonce: r.ClientNonce, Kind: r.Kind, Body: r.Body, Card: r.Card}
 	st, err := c.callRetryOnce(ctx, request{Method: "POST", Path: escPath("v1", "messages", rootID, "thread"), Body: body, Limiter: rlMessage, Auth: true}, &out)
 	if err != nil {
 		return nil, false, err

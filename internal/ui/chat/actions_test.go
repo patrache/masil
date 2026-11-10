@@ -50,7 +50,7 @@ func selectText(t testing.TB, h *uitest.Harness, text string) api.Message {
 		if r.Kind != rowMessage || r.Msg == nil {
 			continue
 		}
-		if strings.Contains(r.Msg.Body, text) || strings.Contains(markup.Plain(plainBody(r.Msg), 1<<16), text) {
+		if strings.Contains(r.Msg.Body, text) || strings.Contains(markup.Plain(plainBody(r.Msg), 1<<16, koCat.Common.CodeSummary), text) {
 			if !v.pane.selectID(r.ID) {
 				t.Fatalf("cannot select %s", r.ID)
 			}

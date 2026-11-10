@@ -4,6 +4,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -20,11 +21,13 @@ const (
 	ellipsis = "…"
 )
 
-// Format builds the notification; title/body sanitized: control chars stripped, title <= 80, body <= 200 code points.
-func Format(a api.Alert) OSNotification {
+// Format builds the notification from Render(a, t) (t nil = ko); title/body
+// sanitized: control chars stripped, title <= 80, body <= 200 code points.
+func Format(a api.Alert, t *i18n.T) OSNotification {
+	title, body := Render(a, t)
 	return OSNotification{
-		Title:   clamp(a.Title, maxTitle),
-		Body:    clamp(a.Body, maxBody),
+		Title:   clamp(title, maxTitle),
+		Body:    clamp(body, maxBody),
 		AlertID: a.ID,
 	}
 }

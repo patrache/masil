@@ -27,7 +27,7 @@ func runKeyInstall(keys runKeyStore, exe string) error {
 		return err
 	}
 	if os.Getenv("MASIL_CONFIG_DIR") != "" {
-		return errors.New("Windows 자동 시작은 MASIL_CONFIG_DIR 를 지원하지 않습니다")
+		return ErrRunKeyConfigDir
 	}
 	if err := keys.Set(RunValueName, runValue(exe)); err != nil {
 		return fmt.Errorf("autostart: set %s: %w", runKeyDetail, err)
@@ -55,6 +55,6 @@ func runKeyQuery(keys runKeyStore) (Status, error) {
 		return st, fmt.Errorf("autostart: read %s: %w", runKeyDetail, err)
 	}
 	st.Installed = true
-	st.Detail = withExeCheck(st.Detail, runValueExe(v))
+	withExeCheck(&st, runValueExe(v))
 	return st, nil
 }

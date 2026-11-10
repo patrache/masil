@@ -188,6 +188,66 @@ var pathCalls = map[string]func(c *api.Client, v string) error{
 		_, err := c.ListFollowing(ctx, api.UserRef(v), api.PageOpts{})
 		return err
 	},
+	// 5.24 room documents (P0 Task 30)
+	"ListDocs":  func(c *api.Client, v string) error { _, err := c.ListDocs(ctx, v, "", api.PageOpts{}); return err },
+	"CreateDoc": func(c *api.Client, v string) error { _, err := c.CreateDoc(ctx, v, api.CreateDocRequest{}); return err },
+	"GetDoc":    func(c *api.Client, v string) error { _, err := c.GetDoc(ctx, v); return err },
+	"UpdateDoc": func(c *api.Client, v string) error { _, err := c.UpdateDoc(ctx, v, api.UpdateDocRequest{}); return err },
+	"DeleteDoc": func(c *api.Client, v string) error { return c.DeleteDoc(ctx, v) },
+	"ListDocVersions": func(c *api.Client, v string) error {
+		_, err := c.ListDocVersions(ctx, v)
+		return err
+	},
+	"CreateDocVersion": func(c *api.Client, v string) error {
+		_, err := c.CreateDocVersion(ctx, v, "n")
+		return err
+	},
+	"GetDocVersion": func(c *api.Client, v string) error { _, err := c.GetDocVersion(ctx, v, 1); return err },
+	"RestoreDocVersion": func(c *api.Client, v string) error {
+		_, err := c.RestoreDocVersion(ctx, v, 1)
+		return err
+	},
+	"ListDocComments": func(c *api.Client, v string) error {
+		_, err := c.ListDocComments(ctx, v, api.PageOpts{})
+		return err
+	},
+	"CreateDocComment": func(c *api.Client, v string) error {
+		_, err := c.CreateDocComment(ctx, v, api.CreateDocCommentRequest{})
+		return err
+	},
+	"UpdateDocComment": func(c *api.Client, v string) error {
+		_, err := c.UpdateDocComment(ctx, v, "K", api.UpdateDocCommentRequest{})
+		return err
+	},
+	"UpdateDocComment/comment": func(c *api.Client, v string) error {
+		_, err := c.UpdateDocComment(ctx, "D", v, api.UpdateDocCommentRequest{})
+		return err
+	},
+	"DeleteDocComment":         func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, v, "K") },
+	"DeleteDocComment/comment": func(c *api.Client, v string) error { return c.DeleteDocComment(ctx, "D", v) },
+	"SetSpaceLeet":             func(c *api.Client, v string) error { _, err := c.SetSpaceLeet(ctx, v, true, nil); return err },
+	"ReportLeetDaily": func(c *api.Client, v string) error {
+		_, err := c.ReportLeetDaily(ctx, v, api.LeetDailyFacts{})
+		return err
+	},
+	"PutLeetSolve": func(c *api.Client, v string) error {
+		_, err := c.PutLeetSolve(ctx, v, api.LeetSolveRequest{})
+		return err
+	},
+	"DeleteLeetSolve": func(c *api.Client, v string) error { return c.DeleteLeetSolve(ctx, v) },
+	"AdminSetLeetDaily": func(c *api.Client, v string) error {
+		_, err := c.AdminSetLeetDaily(ctx, v, api.LeetDailyFacts{})
+		return err
+	},
+	"LeetSpaceBoard":    func(c *api.Client, v string) error { _, err := c.LeetSpaceBoard(ctx, v, ""); return err },
+	"GetWorkspaceShare": func(c *api.Client, v string) error { _, err := c.GetWorkspaceShare(ctx, v); return err },
+	"InviteWorkspaceShare": func(c *api.Client, v string) error {
+		_, err := c.InviteWorkspaceShare(ctx, v, []api.UserRef{"@hana"})
+		return err
+	},
+	"RemoveWorkspaceParticipant":      func(c *api.Client, v string) error { return c.RemoveWorkspaceParticipant(ctx, v, "@hana") },
+	"RemoveWorkspaceParticipant/user": func(c *api.Client, v string) error { return c.RemoveWorkspaceParticipant(ctx, "W", api.UserRef(v)) },
+	"EndWorkspaceShare":               func(c *api.Client, v string) error { return c.EndWorkspaceShare(ctx, v) },
 	// FetchMedia takes a server-supplied URL (Media.URL) instead of a segment.
 	"FetchMedia": func(c *api.Client, v string) error { _, err := c.FetchMedia(ctx, "/v1/media/"+v, ""); return err },
 	"FetchMedia/abs": func(c *api.Client, v string) error {

@@ -20,10 +20,6 @@ import (
 
 // Composer texts.
 const (
-	editLabel        = "수정 중 · esc 취소"
-	readOnlyText     = "읽기 전용 대화예요"
-	readOnlyBlocked  = "차단한 사용자와의 대화예요"
-	editFailedText   = "메시지를 수정하지 못했어요"
 	placeholderShort = "›"
 )
 
@@ -264,7 +260,7 @@ func (cc *chatComposer) submit(ctx *ui.Context) tea.Cmd {
 	cmd, ok, err := slash.Parse(body)
 	switch {
 	case err != nil: // a usage error: the draft stays for a fix
-		return ui.Toast(err.Error(), ui.ToastError)
+		return ui.Toast(slash.Message(ctx.T, err), ui.ToastError)
 	case ok:
 		return runSlash(ctx, cc, body, cmd)
 	}
@@ -326,8 +322,8 @@ func (cc *chatComposer) onEditResult(ctx *ui.Context, m ui.ResultMsg[*api.Messag
 	}
 	cc.editBusy = false
 	if m.Err != nil {
-		err := m.Err
-		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: editFailedText} }
+		err, errCtx := m.Err, cat(ctx).Chat.EditFailed()
+		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errCtx} }
 	}
 	cc.cancelEdit()
 	return nil
@@ -443,7 +439,7 @@ func (cc *chatComposer) view(ctx *ui.Context, width int) string {
 	if cc.editing == nil {
 		return box
 	}
-	return cell(t.S.Warning.Render, editLabel, width) + "\n" + box
+	return cell(t.S.Warning.Render, cat(ctx).Chat.EditLabel(), width) + "\n" + box
 }
 
 // cursor is the real cursor relative to view's origin (nil while blurred).

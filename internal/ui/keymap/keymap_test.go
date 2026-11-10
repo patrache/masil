@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui/keymap"
 )
 
@@ -300,5 +301,103 @@ func TestLoadOverridesHistory(t *testing.T) {
 		if !def.Matches(k, keymap.NavHistoryForward) {
 			t.Errorf("default nav.history_forward must match %s", k.String())
 		}
+	}
+}
+
+func TestKeymapLocalize(t *testing.T) {
+	const a = keymap.Action("test.localized")
+	t.Cleanup(keymap.SetRowForTest(a, []string{"ctrl+t"}, func(t *i18n.T) string { return t.Testonly.EnOnly() }))
+	k := keymap.Default()
+	if got := k.Help(a)[0].Help().Desc; got != i18n.KoT().Testonly.EnOnly() {
+		t.Fatalf("default desc = %q, want the ko catalog text", got)
+	}
+	litBefore := k.Binding(keymap.AppQuit).Help()
+	k.Localize(i18n.For(i18n.En))
+	if got := k.Help(a)[0].Help().Desc; got != "Only in English" {
+		t.Fatalf("after Localize(en) desc = %q", got)
+	}
+	if got := k.Help(a)[0].Help().Key; got != "ctrl+t" {
+		t.Fatalf("Localize changed the help key: %q", got)
+	}
+	if got := k.Binding(keymap.AppQuit).Help(); got != litBefore || got.Desc != "종료" {
+		t.Fatalf("Lit row changed: %+v", got)
+	}
+	// Overrides keep their keys through Localize.
+	o, errs := keymap.Load(map[string][]string{string(a): {"ctrl+y"}})
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	o.Localize(i18n.For(i18n.En))
+	if b := o.Binding(a); b.Help().Key != "ctrl+y" || b.Help().Desc != "Only in English" || b.Keys()[0] != "ctrl+y" {
+		t.Fatalf("override after Localize = %+v keys %v", b.Help(), b.Keys())
+	}
+	if got := keymap.Lit("그대로")(i18n.For(i18n.En)); got != "그대로" {
+		t.Fatalf("Lit = %q", got)
+	}
+}
+
+// termhost.escape (P0 Task 16): ctrl+\ arrives as ctrl+\, ctrl+4 or the raw
+// 0x1c depending on the terminal; all three match while ctrl+\ is bound.
+func TestMatchesEscapeVariants(t *testing.T) {
+	variants := []tea.KeyPressMsg{{Code: '\\', Mod: tea.ModCtrl}, {Code: '4', Mod: tea.ModCtrl}, {Code: 0x1c}}
+	km := keymap.Default()
+	for _, v := range variants {
+		if !km.MatchesEscape(v) {
+			t.Errorf("default: %q (code %#x) is not the escape", v.String(), v.Code)
+		}
+	}
+	if km.MatchesEscape(tea.KeyPressMsg{Code: ']', Mod: tea.ModCtrl}) {
+		t.Error("ctrl+] matches by default")
+	}
+	if got := km.Binding(keymap.TermhostEscape).Help().Key; got != "ctrl+\\" {
+		t.Errorf("help key = %q", got)
+	}
+	km, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+]"}})
+	if len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	if !km.MatchesEscape(tea.KeyPressMsg{Code: ']', Mod: tea.ModCtrl}) {
+		t.Error("override ctrl+] does not match")
+	}
+	for _, v := range variants {
+		if km.MatchesEscape(v) {
+			t.Errorf("override: %q still matches", v.String())
+		}
+	}
+}
+
+// A7.5: termhost.escape rebound onto a masil global key is refused with a
+// warning (the global keeps working; the prefix keeps its default).
+func TestLoadEscapeGlobalConflict(t *testing.T) {
+	k, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}})
+	if len(errs) != 1 {
+		t.Fatalf("errs = %v, want one conflict warning", errs)
+	}
+	if got := k.Binding(keymap.TermhostEscape).Keys(); !reflect.DeepEqual(got, []string{"ctrl+\\", "ctrl+4"}) {
+		t.Errorf("escape keys = %q, want the default", got)
+	}
+	if !k.Matches(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl}, keymap.PaletteOpen) {
+		t.Error("ctrl+k is no longer the palette")
+	}
+	// A global moved onto ctrl+\ conflicts the same way: the global keeps its default.
+	k, errs = keymap.Load(map[string][]string{"palette.open": {"ctrl+\\"}})
+	if len(errs) != 1 || !reflect.DeepEqual(k.Binding(keymap.PaletteOpen).Keys(), []string{"ctrl+k"}) {
+		t.Errorf("palette onto ctrl+\\: errs %v keys %q", errs, k.Binding(keymap.PaletteOpen).Keys())
+	}
+	// A swap is no conflict; a global holding both keys sends both back.
+	if _, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}, "palette.open": {"ctrl+\\"}}); len(errs) != 0 {
+		t.Errorf("swap errs = %v", errs)
+	}
+	k, errs = keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}, "palette.open": {"ctrl+\\", "ctrl+k"}})
+	if len(errs) != 2 || !reflect.DeepEqual(k.Binding(keymap.PaletteOpen).Keys(), []string{"ctrl+k"}) ||
+		!reflect.DeepEqual(k.Binding(keymap.TermhostEscape).Keys(), []string{"ctrl+\\", "ctrl+4"}) {
+		t.Errorf("both back: errs %v palette %q escape %q", errs, k.Binding(keymap.PaletteOpen).Keys(), k.Binding(keymap.TermhostEscape).Keys())
+	}
+	// Moving both apart is fine.
+	if _, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+k"}, "palette.open": {"ctrl+p"}}); len(errs) != 0 {
+		t.Errorf("no conflict, errs = %v", errs)
+	}
+	if _, errs := keymap.Load(map[string][]string{"termhost.escape": {"ctrl+]"}}); len(errs) != 0 {
+		t.Errorf("ctrl+] errs = %v", errs)
 	}
 }

@@ -15,6 +15,8 @@ import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -256,9 +258,9 @@ func TestThemeRowPreviewAndApply(t *testing.T) {
 		t.Fatalf("the theme row must be selected first:\n%s", h.Screen())
 	}
 	for _, th := range theme.All() {
-		l := lineWith(h, th.Label)
+		l := lineWith(h, theme.Label(nil, th.Name))
 		if l == "" || !strings.Contains(l, th.Letter+" ") {
-			t.Fatalf("swatch %s %q missing:\n%s", th.Letter, th.Label, h.Screen())
+			t.Fatalf("swatch %s %q missing:\n%s", th.Letter, theme.Label(nil, th.Name), h.Screen())
 		}
 	}
 	h.Press("right")
@@ -553,7 +555,7 @@ func TestBlocksEmptyAndError(t *testing.T) {
 	}
 	h.API.Error("GET /v1/blocks", http.StatusInternalServerError, "internal_error")
 	h.Event("block.updated", map[string]any{"user_id": fixtures.UserMinji, "blocked": true})
-	if !strings.Contains(h.Screen(), api.Describe(&api.Error{Code: "internal_error"})) {
+	if !strings.Contains(h.Screen(), errtext.Describe(i18n.KoT(), &api.Error{Code: "internal_error"})) {
 		t.Fatalf("load error missing:\n%s", h.Screen())
 	}
 	h.Check()

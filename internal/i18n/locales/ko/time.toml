@@ -1,0 +1,228 @@
+# Time area: dates, times, counts and durations (humanize, i18n 6.7).
+# Time zone and 12/24h come from settings, never from the language. The
+# number thresholds (when a count is abbreviated) are in internal/humanize.
+
+[am]
+desc = "12시간 시계의 오전 표시(Clock)"
+other = "오전"
+
+[clock_12h]
+desc = "12시간 시계. ampm = am/pm 문구, time = \"11:05\" 같은 시:분(숫자)"
+params = { ampm = "string", time = "string" }
+other = "{ampm} {time}"
+
+[count_tier1]
+desc = "큰 수 줄임 첫 단계. n = 줄인 수(\"1.2\" 같은 문자열). 기준 수는 코드에 있음: ko 1,000(천), en 1,000(K), zh-Hans 10,000(万)"
+params = { n = "string" }
+other = "{n}천"
+
+[count_tier2]
+desc = "큰 수 줄임 둘째 단계. 기준: ko 10,000(만), en 1,000,000(M), zh-Hans 100,000,000(亿)"
+params = { n = "string" }
+other = "{n}만"
+
+[count_tier3]
+desc = "큰 수 줄임 셋째 단계. 기준: ko 100,000,000(억), en 1,000,000,000(B), zh-Hans 1,000,000,000,000(万亿)"
+params = { n = "string" }
+other = "{n}억"
+
+[day_divider]
+desc = "채팅의 날짜 구분선. year = 연도, month = month_long_N 문구, day = 일(숫자), weekday = weekday_N 문구"
+params = { year = "string", month = "string", day = "string", weekday = "string" }
+other = "{year}년 {month}월 {day}일 {weekday}"
+
+[duration_hours]
+desc = "걸린 시간: 시간(분이 0)"
+params = { n = "int" }
+other = "{n}시간"
+
+[duration_hours_minutes]
+desc = "걸린 시간: 시간과 분. h = 시간, m = 분"
+params = { h = "int", m = "int" }
+other = "{h}시간 {m}분"
+
+[duration_minutes]
+desc = "걸린 시간: 분"
+params = { n = "int" }
+other = "{n}분"
+
+[duration_seconds]
+desc = "걸린 시간: 1분 안의 초"
+params = { n = "int" }
+other = "{n}초"
+
+[full_date]
+desc = "지난해 이전 날짜(메시지 시각·상대 시각). year = 연도, month = month_short_N 문구, day = 일(숫자)"
+params = { year = "string", month = "string", day = "string" }
+other = "{year}. {month}. {day}."
+
+[month_day]
+desc = "올해 날짜(메시지 시각·상대 시각). month = month_short_N 문구, day = 일(숫자)"
+params = { month = "string", day = "string" }
+other = "{month}월 {day}일"
+
+[month_day_at]
+desc = "올해 날짜와 시각(메시지 시각). date = month_day 결과, clock = 시각"
+params = { date = "string", clock = "string" }
+other = "{date} {clock}"
+
+[month_long_1]
+desc = "1월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "1"
+
+[month_long_10]
+desc = "10월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "10"
+
+[month_long_11]
+desc = "11월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "11"
+
+[month_long_12]
+desc = "12월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "12"
+
+[month_long_2]
+desc = "2월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "2"
+
+[month_long_3]
+desc = "3월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "3"
+
+[month_long_4]
+desc = "4월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "4"
+
+[month_long_5]
+desc = "5월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "5"
+
+[month_long_6]
+desc = "6월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "6"
+
+[month_long_7]
+desc = "7월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "7"
+
+[month_long_8]
+desc = "8월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "8"
+
+[month_long_9]
+desc = "9월의 긴 이름 — 날짜 구분선(day_divider)에만. ko·zh-Hans 는 숫자만"
+other = "9"
+
+[month_short_1]
+desc = "1월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "1"
+
+[month_short_10]
+desc = "10월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "10"
+
+[month_short_11]
+desc = "11월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "11"
+
+[month_short_12]
+desc = "12월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "12"
+
+[month_short_2]
+desc = "2월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "2"
+
+[month_short_3]
+desc = "3월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "3"
+
+[month_short_4]
+desc = "4월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "4"
+
+[month_short_5]
+desc = "5월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "5"
+
+[month_short_6]
+desc = "6월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "6"
+
+[month_short_7]
+desc = "7월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "7"
+
+[month_short_8]
+desc = "8월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "8"
+
+[month_short_9]
+desc = "9월의 짧은 이름 — 날짜 안(month_day·full_date). ko·zh-Hans 는 숫자만"
+other = "9"
+
+[pm]
+desc = "12시간 시계의 오후 표시(Clock)"
+other = "오후"
+
+[relative_hours]
+desc = "상대 시각: n시간 전(좁은 자리 — 8칸)"
+params = { n = "int" }
+max = 8
+other = "{n}시간"
+
+[relative_minutes]
+desc = "상대 시각: n분 전(좁은 자리 — 8칸)"
+params = { n = "int" }
+max = 8
+other = "{n}분"
+
+[relative_now]
+desc = "상대 시각: 1분 안"
+max = 8
+other = "방금"
+
+[relative_past_year]
+desc = "상대 시각: 지난해 이전 날짜(좁은 자리 — 8칸, 예: en 11/30/25). yy = 연도 끝 두 자리, mon = 달(숫자), day = 일(숫자). ko 화면은 0.1.2 그대로 full_date 를 쓰고 이 ko 문구는 원문 참고용"
+params = { yy = "string", mon = "string", day = "string" }
+max = 8
+other = "{yy}. {mon}. {day}."
+
+[relative_yesterday]
+desc = "상대 시각: 어제(좁은 자리 — 8칸)"
+max = 8
+other = "어제"
+
+[weekday_0]
+desc = "요일 전체 이름(날짜 구분선) — 일요일"
+other = "일요일"
+
+[weekday_1]
+desc = "요일 전체 이름(날짜 구분선) — 월요일"
+other = "월요일"
+
+[weekday_2]
+desc = "요일 전체 이름(날짜 구분선) — 화요일"
+other = "화요일"
+
+[weekday_3]
+desc = "요일 전체 이름(날짜 구분선) — 수요일"
+other = "수요일"
+
+[weekday_4]
+desc = "요일 전체 이름(날짜 구분선) — 목요일"
+other = "목요일"
+
+[weekday_5]
+desc = "요일 전체 이름(날짜 구분선) — 금요일"
+other = "금요일"
+
+[weekday_6]
+desc = "요일 전체 이름(날짜 구분선) — 토요일"
+other = "토요일"
+
+[yesterday_at]
+desc = "메시지 시각: 어제 보낸 메시지. clock = 시각(Clock 결과)"
+params = { clock = "string" }
+other = "어제 {clock}"

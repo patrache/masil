@@ -1,0 +1,8 @@
+{
+  "type": "api.result",
+  "v": 1,
+  "data": {
+    "status": 200,
+    "method": "GET"
+  }
+}

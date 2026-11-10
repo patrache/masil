@@ -11,7 +11,7 @@ import (
 	"github.com/patrache/masil/internal/ui"
 )
 
-// A palette command run with arguments ("/status 🎧 듣는 중") opens no dialog,
+// A palette command run with arguments ("/status 🎧 lunch") opens no dialog,
 // so no live ui/fun component receives its ui.Do result — and a tea.Cmd runs off
 // the UI goroutine, where it must not touch the Store. overlayApply hands such a
 // result back to the UI goroutine: the Cmd parks the Store update under a token
@@ -52,7 +52,7 @@ func onUI(fn func(*ui.Context)) tea.Msg {
 
 // doApply runs call off the UI goroutine. On success apply(ctx, value) runs on
 // the UI goroutine and the success toast shows; an error becomes ui.ErrorMsg
-// (api.Describe toast; a 401 ends the session instead).
+// (errtext.Describe toast; a 401 ends the session instead).
 func doApply[T any](ctx *ui.Context, call func(context.Context, *api.Client) (T, error), apply func(*ui.Context, T), success string) tea.Cmd {
 	var client *api.Client
 	if ctx != nil {

@@ -1,0 +1,927 @@
+# Workspace area: the workspace tool (v0.1.3 spec B) — the solo surface, the
+# owner's share screens and dialogs, the participant screens.
+
+[ago_minutes]
+desc = "지난 시간(분). n = 분"
+params = { n = "int" }
+other = "{n}분 전"
+
+[ago_now]
+desc = "지난 시간: 1분 안"
+other = "방금"
+
+[ago_seconds]
+desc = "지난 시간(초, 1분 안). n = 초"
+params = { n = "int" }
+other = "{n}초 전"
+
+[attention_toast]
+desc = "토스트: 터미널 프로그램이 승인을 기다림. name = 프로그램 이름(번역하지 않음)"
+params = { name = "string" }
+other = "{name} · ⏳ 승인 대기"
+
+[attention_waiting]
+desc = "터미널 칸 제목: 프로그램이 승인을 기다림"
+other = "⏳ 승인 대기"
+
+[autosave_off]
+desc = "토스트: 자동 저장을 끔"
+other = "자동 저장을 껐어요"
+
+[autosave_on]
+desc = "토스트: 자동 저장을 켬"
+other = "자동 저장을 켰어요"
+
+[band_private]
+desc = "상단 띠(혼자 쓰기): 아무에게도 안 보이는 상태와 폴더 이름. folder = 폴더 이름(번역하지 않음)"
+params = { folder = "string" }
+other = "🔒 나만 보기 · {folder}"
+
+[band_sharing]
+desc = "상단 띠(공유 중): 들어온 사람 수. n = 사람 수"
+params = { n = "int" }
+other = "🔴 공유 중 · {n}명"
+
+[cancel]
+desc = "작업공간 대화상자 단추: 취소"
+other = "취소"
+
+[check_accept_edits]
+desc = "프로그램 점검 경고: claude 가 파일 편집을 묻지 않음(스펙 고정 문구)"
+no_truncate = true
+other = "파일 편집을 묻지 않고 허용하는 모드예요"
+
+[check_blocked_bypass]
+desc = "프로그램 점검: 권한 확인을 건너뛰는 플래그로 실행해서 공유할 수 없음"
+no_truncate = true
+other = "권한 확인을 건너뛰는 모드(dangerously…)로 실행한 프로그램은 공유할 수 없어요"
+
+[check_blocked_mode]
+desc = "프로그램 점검: 허용 목록 밖의 권한 모드라 공유할 수 없음"
+no_truncate = true
+other = "masil이 허용하지 않는 권한 모드라 공유할 수 없어요(manual · plan · acceptEdits만 돼요)"
+
+[check_blocked_settings]
+desc = "프로그램 점검: 사용자가 직접 지정한 --settings 가 있어 공유할 수 없음"
+no_truncate = true
+other = "직접 지정한 --settings 가 있어 공유할 수 없어요"
+
+[check_shell_warning]
+desc = "프로그램 점검 경고: 셸 안에서 실행하는 프로그램은 모드를 확인할 수 없음(스펙 고정 문구)"
+no_truncate = true
+other = "셸 안에서 실행하는 프로그램의 모드는 masil이 확인할 수 없어요"
+
+[cli_no_shares]
+desc = "CLI 결과: 끝낼 공유가 없음"
+other = "끝낼 공유가 없어요"
+
+[cli_not_dir]
+desc = "CLI 오류: 경로가 폴더가 아님. path = 사용자가 준 경로(번역하지 않음)"
+params = { path = "string" }
+other = "폴더가 아니에요: {path}"
+
+[cli_not_logged_in]
+desc = "CLI 오류: 로그인이 필요함"
+other = "로그인이 필요해요. masil login 으로 먼저 로그인해 주세요"
+
+[cli_open_usage]
+desc = "masil help 의 한 줄: 작업공간 열기 명령 사용법(명령·인자 이름은 번역하지 않음)"
+other = "masil workspace open <경로> — 이 폴더를 작업공간으로 열어요"
+
+[cli_stop_failed]
+desc = "CLI 오류: 공유를 끝내지 못함. err = 오류 설명"
+params = { err = "string" }
+other = "공유를 끝내지 못했어요: {err}"
+
+[cli_stop_usage]
+desc = "masil help 의 한 줄: 작업공간 공유 끝 명령 사용법(명령·인자 이름은 번역하지 않음)"
+other = "masil workspace stop [공유 ID] — 내 작업공간 공유를 끝내요(ID 가 없으면 모두)"
+
+[cli_stopped]
+desc = "CLI 결과: 공유를 끝낸 수. n = 개수"
+params = { n = "int" }
+other = "공유 {n}개를 끝냈어요"
+
+[cli_usage]
+desc = "masil help 의 한 줄: workspace 명령 전체"
+other = "masil workspace open <경로> | stop [공유 ID] — 작업공간을 열거나 공유를 끝내요"
+
+[code_cannot_open]
+desc = "코드 칸: 열 수 없는 파일(차단·무시·찾을 수 없음 등)을 골랐을 때"
+other = "이 파일은 열 수 없어요"
+
+[code_cannot_open_binary]
+desc = "코드 칸: 바이너리 파일(앞 8 KiB 에 NUL 이 있거나 UTF-8 이 아님)이라 열지 않음"
+other = "바이너리 파일은 열지 않아요"
+
+[code_cannot_open_large]
+desc = "코드 칸: 2 MiB 넘는 파일이라 열지 않음"
+other = "2 MiB 넘는 파일은 열지 않아요"
+
+[code_deleted_on_disk]
+desc = "코드 칸 머리: 열어 둔 파일이 디스크에서 지워짐(저장하면 다시 만들어짐)"
+other = "디스크에서 지워짐"
+
+[code_empty_hint]
+desc = "코드 칸: 아직 연 파일이 없을 때 안내"
+other = "트리에서 파일을 골라 enter"
+
+[code_readonly_large]
+desc = "코드 칸 머리: 512 KiB 넘는 파일이라 읽기 전용으로 열림"
+other = "읽기 전용 · 512 KiB 넘는 파일"
+
+[code_readonly_mixed_eol]
+desc = "코드 칸 머리: 줄 끝(LF·CRLF)이 섞인 파일이라 읽기 전용으로 열림"
+other = "읽기 전용 · 줄 끝이 섞인 파일"
+
+[code_unsaved]
+desc = "코드 칸 머리: 디스크에 저장하지 않은 편집이 있음"
+other = "● 저장 안 됨"
+
+[company_code_notice]
+desc = "공유 시작 안내: 회사 코드일 때(스펙 고정 문구)"
+no_truncate = true
+legal = true
+other = "회사 코드라면 회사 정책을 먼저 확인해 주세요"
+
+[composer_placeholder]
+desc = "참가자 터미널 칸 아래 제안 입력 줄의 빈 칸 안내"
+other = "제안할 글을 쓰고 enter"
+
+[declined_expired]
+desc = "참가 안내: 오너가 5분 안에 답하지 않아 요청이 끝남"
+no_truncate = true
+other = "오너가 5분 안에 답하지 않아 참가 요청이 끝났어요"
+
+[declined_owner]
+desc = "참가 안내: 오너가 참가를 허용하지 않음"
+other = "오너가 참가를 허용하지 않았어요"
+
+[disk_merged]
+desc = "코드 칸 알림: 다른 프로그램이 파일을 바꿔서 저장 안 된 편집과 합쳤을 때(무엇을 할 수 있는지)"
+no_truncate = true
+other = "디스크에서 바뀐 내용을 합쳤어요 · u 되돌리기 · d 디스크 버전으로"
+
+[dlg_hint]
+desc = "작업공간 대화상자 바닥 줄 키 안내"
+other = "↑↓ 고르기 · enter 확인 · esc 닫기"
+
+[dm_hint]
+desc = "작업공간 옆 대화 칸 안내 한 줄"
+other = "코드나 비밀값을 붙여 넣지 마세요"
+
+[dm_unencrypted]
+desc = "작업공간 옆 대화 칸 제목 표시: 서버에 평문으로 저장됨"
+other = "🔓 암호화 안 됨"
+
+[end_confirm]
+desc = "공유 끝 단추: 공유를 끝냄"
+other = "공유 끝내기"
+
+[end_discard]
+desc = "공유 끝 단추: 버리고 끝내기"
+other = "버리기"
+
+[end_keep]
+desc = "공유 끝 단추: 저장 안 된 채로 열어 두고 혼자 계속"
+other = "열어 두기(혼자 계속)"
+
+[end_programs_keep]
+desc = "공유 끝 대화상자: 프로그램은 계속 돈다는 안내"
+no_truncate = true
+other = "터미널 프로그램은 끝나지 않고 계속 돌아요"
+
+[end_save]
+desc = "공유 끝 단추: 저장하고 끝내기"
+other = "저장"
+
+[end_title]
+desc = "공유 끝 대화상자 제목"
+other = "공유 끝"
+
+[end_unsaved_head]
+desc = "공유 끝 대화상자: 참가자가 고치고 저장하지 않은 파일 목록 제목"
+other = "저장하지 않은 참가자 편집"
+
+[end_unsaved_prompt]
+desc = "공유 끝 대화상자: 저장 안 된 파일을 어떻게 할지(스펙 고정 문구)"
+no_truncate = true
+other = "저장 / 버리기 / 열어 두기(혼자 계속)"
+
+[ended]
+desc = "참가자 화면 전체를 덮는 안내: 공유가 끝남"
+other = "공유가 끝났어요"
+
+[ended_hint]
+desc = "공유 끝·참가 거절 안내 아래 줄: 아무 키나 누르면 닫힘"
+other = "아무 키나 누르면 닫혀요"
+
+[follow_off_hint]
+desc = "참가자 터미널 칸: 커서 따라가기가 꺼짐. key = 빠져나오는 키(번역하지 않음)"
+params = { key = "string" }
+other = "따라가기 꺼짐 · {key} f 로 켜기"
+
+[guest_band]
+desc = "참가자 화면 상단 띠. title = 공유 이름(사용자 글), name = 오너 표시 이름, level = 내 단계 이름"
+params = { title = "string", name = "string", level = "string" }
+other = "🔴 {title} · {name}님의 작업공간 · 나: {level}"
+
+[guest_reconnecting]
+desc = "참가자 화면 띠: 연결이 끊겨 다시 붙는 중"
+other = "다시 연결 중…"
+
+[guest_term_empty]
+desc = "참가자 터미널 칸: 오너가 공유한 터미널이 없음"
+other = "공유된 터미널이 없어요"
+
+[guest_tiny]
+desc = "초소형 참가자 화면 안내. title = 공유 이름(사용자 글)"
+params = { title = "string" }
+no_truncate = true
+other = "{title|을/를} 보는 중 · 창을 키우면 화면이 보여요"
+
+[guest_tiny_keys]
+desc = "초소형 참가자 화면 바닥 줄 키 안내"
+other = "q 나가기"
+
+[hub_name]
+desc = "도구 허브·탭·팔레트에 보이는 도구 이름"
+other = "작업공간"
+
+[hub_status_idle]
+desc = "도구 허브 상태: 열린 폴더가 없을 때. n = 초대받은 공유 수"
+params = { n = "int" }
+other = "폴더 열기 · 초대 {n}"
+
+[hub_status_private]
+desc = "도구 허브 상태: 혼자 쓰는 중. folder = 폴더 이름(번역하지 않음), n = 터미널 수"
+params = { folder = "string", n = "int" }
+other = "{folder} · 🔒 나만 보기 · 터미널 {n}"
+
+[hub_status_sharing]
+desc = "도구 허브 상태: 공유 중. folder = 폴더 이름, n = 들어온 사람 수"
+params = { folder = "string", n = "int" }
+other = "{folder} · 🔴 공유 중 {n}명"
+
+[invited_row]
+desc = "초대받은 공유 한 줄. owner = 오너 표시 이름, title = 공유 이름(사용자 글), when = 지난 시간"
+params = { owner = "string", title = "string", when = "string" }
+other = "{owner}님 · {title} · {when}"
+
+[invited_title]
+desc = "폴더 고르기 화면 칸 제목: 초대받은 공유 목록"
+other = "초대받은 공유"
+
+[join_connecting]
+desc = "참가자 화면: 오너에게 연결하는 중"
+other = "연결 중…"
+
+[join_match]
+desc = "참가자 확인 숫자 대화상자 단추: 숫자가 같음"
+other = "일치"
+
+[join_mismatch]
+desc = "참가자 확인 숫자 대화상자 단추: 숫자가 다름(참가를 끊음)"
+other = "다름"
+
+[join_pending]
+desc = "띠·초소형 요약: 오너가 아직 열어 보지 않은 참가 요청 수와 확인 숫자 대화상자를 여는 키. n = 수, key = 키(번역하지 않음)"
+params = { n = "int", key = "string" }
+other = "참가 요청 {n}건({key} 확인)"
+
+[join_requesting]
+desc = "토스트·대기 줄: 누가 참가를 요청함. name = 표시 이름"
+params = { name = "string" }
+other = "{name}님이 참가하려고 해요"
+
+[join_sas_title]
+desc = "참가자 확인 숫자 대화상자 제목. name = 오너 표시 이름"
+params = { name = "string" }
+other = "확인 숫자 · {name}님의 작업공간"
+
+[join_waiting_owner]
+desc = "참가자 화면: 오너가 허용하기를 기다림. name = 오너 표시 이름"
+params = { name = "string" }
+other = "{name}님이 허용하기를 기다리는 중이에요"
+
+[keyboard_duration]
+desc = "키보드 경고: 기간 고르기 제목"
+other = "기간"
+
+[keyboard_extend]
+desc = "키보드 연장 대화상자 제목. name = 표시 이름"
+params = { name = "string" }
+other = "키보드 연장 · {name}"
+
+[keyboard_handle_label]
+desc = "키보드 경고: 핸들 입력 칸의 이름"
+other = "핸들"
+
+[keyboard_handle_mismatch]
+desc = "키보드 경고: 입력한 핸들이 다름"
+other = "핸들이 달라요"
+
+[keyboard_hours]
+desc = "키보드 기간 선택지(시간). n = 시간"
+params = { n = "int" }
+other = "{n}시간"
+
+[keyboard_minutes]
+desc = "키보드 기간 선택지(분). n = 분"
+params = { n = "int" }
+other = "{n}분"
+
+[keyboard_needs_verify]
+desc = "토스트: 확인 숫자를 비교하지 않은 사람에게 편집·키보드를 주려 할 때"
+no_truncate = true
+other = "숫자를 확인한 사람에게만 편집·키보드를 줄 수 있어요"
+
+[keyboard_paused]
+desc = "띠: 오너가 자리를 비워 키보드 입력을 멈춤(스펙 고정 문구)"
+other = "오너 자리 비움 · 키보드 멈춤"
+
+[keyboard_remaining]
+desc = "띠·사람 목록: 키보드 남은 시간. mmss = 분:초(번역하지 않음)"
+params = { mmss = "string" }
+other = "키보드 {mmss}"
+
+[keyboard_title]
+desc = "키보드 넘기기 대화상자 제목. name = 표시 이름"
+params = { name = "string" }
+other = "키보드 넘기기 · {name}"
+
+[keyboard_type_handle]
+desc = "키보드 경고: 상대 핸들을 그대로 입력해야 허용됨. handle = 상대 핸들(번역하지 않음)"
+params = { handle = "string" }
+no_truncate = true
+other = "허용하려면 {handle} 을 그대로 입력해 주세요"
+
+[keyboard_warning]
+desc = "키보드 경고 전문(스펙 고정 문구). name = 받는 사람 표시 이름, owner = 오너 이름"
+params = { name = "string", owner = "string" }
+no_truncate = true
+legal = true
+other = "{name}님에게 키보드를 넘기면, {name}님은 이 PC에서 {owner}님과 똑같이 무엇이든 실행할 수 있어요. 파일 지우기, 비밀값 읽기(환경 변수 포함), 프로그램의 권한 승인 창에 \"예\" 누르기, 인터넷으로 파일 보내기까지요. masil은 키 하나하나를 걸러 낼 수 없어요. 믿는 사람에게만, 필요한 동안만 넘겨 주세요."
+
+[keyboard_warning_own_device]
+desc = "키보드 경고(오너의 다른 기기일 때 짧은 형). owner = 오너 이름"
+params = { owner = "string" }
+no_truncate = true
+legal = true
+other = "{owner}님의 다른 기기예요. 그 기기에서 이 PC의 무엇이든 실행할 수 있게 돼요."
+
+[kick_confirm]
+desc = "내보내기 확인. name = 표시 이름"
+params = { name = "string" }
+other = "{name}님을 내보낼까요?"
+
+[kick_yes]
+desc = "내보내기 확인 단추"
+other = "내보내기"
+
+[kill_hint]
+desc = "상태줄 힌트: 공유를 바로 끊는 키. key = 접두키(번역하지 않음)"
+params = { key = "string" }
+other = "{key} 다음 x 공유 끝"
+
+[killed_toast]
+desc = "토스트: 즉시 끊기(ctrl+\\ x)로 공유를 끊음"
+other = "공유를 즉시 끊었어요"
+
+[last_input]
+desc = "공유 중: 마지막으로 입력한 사람과 지난 시간. name = 표시 이름, ago = 지난 시간"
+params = { name = "string", ago = "string" }
+other = "마지막 입력: {name} · {ago}"
+
+[legal_notice]
+desc = "공유 시작 안내 ②: 계정·구독을 나눠 쓰는 셈이 될 수 있음(스펙 고정 문구). owner = 오너 이름"
+params = { owner = "string" }
+no_truncate = true
+legal = true
+other = "다른 사람이 이 세션에 입력하면 그 사람이 {owner}님의 계정과 구독을 쓰는 셈이 될 수 있어요. AI 서비스 약관은 계정이나 구독을 남과 나눠 쓰는 것을 제한할 수 있어요. 여러 사람이 함께 쓰려면 API 키 과금(쓴 만큼 오너에게 청구)이 더 분명한 방법이에요. 쓰는 서비스의 약관을 직접 확인해 주세요."
+
+[legal_notice_short]
+desc = "키보드 경고 아래 짧은 약관 안내. owner = 오너 이름"
+params = { owner = "string" }
+no_truncate = true
+legal = true
+other = "키보드를 넘기면 그 사람이 {owner}님의 계정과 구독을 쓰는 셈이 될 수 있어요. 쓰는 서비스의 약관을 확인해 주세요."
+
+[level_editor]
+desc = "참가 단계 이름: 편집"
+other = "편집"
+
+[level_keyboard]
+desc = "참가 단계 이름: 키보드"
+other = "키보드"
+
+[level_prompter]
+desc = "참가 단계 이름: 제안"
+other = "제안"
+
+[level_viewer]
+desc = "참가 단계 이름: 보기"
+other = "보기"
+
+[multiline_confirm]
+desc = "확인: 여러 줄 제안은 줄마다 따로 실행될 수 있음(스펙 고정 문구)"
+no_truncate = true
+other = "줄마다 따로 실행될 수 있어요"
+
+[newterm_custom]
+desc = "새 터미널 목록의 마지막 줄: 실행할 명령을 직접 입력"
+other = "명령 직접 입력"
+
+[newterm_title]
+desc = "새 터미널 대화상자 제목"
+other = "새 터미널"
+
+[notify_failed]
+desc = "토스트: 작업공간 알림 설정을 바꾸지 못함"
+other = "작업공간 알림 설정을 바꾸지 못했어요"
+
+[notify_off]
+desc = "토스트: 작업공간 알림을 끔"
+other = "작업공간 알림을 껐어요"
+
+[notify_on]
+desc = "토스트: 작업공간 알림을 켬"
+other = "작업공간 알림을 켰어요"
+
+[open_failed]
+desc = "토스트: 고른 폴더를 열지 못했을 때"
+other = "폴더를 열 수 없어요"
+
+[owner_only_answer]
+desc = "참가자 화면 터미널 제목: 승인 창은 오너만 답할 수 있음"
+other = "← 오너만 답할 수 있음"
+
+[palette_autosave_toggle]
+desc = "명령 팔레트: 작업공간 자동 저장 켜기/끄기"
+other = "자동 저장 켜기/끄기"
+
+[palette_join]
+desc = "명령 팔레트: 초대받은 공유에 참가"
+other = "초대받은 공유 참가"
+
+[palette_notify_toggle]
+desc = "명령 팔레트: 작업공간 알림(초대·승인 대기) 켜기/끄기"
+other = "작업공간 알림 켜기/끄기"
+
+[palette_open]
+desc = "명령 팔레트: 작업공간 도구 열기(폴더 고르기)"
+other = "작업공간 열기"
+
+[palette_people]
+desc = "명령 팔레트: 공유 중인 작업공간의 참가자 칸으로"
+other = "참가자"
+
+[palette_proposals]
+desc = "팔레트 명령: 작업공간 제안 대기 목록"
+other = "제안 대기 목록"
+
+[palette_share_end]
+desc = "팔레트 명령: 작업공간 공유 끝"
+other = "공유 끝"
+
+[palette_share_start]
+desc = "팔레트 명령: 작업공간 공유 시작"
+other = "작업공간 공유 시작"
+
+[palette_term_new]
+desc = "명령 팔레트: 작업공간에 새 터미널"
+other = "새 터미널"
+
+[pan_more]
+desc = "참가자 터미널 칸 오른쪽 위: 창 오른쪽에 가려진 칸 수. n = 칸 수"
+params = { n = "int" }
+other = "→ {n}칸 더"
+
+[path_prompt]
+desc = "폴더 고르기 화면: 경로를 직접 입력하는 칸의 이름"
+other = "경로 입력"
+
+[peer_joined]
+desc = "토스트: 참가자가 들어옴. name = 표시 이름"
+params = { name = "string" }
+other = "{name}님이 들어왔어요"
+
+[peer_left]
+desc = "토스트: 참가자가 나감. name = 표시 이름"
+params = { name = "string" }
+other = "{name}님이 나갔어요"
+
+[people_keys]
+desc = "사람 목록 바닥 줄 키 안내"
+other = "+/- 단계 · k 키보드 · K 연장 · x 내보내기"
+
+[people_offline]
+desc = "사람 목록: 연결이 끊긴 사람 표시"
+other = "끊김"
+
+[people_title]
+desc = "사람 목록 칸 제목. n = 들어온 사람 수"
+params = { n = "int" }
+other = "사람 {n}"
+
+[people_waiting]
+desc = "사람 목록: 참가 요청 중인 사람 표시"
+other = "요청 중"
+
+[pick_folder_title]
+desc = "폴더 고르기 화면 제목"
+other = "폴더 열기"
+
+[prefix_help_code]
+desc = "패널 도움말: 접두키 다음 2 — 코드 칸으로"
+other = "코드 칸으로"
+
+[prefix_help_exec]
+desc = "패널 도움말: 접두키 다음 e — 터미널 프로그램을 전체 화면(화면 전환)으로 실행"
+other = "전체 화면으로 실행"
+
+[prefix_help_follow]
+desc = "패널 도움말: 접두키 다음 f — 남의 터미널 화면에서 커서 따라가기 다시 켜기"
+other = "커서 따라가기"
+
+[prefix_help_new_term]
+desc = "패널 도움말: 접두키 다음 n — 새 터미널"
+other = "새 터미널"
+
+[prefix_help_people]
+desc = "패널 도움말: 접두키 다음 4 — 사람 목록으로"
+other = "사람 목록으로"
+
+[prefix_help_proposals]
+desc = "패널 도움말: 접두키 다음 enter — 제안 대기열"
+other = "제안 대기열"
+
+[prefix_help_share]
+desc = "패널 도움말: 접두키 다음 S — 공유 시작"
+other = "공유 시작"
+
+[prefix_help_term]
+desc = "패널 도움말: 접두키 다음 3 — 터미널 칸으로"
+other = "터미널 칸으로"
+
+[prefix_help_tree]
+desc = "패널 도움말: 접두키 다음 1 — 트리 칸으로"
+other = "트리 칸으로"
+
+[prop_done]
+desc = "토스트: 오너가 내 제안을 터미널에 넣음"
+other = "오너가 제안을 넣었어요"
+
+[prop_failed]
+desc = "토스트: 제안이 너무 길거나 대기열이 차서 못 보냄"
+other = "제안을 보내지 못했어요"
+
+[prop_rejected]
+desc = "토스트: 오너가 내 제안을 거절함"
+other = "오너가 제안을 거절했어요"
+
+[prop_sent]
+desc = "토스트: 제안을 오너 대기열에 보냄"
+other = "제안을 보냈어요"
+
+[proposal_approve]
+desc = "제안 동작: 파일 이름 바꾸기·지우기 요청을 실행"
+other = "하기"
+
+[proposal_edit]
+desc = "제안 동작: 고쳐서 넣기"
+other = "고쳐서 넣기"
+
+[proposal_edit_label]
+desc = "고쳐서 넣기 입력 칸 이름"
+other = "고친 글"
+
+[proposal_from]
+desc = "제안 한 줄 머리: 보낸 사람과 종류. name = 표시 이름, kind = 종류 이름"
+params = { name = "string", kind = "string" }
+other = "{name} · {kind}"
+
+[proposal_insert]
+desc = "제안 동작: 터미널에 넣기만"
+other = "넣기"
+
+[proposal_insert_send]
+desc = "제안 동작: 넣고 enter"
+other = "넣고 보내기"
+
+[proposal_kind_delete]
+desc = "제안 종류: 파일 지우기 요청"
+other = "지우기"
+
+[proposal_kind_rename]
+desc = "제안 종류: 파일 이름 바꾸기 요청"
+other = "이름 바꾸기"
+
+[proposal_kind_text]
+desc = "제안 종류: 터미널에 넣을 글"
+other = "제안"
+
+[proposal_more_lines]
+desc = "여러 줄 제안을 접어 보일 때 나머지 줄 수. n = 줄 수"
+params = { n = "int" }
+other = "…외 {n}줄"
+
+[proposal_no_terminal]
+desc = "토스트: 제안을 넣을 공유 터미널이 없음"
+other = "제안을 넣을 공유 터미널이 없어요"
+
+[proposal_pending]
+desc = "띠: 기다리는 제안 수와 여는 키. n = 수, key = 키(번역하지 않음)"
+params = { n = "int", key = "string" }
+other = "제안 {n}건 대기({key} 보기)"
+
+[proposal_reject]
+desc = "제안 동작: 거절"
+other = "거절"
+
+[proposals_empty]
+desc = "제안 대기열: 기다리는 제안이 없을 때"
+other = "기다리는 제안이 없어요"
+
+[proposals_hint]
+desc = "제안 대기열 바닥 줄 키 안내"
+other = "↑↓ 고르기 · i 넣기 · s 넣고 보내기 · e 고쳐서 넣기 · r 거절 · esc 닫기"
+
+[proposals_hint_fs]
+desc = "제안 대기열 바닥 줄 키 안내(파일 이름 바꾸기·지우기 요청을 골랐을 때)"
+other = "↑↓ 고르기 · a 하기 · r 거절 · esc 닫기"
+
+[proposals_title]
+desc = "제안 대기열 대화상자 제목. n = 기다리는 수"
+params = { n = "int" }
+other = "제안 대기열 · {n}건"
+
+[recent_folders]
+desc = "폴더 고르기 화면: 최근 연 폴더 목록 제목"
+other = "최근 폴더"
+
+[recent_none]
+desc = "폴더 고르기 화면: 최근 연 폴더가 없을 때"
+other = "아직 연 폴더가 없어요"
+
+[recovery_available]
+desc = "대화상자 제목: 지난번에 저장하지 못한 편집이 복구 일지에 남아 있음"
+other = "복구할 내용이 있어요"
+
+[recovery_body]
+desc = "복구 대화상자 본문: 무엇이 남아 있는지. n = 파일 수"
+params = { n = "int" }
+no_truncate = true
+other = "masil 이 끝나기 전에 저장하지 못한 편집이 파일 {n}개에 남아 있어요. 복구하면 그 내용이 편집으로 들어가고, 저장해야 디스크에 써져요."
+
+[recovery_discard]
+desc = "복구 대화상자 단추: 남은 내용을 버림"
+other = "버리기"
+
+[recovery_restore]
+desc = "복구 대화상자 단추: 남은 내용을 편집으로 되살림"
+other = "복구"
+
+[sas_allow]
+desc = "확인 숫자 대화상자 단추: 숫자가 같음, 허용"
+other = "일치 · 허용"
+
+[sas_allow_unverified]
+desc = "확인 숫자 대화상자 단추: 비교 없이 허용(보기·제안만)"
+other = "확인 없이 허용"
+
+[sas_compare_hint]
+desc = "확인 숫자 대화상자: 숫자를 masil 밖에서 비교하라는 안내(스펙 고정 문구)"
+no_truncate = true
+other = "masil 밖의 경로(음성 통화, 옆자리, 다른 메신저)로 숫자를 비교해 주세요. masil DM 으로 비교하면 서버가 DM 도 바꿀 수 있어서 완전한 보호가 아니에요."
+
+[sas_decline]
+desc = "확인 숫자 대화상자 단추: 거절"
+other = "거절"
+
+[sas_keyboard_later]
+desc = "확인 숫자 대화상자: 키보드는 나중에 사람 목록에서 줄 수 있음"
+no_truncate = true
+other = "키보드는 들어온 뒤 사람 목록에서 줄 수 있어요"
+
+[sas_level]
+desc = "확인 숫자 대화상자: 들어올 단계 고르기 제목"
+other = "들어올 단계"
+
+[sas_mismatch]
+desc = "확인 숫자 대화상자 단추: 숫자가 다름"
+other = "다름"
+
+[sas_mismatch_warning]
+desc = "경고: 확인 숫자가 달라서 중간에서 가로챘을 수 있음(스펙 고정 문구)"
+no_truncate = true
+other = "중간에서 누가 가로챘을 수 있어요"
+
+[sas_peer_matched]
+desc = "확인 숫자 대화상자: 상대가 이미 일치를 누름. name = 표시 이름"
+params = { name = "string" }
+other = "{name}님도 일치를 눌렀어요"
+
+[sas_title]
+desc = "확인 숫자 대화상자 제목. name = 표시 이름"
+params = { name = "string" }
+other = "확인 숫자 · {name}"
+
+[save_failed]
+desc = "토스트: 파일을 저장하지 못했을 때"
+other = "저장하지 못했어요"
+
+[saved]
+desc = "토스트: 파일을 저장했을 때. file = 파일 이름(번역하지 않음)"
+params = { file = "string" }
+other = "{file} 저장했어요"
+
+[share_autosave]
+desc = "공유 시작 대화상자: 자동 저장 켬/끔(편집 2초 뒤 저장)"
+other = "자동 저장 (편집 2초 뒤)"
+
+[share_dialog_hint]
+desc = "공유 시작 대화상자 바닥 줄 키 안내"
+other = "↑↓ 고르기 · space 켬/끔 · enter 공유 시작 · esc 닫기"
+
+[share_dialog_title]
+desc = "공유 시작 대화상자 제목"
+other = "공유 시작"
+
+[share_ended]
+desc = "토스트: 공유가 끝남"
+other = "공유를 끝냈어요"
+
+[share_failed]
+desc = "토스트: 공유를 시작하지 못했을 때"
+other = "공유를 시작하지 못했어요"
+
+[share_files]
+desc = "공유 시작 대화상자: 파일(트리·편집기) 공유 켬/끔"
+other = "파일 (트리·편집기)"
+
+[share_invite_friends]
+desc = "공유 시작 대화상자: 초대할 친구 목록 제목. n = 최대 인원"
+params = { n = "int" }
+other = "초대할 사람 (최대 {n}명)"
+
+[share_invite_full]
+desc = "토스트: 초대 인원이 가득 찼을 때. n = 최대 인원"
+params = { n = "int" }
+other = "최대 {n}명까지 초대할 수 있어요"
+
+[share_invite_none]
+desc = "공유 시작 대화상자: 초대할 친구가 없을 때"
+other = "초대할 친구가 없어요"
+
+[share_invite_space]
+desc = "공유 시작 대화상자: 방 하나를 골라 그 멤버를 초대하는 목록의 제목"
+other = "방 하나를 골라 그 멤버 초대"
+
+[share_notice_screen]
+desc = "공유 시작 안내 ①: 터미널 화면과 출력이 그대로 보임(스펙 고정 문구)"
+no_truncate = true
+legal = true
+other = "공유를 켜는 순간 지금 터미널 화면이 그대로 보이고, 그 뒤에 출력되는 모든 것(비밀값을 출력하면 그것까지)이 보여요. 파일 차단 목록은 트리·편집기만 지키고 터미널 출력은 지키지 못해요."
+
+[share_space_failed]
+desc = "공유 시작 대화상자: 고른 방의 멤버를 불러오지 못함"
+other = "방 멤버를 불러오지 못했어요"
+
+[share_space_loading]
+desc = "공유 시작 대화상자: 고른 방의 멤버를 불러오는 중"
+other = "방 멤버를 불러오는 중…"
+
+[share_term_size]
+desc = "공유 시작 대화상자: 공유 터미널 크기 제목"
+other = "터미널 크기"
+
+[share_term_size_fit]
+desc = "터미널 크기 선택지: 오너 창 크기를 따라감"
+other = "창에 맞춤"
+
+[share_terminal]
+desc = "공유 시작 대화상자: 터미널 하나 공유 켬/끔. n = 터미널 번호, name = 프로그램 이름(번역하지 않음)"
+params = { n = "int", name = "string" }
+other = "터미널 {n} · {name}"
+
+[share_title_default]
+desc = "공유 이름 기본값. name = 오너 핸들(번역하지 않음)"
+params = { name = "string" }
+other = "{name}의 작업공간"
+
+[share_title_label]
+desc = "공유 시작 대화상자: 공유 이름 입력 칸의 이름"
+other = "공유 이름"
+
+[share_title_server_visible]
+desc = "공유 이름 옆 안내: 이 이름은 서버가 볼 수 있음"
+no_truncate = true
+other = "서버에 보이는 정보예요"
+
+[share_what]
+desc = "공유 시작 대화상자: 공유할 것 제목"
+other = "공유할 것"
+
+[stop_program_option]
+desc = "공유 끝 대화상자 선택: 공유한 터미널에 ctrl+c 보내기(스펙 고정 문구)"
+other = "프로그램에 중단 신호 보내기(ctrl+c)"
+
+[subtab_code]
+desc = "위젯 하위 탭: 코드 칸"
+max = 4
+other = "코드"
+
+[subtab_people]
+desc = "위젯 하위 탭: 사람 목록. n = 들어온 사람 수"
+params = { n = "int" }
+max = 9
+other = "사람({n})"
+
+[subtab_term]
+desc = "위젯 하위 탭: 터미널 칸"
+max = 6
+other = "터미널"
+
+[subtab_tree]
+desc = "위젯 하위 탭: 파일 트리 칸"
+max = 4
+other = "트리"
+
+[tamper_continue]
+desc = "변조 경고 단추: 계속 공유"
+other = "계속하기"
+
+[tamper_stop]
+desc = "변조 경고 단추: 공유를 바로 멈춤"
+other = "공유 멈추기"
+
+[tamper_warning]
+desc = "경고: 내용이 중간에서 바뀌고 있음(스펙 고정 문구)"
+no_truncate = true
+other = "서버나 네트워크에서 내용이 바뀌고 있어요. 공유를 멈출까요?"
+
+[term_empty_hint]
+desc = "터미널 칸: 아직 터미널이 없을 때(n 키로 새 터미널)"
+other = "n 새 터미널"
+
+[term_title_unsaved]
+desc = "터미널 칸 제목 끝: 저장 안 된 문서 수(프로그램은 디스크만 읽음). n = 문서 수"
+params = { n = "int" }
+other = "저장 안 됨 {n}"
+
+[tiny_keyboard]
+desc = "초소형 오너 요약: 키보드를 가진 사람과 남은 시간. name = 핸들, mmss = 분:초"
+params = { name = "string", mmss = "string" }
+other = "키보드 {name} {mmss}"
+
+[tiny_owner_keys]
+desc = "초소형 오너 요약 바닥 줄 키 안내"
+no_truncate = true
+other = "s 넣고 보내기 · i 넣기 · r 거절 · x 공유 끝"
+
+[tiny_owner_keys_fs]
+desc = "초소형 오너 요약 바닥 줄 키 안내(파일 이름 바꾸기·지우기 요청을 골랐을 때)"
+no_truncate = true
+other = "a 허용 · r 거절 · x 공유 끝"
+
+[tiny_owner_summary]
+desc = "초소형 오너 요약 머리. n = 들어온 사람 수"
+params = { n = "int" }
+other = "🔴 공유 중 {n}명"
+
+[tiny_proposals]
+desc = "초소형 오너 요약: 기다리는 제안 수. n = 수"
+params = { n = "int" }
+other = "제안 {n}"
+
+[tiny_solo_summary]
+desc = "초소형 혼자 쓰기 요약. folder = 폴더 이름(번역하지 않음)"
+params = { folder = "string" }
+no_truncate = true
+other = "{folder} · 🔒 나만 보기 · 창을 키우면 편집할 수 있어요"
+
+[tree_more_entries]
+desc = "트리: 한 폴더에서 5,000개 넘게 있어 줄인 나머지 수. n = 나머지 수"
+params = { n = "int" }
+other = "…외 {n}개"
+
+[tree_secret_hidden]
+desc = "트리: 차단 목록에 걸린 비밀 파일(참가자에게 안 보임). name = 파일 이름(번역하지 않음)"
+params = { name = "string" }
+other = "🔒 {name} (공유 안 됨)"
+
+[unverified]
+desc = "확인 숫자를 비교하지 않고 들어온 사람 표시"
+other = "미확인"
+
+[windows_no_terminal]
+desc = "터미널 칸 안내: Windows 에서는 내장 터미널이 아직 안 됨. key = 전체 화면 실행 키(번역하지 않음)"
+params = { key = "string" }
+no_truncate = true
+other = "Windows에서는 masil 안 터미널이 아직 안 돼요. {key}로 전체 화면 실행"
+
+[windows_term_share_disabled]
+desc = "공유 시작 대화상자: Windows 에서는 터미널을 공유할 수 없음"
+no_truncate = true
+other = "Windows에서는 터미널을 공유할 수 없어요"

@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,8 +16,10 @@ import (
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/clipboard"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/notify"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
@@ -42,6 +45,9 @@ type Options struct {
 	API             *api.Client      // nil => api.New(config.ServerURL(), WithToken(...))
 	Timers          ui.Timers        // nil => ui.RealTimers(); uitest passes its FakeClock
 	Clipboard       clipboard.Writer // nil => clipboard.System(); uitest passes a clipboard.Recorder
+	Locale          *i18n.Resolution // nil => i18n.Resolve(i18n.DetectOS() + [ui] language)
+	Secrets         *secrets.Store   // nil => secrets.Open(Paths) with this OS's store (run.go)
+	NestedPane      bool             // inside a masil pane (MASIL_PANE=1, read by Run only): a start warning
 }
 
 // Model implements tea.Model.
@@ -60,9 +66,11 @@ type Model struct {
 	focus     FocusIntent // focus resolved for the current layout
 	sentFocus FocusIntent // focus of the last FocusChangedMsg broadcast
 
-	prefix    prefixState // pending ctrl+w prefix (CA 5.3.4 2.2)
+	prefix    prefixState // pending ctrl+w prefix (CA 5.3.4 2.2) or ctrl+\ while sharing
+	escGen    int         // generation of the pending escapeArmMsg
 	quitArmed bool        // the first ctrl+c armed quitting (CA 5.5 app.quit)
 	quitGen   int         // generation of the pending quitArmMsg
+	quitAsk   ui.Overlay  // the open "panes still run" quit question (quit.go), nil = none
 
 	cols, rows int
 	sized      bool // a WindowSizeMsg arrived
@@ -83,6 +91,7 @@ type Model struct {
 	overlays []ui.Overlay                                     // open overlays, bottom -> top (CA 5.3.7)
 	ovSizes  []ui.Size                                        // inner size last given to overlays[i].Resize
 	ovSized  []bool                                           // overlays[i] has been Resize'd
+	ovIDs    []string                                         // overlays[i]'s registered id ("" = pushed as a value)
 	palette  ui.Overlay                                       // the palette instance opened by palette.open (nil = none)
 	openPal  func(ctx *ui.Context, initial string) ui.Overlay // palette.Open (tests swap it)
 
@@ -99,8 +108,9 @@ type Model struct {
 	upgradeRequired bool // 426 / close 4010 seen: status "✕ 업데이트 필요"
 
 	// Realtime bridge (Task 30, bridge.go).
-	send         func(tea.Msg) // tea.Program.Send (Run); nil = no realtime, hooks only set flags
-	rtDial       dialFunc      // tests: scripted socket (nil = coder/websocket)
+	send         func(tea.Msg)              // tea.Program.Send (Run); nil = no realtime, hooks only set flags
+	q            atomic.Pointer[eventQueue] // non-blocking delivery to send (deliver.go); nil until a sender exists
+	rtDial       dialFunc                   // tests: scripted socket (nil = coder/websocket)
 	rt           *realtime.Client
 	rtRun        *rtRun
 	rtCancel     context.CancelFunc
@@ -109,6 +119,7 @@ type Model struct {
 	offRT        ui.Realtime          // the disabled no-op restored when realtime stops
 	readyThisRun bool                 // ready received on the current run
 	observe      func(tea.Msg)        // tests: sees every broadcast msg
+	excl         execWatch            // exec-mode alerts and the return toast (exclusive.go)
 
 	// Bootstrap / resync (Task 30, sync.go).
 	booting       bool // a bootstrap is in flight
@@ -131,6 +142,10 @@ type Model struct {
 
 	// state.json (Task 32, state.go).
 	lastSpaceID string // space remembered from state.json (savedState falls back to it)
+
+	// Language (P5 Task 2, locale.go).
+	locale   i18n.Resolution    // the start decision, then the last ui.SetLocaleMsg
+	detectOS func() i18n.Inputs // i18n.DetectOS, memoized (the inputs a switch re-resolves from)
 }
 
 var _ tea.Model = (*Model)(nil)
@@ -149,6 +164,7 @@ func New(o Options) *Model {
 		routes:  map[layout.SlotID]ui.Route{},
 		openPal: palette.Open,
 	}
+	m.detectOS = sync.OnceValue(i18n.DetectOS) // a language switch asks the OS at most once per run
 
 	// ① Config.
 	cfg := o.Config
@@ -199,6 +215,13 @@ func New(o Options) *Model {
 		m.notifier = notify.New(notify.NewOSBackend("masil"), notify.OpenLedger(o.Paths), slog.Default())
 	}
 
+	// ⑦ Language: the effective (gated) language drives ctx.T, the API's
+	// Accept-Language and OS notifications.
+	res := resolveLocale(o.Locale, cfg)
+	m.locale = res
+	client.SetLanguage(string(res.Effective))
+	m.notifier.SetLocale(res.Effective)
+
 	m.offRT = noopRealtime{state: realtime.State{Phase: realtime.PhaseLive}}
 	m.ctx = &ui.Context{
 		Theme:  theme.Get(name),
@@ -213,14 +236,21 @@ func New(o Options) *Model {
 		Now:    now,
 		Timers: timers,
 		Loc:    loc,
+		T:      i18n.For(res.Effective),
+		Lang:   res.Effective,
+		Post:   appPoster{m},
 	}
+	m.ctx.Keys.Localize(m.ctx.T) // help descriptions in the shown language
+	m.initTools(o.Paths)         // ctx.ToolState (never nil), ctx.OpenTools
+	// ctx.Secrets (never nil).
+	m.ctx.Secrets = openSecrets(o)
 	m.ctx.Clipboard = o.Clipboard
 	if m.ctx.Clipboard == nil {
 		m.ctx.Clipboard = clipboard.System()
 	}
 
 	m.bp = layout.FromConfig(cfg.Layout)
-	// ⑦ state.json (CA 3.5): restored only for the logged-in user; the start pin is
+	// ⑧ state.json (CA 3.5): restored only for the logged-in user; the start pin is
 	// state.pinned_mode (≠ auto) > config layout.pin (≠ auto) > none.
 	var saved *SavedState
 	if o.Credentials != nil {
@@ -236,7 +266,7 @@ func New(o Options) *Model {
 			r = *o.InitialRoute
 		}
 		m.login = &r
-	} else if o.InitialRoute != nil {
+	} else if o.InitialRoute != nil && (!isToolKind(o.InitialRoute.Kind) || toolRouteOK(*o.InitialRoute)) {
 		if !isRootKind(o.InitialRoute.Kind) {
 			// A non-root start route (`masil join` => RouteInvite) opens on the home tab,
 			// as after a fresh login, never on top of the restored active channel.
@@ -250,12 +280,23 @@ func New(o Options) *Model {
 	return m
 }
 
+// resolveLocale is o.Locale, or the i18n spec 6.2 decision from the
+// environment, the OS and [ui] language.
+func resolveLocale(r *i18n.Resolution, cfg *config.Config) i18n.Resolution {
+	if r != nil {
+		return *r
+	}
+	in := i18n.DetectOS()
+	in.Config = cfg.UI.Language
+	return i18n.Resolve(in)
+}
+
 // Init implements tea.Model. With credentials and realtime enabled it starts the
 // realtime bridge (once a sender is set, i.e. under Run).
 func (m *Model) Init() tea.Cmd {
 	cmds := m.initCmds
 	m.initCmds = nil
-	cmds = append(cmds, m.startRealtime())
+	cmds = append(cmds, m.startRealtime(), m.nestedPaneWarning())
 	return tea.Batch(cmds...)
 }
 
@@ -264,7 +305,7 @@ func (m *Model) Init() tea.Cmd {
 // focus session or a 429 cooldown is showing.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// API hook flags first (401 / 426 seen on an HTTP goroutine since the last Update).
-	pre := m.takeFlags()
+	pre := tea.Batch(m.takeFlags(), m.takeReturn())
 	var watch tea.Cmd
 	switch msg.(type) {
 	case tea.KeyPressMsg, tea.MouseMsg, tea.PasteMsg:
@@ -281,6 +322,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // dispatch handles one message (CA 5.3.4 steps).
 func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if cmd, ok := m.toolMsg(msg); ok { // the tool surface's msgs (tools.go)
+		return m, cmd
+	}
+	if cmd, ok := m.grabMsg(msg); ok { // key grabbing: ctrl+\ timeout, shell actions (keys.go)
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case statusTickMsg:
 		if msg.gen == m.tickGen {
@@ -293,10 +340,12 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if api.CodeOf(msg.Err) == "unauthorized" { // the session ends instead (takeFlags)
 			return m, nil
 		}
-		return m, m.toasts.push(m.ctx, errorToast(msg))
+		return m, m.toasts.push(m.ctx, errorToast(m.ctx.T, msg))
 	case toastExpireMsg:
 		m.toasts.remove(msg.id)
 		return m, nil
+	case quitRequestMsg: // ctrl+c twice and the palette's 종료 (quit.go)
+		return m, m.requestQuit(msg.confirm)
 	case quitArmMsg:
 		if msg.gen == m.quitGen {
 			m.quitArmed = false
@@ -308,6 +357,8 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.runCommand(msg)
 	case ui.SetThemeMsg:
 		return m, m.setTheme(msg.Name)
+	case ui.SetLocaleMsg: // consumed, never broadcast (locale.go)
+		return m, m.applyLocale(msg.Choice)
 	case helpMsg:
 		return m, m.openHelp()
 	case reconnectMsg:
@@ -354,6 +405,10 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmd, m.broadcast(msg))
 	case readyTimeoutMsg:
 		return m, m.onReadyTimeout(msg)
+	case resyncNeededMsg: // the bridge queue overflowed and dropped events
+		return m, m.startBootstrap()
+	case ExecReturnedMsg: // the return toast follows termhost.Exclusive (takeReturn)
+		return m, nil
 	case bootstrapDoneMsg:
 		return m, m.onBootstrapDone(msg)
 	case bootstrapRetryMsg:
@@ -370,10 +425,13 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case unauthorizedMsg, upgradeMsg: // the flags were taken at the start of Update
 		return m, nil
 	case logoutConfirmedMsg:
-		return m, m.logoutConfirmed()
+		return m, m.logoutConfirmed(msg.wipeTools)
 	case logoutDoneMsg:
 		if msg.err != nil {
 			slog.Debug("logout request failed; logging out locally", "err", msg.err)
+		}
+		if msg.wipeErr != nil { // the user chose to wipe and believes it done: say it is not
+			return m, tea.Batch(m.logout(reasonLogout), ui.Toast(m.ctx.T.Tools.LogoutWipeFailed(), ui.ToastError))
 		}
 		return m, m.logout(reasonLogout)
 	case authui.LoggedInMsg:
@@ -604,4 +662,8 @@ type FrameInfo struct {
 type Box struct {
 	Rect     layout.Rect
 	Bordered bool
+	// ID names an overlay box (P5 Task 4, the x-pseudo region key
+	// "overlay/<ID>"): the id it was opened by (ui.OpenOverlayMsg.ID), else its
+	// Go type without "*" ("palette.overlay"). Empty for the toast.
+	ID string
 }

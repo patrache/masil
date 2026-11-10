@@ -9,6 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -21,8 +23,10 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayPins, newPins)
 	palette.Register(palette.Command{
-		ID: "pins.show", Title: "고정 메시지 보기", Keywords: []string{"pins", "pinned", "고정", "고정 메시지", "핀"}, Group: "이동",
-		Available: func(ctx *ui.Context) bool { return viewedChannel(ctx) != nil },
+		ID: "pins.show", Label: func(t *i18n.T) string { return t.Chat.CmdPins() }, Group: palette.GroupNav,
+		Keywords:   []string{"pins", "pinned"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwPins()) },
+		Available:  func(ctx *ui.Context) bool { return viewedChannel(ctx) != nil },
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			id := strings.TrimSpace(args)
 			if id == "" {
@@ -39,9 +43,6 @@ func init() {
 
 // Pinned messages overlay texts and sizes.
 const (
-	pinsTitle    = "📌 고정 메시지"
-	pinsEmpty    = "고정된 메시지가 없어요"
-	pinsFailed   = "고정 메시지를 불러오지 못했어요"
 	pinsMaxW     = 64
 	pinsMaxH     = 16
 	pinsMinH     = 6 // the app degrades shorter overlays to the whole body
@@ -191,7 +192,7 @@ func (o *pinsView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		o.loading = false
 		if m.Err != nil {
-			o.failed = pinsFailed + ": " + api.Describe(m.Err)
+			o.failed = cat(ctx).Chat.PinsFailed() + ": " + errtext.Describe(ctx.T, m.Err)
 			return nil
 		}
 		o.failed = ""
@@ -218,21 +219,22 @@ func (o *pinsView) Bounds(body layout.Rect) layout.Rect {
 
 func (o *pinsView) Modal() bool { return true }
 
-func (o *pinsView) title() string {
+func (o *pinsView) title(c *i18n.T) string {
 	if !o.loaded {
-		return pinsTitle
+		return c.Chat.PinsTitle()
 	}
-	return pinsTitle + " " + strconv.Itoa(len(o.items))
+	return c.Chat.PinsTitle() + " " + strconv.Itoa(len(o.items))
 }
 
-func (o *pinsView) Title(*ui.Context) (string, ui.Badge) { return o.title(), ui.Badge{} }
+func (o *pinsView) Title(ctx *ui.Context) (string, ui.Badge) { return o.title(cat(ctx)), ui.Badge{} }
 
-func (o *pinsView) Help(*ui.Context) []key.Binding {
+func (o *pinsView) Help(ctx *ui.Context) []key.Binding {
+	c := cat(ctx)
 	return []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "이동")),
-		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "고정 해제")),
-		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "이동")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", c.Chat.HelpJump())),
+		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", c.Chat.HelpUnpin())),
+		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", c.Common.HelpMove())),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", c.Common.HelpClose())),
 	}
 }
 
@@ -253,7 +255,7 @@ func (o *pinsView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 			return true, nil
 		}
 		if !canPin(ctx, ctx.Store.Channels[o.channelID]) {
-			return true, ui.Toast(noPinPerm, ui.ToastInfo)
+			return true, ui.Toast(cat(ctx).Chat.NoPinPerm(), ui.ToastInfo)
 		}
 		if m.ChannelID == "" {
 			m.ChannelID = o.channelID
@@ -329,7 +331,7 @@ func (o *pinsView) View(ctx *ui.Context, _ bool) string {
 	cw := w - 2*overlayPad(w)
 	var head []string
 	if n := o.headRows(); n > 0 {
-		head = append(head, cell(t.S.Title.Render, o.title(), cw))
+		head = append(head, cell(t.S.Title.Render, o.title(cat(ctx)), cw))
 		if n > 1 {
 			head = append(head, "")
 		}
@@ -340,9 +342,9 @@ func (o *pinsView) View(ctx *ui.Context, _ bool) string {
 	case o.failed != "" && len(o.items) == 0:
 		body = []string{cell(t.S.Error.Render, textwidth.Sanitize(o.failed), cw)}
 	case !o.loaded:
-		body = []string{cell(t.S.Dim.Render, loadingText, cw)}
+		body = []string{cell(t.S.Dim.Render, cat(ctx).Chat.Loading(), cw)}
 	case len(o.items) == 0:
-		body = []string{cell(t.S.Dim.Render, pinsEmpty, cw)}
+		body = []string{cell(t.S.Dim.Render, cat(ctx).Chat.PinsEmpty(), cw)}
 	default:
 		body = strings.Split(o.list.View(ctx, ui.Size{W: cw, H: bodyH}), "\n")
 	}

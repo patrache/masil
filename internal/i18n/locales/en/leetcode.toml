@@ -1,0 +1,386 @@
+[accepted_line]
+other = "✅ {status} · top {pct}% · {runtime}"
+
+[accepted_line_short]
+other = "✅ {status} · {runtime}"
+
+[admin_daily_set]
+other = "Set the daily problem of {date} to {slug}."
+
+[admin_usage]
+other = "usage: masil admin leet-daily set <YYYY-MM-DD> --id <number> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]"
+
+[attach_code]
+other = "Attach my code as a spoiler"
+
+[auto_status_desc]
+other = "When on, friends can see that you are solving a problem"
+
+[blocked]
+other = "LeetCode is blocking this request right now · o submit in browser"
+
+[board_all]
+other = "All"
+
+[board_empty]
+other = "No one has solved yet"
+
+[board_failed]
+other = "Couldn't load the ranking"
+
+[board_footer]
+other = "←/→ tabs · esc close"
+
+[board_friend_row]
+other = "{rank}. {name} · 🔥{current} · best {best}d"
+
+[board_friends]
+other = "Friends"
+
+[board_loading]
+other = "Loading the ranking…"
+
+[board_month]
+other = "Month"
+
+[board_row]
+other = "{rank}. {name} · {solved}d · 🔥{streak}"
+
+[board_title]
+other = "🧩 Ranking {space}"
+
+[board_week]
+other = "Week"
+
+[card_code_hide]
+other = "▾ Hide code"
+
+[card_code_show]
+other = "▸ Show code (spoiler)"
+
+[card_daily_head]
+other = "🧩 Daily problem · {date} · first opened by {author}"
+
+[card_daily_keys]
+other = "enter solve · t thread ({n} solves)"
+
+[card_daily_line]
+other = "🧩 {id} {difficulty} · {n} solves"
+
+[card_daily_problem]
+other = "{id} {title} · {difficulty}"
+
+[card_mismatch]
+other = "⚠ Differs from the daily problem I got"
+
+[card_solve_head]
+other = "✅ {author} · {lang}"
+
+[card_solve_head_pct]
+other = "✅ {author} · {lang} · top {pct}%"
+
+[check_timeout]
+other = "No result came back · try again in a moment"
+
+[cmd_board]
+other = "Daily problem ranking"
+
+[cmd_daily_toggle]
+other = "Turn #daily on/off in this space"
+
+[cmd_open]
+other = "Open the daily problem"
+
+[cmd_settings]
+other = "Daily problem settings"
+
+[code_placeholder]
+other = "e open the editor"
+
+[code_stored_warning]
+other = "The code is stored as is on the masil server; anyone who can read this channel and the operators can see it."
+
+[code_too_long]
+other = "The code is over 4000 characters and can't be attached"
+
+[collapse_hint]
+other = "v collapse"
+
+[cookie_warning]
+other = "These values grant full access to your LeetCode account. They are kept on this PC (keychain) only and never sent to the masil server."
+
+[daily_disabled]
+other = "#daily is off in {space}"
+
+[daily_enabled]
+other = "#daily is on in {space}"
+
+[editor_failed]
+other = "Couldn't open the editor"
+
+[error_line]
+other = "✗ {status}"
+
+[expand_hint]
+other = "v expand"
+
+[file_failed]
+other = "Couldn't open the solution file"
+
+[first_run_dir]
+other = "Solutions folder {dir}"
+
+[first_run_footer]
+other = "↑↓ language · enter start"
+
+[first_run_lang]
+other = "Language"
+
+[first_run_notice]
+other = "This PC fetches LeetCode problems directly. masil is not affiliated with LeetCode."
+
+[first_run_title]
+other = "Daily LC"
+
+[header]
+other = "🧩 {id} · {difficulty} ── {date} (UTC) · next in {countdown}"
+
+[header_widget]
+other = "🧩 {id} {difficulty}"
+
+[hints_wide]
+other = "e editor · r run · s submit · o browser · l language · c card"
+
+[hints_widget]
+other = "← → problem/code/result · e edit · r run · s submit"
+
+[hub_not_loaded]
+other = "Today's problem not fetched yet"
+
+[hub_status]
+other = "{id} · {difficulty} · {solved} · 🔥 {streak}d"
+
+[hub_status_short]
+other = "{id} · {difficulty}"
+
+[image_link]
+other = "[image] o open"
+
+[instance_title]
+other = "Daily LC · {id}"
+
+[judge_failed]
+other = "Couldn't send it · try again in a moment"
+
+[link_copied]
+other = "Couldn't open a browser; link copied"
+
+[load_failed]
+other = "Couldn't fetch the problem · o open in browser"
+
+[loading]
+other = "Fetching the problem…"
+
+[login_checking]
+other = "Checking…"
+
+[login_failed]
+other = "Couldn't check the sign-in · try again in a moment"
+
+[login_footer]
+other = "tab next · enter confirm · esc cancel"
+
+[login_missing]
+other = "LEETCODE_SESSION and csrftoken are both needed"
+
+[login_optional]
+other = "optional"
+
+[login_rejected]
+other = "LeetCode doesn't sign in with these values"
+
+[login_required]
+other = "required"
+
+[login_save_failed]
+other = "Couldn't save the cookies"
+
+[login_step1]
+other = "1. Sign in to leetcode.com in your browser"
+
+[login_step2]
+other = "2. Developer tools → Application → Cookies → leetcode.com"
+
+[login_step3]
+other = "3. Paste the values below (name=value works too)"
+
+[login_title]
+other = "LeetCode sign-in"
+
+[name]
+other = "Daily LC"
+
+[no_external_editor]
+other = "No nvim or $EDITOR · press e for masil's editor"
+
+[off]
+other = "off"
+
+[on]
+other = "on"
+
+[prefix_run]
+other = "Run"
+
+[prefix_submit]
+other = "Submit"
+
+[premium_locked]
+other = "🔒 Premium · o open in browser"
+
+[rate_limited]
+other = "Too many LeetCode requests · open it again in a moment"
+
+[reading_footer]
+other = "{page}/{pages} · ↑↓ page · esc back"
+
+[record_failed]
+other = "Couldn't record the solve"
+
+[result_expected]
+other = "Expected"
+
+[result_input]
+other = "Input"
+
+[result_output]
+other = "Output"
+
+[result_placeholder]
+other = "Results of r run · s submit show here"
+
+[run_summary]
+other = "{mark} examples {ok}/{n} · {runtime}"
+
+[run_uses_saved]
+other = "Runs what you saved (:w) · ctrl+\\ r run · ctrl+\\ s submit"
+
+[run_uses_saved_goeditor]
+other = "Runs what you saved (:w) · :Run · :Submit · esc esc leave"
+
+[running]
+other = "Running…"
+
+[save_failed]
+other = "Could not save the setting"
+
+[save_file_failed]
+other = "Couldn't save the solution file"
+
+[saved]
+other = "Saved {file}"
+
+[settings_auto_status]
+other = "Show in my status"
+
+[settings_daily]
+other = "#daily · {space}"
+
+[settings_dir]
+other = "Solutions folder"
+
+[settings_dir_footer]
+other = "enter save · esc cancel"
+
+[settings_footer]
+other = "↑↓ move · enter change · esc close"
+
+[settings_lang]
+other = "Language"
+
+[settings_share_friends]
+other = "Share my streak with friends"
+
+[settings_title]
+other = "Daily problem settings"
+
+[share_button]
+other = "Leave"
+
+[share_failed]
+other = "Couldn't leave the card"
+
+[share_footer]
+other = "space check · enter leave · esc close"
+
+[share_hint]
+other = "c leave a card"
+
+[share_no_spaces]
+other = "No space has #daily on · only the record is kept"
+
+[share_title]
+other = "Leave a card"
+
+[shared]
+other = "Card left"
+
+[signed_in]
+other = "Signed in as {user} · free account (10s between runs)"
+
+[signed_in_premium]
+other = "Signed in as {user} · premium (1s between runs)"
+
+[solved]
+other = "solved"
+
+[solving_status]
+other = "solving {id}"
+
+[spoiler_confirm]
+other = "You haven't solved it yet. Show anyway?"
+
+[spoiler_keys]
+other = "enter show · esc cancel"
+
+[status_goeditor]
+other = "masil editor"
+
+[status_pane]
+other = "nvim in a pane"
+
+[submit_failed]
+other = "✗ {status} · {correct}/{total} · failing input…"
+
+[submitting]
+other = "Submitting…"
+
+[tab_code]
+other = "Code"
+
+[tab_problem]
+other = "Problem"
+
+[tab_result]
+other = "Result"
+
+[tags]
+other = "Tags {tags}"
+
+[tiny_actions]
+other = "r run · s submit · c card"
+
+[tiny_edit]
+other = "E edit (full screen)"
+
+[tiny_read]
+other = "enter read problem"
+
+[tiny_status]
+other = "🧩 {id} {difficulty} · {solved} · 🔥{streak}"
+
+[unsolved]
+other = "unsolved"
+
+[wait_seconds]
+other = "You can send again in {n}s"

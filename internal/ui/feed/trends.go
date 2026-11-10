@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"github.com/patrache/masil/internal/i18n"
 	"reflect"
 	"strconv"
 	"strings"
@@ -14,7 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -38,25 +39,13 @@ const (
 	trendTagMaxW   = 16                          // tag column cap (cells, "#" included)
 	searchPrefix   = "  " + iconSearch + " "     // gutter + icon before the input
 	searchPrefixW  = 2 + 2 + 1                   // its width in cells
-	openRowPrefix  = "open:"                     // row key of the "#<q> 태그 피드 열기" row
+	openRowPrefix  = "open:"                     // row key of the "#<q> <open tag feed>" row
 )
 
-// Trends copy.
+// Trends icons (copy: the feed catalog area, trends_*).
 const (
-	textTrendsTitle  = "트렌드"
-	iconTrendsEmpty  = "📈"
-	textTrendsEmpty  = "아직 트렌드가 없어요"
-	hintTrendsEmpty  = "글에 #태그를 달아 보세요"
-	iconSearch       = "🔍"
-	textSearchHint   = "#태그 또는 글 검색"
-	textSearchEmpty  = "검색 결과가 없어요"
-	hintSearchEmpty  = "#태그 로 시작하면 태그를 찾아요"
-	textTagTooLong   = "태그는 50자까지예요"
-	textQueryTooLong = "검색어는 100자까지예요"
-	textOpenTagFeed  = " 태그 피드 열기"
-	textComputedAt   = " 기준"
-	errContextSearch = "검색"
-	errContextTrends = "트렌드"
+	iconTrendsEmpty = "📈"
+	iconSearch      = "🔍"
 )
 
 // Trends result tags (ui.Do).
@@ -112,7 +101,7 @@ type trendRow struct {
 	tag  string
 	rank int // Top 10 rank (0 = a search row)
 	meta string
-	open bool // the "#<q> 태그 피드 열기" row
+	open bool // the "#<q> <open tag feed>" row
 }
 
 // trendsState is the Persistent state: the search line, its query and the
@@ -145,9 +134,9 @@ type trends struct {
 	searchOpen bool
 	inputFocus bool
 	input      textinput.Model
-	query      string // normalized input value
-	gen        int    // search debounce generation
-	note       string // replaces the results (query too long)
+	query      string               // normalized input value
+	gen        int                  // search debounce generation
+	note       func(*i18n.T) string // replaces the results (query too long); nil = none
 
 	tagQ    string // the tag query tagRes answers ("" = none yet)
 	tagRes  []api.HashtagSuggestion
@@ -291,7 +280,7 @@ func (t *trends) openSearch() {
 func (t *trends) closeSearch() {
 	t.searchOpen = false
 	t.input.Reset()
-	t.query, t.note = "", ""
+	t.query, t.note = "", nil
 	t.gen = nextTrendsGen()
 	t.tagQ, t.tagRes, t.tagRows = "", nil, nil
 	t.tagList.SetItems(nil)
@@ -307,17 +296,17 @@ func (t *trends) onInputChanged(ctx *ui.Context) tea.Cmd {
 	if q == t.query {
 		return nil
 	}
-	t.query, t.note = q, ""
+	t.query, t.note = q, nil
 	t.gen = nextTrendsGen()
 	kind, arg := classify(q)
 	switch {
 	case kind == kindTop:
 		return nil
 	case kind == kindTags && utf8.RuneCountInString(arg) > tagMaxRunes:
-		t.note = textTagTooLong
+		t.note = func(c *i18n.T) string { return c.Feed.TrendsTagTooLong() }
 		return nil
 	case kind == kindPosts && utf8.RuneCountInString(q) > searchMaxRunes:
-		t.note = textQueryTooLong
+		t.note = func(c *i18n.T) string { return c.Feed.TrendsQueryTooLong() }
 		return nil
 	}
 	return ui.After(ctx, searchDebounce, searchDebounceMsg{Gen: t.gen, Q: q})
@@ -370,12 +359,13 @@ func (t *trends) maybeMorePosts(ctx *ui.Context) tea.Cmd {
 	return t.searchPosts(ctx, t.query, *t.postCursor)
 }
 
-func searchErr(err error) tea.Cmd {
-	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errContextSearch} }
+func searchErr(ctx *ui.Context, err error) tea.Cmd {
+	where := cat(ctx).Feed.ErrCtxSearch()
+	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: where} }
 }
 
 // onTags applies a hashtag search answer of the current query.
-func (t *trends) onTags(m ui.ResultMsg[[]api.HashtagSuggestion]) tea.Cmd {
+func (t *trends) onTags(ctx *ui.Context, m ui.ResultMsg[[]api.HashtagSuggestion]) tea.Cmd {
 	kind, arg := classify(t.query)
 	if kind != kindTags || m.Tag != tagSearchTags+arg {
 		return nil // stale or not ours
@@ -383,7 +373,7 @@ func (t *trends) onTags(m ui.ResultMsg[[]api.HashtagSuggestion]) tea.Cmd {
 	t.tagQ = arg
 	if m.Err != nil {
 		t.tagRes = nil
-		return searchErr(m.Err)
+		return searchErr(ctx, m.Err)
 	}
 	t.tagRes = m.Value
 	return nil
@@ -412,7 +402,7 @@ func (t *trends) onPosts(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.PostSearc
 			t.postQ, t.postErr, t.postCursor = t.query, m.Err, nil
 			t.posts.clear()
 		}
-		return searchErr(m.Err)
+		return searchErr(ctx, m.Err)
 	}
 	ps := make([]api.Post, 0, len(m.Value.Items))
 	for _, h := range m.Value.Items {
@@ -455,11 +445,12 @@ func (t *trends) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 				fs.SetTrends(m.Value)
 				t.fetchedAt = ctx.Now()
 			case m.Err != nil && (fs == nil || fs.Trends() == nil):
-				cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextTrends} })
+				where := cat(ctx).Feed.ErrCtxTrends()
+				cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: where} })
 			}
 		}
 	case ui.ResultMsg[[]api.HashtagSuggestion]:
-		cmds = append(cmds, t.onTags(m))
+		cmds = append(cmds, t.onTags(ctx, m))
 	case ui.ResultMsg[*api.Page[api.PostSearchHit]]:
 		cmds = append(cmds, t.onPosts(ctx, m))
 	case tea.PasteMsg:
@@ -468,7 +459,7 @@ func (t *trends) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			_, c := inputUpdate(&t.input, m)
 			cmds = append(cmds, c, t.onInputChanged(ctx))
 		}
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+	case ui.ModeChangedMsg, ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		imagesChanged = true
 	default:
 		if rt := reflect.TypeOf(msg); rt != nil && rt.PkgPath() == widgetsPkg {
@@ -499,7 +490,7 @@ func (t *trends) syncLists(ctx *ui.Context, force bool) {
 		for _, tr := range fs.Trends().Items {
 			rows = append(rows, trendRow{
 				key: tr.Tag, tag: tr.Tag, rank: tr.Rank,
-				meta: humanize.Count(tr.PostCount) + "개 글 · " + humanize.Count(tr.AuthorCount) + "명",
+				meta: cat(ctx).Feed.TrendsMeta(hz(ctx).Count(tr.PostCount), hz(ctx).Count(tr.AuthorCount)),
 			})
 		}
 	}
@@ -515,7 +506,7 @@ func (t *trends) syncLists(ctx *ui.Context, force bool) {
 			if strings.EqualFold(s.Tag, t.tagQ) {
 				exact = true
 			}
-			rows = append(rows, trendRow{key: s.Tag, tag: s.Tag, meta: "24시간 글 " + humanize.Count(s.PostCount24h) + "개"})
+			rows = append(rows, trendRow{key: s.Tag, tag: s.Tag, meta: cat(ctx).Feed.TrendsMetaRecent(hz(ctx).Count(s.PostCount24h))})
 		}
 		if !exact {
 			rows = append(rows, trendRow{key: openRowPrefix + t.tagQ, tag: t.tagQ, open: true})
@@ -606,16 +597,16 @@ func (t *trends) rowsActive() bool { return !t.searchOpen || !t.inputFocus }
 func (t *trends) renderRow(tagW *int) func(*ui.Context, trendRow, bool, int) []string {
 	return func(ctx *ui.Context, r trendRow, selected bool, width int) []string {
 		th := themeOf(ctx)
-		return []string{selectedLine(th, rowText(th, r, *tagW), selected && t.rowsActive(), width)}
+		return []string{selectedLine(th, rowText(cat(ctx), th, r, *tagW), selected && t.rowsActive(), width)}
 	}
 }
 
-// rowText is "1  #첫눈   42개 글 · 30명" (top 3 ranks acc bold), a hashtag
-// result "#첫눈   24시간 글 42개" or the open row "#첫 태그 피드 열기".
-func rowText(th *theme.Theme, r trendRow, tagW int) string {
+// rowText is "1  #tag   <posts · people>" (top 3 ranks acc bold), a hashtag
+// result "#tag   <posts in 24h>" or the open row "#tag <open tag feed>".
+func rowText(c *i18n.T, th *theme.Theme, r trendRow, tagW int) string {
 	tag := "#" + textwidth.Sanitize(r.tag)
 	if r.open {
-		return th.S.Base.Foreground(th.P.Acc).Render(tag) + th.S.Dim.Render(textOpenTagFeed)
+		return th.S.Base.Foreground(th.P.Acc).Render(tag) + th.S.Dim.Render(" "+c.Feed.TrendsOpenTagFeed())
 	}
 	var b strings.Builder
 	if r.rank > 0 {
@@ -635,7 +626,7 @@ func rowText(th *theme.Theme, r trendRow, tagW int) string {
 
 func (t *trends) statusLine(ctx *ui.Context, w int) string {
 	th := themeOf(ctx)
-	return fit(th, th.S.Base.Render("  ")+t.spin.View(th)+th.S.Dim.Render(" "+textLoading), w)
+	return fit(th, th.S.Base.Render("  ")+t.spin.View(th)+th.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 }
 
 func noteLine(th *theme.Theme, text string, w int) string {
@@ -649,7 +640,7 @@ func (t *trends) searchLine(ctx *ui.Context, w int) string {
 		t.inputCol = min(searchPrefixW, max(w-1, 0))
 		return fit(th, th.S.Base.Render(searchPrefix), w)
 	}
-	line, col := pathLine(th, t.input, textSearchHint, w-searchPrefixW)
+	line, col := pathLine(th, t.input, cat(ctx).Feed.TrendsSearchHint(), w-searchPrefixW)
 	t.inputCol = searchPrefixW + col
 	return fit(th, th.S.Base.Render(searchPrefix)+line, w)
 }
@@ -686,15 +677,15 @@ func (t *trends) View(ctx *ui.Context, _ bool) string {
 	}
 	kind, arg := t.shownKind()
 	switch {
-	case t.note != "":
-		out = append(out, noteLine(th, t.note, w))
+	case t.note != nil:
+		out = append(out, noteLine(th, t.note(cat(ctx)), w))
 	case kind == kindTop:
 		fs := t.fs(ctx)
 		switch {
 		case len(t.topRows) == 0 && (fs == nil || fs.Trends() == nil) && t.loading:
 			out = append(out, t.statusLine(ctx, w))
 		case len(t.topRows) == 0:
-			empty(iconTrendsEmpty, textTrendsEmpty, hintTrendsEmpty)
+			empty(iconTrendsEmpty, cat(ctx).Feed.TrendsEmpty(), cat(ctx).Feed.TrendsEmptyHint())
 		default:
 			var at *time.Time
 			if fs != nil && fs.Trends() != nil {
@@ -703,7 +694,7 @@ func (t *trends) View(ctx *ui.Context, _ bool) string {
 			if at != nil && rest >= len(t.topRows)+2 {
 				list(t.top, len(t.topRows))
 				out = append(out, fit(th, "", w),
-					noteLine(th, humanize.Clock(*at, ctx.Loc, false)+textComputedAt, w))
+					noteLine(th, cat(ctx).Feed.TrendsComputedAt(hz(ctx).Clock(*at, ctx.Loc, false)), w))
 			} else {
 				list(t.top, rest)
 			}
@@ -719,9 +710,9 @@ func (t *trends) View(ctx *ui.Context, _ bool) string {
 		case t.postQ != t.query && len(t.posts.items) == 0:
 			out = append(out, t.statusLine(ctx, w))
 		case len(t.posts.items) == 0 && t.postErr != nil:
-			empty("⚠", textwidth.Sanitize(api.Describe(t.postErr)), "")
+			empty("⚠", errtext.Describe(ctx.T, t.postErr), "")
 		case len(t.posts.items) == 0:
-			empty(iconSearch, textSearchEmpty, hintSearchEmpty)
+			empty(iconSearch, cat(ctx).Feed.TrendsSearchEmpty(), cat(ctx).Feed.TrendsSearchEmptyHint())
 		default:
 			footer := 0
 			if t.postLoadingMore {
@@ -757,7 +748,7 @@ func (t *trends) rowList() (*widgets.List[trendRow], []trendRow) {
 
 // hasResults reports whether the list below the input has rows to move to.
 func (t *trends) hasResults() bool {
-	if t.note != "" {
+	if t.note != nil {
 		return false
 	}
 	if l, rows := t.rowList(); l != nil {
@@ -855,7 +846,7 @@ func (t *trends) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd)
 		}
 		return l.HandleKey(ctx, msg)
 	}
-	if t.note != "" || len(t.posts.items) == 0 {
+	if t.note != nil || len(t.posts.items) == 0 {
 		return false, nil
 	}
 	if t.searchOpen && km.Matches(msg, keymap.ListUp) && t.posts.selectedIndex() <= 0 {
@@ -925,14 +916,17 @@ func (t *trends) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) 
 
 // ---- optional capabilities ----
 
-func (t *trends) Title(*ui.Context) (string, ui.Badge) { return textTrendsTitle, ui.Badge{} }
+func (t *trends) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.TrendsTitle(), ui.Badge{}
+}
 
-func (t *trends) Help(*ui.Context) []key.Binding {
+func (t *trends) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
+	c := cat(ctx)
 	if t.searchOpen {
-		return []key.Binding{b("#태그", "태그 검색"), b("esc", "닫기")}
+		return []key.Binding{b(c.Feed.HelpTagKey(), c.Feed.HelpTagSearch()), b("esc", c.Common.HelpClose())}
 	}
-	return []key.Binding{b("enter", "태그 피드"), b("/", "검색")}
+	return []key.Binding{b("enter", c.Feed.HelpTagFeed()), b("/", c.Feed.HelpSearch())}
 }
 
 func (t *trends) WatchTopics() []string { return append([]string(nil), t.posts.visible...) }

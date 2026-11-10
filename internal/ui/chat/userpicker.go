@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -23,16 +24,6 @@ import (
 
 // User picker texts and limits.
 const (
-	pickerPlaceholder = "이름이나 @아이디로 찾기"
-	pickerNameHolder  = "대화 이름(선택)"
-	pickerNoChips     = "아직 고른 사람이 없어요"
-	pickerTypeHint    = "이름이나 @아이디를 입력해 보세요"
-	pickerMoreHint    = "두 글자 이상 입력하면 찾아봐요"
-	pickerSearching   = "찾는 중…"
-	pickerNoMatch     = "찾는 사람이 없어요"
-	pickerSending     = " 보내는 중…"
-	pickerMaxSuffix   = "명까지 고를 수 있어요"
-	pickerSearchFail  = "사람을 찾지 못했어요"
 	pickerMaxW        = 56
 	pickerListRows    = 6 // candidate rows of the full-size box
 	pickerDebounce    = 300 * time.Millisecond
@@ -66,8 +57,8 @@ type pickerSpec struct {
 	OnPick        func(ctx *ui.Context, users []api.UserSummary, name string) (tag string, cmd tea.Cmd)
 	OnDone        func(ctx *ui.Context, result tea.Msg) (tea.Cmd, ui.Overlay)
 	// DescribeErr words a failed OnPick for the dialog (picked = the chips sent);
-	// nil = api.Describe.
-	DescribeErr func(err error, picked []api.UserSummary) string
+	// nil = errtext.Describe.
+	DescribeErr func(t *i18n.T, err error, picked []api.UserSummary) string
 }
 
 // pickerSearchMsg is the debounce tick of one picker's query (gen = the query generation).
@@ -176,9 +167,9 @@ func (p *userPicker) Title(ctx *ui.Context) (string, ui.Badge) {
 	return p.spec.Title, ui.Badge{}
 }
 
-func (p *userPicker) submitText() string {
+func (p *userPicker) submitText(c *i18n.T) string {
 	if p.spec.Submit == "" {
-		return "확인"
+		return c.Chat.PickerOk()
 	}
 	return p.spec.Submit
 }
@@ -187,14 +178,15 @@ func (p *userPicker) Help(ctx *ui.Context) []key.Binding {
 	if p.next != nil {
 		return p.morph.help(ctx)
 	}
+	c := cat(ctx)
 	hs := []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "고르기·"+p.submitText())),
-		key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "이동")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", c.Chat.HelpPickThen(p.submitText(c)))),
+		key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", c.Common.HelpMove())),
 	}
 	if p.nameShown() {
-		hs = append(hs, key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "이름 칸")))
+		hs = append(hs, key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", c.Chat.HelpNameField())))
 	}
-	return append(hs, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")))
+	return append(hs, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", c.Common.HelpClose())))
 }
 
 func (p *userPicker) CapturesInput() bool {
@@ -314,7 +306,7 @@ func (p *userPicker) pick(ctx *ui.Context, i int) tea.Cmd {
 		return nil
 	}
 	if p.spec.Max > 0 && len(p.chips) >= p.spec.Max {
-		p.errMsg = "최대 " + strconv.Itoa(p.spec.Max) + pickerMaxSuffix
+		p.errMsg = cat(ctx).Chat.PickerMax(p.spec.Max)
 		return nil
 	}
 	p.errMsg = ""
@@ -483,9 +475,9 @@ func (p *userPicker) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		p.spinner.Stop()
 		if err != nil {
 			if p.spec.DescribeErr != nil {
-				p.errMsg = p.spec.DescribeErr(err, p.chips)
+				p.errMsg = p.spec.DescribeErr(ctx.T, err, p.chips)
 			} else {
-				p.errMsg = api.Describe(err)
+				p.errMsg = errtext.Describe(ctx.T, err)
 			}
 			return landed
 		}
@@ -549,9 +541,9 @@ func (p *userPicker) fixedRows() []int {
 
 // chipsLine draws the picks as " 이름 " chips (S.Selected) in exactly cw cells;
 // the newest picks win when they do not all fit ("…" first).
-func chipsLine(t *theme.Theme, chips []api.UserSummary, cw int) string {
+func chipsLine(c *i18n.T, t *theme.Theme, chips []api.UserSummary, cw int) string {
 	if len(chips) == 0 {
-		return cell(t.S.Dim.Render, pickerNoChips, cw)
+		return cell(t.S.Dim.Render, c.Chat.PickerNoChips(), cw)
 	}
 	labels := make([]string, len(chips))
 	for i, u := range chips {
@@ -625,21 +617,21 @@ func (p *userPicker) candRow(ctx *ui.Context, t *theme.Theme, i, cw int) string 
 }
 
 // emptyText is the line shown when there is no candidate.
-func (p *userPicker) emptyText() string {
+func (p *userPicker) emptyText(c *i18n.T) string {
 	q := p.normQuery()
 	switch {
 	case p.searching:
-		return pickerSearching
+		return c.Chat.PickerSearching()
 	case p.searchErr:
-		return pickerSearchFail
+		return c.Chat.PickerSearchFailed()
 	case q == "" && p.spec.Empty != "":
 		return p.spec.Empty
 	case q == "" && p.spec.Search:
-		return pickerTypeHint
+		return c.Chat.PickerTypeHint()
 	case p.spec.Search && len([]rune(q)) < pickerSearchMin:
-		return pickerMoreHint
+		return c.Chat.PickerMoreHint()
 	}
-	return pickerNoMatch
+	return c.Chat.PickerNoMatch()
 }
 
 // layout builds the rows and the focused field's cursor (relative to the inner rect).
@@ -658,19 +650,19 @@ func (p *userPicker) layout(ctx *ui.Context, t *theme.Theme) (rows []string, cur
 			if p.onName || p.cur >= 0 { // the "›" marks one row: the field or the candidate
 				marker = blank(t, 2)
 			}
-			line, col := inputLine(t, p.query, pickerPlaceholder, vw)
+			line, col := inputLine(t, p.query, cat(ctx).Chat.PickerPlaceholder(), vw)
 			if !p.onName {
 				focusRow, curX = len(fixed), pad+2+col
 			}
 			fixed = append(fixed, marker+line)
 		case rowChips:
-			fixed = append(fixed, blank(t, 2)+chipsLine(t, p.chips, vw))
+			fixed = append(fixed, blank(t, 2)+chipsLine(cat(ctx), t, p.chips, vw))
 		case rowName:
 			marker := blank(t, 2)
 			if p.onName {
 				marker = t.S.Title.Render("› ")
 			}
-			line, col := inputLine(t, p.name, pickerNameHolder, vw)
+			line, col := inputLine(t, p.name, cat(ctx).Chat.PickerNameHolder(), vw)
 			if p.onName {
 				focusRow, curX = len(fixed), pad+2+col
 			}
@@ -683,11 +675,11 @@ func (p *userPicker) layout(ctx *ui.Context, t *theme.Theme) (rows []string, cur
 	case p.errMsg != "":
 		status = cell(t.S.Error.Render, "✕ "+textwidth.Sanitize(p.errMsg), cw)
 	case p.busy:
-		status = p.spinner.View(t) + cell(t.S.Dim.Render, pickerSending, cw-1)
+		status = p.spinner.View(t) + cell(t.S.Dim.Render, " "+cat(ctx).Common.Sending(), cw-1)
 	case (len(p.chips) > 0 || p.spec.AllowEmpty) && strings.TrimSpace(p.query.Value()) == "" && p.cur < 0:
-		status = cell(t.S.Dim.Render, "enter "+textwidth.Sanitize(p.submitText())+" · esc 닫기", cw)
+		status = cell(t.S.Dim.Render, cat(ctx).Chat.PickerStatusSubmit(textwidth.Sanitize(p.submitText(cat(ctx)))), cw)
 	default:
-		status = cell(t.S.Dim.Render, "enter 고르기 · ↑↓ 이동 · esc 닫기", cw)
+		status = cell(t.S.Dim.Render, cat(ctx).Chat.PickerStatus(), cw)
 	}
 
 	// Budget: the focused field row always, then the status, the other fixed
@@ -734,7 +726,7 @@ func (p *userPicker) layout(ctx *ui.Context, t *theme.Theme) (rows []string, cur
 	for i := range listN {
 		switch {
 		case len(p.cands) == 0 && i == 0:
-			rows = append(rows, blank(t, 2)+cell(t.S.Dim.Render, p.emptyText(), max(0, cw-2)))
+			rows = append(rows, blank(t, 2)+cell(t.S.Dim.Render, p.emptyText(cat(ctx)), max(0, cw-2)))
 		case off+i < len(p.cands):
 			rows = append(rows, p.candRow(ctx, t, off+i, cw))
 		default:

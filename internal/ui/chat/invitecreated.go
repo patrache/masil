@@ -1,31 +1,20 @@
 package chat
 
 import (
-	"strconv"
-
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 )
 
-// Invite result overlay texts.
+// Invite result overlay constants (the texts are chat.toml keys).
 const (
-	inviteCreatedTitle = "초대 링크"
-	inviteJoinPrefix   = "masil join "
-	inviteNoExpiry     = "만료 없음"
-	inviteExpiryPrefix = "만료 "
-	inviteUnlimited    = "횟수 무제한"
-	inviteUsesPrefix   = "최대 "
-	inviteUsesSuffix   = "번"
-	inviteCopied       = "복사했어요"
-	inviteHint         = "y 복사 · esc 닫기"
-	inviteMaxW         = 44
+	inviteJoinPrefix = "masil join "
+	inviteMaxW       = 44
 )
 
 func init() {
@@ -60,28 +49,31 @@ func (o *inviteCreated) share() string { return inviteJoinPrefix + o.inv.Code }
 // clipboard is share() as it goes to ui.Copy (clipboardLine).
 func (o *inviteCreated) clipboard() string { return clipboardLine(o.share()) }
 
-func (o *inviteCreated) Init(*ui.Context) tea.Cmd             { return nil }
-func (o *inviteCreated) Update(*ui.Context, tea.Msg) tea.Cmd  { return nil }
-func (o *inviteCreated) Resize(_ *ui.Context, size ui.Size)   { o.size = size }
-func (o *inviteCreated) Modal() bool                          { return true }
-func (o *inviteCreated) Title(*ui.Context) (string, ui.Badge) { return inviteCreatedTitle, ui.Badge{} }
+func (o *inviteCreated) Init(*ui.Context) tea.Cmd            { return nil }
+func (o *inviteCreated) Update(*ui.Context, tea.Msg) tea.Cmd { return nil }
+func (o *inviteCreated) Resize(_ *ui.Context, size ui.Size)  { o.size = size }
+func (o *inviteCreated) Modal() bool                         { return true }
+func (o *inviteCreated) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Chat.InviteCreatedTitle(), ui.Badge{}
+}
 func (o *inviteCreated) Bounds(body layout.Rect) layout.Rect {
 	return centered(body, min(body.W, inviteMaxW), o.fullRows()+2)
 }
-func (o *inviteCreated) Help(*ui.Context) []key.Binding { return inviteHelp }
+func (o *inviteCreated) Help(ctx *ui.Context) []key.Binding {
+	c := cat(ctx)
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("y"), key.WithHelp("y", c.Chat.HelpCopy())),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", c.Common.HelpClose())),
+	}
+}
 func (o *inviteCreated) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	switch {
 	case ctx.Keys.Matches(msg, keymap.NavBack):
 		return false, nil // the app closes the overlay
 	case ctx.Keys.Matches(msg, keymap.MsgCopy):
-		return true, ui.Copy(ctx, o.clipboard(), inviteCopied)
+		return true, ui.Copy(ctx, o.clipboard(), cat(ctx).Chat.InviteCopied())
 	}
 	return false, nil
-}
-
-var inviteHelp = []key.Binding{
-	key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "복사")),
-	key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")),
 }
 
 // fullRows is the row count with room to spare: code, blank, share, [meta,]
@@ -95,17 +87,18 @@ func (o *inviteCreated) fullRows() int {
 
 // metaLine is "만료 11월 12일 11:05 · 최대 10번" (만료 없음 / 횟수 무제한).
 func (o *inviteCreated) metaLine(ctx *ui.Context) string {
-	exp := inviteNoExpiry
+	c := cat(ctx)
+	exp := c.Chat.InviteNoExpiry()
 	if o.inv.ExpiresAt != nil {
 		now := o.inv.CreatedAt
 		if ctx != nil && ctx.Now != nil {
 			now = ctx.Now()
 		}
-		exp = inviteExpiryPrefix + humanize.MessageTime(now, *o.inv.ExpiresAt, locOf(ctx))
+		exp = c.Chat.InviteExpires(hz(ctx).MessageTime(now, *o.inv.ExpiresAt, locOf(ctx)))
 	}
-	uses := inviteUnlimited
+	uses := c.Chat.InviteUnlimited()
 	if o.inv.MaxUses != nil {
-		uses = inviteUsesPrefix + strconv.Itoa(*o.inv.MaxUses) + inviteUsesSuffix
+		uses = c.Chat.InviteMaxUses(*o.inv.MaxUses)
 	}
 	return exp + " · " + uses
 }
@@ -131,7 +124,7 @@ func (o *inviteCreated) View(ctx *ui.Context, _ bool) string {
 		}
 	}
 	head := cell(t.S.Title.Render, code, cw)
-	hint := cell(t.S.Dim.Render, inviteHint, cw)
+	hint := cell(t.S.Dim.Render, cat(ctx).Chat.InviteHint(), cw)
 	build := func(blanks, withHint, withMeta bool) []string {
 		rows := []string{head}
 		if blanks {

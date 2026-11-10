@@ -1,15 +1,20 @@
 package ui
 
 import (
+	"context"
+	"net/http"
 	"time"
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/clipboard"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
+	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
+	"github.com/patrache/masil/internal/toolstate"
 	"github.com/patrache/masil/internal/ui/keymap"
 	"github.com/patrache/masil/internal/ui/layout"
 )
@@ -34,6 +39,30 @@ type Context struct {
 	// production, a clipboard.Recorder in uitest, nil = OSC 52 only.
 	Clipboard clipboard.Writer
 	Debug     bool
+	// T is the message catalog of the shown language — never nil. Read every
+	// screen string from it at draw time (never cache it in package variables).
+	T *i18n.T
+	// Lang is the effective (shown) language; 0.1.3 = ko.
+	Lang i18n.Locale
+	// Post delivers msgs from goroutines to Update without blocking (never nil
+	// in the app; uitest records and Flushes them).
+	Post Poster
+	// ToolState is tools-state.json (v0.1.3 A8.5): the tools' device-only
+	// memory. A tool reads and writes only its own section (the tool id). Never
+	// nil in the app (toolstate.Load at start; the harness: an empty file in
+	// its temp folder); a bare Context's nil File reads empty.
+	ToolState *toolstate.File
+	// OpenTools lists the tool instances open on the tool surface (the hub
+	// excluded), in surface order; set by the app (nil = none).
+	OpenTools func() []OpenToolInfo
+	// Secrets is the tool-secret store (v0.1.3 A9): tools read and write their
+	// cookies, tokens and keys only through it. Never nil in the app
+	// (secrets.Open at start; the harness: secrettest.NewStore).
+	Secrets *secrets.Store
+	// CollabDial opens a room document socket (v0.1.3 C1.1): tools hand it to
+	// collab.Options.Dial. nil = the real connection (realtime.DialConn); the
+	// harness sets collabtest.Hub.Dial (uitest.WithCollab).
+	CollabDial func(ctx context.Context, url string, h http.Header) (realtime.Conn, error)
 }
 
 // Realtime is the UI-facing subset of realtime.Client.

@@ -93,3 +93,33 @@ type DragHandler interface {
 	HandleDrag(ctx *Context, msg tea.MouseMsg, local Point) tea.Cmd
 	ClearDrag()
 }
+
+// KeyGrabber is a component that owns the keyboard while focused (a termpane
+// running a program, v0.1.3 A7.4): while GrabsKeys() is true the app hands it
+// every key — ctrl+c, ctrl+k, tab and the other hard globals included — and
+// every paste before deciding anything else. Only overlays above it still
+// come first.
+type KeyGrabber interface{ GrabsKeys() bool }
+
+// StatusTexter replaces the status line's hints with one text while the
+// focused component returns ok (termpane: "⌨ lazygit 에 입력 중 · …").
+type StatusTexter interface {
+	StatusText(ctx *Context) (text string, ok bool)
+}
+
+// ShellAction is a shell action a KeyGrabber asks for on behalf of the user:
+// its keys go to the program, so the shell never sees them (termpane's
+// ctrl+\ h/j/k/l and ctrl+\ p).
+type ShellAction int
+
+// Shell actions (ShellActionMsg).
+const (
+	ShellFocusLeft  ShellAction = iota + 1 // ctrl+w h: the pane to the left
+	ShellFocusDown                         // ctrl+w j
+	ShellFocusUp                           // ctrl+w k
+	ShellFocusRight                        // ctrl+w l
+	ShellPalette                           // palette.open
+)
+
+// ShellActionMsg asks the app to run a ShellAction (consumed, not broadcast).
+type ShellActionMsg struct{ Action ShellAction }

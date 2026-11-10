@@ -13,14 +13,17 @@ import (
 	"path/filepath"
 
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
 // command is one `masil <name>` subcommand. Each package-main file registers its own from init().
 type command struct {
-	Name   string // "daemon", "admin", "login", ...
-	Usage  string // one line, Korean
-	Hidden bool   // not listed in `masil help`
+	Name string // "daemon", "admin", "login", ...
+	// Usage is the one-line usage in t's language ("masil <cmd> — <설명>");
+	// nil lists "masil <name>".
+	Usage  func(t *i18n.T) string
+	Hidden bool // not listed in `masil help`
 	Run    func(ctx context.Context, env *Env, args []string) error
 }
 
@@ -31,6 +34,25 @@ type Env struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	// T is the CLI's words in the resolved language and Lang how it was
+	// chosen (localize; `MASIL_LANG=en masil …` for one run). A nil T is ko.
+	T    *i18n.T
+	Lang i18n.Resolution
+}
+
+// localize resolves the UI language for env (MASIL_LANG, [ui] language, the
+// OS; i18n spec 6.2) and sets env.Lang and env.T.
+func localize(env *Env) {
+	env.Lang = resolveLocale(env)
+	env.T = i18n.For(env.Lang.Effective)
+}
+
+// cat is env's catalog (ko when localize has not run, as in most tests).
+func (e *Env) cat() *i18n.T {
+	if e == nil || e.T == nil {
+		return i18n.KoT()
+	}
+	return e.T
 }
 
 // commands is the registry filled by register during init().
@@ -71,32 +93,36 @@ func realMain() int {
 		stop()
 	}()
 
+	// Before config.toml is read the language comes from MASIL_LANG and the OS only.
+	env := &Env{Config: config.Defaults(), Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr}
+	localize(env)
 	paths, err := config.ResolvePaths()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "설정 폴더를 찾지 못했어요: %s\n", errText(err))
+		fmt.Fprintln(os.Stderr, env.T.Cli.ConfigDirNotFound(errText(err)))
 		return 1
 	}
 	if err := config.EnsureDir(paths); err != nil {
-		fmt.Fprintf(os.Stderr, "설정 폴더를 만들지 못했어요: %s\n", errText(err))
+		fmt.Fprintln(os.Stderr, env.T.Cli.ConfigDirCreateFailed(errText(err)))
 		return 1
 	}
-	cfg, err := config.Load(paths)
-	if err != nil {
-		// Load always returns a usable Config (defaults for the bad parts).
-		fmt.Fprintf(os.Stderr, "config.toml 일부를 읽지 못해 기본값을 썼어요: %s\n", errText(err))
-	}
+	cfg, loadErr := config.Load(paths)
 	if cfg == nil {
 		cfg = config.Defaults()
 	}
+	env.Paths, env.Config = paths, cfg
+	localize(env) // now with [ui] language
+	if loadErr != nil {
+		// Load always returns a usable Config (defaults for the bad parts).
+		fmt.Fprintln(os.Stderr, env.T.Cli.ConfigPartlyUnread(errText(loadErr)))
+	}
 	logger, closeLog, err := openLog(paths, "masil")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "로그 파일을 열지 못했어요: %s\n", errText(err))
+		fmt.Fprintln(os.Stderr, env.T.Cli.LogOpenFailed(errText(err)))
 		logger, closeLog = slog.New(slog.DiscardHandler), func() {}
 	}
 	defer closeLog()
 	slog.SetDefault(logger)
 
-	env := &Env{Paths: paths, Config: cfg, Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr}
 	return run(ctx, os.Args[1:], env)
 }
 
@@ -115,7 +141,9 @@ func run(ctx context.Context, args []string, env *Env) int {
 	}
 	c, ok := commands[name]
 	if !ok {
-		fmt.Fprintf(env.Stderr, "알 수 없는 명령이에요: %s\n`masil help` 로 명령 목록을 볼 수 있어요\n", textwidth.Sanitize(name))
+		t := env.cat()
+		fmt.Fprintln(env.Stderr, t.Cli.UnknownCommand(textwidth.Sanitize(name)))
+		fmt.Fprintln(env.Stderr, t.Cli.UnknownCommandHint())
 		return 2
 	}
 	err := c.Run(ctx, env, args)

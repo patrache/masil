@@ -8,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/store/chatstore"
@@ -25,15 +25,11 @@ func init() {
 
 // Thread view constants.
 const (
-	threadTitle        = "스레드"
-	threadPlaceholder  = "› 답글"
-	threadTitleCells   = 12 // root preview in the title
-	rootMaxLines       = 6  // the root's line cap until expanded
-	rootMoreText       = "… 더 보기"
-	threadNarrow       = 48 // a Full thread narrower than this draws one-line rows
-	anchorMaxPages     = 20 // pages turned looking for an anchor
-	anchorNotFoundText = "답글을 찾을 수 없어요"
-	repliesRowID       = "replies"
+	threadTitleCells = 12 // root preview in the title
+	rootMaxLines     = 6  // the root's line cap until expanded
+	threadNarrow     = 48 // a Full thread narrower than this draws one-line rows
+	anchorMaxPages   = 20 // pages turned looking for an anchor
+	repliesRowID     = "replies"
 )
 
 // threadPage is the result of one GetThread request of a thread view; T is
@@ -86,7 +82,7 @@ func openThread(channelID, rootID string) tea.Cmd {
 // newThread is the RouteThread factory (ID = root message id, Arg = channel id).
 func newThread(ctx *ui.Context, r ui.Route) ui.Component {
 	root := r.ID
-	v := &threadView{route: r, pane: newMsgPane(r.Arg, root), composer: newChatComposer(r.Arg, &root, threadPlaceholder)}
+	v := &threadView{route: r, pane: newMsgPane(r.Arg, root), composer: newChatComposer(r.Arg, &root, cat(ctx).Chat.ThreadPlaceholder())}
 	v.pane.older = v.loadOlder
 	v.pane.newer = v.loadNewer
 	v.pane.open = v.openRow
@@ -163,9 +159,9 @@ func (v *threadView) headRows(ctx *ui.Context) []row {
 	if m.Thread != nil {
 		n = m.Thread.ReplyCount
 	}
-	label := "답글 " + humanize.Count(n) + "개"
+	label := cat(ctx).Chat.RepliesLabel(hz(ctx).Count(n))
 	if ctx.Density() == ui.DensityMinimal { // tiny: no pane title says this is a thread (nor where it belongs)
-		label = v.parentPrefix(ctx) + threadTitle + " · " + label
+		label = v.parentPrefix(ctx) + cat(ctx).Chat.ThreadTitle() + " · " + label
 	}
 	return []row{
 		{Kind: rowMessage, ID: m.ID, Msg: &m},
@@ -294,7 +290,8 @@ func (v *threadView) onPage(ctx *ui.Context, m ui.ResultMsg[threadPage]) tea.Cmd
 		if v.notFound {
 			return nil
 		}
-		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: loadFailed} }
+		errCtx := cat(ctx).Chat.LoadFailed()
+		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errCtx} }
 	}
 	if c == nil || m.Value.W == nil {
 		return nil
@@ -356,7 +353,7 @@ func (v *threadView) advanceJump(ctx *ui.Context) tea.Cmd {
 	}
 	v.jump = ""
 	v.pane.selectID(v.rootID())
-	return ui.Toast(anchorNotFoundText, ui.ToastInfo)
+	return ui.Toast(cat(ctx).Chat.AnchorNotFound(), ui.ToastInfo)
 }
 
 func (v *threadView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
@@ -384,6 +381,8 @@ func (v *threadView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, landAction(ctx, m))
 		v.pane.refresh(ctx)
 	case chatChangedMsg:
+		v.pane.refresh(ctx)
+	case ui.LocaleChangedMsg: // the replies and day dividers are built into the rows
 		v.pane.refresh(ctx)
 	case editRequestMsg:
 		if m.ChannelID != v.channelID() {
@@ -433,7 +432,7 @@ func (v *threadView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.ResultMsg[*api.Page[api.ChannelMember]]:
 		cmds = append(cmds, v.composer.onMembers(ctx, m))
 	case ui.ResultMsg[*api.Invite]:
-		cmds = append(cmds, v.composer.onInviteCreated(m))
+		cmds = append(cmds, v.composer.onInviteCreated(ctx, m))
 	case ui.ResultMsg[*api.DirectInvite]:
 		cmds = append(cmds, v.composer.onDirectInvite(ctx, m))
 	}
@@ -450,7 +449,7 @@ func (v *threadView) View(ctx *ui.Context, focused bool) string {
 		return ""
 	}
 	if v.gone(ctx) {
-		return widgets.Empty(themeOf(ctx), v.size, "", goneTitle, goneHint)
+		return widgets.Empty(themeOf(ctx), v.size, "", cat(ctx).Chat.GoneTitle(), cat(ctx).Chat.GoneHint())
 	}
 	v.syncComposer(ctx)
 	v.pane.sync(ctx)
@@ -458,11 +457,11 @@ func (v *threadView) View(ctx *ui.Context, focused bool) string {
 	w := v.size.W
 	var bottom string
 	bh := 0
-	if text, ro := readOnlyLine(v.channel(ctx)); ro {
+	if text, ro := readOnlyLine(cat(ctx), v.channel(ctx)); ro {
 		bottom, bh = cell(t.S.Dim.Render, text, w), 1
 	} else {
 		cc := v.composer
-		cc.placeholder = threadPlaceholder
+		cc.placeholder = cat(ctx).Chat.ThreadPlaceholder()
 		label := 0
 		if cc.editing != nil {
 			label = 1
@@ -502,7 +501,7 @@ func (v *threadView) channel(ctx *ui.Context) *api.Channel {
 
 // inputBlocked: the thread takes no input (gone or a read-only conversation).
 func (v *threadView) inputBlocked(ctx *ui.Context) bool {
-	_, ro := readOnlyLine(v.channel(ctx))
+	_, ro := readOnlyLine(cat(ctx), v.channel(ctx))
 	return ro || v.gone(ctx)
 }
 
@@ -547,6 +546,9 @@ func (v *threadView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.
 	}
 	if v.pane.escDrag(ctx, msg) {
 		return true, nil
+	}
+	if handled, cmd := v.pane.cardKey(ctx, msg); handled {
+		return true, cmd
 	}
 	if ctx.Keys.Matches(msg, keymap.ComposeFocus) {
 		if v.inputBlocked(ctx) {
@@ -662,15 +664,15 @@ func (v *threadView) Cursor() *tea.Cursor {
 func (v *threadView) Title(ctx *ui.Context) (string, ui.Badge) {
 	r := v.root(ctx)
 	if r == nil || v.gone(ctx) {
-		return threadTitle, ui.Badge{}
+		return cat(ctx).Chat.ThreadTitle(), ui.Badge{}
 	}
 	switch {
 	case folded(ctx, *r):
-		return threadTitle + " · " + blockedText, ui.Badge{}
+		return cat(ctx).Chat.ThreadTitle() + " · " + cat(ctx).Chat.BlockedMsg(), ui.Badge{}
 	case r.Deleted:
-		return threadTitle + " · " + deletedText, ui.Badge{}
+		return cat(ctx).Chat.ThreadTitle() + " · " + cat(ctx).Chat.MsgDeleted(), ui.Badge{}
 	}
-	return v.parentPrefix(ctx) + threadTitle + " · " + textwidth.Sanitize(displayName(r.Author)) + ": " + markup.Plain(plainBody(r), threadTitleCells), ui.Badge{}
+	return v.parentPrefix(ctx) + cat(ctx).Chat.ThreadTitle() + " · " + textwidth.Sanitize(displayName(r.Author)) + ": " + markup.Plain(plainBody(r), threadTitleCells, cat(ctx).Common.CodeSummary), ui.Badge{}
 }
 
 // parentPrefix is "<conversation> › " while the thread is shown in Main (no thread
@@ -711,7 +713,7 @@ func (v *threadView) Help(ctx *ui.Context) []key.Binding {
 	}
 	parent := ctx.Keys.Binding(keymap.ThreadChannel)
 	if l := v.parentLabel(ctx); l != "" {
-		parent.SetHelp(parent.Help().Key, withRo(l)) // "c #개발로"
+		parent.SetHelp(parent.Help().Key, withRo(cat(ctx), l)) // "c #개발로"
 	}
 	if v.parentPrefix(ctx) == "" { // beside its conversation: the way there is a hint among others
 		return append(ctx.Keys.Help(keymap.ComposeFocus, keymap.MsgReact, keymap.MsgActions, keymap.NavBack), parent)
@@ -720,18 +722,19 @@ func (v *threadView) Help(ctx *ui.Context) []key.Binding {
 	return append([]key.Binding{parent}, ctx.Keys.Help(keymap.ComposeFocus, keymap.NavBack, keymap.MsgReact, keymap.MsgActions)...)
 }
 
-// withRo appends the particle 으로/로: 로 after a vowel or a final ㄹ, else 으로.
-func withRo(word string) string {
+// withRo is "to word" in c's language; ko appends the particle 으로/로: 로
+// after a vowel, a final ㄹ or a non-Hangul end, else 으로.
+func withRo(c *i18n.T, word string) string {
 	r := []rune(word)
 	if len(r) == 0 {
 		return word
 	}
 	if last := r[len(r)-1]; last >= 0xAC00 && last <= 0xD7A3 {
 		if fin := (last - 0xAC00) % 28; fin != 0 && fin != 8 { // 8 = ㄹ
-			return word + "으로"
+			return c.Chat.ThreadParentEuro(word)
 		}
 	}
-	return word + "로"
+	return c.Chat.ThreadParentRo(word)
 }
 
 // refetchDropped (after a resync) loads the first page again when the thread

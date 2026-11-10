@@ -3,12 +3,14 @@ package settings
 
 import (
 	"image/color"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -36,19 +38,20 @@ type screen struct {
 	size ui.Size
 
 	settings    api.Settings // shown server settings (Store.Settings + optimistic changes)
-	settingsErr string       // GET /v1/me/settings failed
+	settingsErr label        // GET /v1/me/settings failed (nil = no error)
 	blocks      listState[api.BlockEntry]
 	sessions    listState[api.Session]
-	rowErr      map[string]string // inline error per row id
+	rowErr      map[string]label // inline error per row id, rendered when drawn
 
 	num     *field    // focus default minutes
 	pw      [3]*field // current, new, confirm
 	pwBusy  bool      // POST /v1/auth/password in flight
 	editing string    // row id of the edited field ("" = none)
 
-	sel    string // selected row id
-	selIdx int    // its index in the last rows() (fallback when the row disappears)
-	anchor string // section to jump to on the next sync (Route.Anchor)
+	sel       string // selected row id
+	selIdx    int    // its index in the last rows() (fallback when the row disappears)
+	anchor    string // section to jump to on the next sync (Route.Anchor)
+	anchorRow string // row in it ("display.clock" => "clock"; "" = its first row)
 
 	top    int    // first drawn line of the scrolled column
 	topKey string // what top scrolls ("wide:<section>" | "narrow"); reset on change
@@ -74,7 +77,7 @@ var (
 // newScreen builds the screen for r (Anchor = section id to open on).
 func newScreen(ctx *ui.Context, r ui.Route) *screen {
 	s := &screen{
-		rowErr: map[string]string{},
+		rowErr: map[string]label{},
 		num:    newNumberField(),
 		pw:     [3]*field{newPasswordField(), newPasswordField(), newPasswordField()},
 		navRow: map[int]string{},
@@ -107,27 +110,31 @@ func (s *screen) Cursor() *tea.Cursor {
 }
 
 // Help implements ui.Helper.
-func (s *screen) Help(*ui.Context) []key.Binding {
+func (s *screen) Help(ctx *ui.Context) []key.Binding {
+	st := catOf(ctx).Settings
 	if s.editing != "" {
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "확인")),
-			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "입력 끝내기")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", st.HelpConfirm())),
+			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", st.HelpEndInput())),
 		}
 	}
 	return []key.Binding{
-		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "이동")),
-		key.NewBinding(key.WithKeys("enter", "space"), key.WithHelp("enter", "바꾸기")),
-		key.NewBinding(key.WithKeys("left", "right"), key.WithHelp("←/→", "값")),
-		key.NewBinding(key.WithKeys("pgdown", "pgup"), key.WithHelp("pgdn/pgup", "섹션")),
+		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", st.HelpMove())),
+		key.NewBinding(key.WithKeys("enter", "space"), key.WithHelp("enter", st.HelpChange())),
+		key.NewBinding(key.WithKeys("left", "right"), key.WithHelp("←/→", st.HelpValue())),
+		key.NewBinding(key.WithKeys("pgdown", "pgup"), key.WithHelp("pgdn/pgup", st.HelpSection())),
 	}
 }
 
-// jump opens section id on the next sync (unknown ids are ignored).
-func (s *screen) jump(id string) {
+// jump opens anchor on the next sync: a section id, or "section.row" for one
+// row of it (the row id or its last dotted part: "display.clock"). Unknown
+// sections are ignored; an unknown row opens the section's first row.
+func (s *screen) jump(anchor string) {
+	id, rowName, _ := strings.Cut(anchor, ".")
 	if sectionIndex(id) < 0 {
 		return
 	}
-	s.anchor = id
+	s.anchor, s.anchorRow = id, rowName
 	s.stopEdit()
 	s.wheel = false
 }
@@ -149,14 +156,27 @@ func (s *screen) sync(rows []row) {
 		return
 	}
 	if s.anchor != "" {
+		first, hit := "", ""
 		for _, r := range rows {
-			if r.sec == s.anchor {
-				s.selectID(r.id)
-				s.snap = true
+			if r.sec != s.anchor {
+				continue
+			}
+			if first == "" {
+				first = r.id
+			}
+			if s.anchorRow != "" && (r.id == s.anchorRow || strings.HasSuffix(r.id, "."+s.anchorRow)) {
+				hit = r.id
 				break
 			}
 		}
-		s.anchor = ""
+		if hit == "" {
+			hit = first
+		}
+		if hit != "" {
+			s.selectID(hit)
+			s.snap = true
+		}
+		s.anchor, s.anchorRow = "", ""
 	}
 	idx := -1
 	for i, r := range rows {
@@ -243,17 +263,21 @@ func (s *screen) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.ResultMsg[[]api.Session]:
 		if strings.HasPrefix(m.Tag, tagSessions) {
-			s.onSessions(m)
+			s.onSessions(ctx, m)
 		}
 	case ui.ResultMsg[struct{}]:
 		switch {
 		case strings.HasPrefix(m.Tag, tagUnblock):
 			s.onUnblock(ctx, m)
 		case strings.HasPrefix(m.Tag, tagRevoke):
-			s.onRevoke(m)
+			s.onRevoke(ctx, m)
 		case m.Tag == tagPassword:
 			return s.onPassword(ctx, m)
 		}
+	case toolLoginForgetMsg:
+		return s.forget(ctx, m.tool)
+	case toolLoginForgotMsg:
+		s.onToolLoginForgot(ctx, m)
 	case ui.EventMsg:
 		switch m.Event.Type {
 		case "block.updated":
@@ -445,7 +469,7 @@ func (s *screen) View(ctx *ui.Context, focused bool) string {
 	if w >= wideMin && len(rows) > 0 {
 		s.navCols = navW
 		cur := rows[s.selIdx].sec
-		left := s.navLines(t, cur, h)
+		left := s.navLines(ctx, t, rows, cur, h)
 		sep := t.S.Base.Foreground(t.P.Line).Render("│")
 		right := s.column(ctx, t, rows, cur, w-navW-1, h, focused, navW+1)
 		for y := range out {
@@ -458,22 +482,27 @@ func (s *screen) View(ctx *ui.Context, focused bool) string {
 }
 
 // navLines is the left section list (exactly h lines of navW cells), scrolled so the
-// current section stays visible.
-func (s *screen) navLines(t *theme.Theme, cur string, h int) []string {
-	ci := max(sectionIndex(cur), 0)
+// current section stays visible. The tool logins section is listed only while it
+// has rows.
+func (s *screen) navLines(ctx *ui.Context, t *theme.Theme, rows []row, cur string, h int) []string {
+	shown := sections
+	if !slices.ContainsFunc(rows, func(r row) bool { return r.sec == secTools }) {
+		shown = slices.DeleteFunc(slices.Clone(sections), func(sec section) bool { return sec.id == secTools })
+	}
+	ci := max(slices.IndexFunc(shown, func(sec section) bool { return sec.id == cur }), 0)
 	start := 0
-	if len(sections) > h {
-		start = min(max(ci-h/2, 0), len(sections)-h)
+	if len(shown) > h {
+		start = min(max(ci-h/2, 0), len(shown)-h)
 	}
 	out := make([]string, h)
 	for y := range out {
 		i := start + y
-		if i >= len(sections) {
+		if i >= len(shown) {
 			out[y] = pad(t, navW)
 			continue
 		}
-		sec := sections[i]
-		text := textwidth.PadRight(" "+sec.title, navW)
+		sec := shown[i]
+		text := textwidth.PadRight(" "+sectionTitle(ctx, sec), navW)
 		if sec.id == cur {
 			out[y] = t.S.Selected.Render(text)
 		} else {
@@ -495,7 +524,7 @@ func (s *screen) column(ctx *ui.Context, t *theme.Theme, rows []row, sec string,
 	cw := max(1, w-2*padX)
 	var head []string
 	if sec != "" && h >= 6 {
-		title := sections[max(sectionIndex(sec), 0)].title
+		title := sectionTitle(ctx, sections[max(sectionIndex(sec), 0)])
 		head = []string{t.S.Title.Render(title), ""}
 	}
 	labelW := labelWidths(rows, cw)
@@ -513,11 +542,11 @@ func (s *screen) column(ctx *ui.Context, t *theme.Theme, rows []row, sec string,
 				lines = append(lines, line{cursor: -1})
 			}
 			a = len(lines)
-			lines = append(lines, line{text: t.S.Title.Render(sections[max(sectionIndex(r.sec), 0)].title), cursor: -1})
+			lines = append(lines, line{text: t.S.Title.Render(sectionTitle(ctx, sections[max(sectionIndex(r.sec), 0)])), cursor: -1})
 		}
 		prevSec = r.sec
 		selected := r.id == s.sel
-		rl, cl, cc := s.renderRow(t, r, selected, focused, cw, labelW[r.sec])
+		rl, cl, cc := s.renderRow(t, catOf(ctx), r, selected, focused, cw, labelW[r.sec])
 		for i, txt := range rl {
 			ln := line{text: txt, row: r.id, cursor: -1}
 			if i == cl {
@@ -590,7 +619,7 @@ func labelWidths(rows []row, cw int) map[string]int {
 
 // renderRow draws row r in lines of at most cw cells; curLine/curCol give the cursor
 // of an edited field (-1 = none).
-func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, labelW int) (lines []string, curLine, curCol int) {
+func (s *screen) renderRow(t *theme.Theme, cat *i18n.T, r row, selected, focused bool, cw, labelW int) (lines []string, curLine, curCol int) {
 	curLine, curCol = -1, -1
 	mark := t.S.Base.Render("  ")
 	labelSt := t.S.Base
@@ -657,9 +686,9 @@ func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, la
 	switch r.kind {
 	case kindToggle:
 		if r.on {
-			value = t.S.Success.Render(textOn)
+			value = t.S.Success.Render(cat.Settings.On())
 		} else {
-			value = t.S.Dim.Render(textOff)
+			value = t.S.Dim.Render(cat.Settings.Off())
 		}
 	case kindCycle:
 		if selected {
@@ -670,7 +699,7 @@ func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, la
 	case kindNumber:
 		if editing {
 			in, col := fieldLine(t, r.field, true, numberFieldW, "")
-			value, valCursor = in+t.S.Base.Render("분"), col
+			value, valCursor = in+t.S.Base.Render(cat.Settings.FocusUnit()), col
 		} else {
 			value = t.S.Base.Render(r.value)
 		}
@@ -679,7 +708,7 @@ func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, la
 		if fw < passwordFieldW && cw-valueIndent > fw {
 			fw = min(passwordFieldW, cw-valueIndent)
 		}
-		in, col := fieldLine(t, r.field, editing, fw, textPwEditHint)
+		in, col := fieldLine(t, r.field, editing, fw, cat.Settings.PwEditHint())
 		value = in
 		if editing {
 			valCursor = col
@@ -709,6 +738,11 @@ func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, la
 	switch {
 	case value == "" && headW+tailW <= cw:
 		lines = append(lines, head+tail)
+	case value == "" && r.wrapSub:
+		lines = append(lines, head)
+		for _, l := range textwidth.Wrap(textwidth.Sanitize(r.sub), max(1, cw-valueIndent)) {
+			lines = append(lines, indent+t.S.Dim.Render(l))
+		}
 	case value == "":
 		lines = append(lines, head, indent+tailOwn)
 	case headW+1+valW+tailW <= cw:
@@ -723,7 +757,7 @@ func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, la
 		}
 	}
 	if r.id == rowTheme {
-		lines = append(lines, swatches(t, cw)...)
+		lines = append(lines, swatches(t, cat, cw)...)
 	}
 	wrapErr()
 	return lines, curLine, curCol
@@ -731,7 +765,7 @@ func (s *screen) renderRow(t *theme.Theme, r row, selected, focused bool, cw, la
 
 // swatches is the theme preview: one line per theme with its letter, four palette
 // colors and its label; the current theme is marked.
-func swatches(cur *theme.Theme, cw int) []string {
+func swatches(cur *theme.Theme, cat *i18n.T, cw int) []string {
 	out := make([]string, 0, 4)
 	for _, th := range theme.All() {
 		m := "  "
@@ -742,7 +776,7 @@ func swatches(cur *theme.Theme, cw int) []string {
 		for _, c := range []color.Color{th.P.BG, th.P.Acc, th.P.Acc2, th.P.Acc3} {
 			sw.WriteString(cur.S.Base.Background(c).Render("  "))
 		}
-		l := pad(cur, valueIndent) + cur.S.Title.Render(m) + cur.S.Bold.Render(th.Letter+" ") + sw.String() + cur.S.Base.Render(" "+th.Label)
+		l := pad(cur, valueIndent) + cur.S.Title.Render(m) + cur.S.Bold.Render(th.Letter+" ") + sw.String() + cur.S.Base.Render(" "+theme.Label(cat, th.Name))
 		out = append(out, textwidth.Truncate(l, cw, ""))
 	}
 	return out

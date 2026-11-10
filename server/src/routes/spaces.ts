@@ -5,15 +5,15 @@ import { Hono } from "hono";
 import * as z from "zod";
 import { rt, type AppEnv } from "../env";
 import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
-import { all, batch, decodeCursor, encodeCursor, first, jsonList, parseLimit, stmt } from "../lib/db";
+import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from "../lib/db";
 import { err } from "../lib/errors";
+import { defaultChannelName, langOf } from "../lib/i18n";
 import { idParam } from "../lib/params";
 import { newId } from "../lib/ids";
 import { assertSpaceRole, requireSpaceRole, spaceRoleFrom, spaceRoleStmt } from "../lib/permissions";
 import { publishEvent, publishEvents } from "../lib/realtime";
 import { limit } from "../lib/ratelimit";
 import {
-  serializeChannels,
   serializeSpace,
   serializeSpaceBans,
   serializeSpaceChannels,
@@ -24,17 +24,16 @@ import {
 import { charCount, isSingleEmoji, normalizeText } from "../lib/text";
 import { now } from "../lib/time";
 import { vJson, vQuery, zChannelName, zText, zUserRef } from "../lib/validate";
+import { kickFromSpaceDocs, setDocRole } from "../services/docs";
 import { OWNED_SPACES_MAX, removeFromSpace } from "../services/membership";
-import { postSystemMessage } from "../services/messages";
+import { createTextChannel } from "../services/channels";
 import type { SpaceRole } from "../types/api";
-import type { ChannelRow, SpaceBanRow, SpaceMemberRow, SpaceRow } from "../types/rows";
+import type { SpaceBanRow, SpaceMemberRow, SpaceRow } from "../types/rows";
 
 /** api.md 0.3 / data-model.md: one emoji grapheme; the byte cap matches reactions (32 bytes). */
 const ICON_EMOJI_MAX_BYTES = 32;
 /** Ban reason: the client's form allows 0..200 code points (plan 04); the server enforces the same. */
 const BAN_REASON_MAX = 200;
-/** Default channel created with every space (api.md 3.5). */
-const DEFAULT_CHANNEL_NAME = "일반";
 
 const zIconEmoji = z
   .string()
@@ -69,8 +68,6 @@ const KickQuery = z.object({
   reason: z.string().optional(),
 });
 
-/** api.md 3.5: text channels per space (the default channel included). */
-const CHANNELS_PER_SPACE_MAX = 100;
 /** Initial members of a private channel in one request (api.md gives no cap; this bounds the per-ref lookups). */
 const CHANNEL_INITIAL_MEMBERS_MAX = 100;
 
@@ -91,10 +88,6 @@ async function loadSpace(db: D1Database, spaceId: string): Promise<SpaceRow> {
 
 async function loadMember(db: D1Database, spaceId: string, userId: string): Promise<SpaceMemberRow | null> {
   return first<SpaceMemberRow>(db, "SELECT * FROM space_members WHERE space_id = ?1 AND user_id = ?2", spaceId, userId);
-}
-
-function isUniqueViolation(e: unknown): boolean {
-  return e instanceof Error && /UNIQUE constraint failed/i.test(e.message);
 }
 
 export const spaceRoutes = new Hono<AppEnv>();
@@ -119,6 +112,8 @@ spaceRoutes.post("/spaces", requireAuth, limit("RL_SOCIAL"), vJson(CreateBody), 
   const owned = await first<{ n: number }>(db, "SELECT COUNT(*) AS n FROM spaces WHERE owner_id = ?1 AND deleted_at IS NULL", me);
   if ((owned?.n ?? 0) >= OWNED_SPACES_MAX) throw err.limit("owned_spaces", OWNED_SPACES_MAX);
 
+  // api.md 5.7: the default channel is named in the request language; afterwards the name is user data.
+  const defaultName = defaultChannelName(langOf(c.req.header("Accept-Language")));
   const t = now();
   const spaceId = newId(t);
   const channelId = newId(t);
@@ -141,7 +136,7 @@ spaceRoutes.post("/spaces", requireAuth, limit("RL_SOCIAL"), vJson(CreateBody), 
        VALUES (?1, 'text', ?2, ?3, '', 0, 0, ?4, ?5, ?5)`,
       channelId,
       spaceId,
-      DEFAULT_CHANNEL_NAME,
+      defaultName,
       me,
       t,
     ),
@@ -210,6 +205,7 @@ spaceRoutes.delete("/spaces/:space_id", requireAuth, async (c) => {
     throw new Error("space delete: 0-row UPDATE with no reason");
   }
   await publishEvent(rt(c), { users: memberIds }, "space.deleted", { space_id: spaceId });
+  rt(c).waitUntil(kickFromSpaceDocs(rt(c), spaceId, null, "space_deleted")); // collab.md 4.1: every doc socket of the space
   return c.body(null, 204);
 });
 
@@ -267,6 +263,7 @@ spaceRoutes.post("/spaces/:space_id/transfer", requireAuth, vJson(TransferBody),
     ...members.map((member) => ({ type: "space.member_updated" as const, data: { space_id: spaceId, member } })),
     { type: "space.updated" as const, data: { space: forEvent } },
   ]);
+  rt(c).waitUntil(setDocRole(rt(c), spaceId, target.id, "admin")); // the new owner edits locked docs (the old one stays admin)
   return c.json({ space: forMe });
 });
 
@@ -374,6 +371,7 @@ spaceRoutes.patch("/spaces/:space_id/members/:user", requireAuth, vJson(RoleBody
   }
   const [member] = await serializeSpaceMembers(db, [row]);
   await publishEvent(rt(c), { space: spaceId }, "space.member_updated", { space_id: spaceId, member: member! });
+  rt(c).waitUntil(setDocRole(rt(c), spaceId, target.id, role)); // collab.md 4.1: open doc sockets follow the new role
   return c.json({ member });
 });
 
@@ -453,80 +451,7 @@ spaceRoutes.post("/spaces/:space_id/channels", requireAuth, vJson(CreateChannelB
   const isPrivate = b.is_private === true;
   const refs = b.members ?? [];
   if (!isPrivate && refs.length > 0) throw err.invalid({ members: "not_allowed" });
-
-  let memberIds: string[] = [];
-  if (isPrivate) {
-    const users = await Promise.all(refs.map((ref) => resolveUserRef(db, ref, auth)));
-    memberIds = [...new Set([me, ...users.map((u) => u.id)])];
-    const inSpace = await first<{ n: number }>(
-      db,
-      "SELECT COUNT(*) AS n FROM space_members WHERE space_id = ?1 AND user_id IN (SELECT value FROM json_each(?2))",
-      spaceId,
-      jsonList(memberIds),
-    );
-    if ((inSpace?.n ?? 0) !== memberIds.length) throw err.notFound("member");
-  }
-  const facts = await first<{ n: number; taken: number }>(
-    db,
-    `SELECT COUNT(*) AS n, COALESCE(SUM(name = ?2), 0) AS taken
-       FROM channels WHERE space_id = ?1 AND kind = 'text' AND deleted_at IS NULL`,
-    spaceId,
-    b.name,
-  );
-  if ((facts?.taken ?? 0) > 0) throw err.conflict("already_exists");
-  if ((facts?.n ?? 0) >= CHANNELS_PER_SPACE_MAX) throw err.limit("channels_per_space", CHANNELS_PER_SPACE_MAX);
-
-  const t = now();
-  const channelId = newId(t);
-  const live = "FROM channels WHERE space_id = ?2 AND kind = 'text' AND deleted_at IS NULL";
-  const stmts: D1PreparedStatement[] = [
-    stmt(
-      db,
-      `INSERT INTO channels (id, kind, space_id, name, topic, is_private, position, created_by, created_at, updated_at)
-       SELECT ?1, 'text', ?2, ?3, ?4, ?5, COALESCE((SELECT MAX(position) ${live}), -1) + 1, ?6, ?7, ?7
-        WHERE (SELECT COUNT(*) ${live}) < ?8`,
-      channelId,
-      spaceId,
-      b.name,
-      b.topic ?? "",
-      isPrivate ? 1 : 0,
-      me,
-      t,
-      CHANNELS_PER_SPACE_MAX,
-    ),
-  ];
-  if (isPrivate) {
-    stmts.push(
-      stmt(
-        db,
-        `INSERT INTO channel_members (channel_id, user_id, added_by, joined_at)
-         SELECT ?1, j.value, ?2, ?3 FROM json_each(?4) j WHERE EXISTS (SELECT 1 FROM channels WHERE id = ?1)`,
-        channelId,
-        me,
-        t,
-        jsonList(memberIds),
-      ),
-      stmt(db, "UPDATE channels SET member_count = (SELECT COUNT(*) FROM channel_members WHERE channel_id = ?1) WHERE id = ?1", channelId),
-    );
-  }
-  let results: D1Result[];
-  try {
-    results = await batch(db, stmts);
-  } catch (e) {
-    if (isUniqueViolation(e)) throw err.conflict("already_exists");
-    throw e;
-  }
-  if ((results[0]!.meta.changes ?? 0) === 0) throw err.limit("channels_per_space", CHANNELS_PER_SPACE_MAX);
-
-  const loadRow = async () => {
-    const row = await first<ChannelRow>(db, "SELECT * FROM channels WHERE id = ?1", channelId);
-    if (row === null) throw err.notFound("channel");
-    return row;
-  };
-  const [forEvent] = await serializeChannels(db, null, [await loadRow()]);
-  await publishEvent(rt(c), isPrivate ? { channel: channelId } : { space: spaceId }, "channel.created", { channel: forEvent! });
-  await postSystemMessage(rt(c), channelId, me, { event: "channel_created", actor_id: me, target_user_id: null, data: { name: b.name } });
-  // re-read so the response carries the system message as last_message_*
-  const [forMe] = await serializeChannels(db, me, [await loadRow()]);
-  return c.json({ channel: forMe }, 201);
+  const users = isPrivate ? await Promise.all(refs.map((ref) => resolveUserRef(db, ref, auth))) : [];
+  const channel = await createTextChannel(rt(c), spaceId, me, { name: b.name, topic: b.topic, isPrivate, memberIds: users.map((u) => u.id) });
+  return c.json({ channel }, 201);
 });

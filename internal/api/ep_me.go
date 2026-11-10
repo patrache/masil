@@ -27,8 +27,10 @@ type UpdateSettingsRequest struct {
 	IsPrivate       Opt[bool]
 	Notify          *NotifySettingsPatch
 	FocusDefaultMin Opt[int]
+	// LeetShareWithFriends is the v0.1.3 friends-board switch (api.md 5.25).
+	LeetShareWithFriends Opt[bool]
 }
-type NotifySettingsPatch struct{ DM, Mention, Invite, FriendRequest, ThreadReply, Social Opt[bool] }
+type NotifySettingsPatch struct{ DM, Mention, Invite, FriendRequest, ThreadReply, Social, Workspace Opt[bool] }
 type SetStatusRequest struct {
 	Emoji        Opt[string]
 	Text         string
@@ -68,6 +70,7 @@ type notifyPatchBody struct {
 	FriendRequest Opt[bool] `json:"friend_request,omitzero"`
 	ThreadReply   Opt[bool] `json:"thread_reply,omitzero"`
 	Social        Opt[bool] `json:"social,omitzero"`
+	Workspace     Opt[bool] `json:"workspace,omitzero"`
 }
 
 // updateSettingsBody is the PATCH /v1/me/settings wire body.
@@ -76,14 +79,15 @@ type updateSettingsBody struct {
 	IsPrivate       Opt[bool]        `json:"is_private,omitzero"`
 	Notify          *notifyPatchBody `json:"notify,omitempty"`
 	FocusDefaultMin Opt[int]         `json:"focus_default_min,omitzero"`
+	LeetShare       Opt[bool]        `json:"leet_share_with_friends,omitzero"`
 }
 
 // UpdateSettings: PATCH /v1/me/settings
 func (c *Client) UpdateSettings(ctx context.Context, r UpdateSettingsRequest) (*Settings, error) {
-	body := updateSettingsBody{DMPolicy: r.DMPolicy, IsPrivate: r.IsPrivate, FocusDefaultMin: r.FocusDefaultMin}
+	body := updateSettingsBody{DMPolicy: r.DMPolicy, IsPrivate: r.IsPrivate, FocusDefaultMin: r.FocusDefaultMin, LeetShare: r.LeetShareWithFriends}
 	if n := r.Notify; n != nil {
 		body.Notify = &notifyPatchBody{DM: n.DM, Mention: n.Mention, Invite: n.Invite,
-			FriendRequest: n.FriendRequest, ThreadReply: n.ThreadReply, Social: n.Social}
+			FriendRequest: n.FriendRequest, ThreadReply: n.ThreadReply, Social: n.Social, Workspace: n.Workspace}
 	}
 	v, _, err := one[Settings](ctx, c, request{Method: "PATCH", Path: "/v1/me/settings", Body: body, Auth: true}, "settings")
 	return v, err

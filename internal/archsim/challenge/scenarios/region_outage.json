@@ -1,0 +1,30 @@
+{
+ "id": "region_outage", "goal_p99_ms": 600, "goal_err_permille": 20, "budget_usd_month": 9000,
+ "start": {
+  "schema_version": 1, "title": "region_outage", "seed": 2811009, "duration_s": 180,
+  "boxes": [
+   {"id": "seoul", "kind": "region", "label": "seoul", "parent": "", "rect": [0, 0, 60, 40], "region_code": "ap-northeast-2"},
+   {"id": "tokyo", "kind": "region", "label": "tokyo", "parent": "", "rect": [80, 0, 60, 40], "region_code": "ap-northeast-1"},
+   {"id": "vpc-s", "kind": "vpc", "label": "vpc-s", "parent": "seoul", "rect": [2, 2, 56, 36]},
+   {"id": "vpc-t", "kind": "vpc", "label": "vpc-t", "parent": "tokyo", "rect": [82, 2, 56, 36]}
+  ],
+  "nodes": [
+   {"id": "kr", "kind": "client", "label": "kr", "pos": [0, 50], "parent": "", "traffic": {"rps": 900, "read_permille": 800}},
+   {"id": "jp", "kind": "client", "label": "jp", "pos": [80, 50], "parent": "", "traffic": {"rps": 600, "read_permille": 800}},
+   {"id": "api-s", "kind": "api", "label": "api-s", "pos": [10, 10], "parent": "vpc-s", "instances": 4},
+   {"id": "api-t", "kind": "api", "label": "api-t", "pos": [90, 10], "parent": "vpc-t", "instances": 3},
+   {"id": "primary", "kind": "db_primary", "label": "primary", "pos": [10, 25], "parent": "vpc-s", "cpu_cores": 4},
+   {"id": "replica-t", "kind": "db_replica", "label": "replica-t", "pos": [90, 25], "parent": "vpc-t"}
+  ],
+  "edges": [
+   {"id": "e1", "from": "kr", "to": "api-s", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "jp", "to": "api-t", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api-s", "to": "primary", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e4", "from": "api-t", "to": "primary", "read_permille": 200, "write_permille": 1000},
+   {"id": "e5", "from": "api-t", "to": "replica-t", "read_permille": 800, "write_permille": 0}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 60, "kind": "region_off", "target": "seoul", "dur_s": 60}
+  ]
+ }
+}

@@ -31,6 +31,7 @@ const readyFrame = `{"type":"ready","seq":null,"ts":"2026-11-05T02:05:00Z","data
 type dialRecord struct {
 	URL  string
 	Auth string
+	Lang string // Accept-Language
 }
 
 // fakeHub stands in for the server's /v1/ws: dial hands out fakeConns that
@@ -51,7 +52,7 @@ func newFakeHub(t *testing.T) *fakeHub {
 
 // dial is deps.dial.
 func (h *fakeHub) dial(_ context.Context, url string, hdr http.Header) (realtime.Conn, error) {
-	rec := dialRecord{URL: url, Auth: hdr.Get("Authorization")}
+	rec := dialRecord{URL: url, Auth: hdr.Get("Authorization"), Lang: hdr.Get("Accept-Language")}
 	c := &fakeConn{hub: h, in: make(chan []byte, 256), closeCh: make(chan int, 1), done: make(chan struct{})}
 	c.in <- []byte(helloFrame)
 	h.mu.Lock()

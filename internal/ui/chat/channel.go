@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
@@ -26,10 +27,6 @@ const (
 	historyLimit = 50              // page size of every history request
 	readDelay    = time.Second     // the view must stay at the bottom this long before marking read
 	afterOverlap = 5 * time.Second // newer-page overlap (events.md 5.3)
-	goneTitle    = "삭제되었거나 볼 수 없는 채널이에요"
-	goneHint     = "esc 뒤로"
-	loadFailed   = "메시지를 불러오지 못했어요"
-	retryDesc    = "다시 시도"
 )
 
 // readTickMsg fires a read arming (gen = the arming it belongs to).
@@ -213,7 +210,7 @@ func failedNotice(ctx *ui.Context) string {
 			k = hk
 		}
 	}
-	return loadFailed + " · " + k + " " + retryDesc
+	return cat(ctx).Chat.LoadFailed() + " · " + k + " " + cat(ctx).Chat.HelpRetry()
 }
 
 // loadOlder requests the page before the first loaded message (one at a time).
@@ -271,7 +268,8 @@ func (v *channelView) onHistory(ctx *ui.Context, m ui.ResultMsg[historyPage]) te
 		}
 		v.pane.refresh(ctx)
 		v.pane.stopLoading()
-		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: loadFailed} }
+		errCtx := cat(ctx).Chat.LoadFailed()
+		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errCtx} }
 	}
 	if c == nil {
 		return nil
@@ -312,7 +310,7 @@ func (v *channelView) onResyncErr(ctx *ui.Context, err error) tea.Cmd {
 	v.pane.failed = failedNotice(ctx)
 	v.pane.stopLoading()
 	if ctx.Store != nil && ctx.Store.Viewing(v.id()) {
-		return errorCmd(err, loadFailed)
+		return errorCmd(err, cat(ctx).Chat.LoadFailed())
 	}
 	return nil
 }
@@ -475,6 +473,8 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, v.maybeArmRead(ctx))
 	case ui.ModeChangedMsg:
 		cmds = append(cmds, v.maybeArmRead(ctx))
+	case ui.LocaleChangedMsg: // day dividers and notices are built into the rows
+		v.pane.refresh(ctx)
 	case readTickMsg:
 		if m.ch == v.id() {
 			cmds = append(cmds, v.fireRead(ctx, m))
@@ -499,7 +499,7 @@ func (v *channelView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.ResultMsg[*api.Page[api.ChannelMember]]:
 		cmds = append(cmds, v.composer.onMembers(ctx, m))
 	case ui.ResultMsg[*api.Invite]:
-		cmds = append(cmds, v.composer.onInviteCreated(m))
+		cmds = append(cmds, v.composer.onInviteCreated(ctx, m))
 	case ui.ResultMsg[*api.DirectInvite]:
 		cmds = append(cmds, v.composer.onDirectInvite(ctx, m))
 	case ui.ResultMsg[*api.UnreadState]:
@@ -547,7 +547,7 @@ func (v *channelView) View(ctx *ui.Context, focused bool) string {
 		return ""
 	}
 	if v.gone(ctx) {
-		return widgets.Empty(themeOf(ctx), v.size, "", goneTitle, goneHint)
+		return widgets.Empty(themeOf(ctx), v.size, "", cat(ctx).Chat.GoneTitle(), cat(ctx).Chat.GoneHint())
 	}
 	v.syncComposer(ctx)
 	t := themeOf(ctx)
@@ -593,19 +593,19 @@ func (v *channelView) View(ctx *ui.Context, focused bool) string {
 // readOnlyText is the line drawn instead of the composer in a read-only
 // conversation (ok=false: the conversation takes input).
 func (v *channelView) readOnlyText(ctx *ui.Context) (string, bool) {
-	return readOnlyLine(v.channel(ctx))
+	return readOnlyLine(cat(ctx), v.channel(ctx))
 }
 
 // readOnlyLine is the line a read-only conversation (and its threads) draws
 // instead of the composer (ok=false: ch takes input, or is unknown).
-func readOnlyLine(ch *api.Channel) (string, bool) {
+func readOnlyLine(c *i18n.T, ch *api.Channel) (string, bool) {
 	if ch == nil || !ch.ReadOnly {
 		return "", false
 	}
 	if ch.ReadOnlyReason != nil && *ch.ReadOnlyReason == "blocked" {
-		return readOnlyBlocked, true
+		return c.Chat.ReadOnlyBlocked(), true
 	}
-	return readOnlyText, true
+	return c.Chat.ReadOnly(), true
 }
 
 // inputBlocked: the conversation takes no input (gone or read-only).
@@ -637,9 +637,9 @@ func (v *channelView) placeholder(ctx *ui.Context) string {
 		return placeholderShort + " " + title
 	}
 	if ch.Kind == api.ChannelDM {
-		return placeholderShort + " " + title + "에게 메시지 보내기"
+		return placeholderShort + " " + cat(ctx).Chat.PlaceholderDm(title)
 	}
-	return placeholderShort + " " + title + "에 메시지 보내기"
+	return placeholderShort + " " + cat(ctx).Chat.PlaceholderChannel(title)
 }
 
 func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
@@ -657,6 +657,9 @@ func (v *channelView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea
 	}
 	if v.pane.escDrag(ctx, msg) {
 		return true, nil
+	}
+	if handled, cmd := v.pane.cardKey(ctx, msg); handled {
+		return true, cmd
 	}
 	if ctx.Keys.Matches(msg, keymap.ComposeFocus) {
 		if v.inputBlocked(ctx) {
@@ -776,7 +779,7 @@ func (v *channelView) ViewingChannels() []string { return []string{v.id()} }
 func (v *channelView) Title(ctx *ui.Context) (string, ui.Badge) {
 	ch := v.channel(ctx)
 	if ch == nil {
-		return "채널", ui.Badge{}
+		return cat(ctx).Chat.ChannelTitle(), ui.Badge{}
 	}
 	return channelTitle(ctx, ch, ctx.Density() == ui.DensityFull), sideBadge(ch)
 }

@@ -1,0 +1,23 @@
+{
+  "id": "01JK0000000000000000000002",
+  "doc_id": "01JD0000000000000000000001",
+  "anchor": "node:n1",
+  "author": {
+  "id": "01JA0000000000000000000001",
+  "handle": "minji",
+  "display_name": "민지",
+  "avatar_url": "/v1/media/01JU0000000000000000000001",
+  "status": {
+    "emoji": "🎧",
+    "text": "듣는 중…",
+    "expires_at": "2026-11-05T03:00:00.000Z"
+  },
+  "is_private": false,
+  "suspended": false
+},
+  "body": "@hana 여기 봐 주세요",
+  "root_id": "01JK0000000000000000000001",
+  "resolved_at": "2026-11-05T02:06:00.000Z",
+  "created_at": "2026-11-05T02:05:30.000Z",
+  "deleted": false
+}

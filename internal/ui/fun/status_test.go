@@ -13,6 +13,8 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
@@ -187,7 +189,7 @@ func TestStatusSetError(t *testing.T) {
 	if myStatus(h) != nil {
 		t.Fatal("Me.Status set after a failed PUT")
 	}
-	want := api.Describe(&api.Error{Code: "invalid_request"})
+	want := errtext.Describe(i18n.KoT(), &api.Error{Code: "invalid_request"})
 	if !strings.Contains(toastText(h), squash(want)) {
 		t.Fatalf("no %q toast:\n%s", want, h.Screen())
 	}

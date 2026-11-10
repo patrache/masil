@@ -1,0 +1,23 @@
+{
+ "id": "search_revamp", "goal_p99_ms": 400, "goal_err_permille": 10, "budget_usd_month": 1800,
+ "start": {
+  "schema_version": 1, "title": "search_revamp", "seed": 2811011, "duration_s": 150,
+  "boxes": [],
+  "nodes": [
+   {"id": "visitors", "kind": "client", "label": "visitors", "pos": [0, 0], "parent": "", "traffic": {"rps": 600, "read_permille": 900, "curve": "ramp"}},
+   {"id": "lb", "kind": "lb", "label": "lb", "pos": [20, 0], "parent": ""},
+   {"id": "api", "kind": "api", "label": "search-api", "pos": [40, 0], "parent": "", "instances": 3},
+   {"id": "search", "kind": "search", "label": "index", "pos": [60, 0], "parent": "", "instances": 3},
+   {"id": "db", "kind": "db_primary", "label": "db", "pos": [60, 6], "parent": ""}
+  ],
+  "edges": [
+   {"id": "e1", "from": "visitors", "to": "lb", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e2", "from": "lb", "to": "api", "read_permille": 1000, "write_permille": 1000},
+   {"id": "e3", "from": "api", "to": "search", "read_permille": 1000, "write_permille": 0},
+   {"id": "e4", "from": "api", "to": "db", "read_permille": 0, "write_permille": 1000}
+  ],
+  "faults": [
+   {"id": "f1", "at_s": 100, "kind": "latency", "target": "search", "add_ms": 120, "dur_s": 30}
+  ]
+ }
+}

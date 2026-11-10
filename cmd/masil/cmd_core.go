@@ -15,6 +15,8 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/app"
@@ -24,17 +26,15 @@ import (
 // runTUI starts the full-screen app; tests replace it.
 var runTUI = app.Run
 
-// Core command usage lines (Korean, one line each; shown by `masil help`).
-const (
-	usageTUI     = "masil [tui] — 터미널 마실을 열어요"
-	usageLogin   = "masil login [--handle <아이디> --password-stdin] — 로그인해요"
-	usageSignup  = "masil signup — 가입해요"
-	usageLogout  = "masil logout — 이 기기에서 로그아웃해요"
-	usageJoin    = "masil join <초대 코드> — 초대받은 방에 들어가요"
-	usageVersion = "masil version — 버전을 보여 줘요"
-	usageConfig  = "masil config path — 설정 폴더 위치를 보여 줘요"
-	usageHelp    = "masil help — 도움말"
-)
+// Core command usage lines (one line each in t's language; shown by `masil help`).
+func usageTUI(t *i18n.T) string     { return t.Cli.UsageTui() }
+func usageLogin(t *i18n.T) string   { return t.Cli.UsageLogin() }
+func usageSignup(t *i18n.T) string  { return t.Cli.UsageSignup() }
+func usageLogout(t *i18n.T) string  { return t.Cli.UsageLogout() }
+func usageJoin(t *i18n.T) string    { return t.Cli.UsageJoin() }
+func usageVersion(t *i18n.T) string { return t.Cli.UsageVersion() }
+func usageConfig(t *i18n.T) string  { return t.Cli.UsageConfig() }
+func usageHelp(t *i18n.T) string    { return t.Cli.UsageHelp() }
 
 // coreOrder is the fixed `masil help` order of the core commands; commands of
 // other plans follow, sorted by name.
@@ -70,10 +70,10 @@ func parseArgs(env *Env, name, usage string, args []string, setup func(fs *flag.
 	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintf(env.Stdout, "사용법: %s\n", usage)
+			fmt.Fprintln(env.Stdout, env.cat().Cli.UsageLine(usage))
 			return nil, true, nil
 		}
-		return nil, true, usageError(env, usage, "인자가 잘못됐어요: "+err.Error(), err)
+		return nil, true, usageError(env, usage, env.cat().Cli.BadArgs(err.Error()), err)
 	}
 	return fs.Args(), false, nil
 }
@@ -94,7 +94,7 @@ func usageError(env *Env, usage, reason string, cause error) error {
 	if reason != "" {
 		fmt.Fprintln(env.Stderr, textwidth.Sanitize(reason))
 	}
-	fmt.Fprintf(env.Stderr, "사용법: %s\n", usage)
+	fmt.Fprintln(env.Stderr, env.cat().Cli.UsageLine(usage))
 	return usageErr(cause)
 }
 
@@ -105,7 +105,7 @@ func noArgs(env *Env, name, usage string, args []string) (done bool, err error) 
 		return true, err
 	}
 	if len(pos) > 0 {
-		return true, usageError(env, usage, "필요 없는 인자가 있어요: "+strings.Join(pos, " "), nil)
+		return true, usageError(env, usage, env.cat().Cli.ExtraArgs(strings.Join(pos, " ")), nil)
 	}
 	return false, nil
 }
@@ -128,29 +128,50 @@ func tuiOptions(env *Env) app.Options {
 	return o
 }
 
+// resolveLocale decides the UI language (i18n spec 6.2): MASIL_LANG, [ui]
+// language, the OS; closed languages fall back (0.1.3 shows ko).
+func resolveLocale(env *Env) i18n.Resolution {
+	in := i18n.DetectOS()
+	in.Config = env.Config.UI.Language
+	return i18n.Resolve(in)
+}
+
+// newClient is the api client for a user command: every request carries the
+// effective UI language as Accept-Language (api.md 0.1).
+func newClient(env *Env, server string, opts ...api.Option) *api.Client {
+	c := api.New(server, opts...)
+	c.SetLanguage(string(resolveLocale(env).Effective))
+	return c
+}
+
 // startTUI runs the app and explains a failure on stderr.
 func startTUI(ctx context.Context, env *Env, o app.Options) error {
+	if o.Locale == nil {
+		res := resolveLocale(env)
+		o.Locale = &res
+	}
 	if err := runTUI(ctx, o); err != nil {
-		fmt.Fprintf(env.Stderr, "masil을 실행하지 못했어요: %s\n", errText(err))
+		fmt.Fprintln(env.Stderr, env.cat().Cli.TuiFailed(errText(err)))
 		return err
 	}
 	return nil
 }
 
 func cmdTUI(ctx context.Context, env *Env, args []string) error {
-	if done, err := noArgs(env, "tui", usageTUI, args); done {
+	if done, err := noArgs(env, "tui", usageTUI(env.cat()), args); done {
 		return err
 	}
 	return startTUI(ctx, env, tuiOptions(env))
 }
 
 func cmdJoin(ctx context.Context, env *Env, args []string) error {
-	pos, done, err := parseArgs(env, "join", usageJoin, args, nil)
+	t := env.cat()
+	pos, done, err := parseArgs(env, "join", usageJoin(t), args, nil)
 	if done {
 		return err
 	}
 	if len(pos) != 1 || strings.TrimSpace(pos[0]) == "" {
-		return usageError(env, usageJoin, "초대 코드 하나를 적어 주세요", nil)
+		return usageError(env, usageJoin(t), t.Cli.JoinNeedCode(), nil)
 	}
 	o := tuiOptions(env)
 	o.InitialRoute = &ui.Route{Kind: ui.RouteInvite, ID: strings.TrimSpace(pos[0])}
@@ -160,9 +181,11 @@ func cmdJoin(ctx context.Context, env *Env, args []string) error {
 // cmdLogin: with --handle and --password-stdin it logs in without the TUI;
 // with no flags it opens the TUI on the login form.
 func cmdLogin(ctx context.Context, env *Env, args []string) error {
+	t := env.cat()
+	usage := usageLogin(t)
 	var handle string
 	var fromStdin bool
-	pos, done, err := parseArgs(env, "login", usageLogin, args, func(fs *flag.FlagSet) {
+	pos, done, err := parseArgs(env, "login", usage, args, func(fs *flag.FlagSet) {
 		fs.StringVar(&handle, "handle", "", "handle")
 		fs.BoolVar(&fromStdin, "password-stdin", false, "read the password from stdin")
 	})
@@ -170,7 +193,7 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 		return err
 	}
 	if len(pos) > 0 {
-		return usageError(env, usageLogin, "필요 없는 인자가 있어요: "+strings.Join(pos, " "), nil)
+		return usageError(env, usage, t.Cli.ExtraArgs(strings.Join(pos, " ")), nil)
 	}
 	handleSet := handle != ""
 	if !handleSet && !fromStdin {
@@ -178,28 +201,28 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 		return startTUI(ctx, env, o)
 	}
 	if !handleSet || !fromStdin {
-		return usageError(env, usageLogin, "--handle 과 --password-stdin 은 함께 써요", nil)
+		return usageError(env, usage, t.Cli.LoginFlagsTogether(), nil)
 	}
 	handle = normalizeHandle(handle)
 	if handle == "" {
-		return usageError(env, usageLogin, "아이디를 적어 주세요", nil)
+		return usageError(env, usage, t.Cli.LoginNeedHandle(), nil)
 	}
 	password, err := readPassword(ctx, env.Stdin)
 	if err != nil {
-		fmt.Fprintln(env.Stderr, "비밀번호를 읽지 못했어요")
+		fmt.Fprintln(env.Stderr, t.Cli.LoginPasswordReadFailed())
 		return err
 	}
 	if password == "" {
-		return usageError(env, usageLogin, "stdin 으로 비밀번호를 넣어 주세요", nil)
+		return usageError(env, usage, t.Cli.LoginNeedPassword(), nil)
 	}
 
 	server := env.Config.ServerURL()
-	client := api.New(server)
+	client := newClient(env, server)
 	c, cancel := context.WithTimeout(ctx, loginTimeout)
 	defer cancel()
 	res, err := client.Login(c, api.LoginRequest{Handle: handle, Password: password, Client: clientName, DeviceName: deviceName()})
 	if err != nil {
-		fmt.Fprintln(env.Stderr, textwidth.Sanitize(api.Describe(err)))
+		fmt.Fprintln(env.Stderr, errtext.Describe(t, err))
 		return err
 	}
 	cr := &auth.Credentials{
@@ -207,20 +230,20 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 		UserID: res.User.ID, Handle: res.User.Handle, SavedAt: time.Now(),
 	}
 	if err := auth.Save(env.Paths, cr); err != nil {
-		fmt.Fprintln(env.Stderr, "로그인 정보를 저장하지 못했어요")
+		fmt.Fprintln(env.Stderr, t.Cli.LoginSaveFailed())
 		// Do not leave an unusable session behind on the server.
 		lc, lcancel := context.WithTimeout(ctx, logoutTimeout)
 		defer lcancel()
-		_ = api.New(cr.Server, api.WithToken(cr.Token)).Logout(lc)
+		_ = newClient(env, cr.Server, api.WithToken(cr.Token)).Logout(lc)
 		return err
 	}
 	slog.Info("logged in", "handle", cr.Handle, "token", cr.Redacted())
-	fmt.Fprintf(env.Stdout, "로그인했어요: @%s\n", textwidth.Sanitize(cr.Handle))
+	fmt.Fprintln(env.Stdout, t.Cli.LoggedIn(textwidth.Sanitize(cr.Handle)))
 	return nil
 }
 
 func cmdSignup(ctx context.Context, env *Env, args []string) error {
-	if done, err := noArgs(env, "signup", usageSignup, args); done {
+	if done, err := noArgs(env, "signup", usageSignup(env.cat()), args); done {
 		return err
 	}
 	o := app.Options{Paths: env.Paths, Config: env.Config, InitialRoute: &ui.Route{Kind: ui.RouteLogin, Arg: "signup"}}
@@ -230,7 +253,8 @@ func cmdSignup(ctx context.Context, env *Env, args []string) error {
 // cmdLogout revokes the session on the server that issued it (best effort) and
 // always removes the local credentials.
 func cmdLogout(ctx context.Context, env *Env, args []string) error {
-	if done, err := noArgs(env, "logout", usageLogout, args); done {
+	t := env.cat()
+	if done, err := noArgs(env, "logout", usageLogout(t), args); done {
 		return err
 	}
 	cr, err := auth.Load(env.Paths)
@@ -238,32 +262,32 @@ func cmdLogout(ctx context.Context, env *Env, args []string) error {
 		if errors.Is(err, auth.ErrNoCredentials) {
 			if errors.Unwrap(err) != nil { // a corrupt file: remove it all the same
 				if cerr := auth.Clear(env.Paths); cerr != nil {
-					fmt.Fprintln(env.Stderr, "로그인 정보를 지우지 못했어요")
+					fmt.Fprintln(env.Stderr, t.Cli.CredsClearFailed())
 					return cerr
 				}
 			}
-			fmt.Fprintln(env.Stdout, "로그인돼 있지 않아요")
+			fmt.Fprintln(env.Stdout, t.Cli.NotLoggedIn())
 			return nil
 		}
-		fmt.Fprintln(env.Stderr, "로그인 정보를 읽지 못했어요")
+		fmt.Fprintln(env.Stderr, t.Cli.CredsReadFailed())
 		return err
 	}
 	c, cancel := context.WithTimeout(ctx, logoutTimeout)
 	defer cancel()
-	if err := api.New(cr.Server, api.WithToken(cr.Token)).Logout(c); err != nil && api.CodeOf(err) != "unauthorized" {
+	if err := newClient(env, cr.Server, api.WithToken(cr.Token)).Logout(c); err != nil && api.CodeOf(err) != "unauthorized" {
 		slog.Warn("server logout failed", "err", err)
-		fmt.Fprintf(env.Stderr, "서버에 로그아웃을 알리지 못했어요 (%s). 이 기기의 로그인 정보는 지울게요\n", textwidth.Sanitize(api.Describe(err)))
+		fmt.Fprintln(env.Stderr, t.Cli.LogoutServerFailed(errtext.Describe(t, err)))
 	}
 	if err := auth.Clear(env.Paths); err != nil {
-		fmt.Fprintln(env.Stderr, "로그인 정보를 지우지 못했어요")
+		fmt.Fprintln(env.Stderr, t.Cli.CredsClearFailed())
 		return err
 	}
-	fmt.Fprintln(env.Stdout, "로그아웃했어요")
+	fmt.Fprintln(env.Stdout, t.Cli.LoggedOut())
 	return nil
 }
 
 func cmdVersion(_ context.Context, env *Env, args []string) error {
-	if done, err := noArgs(env, "version", usageVersion, args); done {
+	if done, err := noArgs(env, "version", usageVersion(env.cat()), args); done {
 		return err
 	}
 	fmt.Fprintf(env.Stdout, "masil %s (%s, %s)\n", version.Version, version.Commit, version.Date)
@@ -271,24 +295,29 @@ func cmdVersion(_ context.Context, env *Env, args []string) error {
 }
 
 func cmdConfig(_ context.Context, env *Env, args []string) error {
-	pos, done, err := parseArgs(env, "config", usageConfig, args, nil)
+	usage := usageConfig(env.cat())
+	pos, done, err := parseArgs(env, "config", usage, args, nil)
 	if done {
 		return err
 	}
 	if len(pos) != 1 || pos[0] != "path" {
-		return usageError(env, usageConfig, "", nil)
+		return usageError(env, usage, "", nil)
 	}
 	fmt.Fprintln(env.Stdout, env.Paths.Dir)
 	return nil
 }
 
 func cmdHelp(_ context.Context, env *Env, _ []string) error {
-	fmt.Fprint(env.Stdout, helpText())
+	fmt.Fprint(env.Stdout, helpText(env.cat()))
 	return nil
 }
 
-// helpText lists every visible command: core ones in coreOrder, then the rest by name.
-func helpText() string {
+// helpText lists every visible command in t's language (nil = ko): core ones
+// in coreOrder, then the rest by name.
+func helpText(t *i18n.T) string {
+	if t == nil {
+		t = i18n.KoT()
+	}
 	rank := make(map[string]int, len(coreOrder))
 	for i, n := range coreOrder {
 		rank[n] = i
@@ -312,11 +341,11 @@ func helpText() string {
 		}
 	})
 	var b strings.Builder
-	b.WriteString("masil — 터미널에서 마실 가요\n\n명령:\n")
+	b.WriteString(t.Cli.HelpHeader() + "\n\n" + t.Cli.HelpCommands() + "\n")
 	for _, c := range cs {
-		u := c.Usage
-		if u == "" {
-			u = "masil " + c.Name
+		u := "masil " + c.Name
+		if c.Usage != nil {
+			u = c.Usage(t)
 		}
 		b.WriteString("  " + u + "\n")
 	}

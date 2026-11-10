@@ -9,6 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -220,7 +222,7 @@ func (d *reportDialog) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, te
 // submit sends the report (tag core.report:<targetID>).
 func (d *reportDialog) submit(ctx *ui.Context) tea.Cmd {
 	if ctx == nil || ctx.API == nil {
-		d.errMsg = api.Describe(&api.Error{Code: "network"})
+		d.errMsg = errtext.Describe(tOf(ctx), &api.Error{Code: "network"})
 		return nil
 	}
 	d.busy, d.errMsg = true, ""
@@ -235,7 +237,7 @@ func (d *reportDialog) submit(ctx *ui.Context) tea.Cmd {
 	})
 }
 
-func (d *reportDialog) Update(_ *ui.Context, msg tea.Msg) tea.Cmd {
+func (d *reportDialog) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case tea.PasteMsg:
 		if d.onNote && !d.busy {
@@ -253,7 +255,7 @@ func (d *reportDialog) Update(_ *ui.Context, msg tea.Msg) tea.Cmd {
 		case api.IsCode(m.Err, "already_exists"):
 			return tea.Batch(closeOverlay, ui.Toast(reportAlreadyText, ui.ToastInfo))
 		default:
-			d.errMsg = api.Describe(m.Err)
+			d.errMsg = errtext.Describe(ctx.T, m.Err)
 		}
 	}
 	return nil
@@ -322,4 +324,12 @@ func (d *reportDialog) Cursor() *tea.Cursor {
 		return nil
 	}
 	return tea.NewCursor(x, y)
+}
+
+// tOf is ctx.T (nil when ctx is nil — errtext then says it in ko).
+func tOf(ctx *ui.Context) *i18n.T {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.T
 }

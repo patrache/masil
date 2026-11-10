@@ -26,6 +26,8 @@ const (
 	RouteSettings      RouteKind = "settings"       // core
 	RouteLogin         RouteKind = "login"          // core
 	RouteHelp          RouteKind = "help"           // core
+	RouteTools         RouteKind = "tools"          // core ui/tools: the tool hub (tool surface only)
+	RouteTool          RouteKind = "tool"           // core ui/tools: a tool instance, ID=instance id, Arg=tool id (tool surface only)
 )
 
 // RouteFriends anchors: the tab the friends screen opens on (a home row, a

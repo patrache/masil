@@ -86,6 +86,13 @@
         "message_id": "01JC0000000000000000000001"
       }
     },
+    "card": {
+      "type": "arch.design",
+      "v": 1,
+      "data": {
+        "nodes": 14
+      }
+    },
     "client_nonce": "01JC9X0000000000000000000A",
     "created_at": "2026-11-05T02:03:04.567Z",
     "edited_at": "2026-11-05T03:00:00.000Z",

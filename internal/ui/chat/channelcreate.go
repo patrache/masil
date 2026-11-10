@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
@@ -18,8 +19,10 @@ import (
 func init() {
 	ui.RegisterOverlay(overlayChannelCreate, newChannelCreate)
 	palette.Register(palette.Command{
-		ID: "channel.create", Title: "채널 만들기", Keywords: []string{"channel", "create", "new", "private", "채널", "새 채널", "비공개", "만들기"}, Group: "명령",
-		Available: canCreateChannel,
+		ID: "channel.create", Label: func(t *i18n.T) string { return t.Chat.CmdChannelCreate() }, Group: palette.GroupCommand,
+		Keywords:   []string{"channel", "create", "new", "private"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwChannelCreate()) },
+		Available:  canCreateChannel,
 		Run: func(ctx *ui.Context, args string) tea.Cmd {
 			return ui.OpenRegisteredOverlay(overlayChannelCreate, spaceArg(ctx, args))
 		},
@@ -29,31 +32,23 @@ func init() {
 // overlayChannelCreate is the channel creation dialog (args = the space id; "" = the current space).
 const overlayChannelCreate = "chat.channel_create"
 
-// Channel creation texts.
+// Channel creation ids and limits (the texts are chat.toml keys).
 const (
-	channelCreateTitle  = "채널 만들기"
-	channelCreateSubmit = "만들기"
-	channelNameHolder   = "예: 배포알림"
-	channelNameRule     = "영문 소문자·숫자·한글·_- 1~32자"
-	topicOptLabel       = "주제 (선택)"
-	privacyLabel        = "공개 범위"
-	privateToggleText   = "비공개 (고른 멤버만)"
-	privateMembersTitle = "비공개 채널 멤버"
-	privateMembersNone  = "함께할 멤버가 없어요 · enter 로 나만 있는 채널 만들기"
-	channelCreatedSfx   = " 채널을 만들었어요"
-	channelRowNew       = "＋ 새 채널"
-	channelRowNewID     = "new"
-	tagChannelCreate    = "chat.channel_create:"
-	tagPrivateMembers   = "chat.channel_create_members:"
-	privateMembersMax   = 50
+	channelRowNewID   = "new"
+	tagChannelCreate  = "chat.channel_create:"
+	tagPrivateMembers = "chat.channel_create_members:"
+	privateMembersMax = 50
 )
 
-// validNewChannelName is the channel name rule (api.md 0.3) on the trimmed name.
-func validNewChannelName(s string) string {
-	if !channelNameRe.MatchString(strings.TrimSpace(s)) {
-		return channelNameRule
+// validNewChannelName is the channel name rule (api.md 0.3) on the trimmed name,
+// as a form Validate speaking c's language.
+func validNewChannelName(c *i18n.T) func(string) string {
+	return func(s string) string {
+		if !channelNameRe.MatchString(strings.TrimSpace(s)) {
+			return c.Chat.ChannelNameRule()
+		}
+		return ""
 	}
-	return ""
 }
 
 // createChannelCmd is POST /v1/spaces/{space}/channels (tag chat.channel_create:<space>).
@@ -73,7 +68,7 @@ func channelCreated(ctx *ui.Context, result tea.Msg) (tea.Cmd, ui.Overlay) {
 	ch := *m.Value
 	ctx.Store.ObserveChannel(ch)
 	title := channelTitle(ctx, &ch, false)
-	return tea.Batch(ui.Navigate(ui.Route{Kind: ui.RouteChannel, ID: ch.ID}), ui.Toast(title+channelCreatedSfx, ui.ToastSuccess)), nil
+	return tea.Batch(ui.Navigate(ui.Route{Kind: ui.RouteChannel, ID: ch.ID}), ui.Toast(cat(ctx).Chat.ChannelCreated(title), ui.ToastSuccess)), nil
 }
 
 // newChannelCreate is the chat.channel_create factory (args = the space): 이름
@@ -87,12 +82,13 @@ func newChannelCreate(ctx *ui.Context, args string) ui.Overlay {
 		return nil
 	}
 	var pending api.CreateChannelRequest
+	c := cat(ctx)
 	return newForm(formSpec{
-		Title: channelCreateTitle, Submit: channelCreateSubmit,
+		Title: c.Chat.CmdChannelCreate(), Submit: c.Chat.CreateSubmit(),
 		Fields: []field{
-			{Key: "name", Label: nameLabel, Placeholder: channelNameHolder, Max: channelNameMax, Validate: validNewChannelName},
-			{Key: "topic", Label: topicOptLabel, Placeholder: topicHolder, Max: topicMax, Validate: validTopic},
-			{Key: "private", Label: privacyLabel, Kind: fieldToggle, Text: privateToggleText},
+			{Key: "name", Label: c.Chat.NameLabel(), Placeholder: c.Chat.ChannelNameHolder(), Max: channelNameMax, Validate: validNewChannelName(c)},
+			{Key: "topic", Label: c.Chat.TopicOptLabel(), Placeholder: c.Chat.TopicHolder(), Max: topicMax, Validate: validTopic(c)},
+			{Key: "private", Label: c.Chat.PrivacyLabel(), Kind: fieldToggle, Text: c.Chat.PrivateToggle()},
 		},
 		OnSubmit: func(ctx *ui.Context, vals map[string]string) (string, tea.Cmd) {
 			pending = api.CreateChannelRequest{Name: strings.TrimSpace(vals["name"]), Topic: strings.TrimSpace(vals["topic"]), IsPrivate: vals["private"] == "true"}
@@ -103,7 +99,7 @@ func newChannelCreate(ctx *ui.Context, args string) ui.Overlay {
 		},
 		OnDone: func(ctx *ui.Context, result tea.Msg) (tea.Cmd, ui.Overlay) {
 			if result == nil && pending.IsPrivate {
-				return nil, privateMembersLoader(id, pending)
+				return nil, privateMembersLoader(c, id, pending)
 			}
 			return channelCreated(ctx, result)
 		},
@@ -112,8 +108,8 @@ func newChannelCreate(ctx *ui.Context, args string) ui.Overlay {
 
 // privateMembersLoader fetches the space's members, then picks the private
 // channel's first members among them (up to 50, none allowed) and creates it.
-func privateMembersLoader(spaceID string, req api.CreateChannelRequest) ui.Overlay {
-	return newLoader(privateMembersTitle, tagPrivateMembers+spaceID, func(c context.Context, cl *api.Client) ([]api.UserSummary, error) {
+func privateMembersLoader(c *i18n.T, spaceID string, req api.CreateChannelRequest) ui.Overlay {
+	return newLoader(c.Chat.PrivateMembersTitle(), tagPrivateMembers+spaceID, func(c context.Context, cl *api.Client) ([]api.UserSummary, error) {
 		ms, err := allPages(func(cursor string) (*api.Page[api.SpaceMember], error) {
 			return cl.ListSpaceMembers(c, spaceID, api.SpaceMembersQuery{PageOpts: api.PageOpts{Cursor: cursor, Limit: memberPageSize}})
 		})
@@ -124,7 +120,7 @@ func privateMembersLoader(spaceID string, req api.CreateChannelRequest) ui.Overl
 		return users, err
 	}, func(_ *ui.Context, users []api.UserSummary) ui.Overlay {
 		return newUserPicker(pickerSpec{
-			Title: privateMembersTitle, Submit: channelCreateSubmit, Max: privateMembersMax, AllowEmpty: true, Empty: privateMembersNone,
+			Title: c.Chat.PrivateMembersTitle(), Submit: c.Chat.CreateSubmit(), Max: privateMembersMax, AllowEmpty: true, Empty: c.Chat.PrivateMembersNone(),
 			Candidates: func(*ui.Context) []api.UserSummary { return users },
 			Exclude:    blockedUser,
 			OnPick: func(ctx *ui.Context, picked []api.UserSummary, _ string) (string, tea.Cmd) {
@@ -163,7 +159,7 @@ func newSpaceChannels(v *spaceSettingsView) *channelTab {
 }
 
 func (b *channelTab) sync(ctx *ui.Context) {
-	rows := []channelItem{{id: channelRowNewID, label: channelRowNew}}
+	rows := []channelItem{{id: channelRowNewID, label: cat(ctx).Chat.ChannelRowNew()}}
 	if ctx != nil && ctx.Store != nil {
 		for _, ch := range ctx.Store.SpaceChannels(b.v.spaceID) {
 			rows = append(rows, channelItem{id: ch.ID, label: channelTitle(ctx, ch, true)})

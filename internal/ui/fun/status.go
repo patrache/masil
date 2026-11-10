@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -31,24 +32,12 @@ const (
 	tagStatusClear = "fun.status_clear:"
 )
 
-// Status copy and limits.
+// Status limits (copy: the fun catalog area).
 const (
-	textStatusTitle     = "상태 메시지"
-	textStatusNow       = "지금"
-	textStatusNone      = "설정된 상태가 없어요"
-	textStatusCustom    = "직접 입력…"
-	textStatusChip      = "이모지"
-	textStatusExpiry    = "유지"
-	textStatusKeys      = "enter 저장 · tab 유지 시간 · ctrl+x 지우기"
-	textStatusSending   = "보내는 중…"
-	textStatusTooLong   = "상태 메시지는 64자까지예요"
-	textStatusEmpty     = "상태 메시지를 입력해 주세요"
-	textStatusChanged   = "상태를 바꿨어요"
-	textStatusCleared   = "상태 메시지를 지웠어요"
 	statusTextLimit     = 64 // api.md 0.3: status.text 0..64 code points (+ one emoji)
 	statusDialogW       = 52
 	statusMinExpirySec  = 60     // api.md PUT /v1/me/status: expires_in_sec 60..
-	statusWeekSec       = 604800 // "1주"
+	statusWeekSec       = 604800 // one week
 	statusPresetCount   = 5
 	statusFocusChip     = statusPresetCount     // the custom row's emoji chip
 	statusFocusInput    = statusPresetCount + 1 // the custom row's text field
@@ -59,26 +48,30 @@ const (
 // errStatusTooLong is parseStatusArgs' over-limit error.
 var errStatusTooLong = errors.New("status text over 64 characters")
 
-// statusPresets are the dialog's ready-made statuses (CA 6.2, plan 05 Task 16).
-var statusPresets = [statusPresetCount]struct{ emoji, text string }{
-	{"🎧", "듣는 중"},
-	{"🔨", "배포 중"},
-	{"🍚", "점심 먹는 중"},
-	{"🤒", "아파요"},
-	{"🏖", "휴가 중"},
+// statusPresets are the dialog's ready-made statuses (CA 6.2, plan 05 Task 16);
+// text is in the screen's language (it is also the text saved).
+var statusPresets = [statusPresetCount]struct {
+	emoji string
+	text  func(t *i18n.T) string
+}{
+	{"🎧", func(t *i18n.T) string { return t.Fun.PresetListening() }},
+	{"🔨", func(t *i18n.T) string { return t.Fun.PresetDeploying() }},
+	{"🍚", func(t *i18n.T) string { return t.Fun.PresetLunch() }},
+	{"🤒", func(t *i18n.T) string { return t.Fun.PresetSick() }},
+	{"🏖", func(t *i18n.T) string { return t.Fun.PresetVacation() }},
 }
 
 // statusExpiries are the expiry choices; sec(now, loc) = expires_in_sec, ok=false = no expiry.
 var statusExpiries = []struct {
-	label string
+	label func(t *i18n.T) string
 	sec   func(now time.Time, loc *time.Location) (int, bool)
 }{
-	{"없음", func(time.Time, *time.Location) (int, bool) { return 0, false }},
-	{"30분", fixedSec(1800)},
-	{"1시간", fixedSec(3600)},
-	{"4시간", fixedSec(14400)},
-	{"오늘", untilEndOfDay},
-	{"1주", fixedSec(statusWeekSec)},
+	{func(t *i18n.T) string { return t.Fun.ExpiryNone() }, func(time.Time, *time.Location) (int, bool) { return 0, false }},
+	{func(t *i18n.T) string { return t.Fun.Expiry30m() }, fixedSec(1800)},
+	{func(t *i18n.T) string { return t.Fun.Expiry1h() }, fixedSec(3600)},
+	{func(t *i18n.T) string { return t.Fun.Expiry4h() }, fixedSec(14400)},
+	{func(t *i18n.T) string { return t.Fun.ExpiryToday() }, untilEndOfDay},
+	{func(t *i18n.T) string { return t.Fun.Expiry1w() }, fixedSec(statusWeekSec)},
 }
 
 func fixedSec(n int) func(time.Time, *time.Location) (int, bool) {
@@ -97,16 +90,18 @@ func untilEndOfDay(now time.Time, loc *time.Location) (int, bool) {
 
 func init() {
 	palette.Register(palette.Command{
-		ID: "status.set", Title: "상태 메시지 설정", Group: "명령",
-		Keywords: []string{"status", "상태", "듣는 중", "배포 중"},
-		Run:      runStatusSet,
+		ID: "status.set", Label: func(t *i18n.T) string { return t.Fun.CmdStatusSet() }, Group: palette.GroupCommand,
+		Keywords:   []string{"status"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Fun.KwStatusSet()) },
+		Run:        runStatusSet,
 	})
 	palette.Register(palette.Command{
-		ID: "status.clear", Title: "상태 메시지 지우기", Group: "명령",
-		Keywords:  []string{"status", "clear", "상태"},
-		Available: func(ctx *ui.Context) bool { return ctx.Me() != nil && ctx.Me().Status != nil },
+		ID: "status.clear", Label: func(t *i18n.T) string { return t.Fun.CmdStatusClear() }, Group: palette.GroupCommand,
+		Keywords:   []string{"status", "clear"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Fun.KwStatusClear()) },
+		Available:  func(ctx *ui.Context) bool { return ctx.Me() != nil && ctx.Me().Status != nil },
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {
-			return doApply(ctx, clearStatus, func(c *ui.Context, _ struct{}) { applyStatus(c, nil) }, textStatusCleared)
+			return doApply(ctx, clearStatus, func(c *ui.Context, _ struct{}) { applyStatus(c, nil) }, cat(ctx).Fun.StatusCleared())
 		},
 	})
 	ui.RegisterOverlay(overlayStatus, func(ctx *ui.Context, _ string) ui.Overlay { return newStatusDialog(ctx) })
@@ -119,10 +114,10 @@ func runStatusSet(ctx *ui.Context, args string) tea.Cmd {
 	}
 	emoji, text, err := parseStatusArgs(args)
 	if err != nil {
-		return ui.Toast(textStatusTooLong, ui.ToastError)
+		return ui.Toast(cat(ctx).Fun.StatusTooLong(), ui.ToastError)
 	}
 	req := api.SetStatusRequest{Emoji: emoji, Text: text}
-	return doApply(ctx, setStatus(req), applyStatus, textStatusChanged)
+	return doApply(ctx, setStatus(req), applyStatus, cat(ctx).Fun.StatusChanged())
 }
 
 // parseStatusArgs splits "/status" arguments: the first grapheme is the emoji
@@ -292,7 +287,7 @@ func (d *statusDialog) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			return d.fail(m.Err)
 		}
 		applyStatus(ctx, m.Value)
-		return tea.Batch(closeOverlay, ui.Toast(textStatusChanged, ui.ToastSuccess))
+		return tea.Batch(closeOverlay, ui.Toast(cat(ctx).Fun.StatusChanged(), ui.ToastSuccess))
 	case ui.ResultMsg[struct{}]:
 		if m.Tag != meTag(ctx, tagStatusClear) || !d.busy {
 			return nil
@@ -302,7 +297,7 @@ func (d *statusDialog) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			return d.fail(m.Err)
 		}
 		applyStatus(ctx, nil)
-		return tea.Batch(closeOverlay, ui.Toast(textStatusCleared, ui.ToastSuccess))
+		return tea.Batch(closeOverlay, ui.Toast(cat(ctx).Fun.StatusCleared(), ui.ToastSuccess))
 	}
 	return nil
 }
@@ -421,7 +416,7 @@ func (d *statusDialog) request(ctx *ui.Context) (api.SetStatusRequest, tea.Cmd) 
 	var req api.SetStatusRequest
 	if d.choice < statusPresetCount {
 		p := statusPresets[d.choice]
-		req.Emoji, req.Text = api.Some(p.emoji), p.text
+		req.Emoji, req.Text = api.Some(p.emoji), p.text(cat(ctx))
 	} else {
 		var err error
 		if d.emoji != "" {
@@ -433,10 +428,10 @@ func (d *statusDialog) request(ctx *ui.Context) (api.SetStatusRequest, tea.Cmd) 
 			req.Emoji, req.Text, err = parseStatusArgs(d.in.Value())
 		}
 		if err != nil {
-			return req, ui.Toast(textStatusTooLong, ui.ToastError)
+			return req, ui.Toast(cat(ctx).Fun.StatusTooLong(), ui.ToastError)
 		}
 		if !req.Emoji.Set && req.Text == "" {
-			return req, ui.Toast(textStatusEmpty, ui.ToastError)
+			return req, ui.Toast(cat(ctx).Fun.StatusEmpty(), ui.ToastError)
 		}
 	}
 	if sec, ok := statusExpiries[d.expiry].sec(now(ctx), ctx.Loc); ok {
@@ -485,11 +480,14 @@ func centered(body layout.Rect, w, h int) layout.Rect {
 
 func (d *statusDialog) Modal() bool { return true }
 
-func (d *statusDialog) Title(*ui.Context) (string, ui.Badge) { return textStatusTitle, ui.Badge{} }
+func (d *statusDialog) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Fun.StatusTitle(), ui.Badge{}
+}
 
-func (d *statusDialog) Help(*ui.Context) []key.Binding {
-	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
-	return []key.Binding{b("enter", "저장"), b("tab", "유지 시간"), b("ctrl+x", "지우기"), b("esc", "취소")}
+func (d *statusDialog) Help(ctx *ui.Context) []key.Binding {
+	t := cat(ctx)
+	return []key.Binding{helpKey("enter", t.Common.HelpSave()), helpKey("tab", t.Fun.HelpExpiry()),
+		helpKey("ctrl+x", t.Fun.HelpClear()), helpKey("esc", t.Common.HelpCancel())}
 }
 
 func (d *statusDialog) Cursor() *tea.Cursor {
@@ -500,7 +498,7 @@ func (d *statusDialog) Cursor() *tea.Cursor {
 	return &c
 }
 
-// statusLabel is "🎧 듣는 중" for st (sanitized; "" for nil).
+// statusLabel is "<emoji> <text>" for st (sanitized; "" for nil).
 func statusLabel(st *api.UserStatus) string {
 	if st == nil {
 		return ""
@@ -546,36 +544,36 @@ func inputLine(t *theme.Theme, ti textinput.Model, hint string, w int) (string, 
 	return fit(t, t.S.Base.Render(before+textwidth.Truncate(after, w-col, "")), w), col
 }
 
-// expiryLine is "유지  없음 · 30분 · [1시간] · …" in cw cells, or the compact
-// "유지  ‹ 1시간 ›" when the full row does not fit.
-func (d *statusDialog) expiryLine(t *theme.Theme, cw int) string {
+// expiryLine is "<keep>  <none> · <30m> · [<1h>] · …" in cw cells, or the
+// compact "<keep>  ‹ <1h> ›" when the full row does not fit.
+func (d *statusDialog) expiryLine(c *i18n.T, t *theme.Theme, cw int) string {
 	focused := d.focus == statusFocusExpiry
 	prefix, label := rowStyle(t, focused, false)
 	sel := t.S.Base.Foreground(t.P.Acc).Bold(true).Reverse(focused)
-	head := label(textStatusExpiry) + t.S.Base.Render("  ")
-	full, plain := head, textStatusExpiry+"  "
+	head := label(c.Fun.StatusExpiry()) + t.S.Base.Render("  ")
+	full, plain := head, c.Fun.StatusExpiry()+"  "
 	for i, e := range statusExpiries {
 		if i > 0 {
 			full += t.S.Dim.Render(" · ")
 			plain += " · "
 		}
-		plain += e.label
+		plain += e.label(c)
 		if i == d.expiry {
-			full += sel.Render(e.label)
+			full += sel.Render(e.label(c))
 		} else {
-			full += t.S.Base.Render(e.label)
+			full += t.S.Base.Render(e.label(c))
 		}
 	}
 	if textwidth.Width(plain) <= cw-2 {
 		return prefix + full
 	}
-	return prefix + head + t.S.Dim.Render("‹ ") + sel.Render(statusExpiries[d.expiry].label) + t.S.Dim.Render(" ›")
+	return prefix + head + t.S.Dim.Render("‹ ") + sel.Render(statusExpiries[d.expiry].label(c)) + t.S.Dim.Render(" ›")
 }
 
 // View is the current status, the presets, the custom row, the expiry row and
 // the key hint, cut to the inner size so the focused row stays visible.
 func (d *statusDialog) View(ctx *ui.Context, _ bool) string {
-	t := themeOf(ctx)
+	t, c := themeOf(ctx), cat(ctx)
 	w, h := d.size.W, d.size.H
 	d.cursor, d.chipX = nil, [2]int{}
 	clear(d.rowY)
@@ -591,21 +589,21 @@ func (d *statusDialog) View(ctx *ui.Context, _ bool) string {
 	curCol := -1
 	rowOf := map[int]int{}
 
-	cur := t.S.Dim.Render(textStatusNone)
+	cur := t.S.Dim.Render(c.Fun.StatusNone())
 	if me := ctx.Me(); me != nil && me.Status != nil {
 		cur = t.S.Base.Render(statusLabel(me.Status))
 	}
-	rows = append(rows, t.S.Dim.Render(textStatusNow+"  ")+cur)
+	rows = append(rows, t.S.Dim.Render(c.Fun.NowLabel()+"  ")+cur)
 
 	for i, p := range statusPresets {
 		prefix, st := rowStyle(t, d.focus == i, d.choice == i)
 		rowOf[i] = len(rows)
-		rows = append(rows, prefix+st(p.emoji+" "+p.text))
+		rows = append(rows, prefix+st(p.emoji+" "+p.text(c)))
 	}
 
 	custom := d.focus == statusFocusChip || d.focus == statusFocusInput
 	prefix, _ := rowStyle(t, custom, d.choice >= statusFocusChip && d.choice < statusFocusExpiry)
-	chip := "[" + textStatusChip + "]"
+	chip := "[" + c.Fun.StatusChip() + "]"
 	if d.emoji != "" {
 		chip = "[" + d.emoji + "]"
 	}
@@ -617,7 +615,7 @@ func (d *statusDialog) View(ctx *ui.Context, _ bool) string {
 	}
 	chipW := textwidth.Width(chip)
 	fieldX := 2 + chipW + 1
-	field, col := inputLine(t, d.in, textStatusCustom, cw-fieldX)
+	field, col := inputLine(t, d.in, c.Fun.StatusCustom(), cw-fieldX)
 	rowOf[statusFocusChip], rowOf[statusFocusInput] = len(rows), len(rows)
 	d.chipX = [2]int{pad + 2, pad + 2 + chipW}
 	if d.focus == statusFocusInput {
@@ -626,11 +624,11 @@ func (d *statusDialog) View(ctx *ui.Context, _ bool) string {
 	rows = append(rows, prefix+chipSt.Render(chip)+t.S.Base.Render(" ")+field)
 
 	rowOf[statusFocusExpiry] = len(rows)
-	rows = append(rows, d.expiryLine(t, cw))
+	rows = append(rows, d.expiryLine(c, t, cw))
 
-	hint := textStatusKeys
+	hint := c.Fun.StatusKeys()
 	if d.busy {
-		hint = textStatusSending
+		hint = c.Common.Sending()
 	}
 	rows = append(rows, t.S.Dim.Render(textwidth.Truncate(hint, cw, "…")))
 

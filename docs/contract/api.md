@@ -3,6 +3,7 @@
 - 상태: 확정 계약 v1 (2026-11-05). 상위 출처: `docs/superpowers/specs/2026-11-05-masil-design.md` (충돌 시 설계서 우선).
 - 짝 문서: `events.md`(WebSocket), `data-model.md`(D1·R2), `server-architecture.md`(서버 코드 구조).
 - 이 문서가 서버(`server/`)와 Go 클라이언트(`internal/api`)의 **단일 출처**다. 필드 이름·타입·오류 코드를 바꾸려면 이 문서를 먼저 고친다.
+- **v0.1.3 더하기 (2026-11-09, P0 Task 2)**: `Accept-Language`(0.1), 리미터 `RL_DOC`·`RL_SHARE`·`RL_SHARE_WS`(0.7), `Message.kind:"card"`·`Message.card`(2장·5.10·5.11), `Alert.template`·`Alert.target.type:"doc"`(2장), 방 문서 REST(5.24). 모두 더하기만이고 0.1.2 클라이언트는 같은 서버에서 그대로 동작한다. 도구 줄기(P1~P4)의 엔드포인트·타입은 각 줄기가 자기 절·행을 더한다(계획 색인 2장). 6장 표의 새 행은 그 경로를 만드는 Task 와 같은 커밋에서 더한다(`contract-limiters` 시험이 코드와 대조).
 - 표기: 객체 스키마는 TypeScript 표기. `ID` = ULID 문자열, `Timestamp` = RFC 3339 UTC 밀리초 문자열(`"2026-11-05T02:03:04.567Z"`). `?` 가 붙은 필드는 요청에서 생략 가능. 응답 필드는 **항상 존재**하며 값이 없으면 `null`(빈 배열은 `[]`).
 
 ---
@@ -17,6 +18,7 @@
 - 클라이언트는 모든 요청에 `User-Agent: masil/<semver> (<os>; <arch>)` 를 보낸다(예: `masil/0.1.0 (darwin; arm64)`).
 - 응답 헤더 `X-Request-Id: <ULID>` — 오류 보고용.
 - 응답 본문의 알 수 없는 필드는 클라이언트가 무시한다(추가는 하위 호환). 요청의 알 수 없는 필드는 서버가 무시한다.
+- **v0.1.3 — 언어 (i18n 설계서 7.3)**: 클라이언트는 모든 REST 요청과 WebSocket 연결 요청(`GET /v1/ws` — 데몬 notify 연결 포함, `GET /v1/docs/{doc_id}/ws`)에 `Accept-Language: <ko|en|zh-Hans>`(지금 실효 언어 하나, 0.1.3 클라이언트는 `ko`)를 보낸다. 서버는 값이 정확히 `ko`·`en`·`zh-Hans` 중 하나가 아니면(`en-US`·`zh`·빈 값·헤더 없음 포함) `ko` 로 본다. 서버는 이 값을 **저장하지 않는다** — 그 요청 처리 중, 또는 그 소켓 연결의 메모리 안에서만 쓴다. 쓰는 곳은 사용자용 대체 문구(`Alert.title`/`body`, 2장)와 방을 만들 때의 기본 채널 이름(5.7 `POST /v1/spaces`)뿐이다. 언어를 바꾸면 다음 요청부터 새 값, 소켓은 다음 재접속부터.
 
 ### 0.2 사용자 참조 `{user}`
 
@@ -44,7 +46,7 @@
 | story body | 0..200 |
 | guestbook body | 1..300 |
 | space name | 1..50, description 0..200 |
-| channel name (text) | `^[a-z0-9가-힣_-]{1,32}$` |
+| channel name (text) | `^[a-z0-9가-힣㐀-䶿一-鿿_-]{1,32}$` (v0.1.3 P5 Task 20: CJK 통합 한자 U+4E00–U+9FFF·확장 A U+3400–U+4DBF 추가) |
 | channel topic | 0..250 |
 | group_dm name | 0..50 |
 | poll question | 1..200, 선택지 2..10개, 각 1..80 |
@@ -104,7 +106,7 @@
 | 500 | `internal_error` | 서버 오류 |
 | 503 | `service_unavailable` | 일시 장애. 재시도 가능 |
 
-`limit_exceeded.details.what` 값: `group_dm_members, post_media, reactions_per_message, pins_per_channel, channels_per_space, owned_spaces, pending_friend_requests, pending_uploads, active_stories, watch_topics, poll_options, space_members, search_scope`.
+`limit_exceeded.details.what` 값: `group_dm_members, post_media, reactions_per_message, pins_per_channel, channels_per_space, owned_spaces, pending_friend_requests, pending_uploads, active_stories, watch_topics, poll_options, space_members, search_scope`. v0.1.3 더하기: `named_versions`(방 문서 이름 버전, 문서당 100, 5.24).
 
 ### 0.6 페이지네이션 (커서)
 
@@ -132,6 +134,12 @@
 | `RL_SEARCH` | 30회 / 60초 | `u:<user_id>` | `/v1/search/*`, `/v1/users/search`, `/v1/hashtags/search` |
 | `RL_WS` | 30회 / 60초 | `u:<user_id>` | `GET /v1/ws` 연결 시도 |
 | `RL_API` | 600회 / 60초 | `u:<user_id>` | 인증된 모든 요청(위 전용 리미터와 **추가로**) |
+| `RL_DOC` (v0.1.3) | 30회 / 60초 | `u:<user_id>` | 방 문서·버전·댓글 **쓰기**(5.24 의 POST·PATCH·DELETE). 바인딩 namespace 7111 |
+| `RL_SHARE` (v0.1.3) | 10회 / 60초 | `u:<user_id>` | P2 작업공간 공유 만들기·초대 더하기(경로·행은 P2). 바인딩 namespace 7113 |
+| `RL_SHARE_WS` (v0.1.3) | 30회 / 60초 | `u:<user_id>` | P2 작업공간 공유 `/ws` 연결 시도(경로·행은 P2). 바인딩 namespace 7112 |
+
+- v0.1.3: 방 문서 소켓 `GET /v1/docs/{doc_id}/ws` 의 업그레이드는 기존 `RL_WS` 를 쓴다(새 리미터 없음). 세 새 바인딩은 `server/wrangler.jsonc`·`server/src/lib/ratelimit.ts` 에 P0 Task 26 이 한꺼번에 만든다(다른 줄기는 이 파일들을 고치지 않는다). Workers Rate Limiting 의 period 는 10 또는 60초뿐이라, 설계서의 "공유 만들기 60분 10회" 같은 긴 창은 리미터가 아니라 D1 로 센다(그 설명 한 줄은 P2 가 더한다).
+- v0.1.3 (P2): 작업공간 공유 만들기의 "60분에 10회" 는 D1 `workspace_shares.created_at` 으로 센다(최근 60분 안에 내가 만든 공유 행 수, 끝난 공유 포함). 넘으면 `RL_SHARE` 와 같은 모양의 `429 rate_limited {limiter:"RL_SHARE", retry_after_sec:60}` 이다(5.26).
 
 ---
 
@@ -255,8 +263,10 @@ interface Settings {
     friend_request: boolean;         // default true
     thread_reply: boolean;           // default true
     social: boolean;                 // likes/reposts/follows/post replies/quotes/guestbook; default false
+    workspace: boolean;              // v0.1.3 (P2): workspace_invite / workspace_attention alerts; default true
   };
   focus_default_min: number;         // 1..720, default 25
+  leet_share_with_friends: boolean;  // v0.1.3 P1: friends see my leet streak on the friends board (5.25); default true
 }
 
 interface Focus {
@@ -448,8 +458,8 @@ interface Message {
   id: ID;
   channel_id: ID;
   author: UserSummary;
-  kind: "text" | "me" | "roll" | "poll" | "system";
-  body: string;                      // raw markdown subset; "" if deleted; roll: the expression; poll: ""
+  kind: "text" | "me" | "roll" | "poll" | "system" | "card";   // "card": v0.1.3 (C1.2)
+  body: string;                      // raw markdown subset; "" if deleted; roll: the expression; poll: ""; card: required human-readable fallback summary (1..4000)
   mentions: MentionRef[];
   mention_here: boolean;
   thread_root_id: ID | null;         // set => this is a thread reply
@@ -459,10 +469,22 @@ interface Message {
   poll: Poll | null;
   roll: RollResult | null;
   system: SystemEvent | null;
+  card: Card | null;                 // v0.1.3: set iff kind == "card"
   client_nonce: string | null;
   created_at: Timestamp;
   edited_at: Timestamp | null;
   deleted: boolean;                  // tombstone (only returned when it has thread replies)
+}
+
+// v0.1.3 (C1.2): one message kind for every tool card; the type inside tells them apart.
+type CardType =
+  | "leet.daily" | "leet.solve"      // server-only: created by the P1 LeetCode endpoints, rejected from normal sends
+  | "arch.design" | "arch.sim"      // user-sent (P3)
+  | "api.result" | "api.run";       // user-sent (P4)
+interface Card {
+  type: CardType;
+  v: number;                         // schema version of that type (integer >= 1)
+  data: Record<string, unknown>;     // per-type schema (each tool's plan adds its rows below); JSON.stringify(data) <= 16,384 bytes
 }
 
 type QuotedPost =
@@ -539,7 +561,8 @@ interface Notification {
 }
 
 type AlertKind = "dm" | "mention" | "thread_reply" | "invite" | "friend_request"
-               | "channel_message" | "social" | "focus_summary";
+               | "channel_message" | "social" | "focus_summary"
+               | "workspace_invite" | "workspace_attention";   // v0.1.3 (P2, 5.26)
 
 interface Alert {                    // desktop-notification candidate (events.md 4.7)
   id: ID;
@@ -548,17 +571,27 @@ interface Alert {                    // desktop-notification candidate (events.m
   body: string;                      // <= 200 code points, plain text (markdown stripped)
   actor: UserSummary | null;
   target: {
-    type: "channel" | "message" | "post" | "space" | "user" | "notification";
+    type: "channel" | "message" | "post" | "space" | "user" | "notification" | "doc"   // "doc": v0.1.3
+        | "workspace_share";                                                                // v0.1.3 (P2): id = share id, every other id null
     id: ID;
     channel_id: ID | null;
     message_id: ID | null;
     thread_root_id: ID | null;
     post_id: ID | null;
     space_id: ID | null;
+    doc_type?: "arch" | "apicol";    // v0.1.3: present only when type == "doc" — exception to the "response fields always present" rule (header): other targets keep their 0.1.2 shape byte for byte; a missing key = no doc type
   };
   created_at: Timestamp;
   suppressed: boolean;               // true during focus/dnd: do not pop an OS notification
   suppressed_reason: "focus" | "dnd" | null;
+  template: AlertTemplate | null;    // v0.1.3: null = alert stored by an older server (fallback text only)
+}
+
+// v0.1.3 (i18n 7.3): what the alert says, as data. The client renders it from its catalog;
+// title/body above stay as the fallback text rendered in the connection's / request's Accept-Language (0.1).
+interface AlertTemplate {
+  id: string;                                  // a key of docs/contract/i18n/alert-templates.json "templates"
+  params: Record<string, string | number>;     // exactly the names listed for that id there
 }
 
 interface FocusSummary {
@@ -618,6 +651,68 @@ interface AdminAction {
   report_id: ID | null;
   reason: string;
   created_at: Timestamp;
+}
+```
+
+**v0.1.3 규칙 — 카드·alert 템플릿·문서 대상**
+
+- **카드 (`kind:"card"`, v0.1.3 설계서 C1.2)**: 메시지 종류는 `"card"` 하나만 더한다. 0.1.2 이하 클라이언트는 모르는 kind 의 `body` 를 일반 본문으로 그리므로 `body` 는 사람이 읽을 요약 한두 줄(필수, 1..4000; `leet.*` 는 링크 한 줄만 — 스포일러 방지, P1)이다. 서버는 type 별 스키마(`server/src/lib/cards/<도구>.ts`)와 길이만 검사한다. 카드 메시지는 수정할 수 없다(5.10). 검색 색인은 `body` 를 쓴다. type 별 `data` 스키마 표는 각 도구 줄기가 이 절에 행으로 더한다:
+
+| type | v | 만드는 쪽 | data (줄기가 채움) |
+|---|---|---|---|
+| `leet.daily` | 1 | 서버만(P1) | `{ date: "YYYY-MM-DD", frontend_id: /^[0-9]{1,6}$/, slug: /^[a-z0-9-]{1,100}$/, title: 1..200, difficulty: "Easy"\|"Medium"\|"Hard", tags: string(1..50)[] (≤20), is_paid_only: boolean }` — 엄격(다른 키 거절, 본문·HTML 없음). `body` = `https://leetcode.com/problems/<slug>/` 한 줄. 수정 불가·리액션 가능·스레드 루트 (5.25) |
+| `leet.solve` | 1 | 서버만(P1) | `{ date, frontend_id, slug, lang: 1..32, runtime_percentile: number(0..100) \| null, code: { lang: 1..32, text: 1..4000 } \| null, spoiler: true }` — 엄격. `body` = 링크 한 줄(코드는 `data` 에만 — 0.1.2 클라이언트에는 안 보임). 그날 #daily 루트의 스레드 답글로만 (5.25) |
+| `arch.design` | 1 | 사용자(P3) | 설계 요약 + 미니 그림 + (개인 설계면) 설계 JSON 사본 — `docs/contract/arch.md` 3.1 |
+| `arch.sim` | 1 | 사용자(P3) | 시뮬 결과 숫자 + 시드 + 병목·도전 + (개인 설계면) 사본 — `docs/contract/arch.md` 3.2 |
+| `api.result` | 1 | 사용자(P4) | 아래 `ApiResultCard` |
+| `api.run` | 1 | 사용자(P4) | 아래 `ApiRunCard` |
+
+  `api.*` data (P4, 설계서 C3.11 — 서버 검사기 `server/src/lib/cards/api.ts`, 클라이언트 `internal/apitool/card.go`; 모르는 키는 거절). 비밀 값은 클라이언트가 보내기 전에 `•••` 로 가리고 16,384 바이트 안으로 줄인다(본문 줄부터, 다음 헤더). `body` 대체 문구는 `🧪 POST /v1/payments · 201 · 142ms · ✓4/4`(결과)·`🧪 결제팀 실행 · 6개 · ✓5 ✕1 · 1500ms`(실행) 꼴.
+
+  ```ts
+  interface ApiResultCard {          // v1
+    method: string;                  // 1자 이상
+    url: string;                     // URL 템플릿("{{base_url}}/v1/payments"); "호스트 보이기"면 비밀 아닌 변수만 치환
+    status: number;                  // 0..999 정수
+    time_ms: number; size: number;   // 0 이상 정수
+    asserts: { passed: number; total: number };
+    env?: string;                    // 환경 이름
+    ref: { collection: string; request_id: string; doc_id?: string };  // doc_id = 공유 컬렉션(apicol 문서)
+    req_headers?: [string, string][];  // ≤20, 고를 때만(민감 헤더는 "•••")
+    body_head?: string[];            // 응답 본문 앞 ≤20줄, 줄당 ≤200 코드 포인트, 고를 때만
+  }
+  interface ApiRunCard {             // v1
+    collection: string;
+    requests: number; passed: number; failed: number; time_ms: number;  // 0 이상 정수
+    failures: { name: string; method: string; status: number; reason: string }[];  // ≤3 (status 0 = 응답 없음)
+    ref: { doc_id?: string };
+  }
+  ```
+
+- **alert 템플릿 (i18n 설계서 7.2·7.3·7.6)**: 서버는 사용자용 완성 문장을 만들지 않는다 — 알림의 뜻은 `template = { id, params }` 이고, `title`/`body` 는 그 연결(소켓)·요청(REST)의 `Accept-Language` 로 서버가 렌더한 **대체 문구**다(헤더 없는 옛 클라이언트 = ko = 0.1.2 와 같은 글자). `template.id` 목록·인자 이름·body 종류는 `docs/contract/i18n/alert-templates.json` 한 파일에 고정하고 서버 시험과 Go 시험이 함께 읽는다. `template.params` 는 그 id 에 선언된 인자를 모두 싣지만, 언어별 문구는 그 가운데 일부만 써도 된다(세 언어 문구가 쓰는 인자의 합집합 = 선언 — 예 `doc.comment_mention` 의 ko 제목은 `{space}` 를 쓰지 않는다). 클라이언트는 아는 id 면 자기 카탈로그로 그리고(인자는 `Sanitize`), 모르는 id·`null` 이면 `title`/`body` 를 그대로 쓴다. 한 alert 는 한 번 저장되어 여러 연결에 재전송되므로, 서버는 저장할 때가 아니라 **보낼 때** 연결마다 대체 문구를 렌더한다. 새 기능의 알림은 새 id 를 그 파일과 `server/src/lib/i18n.ts` 에 함께 더한다.
+- **문서 대상 (`target.type:"doc"`)**: 모양 `{ type: "doc", id: <doc_id>, space_id, doc_type: "arch" | "apicol", channel_id: null, message_id: null, thread_root_id: null, post_id: null }`. 클라이언트는 `doc_type` 으로 어느 도구가 열지 고른다(CA 5.3.6 `RegisterAlertTarget` 의 `"doc:<doc_type>"` 키). 0.1.2 클라이언트는 모르는 대상의 alert 를 OS 알림으로만 보이고 이동하지 않는다.
+- **작업공간 공유 대상 (`target.type:"workspace_share"`, v0.1.3 P2)**: 모양 `{ type: "workspace_share", id: <share_id>, channel_id: null, message_id: null, thread_root_id: null, post_id: null, space_id: null }`(`doc_type` 없음). `kind` 는 `workspace_invite`(초대받음, `template {id:"workspace.invite", params:{actor, share}}`)·`workspace_attention`(공유 중 프로그램이 확인을 기다림, 오너에게만, `template {id:"workspace.attention", params:{share}}`). 설정 스위치는 `notify.workspace`. 알림함 행은 만들지 않는다.
+- **작업공간 공유 (v0.1.3 P2, 5.26)**: 공유의 메타정보만 서버에 있다 — 내용·경로·파일 이름·명령·화면은 서버에 가지 않는다(`docs/contract/workspace.md`).
+
+```ts
+interface WorkspaceShare {
+  id: ID;
+  owner: UserSummary;
+  title: string;                     // 1..40 code points, user data (shown sanitized)
+  status: "live" | "ended";
+  created_at: Timestamp;
+  ended_at: Timestamp | null;
+  end_reason: "ended" | "timeout" | null;   // ended = the owner ended it; timeout = the owner was gone 2 minutes
+  members: WorkspaceShareMember[];   // seat order; members the owner removed (or who left) are not listed
+}
+interface WorkspaceShareMember {
+  user: UserSummary;
+  seat: number;                      // 1..8 (the owner is seat 0, workspace.md 2)
+  invited_at: Timestamp;
+  joined_at: Timestamp | null;       // last socket connect
+  left_at: Timestamp | null;         // last socket close
+  max_level: "viewer" | "prompter" | "editor" | "keyboard" | null;   // highest level the owner granted (ctl_levels)
+  verified: boolean;                 // the confirmation numbers were compared
 }
 ```
 
@@ -710,7 +805,7 @@ interface AdminAction {
 - 비공개 채널은 그 채널 멤버만 보고(방장·관리자라도 멤버가 아니면 목록에 안 보임), 공개 채널은 방 멤버 전원.
 - 방에서 빠지면(**스스로 나가기·강퇴·밴 모두**) 같은 batch 안에서 그 방의 모든 비공개 채널의 `channel_members` 행도 지운다(`channels.member_count` 감소 포함). 밴은 강퇴 + 초대 수락 차단.
 - 방이 삭제되면 그 방의 채널은 모두 소프트 삭제되고, 위 읽기 검사의 "방 미삭제" 조건 때문에 `channel_members` 행이 남아 있어도 접근·청중에서 빠진다.
-- 기본 채널(`default_channel_id`, 생성 시 `일반`)은 삭제 불가(`409 conflict`, `reason:"default_channel"`).
+- 기본 채널(`default_channel_id`, 생성 시 요청 언어의 기본 이름 — 5.7)은 삭제 불가(`409 conflict`, `reason:"default_channel"`).
 - 한도: 사용자당 소유 방 100개, 방당 채널 100개, 방당 멤버 5,000명.
 
 ### 3.6 접속 상태 공개 범위
@@ -800,7 +895,7 @@ interface AdminAction {
 - `200 { "settings": Settings }`
 
 #### `PATCH /v1/me/settings`
-- 요청: `{ "dm_policy"?: ..., "is_private"?: boolean, "notify"?: Partial<Settings["notify"]>, "focus_default_min"?: number }`
+- 요청: `{ "dm_policy"?: ..., "is_private"?: boolean, "notify"?: Partial<Settings["notify"]>, "focus_default_min"?: number, "leet_share_with_friends"?: boolean }`
 - `200 { "settings": Settings }` · 이벤트: `settings.updated`(나의 다른 연결)
 - `is_private: true → false` 이면 3.3 의 대기 요청 일괄 승인.
 
@@ -960,7 +1055,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `POST /v1/spaces`
 - `RL_SOCIAL`. 요청: `{ "name": "노바 개발방", "description"?: string, "icon_emoji"?: string }`
-- 기본 채널 `일반`(공개) 생성, 만든 사람 owner.
+- 기본 채널(공개) 생성, 만든 사람 owner. 기본 채널 이름은 요청 `Accept-Language`(0.1)로 ko `일반` / en `general` / zh-Hans `综合`, 그 밖(헤더 없음 포함)은 ko `일반`. 만든 뒤에는 사용자 데이터 — 나중에 언어를 바꿔도 이름은 그대로다(v0.1.3, P5 Task 20).
 - `201 { "space": SpaceDetail }` · 이벤트: `space.joined`(나의 연결) · 오류: `422 limit_exceeded`(`owned_spaces`)
 
 #### `GET /v1/spaces/{space_id}`
@@ -1109,7 +1204,8 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 ```json
 { "client_nonce": "01JC9X...", "kind": "text", "body": "@minji 점심 먹고 ㄱㄱ" }
 ```
-  - `kind?`: `"text"`(기본) | `"me"`(`/me` 동작 메시지) | `"roll"`(`body` = 주사위 식) | `"poll"`(`body` 무시, `poll: PollInput` 필수).
+  - `kind?`: `"text"`(기본) | `"me"`(`/me` 동작 메시지) | `"roll"`(`body` = 주사위 식) | `"poll"`(`body` 무시, `poll: PollInput` 필수) | `"card"`(v0.1.3, `card: { type, v, data }` 와 `body`(대체 요약) 필수).
+  - **카드 오류 (v0.1.3)**: `card` 없는 `kind:"card"` → `fields.card = "required"`; 모르는 type → `fields.card.type = "invalid"`; 서버만 만드는 type(`leet.daily`·`leet.solve`) → `fields.card.type = "not_allowed"`; 그 type 이 모르는 `v` → `fields.card.v = "invalid"`; 스키마에 안 맞는 data → `fields.card.data = "invalid"`; `JSON.stringify(data)` 16,384바이트 초과 → `fields.card.data = "too_long"`; `body` 없음 → `fields.body = "required"`(모두 `400 invalid_request`). 리미터는 그대로 `RL_MESSAGE`.
   - `/shrug` 는 클라이언트가 본문 끝에 `¯\_(ツ)_/¯` 를 붙여 `text` 로 보낸다.
 - `201 { "message": Message }` (중복 nonce → `200` 기존 메시지)
 - 부수효과(한 batch): 메시지 삽입, `channels.last_message_*`(**조건부**: `WHERE last_message_id IS NULL OR last_message_id < ?새ID` — 동시 전송 때 뒤로 가지 않게), `message_mentions`(2.1 해석 규칙을 통과한 명시적 멘션 + `@here` 확장 대상), 내 `channel_reads` 를 이 메시지로 전진(역시 더 클 때만), 투표 생성.
@@ -1121,6 +1217,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `PATCH /v1/messages/{message_id}`
 - 작성자, `kind` text/me, `RL_MESSAGE`. 요청: `{ "body": string }` — 멘션 재해석(2.1 규칙 그대로, 새로 추가된 멘션만 알림. `@here` 는 다시 확장하지 않는다).
+- v0.1.3: 카드 메시지(`kind:"card"`)는 수정할 수 없다 → `400 invalid_request`, `details.fields.message_id = "not_allowed"`(아무것도 쓰지 않음). 서버만 만드는 카드의 내용 고치기는 서버 내부 경로(P1)만 하고 `message.updated` 를 보낸다.
 - `200 { "message": Message }` · 이벤트: `message.updated`
 
 #### `DELETE /v1/messages/{message_id}`
@@ -1137,7 +1234,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 루트가 `kind:"system"` 이면(D7) `items: []`, `has_more_before`/`has_more_after` 모두 `false` — v0.1.1 이전에 저장된 답글도 돌려주지 않는다.
 
 #### `POST /v1/messages/{message_id}/thread`
-- 쓰기 권한, `RL_MESSAGE`. 요청: `{ "client_nonce": string, "kind"?: "text"|"me"|"roll", "body": string }` (투표 불가)
+- 쓰기 권한, `RL_MESSAGE`. 요청: `{ "client_nonce": string, "kind"?: "text"|"me"|"roll"|"card", "body": string, "card"?: Card }` (투표 불가; `card` 는 v0.1.3 — 5.10 의 카드 규칙·오류 그대로)
 - `201 { "message": Message }` (중복 nonce `200`)
 - 부수효과: 루트 `reply_count+1`, `last_reply_at`, `thread_participants` upsert(첫 답글이면 루트 작성자도 추가).
 - 이벤트: `message.created`(채널 청중, `thread_root_id` 설정됨) + `thread.updated`(채널 청중). 알림 `thread_reply` + alert `thread_reply` → 루트 작성자와 이전 참여자(작성자 본인 제외). dm·group_dm 에서는 알림 행은 `thread_reply` 이되 alert 는 `dm` 하나(사람당 alert 1개: `dm` > `mention` > `thread_reply` > `channel_message`). 멘션 처리 동일.
@@ -1408,6 +1505,11 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 #### `GET /v1/admin/actions?target_type=&target_id=&cursor=&limit=`
 - `200 { "items": AdminAction[], "next_cursor": string | null }`
 
+#### `PUT /v1/admin/leet/daily/{date}` (v0.1.3 P1)
+- 요청: `LeetDailyFacts`(5.25, 엄격 — 다른 키 `400`). `date` 는 실제 달력 날짜(오늘·어제 제한 없음), 아니면 `400 fields.date = "invalid"`.
+- 그날 사실 정보를 덮어쓴다(`first_reporter` 는 그대로, 아무도 보고하지 않은 날이면 `first_reporter: null` 로 새로 둔다). `mismatch_count = 0`. 그날 메시지가 살아 있는 #daily 루트(`leet.daily` 카드)마다 `card.data` 를 새 사실 정보 + `date` 로, `body` 를 새 링크로 바꾼다 — 이벤트 `message.updated`(지워진 루트는 그대로 둔다). `admin_actions` 에는 남기지 않는다.
+- `200 { "daily": LeetDaily }` · CLI: `masil admin leet-daily set <date> --id <frontend_id> --slug <slug> --title <title> --difficulty Easy|Medium|Hard [--tags a,b] [--paid]`
+
 ### 5.23 WebSocket
 
 #### `GET /v1/ws`
@@ -1417,6 +1519,172 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 - 프로토콜 전체는 `events.md`.
 
 ---
+
+### 5.24 방 문서 (v0.1.3, CollabHub — v0.1.3 설계서 C1)
+
+방(Space)에 속한 공유 문서. 종류 `type` 은 `"arch"`(P3 아키텍처 설계)·`"apicol"`(P4 API 컬렉션) 둘. 내용(객체 묶음)은 문서마다 Durable Object `CollabHub`(이름 `doc:<doc_id>`, `server-architecture.md` 3.1)에 있고 실시간 편집은 별도 소켓 `GET /v1/docs/{doc_id}/ws`(프레임·한도·종료 코드는 `docs/contract/collab.md`)로 한다. 기존 실시간 소켓(`/v1/ws`)의 계약(프레임 8KB, 10초 30프레임)은 바꾸지 않는다 — 목록·댓글 배지 갱신용 이벤트 셋만 그쪽으로 간다(events.md 4.10).
+
+```ts
+interface Doc {
+  id: ID;
+  space_id: ID;
+  type: "arch" | "apicol";
+  title: string;                     // 1..80
+  created_by: UserSummary;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  head_seq: number;                  // last sequenced op (collab.md); 0 = empty
+  locked: boolean;
+}
+interface DocVersion {
+  no: number;                        // 1.. per doc
+  seq: number;                       // head_seq the version captured
+  name: string | null;               // 1..60 for named versions; null for auto and restore versions
+  auto: boolean;                     // true = automatic version
+  restored_from: number | null;      // set on the version a restore created
+  created_by: UserSummary | null;    // null for auto versions
+  created_at: Timestamp;
+}
+interface DocComment {
+  id: ID;
+  doc_id: ID;
+  anchor: string;                    // object id (or the tool's anchor syntax), 1..128
+  author: UserSummary;
+  body: string;                      // 1..2000; "" when deleted
+  root_id: ID | null;                // reply => the root comment
+  resolved_at: Timestamp | null;
+  created_at: Timestamp;
+  deleted: boolean;
+}
+// Snapshot: collab.md "Snapshot" ({ seq, objects: [...] })
+```
+
+**권한**: 방 멤버는 읽기·편집·댓글. 방 멤버가 아니거나 방이 삭제됐으면(`spaces.deleted_at` — 방 삭제는 소프트라 `collab_docs` 행이 남는다) 모든 문서 경로(REST·`/ws` 업그레이드)가 `404`(3.5 와 같음, 존재를 숨김). 서버의 문서 권한 확인(`docRole`)은 `space_members` 와 함께 `spaces.deleted_at IS NULL` 을 본다. 삭제·잠금 바꾸기는 만든 사람과 그 방 owner·admin(그 밖 멤버 → `403 forbidden`). 잠긴 문서는 만든 사람·owner·admin 만 편집·복원(그 밖 멤버의 op 는 소켓에서 `reject{code:"locked"}`, 복원 REST 는 `403 forbidden`).
+
+**탈퇴·강퇴·방 삭제·문서 삭제**: 기존 정리 batch 가 커밋된 뒤 서버가 그 방의 열린 문서 소켓에 `kicked{reason: "left"|"kicked"|"banned"|"space_deleted"|"doc_deleted"}` 를 보내고 4100 으로 닫는다(collab.md). 강퇴된 사람이 열어 둔 소켓으로 계속 보는 일이 없다.
+
+**세션 폐기·계정 정지·역할 변경**: 문서 소켓은 접속 때의 세션·역할을 첨부로 들고 있다(collab.md 2장). `revokeSessions`(로그아웃·세션 끊기·비밀번호 변경·정지)는 UserHub 와 함께 그 사용자가 멤버인 방들의 열린 문서 소켓을 4001(정지는 4003)로 닫고, 방 역할이 바뀌면(멤버 역할 변경·소유권 이전) 그 방 문서 소켓의 역할을 고친다(collab.md 4.1 `revokeSession`·`setRole`).
+
+| 경로 | 요청 | 응답·부수효과 |
+|---|---|---|
+| `GET /v1/spaces/{space_id}/docs?type=arch\|apicol&cursor&limit` | — | `200 { items: Doc[], next_cursor }` — 삭제 안 된 것, `updated_at` 최신순, `type` 생략 = 둘 다 |
+| `POST /v1/spaces/{space_id}/docs` | `{ type, title, snapshot?: Snapshot }` | `201 { doc }` + `doc.created`. `snapshot` 이 있으면 그 상태로 시작(종류별 한도 검사, collab.md) · `RL_DOC` |
+| `GET /v1/docs/{doc_id}` | — | `200 { doc }` |
+| `PATCH /v1/docs/{doc_id}` | `{ title?, locked? }` | `200 { doc }` + `doc.updated`. `locked` 는 만든 사람·owner·admin, 잠긴 문서의 `title` 도 만든 사람·owner·admin(그 밖 `403 forbidden`) · `RL_DOC` |
+| `DELETE /v1/docs/{doc_id}` | — | `204` + `doc.updated{deleted:true}`, 열린 소켓 `kicked{doc_deleted}`. 만든 사람·owner·admin · `RL_DOC` |
+| `GET /v1/docs/{doc_id}/versions` | — | `200 { items: DocVersion[] }` — 새것 먼저; 이름 버전 전부 + 남아 있는 자동·되돌리기 버전(아래 버전 규칙 — 합쳐 최대 300개라 페이지 없음) |
+| `GET /v1/docs/{doc_id}/versions/{no}` | — | `200 { version: DocVersion, snapshot: Snapshot }` — 미리보기·두 버전 차이용. 없는 `no`·보관 규칙으로 지운 자동·되돌리기 버전 → `404` |
+| `POST /v1/docs/{doc_id}/versions` | `{ name }` (1..60) | `201 { version }` — 지금 `head_seq` 의 이름 버전(`auto:false`). 이름 버전 101번째 → `422 limit_exceeded {what:"named_versions", limit:100}` · `RL_DOC` |
+| `POST /v1/docs/{doc_id}/versions/{no}/restore` | — | `200 { doc, version }` — 그 버전 스냅숏으로 되돌리고 접속자 모두에게 `op{ops:[{op:"reset", …}]}`(순번 하나, `author` = 요청한 사용자, collab.md 1.1·3.2). 기록은 지우지 않는다: 되돌린 상태를 **새 버전**(`auto:false`, `name:null`, `restored_from: no`, 이름 버전 100개 한도에 세지 않음)으로 만들어 돌려준다 · `RL_DOC` |
+| `GET /v1/docs/{doc_id}/comments?cursor&limit` | — | `200 { items: DocComment[], next_cursor }` — `created_at` 오래된 것부터 |
+| `POST /v1/docs/{doc_id}/comments` | `{ anchor, body, root_id? }` | `201 { comment }` + `doc.comment_created`. 본문의 `@handle`(그 방 멤버, 차단 관계 제외)마다 alert `kind:"mention"`, `template {id:"doc.comment_mention", params:{actor, doc, space}}`, `body` = 댓글 앞부분, `target {type:"doc", id, space_id, doc_type}`. 알림함 행은 만들지 않는다 · `RL_DOC` |
+| `PATCH /v1/docs/{doc_id}/comments/{comment_id}` | `{ body?, resolved? }` | `200 { comment }`. `body` 는 작성자만(그 밖 `403 forbidden`), `resolved` 는 방 멤버 누구나 · `RL_DOC` |
+| `DELETE /v1/docs/{doc_id}/comments/{comment_id}` | — | `204`. 작성자·owner·admin · `RL_DOC` |
+| `GET /v1/docs/{doc_id}/ws` | WebSocket 업그레이드 | `docs/contract/collab.md`. 인증·멤버 확인 뒤 CollabHub 로 · `RL_WS` |
+
+- 검증 오류: `title` 1..80(`fields.title = "too_long"|"required"`), 버전 `name` 1..60, 댓글 `body` 1..2000, `anchor` 1..128, `type` 이 둘 중 하나가 아니면 `fields.type = "invalid"`, `root_id` 가 같은 문서의 댓글이 아니면 `fields.root_id = "invalid"`.
+- **버전 규칙 (C2.11)**: 자동 버전 — 마지막 버전 뒤 순번이 있고 (편집이 멈춘 지 5분) 또는 (마지막 버전 뒤 순번 200개 — op **프레임** 단위, `head_seq` 차이)이면 서버가 `auto:true` 버전을 만든다(DO alarm). 다만 자동 버전끼리는 5분 이상 떨어진다(200개 조건도 마지막 자동 버전 뒤 5분이 지나야 선다).
+  - 이름 버전은 영구, 문서당 100개(101번째 `422`).
+  - 자동 버전과 되돌리기 버전은 **기록 버전**으로 함께 다룬다: 30일 보관, 문서당 합쳐 최근 200개(넘으면 가장 오래된 기록 버전부터 지운다 — 이름 버전은 지우지 않는다). 되돌리기 버전은 이름 버전 100개 한도에 세지 않는다.
+  - 버전 본문은 버전마다 정규형 스냅숏 전체(차이 저장 안 함, DO `versions` 표). 위 상한으로 문서당 버전 본문은 최대 300 × `maxDocBytes` 다.
+- 버전 경로의 `{no}` 가 양의 정수가 아니면 없는 버전과 같이 `404`. 복원 응답의 `doc.head_seq` 는 그 `reset` 의 순번이다(D1 반영을 기다리지 않는다). 자동 버전의 `created_at` 은 서버(DO alarm)가 만든 시각이라 편집이 멈춘 때보다 늦을 수 있다.
+- 6장 표의 행은 이 경로들을 만드는 P0 Task 26·28·29 가 그 코드와 같은 커밋에서 더한다.
+
+### 5.25 LeetCode 오늘의 문제 (v0.1.3, P1 — v0.1.3 설계서 A10.3)
+
+서버는 LeetCode 를 **부르지 않는다**(fetch·Cron 없음). 각 클라이언트가 받은 오늘의 문제 사실 정보를 보고하고, 서버는 사실 정보(`leet_daily`)와 풀이 기록(`leet_solves`)만 둔다 — 문제 본문·HTML·코드 스니펫·예제는 어떤 표에도 없다(data-model.md 3.14). 하루 기준은 UTC 자정. #daily 루트(`leet.daily`)와 풀이 카드(`leet.solve`)는 서버만 만드는 카드(2장 카드 표)이며 기존 `message.created`·`message.updated`·`message.deleted`·`thread.updated` 로 퍼진다(새 이벤트·새 alert 없음). 카드 `body` 와 클라이언트가 그리는 링크는 언제나 `https://leetcode.com/problems/<slug>/` — `slug` 는 `^[a-z0-9-]{1,100}$`, `frontend_id` 는 `^[0-9]{1,6}$`, `date` 는 `YYYY-MM-DD`(실제 달력 날짜).
+
+```ts
+interface LeetSpaceSettings {
+  space_id: ID;
+  enabled: boolean;
+  channel_id: ID | null;             // the #daily channel (kept when turned off)
+  enabled_by: ID | null;
+  enabled_at: Timestamp | null;
+}
+```
+
+| 경로 | 요청 | 응답·부수효과 |
+|---|---|---|
+| `PUT /v1/spaces/{space_id}/leet` | `{ enabled: boolean, channel_id?: ID }` | `200 { settings: LeetSpaceSettings }`. owner·admin 만(비멤버 `404`, 멤버 `403 forbidden`). 켜기: `channel_id` 가 있으면 그 방의 살아 있는 **공개** 텍스트 채널(아니면 `404`), 없으면 전에 쓰던 채널(살아 있고 공개일 때) → 그 방의 공개 채널 `daily` → 없으면 5.9 와 같은 규칙으로 `daily` 를 만든다(`channel.created` + `channel_created` system 메시지, 이름 충돌 `409`·채널 수 `422` 도 같음). 같은 채널로 다시 켜면 `enabled_by`·`enabled_at` 은 그대로. 끄기: 채널은 지우지 않고 `channel_id` 를 기억한다 · `RL_SOCIAL` |
+| `PUT /v1/leet/daily/{date}` | `LeetDailyFacts` (엄격 — 다른 키 `400`) | `200 { daily: LeetDaily, roots: LeetDailyRoot[] }`. `date` 는 서버 기준 오늘(UTC) 또는 어제만, 아니면 `400 fields.date = "invalid"`. 그날 처음 보고면 저장(`first_reporter` = 보고자), 같은 값이면 그대로, 다른 값이면 저장값은 두고 `mismatch_count` 만 1 올린다. 같은 요청 안에서 **보고자가 속한 방 중 #daily 가 켜진 방**마다 그날 루트가 없으면 만든다: `leet.daily` 카드(작성자 = 보고자, `thread_root_id: null`, data = **저장된** 사실 정보 + `date`, `body` = 링크) + `message.created`. 채널·날짜마다 하나(동시 보고에도 하나 — data-model.md 3.14 `leet_daily_roots`). 다른 요청이 만드는 중이면 2초까지 기다리고, 그래도 없으면 `roots` 에서 뺀다. 루트 메시지가 지워졌으면 다시 만든다. `roots` = 메시지가 살아 있는 루트들 · `RL_SOCIAL`, 루트를 실제로 만들 때 요청당 한 번 `RL_MESSAGE` 도 센다 |
+| `PUT /v1/leet/solves/{date}` | `LeetSolveBody` (엄격) | `200 { solve: LeetSolve, cards: LeetSolveCardRef[] }`. `date` 는 오늘(UTC) 또는 어제(자정 직후 제출용)만, 아니면 `400 fields.date = "invalid"`. **먼저 모두 검사하고, 하나라도 틀리면 아무것도 쓰지 않는다**: `share_space_ids` 의 방마다 내가 멤버이고 #daily 가 켜져 있어야 함(아니면 `404`), 공유할 때는 그날 사실 정보가 있어야 함(`PUT /v1/leet/daily` 가 먼저 — 없으면 `404`), 카드 데이터가 `leet.solve` 스키마·16KB 를 넘지 않아야 함(`400 fields.card.data = "too_long"` 등), 공유할 때는 `RL_MESSAGE` 한 번(`429`). 그다음 `leet_solves` 기록(첫 기록의 서버 시각이 `passed_at`, 다시 PUT 하면 `lang`·`runtime_percentile`·`submission_id` 만 바뀜)과, 공유한 방마다 그날 루트(없으면 내가 만든다 — 위와 같은 규칙) 아래 **내 `leet.solve` 카드 하나**: 없으면 스레드 답글로 만들고(`message.created` + `thread.updated`), 있으면 고친다(`message.updated`, 같은 메시지). 카드 `body` = 링크, `data.code` = `{ lang, text: code }` 또는 `null`, `data.spoiler = true`. 그 루트를 다른 요청이 아직 만드는 중이면(2초 기다린 뒤) `503 service_unavailable`(다시 시도) — 이 경우만 일부가 쓰인 채 끝난다: 기록과 앞선 방의 카드는 남고, 같은 요청을 다시 보내면 같은 기록·같은 카드로 이어진다(멱등) · `RL_SOCIAL`, 공유할 때 쓰기 전에 요청당 한 번 `RL_MESSAGE` |
+| `DELETE /v1/leet/solves/{date}` | — | `204`(기록이 없어도). 그날 내 `leet.solve` 카드를 모두 지우고(`message.deleted` + `thread.updated`; 내가 쓴 카드이므로 그 방을 나갔거나 내보내졌어도, 채널이 지워졌어도 지운다) 내 기록을 지운다. 카드 하나가 실패해도 나머지는 지우고, 그때는 기록을 남긴 채 오류를 돌려주어 다시 부르면 남은 것을 지운다. `date` 형식이 틀리면 `400` · `RL_SOCIAL` |
+| `GET /v1/leet/me` | — | `200 LeetMe` — 내 연속 풀이(`current`·`best`, 모든 기록 중 `counts_for_streak` 인 날만), 최근 30 UTC일(오늘 포함)의 기록 날짜 내림차순, 내가 속하고 #daily 가 켜진 방(`daily_spaces`, 가입 순) |
+| `GET /v1/spaces/{space_id}/leet/board?period=week\|month\|all` | — | `200 { period, items: LeetBoardEntry[] }`. 방 멤버만(아니면 `404`). `period` 생략 = `week`, 그 밖 값 `400 fields.period = "invalid"`. 그 방 #daily 채널에 **살아 있는 자기 `leet.solve` 카드**가 기간 안(`card.data.date` 기준; `week` = 이번 ISO 주 월요일 UTC 부터, `month` = 이번 UTC 달 1일부터)에 있는 **현재 멤버**만(카드를 남긴 것 = 동의), 지금 정지된 계정 제외(3.9). `solved` = 그 카드들의 서로 다른 날짜 수, `streak` = 그 사람의 현재 연속 풀이. 정렬 `solved` 내림 → `streak` 내림 → `handle` 오름. #daily 채널이 없으면 `items: []` |
+| `GET /v1/leet/friends/board` | — | `200 { items: LeetFriendStreak[] }` — 나 + 친구 중 `Settings.leet_share_with_friends = true` 이고 지금 정지되지 않은 사람. 연속 일수만(문제별 기록 없음). 정렬 `current` 내림 → `best` 내림 → `handle` 오름 |
+
+```ts
+interface LeetDailyFacts {
+  frontend_id: string;               // ^[0-9]{1,6}$
+  slug: string;                      // ^[a-z0-9-]{1,100}$
+  title: string;                     // 1..200 (NFC + trim)
+  difficulty: "Easy" | "Medium" | "Hard";
+  tags: string[];                    // <= 20, each 1..50
+  is_paid_only: boolean;
+}
+interface LeetDaily extends LeetDailyFacts {
+  date: string;                      // YYYY-MM-DD (UTC)
+  first_reporter: UserSummary | null;
+  first_reported_at: Timestamp;
+  mismatch_count: number;
+}
+interface LeetDailyRoot { space_id: ID; channel_id: ID; message_id: ID }
+interface LeetSolveBody {
+  status: "accepted";                // only accepted solves are recorded
+  slug: string;
+  lang: string;                      // 1..32 (LeetCode language slug, e.g. "golang")
+  frontend_id: string;
+  runtime_percentile?: number | null;   // 0..100
+  submission_id?: string | null;     // ^[0-9]{1,20}$
+  share_space_ids?: ID[];            // <= 10
+  code?: string | null;              // 1..4000 code points; stored in the card (plain text on the server, readable by the channel and operators)
+}
+interface LeetSolve {
+  date: string;
+  slug: string;
+  lang: string;
+  passed_at: Timestamp;              // server time of the first record
+  runtime_percentile: number | null;
+  counts_for_streak: boolean;        // utcDate(passed_at) == date (no grace day)
+}
+interface LeetSolveCardRef { space_id: ID; message_id: ID }
+interface LeetMe {
+  current: number;                   // run ending today, or (today still empty) yesterday; else 0
+  best: number;
+  recent: LeetSolve[];               // last 30 UTC days, newest first
+  daily_spaces: { space_id: ID; channel_id: ID }[];
+}
+interface LeetBoardEntry { user: UserSummary; solved: number; streak: number }
+interface LeetFriendStreak { user: UserSummary; current: number; best: number }
+```
+
+- 루트(`leet.daily`)는 수정할 수 없고(5.10 — `400 fields.message_id = "not_allowed"`), 리액션·고정·스레드 답글은 일반 메시지와 같다.
+- 이 절의 #daily 는 "그 방의 `leet_space_settings.enabled = 1` 이고 `channel_id` 채널이 살아 있음" 이다. 채널이 지워진 방은 꺼진 것과 같이 취급한다.
+### 5.26 작업공간 공유 (v0.1.3, P2 — WorkspaceHub, 설계서 B10)
+
+내 PC 폴더를 고른 사람과 종단간 암호화로 공유하는 작업공간(설계서 B부)의 **메타정보**. 서버는 공유 이름·오너·초대된 사람·자리·단계·끝난 이유만 안다. 내용은 공유 소켓 `GET /v1/workspace-shares/{share_id}/ws`(프레임·라우팅·종료 코드 = `docs/contract/workspace.md`)의 암호문으로만 흐르고 서버는 저장도 기록도 하지 않는다. 타입 `WorkspaceShare`·`WorkspaceShareMember` 는 2장.
+
+**초대 자격**: 초대 대상은 나 아님, 정지 중 아님, 나와 어느 방향으로도 차단 없음, 그리고 (친구 또는 같은 방 멤버). 하나라도 어긋나면 아무것도 쓰지 않고 `403 action_not_allowed`, `details.user_ids` = 어긋난 사람들의 ID. 없는 사용자 참조는 `404`.
+
+**한도 (`422 limit_exceeded` 의 `details.what`)**: `live_workspace_shares`(진행 중인 내 공유, 사용자당 3), `workspace_share_members`(내보내지지 않은 참가자, 공유당 8). 0.5 의 목록에 더하는 값이다.
+
+**권한**: 오너와 내보내지지 않은 멤버만 공유를 본다(그 밖 — 내보내진 사람 포함 — 모든 경로 `404`, 존재를 숨김). 초대 더하기·끝내기는 오너만(멤버 `403 forbidden`).
+
+| 경로 | 요청 | 응답·부수효과 |
+|---|---|---|
+| `POST /v1/workspace-shares` | `{ title, users: UserRef[] }` (title 1..40, users 1..8) | `201 { share }` — 자리 1..n 을 요청 순서대로. 초대받은 사람마다 `workspace_share.invited` + alert `workspace_invite`(`notify.workspace`), 오너의 다른 연결에 `workspace_share.updated`. 내 진행 중 공유가 이미 3개 → `422 limit_exceeded {what:"live_workspace_shares", limit:3}`. 최근 60분 동안 만든 공유 10개 → `429 rate_limited {limiter:"RL_SHARE", retry_after_sec:60}`(0.7) · `RL_SHARE` |
+| `GET /v1/workspace-shares?role=owner\|invited&status=live\|ended` | — | `200 { items: WorkspaceShare[] }` — 기본 `role=owner`, `status=live`. 최근 만든 순, 최대 50(페이지 없음). `invited` 는 내가 내보내지지 않은 멤버인 공유 |
+| `GET /v1/workspace-shares/{share_id}` | — | `200 { share }` |
+| `POST /v1/workspace-shares/{share_id}/invites` | `{ users: UserRef[] }` (1..8) | `200 { share }` — 이미 멤버인 사람은 건너뜀(오류 아님). 새로 초대된 사람마다 `workspace_share.invited` + alert, 오너·기존 멤버에 `workspace_share.updated`. 내보내지지 않은 멤버 합계가 8 을 넘으면 `422 limit_exceeded {what:"workspace_share_members", limit:8}`, 끝난 공유 → `409 conflict {reason:"ended"}` · `RL_SHARE` |
+| `DELETE /v1/workspace-shares/{share_id}/participants/{user}` | — | `204` — 오너가 멤버를 내보내거나, 멤버가 `@me` 로 나감(멤버가 남을 → `403 forbidden`, 오너가 자기를 → `403 forbidden`, 멤버 아닌 사람 → `404`). `removed_at` 기록, 열린 공유 소켓 `4101`, 오너·남은 멤버·나간 사람에게 `workspace_share.updated` |
+| `DELETE /v1/workspace-shares/{share_id}` | — | `204` — 오너만. `status='ended'`, `end_reason='ended'`, 오너·멤버에게 `workspace_share.ended {share_id, reason:"ended"}`, 열린 공유 소켓 모두 `4100`. 이미 끝났으면 아무것도 하지 않고 `204` |
+| `GET /v1/workspace-shares/{share_id}/ws` | WebSocket 업그레이드 | `docs/contract/workspace.md`. 공유가 없거나 끝났거나, 오너도 내보내지지 않은 멤버도 아니거나, 멤버와 오너가 차단 관계면 업그레이드 전에 `404` · `RL_SHARE_WS` |
+
+- 검증 오류: `title` 1..40(`fields.title = "too_short"\|"too_long"\|"required"`), `users` 가 비었거나 8 개를 넘으면 `fields.users = "invalid"`, `role`·`status` 가 목록 밖이면 `fields.role`·`fields.status = "invalid"`. 같은 사람을 두 번 적으면 한 번으로 친다.
+- 내보낸 멤버를 다시 초대하면 같은 자리로 다시 들어온다(`invited_at` 새로, `joined_at`·`left_at`·`max_level`·`verified` 초기화). 빈 자리가 없고 내보낸 행이 자리를 잡고 있으면 가장 오래 전에 내보낸 행을 지우고 그 자리를 쓴다.
+- 오너 소켓이 2분 넘게 끊기면 서버가 공유를 끝낸다(`end_reason='timeout'`, `workspace_share.ended {reason:"timeout"}`). 오너가 돌아와도 저절로 다시 열리지 않는다.
+- 끝난 공유 행은 끝난 지 30일 뒤 정리 작업이 지운다(data-model.md 6).
 
 ## 6. 엔드포인트 요약표
 
@@ -1466,6 +1734,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | GET/POST | /v1/spaces/{space_id}/invites | ✓ | RL_SOCIAL(POST) |
 | POST | /v1/spaces/{space_id}/direct-invites | ✓ | RL_SOCIAL |
 | GET/POST | /v1/spaces/{space_id}/channels | ✓ | |
+| PUT | /v1/spaces/{space_id}/leet | ✓ | RL_SOCIAL |
 | GET/DELETE | /v1/invites/{code} | ✓ | |
 | POST | /v1/invites/{code}/accept | ✓ | |
 | POST | /v1/direct-invites/{id}/accept, /decline | ✓ | |
@@ -1509,7 +1778,28 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 | POST | /v1/admin/content/remove | admin | |
 | POST | /v1/admin/users/{user}/suspend, /unsuspend | admin | |
 | GET | /v1/admin/users, /v1/admin/actions | admin | |
+| PUT | /v1/admin/leet/daily/{date} | admin | |
 | GET | /v1/ws | ✓ | RL_WS |
+| GET/POST | /v1/spaces/{space_id}/docs | ✓ | RL_DOC(POST) |
+| GET/PATCH/DELETE | /v1/docs/{doc_id} | ✓ | RL_DOC(PATCH/DELETE) |
+| GET/POST | /v1/docs/{doc_id}/versions | ✓ | RL_DOC(POST) |
+| GET | /v1/docs/{doc_id}/versions/{no} | ✓ | |
+| POST | /v1/docs/{doc_id}/versions/{no}/restore | ✓ | RL_DOC |
+| GET/POST | /v1/docs/{doc_id}/comments | ✓ | RL_DOC(POST) |
+| PATCH/DELETE | /v1/docs/{doc_id}/comments/{comment_id} | ✓ | RL_DOC |
+| GET | /v1/docs/{doc_id}/ws | ✓ | RL_WS |
+| PUT | /v1/leet/daily/{date} | ✓ | RL_SOCIAL, RL_MESSAGE |
+| PUT/DELETE | /v1/leet/solves/{date} | ✓ | RL_SOCIAL, RL_MESSAGE(PUT) |
+| GET | /v1/leet/me | ✓ | |
+| GET | /v1/spaces/{space_id}/leet/board | ✓ | |
+| GET | /v1/leet/friends/board | ✓ | |
+| POST | /v1/workspace-shares | ✓ | RL_SHARE |
+| GET | /v1/workspace-shares | ✓ | |
+| GET | /v1/workspace-shares/{share_id} | ✓ | |
+| POST | /v1/workspace-shares/{share_id}/invites | ✓ | RL_SHARE |
+| DELETE | /v1/workspace-shares/{share_id}/participants/{user} | ✓ | |
+| DELETE | /v1/workspace-shares/{share_id} | ✓ | |
+| GET | /v1/workspace-shares/{share_id}/ws | ✓ | RL_SHARE_WS |
 
 ## 7. 슬래시 명령 → API 대응 (클라이언트 참고)
 

@@ -11,7 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -26,13 +26,7 @@ func init() {
 
 // Notifications copy.
 const (
-	textNotifTitle    = "알림"
-	textNotifEmpty    = "새 알림이 없어요"
-	textNotifLoadFail = "알림을 불러오지 못했어요"
 	iconNotifEmpty    = "🔔"
-	textNotifSomeone  = "알 수 없음"
-	textNotifSpace    = "방"
-	errContextNotif   = "알림"
 	notifOpenKey      = "notifications" // FeedStore.SetOpen key
 	notifNarrowWidth  = 40              // inner width below which rows use the short copy
 	notifPreviewMin   = 8               // fewest cells a ` · "…"` preview is drawn in
@@ -49,30 +43,29 @@ const (
 	tagNotifsRead = "feed.notifications_read:" // + notification id | "all"
 )
 
-// notifCopy is one notification type's icon and its narrow / wide text;
-// "{n}" is the actor's display name, "{s}" the space name.
-type notifCopy struct{ icon, narrow, wide string }
-
-// notifCopies is the Task 15 copy table.
-var notifCopies = map[api.NotificationType]notifCopy{
-	"post_like":       {"♥", "{n}님이 좋아함", "{n}님이 내 글을 좋아해요"},
-	"post_repost":     {"↻", "{n}님이 리포스트", "{n}님이 내 글을 리포스트했어요"},
-	"post_reply":      {"↩", "{n}님이 답글", "{n}님이 답글을 남겼어요"},
-	"post_quote":      {"❝", "{n}님이 인용", "{n}님이 내 글을 인용했어요"},
-	"post_mention":    {"@", "{n}님이 멘션", "{n}님이 글에서 나를 멘션했어요"},
-	"message_mention": {"@", "{n}님이 멘션", "{n}님이 {s}에서 나를 멘션했어요"},
-	"thread_reply":    {"↩", "{n}님이 스레드 답글", "{n}님이 스레드에 답글을 달았어요"},
-	"follow":          {"+", "{n}님이 팔로우", "{n}님이 나를 팔로우해요"},
-	"follow_request":  {"+", "{n}님의 팔로우 요청", "{n}님이 팔로우를 요청했어요"},
-	"follow_accepted": {"✓", "{n}님이 수락", "{n}님이 팔로우 요청을 수락했어요"},
-	"friend_request":  {"+", "{n}님의 친구 요청", "{n}님이 친구 요청을 보냈어요"},
-	"friend_accepted": {"✓", "{n}님과 친구", "{n}님과 친구가 되었어요"},
-	"space_invite":    {"⌂", "{s} 초대", "{n}님이 {s}에 초대했어요"},
-	"guestbook_entry": {"✎", "{n}님의 방명록", "{n}님이 방명록을 남겼어요"},
+// notifIcons is each known notification type's icon; its sentence is the
+// catalog key feed.notif_<type> (wide) / feed.notif_<type>_narrow, with the
+// actor's name as {name} and the space name as {space}.
+var notifIcons = map[api.NotificationType]string{
+	"post_like":       "♥",
+	"post_repost":     "↻",
+	"post_reply":      "↩",
+	"post_quote":      "❝",
+	"post_mention":    "@",
+	"message_mention": "@",
+	"thread_reply":    "↩",
+	"follow":          "+",
+	"follow_request":  "+",
+	"follow_accepted": "✓",
+	"friend_request":  "+",
+	"friend_accepted": "✓",
+	"space_invite":    "⌂",
+	"guestbook_entry": "✎",
 }
 
-// notifFallback is the copy of a type this client does not know.
-var notifFallback = notifCopy{"•", "{n}님의 알림", "{n}님의 새 알림이 있어요"}
+// notifFallbackIcon is the icon of a type this client does not know (its
+// sentence is feed.notif_other).
+const notifFallbackIcon = "•"
 
 // notifTarget is where opening n leads: a route, or (follow_request) the
 // feed.follow_requests overlay. ok is false when n lacks what its target needs.
@@ -337,7 +330,8 @@ func (n *notifications) onPage(ctx *ui.Context, m ui.ResultMsg[*api.Notification
 		if m.Err == nil || (!more && n.quietFail) {
 			return nil
 		}
-		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextNotif} }
+		errCtx := cat(ctx).Feed.ErrCtxNotif()
+		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errCtx} }
 	}
 	n.err, n.loaded = nil, true
 	fs := n.fs(ctx)
@@ -475,7 +469,8 @@ func (n *notifications) onMarkRead(ctx *ui.Context, m ui.ResultMsg[*markReadOutc
 			}
 		}
 		ctx.Store.NotifUnread = o.prevN
-		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextNotif} }
+		errCtx := cat(ctx).Feed.ErrCtxNotif()
+		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errCtx} }
 	}
 	ctx.Store.NotifUnread = o.unread
 	return nil
@@ -516,25 +511,34 @@ func pendingInvite(ctx *ui.Context, id string) bool {
 
 // ---- rendering ----
 
-// notifText fills a copy template with the actor and space names (sanitized).
+// notifSentence is x's line in c's language: feed.notif_<type> (wide) or
+// feed.notif_<type>_narrow, filled with the actor and space names (sanitized).
 // The server names the space only for space_invite (api.md 5.18); otherwise
 // x.Context.SpaceName is nil and the caller passes x through withSpaceName.
-func notifText(tmpl string, x api.Notification) string {
-	name := textNotifSomeone
+func notifSentence(c *i18n.T, x api.Notification, narrow bool) string {
+	name := c.Feed.NotifSomeone()
 	if x.Actor != nil {
 		name = notifLine(x.Actor.DisplayName)
 		if textwidth.Blank(name) { // nothing visible (pending-fixes 1)
 			name = notifLine(x.Actor.Handle)
 		}
 		if name == "" {
-			name = textNotifSomeone
+			name = c.Feed.NotifSomeone()
 		}
 	}
 	space := notifLine(deref(x.Context.SpaceName))
 	if space == "" {
-		space = textNotifSpace
+		space = c.Feed.NotifSpace()
 	}
-	return strings.NewReplacer("{n}", name, "{s}", space).Replace(tmpl)
+	key := "notif_other"
+	if _, ok := notifIcons[x.Type]; ok {
+		key = "notif_" + string(x.Type)
+	}
+	if narrow {
+		key += "_narrow"
+	}
+	s, _ := c.Lookup("feed", key, map[string]any{"name": name, "space": space})
+	return s
 }
 
 // notifLine is s sanitized with every whitespace run collapsed to one space.
@@ -557,16 +561,12 @@ func (n *notifications) row(ctx *ui.Context, x api.Notification, sel bool, width
 		return ""
 	}
 	narrow := n.narrow(ctx)
-	cp, ok := notifCopies[x.Type]
+	icon, ok := notifIcons[x.Type]
 	if !ok {
-		cp = notifFallback
+		icon = notifFallbackIcon
 	}
-	tmpl := cp.wide
-	if narrow {
-		tmpl = cp.narrow
-	}
-	text := notifText(tmpl, withSpaceName(ctx, x))
-	ts := humanize.Relative(nowIn(ctx), x.CreatedAt)
+	text := notifSentence(cat(ctx), withSpaceName(ctx, x), narrow)
+	ts := hz(ctx).Relative(nowIn(ctx), x.CreatedAt)
 
 	gutter := t.S.Base.Render(strings.Repeat(" ", notifGutterW))
 	switch {
@@ -589,9 +589,9 @@ func (n *notifications) row(ctx *ui.Context, x api.Notification, sel bool, width
 			dot = ""
 		}
 	}
-	avail := cw - textwidth.Width(dot) - textwidth.Width(cp.icon) - 1
+	avail := cw - textwidth.Width(dot) - textwidth.Width(icon) - 1
 	if avail <= 0 {
-		return fit(t, gutter+n.paint(t, sel, x.Read, dot, cp.icon, "", "", ""), width)
+		return fit(t, gutter+n.paint(t, sel, x.Read, dot, icon, "", "", ""), width)
 	}
 	tw := textwidth.Width(ts)
 	if textwidth.Width(text)+1+tw > avail {
@@ -615,7 +615,7 @@ func (n *notifications) row(ctx *ui.Context, x api.Notification, sel bool, width
 	if tw > 0 {
 		pad = strings.Repeat(" ", max(rem, 0)+1)
 	}
-	return fit(t, gutter+n.paint(t, sel, x.Read, dot, cp.icon, text, preview, pad+ts), width)
+	return fit(t, gutter+n.paint(t, sel, x.Read, dot, icon, text, preview, pad+ts), width)
 }
 
 // paint styles the row parts: on the selection background when sel; else the
@@ -663,7 +663,7 @@ func nowIn(ctx *ui.Context) time.Time {
 
 func (n *notifications) loadingLine(ctx *ui.Context, w int) string {
 	t := themeOf(ctx)
-	return fit(t, t.S.Base.Render("  ")+n.spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
+	return fit(t, t.S.Base.Render("  ")+n.spin.View(t)+t.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 }
 
 func (n *notifications) View(ctx *ui.Context, focused bool) string {
@@ -683,9 +683,9 @@ func (n *notifications) View(ctx *ui.Context, focused bool) string {
 	case len(n.rows) == 0 && (n.loading || !n.loaded):
 		out = append(out, n.loadingLine(ctx, w))
 	case len(n.rows) == 0 && n.err != nil:
-		out = strings.Split(widgets.Empty(t, n.size, "⚠", retryHint(ctx, textNotifLoadFail), ""), "\n")
+		out = strings.Split(widgets.Empty(t, n.size, "⚠", retryHint(ctx, cat(ctx).Feed.NotifLoadFailed()), ""), "\n")
 	case len(n.rows) == 0:
-		out = strings.Split(widgets.Empty(t, n.size, iconNotifEmpty, textNotifEmpty, ""), "\n")
+		out = strings.Split(widgets.Empty(t, n.size, iconNotifEmpty, cat(ctx).Feed.NotifEmpty(), ""), "\n")
 	case !n.listsNotifs():
 		// the section alone: the notifications' state (loading / failed / none) right under it
 		foot := n.sectionFoot(ctx, w)
@@ -742,15 +742,15 @@ func (n *notifications) sectionFoot(ctx *ui.Context, w int) []string {
 	indent := t.S.Base.Render(strings.Repeat(" ", notifGutterW))
 	var out []string
 	if ctx.Density() != ui.DensityMinimal {
-		out = append(out, fit(t, indent+t.S.Subtitle.Render(textNotifHeader), w))
+		out = append(out, fit(t, indent+t.S.Subtitle.Render(cat(ctx).Feed.NotifHeader()), w))
 	}
 	switch {
 	case n.loading || !n.loaded:
 		out = append(out, n.loadingLine(ctx, w))
 	case n.err != nil:
-		out = append(out, fit(t, indent+t.S.Dim.Render("⚠ "+retryHint(ctx, textNotifLoadFail)), w))
+		out = append(out, fit(t, indent+t.S.Dim.Render("⚠ "+retryHint(ctx, cat(ctx).Feed.NotifLoadFailed())), w))
 	default:
-		out = append(out, fit(t, indent+t.S.Dim.Render(textNotifEmpty), w))
+		out = append(out, fit(t, indent+t.S.Dim.Render(cat(ctx).Feed.NotifEmpty()), w))
 	}
 	return out
 }
@@ -840,27 +840,34 @@ func (n *notifications) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.
 // ---- optional capabilities ----
 
 // Title is "알림" with the unread count: notifications plus the unread
-// conversations no notification counts (Store.InboxBadge).
+// conversations no notification counts (Store.InboxBadge). Widget and tiny
+// use the short form (en "Alerts").
 func (n *notifications) Title(ctx *ui.Context) (string, ui.Badge) {
 	b := ui.Badge{}
 	if ctx != nil && ctx.Store != nil {
 		b.Count = ctx.Store.InboxBadge()
 	}
-	return textNotifTitle, b
+	c := cat(ctx)
+	if ctx != nil {
+		if d := ctx.Density(); d == ui.DensityBubble || d == ui.DensityMinimal {
+			return c.Feed.NotifTitleShort(), b
+		}
+	}
+	return c.Feed.NotifTitle(), b
 }
 
 func (n *notifications) Help(ctx *ui.Context) []key.Binding {
 	open := ctx.Keys.Binding(keymap.ListOpen)
-	open.SetHelp(open.Help().Key, "열기")
+	open.SetHelp(open.Help().Key, cat(ctx).Feed.HelpOpen())
 	if n.err != nil && len(n.rows) == 0 {
 		r := ctx.Keys.Binding(keymap.PostReply)
-		r.SetHelp(r.Help().Key, textRetry)
+		r.SetHelp(r.Help().Key, cat(ctx).Feed.HelpRetry())
 		return []key.Binding{r}
 	}
 	if !n.pageLoaded() {
 		return []key.Binding{open}
 	}
-	return []key.Binding{open, key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "모두 읽음"))}
+	return []key.Binding{open, key.NewBinding(key.WithKeys("x"), key.WithHelp("x", cat(ctx).Feed.HelpMarkAllRead()))}
 }
 
 // withSpaceName fills a missing context.space_name with the name of the space

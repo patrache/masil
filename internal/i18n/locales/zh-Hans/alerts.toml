@@ -1,0 +1,50 @@
+[doc_comment_mention_title]
+other = "{actor} 在 {space} · {doc} 的评论中提到了你"
+
+[focus_summary_body]
+other = "话题回复 {thread_reply} · 邀请 {invite} · 好友请求 {friend_request} · 其他 {other}"
+
+[focus_summary_title]
+other = "专注模式结束 — 提及 {mention}，私信 {dm}"
+
+[invite_space_title]
+other = "{actor} 邀请你加入 {space}"
+
+[message_channel_title]
+other = "{actor} · {space} #{channel}"
+
+[message_dm_title]
+other = "{actor}"
+
+[message_group_title]
+other = "{actor} · {group}"
+
+[post_like_title]
+other = "{actor} 赞了你的帖子"
+
+[post_mention_title]
+other = "{actor} 在帖子中提到了你"
+
+[post_quote_title]
+other = "{actor} 引用了你的帖子"
+
+[post_reply_title]
+other = "{actor} 回复了你的帖子"
+
+[post_repost_title]
+other = "{actor} 转发了你的帖子"
+
+[social_follow_accepted_title]
+other = "{actor} 接受了你的关注请求"
+
+[social_follow_request_title]
+other = "{actor} 请求关注你"
+
+[social_follow_title]
+other = "{actor} 关注了你"
+
+[social_friend_request_title]
+other = "{actor} 向你发送了好友请求"
+
+[social_guestbook_title]
+other = "{actor} 在你的留言板留言"

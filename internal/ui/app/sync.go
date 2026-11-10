@@ -22,8 +22,12 @@ import (
 // Timings and texts.
 const (
 	bootstrapRetry = 10 * time.Second // a failed bootstrap is retried after this
-	logoutTimeout  = 10 * time.Second // POST /v1/auth/logout before logging out locally anyway
+	wipeTimeout    = 30 * time.Second // logout's "이 기기의 도구 로그인도 지우기" (one OS call per value)
 )
+
+// logoutTimeout bounds POST /v1/auth/logout before logging out locally anyway
+// (a var for tests: SetLogoutTimeoutForTest).
+var logoutTimeout = 10 * time.Second
 
 // LoggedOutMsg reasons (ui.LoggedOutMsg.Reason).
 const (
@@ -57,8 +61,9 @@ type unauthorizedMsg struct{}
 // upgradeMsg wakes Update after api.WithOnUpgradeRequired fired (the flag does the work).
 type upgradeMsg struct{}
 
-// logoutDoneMsg ends the logout command after POST /v1/auth/logout (any outcome).
-type logoutDoneMsg struct{ err error }
+// logoutDoneMsg ends the logout command after POST /v1/auth/logout (any outcome);
+// wipeErr is a failed "이 기기의 도구 로그인도 지우기" (told to the user after logout).
+type logoutDoneMsg struct{ err, wipeErr error }
 
 // onUnauthorized is the api.WithOnUnauthorized hook. It runs on an HTTP goroutine, so it
 // only sets a flag (read at the start of the next Update) and wakes the program.
@@ -171,7 +176,7 @@ func (m *Model) onBootstrapDone(msg bootstrapDoneMsg) tea.Cmd {
 		m.bootAgain = false
 		if api.CodeOf(res.Err) != "unauthorized" { // 401: the session ends instead (takeFlags)
 			if !failedBefore { // one toast per outage, not one per retry
-				cmds = append(cmds, m.toasts.push(m.ctx, errorToast(ui.ErrorMsg{Err: res.Err})))
+				cmds = append(cmds, m.toasts.push(m.ctx, errorToast(m.ctx.T, ui.ErrorMsg{Err: res.Err})))
 			}
 			cmds = append(cmds, ui.After(m.ctx, bootstrapRetry, bootstrapRetryMsg{gen: m.bootGen}))
 		}
@@ -245,16 +250,31 @@ func (n NavState) pruneChannels(known func(id string) bool) NavState {
 
 // logoutConfirmed is the confirmed "logout" command: POST /v1/auth/logout with the
 // current token, then the local logout whatever the outcome (logoutDoneMsg).
-func (m *Model) logoutConfirmed() tea.Cmd {
+// wipeTools also removes this masil account's tool secrets on this device
+// (secrets.DeleteAll on its own context, before the request; the scope is read
+// now, before the session ends).
+func (m *Model) logoutConfirmed(wipeTools bool) tea.Cmd {
 	if m.login != nil || m.loggingOut {
 		return nil
 	}
 	m.loggingOut = true
 	client := m.ctx.API
+	st := m.ctx.Secrets
+	server, user, scoped := m.ctx.SecretScope()
 	return func() tea.Msg {
+		// The wipe first, on its own context: a slow or dead server (the case
+		// where masil logs out locally anyway) must not leave it a spent one.
+		var werr error
+		if wipeTools && scoped && st != nil {
+			wctx, wcancel := context.WithTimeout(context.Background(), wipeTimeout)
+			if werr = st.DeleteAll(wctx, server, user); werr != nil {
+				slog.Warn("wipe tool logins", "err", werr)
+			}
+			wcancel()
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), logoutTimeout)
 		defer cancel()
-		return logoutDoneMsg{err: client.Logout(ctx)}
+		return logoutDoneMsg{err: client.Logout(ctx), wipeErr: werr}
 	}
 }
 
@@ -281,7 +301,7 @@ func (m *Model) logout(reason string) tea.Cmd {
 	m.watched, m.watchSent = nil, false
 	m.prefix = prefixNone
 
-	m.overlays, m.ovSizes, m.ovSized, m.palette = nil, nil, nil, nil
+	m.overlays, m.ovSizes, m.ovSized, m.ovIDs, m.palette = nil, nil, nil, nil, nil
 	m.cache = newInstanceCache()
 	m.panes = map[layout.SlotID]*instance{}
 	m.nav = newNavState()

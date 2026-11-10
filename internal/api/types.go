@@ -42,7 +42,8 @@ const (
 	ChannelGroupDM ChannelKind = "group_dm"
 )
 
-// AlertKind is dm|mention|thread_reply|invite|friend_request|channel_message|social|focus_summary.
+// AlertKind is dm|mention|thread_reply|invite|friend_request|channel_message|social|focus_summary
+// (v0.1.3 P2: also workspace_invite|workspace_attention).
 type AlertKind string
 
 // AlertKind values.
@@ -55,6 +56,9 @@ const (
 	AlertChannelMessage AlertKind = "channel_message"
 	AlertSocial         AlertKind = "social"
 	AlertFocusSummary   AlertKind = "focus_summary"
+
+	AlertWorkspaceInvite    AlertKind = "workspace_invite"    // v0.1.3 P2 (api.md 5.26)
+	AlertWorkspaceAttention AlertKind = "workspace_attention" // v0.1.3 P2: the owner's shared program waits for a confirmation
 )
 
 // NotificationType is the notification inbox item type (api.md 2):
@@ -118,6 +122,9 @@ type Settings struct {
 	IsPrivate       bool           `json:"is_private"`
 	Notify          NotifySettings `json:"notify"`
 	FocusDefaultMin int            `json:"focus_default_min"` // 1..720
+	// LeetShareWithFriends: friends see my leet streak on the friends board
+	// (v0.1.3 P1, api.md 5.25); default true.
+	LeetShareWithFriends bool `json:"leet_share_with_friends"`
 }
 
 // NotifySettings are the notify.* desktop alert switches.
@@ -128,6 +135,7 @@ type NotifySettings struct {
 	FriendRequest bool `json:"friend_request"`
 	ThreadReply   bool `json:"thread_reply"`
 	Social        bool `json:"social"`
+	Workspace     bool `json:"workspace"` // v0.1.3: workspace_invite / workspace_attention
 }
 
 // Focus is an active focus session.
@@ -388,7 +396,7 @@ type Message struct {
 	ID           string            `json:"id"`
 	ChannelID    string            `json:"channel_id"`
 	Author       UserSummary       `json:"author"`
-	Kind         string            `json:"kind"` // text|me|roll|poll|system
+	Kind         string            `json:"kind"` // text|me|roll|poll|system|card
 	Body         string            `json:"body"`
 	Mentions     []MentionRef      `json:"mentions"`
 	MentionHere  bool              `json:"mention_here"`
@@ -399,10 +407,23 @@ type Message struct {
 	Poll         *Poll             `json:"poll"`
 	Roll         *RollResult       `json:"roll"`
 	System       *SystemEvent      `json:"system"`
+	Card         *Card             `json:"card"` // v0.1.3: set iff Kind == MessageKindCard
 	ClientNonce  *string           `json:"client_nonce"`
 	CreatedAt    time.Time         `json:"created_at"`
 	EditedAt     *time.Time        `json:"edited_at"`
 	Deleted      bool              `json:"deleted"`
+}
+
+// MessageKindCard is Message.kind "card" (v0.1.3, C1.2): one kind for every
+// tool card; Card.Type tells them apart and Body is the fallback summary.
+const MessageKindCard = "card"
+
+// Card is Message.card (api.md 2): a tool card's type, schema version and
+// per-type data (kept raw; each tool's renderer decodes its own shape).
+type Card struct {
+	Type string          `json:"type"`
+	V    int             `json:"v"`
+	Data json.RawMessage `json:"data"`
 }
 
 // QuotedPost is a union discriminated by "available".
@@ -510,17 +531,31 @@ type Alert struct {
 	CreatedAt        time.Time    `json:"created_at"`
 	Suppressed       bool         `json:"suppressed"`        // focus/dnd: no OS notification
 	SuppressedReason *string      `json:"suppressed_reason"` // focus|dnd|null
+	// Template is what the client renders from its catalog (notify.Render);
+	// Title/Body are the server's fallback in the request language. nil on
+	// alerts from an older server or an older stored record.
+	Template *AlertTemplate `json:"template"`
+}
+
+// AlertTemplate is Alert.template: an id registered in
+// docs/contract/i18n/alert-templates.json and its params (strings and JSON
+// numbers — float64 after decoding).
+type AlertTemplate struct {
+	ID     string         `json:"id"`
+	Params map[string]any `json:"params"`
 }
 
 // AlertTarget is Alert.target.
 type AlertTarget struct {
-	Type         string  `json:"type"` // channel|message|post|space|user|notification
+	Type         string  `json:"type"` // channel|message|post|space|user|notification|doc (P0 0.1.3)|workspace_share (P2 0.1.3, ID = share id) — unknown types go to ui.AlertTargetCmd
 	ID           string  `json:"id"`
 	ChannelID    *string `json:"channel_id"`
 	MessageID    *string `json:"message_id"`
 	ThreadRootID *string `json:"thread_root_id"`
 	PostID       *string `json:"post_id"`
 	SpaceID      *string `json:"space_id"`
+	// DocType is "arch" | "apicol" when Type == "doc" (absent otherwise).
+	DocType string `json:"doc_type,omitempty"`
 }
 
 // FocusSummary summarizes a finished focus session.
@@ -600,4 +635,53 @@ type AdminAction struct {
 	ReportID   *string     `json:"report_id"`
 	Reason     string      `json:"reason"`
 	CreatedAt  time.Time   `json:"created_at"`
+}
+
+// ---- 5.24 room documents (v0.1.3, docs/contract/collab.md) ----
+
+// Doc is a room document's metadata (api.md 5.24); its content lives in the
+// document socket (internal/collab).
+type Doc struct {
+	ID        string      `json:"id"`
+	SpaceID   string      `json:"space_id"`
+	Type      string      `json:"type"` // arch|apicol
+	Title     string      `json:"title"`
+	CreatedBy UserSummary `json:"created_by"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	HeadSeq   int64       `json:"head_seq"` // last sequenced op; 0 = empty
+	Locked    bool        `json:"locked"`
+}
+
+// DocVersion is one saved version of a document (named, automatic or a
+// restore).
+type DocVersion struct {
+	No           int          `json:"no"`
+	Seq          int64        `json:"seq"`
+	Name         *string      `json:"name"` // nil for auto and restore versions
+	Auto         bool         `json:"auto"`
+	RestoredFrom *int         `json:"restored_from"`
+	CreatedBy    *UserSummary `json:"created_by"` // nil for auto versions
+	CreatedAt    time.Time    `json:"created_at"`
+}
+
+// DocVersionSnapshot is GET /v1/docs/{doc_id}/versions/{no}: the version and
+// its snapshot, kept raw (collab.DecodeSnapshot decodes it; api does not
+// import collab).
+type DocVersionSnapshot struct {
+	Version  DocVersion      `json:"version"`
+	Snapshot json.RawMessage `json:"snapshot"`
+}
+
+// DocComment is a comment on a document object.
+type DocComment struct {
+	ID         string      `json:"id"`
+	DocID      string      `json:"doc_id"`
+	Anchor     string      `json:"anchor"`
+	Author     UserSummary `json:"author"`
+	Body       string      `json:"body"` // "" when deleted
+	RootID     *string     `json:"root_id"`
+	ResolvedAt *time.Time  `json:"resolved_at"`
+	CreatedAt  time.Time   `json:"created_at"`
+	Deleted    bool        `json:"deleted"`
 }

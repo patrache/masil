@@ -1,0 +1,280 @@
+# Settings area: the settings screen and theme names.
+
+[blocked_ago]
+other = "Blocked · {ago}"
+
+[cancel]
+other = "Cancel"
+
+[client_admin]
+other = "Admin tool"
+
+[client_daemon]
+other = "Notification daemon"
+
+[client_other]
+other = "Other"
+
+[client_tui]
+other = "Terminal"
+
+[current_device]
+other = "This device"
+
+[fix_config]
+other = "Fix config.toml, then try again"
+
+[focus_minutes]
+other = "{n} min"
+
+[focus_range]
+other = "Enter minutes from 1 to 720"
+
+[focus_unit]
+other = " min"
+
+[help_change]
+other = "change"
+
+[help_confirm]
+other = "confirm"
+
+[help_end_input]
+other = "stop editing"
+
+[help_move]
+other = "move"
+
+[help_section]
+other = "section"
+
+[help_value]
+other = "value"
+
+[last_used]
+other = "Last used · {ago}"
+
+[loading]
+other = "Loading…"
+
+[logout_hint]
+other = "Log out on this device"
+
+[no_blocks]
+other = "You haven't blocked anyone"
+
+[no_sessions]
+other = "No other sessions"
+
+[off]
+other = "Off"
+
+[on]
+other = "On"
+
+[privacy_dm_friends_and_spaces]
+other = "Friends and space members"
+
+[privacy_dm_friends_only]
+other = "Friends only"
+
+[privacy_dm_policy]
+other = "Receive DMs"
+
+[privacy_private]
+other = "Private account"
+
+[privacy_section]
+other = "Privacy"
+
+[pw_busy]
+other = "Changing…"
+
+[pw_button]
+other = "Change password"
+
+[pw_changed]
+other = "Password changed"
+
+[pw_cur_empty]
+other = "Enter your current password"
+
+[pw_edit_hint]
+other = "enter to type"
+
+[pw_long]
+other = "Passwords are at most 128 characters"
+
+[pw_mismatch]
+other = "The passwords don't match"
+
+[pw_new_empty]
+other = "Enter a new password"
+
+[pw_same]
+other = "The new password is the same as the current one"
+
+[pw_short]
+other = "Passwords are at least 8 characters"
+
+[pw_wrong]
+other = "The current password is wrong"
+
+[retry]
+other = "enter to retry"
+
+[revoke_body]
+other = "masil on {device} will be logged out."
+
+[revoke_title]
+other = "Log out this device?"
+
+[revoke_yes]
+other = "Log out"
+
+[row_animations]
+other = "Animations"
+
+[row_clock]
+other = "Clock"
+
+[row_desktop]
+other = "Desktop notifications"
+
+[row_desktop_sub]
+other = "This device"
+
+[row_focus_default]
+other = "Default focus time"
+
+[row_images]
+other = "Images"
+
+[row_logout]
+other = "Log out"
+
+[row_mouse]
+other = "Mouse"
+
+[row_notify_dm]
+other = "DMs"
+
+[row_notify_friend_request]
+other = "Friend requests"
+
+[row_notify_invite]
+other = "Invites"
+
+[row_notify_mention]
+other = "Mentions"
+
+[row_notify_social]
+other = "Social"
+
+[row_notify_thread_reply]
+other = "Thread replies"
+
+[row_paint_bg]
+other = "Paint background"
+
+[row_pin]
+other = "Pin layout"
+
+[row_pw_confirm]
+other = "Confirm new password"
+
+[row_pw_current]
+other = "Current password"
+
+[row_pw_new]
+other = "New password"
+
+[row_theme]
+other = "Theme"
+
+[save_failed]
+other = "Couldn't save the setting"
+
+[section_blocks]
+other = "Blocked"
+
+[section_display]
+other = "Display"
+
+[section_focus]
+other = "Focus mode"
+
+[section_layout]
+other = "Layout"
+
+[section_logout]
+other = "Log out"
+
+[section_notify]
+other = "Notifications"
+
+[section_password]
+other = "Password"
+
+[section_sessions]
+other = "Devices · sessions"
+
+[section_theme]
+other = "Theme"
+
+[settings_load_failed]
+other = "Couldn't load server settings: {reason}"
+
+[theme_amber]
+other = "Retro amber"
+
+[theme_charm]
+other = "Charm purple"
+
+[theme_command]
+other = "Theme: {theme}"
+
+[theme_cream]
+other = "Cream pastel"
+
+[theme_midnight]
+other = "Midnight blue"
+
+[unblock_body]
+other = "@{handle} will be able to DM you and see your posts again."
+
+[unblock_title]
+other = "Unblock?"
+
+[unblock_yes]
+other = "Unblock"
+
+[value_auto]
+other = "Auto"
+
+[value_clock_12h]
+other = "12-hour"
+
+[value_clock_24h]
+other = "24-hour"
+
+[value_images_halfblock]
+other = "Half blocks"
+
+[value_images_off]
+other = "Off"
+
+[value_pin_command]
+other = "Command"
+
+[value_pin_compact]
+other = "Compact"
+
+[value_pin_standard]
+other = "Standard"
+
+[value_pin_tiny]
+other = "Tiny"
+
+[value_pin_widget]
+other = "Widget"

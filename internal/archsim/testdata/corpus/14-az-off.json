@@ -1,0 +1,29 @@
+{
+ "schema_version": 1, "title": "14-az-off", "seed": 114, "duration_s": 120,
+ "boxes": [
+  {"id": "seoul", "kind": "region", "label": "seoul", "parent": "", "rect": [0, 0, 120, 60], "region_code": "ap-northeast-2"},
+  {"id": "vpc", "kind": "vpc", "label": "vpc", "parent": "seoul", "rect": [2, 2, 116, 56]},
+  {"id": "az-a", "kind": "az", "label": "az-a", "parent": "vpc", "rect": [4, 4, 54, 50]},
+  {"id": "az-b", "kind": "az", "label": "az-b", "parent": "vpc", "rect": [62, 4, 54, 50]}
+ ],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 1200, "read_permille": 850}},
+  {"id": "lb", "kind": "lb", "label": "lb", "pos": [50, 5], "parent": "vpc"},
+  {"id": "api-a", "kind": "api", "label": "api-a", "pos": [10, 10], "parent": "az-a", "instances": 3},
+  {"id": "api-b", "kind": "api", "label": "api-b", "pos": [70, 10], "parent": "az-b", "instances": 3},
+  {"id": "primary", "kind": "db_primary", "label": "primary", "pos": [10, 30], "parent": "az-a", "params": {"failover_to": "replica", "failover_s": 30}},
+  {"id": "replica", "kind": "db_replica", "label": "replica", "pos": [70, 30], "parent": "az-b"}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "lb", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "lb", "to": "api-a", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e3", "from": "lb", "to": "api-b", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e4", "from": "api-a", "to": "primary", "read_permille": 300, "write_permille": 1000},
+  {"id": "e5", "from": "api-a", "to": "replica", "read_permille": 700, "write_permille": 0},
+  {"id": "e6", "from": "api-b", "to": "primary", "read_permille": 300, "write_permille": 1000},
+  {"id": "e7", "from": "api-b", "to": "replica", "read_permille": 700, "write_permille": 0}
+ ],
+ "faults": [
+  {"id": "f1", "at_s": 40, "kind": "az_off", "target": "az-a", "dur_s": 40}
+ ]
+}

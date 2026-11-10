@@ -35,7 +35,9 @@ export interface UserSettingsRow {
   notify_friend_request: 0 | 1;
   notify_thread_reply: 0 | 1;
   notify_social: 0 | 1;
+  notify_workspace: 0 | 1; // v0.1.3 P2 (0007_workspace)
   focus_default_min: number;
+  leet_share_with_friends: 0 | 1; // 0006_leet
   updated_at: number;
 }
 
@@ -206,6 +208,7 @@ export interface MessageRow {
   edited_at: number | null;
   deleted_at: number | null;
   deleted_by: string | null;
+  card_json: string | null; // v0.1.3 0004_cards: JSON Card; set => served as kind "card" (data-model.md 3.12)
 }
 
 /** `thread_participants` */
@@ -459,4 +462,67 @@ export interface TimelineRow {
   post_id: string;
   reposter_id: string | null;
   at: number;
+}
+
+/** `collab_docs` (v0.1.3 0005_collab, data-model.md 3.13) */
+export interface CollabDocRow {
+  id: string;
+  space_id: string;
+  type: "arch" | "apicol";
+  title: string;
+  created_by: string;
+  created_at: number;
+  updated_at: number;
+  head_seq: number;
+  locked: 0 | 1;
+  deleted_at: number | null;
+}
+
+/** `collab_versions` (v0.1.3 0005_collab) */
+export interface CollabVersionRow {
+  doc_id: string;
+  no: number;
+  seq: number;
+  name: string | null;
+  auto: 0 | 1;
+  restored_from: number | null;
+  created_by: string | null;
+  created_at: number;
+}
+
+/** `collab_comments` (v0.1.3 0005_collab) */
+export interface CollabCommentRow {
+  id: string;
+  doc_id: string;
+  anchor: string;
+  author_id: string;
+  body: string;
+  root_id: string | null;
+  resolved_at: number | null;
+  created_at: number;
+  deleted: 0 | 1;
+}
+
+/** `workspace_shares` (v0.1.3 P2, data-model.md 3.15) — metadata only */
+export interface WorkspaceShareRow {
+  id: string;
+  owner_id: string;
+  title: string;
+  status: "live" | "ended";
+  created_at: number;
+  ended_at: number | null;
+  end_reason: "ended" | "timeout" | null;
+}
+
+/** `workspace_share_members` (v0.1.3 P2, data-model.md 3.15) */
+export interface WorkspaceShareMemberRow {
+  share_id: string;
+  user_id: string;
+  seat: number;
+  invited_at: number;
+  joined_at: number | null;
+  left_at: number | null;
+  removed_at: number | null;
+  max_level: "viewer" | "prompter" | "editor" | "keyboard" | null;
+  verified: 0 | 1;
 }

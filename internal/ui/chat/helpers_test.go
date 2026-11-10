@@ -1111,7 +1111,7 @@ func plainOf(t testing.TB, h *uitest.Harness, id string) string {
 	if !ok {
 		t.Fatalf("message %s not held", id)
 	}
-	r := []rune(markup.Plain(m.Body, 1<<16))
+	r := []rune(markup.Plain(m.Body, 1<<16, koCat.Common.CodeSummary))
 	return string(r[:min(2, len(r))])
 }
 

@@ -341,6 +341,43 @@ type DeviceTUIState struct {
 	TUIConnected bool   `json:"tui_connected"`
 }
 
+// DocCreatedEvent is `doc.created` (events.md 4.10, v0.1.3).
+type DocCreatedEvent struct {
+	Doc api.Doc `json:"doc"`
+}
+
+// DocUpdatedEvent is `doc.updated`: title / lock changes, or a delete
+// (Deleted, Doc = its last value).
+type DocUpdatedEvent struct {
+	Doc     api.Doc `json:"doc"`
+	Deleted bool    `json:"deleted"`
+}
+
+// DocCommentCreatedEvent is `doc.comment_created`.
+type DocCommentCreatedEvent struct {
+	DocID   string         `json:"doc_id"`
+	Comment api.DocComment `json:"comment"`
+}
+
+// WorkspaceShareInvited is `workspace_share.invited` (events.md 4.11, v0.1.3):
+// I was invited to a share.
+type WorkspaceShareInvited struct {
+	Share api.WorkspaceShare `json:"share"`
+}
+
+// WorkspaceShareUpdated is `workspace_share.updated` (ephemeral): invites,
+// removals, leaving and level changes. A removed member also gets it, with a
+// Share whose Members no longer list them.
+type WorkspaceShareUpdated struct {
+	Share api.WorkspaceShare `json:"share"`
+}
+
+// WorkspaceShareEnded is `workspace_share.ended`; Reason is ended|timeout.
+type WorkspaceShareEnded struct {
+	ShareID string `json:"share_id"`
+	Reason  string `json:"reason"`
+}
+
 // decodeAs unmarshals raw into a T and returns it as a value.
 func decodeAs[T any](raw json.RawMessage) (any, error) {
 	var v T
@@ -415,6 +452,14 @@ var decoders = map[string]func(json.RawMessage) (any, error){
 	"story.deleted":         decodeAs[StoryDeleted],
 
 	"device.tui_state": decodeAs[DeviceTUIState],
+
+	"doc.created":         decodeAs[DocCreatedEvent],
+	"doc.updated":         decodeAs[DocUpdatedEvent],
+	"doc.comment_created": decodeAs[DocCommentCreatedEvent],
+
+	"workspace_share.invited": decodeAs[WorkspaceShareInvited],
+	"workspace_share.updated": decodeAs[WorkspaceShareUpdated],
+	"workspace_share.ended":   decodeAs[WorkspaceShareEnded],
 }
 
 // loggedTypes are the types events.md 4장 marks 기록 (logged, carry a seq).
@@ -438,4 +483,8 @@ var loggedTypes = map[string]bool{
 	"focus.started": true, "focus.ended": true,
 
 	"notification.created": true, "notifications.read": true, "alert": true,
+
+	"doc.created": true, "doc.updated": true, "doc.comment_created": true,
+
+	"workspace_share.invited": true, "workspace_share.ended": true, // updated is ephemeral (events.md 4.11)
 }

@@ -1,0 +1,18 @@
+{
+ "schema_version": 1, "title": "16-primary-failover", "seed": 116, "duration_s": 120,
+ "boxes": [],
+ "nodes": [
+  {"id": "users", "kind": "client", "label": "users", "pos": [0, 0], "parent": "", "traffic": {"rps": 800, "read_permille": 700}},
+  {"id": "api", "kind": "api", "label": "api", "pos": [20, 0], "parent": "", "instances": 4},
+  {"id": "primary", "kind": "db_primary", "label": "primary", "pos": [40, 0], "parent": "", "params": {"failover_to": "replica", "failover_s": 15}},
+  {"id": "replica", "kind": "db_replica", "label": "replica", "pos": [40, 6], "parent": ""}
+ ],
+ "edges": [
+  {"id": "e1", "from": "users", "to": "api", "read_permille": 1000, "write_permille": 1000},
+  {"id": "e2", "from": "api", "to": "primary", "read_permille": 400, "write_permille": 1000},
+  {"id": "e3", "from": "api", "to": "replica", "read_permille": 600, "write_permille": 0}
+ ],
+ "faults": [
+  {"id": "f1", "at_s": 20, "kind": "node_off", "target": "primary"}
+ ]
+}

@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/ui/uitest/fixtures"
@@ -124,7 +126,7 @@ func TestGuestbookWritePrivateError(t *testing.T) {
 			if _, ok := lastReq(h, "POST", "/v1/users/"+hanaID+"/guestbook"); !ok {
 				t.Fatal("no POST guestbook")
 			}
-			want := api.Describe(&api.Error{Code: code})
+			want := errtext.Describe(i18n.KoT(), &api.Error{Code: code})
 			if !strings.Contains(toastText(h), squash(want)) {
 				t.Fatalf("no %q toast:\n%s", want, h.Screen())
 			}

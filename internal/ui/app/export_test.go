@@ -3,12 +3,21 @@ package app
 import (
 	"context"
 	"net/http"
+	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/ui"
 )
+
+// SetLogoutTimeoutForTest shortens the POST /v1/auth/logout timeout for tb.
+func SetLogoutTimeoutForTest(tb testing.TB, d time.Duration) {
+	prev := logoutTimeout
+	logoutTimeout = d
+	tb.Cleanup(func() { logoutTimeout = prev })
+}
 
 // SetRealtimeForTest replaces the Context's realtime (status-line connection tests).
 func SetRealtimeForTest(m *Model, rt ui.Realtime) {
@@ -59,3 +68,17 @@ func ConfirmLogoutForTest(m *Model) tea.Cmd {
 	_, cmd := m.Update(logoutConfirmedMsg{})
 	return cmd
 }
+
+// SetPanesForTest replaces termhost.Running / termhost.CloseAll for the quit
+// confirmation (P0 Task 20).
+func SetPanesForTest(running func() []string, closeAll func(grace time.Duration)) (restore func()) {
+	oldR, oldC := runningPanes, closeAllPanes
+	runningPanes, closeAllPanes = running, closeAll
+	return func() { runningPanes, closeAllPanes = oldR, oldC }
+}
+
+// OptionsFromEnvForTest is Run's reading of the process env (MASIL_PANE).
+func OptionsFromEnvForTest(o Options) Options { return optionsFromEnv(o) }
+
+// PaneListForTest is the quit question's program list.
+func PaneListForTest(m *Model, names []string) string { return paneList(m, names) }

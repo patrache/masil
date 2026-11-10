@@ -11,7 +11,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -36,11 +37,14 @@ const (
 
 // profileTabs is the tab order: label, ListUserPosts filter ("" = not a post
 // list) and the Route.Query["tab"] value that opens it.
-var profileTabs = []struct{ label, filter, query string }{
-	{"글", "posts", "posts"},
-	{"답글", "replies", "replies"},
-	{"미디어", "media", "media"},
-	{"방명록", "", "guestbook"},
+var profileTabs = []struct {
+	label         func(*i18n.T) string
+	filter, query string
+}{
+	{func(c *i18n.T) string { return c.Feed.ProfileTabPosts() }, "posts", "posts"},
+	{func(c *i18n.T) string { return c.Feed.ProfileTabReplies() }, "replies", "replies"},
+	{func(c *i18n.T) string { return c.Feed.ProfileTabMedia() }, "media", "media"},
+	{func(c *i18n.T) string { return c.Feed.ProfileTabGuestbook() }, "", "guestbook"},
 }
 
 // postTabs is the number of post-list tabs (글 · 답글 · 미디어).
@@ -54,50 +58,12 @@ const (
 	fullMinW    = 40 // narrower panes get the compact header even at DensityFull
 )
 
-// Profile copy.
-const (
-	textProfileTitle      = "프로필"
-	textProfileLoadFailed = "프로필을 불러오지 못했어요"
-	textUserNotFound      = "사용자를 찾을 수 없어요"
-	hintGoBack            = "esc 로 돌아가기"
-	textPrivateTitle      = "비공개 계정이에요"
-	hintPrivate           = "팔로우 요청이 승인되면 글을 볼 수 있어요"
-	textBlockedTitle      = "차단한 사용자예요"
-	hintBlocked           = "차단 해제는 ctrl+k → 차단 목록"
-	textSuspendedTitle    = "정지된 계정이에요"
-	textSuspendedBadge    = "정지된 계정"
-	textCannotView        = "글을 볼 수 없어요"
-	textNoProfilePosts    = "아직 글이 없어요"
-	textNoProfileReplies  = "아직 답글이 없어요"
-	textNoProfileMedia    = "아직 사진이 없어요"
-	chipFollow            = "[팔로우]"
-	chipFollowing         = "[팔로잉 ✓]"
-	chipRequested         = "[요청됨]"
-	chipEditProfile       = "[프로필 편집]"
-	textFriend            = "친구"
-	textFollowsYou        = "나를 팔로우해요"
-	textRequestsCount     = "팔로우 요청 "
-	textUnfollowAsk       = "팔로우를 끊을까요?"
-	textUnfollowYes       = "끊기"
-	textFollowRequested   = "팔로우를 요청했어요"
-	textMenuStories       = "스토리 보기"
-	textMenuBlockUser     = "차단"
-	textMenuReportUser    = "사용자 신고"
-	textMenuEditProfile   = "프로필 편집"
-	textMenuFollowReqs    = "팔로우 요청"
-	textHelpFollow        = "팔로우"
-	textHelpUnfollow      = "언팔로우"
-	textHelpCancelFollow  = "요청 취소"
-	errContextFollow      = "팔로우"
-	errContextProfile     = "프로필"
-)
-
 // presenceLabels is the profile header's presence wording.
-var presenceLabels = map[api.PresenceStatus]string{
-	api.PresenceOnline:  "온라인",
-	api.PresenceAway:    "자리 비움",
-	api.PresenceDND:     "방해 금지",
-	api.PresenceOffline: "오프라인",
+var presenceLabels = map[api.PresenceStatus]func(*i18n.T) string{
+	api.PresenceOnline:  func(c *i18n.T) string { return c.Feed.PresenceOnline() },
+	api.PresenceAway:    func(c *i18n.T) string { return c.Feed.PresenceAway() },
+	api.PresenceDND:     func(c *i18n.T) string { return c.Feed.PresenceDnd() },
+	api.PresenceOffline: func(c *i18n.T) string { return c.Feed.PresenceOffline() },
 }
 
 // Profile result tags (ui.Do).
@@ -446,7 +412,7 @@ func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if m.RouteKey == p.key() {
 			cmds = append(cmds, p.retry(ctx)) // shown again (reopened)
 		}
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+	case ui.ModeChangedMsg, ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		imagesChanged = true
 	default:
 		if rt := reflect.TypeOf(msg); rt != nil && rt.PkgPath() == widgetsPkg {
@@ -502,7 +468,7 @@ func (p *profile) onProfile(ctx *ui.Context, m ui.ResultMsg[*api.Profile]) tea.C
 		if p.prof == nil {
 			p.loadFailed = true
 		}
-		return profileErr(m.Err, errContextProfile)
+		return profileErr(m.Err, cat(ctx).Feed.ErrCtxProfile())
 	}
 	p.prof = m.Value
 	p.loadFailed, p.notFound = false, false
@@ -533,7 +499,7 @@ func (p *profile) onPage(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.TimelineI
 				l.err = m.Err
 				l.loaded = true
 			}
-			return profileErr(m.Err, errContextFeed)
+			return profileErr(m.Err, cat(ctx).Feed.ErrCtxFeed())
 		}
 		l.err = nil
 		l.loaded = true
@@ -574,7 +540,7 @@ func (p *profile) onFollow(ctx *ui.Context, m ui.ResultMsg[*followOutcome]) tea.
 	first := o.take()
 	if m.Err != nil {
 		if first {
-			return profileErr(m.Err, errContextFollow)
+			return profileErr(m.Err, cat(ctx).Feed.ErrCtxFollow())
 		}
 		return nil
 	}
@@ -603,7 +569,7 @@ func (p *profile) onFollow(ctx *ui.Context, m ui.ResultMsg[*followOutcome]) tea.
 		return p.ensureTab(ctx)
 	case "pending":
 		if first && prev != "pending" {
-			return ui.Toast(textFollowRequested, ui.ToastSuccess)
+			return ui.Toast(cat(ctx).Feed.FollowRequested(), ui.ToastSuccess)
 		}
 	}
 	return nil
@@ -920,7 +886,8 @@ func (p *profile) nameLine(ctx *ui.Context, w int, presenceLabel bool) string {
 	if p.prof.Presence != nil {
 		st := api.PresenceStatus(*p.prof.Presence)
 		pres, presW = t.S.Base.Render(" ")+widgets.PresenceDot(t, st), 2
-		if label := presenceLabels[st]; presenceLabel && label != "" {
+		if f := presenceLabels[st]; presenceLabel && f != nil {
+			label := f(cat(ctx))
 			pres += t.S.Base.Render(" " + label)
 			presW += 1 + textwidth.Width(label)
 		}
@@ -997,13 +964,14 @@ func (p *profile) bioLines(ctx *ui.Context, w, n int) []string {
 // account seen by others shows "정지된 계정" instead (its counts are hidden, D1).
 func (p *profile) countsText(ctx *ui.Context, t *theme.Theme) string {
 	if p.masked(ctx) {
-		return t.S.Dim.Render(textSuspendedBadge)
+		return t.S.Dim.Render(cat(ctx).Feed.SuspendedBadge())
 	}
 	part := func(label string, n int) string {
-		return t.S.Dim.Render(label+" ") + t.S.Bold.Render(humanize.Count(n))
+		return t.S.Dim.Render(label+" ") + t.S.Bold.Render(hz(ctx).Count(n))
 	}
 	sep := t.S.Dim.Render(" · ")
-	return part("팔로워", p.prof.FollowerCount) + sep + part("팔로잉", p.prof.FollowingCount) + sep + part("글", p.prof.PostCount)
+	c := cat(ctx)
+	return part(c.Feed.CountFollowers(), p.prof.FollowerCount) + sep + part(c.Feed.CountFollowing(), p.prof.FollowingCount) + sep + part(c.Feed.CountPosts(), p.prof.PostCount)
 }
 
 // chipSeg is one chip of the relationship line.
@@ -1016,6 +984,7 @@ type chipSeg struct {
 // chipSegs are the relationship chips: [팔로우] / [팔로잉 ✓] / [요청됨], 친구,
 // 나를 팔로우해요; on my profile [프로필 편집] and (private) 팔로우 요청 N.
 func (p *profile) chipSegs(ctx *ui.Context) []chipSeg {
+	c := cat(ctx)
 	acc := func(s string) func(*theme.Theme) string {
 		return func(t *theme.Theme) string { return t.S.Base.Foreground(t.P.Acc).Bold(true).Render(s) }
 	}
@@ -1027,9 +996,9 @@ func (p *profile) chipSegs(ctx *ui.Context) []chipSeg {
 	}
 	var out []chipSeg
 	if p.isMe(ctx) {
-		out = append(out, chipSeg{chipEditProfile, acc(chipEditProfile), chipActEdit})
+		out = append(out, chipSeg{c.Feed.ChipEditProfile(), acc(c.Feed.ChipEditProfile()), chipActEdit})
 		if p.prof.IsPrivate && p.reqKnown {
-			s := textRequestsCount + humanize.Count(p.reqCount)
+			s := c.Feed.RequestsCount(hz(ctx).Count(p.reqCount))
 			out = append(out, chipSeg{s, acc(s), chipActRequests})
 		}
 		return out
@@ -1040,17 +1009,18 @@ func (p *profile) chipSegs(ctx *ui.Context) []chipSeg {
 	}
 	switch r.Following {
 	case "active":
-		out = append(out, chipSeg{chipFollowing, base(chipFollowing), chipActFollow})
+		out = append(out, chipSeg{c.Feed.ChipFollowing(), base(c.Feed.ChipFollowing()), chipActFollow})
 	case "pending":
-		out = append(out, chipSeg{chipRequested, dim(chipRequested), chipActFollow})
+		out = append(out, chipSeg{c.Feed.ChipRequested(), dim(c.Feed.ChipRequested()), chipActFollow})
 	default:
-		out = append(out, chipSeg{chipFollow, acc(chipFollow), chipActFollow})
+		out = append(out, chipSeg{c.Feed.ChipFollow(), acc(c.Feed.ChipFollow()), chipActFollow})
 	}
 	if r.IsFriend {
-		out = append(out, chipSeg{textFriend, func(t *theme.Theme) string { return t.S.Base.Foreground(t.P.Acc3).Render(textFriend) }, ""})
+		friend := c.Feed.ProfileFriend()
+		out = append(out, chipSeg{friend, func(t *theme.Theme) string { return t.S.Base.Foreground(t.P.Acc3).Render(friend) }, ""})
 	}
 	if r.FollowedBy == "active" {
-		out = append(out, chipSeg{textFollowsYou, dim(textFollowsYou), ""})
+		out = append(out, chipSeg{c.Feed.FollowsYou(), dim(c.Feed.FollowsYou()), ""})
 	}
 	return out
 }
@@ -1179,20 +1149,21 @@ func (p *profile) avatarLines(ctx *ui.Context) []string {
 
 func (p *profile) loadingLine(ctx *ui.Context, w int) string {
 	t := themeOf(ctx)
-	return fit(t, t.S.Base.Render("  ")+p.spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
+	return fit(t, t.S.Base.Render("  ")+p.spin.View(t)+t.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 }
 
 // lockedState is the empty state drawn instead of the tabs, if any.
 func (p *profile) lockedState(ctx *ui.Context) (icon, title, hint string, locked bool) {
+	c := cat(ctx)
 	switch {
 	case p.blocked(ctx):
-		return "⊘", textBlockedTitle, hintBlocked, true
+		return "⊘", c.Feed.BlockedTitle(), c.Feed.BlockedHint(), true
 	case p.prof.Suspended:
-		return "⊘", textSuspendedTitle, "", true
+		return "⊘", c.Feed.SuspendedTitle(), "", true
 	case !p.canView(ctx) && p.prof.IsPrivate:
-		return "🔒", textPrivateTitle, hintPrivate, true
+		return "🔒", c.Feed.PrivateTitle(), c.Feed.PrivateHint(), true
 	case !p.canView(ctx):
-		return "⊘", textCannotView, "", true
+		return "⊘", c.Feed.CannotView(), "", true
 	}
 	return "", "", "", false
 }
@@ -1207,11 +1178,11 @@ func (p *profile) View(ctx *ui.Context, _ bool) string {
 	p.chips, p.visible = nil, nil
 	switch {
 	case p.prof == nil && p.notFound:
-		return widgets.Empty(t, p.size, "⚠", textUserNotFound, hintGoBack)
+		return widgets.Empty(t, p.size, "⚠", cat(ctx).Feed.UserNotFound(), cat(ctx).Feed.HintGoBack())
 	case p.prof == nil && p.loadFailed && p.loading:
 		return blankRows(t, []string{p.loadingLine(ctx, w)}, w, h)
 	case p.prof == nil && p.loadFailed:
-		return widgets.Empty(t, p.size, "⚠", textProfileLoadFailed, retryHint(ctx, hintGoBack))
+		return widgets.Empty(t, p.size, "⚠", cat(ctx).Feed.ProfileLoadFailed(), retryHint(ctx, cat(ctx).Feed.HintGoBack()))
 	case p.prof == nil:
 		return blankRows(t, []string{p.loadingLine(ctx, w)}, w, h)
 	}
@@ -1228,7 +1199,7 @@ func (p *profile) View(ctx *ui.Context, _ bool) string {
 	if len(out) < h {
 		items := make([]widgets.Tab, len(profileTabs))
 		for i, pt := range profileTabs {
-			items[i] = widgets.Tab{Label: pt.label}
+			items[i] = widgets.Tab{Label: pt.label(cat(ctx))}
 		}
 		p.tabs.Set(items, int(p.tab))
 		p.tabY = len(out)
@@ -1245,14 +1216,14 @@ func (p *profile) View(ctx *ui.Context, _ bool) string {
 	case len(l.items) == 0 && (l.loading || !l.loaded):
 		out = append(out, p.loadingLine(ctx, w))
 	case len(l.items) == 0 && l.err != nil:
-		out = append(out, strings.Split(widgets.Empty(t, ui.Size{W: w, H: rest}, "⚠", textwidth.Sanitize(api.Describe(l.err)), ""), "\n")...)
+		out = append(out, strings.Split(widgets.Empty(t, ui.Size{W: w, H: rest}, "⚠", errtext.Describe(ctx.T, l.err), ""), "\n")...)
 	case len(l.items) == 0:
-		text := textNoProfilePosts
+		text := cat(ctx).Feed.NoProfilePosts()
 		switch l.filter {
 		case "replies":
-			text = textNoProfileReplies
+			text = cat(ctx).Feed.NoProfileReplies()
 		case "media":
-			text = textNoProfileMedia
+			text = cat(ctx).Feed.NoProfileMedia()
 		}
 		out = append(out, strings.Split(widgets.Empty(t, ui.Size{W: w, H: rest}, "🌱", text, ""), "\n")...)
 	default:
@@ -1319,7 +1290,7 @@ func (p *profile) toggleFollow(ctx *ui.Context) tea.Cmd {
 	}
 	switch r.Following {
 	case "active":
-		return ui.OpenOverlay(widgets.Confirm(textUnfollowAsk, "", textUnfollowYes, textCancel, unfollow()))
+		return ui.OpenOverlay(widgets.Confirm(cat(ctx).Feed.UnfollowAsk(), "", cat(ctx).Feed.UnfollowYes(), cat(ctx).Feed.Cancel(), unfollow()))
 	case "pending":
 		p.following = true
 		return unfollow()
@@ -1355,30 +1326,31 @@ func (p *profile) openMenu(ctx *ui.Context) tea.Cmd {
 		return nil
 	}
 	id, handle, name := p.prof.ID, handleOf(p.prof.UserSummary), displayName(p.prof.UserSummary)
+	c := cat(ctx)
 	var items []menuItem
 	if p.canStories(ctx) {
 		r := p.storiesRoute()
-		items = append(items, menuItem{label: textMenuStories, run: func(*ui.Context) tea.Cmd { return ui.Navigate(r) }})
+		items = append(items, menuItem{label: c.Feed.MenuStories(), run: func(*ui.Context) tea.Cmd { return ui.Navigate(r) }})
 	}
 	if p.canView(ctx) {
 		items = append(items,
-			menuItem{label: textFollowersTitle, open: func(ctx *ui.Context) ui.Overlay { return overlayOrNil(newUserList(ctx, listFollowers+" "+id)) }},
-			menuItem{label: textFollowingTitle, open: func(ctx *ui.Context) ui.Overlay { return overlayOrNil(newUserList(ctx, listFollowing+" "+id)) }},
+			menuItem{label: c.Feed.FollowersTitle(), open: func(ctx *ui.Context) ui.Overlay { return overlayOrNil(newUserList(ctx, listFollowers+" "+id)) }},
+			menuItem{label: c.Feed.FollowingTitle(), open: func(ctx *ui.Context) ui.Overlay { return overlayOrNil(newUserList(ctx, listFollowing+" "+id)) }},
 		)
 	}
 	if p.isMe(ctx) {
 		items = append(items,
-			menuItem{label: textMenuEditProfile, open: func(ctx *ui.Context) ui.Overlay { return overlayOrNil(newProfileEdit(ctx)) }},
-			menuItem{label: textMenuFollowReqs, open: func(*ui.Context) ui.Overlay { return newFollowRequests() }},
+			menuItem{label: c.Feed.EditProfile(), open: func(ctx *ui.Context) ui.Overlay { return overlayOrNil(newProfileEdit(ctx)) }},
+			menuItem{label: c.Feed.FollowRequests(), open: func(*ui.Context) ui.Overlay { return newFollowRequests() }},
 		)
 	} else {
 		items = append(items, p.friendMenuItems(ctx)...)
 		if !p.blocked(ctx) {
-			items = append(items, menuItem{label: textMenuBlockUser, open: func(ctx *ui.Context) ui.Overlay {
-				return widgets.Confirm(name+textBlockAsk, textBlockBody, textBlockYes, textCancel, blockUser(ctx, id))
+			items = append(items, menuItem{label: c.Feed.MenuBlockUser(), open: func(ctx *ui.Context) ui.Overlay {
+				return widgets.Confirm(c.Feed.BlockAsk(name), c.Feed.BlockBody(), c.Feed.BlockYes(), c.Feed.Cancel(), blockUser(ctx, id))
 			}})
 		}
-		items = append(items, menuItem{label: textMenuReportUser, open: func(*ui.Context) ui.Overlay {
+		items = append(items, menuItem{label: c.Feed.MenuReportUser(), open: func(*ui.Context) ui.Overlay {
 			return widgets.ReportDialog("user", id, handle)
 		}})
 	}
@@ -1537,48 +1509,49 @@ func (p *profile) canFollow(ctx *ui.Context) bool {
 // ---- optional capabilities ----
 
 // Title is "@handle" (the route's handle, or 프로필, until the profile loads).
-func (p *profile) Title(*ui.Context) (string, ui.Badge) {
+func (p *profile) Title(ctx *ui.Context) (string, ui.Badge) {
 	switch {
 	case p.prof != nil:
 		return handleOf(p.prof.UserSummary), ui.Badge{}
 	case strings.HasPrefix(p.id, "@") && p.id != string(api.MeRef):
 		return "@" + textwidth.Sanitize(strings.TrimPrefix(p.id, "@")), ui.Badge{}
 	}
-	return textProfileTitle, ui.Badge{}
+	return cat(ctx).Feed.ProfileTitle(), ui.Badge{}
 }
 
 func (p *profile) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
 	if p.prof == nil && p.loadFailed {
 		r := ctx.Keys.Binding(keymap.PostReply)
-		r.SetHelp(r.Help().Key, textRetry)
+		r.SetHelp(r.Help().Key, cat(ctx).Feed.HelpRetry())
 		return []key.Binding{r}
 	}
 	out := []key.Binding{}
 	switch {
 	case p.prof != nil && p.isMe(ctx):
-		out = append(out, b("e", "프로필 편집"))
+		out = append(out, b("e", cat(ctx).Feed.HelpEditProfile()))
 	case p.canFollow(ctx):
-		out = append(out, b("+", p.followHelp()))
+		out = append(out, b("+", p.followHelp(cat(ctx))))
 	}
 	if p.tab == tabGuestbook {
-		out = append(out, b("w", "방명록 쓰기"))
+		out = append(out, b("w", cat(ctx).Feed.HelpWriteGuestbook()))
 	}
-	return append(out, b("m", "메뉴"), b("1-4", "탭"), b("s", "스토리"))
+	c := cat(ctx)
+	return append(out, b("m", c.Feed.HelpMenu()), b("1-4", c.Feed.HelpTabs()), b("s", c.Feed.HelpStories()))
 }
 
 // followHelp is what "+" does now (C4): 언팔로우 (following), 요청 취소 (a
 // pending request), else 팔로우.
-func (p *profile) followHelp() string {
+func (p *profile) followHelp(c *i18n.T) string {
 	if r := p.rel(); r != nil {
 		switch r.Following {
 		case "active":
-			return textHelpUnfollow
+			return c.Feed.HelpUnfollow()
 		case "pending":
-			return textHelpCancelFollow
+			return c.Feed.HelpCancelFollow()
 		}
 	}
-	return textHelpFollow
+	return c.Feed.HelpFollow()
 }
 
 func (p *profile) WatchTopics() []string { return append([]string(nil), p.visible...) }

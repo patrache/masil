@@ -16,7 +16,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -28,7 +29,9 @@ import (
 func init() {
 	ui.RegisterRoute(ui.RouteSearch, newSearch)
 	palette.Register(palette.Command{
-		ID: "search.messages", Title: "메시지 검색", Keywords: []string{"search", "messages", "검색", "메시지 찾기"}, Group: "이동", KeyHint: "ctrl+f",
+		ID: "search.messages", Label: func(t *i18n.T) string { return t.Chat.CmdSearch() }, Group: palette.GroupNav, KeyHint: "ctrl+f",
+		Keywords:   []string{"search", "messages"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwSearch()) },
 		Run: func(_ *ui.Context, args string) tea.Cmd {
 			return ui.Navigate(ui.Route{Kind: ui.RouteSearch, Arg: strings.TrimSpace(args)})
 		},
@@ -37,19 +40,10 @@ func init() {
 
 // Search texts and limits.
 const (
-	searchTitle       = "검색"
-	searchQueryMax    = 100 // api.md 0.3: 검색어 1..100
-	searchPageLimit   = 20
-	searchPlaceholder = "메시지 검색 — 검색어를 입력하고 enter"
-	searchIdleText    = "메시지를 검색해 보세요"
-	searchIdleHint    = "검색어를 입력하고 enter"
-	searchLoadingText = "검색 중…"
-	searchEmptyText   = "검색 결과가 없어요"
-	searchEmptyHint   = "다른 낱말로 찾아 보세요"
-	searchScopeText   = "검색 범위가 너무 넓어요 — 방이나 채널을 골라 주세요"
-	searchMoreFailed  = "검색 결과를 더 불러오지 못했어요"
-	searchTagPrefix   = "chat.search:"
-	searchChipSep     = " · "
+	searchQueryMax  = 100 // api.md 0.3: 검색어 1..100
+	searchPageLimit = 20
+	searchTagPrefix = "chat.search:"
+	searchChipSep   = " · "
 )
 
 // searchScope is where a search looks: the route's channel, a space, or everything readable.
@@ -62,14 +56,14 @@ const (
 	scopeAll
 )
 
-func (s searchScope) label() string {
+func (s searchScope) label(c *i18n.T) string {
 	switch s {
 	case scopeChannel:
-		return "이 채널"
+		return c.Chat.ScopeChannel()
 	case scopeSpace:
-		return "이 방"
+		return c.Chat.ScopeSpace()
 	}
-	return "전체"
+	return c.Chat.ScopeAll()
 }
 
 // searchRow is one result row (ID = the message id).
@@ -251,25 +245,25 @@ func (v *searchView) more(ctx *ui.Context) tea.Cmd {
 }
 
 // searchErrText is the on-screen text of a failed search: limit_exceeded with
-// details.what == "search_scope" asks for a narrower scope, else api.Describe.
-func searchErrText(err error) string {
+// details.what == "search_scope" asks for a narrower scope, else errtext.Describe.
+func searchErrText(t *i18n.T, err error) string {
 	var e *api.Error
 	if api.IsCode(err, "limit_exceeded") && errors.As(err, &e) {
 		var d struct {
 			What string `json:"what"`
 		}
 		if json.Unmarshal(e.Details, &d) == nil && d.What == "search_scope" {
-			return searchScopeText
+			return orKo(t).Chat.SearchScopeTooWide()
 		}
 	}
-	return api.Describe(err)
+	return errtext.Describe(t, err)
 }
 
-func (v *searchView) onPage(m ui.ResultMsg[searchPage]) tea.Cmd {
+func (v *searchView) onPage(ctx *ui.Context, m ui.ResultMsg[searchPage]) tea.Cmd {
 	if m.Value.more {
 		v.loadingMore = false
 		if m.Err != nil {
-			return errorCmd(m.Err, searchMoreFailed)
+			return errorCmd(m.Err, cat(ctx).Chat.SearchMoreFailed())
 		}
 		if m.Value.page != nil {
 			for _, h := range m.Value.page.Items {
@@ -288,7 +282,7 @@ func (v *searchView) onPage(m ui.ResultMsg[searchPage]) tea.Cmd {
 	v.list = v.newList()
 	v.hits, v.next, v.errText = nil, nil, ""
 	if m.Err != nil {
-		v.errText = searchErrText(m.Err)
+		v.errText = searchErrText(ctx.T, m.Err)
 	} else if m.Value.page != nil {
 		for _, h := range m.Value.page.Items {
 			if !slices.ContainsFunc(v.hits, func(x api.MessageSearchHit) bool { return x.Message.ID == h.Message.ID }) {
@@ -314,7 +308,7 @@ func (v *searchView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case ui.ResultMsg[searchPage]:
 		if m.Value.owner == v && m.Value.gen == v.gen {
-			return v.onPage(m)
+			return v.onPage(ctx, m)
 		}
 	case tea.PasteMsg:
 		if v.inputOn {
@@ -400,7 +394,7 @@ func hitMeta(ctx *ui.Context, h api.MessageSearchHit, short bool) string {
 	if ctx != nil && ctx.Now != nil {
 		now = ctx.Now()
 	}
-	at := humanize.MessageTime(now, h.Message.CreatedAt, locOf(ctx))
+	at := hz(ctx).MessageTime(now, h.Message.CreatedAt, locOf(ctx))
 	who := textwidth.Sanitize(displayName(h.Message.Author))
 	if short {
 		return refLabel(ctx, h.Channel) + " " + who + " " + at
@@ -450,7 +444,7 @@ func (v *searchView) render(ctx *ui.Context, r searchRow, selected bool, width i
 
 // chipsLine draws the scope chips in exactly w cells and records their spans
 // (" · " separators, a single space when that does not fit).
-func (v *searchView) chipsLine(t *theme.Theme, w int) string {
+func (v *searchView) chipsLine(c *i18n.T, t *theme.Theme, w int) string {
 	v.chips = v.chips[:0]
 	for _, sep := range []string{searchChipSep, " "} {
 		total := 0
@@ -458,7 +452,7 @@ func (v *searchView) chipsLine(t *theme.Theme, w int) string {
 			if i > 0 {
 				total += textwidth.Width(sep)
 			}
-			total += textwidth.Width(s.label())
+			total += textwidth.Width(s.label(c))
 		}
 		if total <= w || sep == " " {
 			var b strings.Builder
@@ -472,7 +466,7 @@ func (v *searchView) chipsLine(t *theme.Theme, w int) string {
 				if s == v.scope {
 					st = t.S.Selected
 				}
-				l := s.label()
+				l := s.label(c)
 				b.WriteString(st.Render(l))
 				if x+textwidth.Width(l) <= w {
 					v.chips = append(v.chips, chipSpan{x0: x, x1: x + textwidth.Width(l), scope: s})
@@ -499,11 +493,11 @@ func (v *searchView) bodyView(ctx *ui.Context, size ui.Size) string {
 	case len(v.hits) > 0:
 		return v.list.View(ctx, size)
 	case v.loading:
-		return widgets.Empty(t, size, "", searchLoadingText, "")
+		return widgets.Empty(t, size, "", cat(ctx).Chat.SearchLoading(), "")
 	case v.searched:
-		return widgets.Empty(t, size, "🔍", searchEmptyText, searchEmptyHint)
+		return widgets.Empty(t, size, "🔍", cat(ctx).Chat.SearchEmpty(), cat(ctx).Chat.SearchEmptyHint())
 	}
-	return widgets.Empty(t, size, "🔍", searchIdleText, searchIdleHint)
+	return widgets.Empty(t, size, "🔍", cat(ctx).Chat.SearchIdle(), cat(ctx).Chat.SearchIdleHint())
 }
 
 func (v *searchView) View(ctx *ui.Context, focused bool) string {
@@ -522,12 +516,12 @@ func (v *searchView) View(ctx *ui.Context, focused bool) string {
 	if w >= 12 {
 		prefix, pw = t.S.Title.Render("🔍")+blank(t, 1), 3
 	}
-	in, col := inputLine(t, v.input, searchPlaceholder, w-pw)
+	in, col := inputLine(t, v.input, cat(ctx).Chat.SearchPlaceholder(), w-pw)
 	v.curX = pw + col
 	lines := []string{prefix + in}
 	hdr := v.headerRows()
 	if hdr == 2 {
-		lines = append(lines, v.chipsLine(t, w))
+		lines = append(lines, v.chipsLine(cat(ctx), t, w))
 	}
 	if h > hdr {
 		lines = append(lines, strings.Split(v.bodyView(ctx, ui.Size{W: w, H: h - hdr}), "\n")...)
@@ -547,10 +541,10 @@ func (v *searchView) CapturesInput() bool { return v.inputOn }
 
 // Title is "검색 · <scope>": the channel label, the space name or 전체.
 func (v *searchView) Title(ctx *ui.Context) (string, ui.Badge) {
-	scope := scopeAll.label()
+	scope := scopeAll.label(cat(ctx))
 	switch v.scope {
 	case scopeChannel:
-		scope = scopeChannel.label()
+		scope = scopeChannel.label(cat(ctx))
 		if ctx != nil && ctx.Store != nil {
 			if ch := ctx.Store.Channels[v.channelID]; ch != nil {
 				ref := api.ChannelRef{ID: ch.ID, Kind: ch.Kind, Name: ch.Name}
@@ -558,22 +552,22 @@ func (v *searchView) Title(ctx *ui.Context) (string, ui.Badge) {
 			}
 		}
 	case scopeSpace:
-		scope = scopeSpace.label()
+		scope = scopeSpace.label(cat(ctx))
 		if ctx != nil && ctx.Store != nil {
 			if sd := ctx.Store.Spaces[v.spaceID]; sd != nil && sd.Name != "" {
 				scope = textwidth.Sanitize(sd.Name)
 			}
 		}
 	}
-	return searchTitle + " · " + scope, ui.Badge{}
+	return cat(ctx).Chat.SearchTitle() + " · " + scope, ui.Badge{}
 }
 
 func (v *searchView) Help(ctx *ui.Context) []key.Binding {
 	if v.inputOn {
-		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "검색"))}
+		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", cat(ctx).Chat.HelpSearch()))}
 	}
 	hs := ctx.Keys.Help(keymap.ListOpen, keymap.ChannelSearch)
-	return append(hs, key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", "범위")))
+	return append(hs, key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", cat(ctx).Chat.HelpScope())))
 }
 
 func (v *searchView) SaveState() any {

@@ -1,0 +1,17 @@
+[en_only]
+other = "Only in English"
+
+[greet]
+other = "Hi, {name}"
+
+[members]
+one = "{n} member"
+other = "{n} members"
+short = "{n}"
+
+[move_to]
+other = "Moved to {place}"
+
+[seats]
+one = "{n} seat"
+other = "{n} seats"

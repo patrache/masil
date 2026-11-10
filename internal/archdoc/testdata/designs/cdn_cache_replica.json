@@ -1,0 +1,462 @@
+{
+  "schema_version": 1,
+  "title": "cdn cache replica",
+  "seed": 42,
+  "duration_s": 600,
+  "nodes": [
+    {
+      "id": "n_api",
+      "kind": "api",
+      "label": "api",
+      "pos": [
+        36,
+        20
+      ],
+      "parent": "b_a",
+      "provider": "aws",
+      "instance_type": "c7g.large",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 4096,
+      "instances": 2,
+      "autoscale": {
+        "enabled": true,
+        "min": 2,
+        "max": 8,
+        "target_cpu_permille": 650,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 12500,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 100,
+        "iops": 3000
+      },
+      "cpu_micros_per_req": 8000,
+      "timeout_ms": 2000,
+      "retries": 2,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_cache",
+      "kind": "cache",
+      "label": "redis",
+      "pos": [
+        36,
+        30
+      ],
+      "parent": "b_a",
+      "provider": "aws",
+      "instance_type": "cache.r7g.large",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 13384,
+      "instances": 2,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 12500,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 0,
+        "iops": 0
+      },
+      "cpu_micros_per_req": 200,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 900,
+        "working_set_mib": 26768,
+        "ttl_s": 300,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_cdn",
+      "kind": "cdn",
+      "label": "cdn",
+      "pos": [
+        16,
+        20
+      ],
+      "parent": "",
+      "provider": "aws",
+      "instance_type": "",
+      "region": "",
+      "cpu_cores": 64,
+      "memory_mib": 131072,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 400000,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 0,
+        "iops": 0
+      },
+      "cpu_micros_per_req": 50,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 600,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_primary",
+      "kind": "db_primary",
+      "label": "pg-primary",
+      "pos": [
+        36,
+        40
+      ],
+      "parent": "b_a",
+      "provider": "aws",
+      "instance_type": "db.r7g.large",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 16384,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 12500,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 100,
+        "iops": 3000
+      },
+      "cpu_micros_per_req": 2000,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 500,
+        "write_iops_milli": 1250,
+        "pool_max": 100,
+        "failover_to": "n_replica",
+        "failover_s": 30,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_replica",
+      "kind": "db_replica",
+      "label": "pg-replica",
+      "pos": [
+        92,
+        40
+      ],
+      "parent": "b_b",
+      "provider": "aws",
+      "instance_type": "db.r7g.large",
+      "region": "",
+      "cpu_cores": 2,
+      "memory_mib": 16384,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 12500,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 100,
+        "iops": 3000
+      },
+      "cpu_micros_per_req": 2000,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 500,
+        "write_iops_milli": 0,
+        "pool_max": 100,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 20,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      }
+    },
+    {
+      "id": "n_users",
+      "kind": "client",
+      "label": "users",
+      "pos": [
+        0,
+        20
+      ],
+      "parent": "",
+      "provider": "",
+      "instance_type": "",
+      "region": "",
+      "cpu_cores": 1,
+      "memory_mib": 1024,
+      "instances": 1,
+      "autoscale": {
+        "enabled": false,
+        "min": 2,
+        "max": 10,
+        "target_cpu_permille": 600,
+        "warmup_s": 90,
+        "cooldown_s": 300
+      },
+      "nic_mbps": 10000,
+      "disk": {
+        "type": "ssd",
+        "size_gb": 0,
+        "iops": 0
+      },
+      "cpu_micros_per_req": 1,
+      "timeout_ms": 2000,
+      "retries": 0,
+      "queue_cap": 1000,
+      "custom_hourly_micro_usd": 0,
+      "params": {
+        "hit_permille": 0,
+        "working_set_mib": 0,
+        "ttl_s": 0,
+        "lb_algo": "",
+        "health_interval_s": 0,
+        "read_iops_milli": 0,
+        "write_iops_milli": 0,
+        "pool_max": 0,
+        "failover_to": "",
+        "failover_s": 0,
+        "repl_lag_ms": 0,
+        "max_rps": 0,
+        "retention_msgs": 0,
+        "fixed_latency_ms": 0,
+        "error_permille": 0,
+        "index_write_permille": 0
+      },
+      "traffic": {
+        "rps": 2400,
+        "read_permille": 800,
+        "req_kb": 2,
+        "resp_kb": 16,
+        "curve": "spike",
+        "spike_mult": 5,
+        "spike_at_s": 60,
+        "spike_dur_s": 30
+      }
+    }
+  ],
+  "boxes": [
+    {
+      "id": "b_a",
+      "kind": "az",
+      "label": "us-east-1a",
+      "region_code": "",
+      "rect": [
+        34,
+        4,
+        50,
+        50
+      ],
+      "parent": "b_v"
+    },
+    {
+      "id": "b_b",
+      "kind": "az",
+      "label": "us-east-1b",
+      "region_code": "",
+      "rect": [
+        90,
+        4,
+        50,
+        50
+      ],
+      "parent": "b_v"
+    },
+    {
+      "id": "b_r",
+      "kind": "region",
+      "label": "us",
+      "region_code": "us-east-1",
+      "rect": [
+        30,
+        0,
+        120,
+        60
+      ],
+      "parent": ""
+    },
+    {
+      "id": "b_v",
+      "kind": "vpc",
+      "label": "vpc",
+      "region_code": "",
+      "rect": [
+        32,
+        2,
+        116,
+        56
+      ],
+      "parent": "b_r"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_1",
+      "from": "n_users",
+      "to": "n_cdn",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 1000,
+      "write_permille": 1000
+    },
+    {
+      "id": "e_2",
+      "from": "n_cdn",
+      "to": "n_api",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 1000,
+      "write_permille": 1000
+    },
+    {
+      "id": "e_3",
+      "from": "n_api",
+      "to": "n_cache",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 1000,
+      "write_permille": 0
+    },
+    {
+      "id": "e_4",
+      "from": "n_api",
+      "to": "n_primary",
+      "protocol": "tcp",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 300,
+      "write_permille": 1000
+    },
+    {
+      "id": "e_5",
+      "from": "n_api",
+      "to": "n_replica",
+      "protocol": "http1",
+      "mbps": 0,
+      "latency_micros": -1,
+      "read_permille": 700,
+      "write_permille": 0
+    }
+  ],
+  "faults": [
+    {
+      "id": "f_1",
+      "at_s": 200,
+      "kind": "az_off",
+      "target": "b_a",
+      "count": 0,
+      "add_ms": 0,
+      "dur_s": 0
+    },
+    {
+      "id": "f_2",
+      "at_s": 100,
+      "kind": "latency",
+      "target": "e_4",
+      "count": 0,
+      "add_ms": 50,
+      "dur_s": 20
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+<p>Test fixture: there are <code>k</code> servers numbered from <code>0</code> to <code>k-1</code>. Request <code>i</code> arrives at <code>arrival[i]</code> and keeps a server busy for <code>load[i]</code> time.</p>
+
+<p>A request goes to server <code>(i % k)</code> if it is free, otherwise to the <strong>next</strong> free server, wrapping around. If every server is busy the request is <em>dropped</em>.</p>
+
+<p>Return the IDs of the busiest server(s), in <strong>any order</strong>.</p>
+
+<p>&nbsp;</p>
+<p><strong class="example">Example 1:</strong></p>
+<img alt="" src="https://assets.leetcode.com/uploads/fixture/load-1.png" style="width: 389px; height: 221px;" />
+<pre>
+<strong>Input:</strong> k = 3, arrival = [1,2,3,4,5], load = [5,2,3,3,3] 
+<strong>Output:</strong> [1] 
+<strong>Explanation:</strong> fixture text, line one.
+fixture text, line two.
+</pre>
+
+<p><strong class="example">Example 2:</strong></p>
+<pre>
+<strong>Input:</strong> k = 3, arrival = [1,2,3,4], load = [1,2,1,2]
+<strong>Output:</strong> [0]
+</pre>
+
+<p><strong class="example">Example 3:</strong></p>
+<pre>
+<strong>Input:</strong> k = 3, arrival = [1,2,3], load = [10,12,11]
+<strong>Output:</strong> [0,1,2]
+</pre>
+
+<p>&nbsp;</p>
+<p><strong>Constraints:</strong></p>
+
+<ul>
+	<li><code>1 &lt;= k &lt;= 10<sup>5</sup></code></li>
+	<li><code>1 &lt;= arrival.length, load.length &lt;= 10<sup>5</sup></code></li>
+	<li><code>arrival.length == load.length</code></li>
+	<li><code>1 &lt;= arrival[i], load[i] &lt;= 10<sup>9</sup></code></li>
+	<li><code>arrival</code> is <strong>strictly increasing</strong>.</li>
+</ul>

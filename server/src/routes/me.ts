@@ -34,9 +34,10 @@ const SettingsBody = z.object({
   dm_policy: z.enum(["friends_and_spaces", "friends_only"]).optional(),
   is_private: zBool,
   notify: z
-    .object({ dm: zBool, mention: zBool, invite: zBool, friend_request: zBool, thread_reply: zBool, social: zBool })
+    .object({ dm: zBool, mention: zBool, invite: zBool, friend_request: zBool, thread_reply: zBool, social: zBool, workspace: zBool })
     .optional(),
   focus_default_min: z.int().min(1).max(720).optional(),
+  leet_share_with_friends: zBool, // v0.1.3 P1 (api.md 2 Settings, 5.25 friends board)
 });
 
 const StatusBody = z.object({
@@ -58,6 +59,7 @@ const NOTIFY_COLUMNS = {
   friend_request: "notify_friend_request",
   thread_reply: "notify_thread_reply",
   social: "notify_social",
+  workspace: "notify_workspace", // v0.1.3 P2
 } as const;
 
 export const meRoutes = new Hono<AppEnv>();
@@ -143,6 +145,7 @@ meRoutes.patch("/me/settings", requireAuth, vJson(SettingsBody), async (c) => {
   const settingCols: Record<string, unknown> = {};
   if (body.dm_policy !== undefined) settingCols.dm_policy = body.dm_policy;
   if (body.focus_default_min !== undefined) settingCols.focus_default_min = body.focus_default_min;
+  if (body.leet_share_with_friends !== undefined) settingCols.leet_share_with_friends = body.leet_share_with_friends ? 1 : 0;
   for (const [k, col] of Object.entries(NOTIFY_COLUMNS) as Array<[keyof typeof NOTIFY_COLUMNS, string]>) {
     const v = body.notify?.[k];
     if (v !== undefined) settingCols[col] = v ? 1 : 0;

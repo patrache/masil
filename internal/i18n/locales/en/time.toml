@@ -1,0 +1,154 @@
+# Time area: dates, times, counts and durations (humanize, i18n 6.7).
+
+[am]
+other = "AM"
+
+[clock_12h]
+other = "{time} {ampm}"
+
+[count_tier1]
+other = "{n}K"
+
+[count_tier2]
+other = "{n}M"
+
+[count_tier3]
+other = "{n}B"
+
+[day_divider]
+other = "{weekday}, {month} {day}, {year}"
+
+[duration_hours]
+other = "{n}h"
+
+[duration_hours_minutes]
+other = "{h}h {m}m"
+
+[duration_minutes]
+other = "{n}m"
+
+[duration_seconds]
+other = "{n}s"
+
+[full_date]
+other = "{month} {day}, {year}"
+
+[month_day]
+other = "{month} {day}"
+
+[month_day_at]
+other = "{date}, {clock}"
+
+[month_long_1]
+other = "January"
+
+[month_long_10]
+other = "October"
+
+[month_long_11]
+other = "November"
+
+[month_long_12]
+other = "December"
+
+[month_long_2]
+other = "February"
+
+[month_long_3]
+other = "March"
+
+[month_long_4]
+other = "April"
+
+[month_long_5]
+other = "May"
+
+[month_long_6]
+other = "June"
+
+[month_long_7]
+other = "July"
+
+[month_long_8]
+other = "August"
+
+[month_long_9]
+other = "September"
+
+[month_short_1]
+other = "Jan"
+
+[month_short_10]
+other = "Oct"
+
+[month_short_11]
+other = "Nov"
+
+[month_short_12]
+other = "Dec"
+
+[month_short_2]
+other = "Feb"
+
+[month_short_3]
+other = "Mar"
+
+[month_short_4]
+other = "Apr"
+
+[month_short_5]
+other = "May"
+
+[month_short_6]
+other = "Jun"
+
+[month_short_7]
+other = "Jul"
+
+[month_short_8]
+other = "Aug"
+
+[month_short_9]
+other = "Sep"
+
+[pm]
+other = "PM"
+
+[relative_hours]
+other = "{n}h"
+
+[relative_minutes]
+other = "{n}m"
+
+[relative_now]
+other = "now"
+
+[relative_past_year]
+other = "{mon}/{day}/{yy}"
+
+[relative_yesterday]
+other = "1d"
+
+[weekday_0]
+other = "Sunday"
+
+[weekday_1]
+other = "Monday"
+
+[weekday_2]
+other = "Tuesday"
+
+[weekday_3]
+other = "Wednesday"
+
+[weekday_4]
+other = "Thursday"
+
+[weekday_5]
+other = "Friday"
+
+[weekday_6]
+other = "Saturday"
+
+[yesterday_at]
+other = "Yesterday {clock}"

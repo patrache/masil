@@ -1,0 +1,3518 @@
+[
+  {
+    "name": "different_fields_both_survive",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "label": "api"
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "mem",
+            "value": 16
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 8,
+            "label": "api",
+            "mem": 16
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "same_field_later_seq_wins",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 4
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 4
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "set_after_del_is_dropped",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "del",
+            "id": "n1"
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "set_after_undel_applies",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "undel",
+            "id": "n1"
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 8
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "put_on_deleted_object_is_ignored",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "put",
+            "id": "n1",
+            "type": "node",
+            "fields": {
+              "cpu": 8,
+              "label": "new"
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          },
+          "deleted": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "put_creates_object",
+    "start": {
+      "seq": 0,
+      "objects": []
+    },
+    "batches": [
+      {
+        "seq": 1,
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "node",
+            "fields": {
+              "label": "db"
+            }
+          },
+          {
+            "op": "put",
+            "id": "e1",
+            "type": "edge",
+            "fields": {
+              "from": "n2",
+              "to": "n1"
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "e1",
+          "type": "edge",
+          "fields": {
+            "from": "n2",
+            "to": "n1"
+          }
+        },
+        {
+          "id": "n2",
+          "type": "node",
+          "fields": {
+            "label": "db"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "put_on_existing_merges_fields_keeps_type",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2,
+            "label": "api"
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "put",
+            "id": "n1",
+            "type": "edge",
+            "fields": {
+              "cpu": 8
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 8,
+            "label": "api"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "reset_replaces_everything",
+    "start": {
+      "seq": 4,
+      "objects": [
+        {
+          "id": "a",
+          "type": "node",
+          "fields": {
+            "x": 1
+          }
+        },
+        {
+          "id": "b",
+          "type": "node",
+          "fields": {
+            "x": 2
+          },
+          "deleted": true
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 5,
+        "ops": [
+          {
+            "op": "reset",
+            "snapshot": {
+              "seq": 2,
+              "objects": [
+                {
+                  "id": "c",
+                  "type": "edge",
+                  "fields": {
+                    "y": 3
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 5,
+      "objects": [
+        {
+          "id": "c",
+          "type": "edge",
+          "fields": {
+            "y": 3
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "unknown_op_is_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 8
+          },
+          {
+            "op": "move",
+            "id": "n1"
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "missing_object_ops_are_noops",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "zz",
+            "field": "cpu",
+            "value": 8
+          },
+          {
+            "op": "del",
+            "id": "zz"
+          },
+          {
+            "op": "undel",
+            "id": "zz"
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "last_op_in_batch_wins",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 4
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu",
+            "value": 6
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "del_then_undel_keeps_fields",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2,
+            "label": "api"
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "del",
+            "id": "n1"
+          }
+        ]
+      },
+      {
+        "seq": 3,
+        "ops": [
+          {
+            "op": "undel",
+            "id": "n1"
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 3,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2,
+            "label": "api"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "json_values_kept_verbatim",
+    "start": {
+      "seq": 0,
+      "objects": [
+        {
+          "id": "r1",
+          "type": "request",
+          "fields": {}
+        }
+      ]
+    },
+    "batches": [
+      {
+        "seq": 1,
+        "ops": [
+          {
+            "op": "set",
+            "id": "r1",
+            "field": "headers",
+            "value": [
+              {
+                "k": "Accept",
+                "v": "*/*"
+              }
+            ]
+          },
+          {
+            "op": "set",
+            "id": "r1",
+            "field": "body",
+            "value": null
+          },
+          {
+            "op": "set",
+            "id": "r1",
+            "field": "meta",
+            "value": {
+              "ok": true,
+              "n": 1.5
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "r1",
+          "type": "request",
+          "fields": {
+            "body": null,
+            "headers": [
+              {
+                "k": "Accept",
+                "v": "*/*"
+              }
+            ],
+            "meta": {
+              "n": 1.5,
+              "ok": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "proto_field_name_is_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "__proto__",
+            "value": {
+              "secret": "x"
+            }
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "node",
+            "fields": {
+              "__proto__": {
+                "x": 1
+              }
+            }
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "reserved_names_are_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "constructor",
+            "value": 1
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "prototype",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "constructor",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "del",
+            "id": "__proto__"
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "non_ascii_names_are_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "노드",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "메모",
+            "value": "x"
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "no de",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "name_length_is_1_to_64_bytes",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "",
+            "value": 1
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "seq": 2,
+        "ops": [
+          {
+            "op": "put",
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "type": "node",
+            "fields": {}
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "type": "node",
+          "fields": {}
+        },
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "name_punctuation_is_allowed",
+    "start": {
+      "seq": 0,
+      "objects": []
+    },
+    "batches": [
+      {
+        "seq": 1,
+        "ops": [
+          {
+            "op": "put",
+            "id": "N-1.a:b_C",
+            "type": "db.primary",
+            "fields": {
+              "net:in_mbps": 100,
+              "x.y": {
+                "__proto__": 1
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "N-1.a:b_C",
+          "type": "db.primary",
+          "fields": {
+            "net:in_mbps": 100,
+            "x.y": {
+              "__proto__": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "client_reset_is_rejected",
+    "start": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "reset",
+            "snapshot": {
+              "seq": 0,
+              "objects": []
+            }
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 2,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "ops_count_is_1_to_200",
+    "start": {
+      "seq": 0,
+      "objects": []
+    },
+    "batches": [
+      {
+        "ops": [],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n0",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n1",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n3",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n4",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n5",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n6",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n7",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n8",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n9",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n10",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n11",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n12",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n13",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n14",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n15",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n16",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n17",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n18",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n19",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n20",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n21",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n22",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n23",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n24",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n25",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n26",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n27",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n28",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n29",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n30",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n31",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n32",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n33",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n34",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n35",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n36",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n37",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n38",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n39",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n40",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n41",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n42",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n43",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n44",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n45",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n46",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n47",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n48",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n49",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n50",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n51",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n52",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n53",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n54",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n55",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n56",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n57",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n58",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n59",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n60",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n61",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n62",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n63",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n64",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n65",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n66",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n67",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n68",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n69",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n70",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n71",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n72",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n73",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n74",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n75",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n76",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n77",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n78",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n79",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n80",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n81",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n82",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n83",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n84",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n85",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n86",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n87",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n88",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n89",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n90",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n91",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n92",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n93",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n94",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n95",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n96",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n97",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n98",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n99",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n100",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n101",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n102",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n103",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n104",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n105",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n106",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n107",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n108",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n109",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n110",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n111",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n112",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n113",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n114",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n115",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n116",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n117",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n118",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n119",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n120",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n121",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n122",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n123",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n124",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n125",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n126",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n127",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n128",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n129",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n130",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n131",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n132",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n133",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n134",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n135",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n136",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n137",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n138",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n139",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n140",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n141",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n142",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n143",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n144",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n145",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n146",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n147",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n148",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n149",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n150",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n151",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n152",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n153",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n154",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n155",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n156",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n157",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n158",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n159",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n160",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n161",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n162",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n163",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n164",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n165",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n166",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n167",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n168",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n169",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n170",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n171",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n172",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n173",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n174",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n175",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n176",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n177",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n178",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n179",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n180",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n181",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n182",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n183",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n184",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n185",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n186",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n187",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n188",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n189",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n190",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n191",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n192",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n193",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n194",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n195",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n196",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n197",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n198",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n199",
+            "type": "node",
+            "fields": {}
+          },
+          {
+            "op": "put",
+            "id": "n200",
+            "type": "node",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "seq": 1,
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 0
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 1
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 2
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 3
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 4
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 5
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 6
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 7
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 8
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 9
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 10
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 11
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 12
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 13
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 14
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 15
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 16
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 17
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 18
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 19
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 20
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 21
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 22
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 23
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 24
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 25
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 26
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 27
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 28
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 29
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 30
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 31
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 32
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 33
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 34
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 35
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 36
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 37
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 38
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 39
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 40
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 41
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 42
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 43
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 44
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 45
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 46
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 47
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 48
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 49
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 50
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 51
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 52
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 53
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 54
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 55
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 56
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 57
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 58
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 59
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 60
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 61
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 62
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 63
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 64
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 65
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 66
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 67
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 68
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 69
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 70
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 71
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 72
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 73
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 74
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 75
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 76
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 77
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 78
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 79
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 80
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 81
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 82
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 83
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 84
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 85
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 86
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 87
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 88
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 89
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 90
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 91
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 92
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 93
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 94
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 95
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 96
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 97
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 98
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 99
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 100
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 101
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 102
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 103
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 104
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 105
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 106
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 107
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 108
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 109
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 110
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 111
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 112
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 113
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 114
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 115
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 116
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 117
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 118
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 119
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 120
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 121
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 122
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 123
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 124
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 125
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 126
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 127
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 128
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 129
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 130
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 131
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 132
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 133
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 134
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 135
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 136
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 137
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 138
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 139
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 140
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 141
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 142
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 143
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 144
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 145
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 146
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 147
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 148
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 149
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 150
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 151
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 152
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 153
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 154
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 155
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 156
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 157
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 158
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 159
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 160
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 161
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 162
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 163
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 164
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 165
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 166
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 167
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 168
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 169
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 170
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 171
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 172
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 173
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 174
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 175
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 176
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 177
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 178
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 179
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 180
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 181
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 182
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 183
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 184
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 185
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 186
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 187
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 188
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 189
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 190
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 191
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 192
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 193
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 194
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 195
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 196
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 197
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 198
+          },
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "x",
+            "value": 199
+          }
+        ]
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": []
+    }
+  },
+  {
+    "name": "missing_required_keys_are_rejected",
+    "start": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    },
+    "batches": [
+      {
+        "ops": [
+          {
+            "op": "set",
+            "id": "n1",
+            "field": "cpu"
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "type": "node"
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "put",
+            "id": "n2",
+            "fields": {}
+          }
+        ],
+        "reject": "invalid"
+      },
+      {
+        "ops": [
+          {
+            "op": "del"
+          }
+        ],
+        "reject": "invalid"
+      }
+    ],
+    "want": {
+      "seq": 1,
+      "objects": [
+        {
+          "id": "n1",
+          "type": "node",
+          "fields": {
+            "cpu": 2
+          }
+        }
+      ]
+    }
+  }
+]

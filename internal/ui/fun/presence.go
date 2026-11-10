@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -21,46 +22,48 @@ const overlayPresence = "fun.presence"
 // tagPresenceSet is the picker's ui.Do tag (+ my user id).
 const tagPresenceSet = "fun.presence_set:"
 
-// Presence copy and sizes.
-const (
-	textPresenceTitle   = "접속 상태"
-	textPresenceCurrent = "지금"
-	textPresenceKeys    = "enter 바꾸기 · j/k 이동"
-	textPresenceSending = "보내는 중…"
-	textPresenceChanged = "접속 상태를 바꿨어요"
-	textPresenceInvalid = "auto · away · dnd 중 하나를 골라 주세요"
-	presenceDialogW     = 36
-)
+// presenceDialogW is the picker width (copy: the fun catalog area).
+const presenceDialogW = 36
 
-// presenceModes are the manual modes in picker order; dot is the glyph's status.
+// presenceModes are the manual modes in picker order; dot is the glyph's
+// status. label is the name in the screen's language; aliases are other words
+// "/presence <word>" accepts (ASCII ones in any language, plus aliasesIn(t)).
 var presenceModes = []struct {
-	mode, label string
-	dot         api.PresenceStatus
-	aliases     []string
+	mode      string
+	label     func(t *i18n.T) string
+	dot       api.PresenceStatus
+	aliases   []string
+	aliasesIn func(t *i18n.T) []string
 }{
-	{"auto", "자동", api.PresenceOnline, []string{"자동", "online", "온라인"}},
-	{"away", "자리비움", api.PresenceAway, []string{"자리비움"}},
-	{"dnd", "방해금지", api.PresenceDND, []string{"방해금지"}},
+	{"auto", func(t *i18n.T) string { return t.Fun.PresenceAuto() }, api.PresenceOnline, []string{"online"},
+		func(t *i18n.T) []string { return []string{t.Fun.PresenceAliasOnline()} }},
+	{"away", func(t *i18n.T) string { return t.Fun.PresenceAway() }, api.PresenceAway, nil, nil},
+	{"dnd", func(t *i18n.T) string { return t.Fun.PresenceDnd() }, api.PresenceDND, nil, nil},
 }
 
 func init() {
 	palette.Register(palette.Command{
-		ID: "presence.set", Title: "접속 상태 바꾸기", Group: "명령",
-		Keywords: []string{"자리비움", "방해금지", "away", "dnd", "presence", "접속"},
-		Run:      runPresenceSet,
+		ID: "presence.set", Label: func(t *i18n.T) string { return t.Fun.CmdPresenceSet() }, Group: palette.GroupCommand,
+		Keywords:   []string{"away", "dnd", "presence"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Fun.KwPresenceSet()) },
+		Run:        runPresenceSet,
 	})
 	ui.RegisterOverlay(overlayPresence, func(ctx *ui.Context, _ string) ui.Overlay { return newPresenceDialog(ctx) })
 }
 
-// presenceMode is the mode named by args ("auto|away|dnd" or its Korean label).
-func presenceMode(args string) (string, bool) {
+// presenceMode is the mode named by args ("auto|away|dnd", or its label or an
+// alias in t's language).
+func presenceMode(t *i18n.T, args string) (string, bool) {
 	a := strings.ToLower(strings.TrimSpace(args))
 	for _, m := range presenceModes {
-		if a == m.mode {
-			return m.mode, true
+		words := append([]string{m.mode, strings.ToLower(m.label(t))}, m.aliases...)
+		if m.aliasesIn != nil {
+			for _, w := range m.aliasesIn(t) {
+				words = append(words, strings.ToLower(w))
+			}
 		}
-		for _, al := range m.aliases {
-			if a == al {
+		for _, w := range words {
+			if a == w {
 				return m.mode, true
 			}
 		}
@@ -73,11 +76,12 @@ func runPresenceSet(ctx *ui.Context, args string) tea.Cmd {
 	if strings.TrimSpace(args) == "" {
 		return ui.OpenRegisteredOverlay(overlayPresence, "")
 	}
-	mode, ok := presenceMode(args)
+	c := cat(ctx)
+	mode, ok := presenceMode(c, args)
 	if !ok {
-		return ui.Toast(textPresenceInvalid, ui.ToastError)
+		return ui.Toast(c.Fun.PresenceInvalid(), ui.ToastError)
 	}
-	return doApply(ctx, setPresence(mode), applyPresence, textPresenceChanged)
+	return doApply(ctx, setPresence(mode), applyPresence, c.Fun.PresenceChanged())
 }
 
 func setPresence(mode string) func(context.Context, *api.Client) (*api.PresenceState, error) {
@@ -97,7 +101,7 @@ func applyPresence(ctx *ui.Context, p *api.PresenceState) {
 	ctx.Store.Self = *p
 }
 
-// presenceDialog is fun.presence: ● 자동 / ◐ 자리비움 / ⊘ 방해금지 with the
+// presenceDialog is fun.presence: ● auto / ◐ away / ⊘ dnd with the
 // current mode marked; j/k move, enter (or a click) sets the mode.
 type presenceDialog struct {
 	sel  int
@@ -149,7 +153,7 @@ func (d *presenceDialog) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		return func() tea.Msg { return ui.ErrorMsg{Err: err} }
 	}
 	applyPresence(ctx, m.Value)
-	return tea.Batch(closeOverlay, ui.Toast(textPresenceChanged, ui.ToastSuccess))
+	return tea.Batch(closeOverlay, ui.Toast(cat(ctx).Fun.PresenceChanged(), ui.ToastSuccess))
 }
 
 func (d *presenceDialog) submit(ctx *ui.Context) tea.Cmd {
@@ -204,17 +208,19 @@ func (d *presenceDialog) Bounds(body layout.Rect) layout.Rect {
 
 func (d *presenceDialog) Modal() bool { return true }
 
-func (d *presenceDialog) Title(*ui.Context) (string, ui.Badge) { return textPresenceTitle, ui.Badge{} }
-
-func (d *presenceDialog) Help(*ui.Context) []key.Binding {
-	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
-	return []key.Binding{b("enter", "바꾸기"), b("j/k", "이동"), b("esc", "취소")}
+func (d *presenceDialog) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Fun.PresenceTitle(), ui.Badge{}
 }
 
-// View is one row per mode ("› ● 자동  지금") and the key hint, cut to the
+func (d *presenceDialog) Help(ctx *ui.Context) []key.Binding {
+	t := cat(ctx)
+	return []key.Binding{helpKey("enter", t.Fun.HelpChange()), helpKey("j/k", t.Common.HelpMove()), helpKey("esc", t.Common.HelpCancel())}
+}
+
+// View is one row per mode ("› ● <label>  <now>") and the key hint, cut to the
 // inner size so the selected row stays visible.
 func (d *presenceDialog) View(ctx *ui.Context, _ bool) string {
-	t := themeOf(ctx)
+	t, c := themeOf(ctx), cat(ctx)
 	w, h := d.size.W, d.size.H
 	d.rowY = [3]int{-1, -1, -1}
 	if w <= 0 || h <= 0 {
@@ -229,15 +235,15 @@ func (d *presenceDialog) View(ctx *ui.Context, _ bool) string {
 	var rows []string
 	for i, m := range presenceModes {
 		prefix, st := rowStyle(t, d.sel == i, false)
-		line := prefix + widgets.PresenceDot(t, m.dot) + t.S.Base.Render(" ") + st(m.label)
+		line := prefix + widgets.PresenceDot(t, m.dot) + t.S.Base.Render(" ") + st(m.label(c))
 		if i == cur {
-			line += t.S.Dim.Render("  " + textPresenceCurrent)
+			line += t.S.Dim.Render("  " + c.Fun.NowLabel())
 		}
 		rows = append(rows, line)
 	}
-	hint := textPresenceKeys
+	hint := c.Fun.PresenceKeys()
 	if d.busy {
-		hint = textPresenceSending
+		hint = c.Common.Sending()
 	}
 	rows = append(rows, t.S.Dim.Render(textwidth.Truncate(hint, cw, "…")))
 	top := 0

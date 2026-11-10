@@ -106,6 +106,11 @@ func withoutKeys(b key.Binding, drop ...string) key.Binding {
 	return key.NewBinding(key.WithKeys(keys...), key.WithHelp(b.Help().Key, b.Help().Desc))
 }
 
+// SetPlaceholder replaces the empty-state hint (e.g. after a language switch).
+func (c *Composer) SetPlaceholder(placeholder string) {
+	c.placeholder = textwidth.Sanitize(placeholder)
+}
+
 // Value is already normalized; this exact string is what gets sent.
 func (c *Composer) Value() string {
 	return c.ta.Value()

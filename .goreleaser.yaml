@@ -61,9 +61,13 @@ archives:
         formats:
           - zip
     # Owner decision D6: MIT, so every archive carries the root LICENSE.
+    # P5 Task 21: both READMEs (English README.md, Korean README.ko.md).
     files:
       - README.md
+      - README.ko.md
       - LICENSE
+      # A11.7 / JA30: notices of every bundled Go module (scripts/notices.sh).
+      - THIRD_PARTY_NOTICES
 
 checksum:
   name_template: checksums.txt

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ids"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -83,7 +85,7 @@ func TestComposerSendFailureRetrySameNonce(t *testing.T) {
 	if len(p) != 1 || !api.IsCode(p[0].Failed, "service_unavailable") {
 		t.Fatalf("one failed pending: %+v", p)
 	}
-	mustContain(t, h.Screen(), "실패할 글", "전송 실패", api.Describe(p[0].Failed))
+	mustContain(t, h.Screen(), "실패할 글", "전송 실패", errtext.Describe(i18n.KoT(), p[0].Failed))
 	fail = false
 	h.Press("esc", "G", "enter") // failed pending row is last & selected; enter = resend
 	r := reqs(srv, "POST", "/v1/channels/"+ch+"/messages")
@@ -139,7 +141,7 @@ func TestComposerRateLimited(t *testing.T) {
 	if len(p) != 1 || p[0].Failed == nil || !api.IsCode(p[0].Failed, "rate_limited") {
 		t.Fatalf("pending failed with rate_limited: %+v", p)
 	}
-	mustContain(t, h.Screen(), "빠른 글", "전송 실패", api.Describe(p[0].Failed))
+	mustContain(t, h.Screen(), "빠른 글", "전송 실패", errtext.Describe(i18n.KoT(), p[0].Failed))
 	h.Advance(time.Minute)
 	if n := len(reqs(srv, "POST", "/v1/channels/"+ch+"/messages")); n != 1 {
 		t.Fatalf("no automatic second POST (%d)", n)

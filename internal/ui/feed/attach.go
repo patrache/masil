@@ -27,16 +27,10 @@ const (
 	purposeStory = "story"
 )
 
-// Attach overlay copy and size.
+// Attach overlay size (copy: the feed catalog area).
 const (
-	textAttachTitle      = "사진 첨부"
-	textAttachStoryTitle = "스토리 사진"
-	textAttachHint       = "파일 경로 · 예: ~/Pictures/photo.jpg"
-	textAttachInfo       = "PNG·JPEG·GIF·WebP · 5MB까지 · 메타데이터는 지워져요"
-	textAttachKeys       = "enter 첨부 · esc 취소"
-	textFileNotFound     = "파일을 찾을 수 없어요"
-	attachW              = 60
-	attachH              = 6
+	attachW = 60
+	attachH = 6
 )
 
 func init() {
@@ -190,29 +184,29 @@ func (o *attachOverlay) Bounds(body layout.Rect) layout.Rect {
 
 func (o *attachOverlay) Modal() bool { return true }
 
-func (o *attachOverlay) Title(*ui.Context) (string, ui.Badge) {
+func (o *attachOverlay) Title(ctx *ui.Context) (string, ui.Badge) {
 	if o.purpose == purposeStory {
-		return textAttachStoryTitle, ui.Badge{}
+		return cat(ctx).Feed.AttachStoryTitle(), ui.Badge{}
 	}
-	return textAttachTitle, ui.Badge{}
+	return cat(ctx).Feed.AttachTitle(), ui.Badge{}
 }
 
 func (o *attachOverlay) Help(ctx *ui.Context) []key.Binding {
 	return []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "첨부")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "취소")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", cat(ctx).Feed.HelpAttach())),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", cat(ctx).Common.HelpCancel())),
 	}
 }
 
 // submit checks the path and hands it to the composer.
-func (o *attachOverlay) submit() tea.Cmd {
+func (o *attachOverlay) submit(ctx *ui.Context) tea.Cmd {
 	raw := strings.TrimSpace(o.in.Value())
 	if raw == "" {
 		return nil
 	}
 	p := expandHome(raw)
 	if !fileExists(p) {
-		return ui.Toast(textFileNotFound, ui.ToastError)
+		return ui.Toast(cat(ctx).Feed.AttachNotFound(), ui.ToastError)
 	}
 	pick := attachPickMsg{Route: o.route, Purpose: o.purpose, Path: p}
 	return tea.Batch(closeOverlay, func() tea.Msg { return pick })
@@ -221,7 +215,7 @@ func (o *attachOverlay) submit() tea.Cmd {
 func (o *attachOverlay) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		return true, o.submit()
+		return true, o.submit(ctx)
 	case "esc", "tab", "shift+tab":
 		return false, nil
 	}
@@ -261,13 +255,13 @@ func (o *attachOverlay) View(ctx *ui.Context, _ bool) string {
 	if w <= 0 || h <= 0 {
 		return ""
 	}
-	line, col := pathLine(t, o.in, textAttachHint, w)
+	line, col := pathLine(t, o.in, cat(ctx).Feed.AttachHint(), w)
 	o.col = col
 	out := []string{
 		line,
 		t.S.Base.Foreground(t.P.Line).Render(strings.Repeat("─", w)),
-		fit(t, t.S.Dim.Render(textwidth.Truncate(textAttachInfo, w, "…")), w),
-		fit(t, t.S.Dim.Render(textwidth.Truncate(textAttachKeys, w, "…")), w),
+		fit(t, t.S.Dim.Render(textwidth.Truncate(cat(ctx).Feed.AttachInfo(), w, "…")), w),
+		fit(t, t.S.Dim.Render(textwidth.Truncate(cat(ctx).Feed.AttachKeys(), w, "…")), w),
 	}
 	return blankRows(t, out, w, h)
 }

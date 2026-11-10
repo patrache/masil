@@ -15,25 +15,6 @@ import (
 // Profile friend actions (v0.1.1 C2): the menu item of the relationship over the
 // api.md 5.3 endpoints.
 const (
-	textMenuFriendAdd     = "친구 요청"
-	textMenuFriendCancel  = "친구 요청 취소"
-	textMenuFriendAccept  = "친구 요청 수락"
-	textMenuFriendDecline = "친구 요청 거절"
-	textMenuUnfriend      = "친구 끊기"
-
-	textUnfriendAsk  = "님과 친구를 끊을까요?"
-	textUnfriendBody = "지난 DM은 남지만 읽기 전용이 될 수 있어요"
-	textUnfriendYes  = "끊기"
-
-	textFriendSentSfx     = "님에게 친구 요청을 보냈어요"
-	textFriendNowSfx      = "님과 이제 친구예요"
-	textFriendAcceptedSfx = "님과 친구가 되었어요"
-	textFriendCanceled    = "친구 요청을 취소했어요"
-	textFriendDeclined    = "친구 요청을 거절했어요"
-	textUnfriendedSfx     = "님과 친구를 끊었어요"
-
-	errContextFriend = "친구"
-
 	tagFriend = "feed.friend:" // + action + ":" + user id
 )
 
@@ -92,6 +73,7 @@ func (p *profile) friendMenuItems(ctx *ui.Context) []menuItem {
 		return nil
 	}
 	id, name := p.prof.ID, displayName(p.prof.UserSummary)
+	c := cat(ctx)
 	run := func(a friendAction, reqID string) func(*ui.Context) tea.Cmd {
 		return func(ctx *ui.Context) tea.Cmd {
 			p.friending = true
@@ -100,22 +82,22 @@ func (p *profile) friendMenuItems(ctx *ui.Context) []menuItem {
 	}
 	switch fr := r.FriendRequest; {
 	case r.IsFriend:
-		return []menuItem{{label: textMenuUnfriend, open: func(ctx *ui.Context) ui.Overlay {
+		return []menuItem{{label: c.Feed.MenuUnfriend(), open: func(ctx *ui.Context) ui.Overlay {
 			// no in-flight mark here: the confirm may be cancelled
-			return widgets.Confirm(name+textUnfriendAsk, textUnfriendBody, textUnfriendYes, textCancel, friendCmd(ctx, friendRemove, id, ""))
+			return widgets.Confirm(c.Feed.UnfriendAsk(name), c.Feed.UnfriendBody(), c.Feed.UnfriendYes(), c.Feed.Cancel(), friendCmd(ctx, friendRemove, id, ""))
 		}}}
 	case fr != nil && fr.Direction == "incoming":
 		var out []menuItem
 		if !p.prof.Suspended {
-			out = append(out, menuItem{label: textMenuFriendAccept, run: run(friendAccept, fr.ID)})
+			out = append(out, menuItem{label: c.Feed.MenuFriendAccept(), run: run(friendAccept, fr.ID)})
 		}
-		return append(out, menuItem{label: textMenuFriendDecline, run: run(friendDecline, fr.ID)})
+		return append(out, menuItem{label: c.Feed.MenuFriendDecline(), run: run(friendDecline, fr.ID)})
 	case fr != nil && fr.Direction == "outgoing":
-		return []menuItem{{label: textMenuFriendCancel, run: run(friendCancel, fr.ID)}}
+		return []menuItem{{label: c.Feed.MenuFriendCancel(), run: run(friendCancel, fr.ID)}}
 	case p.prof.Suspended:
 		return nil
 	}
-	return []menuItem{{label: textMenuFriendAdd, run: run(friendSend, "")}}
+	return []menuItem{{label: c.Feed.MenuFriendAdd(), run: run(friendSend, "")}}
 }
 
 // onFriend applies a friend action's answer to this profile's relationship and
@@ -130,7 +112,7 @@ func (p *profile) onFriend(ctx *ui.Context, m ui.ResultMsg[*friendOutcome]) tea.
 	first := o.take()
 	if m.Err != nil {
 		if first {
-			return profileErr(m.Err, errContextFriend)
+			return profileErr(m.Err, cat(ctx).Feed.ErrCtxFriend())
 		}
 		return nil
 	}
@@ -143,28 +125,29 @@ func (p *profile) onFriend(ctx *ui.Context, m ui.ResultMsg[*friendOutcome]) tea.
 		return landed
 	}
 	name := textwidth.Sanitize(displayName(p.prof.UserSummary))
+	c := cat(ctx)
 	var toast string
 	switch o.action {
 	case friendSend:
 		if o.sent != nil && o.sent.AutoAccepted {
 			r.IsFriend, r.FriendRequest, r.CanDM = true, nil, true
-			toast = name + textFriendNowSfx
+			toast = c.Feed.FriendNow(name)
 		} else {
 			r.FriendRequest = nil
 			if o.sent != nil && o.sent.Request.ID != "" {
 				r.FriendRequest = &api.FriendRequestRef{ID: o.sent.Request.ID, Direction: "outgoing"}
 			}
-			toast = name + textFriendSentSfx
+			toast = c.Feed.FriendSent(name)
 		}
 	case friendAccept:
 		r.IsFriend, r.FriendRequest, r.CanDM = true, nil, true
-		toast = name + textFriendAcceptedSfx
+		toast = c.Feed.FriendAccepted(name)
 	case friendCancel:
-		r.FriendRequest, toast = nil, textFriendCanceled
+		r.FriendRequest, toast = nil, c.Feed.FriendCanceled()
 	case friendDecline:
-		r.FriendRequest, toast = nil, textFriendDeclined
+		r.FriendRequest, toast = nil, c.Feed.FriendDeclined()
 	case friendRemove:
-		r.IsFriend, toast = false, name+textUnfriendedSfx
+		r.IsFriend, toast = false, c.Feed.Unfriended(name)
 	}
 	if !first {
 		return nil

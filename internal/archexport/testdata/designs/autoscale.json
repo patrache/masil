@@ -1,0 +1,28 @@
+{
+ "schema_version": 1, "title": "autoscale", "seed": 3, "duration_s": 120,
+ "boxes": [
+  {"id": "r", "kind": "region", "label": "Virginia", "parent": "", "rect": [0, 0, 120, 60], "region_code": "us-east-1"},
+  {"id": "v", "kind": "vpc", "label": "prod-vpc", "parent": "r", "rect": [2, 2, 116, 56]},
+  {"id": "za", "kind": "az", "label": "us-east-1a", "parent": "v", "rect": [4, 10, 54, 46]},
+  {"id": "zb", "kind": "az", "label": "us-east-1b", "parent": "v", "rect": [62, 10, 54, 46]}
+ ],
+ "nodes": [
+  {"id": "web", "kind": "client", "label": "browsers", "pos": [0, 70], "traffic": {"rps": 3000, "curve": "ramp"}},
+  {"id": "edge", "kind": "cdn", "label": "Edge Cache", "pos": [20, 70]},
+  {"id": "alb", "kind": "lb", "label": "Public ALB", "pos": [50, 4], "parent": "v"},
+  {"id": "api", "kind": "api", "label": "Order API", "pos": [10, 14], "parent": "v", "instances": 3,
+   "autoscale": {"enabled": true, "min": 2, "max": 8, "target_cpu_permille": 600, "warmup_s": 90, "cooldown_s": 300}},
+  {"id": "w", "kind": "worker", "label": "Order API", "pos": [70, 14], "parent": "zb", "instances": 2},
+  {"id": "db", "kind": "db_primary", "label": "orders", "pos": [10, 34], "parent": "za", "instances": 2},
+  {"id": "db2", "kind": "db_replica", "label": "", "pos": [70, 34], "parent": "zb"}
+ ],
+ "edges": [
+  {"id": "e1", "from": "web", "to": "edge"},
+  {"id": "e2", "from": "edge", "to": "alb"},
+  {"id": "e3", "from": "alb", "to": "api"},
+  {"id": "e4", "from": "api", "to": "db"},
+  {"id": "e5", "from": "api", "to": "db2", "write_permille": 0},
+  {"id": "e6", "from": "api", "to": "w", "protocol": "async", "read_permille": 0}
+ ],
+ "faults": []
+}

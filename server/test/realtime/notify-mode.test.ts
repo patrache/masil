@@ -49,6 +49,7 @@ function fakeAlert(): Alert {
     created_at: new Date().toISOString(),
     suppressed: false,
     suppressed_reason: null,
+    template: null,
   };
 }
 

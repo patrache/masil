@@ -1,0 +1,97 @@
+# CLI area: `masil <command>` usage lines, help and messages.
+
+[bad_args]
+other = "Invalid arguments: {err}"
+
+[config_dir_create_failed]
+other = "Couldn't create the config folder: {err}"
+
+[config_dir_not_found]
+other = "Couldn't find the config folder: {err}"
+
+[config_partly_unread]
+other = "Couldn't read part of config.toml, using defaults: {err}"
+
+[creds_clear_failed]
+other = "Couldn't remove the login"
+
+[creds_read_failed]
+other = "Couldn't read the login"
+
+[extra_args]
+other = "Unexpected arguments: {args}"
+
+[help_commands]
+other = "Commands:"
+
+[help_header]
+other = "masil — hang out in the terminal"
+
+[join_need_code]
+other = "Give exactly one invite code"
+
+[log_open_failed]
+other = "Couldn't open the log file: {err}"
+
+[logged_in]
+other = "Logged in: @{handle}"
+
+[logged_out]
+other = "Logged out"
+
+[login_flags_together]
+other = "Use --handle and --password-stdin together"
+
+[login_need_handle]
+other = "Enter a username"
+
+[login_need_password]
+other = "Pass the password on stdin"
+
+[login_password_read_failed]
+other = "Couldn't read the password"
+
+[login_save_failed]
+other = "Couldn't save the login"
+
+[logout_server_failed]
+other = "Couldn't tell the server about the logout ({err}). Removing the login on this device anyway"
+
+[not_logged_in]
+other = "You're not logged in"
+
+[tui_failed]
+other = "Couldn't start masil: {err}"
+
+[unknown_command]
+other = "Unknown command: {name}"
+
+[unknown_command_hint]
+other = "Run `masil help` to see the commands"
+
+[usage_config]
+other = "masil config path — show where the config folder is"
+
+[usage_help]
+other = "masil help — help"
+
+[usage_join]
+other = "masil join <invite code> — join a space you were invited to"
+
+[usage_line]
+other = "Usage: {usage}"
+
+[usage_login]
+other = "masil login [--handle <username> --password-stdin] — log in"
+
+[usage_logout]
+other = "masil logout — log out on this device"
+
+[usage_signup]
+other = "masil signup — create an account"
+
+[usage_tui]
+other = "masil [tui] — open masil in the terminal"
+
+[usage_version]
+other = "masil version — show the version"

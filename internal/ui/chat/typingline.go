@@ -13,11 +13,8 @@ import (
 
 // Typing indicator constants.
 const (
-	typingSuffix    = " 입력 중…"
-	typingMany      = "여러 명이 입력 중…"
 	typingNameCells = 6                     // each name is cut to this many cells
 	typingGrace     = 50 * time.Millisecond // the redraw lands just after the expiry
-	typingSomeone   = "누군가"
 )
 
 // typingTickMsg redraws a conversation right after a typing indicator expired
@@ -32,11 +29,11 @@ func typingText(ctx *ui.Context, ids []string) string {
 	case len(ids) == 0:
 		return ""
 	case len(ids) >= 3:
-		return typingMany
+		return cat(ctx).Chat.TypingMany()
 	}
 	names := make([]string, 0, len(ids))
 	for _, id := range ids {
-		name := typingSomeone
+		name := cat(ctx).Chat.TypingSomeone()
 		if ctx != nil && ctx.Store != nil {
 			if u := ctx.Store.User(id); u != nil {
 				if n := strings.TrimSpace(textwidth.Sanitize(displayName(*u))); n != "" {
@@ -46,7 +43,10 @@ func typingText(ctx *ui.Context, ids []string) string {
 		}
 		names = append(names, strings.TrimRight(textwidth.Truncate(name, typingNameCells, "…"), " ")) // Truncate pads a split wide char
 	}
-	return strings.Join(names, ", ") + typingSuffix
+	if len(names) == 2 {
+		return cat(ctx).Chat.TypingTwo(names[0], names[1])
+	}
+	return cat(ctx).Chat.TypingOne(names[0])
 }
 
 // typingLine is the typing text of one scope (rootID "" = the channel's own list).

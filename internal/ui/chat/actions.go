@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -22,48 +21,6 @@ import (
 func init() {
 	ui.RegisterOverlay("chat.message_actions", newMessageActionsOverlay)
 }
-
-// Message action texts.
-const (
-	actionsTitle    = "메시지"
-	reactFailed     = "리액션을 바꾸지 못했어요"
-	deleteFailed    = "메시지를 삭제하지 못했어요"
-	pinFailed       = "고정을 바꾸지 못했어요"
-	voteFailed      = "투표하지 못했어요"
-	blockFailed     = "차단하지 못했어요"
-	msgCopied       = "복사했어요"
-	pinnedText      = "메시지를 고정했어요"
-	unpinnedText    = "고정을 해제했어요"
-	notMineEdit     = "내 메시지만 수정할 수 있어요"
-	cantEditText    = "이 메시지는 수정할 수 없어요"
-	noDeletePerm    = "삭제할 권한이 없어요"
-	noPinPerm       = "고정할 권한이 없어요"
-	replyNoPin      = "답글은 고정할 수 없어요"
-	pollClosedText  = "마감된 투표예요"
-	deleteTitle     = "메시지 삭제"
-	deleteBody      = "이 메시지를 삭제할까요?"
-	deleteYes       = "삭제"
-	blockBody       = "차단하면 그 사람의 메시지가 접히고 DM을 주고받을 수 없어요"
-	blockYes        = "차단"
-	cancelText      = "취소"
-	blockedSuffix   = "님을 차단했어요"
-	blockAskSuffix  = "님을 차단할까요?"
-	reportSuffix    = "의 메시지"
-	itemThread      = "스레드로 답글"
-	itemReact       = "리액션"
-	itemReactUsers  = "리액션 누른 사람"
-	itemVotePrefix  = "투표: "
-	itemRetract     = "투표 취소"
-	itemClosePoll   = "투표 마감"
-	itemEdit        = "수정"
-	itemPin         = "고정"
-	itemUnpin       = "고정 해제"
-	itemCopy        = "복사"
-	itemDelete      = "삭제"
-	itemReport      = "신고"
-	itemBlockAuthor = "작성자 차단"
-	itemAuthor      = "작성자"
-)
 
 // ---- landing action results ----
 
@@ -147,7 +104,7 @@ func toggleReactionCmd(ctx *ui.Context, m api.Message, emoji string) tea.Cmd {
 		if c := chatOf(ctx); c != nil {
 			c.SetMyReaction(id, emoji, !on)
 		}
-		return errorCmd(err, reactFailed)
+		return errorCmd(err, cat(ctx).Chat.ReactFailed())
 	}))
 }
 
@@ -159,7 +116,7 @@ func deleteMessageCmd(ctx *ui.Context, m api.Message) tea.Cmd {
 		return struct{}{}, cl.DeleteMessage(c, id)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, deleteFailed)
+			return errorCmd(err, cat(ctx).Chat.DeleteFailed())
 		}
 		if c := chatOf(ctx); c != nil {
 			if cur, ok := c.FindMessage(id); ok && !cur.Deleted {
@@ -183,7 +140,7 @@ func pinCmd(ctx *ui.Context, m api.Message, on bool) tea.Cmd {
 		return struct{}{}, cl.Unpin(c, id)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, pinFailed)
+			return errorCmd(err, cat(ctx).Chat.PinFailed())
 		}
 		if c := chatOf(ctx); c != nil {
 			cur, held := c.FindMessage(id)
@@ -197,9 +154,9 @@ func pinCmd(ctx *ui.Context, m api.Message, on bool) tea.Cmd {
 			syncPinList(c, chID, cur, on)
 		}
 		if on {
-			return ui.Toast(pinnedText, ui.ToastSuccess)
+			return ui.Toast(cat(ctx).Chat.Pinned(), ui.ToastSuccess)
 		}
-		return ui.Toast(unpinnedText, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Chat.Unpinned(), ui.ToastInfo)
 	})
 }
 
@@ -246,7 +203,7 @@ func closePollCmd(ctx *ui.Context, p api.Poll) tea.Cmd {
 
 func landPoll(ctx *ui.Context, p *api.Poll, err error) tea.Cmd {
 	if err != nil {
-		return errorCmd(err, voteFailed)
+		return errorCmd(err, cat(ctx).Chat.VoteFailed())
 	}
 	if c := chatOf(ctx); c != nil && p != nil {
 		c.SetPoll(*p, true)
@@ -278,7 +235,7 @@ func blockCmd(ctx *ui.Context, u api.UserSummary) tea.Cmd {
 		return struct{}{}, cl.Block(c, ref)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, blockFailed)
+			return errorCmd(err, cat(ctx).Chat.BlockFailed())
 		}
 		if s := ctx.Store; s != nil {
 			if s.Blocks == nil {
@@ -288,7 +245,7 @@ func blockCmd(ctx *ui.Context, u api.UserSummary) tea.Cmd {
 				s.Blocks[u.ID] = ctx.Now()
 			}
 		}
-		return ui.Toast(name+blockedSuffix, ui.ToastSuccess)
+		return ui.Toast(cat(ctx).Chat.BlockedUser(name), ui.ToastSuccess)
 	})
 }
 
@@ -319,7 +276,7 @@ func clipboardLine(s string) string { return textwidth.Sanitize(s) }
 
 // copyCmd copies m (msg.copy) through ui.Copy: OSC 52 and the system clipboard.
 func copyCmd(ctx *ui.Context, m api.Message) tea.Cmd {
-	return ui.Copy(ctx, copyText(m), msgCopied)
+	return ui.Copy(ctx, copyText(m), cat(ctx).Chat.MsgCopied())
 }
 
 // ---- rules ----
@@ -354,11 +311,13 @@ func reactPicker(ctx *ui.Context, m api.Message) ui.Overlay {
 }
 
 func deleteConfirm(ctx *ui.Context, m api.Message) ui.Overlay {
-	return widgets.Confirm(deleteTitle, deleteBody, deleteYes, cancelText, deleteMessageCmd(ctx, m))
+	c := cat(ctx)
+	return widgets.Confirm(c.Chat.DeleteTitle(), c.Chat.DeleteBody(), c.Chat.DeleteYes(), c.Chat.Cancel(), deleteMessageCmd(ctx, m))
 }
 
 func blockConfirm(ctx *ui.Context, u api.UserSummary) ui.Overlay {
-	return widgets.Confirm(textwidth.Sanitize(displayName(u))+blockAskSuffix, blockBody, blockYes, cancelText, blockCmd(ctx, u))
+	c := cat(ctx)
+	return widgets.Confirm(c.Chat.BlockAsk(textwidth.Sanitize(displayName(u))), c.Chat.BlockBody(), c.Chat.BlockYes(), c.Chat.Cancel(), blockCmd(ctx, u))
 }
 
 // reactionUsersOverlay is who reacted to m: the list of the one emoji, else a
@@ -377,7 +336,7 @@ func reactionUsersOverlay(ctx *ui.Context, m api.Message) ui.Overlay {
 			return nil, newReactionUsersFor(m.ID, emoji)
 		}})
 	}
-	return newMenu(itemReactUsers, items)
+	return newMenu(cat(ctx).Chat.ItemReactUsers(), items)
 }
 
 // ---- keys ----
@@ -402,7 +361,7 @@ func (p *msgPane) actionKey(ctx *ui.Context, msg tea.KeyPressMsg, edit func(api.
 			return true, nil
 		}
 		if !canDelete(ctx, ch, m) {
-			return true, ui.Toast(noDeletePerm, ui.ToastInfo)
+			return true, ui.Toast(cat(ctx).Chat.NoDeletePerm(), ui.ToastInfo)
 		}
 		return true, openOverlayCmd(deleteConfirm(ctx, m))
 	}
@@ -419,9 +378,9 @@ func (p *msgPane) actionKey(ctx *ui.Context, msg tea.KeyPressMsg, edit func(api.
 	case km.Matches(msg, keymap.MsgEdit):
 		switch {
 		case !isMe(ctx, m.Author.ID):
-			return true, ui.Toast(notMineEdit, ui.ToastInfo)
+			return true, ui.Toast(cat(ctx).Chat.NotMineEdit(), ui.ToastInfo)
 		case !editable(ctx, m):
-			return true, ui.Toast(cantEditText, ui.ToastInfo)
+			return true, ui.Toast(cat(ctx).Chat.CantEdit(), ui.ToastInfo)
 		}
 		if edit == nil {
 			return true, nil
@@ -430,9 +389,9 @@ func (p *msgPane) actionKey(ctx *ui.Context, msg tea.KeyPressMsg, edit func(api.
 	case km.Matches(msg, keymap.MsgPin):
 		switch {
 		case m.ThreadRootID != nil:
-			return true, ui.Toast(replyNoPin, ui.ToastInfo)
+			return true, ui.Toast(cat(ctx).Chat.ReplyNoPin(), ui.ToastInfo)
 		case !canPin(ctx, ch):
-			return true, ui.Toast(noPinPerm, ui.ToastInfo)
+			return true, ui.Toast(cat(ctx).Chat.NoPinPerm(), ui.ToastInfo)
 		}
 		return true, pinCmd(ctx, m, !m.Pinned)
 	case km.Matches(msg, keymap.MsgCopy):
@@ -452,23 +411,24 @@ func (p *msgPane) actionKey(ctx *ui.Context, msg tea.KeyPressMsg, edit func(api.
 // without permission), 복사 y, 삭제 d (permission), and on others' messages
 // 작성자 · <이름> (the author menu: memberActions), 신고 and 작성자 차단.
 func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem {
+	c := cat(ctx)
 	var items []menuItem
 	if threadable(m) {
 		root, chID := threadRootOf(m), m.ChannelID
 		if chID == "" && ch != nil {
 			chID = ch.ID
 		}
-		items = append(items, menuItem{Label: itemThread, Hint: "t", Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemThread(), Hint: "t", Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return openThread(chID, root), nil
 		}})
 	}
 	live := actionable(m)
 	if live {
-		items = append(items, menuItem{Label: itemReact, Hint: "r", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemReact(), Hint: "r", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, reactPicker(ctx, m)
 		}})
 		if len(m.Reactions) > 0 {
-			items = append(items, menuItem{Label: itemReactUsers, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			items = append(items, menuItem{Label: c.Chat.ItemReactUsers(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return nil, reactionUsersOverlay(ctx, m)
 			}})
 		}
@@ -477,43 +437,43 @@ func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem 
 		p := *m.Poll
 		for _, o := range p.Options {
 			idx := o.Idx
-			items = append(items, menuItem{Label: itemVotePrefix + o.Text, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			items = append(items, menuItem{Label: c.Chat.ItemVote(o.Text), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return voteCmd(ctx, p, pollToggle(p, idx)), nil
 			}})
 		}
 		if len(p.MyVotes) > 0 {
-			items = append(items, menuItem{Label: itemRetract, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			items = append(items, menuItem{Label: c.Chat.ItemRetract(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return voteCmd(ctx, p, nil), nil
 			}})
 		}
 		if isMe(ctx, p.CreatorID) {
-			items = append(items, menuItem{Label: itemClosePoll, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			items = append(items, menuItem{Label: c.Chat.ItemClosePoll(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return closePollCmd(ctx, p), nil
 			}})
 		}
 	}
 	if editable(ctx, m) {
 		chID, id := m.ChannelID, m.ID
-		items = append(items, menuItem{Label: itemEdit, Hint: "e", Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemEdit(), Hint: "e", Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return func() tea.Msg { return editRequestMsg{ChannelID: chID, MessageID: id} }, nil
 		}})
 	}
 	if live && m.ThreadRootID == nil {
-		label := itemPin
+		label := c.Chat.ItemPin()
 		if m.Pinned {
-			label = itemUnpin
+			label = c.Chat.ItemUnpin()
 		}
 		items = append(items, menuItem{Label: label, Hint: "p", Disabled: !canPin(ctx, ch), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return pinCmd(ctx, m, !m.Pinned), nil
 		}})
 	}
 	if live && !folded(ctx, m) {
-		items = append(items, menuItem{Label: itemCopy, Hint: "y", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemCopy(), Hint: "y", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return copyCmd(ctx, m), nil
 		}})
 	}
 	if !m.Deleted && m.Kind != "system" && canDelete(ctx, ch, m) {
-		items = append(items, menuItem{Label: itemDelete, Hint: "d", Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemDelete(), Hint: "d", Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, deleteConfirm(ctx, m)
 		}})
 	}
@@ -522,15 +482,15 @@ func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem 
 		author := m.Author
 		// the author menu (CA 6.1 / 5.8): DM, profile, 사용자 신고 ("user"), 차단 —
 		// the only way to report a non-friend outside a members list as a user
-		items = append(items, menuItem{Label: itemAuthor + " · " + name, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemAuthor(name), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, newMenu(name, memberActions(ctx, author))
 		}})
-		label := name + reportSuffix
-		items = append(items, menuItem{Label: itemReport, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+		label := c.Chat.ReportMessageOf(name)
+		items = append(items, menuItem{Label: c.Chat.ItemReport(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.ReportDialog("message", m.ID, label)
 		}})
 		if ctx == nil || ctx.Store == nil || !ctx.Store.IsBlocked(m.Author.ID) {
-			items = append(items, menuItem{Label: itemBlockAuthor, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			items = append(items, menuItem{Label: c.Chat.ItemBlockAuthor(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return nil, blockConfirm(ctx, author)
 			}})
 		}
@@ -540,7 +500,7 @@ func messageActions(ctx *ui.Context, ch *api.Channel, m api.Message) []menuItem 
 
 // newMessageActions is the msg.actions menu overlay of m.
 func newMessageActions(ctx *ui.Context, ch *api.Channel, m api.Message) ui.Overlay {
-	return newMenu(actionsTitle, messageActions(ctx, ch, m))
+	return newMenu(cat(ctx).Chat.ActionsTitle(), messageActions(ctx, ch, m))
 }
 
 // newMessageActionsOverlay is chat.message_actions (args "<channelID> <messageID>");
@@ -631,15 +591,15 @@ func chipLayout(ctx *ui.Context, m api.Message, st msgStyle, n int) (first int, 
 	switch st.Density {
 	case ui.DensityFull:
 		bw := st.Width - indentOf(st.Width)
-		meta := metaLines(t, &m, bw, st.InThread)
+		meta := metaLines(cat(ctx), t, &m, bw, st.InThread)
 		rows = chipRows(m.Reactions, bw)
 		return n - len(meta), rows, ""
 	case ui.DensityBubble:
 		w := max(1, st.Width*bubbleRatio/100)
-		meta := bubbleMeta(t, &m, w, st.InThread)
+		meta := bubbleMeta(cat(ctx), t, &m, w, st.InThread)
 		room := w
 		if !st.InThread && m.Thread != nil && m.Thread.ReplyCount > 0 {
-			lead = textwidth.Truncate("💬"+humanize.Count(m.Thread.ReplyCount), w, "…")
+			lead = textwidth.Truncate("💬"+hz(ctx).Count(m.Thread.ReplyCount), w, "…")
 			room -= textwidth.Width(lead) + 1
 		}
 		if room > 0 {
@@ -709,7 +669,7 @@ func (p *msgPane) hitAction(ctx *ui.Context, r row, line, x int, b tea.MouseButt
 		}
 		poll := *cur.Poll
 		if poll.Closed {
-			return ui.Toast(pollClosedText, ui.ToastInfo), true
+			return ui.Toast(cat(ctx).Chat.PollClosed(), ui.ToastInfo), true
 		}
 		return voteCmd(ctx, poll, pollToggle(poll, idx)), true
 	}

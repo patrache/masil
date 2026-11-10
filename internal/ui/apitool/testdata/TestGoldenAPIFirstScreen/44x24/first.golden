@@ -1,0 +1,24 @@
+ 채팅  3   DM   피드   알림  3   도구       
+ 🧪 API 시험 · 깃허브 API · staging ▾       
+╔═ API 시험 · 깃허브 API · staging ════════╗
+║[목록] [요청] [응답]                      ║
+║GET   {{base_url}}/user         [보내기 ⏎]║
+║쿼리 0 · 헤더 3 · 본문 없음 · 검사 4 · 추…║
+║ ✓ Authorization = Bearer {{token}}       ║
+║ ✓ Accept = application/vnd.github+json   ║
+║ ✓ X-GitHub-Api-Version = 2022-11-28      ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+║                                          ║
+╚══════════════════════════════════════════╝
+ 위젯  tab 탭 · ⏎ 보내기 · r 실행… ● 온라인 

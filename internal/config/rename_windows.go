@@ -5,9 +5,15 @@ package config
 import (
 	"errors"
 	"syscall"
-
-	"golang.org/x/sys/windows"
 )
+
+// errSharingViolation is ERROR_SHARING_VIOLATION (winerror.h, 32). The std
+// syscall package has ERROR_ACCESS_DENIED and ERROR_FILE_NOT_FOUND but not
+// this one. It is spelled out here instead of importing golang.org/x/sys/windows
+// because that package imports "net" (SocketAddress.IP), and config sits under
+// the pure arch packages (archdoc, archsim, ...), whose import tests ban net.
+// rename_windows_test.go pins the value to windows.ERROR_SHARING_VIOLATION.
+const errSharingViolation syscall.Errno = 32
 
 // isTransientRenameErr reports Windows rename errors that usually clear up
 // once another process closes the target or finishes its own rename
@@ -18,7 +24,7 @@ func isTransientRenameErr(err error) bool {
 		return false
 	}
 	switch errno {
-	case windows.ERROR_ACCESS_DENIED, windows.ERROR_SHARING_VIOLATION, windows.ERROR_FILE_NOT_FOUND:
+	case syscall.ERROR_ACCESS_DENIED, errSharingViolation, syscall.ERROR_FILE_NOT_FOUND:
 		return true
 	}
 	return false

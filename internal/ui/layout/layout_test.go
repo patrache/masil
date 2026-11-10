@@ -407,6 +407,16 @@ func TestComputeExhaustive(t *testing.T) {
 							checkFormula(t, m, c, r, st, l)
 						}
 					}
+					// CA 10.3: tool states keep the same strict tiling in
+					// every in-domain size (formula facts differ, so only
+					// the tiling and inner >= 1x1 are checked here).
+					for _, st := range toolStates {
+						l := Compute(m, c, r, st)
+						checked++
+						if err := checkTiling(l, true); err != nil {
+							t.Fatalf("Compute(%s,%d,%d,%+v): %v", m.ID(), c, r, st, err)
+						}
+					}
 				}
 			}
 			if checked == 0 {
@@ -476,6 +486,127 @@ func checkFormula(t *testing.T, m Mode, c, r int, st State, l Layout) {
 		if pn.Rect.H > 0 && pn.Rect.W > 0 {
 			if got, ok := l.At(pn.Rect.X, pn.Rect.Y); !ok || got.Slot != pn.Slot {
 				t.Fatalf("At(%d,%d) = %+v, want %s", pn.Rect.X, pn.Rect.Y, got, pn.Slot)
+			}
+		}
+	}
+}
+
+func TestComputeToolOpenCommand(t *testing.T) {
+	l := Compute(ModeCommand, 200, 60, State{ToolOpen: true})
+	mustPanes(t, l, []Pane{
+		p(SlotRail, 0, 0, 6, 59, true),
+		p(SlotSidebar, 6, 0, 26, 59, true),
+		p(SlotMain, 32, 0, 78, 59, true),
+		p(SlotTool, 110, 0, 90, 59, true),
+		p(SlotStatus, 0, 59, 200, 1, false),
+	})
+	for _, s := range []SlotID{SlotFeed, SlotThread, SlotMembers, SlotNotifications} {
+		if _, ok := l.Pane(s); ok {
+			t.Fatalf("%s shown while the tool surface is open", s)
+		}
+	}
+	// An open thread does not bring the right column back.
+	l = Compute(ModeCommand, 200, 60, State{ToolOpen: true, ThreadOpen: true})
+	if _, ok := l.Pane(SlotThread); ok {
+		t.Fatal("thread shown next to the tool surface")
+	}
+	if err := checkTiling(l, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestComputeZoomed(t *testing.T) {
+	// Command: the tool covers chat + feed + right column.
+	l := Compute(ModeCommand, 200, 60, State{ToolOpen: true, Zoomed: true})
+	mustPanes(t, l, []Pane{
+		p(SlotRail, 0, 0, 6, 59, true),
+		p(SlotSidebar, 6, 0, 26, 59, true),
+		p(SlotTool, 32, 0, 168, 59, true),
+		p(SlotStatus, 0, 59, 200, 1, false),
+	})
+	if _, ok := l.Pane(SlotMain); ok {
+		t.Fatal("main shown while zoomed")
+	}
+
+	// Standard: Main covers the sidebar.
+	mustPanes(t, Compute(ModeStandard, 120, 40, State{Zoomed: true}), []Pane{
+		p(SlotMain, 0, 0, 120, 39, true),
+		p(SlotStatus, 0, 39, 120, 1, false),
+	})
+	if l := Compute(ModeStandard, 120, 40, State{Zoomed: true, ThreadOpen: true}); checkTiling(l, true) != nil {
+		t.Fatalf("standard zoomed with thread does not tile: %+v", l.Panes)
+	} else if _, ok := l.Pane(SlotSidebar); ok {
+		t.Fatal("sidebar shown while zoomed")
+	}
+
+	// Standard ToolOpen alone changes nothing (Main is the tool).
+	if a, b := Compute(ModeStandard, 120, 40, State{ToolOpen: true}), Compute(ModeStandard, 120, 40, State{}); !samePanes(a, b) {
+		t.Fatalf("standard ToolOpen changed the layout:\n%+v\n%+v", a.Panes, b.Panes)
+	}
+
+	// Compact, widget, tiny: Main is already full width.
+	for _, c := range []struct {
+		m    Mode
+		w, h int
+	}{{ModeCompact, 120, 30}, {ModeWidget, 80, 24}, {ModeTiny, 40, 14}, {ModeTooSmall, 19, 10}} {
+		for _, st := range []State{{Zoomed: true}, {ToolOpen: true}, {ToolOpen: true, Zoomed: true}} {
+			if a, b := Compute(c.m, c.w, c.h, st), Compute(c.m, c.w, c.h, State{}); !samePanes(a, b) {
+				t.Fatalf("%s %+v changed the layout", c.m.ID(), st)
+			}
+		}
+	}
+}
+
+func samePanes(a, b Layout) bool {
+	if len(a.Panes) != len(b.Panes) {
+		return false
+	}
+	for i := range a.Panes {
+		if a.Panes[i] != b.Panes[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestComputeDefaultUnchanged: with ToolOpen and Zoomed false no tool slot
+// appears anywhere; the byte-for-byte proof that the old geometry is kept is
+// the unchanged TestDiagramGolden set.
+func TestComputeDefaultUnchanged(t *testing.T) {
+	for m := ModeTooSmall; m <= ModeCommand; m++ {
+		for c := 0; c <= 320; c += 7 {
+			for r := 0; r <= 100; r += 5 {
+				for _, st := range allStates {
+					if _, ok := Compute(m, c, r, st).Pane(SlotTool); ok {
+						t.Fatalf("Compute(%s,%d,%d,%+v) has a tool slot", m.ID(), c, r, st)
+					}
+				}
+			}
+		}
+	}
+}
+
+var toolStates = []State{
+	{ToolOpen: true}, {Zoomed: true}, {ToolOpen: true, Zoomed: true},
+	{ToolOpen: true, ThreadOpen: true}, {ToolOpen: true, Zoomed: true, ThreadOpen: true},
+	{Zoomed: true, ThreadOpen: true}, {Zoomed: true, FeedSwapped: true},
+}
+
+func TestComputeToolStatesTile(t *testing.T) {
+	for m := Mode(-1); m <= ModeCommand+1; m++ {
+		for c := -2; c <= 330; c += 3 {
+			for r := -2; r <= 100; r += 3 {
+				for _, st := range toolStates {
+					l := Compute(m, c, r, st)
+					if err := checkTiling(l, false); err != nil {
+						t.Fatalf("Compute(%d,%d,%d,%+v): %v", m, c, r, st, err)
+					}
+					if pc, pr := PinMinSize(ModeCommand); l.Mode == ModeCommand && c >= pc && r >= pr {
+						if _, ok := l.Pane(SlotTool); !ok {
+							t.Fatalf("command %dx%d %+v has no tool slot", c, r, st)
+						}
+					}
+				}
 			}
 		}
 	}

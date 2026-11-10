@@ -10,6 +10,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -41,23 +42,27 @@ const (
 
 var handleRE = regexp.MustCompile(handlePattern)
 
+// text is a message rendered in the shown language at draw time, so a
+// language switch redraws it (P5 Review Focus 1).
+type text func(t *i18n.T) string
+
 // Validation texts.
-const (
-	errHandleEmpty   = "아이디를 입력해 주세요"
-	errHandleFormat  = "아이디는 영문 소문자·숫자·_ 3~20자예요"
-	errPasswordEmpty = "비밀번호를 입력해 주세요"
-	errPasswordShort = "비밀번호는 8자 이상이에요"
-	errPasswordLong  = "비밀번호는 128자 이하예요"
-	errPasswordSame  = "비밀번호는 아이디와 달라야 해요"
-	errConfirm       = "비밀번호가 서로 달라요"
-	errDisplayLong   = "표시 이름은 32자 이하예요"
+var (
+	errHandleEmpty   text = func(t *i18n.T) string { return t.Auth.ErrHandleEmpty() }
+	errHandleFormat  text = func(t *i18n.T) string { return t.Auth.ErrHandleFormat() }
+	errPasswordEmpty text = func(t *i18n.T) string { return t.Auth.ErrPasswordEmpty() }
+	errPasswordShort text = func(t *i18n.T) string { return t.Auth.ErrPasswordShort() }
+	errPasswordLong  text = func(t *i18n.T) string { return t.Auth.ErrPasswordLong() }
+	errPasswordSame  text = func(t *i18n.T) string { return t.Auth.ErrPasswordSame() }
+	errConfirm       text = func(t *i18n.T) string { return t.Auth.ErrConfirm() }
+	errDisplayLong   text = func(t *i18n.T) string { return t.Auth.ErrDisplayLong() }
 )
 
 // field is one single-line text field.
 type field struct {
 	id          fieldID
-	label       string
-	placeholder string
+	label       text
+	placeholder text                // nil = none
 	secret      bool                // password: masked, never normalized
 	norm        func(string) string // input normalization (nil for secret fields)
 	ti          textinput.Model
@@ -67,10 +72,12 @@ type field struct {
 func newFields() [numFields]*field {
 	lower := func(s string) string { return oneLine(strings.ToLower(oneLine(s))) }
 	return [numFields]*field{
-		fieldHandle:   newField(fieldHandle, "아이디", "영문 소문자·숫자·_", false, lower),
-		fieldDisplay:  newField(fieldDisplay, "표시 이름", "선택 · 비우면 아이디", false, oneLine),
-		fieldPassword: newField(fieldPassword, "비밀번호", "", true, nil),
-		fieldConfirm:  newField(fieldConfirm, "비밀번호 확인", "", true, nil),
+		fieldHandle: newField(fieldHandle, func(t *i18n.T) string { return t.Auth.FieldHandle() },
+			func(t *i18n.T) string { return t.Auth.FieldHandlePlaceholder() }, false, lower),
+		fieldDisplay: newField(fieldDisplay, func(t *i18n.T) string { return t.Auth.FieldDisplay() },
+			func(t *i18n.T) string { return t.Auth.FieldDisplayPlaceholder() }, false, oneLine),
+		fieldPassword: newField(fieldPassword, func(t *i18n.T) string { return t.Auth.FieldPassword() }, nil, true, nil),
+		fieldConfirm:  newField(fieldConfirm, func(t *i18n.T) string { return t.Auth.FieldConfirm() }, nil, true, nil),
 	}
 }
 
@@ -80,7 +87,7 @@ func newFields() [numFields]*field {
 // DeleteAfterCursor (the palette key), ctrl+v clipboard paste and suggestions unbound
 // (they would bypass normalization / take up/down). The model stays focused; the
 // screen routes input to the active field only.
-func newField(id fieldID, label, placeholder string, secret bool, norm func(string) string) *field {
+func newField(id fieldID, label, placeholder text, secret bool, norm func(string) string) *field {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = inputLimit
@@ -179,8 +186,8 @@ func (f *field) display() (before, after string) {
 }
 
 // validate checks the form of mode m on the client (api.md rules); it returns the
-// message and the field to focus, or "" when the form may be sent.
-func validate(m formMode, fs [numFields]*field) (string, fieldID) {
+// message and the field to focus, or nil when the form may be sent.
+func validate(m formMode, fs [numFields]*field) (text, fieldID) {
 	h := fs[fieldHandle].value()
 	pw := fs[fieldPassword].value()
 	switch {
@@ -209,7 +216,7 @@ func validate(m formMode, fs [numFields]*field) (string, fieldID) {
 			return errConfirm, fieldConfirm
 		}
 	}
-	return "", 0
+	return nil, 0
 }
 
 // deviceName is the session's device name: the hostname cut to deviceNameMax code

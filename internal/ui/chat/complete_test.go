@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -159,7 +160,7 @@ func TestEmojiCompletion(t *testing.T) {
 		t.Fatal("must not send")
 	}
 	// Korean names match by containment; one character after ':' is not enough
-	if got := emojiCandidates("축하"); len(got) == 0 || got[0].Insert != "🎉 " {
+	if got := emojiCandidates(i18n.KoT(), "축하"); len(got) == 0 || got[0].Insert != "🎉 " {
 		t.Fatalf("축하: %+v", got)
 	}
 	h.Type("밥 :t")
@@ -174,7 +175,7 @@ func TestEmojiTable(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, e := range emojiTable {
-		if e.Name == "" || e.Ko == "" || e.Name != strings.ToLower(e.Name) || seen[e.Name] {
+		if e.Name == "" || emojiName(i18n.KoT(), e) == "" || emojiName(i18n.For(i18n.En), e) == "" || e.Name != strings.ToLower(e.Name) || seen[e.Name] {
 			t.Fatalf("bad or duplicate name: %+v", e)
 		}
 		seen[e.Name] = true
@@ -186,20 +187,21 @@ func TestEmojiTable(t *testing.T) {
 
 func TestCommandCompletion(t *testing.T) {
 	var labels []string
-	for _, c := range commandCandidates("") {
+	for _, c := range commandCandidates(i18n.KoT(), "") {
 		labels = append(labels, c.Label)
 		if c.Detail == "" || c.Insert != c.Label+" " {
 			t.Fatalf("command item: %+v", c)
 		}
 	}
-	if strings.Join(labels, " ") != "/me /shrug /poll /status /focus /roll /invite" {
+	// The release has tools on, so /tools is listed last (P0 Task 19).
+	if strings.Join(labels, " ") != "/me /shrug /poll /status /focus /roll /invite /tools" {
 		t.Fatalf("\"/\" lists %q", labels)
 	}
 	h := devChannel(t, uitest.Size{W: 120, H: 40})
 	h.Press("i")
 	h.Type("/")
-	if n := len(popupItems(t, h)); n != 7 {
-		t.Fatalf("\"/\" popup has %d items, want 7", n)
+	if n := len(popupItems(t, h)); n != 8 {
+		t.Fatalf("\"/\" popup has %d items, want 8", n)
 	}
 	h.Type("ro")
 	h.Press("enter")
@@ -348,7 +350,7 @@ func TestMentionMembersFollowMembership(t *testing.T) {
 func TestEmojiCompletionSmoking(t *testing.T) {
 	for _, q := range []string{"smok", "흡연"} {
 		found := false
-		for _, c := range emojiCandidates(q) {
+		for _, c := range emojiCandidates(i18n.KoT(), q) {
 			if strings.Contains(c.Insert, "🚬") {
 				found = true
 			}

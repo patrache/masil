@@ -14,15 +14,6 @@ import (
 	"github.com/patrache/masil/internal/ui"
 )
 
-// Slash command texts.
-const (
-	threadPollText       = "스레드에서는 투표를 만들 수 없어요"
-	inviteSpaceOnlyText  = "방 채널에서만 초대할 수 있어요"
-	inviteFailedText     = "초대하지 못했어요"
-	inviteLinkFailedText = "초대 링크를 만들지 못했어요"
-	invitedSuffix        = "에 초대했어요"
-)
-
 // Slash result tags (ui.Do "chat.<action>:<space>").
 const (
 	tagInviteCreate = "chat.invite_create:"
@@ -59,7 +50,7 @@ func runSlash(ctx *ui.Context, cc *chatComposer, raw string, cmd *slash.Command)
 		return cc.send(ctx, "roll", cmd.Dice, nil)
 	case slash.Poll:
 		if cc.rootID != nil {
-			return ui.Toast(threadPollText, ui.ToastError)
+			return ui.Toast(cat(ctx).Chat.ThreadPoll(), ui.ToastError)
 		}
 		if cmd.Poll == nil {
 			return nil
@@ -77,6 +68,9 @@ func runSlash(ctx *ui.Context, cc *chatComposer, raw string, cmd *slash.Command)
 		return ui.RunCommand("focus.start", rawArgs(raw))
 	case slash.Invite:
 		return cc.invite(ctx, cmd)
+	case slash.Tools: // the tool hub (ui/tools registers tools.hub; chat never imports it)
+		cc.c.Reset()
+		return ui.RunCommand("tools.hub", "")
 	}
 	return nil
 }
@@ -87,7 +81,7 @@ func runSlash(ctx *ui.Context, cc *chatComposer, raw string, cmd *slash.Command)
 func (cc *chatComposer) invite(ctx *ui.Context, cmd *slash.Command) tea.Cmd {
 	ch := cc.channel(ctx)
 	if ch == nil || ch.SpaceID == nil || *ch.SpaceID == "" {
-		return ui.Toast(inviteSpaceOnlyText, ui.ToastError)
+		return ui.Toast(cat(ctx).Chat.InviteSpaceOnly(), ui.ToastError)
 	}
 	space := *ch.SpaceID
 	if cc.awaiting == nil {
@@ -139,13 +133,13 @@ func (cc *chatComposer) claim(tag string) bool {
 
 // onInviteCreated lands an invite code this composer asked for: the invite
 // overlay opens, a failure becomes an error toast.
-func (cc *chatComposer) onInviteCreated(m ui.ResultMsg[*api.Invite]) tea.Cmd {
+func (cc *chatComposer) onInviteCreated(ctx *ui.Context, m ui.ResultMsg[*api.Invite]) tea.Cmd {
 	if !strings.HasPrefix(m.Tag, tagInviteCreate) || !cc.claim(m.Tag) {
 		return nil
 	}
 	if m.Err != nil || m.Value == nil {
-		err := m.Err
-		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: inviteLinkFailedText} }
+		err, errCtx := m.Err, cat(ctx).Chat.InviteLinkFailed()
+		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errCtx} }
 	}
 	o := newInviteCreated(*m.Value)
 	return func() tea.Msg { return ui.OpenOverlayMsg{Overlay: o} }
@@ -163,8 +157,8 @@ func (cc *chatComposer) onDirectInvite(ctx *ui.Context, m ui.ResultMsg[*api.Dire
 // <방>에 초대했어요", or an error toast.
 func directInviteDone(ctx *ui.Context, m ui.ResultMsg[*api.DirectInvite]) tea.Cmd {
 	if m.Err != nil || m.Value == nil {
-		err := m.Err
-		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: inviteFailedText} }
+		err, errCtx := m.Err, cat(ctx).Chat.InviteFailed()
+		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errCtx} }
 	}
 	inv := m.Value
 	who := inv.Invitee.DisplayName
@@ -177,6 +171,6 @@ func directInviteDone(ctx *ui.Context, m ui.ResultMsg[*api.DirectInvite]) tea.Cm
 			space = sd.Name
 		}
 	}
-	text := textwidth.Sanitize(who) + "님을 " + textwidth.Sanitize(space) + invitedSuffix
+	text := cat(ctx).Chat.Invited(textwidth.Sanitize(who), textwidth.Sanitize(space))
 	return ui.Toast(text, ui.ToastSuccess)
 }

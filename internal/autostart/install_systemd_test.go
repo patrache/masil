@@ -123,8 +123,8 @@ func TestInstallLinuxNoUserManager(t *testing.T) {
 	t.Setenv("MASIL_CONFIG_DIR", "")
 	home, calls := fakeEnv(t, map[string]string{}) // every systemctl call fails
 	err := systemdInstall(writeExe(t), config.Paths{})
-	if !errors.Is(err, errNoSystemd) {
-		t.Fatalf("err = %v, want errNoSystemd", err)
+	if !errors.Is(err, ErrNoSystemd) {
+		t.Fatalf("err = %v, want ErrNoSystemd", err)
 	}
 	if !slices.Equal(*calls, []string{"systemctl --user show-environment"}) {
 		t.Fatalf("calls %q", *calls)
@@ -210,7 +210,7 @@ func TestQueryLinuxInactiveAndMissingExe(t *testing.T) {
 	}
 	os.Remove(exe)
 	st, err := systemdQuery()
-	if err != nil || !st.Installed || st.Running || !strings.HasSuffix(st.Detail, " · 실행 파일 없음: "+exe) {
+	if err != nil || !st.Installed || st.Running || st.ExeMissing != exe || strings.Contains(st.Detail, exe) {
 		t.Fatalf("status %+v, %v", st, err)
 	}
 }

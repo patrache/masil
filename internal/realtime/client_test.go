@@ -444,6 +444,7 @@ type harness struct {
 }
 
 type hopt struct {
+	lang   string // api.Client.SetLanguage before New ("" = none)
 	mode   Mode
 	resume ResumePoint
 	rnd    float64
@@ -456,8 +457,12 @@ func start(t *testing.T, o hopt) *harness {
 	}
 	h := &harness{clk: newFakeClock(), d: newFakeDialer(), rec: newRecorder(), done: make(chan error, 1)}
 	rnd := o.rnd
+	cl := api.New("http://example.test", api.WithToken("msl_test"))
+	if o.lang != "" {
+		cl.SetLanguage(o.lang)
+	}
 	h.c = New(Options{
-		API:      api.New("http://example.test", api.WithToken("msl_test")),
+		API:      cl,
 		DeviceID: "D1",
 		Mode:     o.mode,
 		Resume:   o.resume,
@@ -1171,5 +1176,17 @@ func TestCancelClosesNormally(t *testing.T) {
 	}
 	if err := h.runResult(t); err != nil {
 		t.Errorf("Run = %v", err)
+	}
+}
+
+func TestRealtimeDialSendsAcceptLanguage(t *testing.T) {
+	h := start(t, hopt{lang: "ko"})
+	h.d.accept()
+	call := h.d.waitCall(t)
+	if got := call.h.Get("Accept-Language"); got != "ko" {
+		t.Fatalf("dial Accept-Language = %q, want ko", got)
+	}
+	if got := call.h.Get("Authorization"); got != "Bearer msl_test" {
+		t.Fatalf("Authorization = %q", got)
 	}
 }

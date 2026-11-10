@@ -22,17 +22,9 @@ const (
 	tagRemoveFollower = "feed.remove_follower:" // + user id
 )
 
-// Post action copy.
-const (
-	textPrivateNoShare = "비공개 계정의 글은 리포스트·인용할 수 없어요"
-	textBlockedDone    = "차단했어요"
-	textPostDeleted    = "글을 삭제했어요"
-	errContextLike     = "좋아요"
-	errContextRepost   = "리포스트"
-	errContextBlock    = "차단"
-	errContextDelete   = "글 삭제"
-	overlayMedia       = "feed.media" // Task 18; args "<postID> <media idx>"
-)
+// overlayMedia is the photo viewer (Task 18); args "<postID> <media idx>".
+// Post action copy: the feed catalog area.
+const overlayMedia = "feed.media"
 
 // claim lets exactly one of the components that receive a broadcast result do
 // the local apply (every ui/feed component calls applyResults, and the app
@@ -105,7 +97,7 @@ func toggleLike(ctx *ui.Context, p *api.Post) tea.Cmd {
 		return nil
 	}
 	if p.Deleted {
-		return ui.Toast(textDeleted, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.CardDeleted(), ui.ToastInfo)
 	}
 	o := &toggleOutcome{post: p, postID: p.ID, prevOn: p.Viewer.Liked, prevCount: p.LikeCount}
 	on, count := !p.Viewer.Liked, p.LikeCount+1
@@ -135,10 +127,10 @@ func toggleRepost(ctx *ui.Context, p *api.Post) tea.Cmd {
 		return nil
 	}
 	if p.Deleted {
-		return ui.Toast(textDeleted, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.CardDeleted(), ui.ToastInfo)
 	}
 	if p.Author.IsPrivate {
-		return ui.Toast(textPrivateNoShare, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.PrivateNoShare(), ui.ToastInfo)
 	}
 	o := &toggleOutcome{repost: true, post: p, postID: p.ID, prevOn: p.Viewer.Reposted, prevCount: p.RepostCount}
 	on, count := !p.Viewer.Reposted, p.RepostCount+1
@@ -204,9 +196,9 @@ func applyResults(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if (!strings.HasPrefix(m.Tag, tagLike) && !strings.HasPrefix(m.Tag, tagRepost)) || !o.take() {
 			return nil
 		}
-		set, errCtx := setLike, errContextLike
+		set, errCtx := setLike, cat(ctx).Feed.ErrCtxLike()
 		if o.repost {
-			set, errCtx = setRepost, errContextRepost
+			set, errCtx = setRepost, cat(ctx).Feed.ErrCtxRepost()
 		}
 		if m.Err != nil {
 			eachCopy(ctx, o.post, set(o.prevOn, o.prevCount))
@@ -219,7 +211,8 @@ func applyResults(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		if m.Err != nil {
-			return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextBlock} }
+			where := cat(ctx).Feed.ErrCtxBlock()
+			return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: where} }
 		}
 		if ctx != nil && ctx.Store != nil {
 			if ctx.Store.Blocks == nil {
@@ -230,21 +223,22 @@ func applyResults(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 				fs.HideAuthor(o.userID)
 			}
 		}
-		return ui.Toast(textBlockedDone, ui.ToastSuccess)
+		return ui.Toast(cat(ctx).Feed.BlockedDone(), ui.ToastSuccess)
 	case ui.ResultMsg[*deleteOutcome]:
 		o := m.Value
 		if !strings.HasPrefix(m.Tag, tagDeletePost) || !o.take() {
 			return nil
 		}
 		if m.Err != nil {
-			return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextDelete} }
+			where := cat(ctx).Feed.ErrCtxDeletePost()
+			return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: where} }
 		}
 		if ctx != nil && ctx.Store != nil {
 			if fs := feedstore.Get(ctx.Store); fs != nil {
 				fs.MarkDeleted(o.postID)
 			}
 		}
-		return ui.Toast(textPostDeleted, ui.ToastSuccess)
+		return ui.Toast(cat(ctx).Feed.PostDeleted(), ui.ToastSuccess)
 	}
 	return nil
 }
@@ -289,7 +283,7 @@ func handlePostKey(ctx *ui.Context, msg tea.KeyPressMsg, p *api.Post) (bool, tea
 		return false, nil
 	}
 	if p.Deleted {
-		return true, ui.Toast(textDeleted, ui.ToastInfo)
+		return true, ui.Toast(cat(ctx).Feed.CardDeleted(), ui.ToastInfo)
 	}
 	if hash {
 		switch len(p.Hashtags) {
@@ -307,7 +301,7 @@ func handlePostKey(ctx *ui.Context, msg tea.KeyPressMsg, p *api.Post) (bool, tea
 		return true, toggleRepost(ctx, p)
 	case keymap.PostQuote:
 		if p.Author.IsPrivate {
-			return true, ui.Toast(textPrivateNoShare, ui.ToastInfo)
+			return true, ui.Toast(cat(ctx).Feed.PrivateNoShare(), ui.ToastInfo)
 		}
 		return true, ui.Navigate(composeRoute(p.ID, "quote"))
 	case keymap.PostReply:

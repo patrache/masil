@@ -4,14 +4,13 @@ import (
 	"cmp"
 	"context"
 	"slices"
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -24,12 +23,16 @@ func init() {
 	ui.RegisterRoute(ui.RouteFriends, newFriends)
 	ui.RegisterOverlay(overlayFriendAdd, newFriendAdd)
 	palette.Register(palette.Command{
-		ID: "friends", Title: "친구 목록", Keywords: []string{"friends", "친구", "친구 요청"}, Group: "이동",
-		Run: func(*ui.Context, string) tea.Cmd { return ui.Navigate(ui.Route{Kind: ui.RouteFriends}) },
+		ID: "friends", Label: func(t *i18n.T) string { return t.Chat.CmdFriends() }, Group: palette.GroupNav,
+		Keywords:   []string{"friends"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwFriends()) },
+		Run:        func(*ui.Context, string) tea.Cmd { return ui.Navigate(ui.Route{Kind: ui.RouteFriends}) },
 	})
 	palette.Register(palette.Command{
-		ID: "friend.add", Title: "친구 추가", Keywords: []string{"friend", "add", "친구 요청 보내기"}, Group: "명령",
-		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayFriendAdd, args) },
+		ID: "friend.add", Label: func(t *i18n.T) string { return t.Chat.CmdFriendAdd() }, Group: palette.GroupCommand,
+		Keywords:   []string{"friend", "add"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwFriendAdd()) },
+		Run:        func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlayFriendAdd, args) },
 	})
 }
 
@@ -46,33 +49,6 @@ const (
 
 // Friends texts.
 const (
-	friendsTitle       = "친구"
-	friendAddLabel     = "＋ 친구 추가"
-	friendAddTitle     = "친구 추가"
-	friendAddSubmit    = "요청 보내기"
-	noIncomingText     = "받은 친구 요청이 없어요"
-	noOutgoingText     = "보낸 친구 요청이 없어요"
-	noOutgoingHint     = "친구 탭의 ＋ 친구 추가로 요청을 보내 보세요"
-	outFailedText      = "보낸 요청을 불러오지 못했어요"
-	itemAccept         = "수락"
-	itemDecline        = "거절"
-	itemCancelRequest  = "요청 취소"
-	itemInviteToSpace  = "방에 초대"
-	itemUnfriend       = "친구 끊기"
-	inviteSpaceTitle   = "어느 방에 초대할까요?"
-	unfriendAskSuffix  = "님과 친구를 끊을까요?"
-	unfriendBody       = "지난 DM은 남지만 읽기 전용이 될 수 있어요"
-	unfriendYes        = "끊기"
-	acceptFailed       = "친구 요청을 수락하지 못했어요"
-	declineFailed      = "친구 요청을 거절하지 못했어요"
-	cancelFailed       = "친구 요청을 취소하지 못했어요"
-	unfriendFailed     = "친구를 끊지 못했어요"
-	acceptedSuffix     = "님과 친구가 되었어요"
-	declinedText       = "친구 요청을 거절했어요"
-	canceledText       = "친구 요청을 취소했어요"
-	unfriendedSuffix   = "님과 친구를 끊었어요"
-	requestSentSuffix  = "님에게 친구 요청을 보냈어요"
-	nowFriendsSuffix   = "님과 이제 친구예요"
 	tagFriendOut       = "chat.friend_out:me"
 	tagFriendAddPrefix = "chat.friend_add:"
 )
@@ -219,7 +195,7 @@ func requestItems(ctx *ui.Context, reqs []api.FriendRequest, kind friendKind) []
 		}
 		age := ""
 		if ctx.Now != nil && !r.CreatedAt.IsZero() {
-			age = humanize.Relative(ctx.Now(), r.CreatedAt)
+			age = hz(ctx).Relative(ctx.Now(), r.CreatedAt)
 		}
 		out = append(out, friendItem{
 			ID: "req:" + r.ID, Label: strings.TrimSpace(textwidth.Sanitize(displayName(u))), Handle: textwidth.Sanitize(u.Handle),
@@ -240,7 +216,7 @@ func (v *friendsView) tabItems(ctx *ui.Context, tab int) []friendItem {
 	case tabOutgoing:
 		return requestItems(ctx, v.out, friendOutRow)
 	}
-	return append([]friendItem{{ID: "add", Label: friendAddLabel, kind: friendAddRow}}, friendList(ctx)...)
+	return append([]friendItem{{ID: "add", Label: cat(ctx).Chat.FriendAddLabel(), kind: friendAddRow}}, friendList(ctx)...)
 }
 
 // counts are the tab counts: friends, received, sent (blocked users excluded).
@@ -255,11 +231,11 @@ func (v *friendsView) counts(ctx *ui.Context) [friendTabs]int {
 // sync rebuilds the tab bar and the rows of the current tab (the list keeps the
 // selection by ID).
 func (v *friendsView) sync(ctx *ui.Context) {
-	n := v.counts(ctx)
+	n, c := v.counts(ctx), cat(ctx)
 	v.tabs.Set([]widgets.Tab{
-		{Label: "친구 " + strconv.Itoa(n[tabFriends])},
-		{Label: "받은 요청 " + strconv.Itoa(n[tabIncoming])},
-		{Label: "보낸 요청 " + strconv.Itoa(n[tabOutgoing])},
+		{Label: c.Chat.FriendsTabFriends(n[tabFriends])},
+		{Label: c.Chat.FriendsTabIncoming(n[tabIncoming])},
+		{Label: c.Chat.FriendsTabOutgoing(n[tabOutgoing])},
 	}, v.tab)
 	v.items = v.tabItems(ctx, v.tab)
 	v.list.SetItems(v.items)
@@ -347,7 +323,7 @@ func (v *friendsView) View(ctx *ui.Context, focused bool) string {
 	if h > 1 {
 		body := ui.Size{W: w, H: h - 1}
 		if len(v.items) == 0 {
-			lines = append(lines, strings.Split(v.emptyView(t, body), "\n")...)
+			lines = append(lines, strings.Split(v.emptyView(cat(ctx), t, body), "\n")...)
 		} else {
 			lines = append(lines, strings.Split(v.list.View(ctx, body), "\n")...)
 		}
@@ -356,27 +332,27 @@ func (v *friendsView) View(ctx *ui.Context, focused bool) string {
 }
 
 // emptyView is the empty state of a request tab.
-func (v *friendsView) emptyView(t *theme.Theme, size ui.Size) string {
+func (v *friendsView) emptyView(c *i18n.T, t *theme.Theme, size ui.Size) string {
 	switch {
 	case v.tab == tabOutgoing && v.outFailed:
-		return widgets.Empty(t, size, "⚠", outFailedText, "")
+		return widgets.Empty(t, size, "⚠", c.Chat.OutFailed(), "")
 	case v.tab == tabOutgoing:
-		return widgets.Empty(t, size, "📮", noOutgoingText, noOutgoingHint)
+		return widgets.Empty(t, size, "📮", c.Chat.NoOutgoing(), c.Chat.NoOutgoingHint())
 	}
-	return widgets.Empty(t, size, "📭", noIncomingText, "")
+	return widgets.Empty(t, size, "📭", c.Chat.NoIncoming(), "")
 }
 
 // Title is "친구", badged with the received requests.
 func (v *friendsView) Title(ctx *ui.Context) (string, ui.Badge) {
 	if ctx == nil || ctx.Store == nil {
-		return friendsTitle, ui.Badge{}
+		return cat(ctx).Chat.FriendsTitle(), ui.Badge{}
 	}
-	return friendsTitle, ui.Badge{Count: len(v.tabItems(ctx, tabIncoming))}
+	return cat(ctx).Chat.FriendsTitle(), ui.Badge{Count: len(v.tabItems(ctx, tabIncoming))}
 }
 
 func (v *friendsView) Help(ctx *ui.Context) []key.Binding {
 	hs := ctx.Keys.Help(keymap.ListOpen, keymap.MsgActions)
-	return append(hs, key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", "탭")))
+	return append(hs, key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", cat(ctx).Chat.HelpTabs())))
 }
 
 func (v *friendsView) SaveState() any {
@@ -573,38 +549,39 @@ func (v *friendsView) openMenu(ctx *ui.Context, it friendItem) tea.Cmd {
 // 요청 취소, friend = DM 보내기/방에 초대 (with a space)/친구 끊기/사용자 신고/차단.
 func (v *friendsView) menuItems(ctx *ui.Context, it friendItem) []menuItem {
 	u, req := it.user, it.req
-	report := menuItem{Label: itemReportUser, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+	c := cat(ctx)
+	report := menuItem{Label: c.Chat.ItemReportUser(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 		return nil, widgets.ReportDialog("user", u.ID, textwidth.Sanitize(displayName(u)))
 	}}
-	block := menuItem{Label: itemBlockUser, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+	block := menuItem{Label: c.Chat.ItemBlockUser(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 		return nil, blockConfirm(ctx, u)
 	}}
 	switch it.kind {
 	case friendInRow:
 		return []menuItem{
-			{Label: itemAccept, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return acceptFriendCmd(ctx, req), nil }},
-			{Label: itemDecline, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return declineFriendCmd(ctx, req), nil }},
+			{Label: c.Chat.ItemAccept(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return acceptFriendCmd(ctx, req), nil }},
+			{Label: c.Chat.ItemDecline(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return declineFriendCmd(ctx, req), nil }},
 			report, block,
 		}
 	case friendOutRow:
 		return []menuItem{
-			{Label: itemCancelRequest, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return cancelFriendCmd(ctx, req), nil }},
+			{Label: c.Chat.ItemCancelRequest(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return cancelFriendCmd(ctx, req), nil }},
 		}
 	case friendUserRow:
 		items := []menuItem{
-			{Label: itemSendDM, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			{Label: c.Chat.ItemSendDm(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return openDMCmd(ctx, []api.UserRef{userRef(u)}, ""), nil
 			}},
 		}
 		if spaces := v.inviteSpaces(ctx, u); len(spaces) > 0 {
-			items = append(items, menuItem{Label: itemInviteToSpace, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
-				return nil, newMenu(inviteSpaceTitle, spaces)
+			items = append(items, menuItem{Label: c.Chat.ItemInviteToSpace(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+				return nil, newMenu(c.Chat.InviteSpaceTitle(), spaces)
 			}})
 		}
 		return append(items,
-			menuItem{Label: itemUnfriend, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			menuItem{Label: c.Chat.ItemUnfriend(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				name := textwidth.Sanitize(displayName(u))
-				return nil, widgets.Confirm(name+unfriendAskSuffix, unfriendBody, unfriendYes, cancelText, removeFriendCmd(ctx, u))
+				return nil, widgets.Confirm(c.Chat.UnfriendAsk(name), c.Chat.UnfriendBody(), c.Chat.UnfriendYes(), c.Chat.Cancel(), removeFriendCmd(ctx, u))
 			}},
 			report, block,
 		)
@@ -642,7 +619,7 @@ func acceptFriendCmd(ctx *ui.Context, req api.FriendRequest) tea.Cmd {
 		return cl.AcceptFriendRequest(c, req.ID)
 	}, func(ctx *ui.Context, f *api.Friend, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, acceptFailed)
+			return errorCmd(err, cat(ctx).Chat.AcceptFailed())
 		}
 		friend := api.Friend{User: req.From, Since: ctx.Now(), Presence: api.PresenceOffline}
 		if f != nil && f.User.ID == req.From.ID {
@@ -652,7 +629,7 @@ func acceptFriendCmd(ctx *ui.Context, req api.FriendRequest) tea.Cmd {
 		}
 		ctx.Store.AddFriend(friend)
 		ctx.Store.DropFriendRequests(func(r api.FriendRequest) bool { return r.ID == req.ID })
-		return ui.Toast(textwidth.Sanitize(displayName(req.From))+acceptedSuffix, ui.ToastSuccess)
+		return ui.Toast(cat(ctx).Chat.FriendAccepted(textwidth.Sanitize(displayName(req.From))), ui.ToastSuccess)
 	})
 }
 
@@ -662,10 +639,10 @@ func declineFriendCmd(ctx *ui.Context, req api.FriendRequest) tea.Cmd {
 		return struct{}{}, cl.DeclineFriendRequest(c, req.ID)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, declineFailed)
+			return errorCmd(err, cat(ctx).Chat.DeclineFailed())
 		}
 		ctx.Store.DropFriendRequests(func(r api.FriendRequest) bool { return r.ID == req.ID })
-		return ui.Toast(declinedText, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Chat.FriendDeclined(), ui.ToastInfo)
 	})
 }
 
@@ -675,9 +652,9 @@ func cancelFriendCmd(ctx *ui.Context, req api.FriendRequest) tea.Cmd {
 		return struct{}{}, cl.CancelFriendRequest(c, req.ID)
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, cancelFailed)
+			return errorCmd(err, cat(ctx).Chat.CancelFailed())
 		}
-		return tea.Batch(friendsRefresh, ui.Toast(canceledText, ui.ToastInfo))
+		return tea.Batch(friendsRefresh, ui.Toast(cat(ctx).Chat.FriendCanceled(), ui.ToastInfo))
 	})
 }
 
@@ -687,10 +664,10 @@ func removeFriendCmd(ctx *ui.Context, u api.UserSummary) tea.Cmd {
 		return struct{}{}, cl.RemoveFriend(c, userRef(u))
 	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, unfriendFailed)
+			return errorCmd(err, cat(ctx).Chat.UnfriendFailed())
 		}
 		ctx.Store.RemoveFriend(u.ID)
-		return ui.Toast(textwidth.Sanitize(displayName(u))+unfriendedSuffix, ui.ToastSuccess)
+		return ui.Toast(cat(ctx).Chat.Unfriended(textwidth.Sanitize(displayName(u))), ui.ToastSuccess)
 	})
 }
 
@@ -699,9 +676,9 @@ func removeFriendCmd(ctx *ui.Context, u api.UserSummary) tea.Cmd {
 // newFriendAdd is the friend.add picker (one user, server search; friends and
 // blocked users hidden); args is the first query. A 200 answer (they had asked
 // me) makes us friends at once.
-func newFriendAdd(_ *ui.Context, args string) ui.Overlay {
+func newFriendAdd(ctx *ui.Context, args string) ui.Overlay {
 	return newUserPicker(pickerSpec{
-		Title: friendAddTitle, Submit: friendAddSubmit, Max: 1, Search: true, Query: args,
+		Title: cat(ctx).Chat.FriendAddTitle(), Submit: cat(ctx).Chat.FriendAddSubmit(), Max: 1, Search: true, Query: args,
 		Exclude: func(ctx *ui.Context, id string) bool {
 			if ctx == nil || ctx.Store == nil {
 				return false
@@ -727,9 +704,9 @@ func newFriendAdd(_ *ui.Context, args string) ui.Overlay {
 			r := m.Value
 			if r.AutoAccepted && r.Friend != nil {
 				ctx.Store.AddFriend(*r.Friend)
-				return ui.Toast(textwidth.Sanitize(displayName(r.Friend.User))+nowFriendsSuffix, ui.ToastSuccess), nil
+				return ui.Toast(cat(ctx).Chat.NowFriends(textwidth.Sanitize(displayName(r.Friend.User))), ui.ToastSuccess), nil
 			}
-			return ui.Toast(textwidth.Sanitize(displayName(r.Request.To))+requestSentSuffix, ui.ToastSuccess), nil
+			return ui.Toast(cat(ctx).Chat.RequestSent(textwidth.Sanitize(displayName(r.Request.To))), ui.ToastSuccess), nil
 		},
 	})
 }

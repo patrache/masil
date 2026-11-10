@@ -19,9 +19,10 @@ import type { MessageRow } from "../types/rows";
 
 const SendBody = z.object({
   client_nonce: zNonce,
-  kind: z.enum(["text", "me", "roll", "poll"]).optional(),
+  kind: z.enum(["text", "me", "roll", "poll", "card"]).optional(),
   body: z.string().optional(), // validated per kind in services/messages.ts (prepareMessageBody)
   poll: zPollInput.optional(),
+  card: z.unknown().optional(), // kind "card" (v0.1.3): validated by lib/cards validateCard (api.md 5.10 카드 오류)
 });
 
 const EditBody = z.object({
@@ -31,8 +32,9 @@ const EditBody = z.object({
 // Thread replies: no polls (api.md 5.11) — kind "poll" fails the enum -> 400 fields.kind.
 const ReplyBody = z.object({
   client_nonce: zNonce,
-  kind: z.enum(["text", "me", "roll"]).optional(),
+  kind: z.enum(["text", "me", "roll", "card"]).optional(),
   body: z.string(), // validated per kind in services/messages.ts (prepareMessageBody)
+  card: z.unknown().optional(), // kind "card" (v0.1.3, api.md 5.11)
 });
 
 const ThreadQuery = z.object({
@@ -69,6 +71,7 @@ messageRoutes.post("/channels/:channel_id/messages", requireAuth, limit("RL_MESS
     body: b.body ?? "",
     clientNonce: b.client_nonce,
     poll: b.poll,
+    card: b.card,
   });
   return c.json({ message }, created ? 201 : 200);
 });
@@ -245,6 +248,7 @@ messageRoutes.post("/messages/:message_id/thread", requireAuth, limit("RL_MESSAG
     body: b.body,
     clientNonce: b.client_nonce,
     threadRootId: root.id,
+    card: b.card,
   });
   return c.json({ message }, created ? 201 : 200);
 });

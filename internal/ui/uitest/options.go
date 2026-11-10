@@ -3,6 +3,9 @@ package uitest
 import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/collab/collabtest"
+	"github.com/patrache/masil/internal/i18n"
+	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -14,15 +17,31 @@ type Option func(*config)
 
 // config is the harness configuration built from Options.
 type config struct {
-	theme    theme.Name
-	seed     func(s *store.Store) // nil => fixtures.Seed
-	api      *apitest.Server      // nil => a fresh server with fixtures.RegisterAPI
-	route    *ui.Route
-	pin      *layout.Mode
-	unicode  *bool
-	creds    *auth.Credentials
-	credsSet bool // WithCredentials was given (nil => logged out)
-	keys     map[string][]string
+	theme      theme.Name
+	seed       func(s *store.Store) // nil => fixtures.Seed
+	api        *apitest.Server      // nil => a fresh server with fixtures.RegisterAPI
+	route      *ui.Route
+	pin        *layout.Mode
+	unicode    *bool
+	creds      *auth.Credentials
+	credsSet   bool // WithCredentials was given (nil => logged out)
+	keys       map[string][]string
+	locale     i18n.Locale    // "" => i18n.Ko
+	secrets    *secrets.Store // nil => secrettest.NewStore(tb, true)
+	nestedPane bool           // app.Options.NestedPane
+	collab     *collabtest.Hub
+}
+
+// WithSecrets uses s as ctx.Secrets (default: a secrettest memory store whose
+// OS fake is available).
+func WithSecrets(s *secrets.Store) Option {
+	return func(c *config) { c.secrets = s }
+}
+
+// WithLocale shows the harness in l (ctx.T, ctx.Lang, Accept-Language). Like
+// MASIL_LANG it skips the open-language gate. Default i18n.Ko.
+func WithLocale(l i18n.Locale) Option {
+	return func(c *config) { c.locale = l }
 }
 
 // WithKeys sets config.toml [keys] overrides (action id => keys).
@@ -64,4 +83,17 @@ func WithUnicodeCore(on bool) Option {
 // nil means logged out.
 func WithCredentials(cr *auth.Credentials) Option {
 	return func(c *config) { c.creds, c.credsSet = cr, true }
+}
+
+// WithNestedPane starts the app as if inside a masil pane (MASIL_PANE=1 —
+// app.Options.NestedPane). The harness never reads MASIL_PANE itself.
+func WithNestedPane() Option {
+	return func(c *config) { c.nestedPane = true }
+}
+
+// WithCollab serves room documents from hub: ctx.CollabDial = hub.Dial, and
+// hub.Register on the harness's apitest server (after WithAPI's routes), with
+// the harness credentials' token read as their user.
+func WithCollab(hub *collabtest.Hub) Option {
+	return func(c *config) { c.collab = hub }
 }

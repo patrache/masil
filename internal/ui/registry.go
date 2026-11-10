@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"sync"
 
 	"github.com/patrache/masil/internal/ui/layout"
@@ -19,6 +20,13 @@ type Registry struct {
 	Panes    map[layout.SlotID]PaneFactory
 	Routes   map[RouteKind]RouteFactory
 	Overlays map[string]func(*Context, string) Overlay
+	// AlertTargets opens alert targets core does not know (RegisterAlertTarget).
+	AlertTargets map[string]AlertTargetFunc
+	// Cards draws kind "card" messages by card type (RegisterCard).
+	Cards map[string]CardRenderer
+	Tools map[string]ToolSpec // RegisterTool (tool.go), by tool id
+	// KillSwitches cut live sharing at once (RegisterKillSwitch, killswitch.go).
+	KillSwitches []KillSwitch
 }
 
 // OverlayFocusSummary is opened by core (ui/app) but registered by sns-fun ui/fun; args = alert id (CA 9.1).
@@ -34,6 +42,10 @@ func emptyRegistry() Registry {
 		Panes:    map[layout.SlotID]PaneFactory{},
 		Routes:   map[RouteKind]RouteFactory{},
 		Overlays: map[string]func(*Context, string) Overlay{},
+
+		AlertTargets: map[string]AlertTargetFunc{},
+		Cards:        map[string]CardRenderer{},
+		Tools:        map[string]ToolSpec{},
 	}
 }
 
@@ -42,6 +54,11 @@ func (r Registry) clone() Registry {
 		Panes:    maps.Clone(r.Panes),
 		Routes:   maps.Clone(r.Routes),
 		Overlays: maps.Clone(r.Overlays),
+
+		AlertTargets: maps.Clone(r.AlertTargets),
+		Cards:        maps.Clone(r.Cards),
+		Tools:        cloneTools(r.Tools),
+		KillSwitches: slices.Clone(r.KillSwitches),
 	}
 }
 

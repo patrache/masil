@@ -8,6 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -35,34 +37,7 @@ const (
 )
 
 // Overlay copy.
-const (
-	textMenuTitle      = "글 메뉴"
-	textMenuLikes      = "좋아요 누른 사람"
-	textMenuReposts    = "리포스트한 사람"
-	textMenuQuotes     = "인용한 글"
-	textMenuAuthor     = "작성자 프로필"
-	textMenuDelete     = "글 삭제"
-	textMenuReport     = "글 신고"
-	textMenuBlock      = "작성자 차단"
-	textDeleteAsk      = "이 글을 삭제할까요?"
-	textDeleteYes      = "삭제"
-	textBlockAsk       = "님을 차단할까요?"
-	textBlockBody      = "서로의 글이 보이지 않게 돼요"
-	textBlockYes       = "차단"
-	textCancel         = "취소"
-	textFollowersTitle = "팔로워"
-	textFollowingTitle = "팔로잉"
-	textViewersTitle   = "본 사람"
-	textHashtagTitle   = "해시태그"
-	textNobody         = "아직 아무도 없어요"
-	textNoQuotes       = "아직 인용한 글이 없어요"
-	textRemoveAsk      = "님을 팔로워에서 뺄까요?"
-	textRemoveBody     = "내 글이 그 사람 팔로잉 피드에 더는 오지 않아요."
-	textRemoveYes      = "빼기"
-	textRemoved        = "팔로워에서 뺐어요"
-	errContextList     = "목록"
-	errContextRemove   = "팔로워 삭제"
-)
+const ()
 
 // Overlay sizes (outer, border included; the app clamps them to the body).
 const (
@@ -215,8 +190,8 @@ func (m *menu) Help(ctx *ui.Context) []key.Binding {
 		return nil
 	}
 	return []key.Binding{
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "실행")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", cat(ctx).Feed.HelpRun())),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", cat(ctx).Common.HelpClose())),
 	}
 }
 
@@ -336,35 +311,36 @@ func newPostActions(ctx *ui.Context, postID string) *menu {
 	}
 	author := p.Author
 	name := displayName(author)
+	c := cat(ctx)
 	var items []menuItem
 	if p.Poll != nil {
-		items = append(items, menuItem{label: textPollMenu, open: func(ctx *ui.Context) ui.Overlay {
+		items = append(items, menuItem{label: c.Feed.PollMenu(), open: func(ctx *ui.Context) ui.Overlay {
 			return pollVoteOverlay(ctx, postID)
 		}})
 	}
 	items = append(items, []menuItem{
-		{label: textMenuLikes, open: func(ctx *ui.Context) ui.Overlay { return newUserList(ctx, listLikes+" "+postID) }},
-		{label: textMenuReposts, open: func(ctx *ui.Context) ui.Overlay { return newUserList(ctx, listReposts+" "+postID) }},
-		{label: textMenuQuotes, open: func(*ui.Context) ui.Overlay { return newQuotes(postID) }},
-		{label: textMenuAuthor, run: func(*ui.Context) tea.Cmd {
+		{label: c.Feed.MenuLikes(), open: func(ctx *ui.Context) ui.Overlay { return newUserList(ctx, listLikes+" "+postID) }},
+		{label: c.Feed.MenuReposts(), open: func(ctx *ui.Context) ui.Overlay { return newUserList(ctx, listReposts+" "+postID) }},
+		{label: c.Feed.MenuQuotes(), open: func(*ui.Context) ui.Overlay { return newQuotes(postID) }},
+		{label: c.Feed.MenuAuthor(), run: func(*ui.Context) tea.Cmd {
 			return ui.Navigate(ui.Route{Kind: ui.RouteProfile, ID: author.ID})
 		}},
 	}...)
 	if ctx.Store.IsMe(author.ID) {
-		items = append(items, menuItem{label: textMenuDelete, open: func(ctx *ui.Context) ui.Overlay {
-			return widgets.Confirm(textDeleteAsk, "", textDeleteYes, textCancel, deletePost(ctx, postID))
+		items = append(items, menuItem{label: c.Feed.MenuDelete(), open: func(ctx *ui.Context) ui.Overlay {
+			return widgets.Confirm(c.Feed.DeleteAsk(), "", c.Feed.DeleteYes(), c.Feed.Cancel(), deletePost(ctx, postID))
 		}})
 	} else {
 		items = append(items,
-			menuItem{label: textMenuReport, open: func(*ui.Context) ui.Overlay {
-				return widgets.ReportDialog("post", postID, name+"의 글")
+			menuItem{label: c.Feed.MenuReport(), open: func(*ui.Context) ui.Overlay {
+				return widgets.ReportDialog("post", postID, c.Feed.ReportPostOf(name))
 			}},
-			menuItem{label: textMenuBlock, open: func(ctx *ui.Context) ui.Overlay {
-				return widgets.Confirm(name+textBlockAsk, textBlockBody, textBlockYes, textCancel, blockUser(ctx, author.ID))
+			menuItem{label: c.Feed.MenuBlock(), open: func(ctx *ui.Context) ui.Overlay {
+				return widgets.Confirm(c.Feed.BlockAsk(name), c.Feed.BlockBody(), c.Feed.BlockYes(), c.Feed.Cancel(), blockUser(ctx, author.ID))
 			}},
 		)
 	}
-	return &menu{title: textMenuTitle, width: menuW, items: items}
+	return &menu{title: c.Feed.MenuTitle(), width: menuW, items: items}
 }
 
 // newHashtagPick is feed.hashtag_pick: the post's hashtags, enter = RouteHashtag.
@@ -380,7 +356,7 @@ func newHashtagPick(ctx *ui.Context, postID string) *menu {
 	if p == nil || p.Deleted || len(p.Hashtags) == 0 {
 		return nil
 	}
-	m := &menu{title: textHashtagTitle, width: menuW}
+	m := &menu{title: cat(ctx).Feed.HashtagTitle(), width: menuW}
 	for _, tag := range p.Hashtags {
 		m.items = append(m.items, menuItem{label: "#" + tag, run: func(*ui.Context) tea.Cmd {
 			return ui.Navigate(ui.Route{Kind: ui.RouteHashtag, ID: tag})
@@ -402,7 +378,7 @@ type removeFollowerOutcome struct {
 // removes the selected follower.
 type userList struct {
 	kind, ref   string
-	title       string
+	title       func(*i18n.T) string
 	mine        bool // followers of me: x removes
 	users       []api.UserSummary
 	shown       []api.UserSummary // users minus blocked ones
@@ -433,17 +409,17 @@ func newUserList(ctx *ui.Context, args string) *userList {
 	l := &userList{kind: kind, ref: ref, spin: widgets.NewSpinner()}
 	switch kind {
 	case listLikes:
-		l.title = textMenuLikes
+		l.title = func(c *i18n.T) string { return c.Feed.MenuLikes() }
 	case listReposts:
-		l.title = textMenuReposts
+		l.title = func(c *i18n.T) string { return c.Feed.MenuReposts() }
 	case listFollowers:
-		l.title = textFollowersTitle
+		l.title = func(c *i18n.T) string { return c.Feed.FollowersTitle() }
 		me := ctx.Me()
 		l.mine = ref == string(api.MeRef) || (me != nil && ref == me.ID)
 	case listFollowing:
-		l.title = textFollowingTitle
+		l.title = func(c *i18n.T) string { return c.Feed.FollowingTitle() }
 	case listStoryViewers:
-		l.title = textViewersTitle
+		l.title = func(c *i18n.T) string { return c.Feed.ViewersTitle() }
 	default:
 		return nil
 	}
@@ -517,7 +493,8 @@ func (l *userList) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		if m.Err != nil || m.Value == nil {
 			l.err = m.Err
-			cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextList} })
+			errCtx := cat(ctx).Feed.ErrCtxList()
+			cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errCtx} })
 			break
 		}
 		if m.Tag == l.tag() {
@@ -545,7 +522,8 @@ func (l *userList) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		first := m.Value.take()
 		if m.Err != nil {
 			if first {
-				cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextRemove} })
+				errCtx := cat(ctx).Feed.ErrCtxRemoveFollower()
+				cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errCtx} })
 			}
 			break
 		}
@@ -558,7 +536,7 @@ func (l *userList) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		l.users = out
 		l.refilter(ctx)
 		if first {
-			cmds = append(cmds, ui.Toast(textRemoved, ui.ToastSuccess))
+			cmds = append(cmds, ui.Toast(cat(ctx).Feed.FollowerRemoved(), ui.ToastSuccess))
 		}
 	default:
 		if blockSignal(msg) {
@@ -576,12 +554,12 @@ func (l *userList) Bounds(body layout.Rect) layout.Rect {
 
 func (l *userList) Modal() bool { return true }
 
-func (l *userList) Title(*ui.Context) (string, ui.Badge) { return l.title, ui.Badge{} }
+func (l *userList) Title(ctx *ui.Context) (string, ui.Badge) { return l.title(cat(ctx)), ui.Badge{} }
 
 func (l *userList) Help(ctx *ui.Context) []key.Binding {
-	b := []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "프로필"))}
+	b := []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", cat(ctx).Feed.HelpProfile()))}
 	if l.mine {
-		b = append(b, key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "팔로워에서 빼기")))
+		b = append(b, key.NewBinding(key.WithKeys("x"), key.WithHelp("x", cat(ctx).Feed.HelpRemoveFollower())))
 	}
 	return b
 }
@@ -614,7 +592,7 @@ func (l *userList) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 			return true, nil
 		}
 		id := u.ID
-		return true, ui.OpenOverlay(widgets.Confirm("@"+textwidth.Sanitize(u.Handle)+textRemoveAsk, textRemoveBody, textRemoveYes, textCancel,
+		return true, ui.OpenOverlay(widgets.Confirm(cat(ctx).Feed.RemoveFollowerAsk("@"+textwidth.Sanitize(u.Handle)), cat(ctx).Feed.RemoveFollowerBody(), cat(ctx).Feed.RemoveFollowerYes(), cat(ctx).Feed.Cancel(),
 			ui.Do(ctx, tagRemoveFollower+id, func(c context.Context, a *api.Client) (*removeFollowerOutcome, error) {
 				o := &removeFollowerOutcome{userID: id}
 				if a == nil {
@@ -665,11 +643,11 @@ func (l *userList) renderRow(ctx *ui.Context, u api.UserSummary, selected bool, 
 }
 
 // statusLine is the spinner / error line shown instead of an empty list.
-func statusLine(t *theme.Theme, spin *widgets.Spinner, loading bool, err error, w int) string {
+func statusLine(ctx *ui.Context, t *theme.Theme, spin *widgets.Spinner, loading bool, err error, w int) string {
 	if loading {
-		return fit(t, t.S.Base.Render("  ")+spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
+		return fit(t, t.S.Base.Render("  ")+spin.View(t)+t.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 	}
-	return fit(t, t.S.Base.Render("  ")+t.S.Error.Render(textwidth.Sanitize(api.Describe(err))), w)
+	return fit(t, t.S.Base.Render("  ")+t.S.Error.Render(errtext.Describe(tOf(ctx), err)), w)
 }
 
 func (l *userList) View(ctx *ui.Context, _ bool) string {
@@ -680,9 +658,9 @@ func (l *userList) View(ctx *ui.Context, _ bool) string {
 	}
 	switch {
 	case len(l.shown) == 0 && (l.loading || l.err != nil):
-		return blankRows(t, []string{statusLine(t, l.spin, l.loading, l.err, w)}, w, h)
+		return blankRows(t, []string{statusLine(ctx, t, l.spin, l.loading, l.err, w)}, w, h)
 	case len(l.shown) == 0:
-		return widgets.Empty(t, l.size, "", textNobody, "")
+		return widgets.Empty(t, l.size, "", cat(ctx).Feed.Nobody(), "")
 	}
 	listH := h
 	if l.loadingMore {
@@ -690,7 +668,7 @@ func (l *userList) View(ctx *ui.Context, _ bool) string {
 	}
 	out := strings.Split(l.list.View(ctx, ui.Size{W: w, H: listH}), "\n")
 	if l.loadingMore {
-		out = append(out, statusLine(t, l.spin, true, nil, w))
+		out = append(out, statusLine(ctx, t, l.spin, true, nil, w))
 	}
 	return blankRows(t, out, w, h)
 }
@@ -787,7 +765,8 @@ func (q *quotes) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		if m.Err != nil || m.Value == nil {
 			q.err = m.Err
-			cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextList} })
+			errCtx := cat(ctx).Feed.ErrCtxList()
+			cmds = append(cmds, func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errCtx} })
 			break
 		}
 		if m.Tag == q.tag() {
@@ -822,10 +801,12 @@ func (q *quotes) Bounds(body layout.Rect) layout.Rect {
 
 func (q *quotes) Modal() bool { return true }
 
-func (q *quotes) Title(*ui.Context) (string, ui.Badge) { return textMenuQuotes, ui.Badge{} }
+func (q *quotes) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.MenuQuotes(), ui.Badge{}
+}
 
-func (q *quotes) Help(*ui.Context) []key.Binding {
-	return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "글 보기"))}
+func (q *quotes) Help(ctx *ui.Context) []key.Binding {
+	return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", cat(ctx).Feed.HelpViewPost()))}
 }
 
 func (q *quotes) maybeMore(ctx *ui.Context) tea.Cmd {
@@ -892,9 +873,9 @@ func (q *quotes) View(ctx *ui.Context, _ bool) string {
 	}
 	switch {
 	case len(q.shown) == 0 && (q.loading || q.err != nil):
-		return blankRows(t, []string{statusLine(t, q.spin, q.loading, q.err, w)}, w, h)
+		return blankRows(t, []string{statusLine(ctx, t, q.spin, q.loading, q.err, w)}, w, h)
 	case len(q.shown) == 0:
-		return widgets.Empty(t, q.size, "", textNoQuotes, "")
+		return widgets.Empty(t, q.size, "", cat(ctx).Feed.NoQuotes(), "")
 	}
 	listH := h
 	if q.loadingMore {
@@ -902,7 +883,15 @@ func (q *quotes) View(ctx *ui.Context, _ bool) string {
 	}
 	out := strings.Split(q.list.View(ctx, ui.Size{W: w, H: listH}), "\n")
 	if q.loadingMore {
-		out = append(out, statusLine(t, q.spin, true, nil, w))
+		out = append(out, statusLine(ctx, t, q.spin, true, nil, w))
 	}
 	return blankRows(t, out, w, h)
+}
+
+// tOf is ctx.T (nil when ctx is nil — errtext then says it in ko).
+func tOf(ctx *ui.Context) *i18n.T {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.T
 }

@@ -1,0 +1,28 @@
+{
+  "data": {
+    "activeDailyCodingChallengeQuestion": {
+      "date": "2026-11-09",
+      "link": "/problems/find-servers-that-handled-most-number-of-requests/",
+      "question": {
+        "questionId": "1710",
+        "questionFrontendId": "1606",
+        "titleSlug": "find-servers-that-handled-most-number-of-requests",
+        "title": "Find Servers That Handled Most Number of Requests",
+        "difficulty": "Hard",
+        "isPaidOnly": false,
+        "topicTags": [
+          {"name": "Array", "slug": "array"},
+          {"name": "Greedy", "slug": "greedy"},
+          {"name": "Heap (Priority Queue)", "slug": "heap-priority-queue"},
+          {"name": "Ordered Set", "slug": "ordered-set"}
+        ],
+        "content": "<p>Test fixture: <code>k</code> servers take requests in turn; find the <strong>busiest</strong> ones.</p>\n<ul><li><code>1 &lt;= k &lt;= 10<sup>5</sup></code></li></ul>",
+        "codeSnippets": [
+          {"lang": "Go", "langSlug": "golang", "code": "func busiestServers(k int, arrival []int, load []int) []int {\n    \n}"},
+          {"lang": "Python3", "langSlug": "python3", "code": "class Solution:\n    def busiestServers(self, k: int, arrival: List[int], load: List[int]) -> List[int]:\n        "}
+        ],
+        "exampleTestcaseList": ["3\n[1,2,3,4,5]\n[5,2,3,3,3]", "3\n[1,2,3,4]\n[1,2,1,2]", "3\n[1,2,3]\n[10,12,11]"]
+      }
+    }
+  }
+}

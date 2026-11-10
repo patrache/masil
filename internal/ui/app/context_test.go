@@ -8,6 +8,7 @@ import (
 
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -119,5 +120,53 @@ func TestContextInitFromConfig(t *testing.T) {
 	nilCfg := newModel(t, nil)
 	if nilCfg.Context().Config == nil || nilCfg.Context().Theme.Name != theme.Amber {
 		t.Fatal("nil Config => config.Defaults() with the amber theme")
+	}
+}
+
+func TestContextLocaleDefaultsKo(t *testing.T) {
+	h := uitest.New(t)
+	if ctx := h.Context(); ctx.Lang != i18n.Ko || ctx.T == nil || ctx.T.Locale() != i18n.Ko {
+		t.Fatalf("default harness Lang = %q, T = %v", ctx.Lang, ctx.T)
+	}
+	if got := h.Context().API.AuthHeader().Get("Accept-Language"); got != "ko" {
+		t.Fatalf("harness API Accept-Language = %q, want ko", got)
+	}
+	en := uitest.New(t, uitest.WithLocale(i18n.En))
+	if ctx := en.Context(); ctx.Lang != i18n.En || ctx.T.Locale() != i18n.En {
+		t.Fatalf("WithLocale(En): Lang = %q, T = %q", ctx.Lang, ctx.T.Locale())
+	}
+	if got := en.Context().API.AuthHeader().Get("Accept-Language"); got != "en" {
+		t.Fatalf("WithLocale(En) API Accept-Language = %q, want en", got)
+	}
+}
+
+func TestEffectiveLanguageIsKoIn013(t *testing.T) {
+	t.Setenv("MASIL_LANG", "")
+	t.Setenv("LC_ALL", "")
+	t.Setenv("LC_MESSAGES", "")
+	t.Setenv("LANG", "en_US.UTF-8")
+	m := newModel(t, config.Defaults()) // no Options.Locale, no Options.API
+	ctx := m.Context()
+	if ctx.Lang != i18n.Ko || ctx.T.Locale() != i18n.Ko {
+		t.Fatalf("0.1.3 effective language = %q, want ko", ctx.Lang)
+	}
+	if got := ctx.API.AuthHeader().Get("Accept-Language"); got != "ko" {
+		t.Fatalf("API Accept-Language = %q, want ko", got)
+	}
+
+	// The same inputs with en open show en: the OS language really is read.
+	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
+	m = newModel(t, config.Defaults())
+	if got := m.Context().Lang; got != i18n.En {
+		t.Fatalf("with en open, LANG=en_US => %q, want en", got)
+	}
+	cfg := config.Defaults()
+	cfg.UI.Language = "ko"
+	if got := newModel(t, cfg).Context().Lang; got != i18n.Ko {
+		t.Fatalf("[ui] language = ko => %q, want ko", got)
+	}
+	t.Setenv("MASIL_LANG", "zh-Hans") // skips the gate
+	if got := newModel(t, cfg).Context().Lang; got != i18n.ZhHans {
+		t.Fatalf("MASIL_LANG=zh-Hans => %q", got)
 	}
 }

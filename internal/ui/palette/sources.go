@@ -11,6 +11,7 @@ import (
 	"github.com/sahilm/fuzzy"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 )
@@ -64,11 +65,11 @@ func init() {
 	RegisterSource(commandSource{})
 }
 
-// Group headers.
+// Group ids (headers: GroupTitle).
 const (
-	groupGo      = "이동"
-	groupCommand = "명령"
-	groupSetting = "설정"
+	groupGo      = GroupNav
+	groupCommand = GroupCommand
+	groupSetting = GroupSettings
 )
 
 // maxRecent is how many chosen routes the empty query lists.
@@ -577,7 +578,7 @@ type commandSource struct{}
 func (commandSource) Items(ctx *ui.Context, q string) []Item {
 	var out []Item
 	for _, c := range availableCommands(ctx) {
-		s, ok := matchCommand(q, c.Title, c.ID, c.Keywords...)
+		s, ok := matchCommand(q, c.TitleIn(ctxT(ctx)), c.ID, commandKeywords(c, ctxT(ctx))...)
 		if !ok {
 			continue
 		}
@@ -589,9 +590,34 @@ func (commandSource) Items(ctx *ui.Context, q string) []Item {
 // commandItem is c's palette item with its Badge (the 알림함's unread count) drawn,
 // for a query's match and the empty query's command list alike.
 func commandItem(ctx *ui.Context, c Command, score int) Item {
-	it := Item{Kind: ItemCommand, Title: c.Title, Command: &c, Score: score}
+	it := Item{Kind: ItemCommand, Title: c.TitleIn(ctxT(ctx)), Command: &c, Score: score}
 	if c.Badge != nil && ctx != nil {
 		it.Badge = c.Badge(ctx)
 	}
 	return it
+}
+
+// ctxT is the screen's catalog (nil without a Context: ko).
+func ctxT(ctx *ui.Context) *i18n.T {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.T
+}
+
+// commandKeywords are c's keywords, its KeywordsIn(t) words in the screen's
+// language, plus its English label, so a command is found by its English name
+// on any screen (i18n spec 6.4.4).
+func commandKeywords(c Command, t *i18n.T) []string {
+	kw := slices.Clone(c.Keywords)
+	if c.KeywordsIn != nil {
+		if t == nil {
+			t = i18n.KoT()
+		}
+		kw = append(kw, c.KeywordsIn(t)...)
+	}
+	if c.Label != nil {
+		kw = append(kw, c.Label(i18n.For(i18n.En)))
+	}
+	return kw
 }

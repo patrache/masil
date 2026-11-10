@@ -12,6 +12,8 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -447,7 +449,7 @@ func TestFriendAddErrors(t *testing.T) {
 	if overlays(h) != 1 {
 		t.Fatal("the picker stays open on an error")
 	}
-	mustContain(t, h.Screen(), api.Describe(&api.Error{Code: "already_exists"}))
+	mustContain(t, h.Screen(), errtext.Describe(i18n.KoT(), &api.Error{Code: "already_exists"}))
 	if len(p.chips) != 1 || p.chips[0].Handle != "junho" {
 		t.Fatalf("the pick is kept: %+v", p.chips)
 	}

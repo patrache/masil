@@ -1,0 +1,101 @@
+[chat_unread]
+other = "💬 {n} unread"
+
+[count_item]
+other = "{program} ×{n}"
+
+[downgraded]
+other = "Could not open as {mode} here, so it opened full screen"
+
+[enter_hint]
+other = "type in the pane"
+
+[exec_return]
+other = "While in {program} · {messages} new messages · {mentions} mentions"
+
+[exit_confirm]
+other = "End {program}? Anything not saved may be lost."
+
+[exit_no]
+other = "Cancel"
+
+[exit_title]
+other = "End program"
+
+[exit_yes]
+other = "End"
+
+[exited]
+other = "Ended · exit code {code}"
+
+[help_close]
+other = "Press any key to close"
+
+[help_escape]
+other = "pane prefix key"
+
+[help_focus]
+other = "Move to the pane in that direction"
+
+[help_help]
+other = "This help"
+
+[help_kill]
+other = "End the program · while sharing, stop sharing first"
+
+[help_leave]
+other = "Leave the pane (the program keeps running)"
+
+[help_literal]
+other = "Send the prefix key itself to the program"
+
+[help_palette]
+other = "Command palette"
+
+[help_scroll]
+other = "Scroll back (wheel/pgup/pgdn, esc done)"
+
+[help_surface]
+other = "Tools ↔ chat"
+
+[help_title]
+other = "Pane keys"
+
+[help_zoom]
+other = "Zoom"
+
+[input_hint]
+other = "⌨ Typing in {program} · {key} esc to leave"
+
+[kbd_limits]
+other = "Extended keys like shift+enter do not reach a pane · for a Claude Code newline use ctrl+j"
+
+[kbd_nvim]
+other = "In nvim terminal mode, press {key} ctrl+n as {key} {key} ctrl+n"
+
+[nested_warning]
+other = "masil started inside a pane · keys may clash"
+
+[pane_limit]
+other = "Up to {max} panes at a time · close one or open it full screen"
+
+[prefix_hint]
+other = "{key} then: esc leave · z zoom · x end · p palette · ? help"
+
+[quit_confirm]
+other = "{list} still running. Quit them too?"
+
+[quit_no]
+other = "No"
+
+[quit_title]
+other = "Quit masil"
+
+[quit_yes]
+other = "Quit all"
+
+[scroll_hint]
+other = "Scrolling back · wheel/pgup/pgdn move · esc done"
+
+[shared_badge]
+other = "● Shared"
