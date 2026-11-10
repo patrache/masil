@@ -2,6 +2,7 @@ package fsroot
 
 import (
 	"errors"
+	"os/exec"
 	"slices"
 	"testing"
 )
@@ -95,6 +96,41 @@ func TestCheckBatchIgnorerErrorFailsClosed(t *testing.T) {
 	for i, want := range []Reason{ReasonIgnored, ReasonIgnored, ReasonDenied} {
 		if reason, ok := reasonOf(errs[i]); !ok || reason != want {
 			t.Errorf("path %d: %v, want reason %v", i, errs[i], want)
+		}
+	}
+}
+
+// One path git refuses (a path through a linked folder: "fatal: pathspec
+// 'lnk/a.txt' is beyond a symbolic link", exit 128) must not drop the rules
+// from outside the folder (.git/info/exclude, core.excludesFile) for the
+// other paths of the batch: every answer still equals Check on that path.
+func TestCheckBatchLinkedFolderKeepsGitRules(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	isolateGit(t)
+	proj := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", proj).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	writeFile(t, proj, "real/a.txt", "a")
+	writeFile(t, proj, "b.txt", "b")
+	symlink(t, proj, "real", "lnk")
+	writeFile(t, proj, ".git/info/exclude", "b.txt\n")
+	r := openRoot(t, proj)
+
+	rels := []string{"lnk/a.txt", "b.txt"}
+	cleans, errs := r.CheckBatch(rels, true)
+	if reason, ok := reasonOf(errs[1]); !ok || reason != ReasonIgnored {
+		t.Errorf("b.txt in a batch with lnk/a.txt: (%q, %v), want ignored (info/exclude)", cleans[1], errs[1])
+	}
+	if errs[0] != nil || cleans[0] != "lnk/a.txt" {
+		t.Errorf("lnk/a.txt: (%q, %v), want open", cleans[0], errs[0])
+	}
+	for i, rel := range rels {
+		clean, err := r.Check(rel, true)
+		if clean != cleans[i] || (err == nil) != (errs[i] == nil) {
+			t.Errorf("%s: Check = (%q, %v), CheckBatch = (%q, %v)", rel, clean, err, cleans[i], errs[i])
 		}
 	}
 }
