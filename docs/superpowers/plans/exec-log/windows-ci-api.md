@@ -45,9 +45,25 @@ TestSaveOverwriteDoesNotFollowSymlink (that one already skipped the mode on Wind
   그 폴더 ACL 을 물려받아 다른 로컬 사용자가 읽을 수 있다. Unix 의 0600 은 이 경우도 막는다. 막으려면 `golang.org/x/sys/windows`
   로 소유자 전용 보호 DACL 을 거는 공통 함수가 필요하고, masil 의 모든 0600 파일에 같이 적용해야 일관된다 — 이번 수정에는 넣지 않았다.
 
+## 리뷰 지적 (low) — 계획서 569·595행의 "0600"
+
+- 확인함, 사실이다. P4 계획서 Task 14 `TestExportCurlCopies`(569행, "Postman 내보내기 → 고른 경로에 0600 파일")와 Task 15
+  `TestSaveBodyToFile`(595행, "파일 0600")은 OS 구분 없이 0600 을 적었고, Windows 예외는 117행 컬렉션 저장
+  ("0600 (windows 제외)")에만 있다. 25a7319f 로 Windows 의 시험 기준이 "읽기 전용 아닌 일반 파일(Go 가 보이는 0666)"이 됐는데
+  그 결정은 계획서에 없다.
+- 또한 맞다: Windows 의 0666 단언은 파일이 소유자 전용인지 확인하지 **않는다**. 위 "남는 실제 차이"(사용자가 공유 폴더를 저장 경로로
+  치면 같은 PC 의 다른 사용자가 읽을 수 있음)를 시험이 잡지 못한다. 그 보호는 지금 폴더 ACL 상속뿐이다.
+- 처리: 계획서·코드 모두 **바꾸지 않았다.** 어느 쪽으로 갈지는 보안 기준을 정하는 일이라 오너가 정한다.
+  - (가) 계획서 569·595행에 117행처럼 "0600 (windows 제외: 폴더 ACL 상속)"을 덧붙인다 — 지금 코드·시험과 맞는다.
+  - (나) `golang.org/x/sys/windows` 로 소유자 전용 보호 DACL 을 거는 공통 함수를 만들어 masil 의 모든 0600 파일
+    (credentials.json, config, secrets 대체 파일, API 저장 파일)에 적용하고, Windows 시험에서 ACL 을 단언한다 — 별도 작업.
+- 내 판단: (가)가 이번 Windows CI 수정의 범위에 맞는다. (나)는 API 저장만이 아니라 저장소 전체의 Windows 파일 보호 정책이므로
+  따로 계획해야 한다. 오너 결정 전까지 이 차이는 이 기록에만 남아 있다.
+
 ## 검증 (이 Mac, darwin/arm64, go1.26.6)
 
 - `GOOS=windows go vet ./...` — exit 0
 - `GOOS=windows go test -c -o /dev/null ./internal/ui/apitool/` — ok
 - `go test -count=1 ./internal/ui/apitool/` — ok
 - `gofmt -l internal/ui/apitool` — 없음
+- 리뷰 지적 처리 뒤 위 네 가지 다시 실행 — 모두 같은 결과 (vet exit 0, test -c ok, go test ok, gofmt 없음)
