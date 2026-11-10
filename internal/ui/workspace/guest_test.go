@@ -147,7 +147,7 @@ func newGuestRig(t *testing.T, h *uitest.Harness, prep func(dir string)) *guestR
 		t.Fatalf("no guest surface (got %T)", h.Instance(route.Key()))
 	}
 	r.s = s
-	t.Cleanup(func() { s.CloseTool(h.Context()) })
+	closeLiveAtEnd(t, h)
 	r.settle()
 	return r
 }

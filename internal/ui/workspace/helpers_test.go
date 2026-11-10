@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/termpane/termpanetest"
 	_ "github.com/patrache/masil/internal/ui/tools" // the RouteTool factory
@@ -72,9 +74,47 @@ func openRoute(id, dir string) ui.Route {
 	return ui.Route{Kind: ui.RouteTool, ID: id, Arg: ui.ToolWorkspace, Query: map[string]string{"open": dir}}
 }
 
-// openFolder opens dir as instance id and returns its surface.
+// closeLiveAtEnd closes every open surface when the test ends, the way the
+// app closes a tool (ui.CloseTool): CloseTool and the commands it returns,
+// which end a share and close its audit log. Windows refuses to delete a
+// file or folder that is still open (the os.Root holds the folder, the audit
+// log its ws_*.jsonl), so a surface left open fails t.TempDir's RemoveAll
+// there. Call it after uitest.New: the harness's t.TempDir comes first and
+// Cleanup is LIFO, so this runs before the temp dirs are removed. Calling it
+// more than once is harmless.
+func closeLiveAtEnd(t *testing.T, h *uitest.Harness) {
+	t.Helper()
+	t.Cleanup(func() {
+		liveMu.Lock()
+		open := append([]*Surface(nil), live...)
+		liveMu.Unlock()
+		for _, s := range open {
+			h.Send(ui.CloseTool(s.id)())
+			if !s.closed { // not (or no longer) an app tool entry
+				runCmds(s.CloseTool(h.Context()))
+			}
+		}
+	})
+}
+
+// runCmds runs cmd and the commands of any batch it returns, dropping the
+// other messages (test cleanup only).
+func runCmds(cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+	if b, ok := cmd().(tea.BatchMsg); ok {
+		for _, c := range b {
+			runCmds(c)
+		}
+	}
+}
+
+// openFolder opens dir as instance id and returns its surface (closed when
+// the test ends, closeLiveAtEnd).
 func openFolder(t *testing.T, h *uitest.Harness, id, dir string) *Surface {
 	t.Helper()
+	closeLiveAtEnd(t, h)
 	r := openRoute(id, dir)
 	h.Send(ui.NavigateMsg{Route: r})
 	s, ok := h.Instance(r.Key()).(*Surface)

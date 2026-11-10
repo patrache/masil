@@ -57,8 +57,7 @@ func newShareRig(t *testing.T, h *uitest.Harness, fake *termpanetest.Fake, membe
 		Owner: api.UserSummary{ID: fixtures.UserSam, Handle: "sam", DisplayName: "sam"}, Members: ms,
 	}})
 	h.API.JSON("DELETE /v1/workspace-shares/{id}", 204, nil)
-	r.s = openFolder(t, h, "workspace:share", copyFixture(t))
-	t.Cleanup(func() { r.s.CloseTool(h.Context()) })
+	r.s = openFolder(t, h, "workspace:share", copyFixture(t)) // closed at the end with its share and audit log
 	return r
 }
 
