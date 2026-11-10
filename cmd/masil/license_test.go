@@ -49,12 +49,19 @@ func TestReleaseLicenseMIT(t *testing.T) {
 		t.Error(`packaging/homebrew/masil.rb.tmpl: formula must declare license "MIT"`)
 	}
 
-	readme := read("README.md")
-	i := strings.Index(readme, "\n## 라이선스\n")
-	if i < 0 {
-		t.Fatal("README.md: no 라이선스 section")
-	}
-	if sec := readme[i:]; !strings.Contains(sec, "MIT") || !strings.Contains(sec, "LICENSE") {
-		t.Errorf("README.md: 라이선스 section must name MIT and point at LICENSE:\n%s", sec)
+	// P5 Task 21: the English README and the Korean README.ko.md both say it.
+	for _, c := range []struct{ rel, heading string }{
+		{"README.md", "## License"},
+		{"README.ko.md", "## 라이선스"},
+	} {
+		readme := read(c.rel)
+		i := strings.Index(readme, "\n"+c.heading+"\n")
+		if i < 0 {
+			t.Errorf("%s: no %q section", c.rel, c.heading)
+			continue
+		}
+		if sec := readme[i:]; !strings.Contains(sec, "MIT") || !strings.Contains(sec, "LICENSE") {
+			t.Errorf("%s: %q section must name MIT and point at LICENSE:\n%s", c.rel, c.heading, sec)
+		}
 	}
 }

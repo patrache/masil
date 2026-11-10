@@ -4,7 +4,7 @@
 # the tap by hand.
 # No `service do` block: `masil daemon install` owns autostart registration.
 class Masil < Formula
-  desc "터미널 채팅 + SNS"
+  desc "Terminal chat + social feed"
   homepage "https://github.com/patrache/masil"
   version "__VERSION__"
   license "MIT"
@@ -37,8 +37,11 @@ class Masil < Formula
 
   def caveats
     <<~EOS
+      Start the notification daemon at login: masil daemon install
       알림 데몬 자동 시작: masil daemon install
+      After brew upgrade a registered daemon restarts itself on the new version — check with 'masil daemon status', and if it has not changed run 'masil daemon install' again.
       brew upgrade 뒤 등록된 데몬은 새 버전으로 스스로 다시 뜹니다 — 'masil daemon status' 로 확인하고, 안 바뀌었으면 'masil daemon install' 을 다시 실행하세요.
+      Before uninstalling, run 'masil daemon uninstall' first.
       제거 전에 'masil daemon uninstall' 을 먼저 실행하세요.
       To use the lazygit tool: brew install lazygit
       lazygit 도구를 쓰려면: brew install lazygit
