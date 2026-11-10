@@ -1,0 +1,123 @@
+# Auth area: the login and signup screens (internal/ui/authui).
+
+[busy_login]
+desc = "로그인 요청 중 진행 줄"
+other = "로그인하는 중…"
+
+[busy_signup]
+desc = "가입 요청 중 진행 줄"
+other = "가입하는 중…"
+
+[button_login]
+desc = "로그인 단추 글자(화면이 [ ] 로 감쌈)"
+max = 12
+other = "로그인"
+
+[button_signup]
+desc = "가입 단추 글자(화면이 [ ] 로 감쌈)"
+max = 12
+other = "가입하기"
+
+[err_confirm]
+desc = "입력 확인 오류(폼 아래 한 줄): 비밀번호 확인이 다름(가입)"
+no_truncate = true
+other = "비밀번호가 서로 달라요"
+
+[err_display_long]
+desc = "입력 확인 오류(폼 아래 한 줄): 표시 이름이 32자보다 김(가입)"
+no_truncate = true
+other = "표시 이름은 32자 이하예요"
+
+[err_handle_empty]
+desc = "입력 확인 오류(폼 아래 한 줄): 아이디 칸이 비었음"
+no_truncate = true
+other = "아이디를 입력해 주세요"
+
+[err_handle_format]
+desc = "입력 확인 오류(폼 아래 한 줄): 아이디 형식이 틀림(handle 규칙)"
+no_truncate = true
+other = "아이디는 영문 소문자·숫자·_ 3~20자예요"
+
+[err_password_empty]
+desc = "입력 확인 오류(폼 아래 한 줄): 비밀번호 칸이 비었음"
+no_truncate = true
+other = "비밀번호를 입력해 주세요"
+
+[err_password_long]
+desc = "입력 확인 오류(폼 아래 한 줄): 비밀번호가 128자보다 김"
+no_truncate = true
+other = "비밀번호는 128자 이하예요"
+
+[err_password_same]
+desc = "입력 확인 오류(폼 아래 한 줄): 비밀번호가 아이디와 같음(가입)"
+no_truncate = true
+other = "비밀번호는 아이디와 달라야 해요"
+
+[err_password_short]
+desc = "입력 확인 오류(폼 아래 한 줄): 비밀번호가 8자보다 짧음"
+no_truncate = true
+other = "비밀번호는 8자 이상이에요"
+
+[field_confirm]
+desc = "입력 칸 이름: 비밀번호 확인(가입만)"
+max = 16
+other = "비밀번호 확인"
+
+[field_display]
+desc = "입력 칸 이름: 표시 이름(가입만)"
+max = 16
+other = "표시 이름"
+
+[field_display_placeholder]
+desc = "표시 이름 칸이 비었을 때 흐린 안내"
+other = "선택 · 비우면 아이디"
+
+[field_handle]
+desc = "입력 칸 이름: 아이디(handle). 칸 이름 열 너비가 가장 넓은 이름으로 정해짐"
+max = 16
+other = "아이디"
+
+[field_handle_placeholder]
+desc = "아이디 칸이 비었을 때 흐린 안내(허용 글자)"
+other = "영문 소문자·숫자·_"
+
+[field_password]
+desc = "입력 칸 이름: 비밀번호"
+max = 16
+other = "비밀번호"
+
+[link_have_account]
+desc = "가입 화면 아래 질문(뒤에 link_login 이 이어짐)"
+other = "이미 계정이 있나요?"
+
+[link_login]
+desc = "가입 화면 아래 로그인 화면으로 가는 링크"
+max = 12
+other = "로그인"
+
+[link_no_account]
+desc = "로그인 화면 아래 질문(뒤에 link_signup 이 이어짐)"
+other = "계정이 없나요?"
+
+[link_signup]
+desc = "로그인 화면 아래 가입 화면으로 가는 링크"
+max = 12
+other = "가입하기"
+
+[save_failed]
+desc = "토스트: 로그인은 됐지만 이 기기에 로그인 정보를 저장하지 못함"
+no_truncate = true
+other = "로그인 정보를 저장하지 못했어요"
+
+[server_line]
+desc = "로그인·가입 화면: 접속할 서버 주소. server = 주소(번역하지 않음)"
+params = { server = "string" }
+other = "서버: {server}"
+
+[subtitle_login]
+desc = "로그인 화면 부제(masil 제목 아래)"
+other = "터미널 마실 — 로그인"
+
+[subtitle_signup]
+desc = "가입 화면 부제(masil 제목 아래)"
+other = "터미널 마실 — 가입"

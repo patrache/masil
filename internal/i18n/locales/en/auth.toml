@@ -1,0 +1,79 @@
+# Auth area: the login and signup screens.
+
+[busy_login]
+other = "Logging in…"
+
+[busy_signup]
+other = "Signing up…"
+
+[button_login]
+other = "Log in"
+
+[button_signup]
+other = "Sign up"
+
+[err_confirm]
+other = "The passwords don't match"
+
+[err_display_long]
+other = "Display names are at most 32 characters"
+
+[err_handle_empty]
+other = "Enter your username"
+
+[err_handle_format]
+other = "Usernames are 3–20 lowercase letters, digits or _"
+
+[err_password_empty]
+other = "Enter your password"
+
+[err_password_long]
+other = "Passwords are at most 128 characters"
+
+[err_password_same]
+other = "Your password must differ from your username"
+
+[err_password_short]
+other = "Passwords are at least 8 characters"
+
+[field_confirm]
+other = "Confirm password"
+
+[field_display]
+other = "Display name"
+
+[field_display_placeholder]
+other = "Optional · empty uses your username"
+
+[field_handle]
+other = "Username"
+
+[field_handle_placeholder]
+other = "a–z, 0–9 and _"
+
+[field_password]
+other = "Password"
+
+[link_have_account]
+other = "Already have an account?"
+
+[link_login]
+other = "Log in"
+
+[link_no_account]
+other = "No account?"
+
+[link_signup]
+other = "Sign up"
+
+[save_failed]
+other = "Couldn't save your login on this device"
+
+[server_line]
+other = "Server: {server}"
+
+[subtitle_login]
+other = "masil in your terminal — Log in"
+
+[subtitle_signup]
+other = "masil in your terminal — Sign up"

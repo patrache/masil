@@ -15,6 +15,7 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -46,13 +47,12 @@ const submitTimeout = 20 * time.Second
 // Card geometry (plan 03 Task 33): a centered bordered card at most cardMaxW wide;
 // below cardMinW the form fills the pane without a border.
 const (
-	cardMaxW      = 56
-	cardMinW      = 44
-	cardPadX      = 2 // blank cells inside the card border on each side
-	barePadX      = 1 // blank cells on each side without the card
-	inlineFieldW  = 16
-	clientName    = "tui"
-	saveFailedMsg = "로그인 정보를 저장하지 못했어요"
+	cardMaxW     = 56
+	cardMinW     = 44
+	cardPadX     = 2 // blank cells inside the card border on each side
+	barePadX     = 1 // blank cells on each side without the card
+	inlineFieldW = 16
+	clientName   = "tui"
 )
 
 // formMode is login or signup.
@@ -99,7 +99,7 @@ type screen struct {
 	focus  int // index into elems()
 
 	notice string // logout notice from the route query (until the next submit / mode switch)
-	errMsg string // last validation / request error
+	errMsg text   // last validation / request error (nil = none)
 	busy   bool   // a request is in flight
 	gen    int64  // submit generation
 	spin   *widgets.Spinner
@@ -274,7 +274,7 @@ func (s *screen) switchMode() {
 	}
 	s.fields[fieldPassword].clear()
 	s.fields[fieldConfirm].clear()
-	s.errMsg, s.notice = "", ""
+	s.errMsg, s.notice = nil, ""
 	s.focus = 0
 }
 
@@ -284,7 +284,7 @@ func (s *screen) submit(ctx *ui.Context) tea.Cmd {
 	if s.busy {
 		return nil
 	}
-	if msg, id := validate(s.mode, s.fields); msg != "" {
+	if msg, id := validate(s.mode, s.fields); msg != nil {
 		s.errMsg = msg
 		s.focusField(id)
 		return nil
@@ -292,7 +292,7 @@ func (s *screen) submit(ctx *ui.Context) tea.Cmd {
 	if ctx == nil || ctx.API == nil {
 		return nil
 	}
-	s.busy, s.errMsg, s.notice = true, "", ""
+	s.busy, s.errMsg, s.notice = true, nil, ""
 	s.gen++
 	id, gen, mode := s.id, s.gen, s.mode
 	client, paths := ctx.API, ctx.Paths
@@ -337,10 +337,11 @@ func (s *screen) done(ctx *ui.Context, m doneMsg) tea.Cmd {
 	s.busy = false
 	s.spin.Stop()
 	if m.err != nil || m.creds == nil {
-		s.errMsg = errtext.Describe(ctx.T, m.err)
-		if s.errMsg == "" {
-			s.errMsg = errtext.Describe(ctx.T, &api.Error{Code: "internal_error"})
+		err := m.err
+		if err == nil {
+			err = &api.Error{Code: "internal_error"}
 		}
+		s.errMsg = func(t *i18n.T) string { return errtext.Describe(t, err) }
 		switch api.CodeOf(m.err) {
 		case "invalid_credentials":
 			s.fields[fieldPassword].clear()
@@ -357,7 +358,7 @@ func (s *screen) done(ctx *ui.Context, m doneMsg) tea.Cmd {
 	cmds := []tea.Cmd{func() tea.Msg { return msg }}
 	if m.saveErr != nil {
 		slog.Warn("save credentials", "err", m.saveErr)
-		cmds = append(cmds, ui.Toast(saveFailedMsg, ui.ToastError))
+		cmds = append(cmds, ui.Toast(catalog(ctx).Auth.SaveFailed(), ui.ToastError))
 	}
 	return tea.Batch(cmds...)
 }
@@ -417,6 +418,7 @@ func (s *screen) View(ctx *ui.Context, focused bool) string {
 	if ctx != nil && ctx.Theme != nil {
 		t = ctx.Theme
 	}
+	cat := catalog(ctx)
 	server := ""
 	if ctx != nil && ctx.API != nil {
 		server = ctx.API.BaseURL()
@@ -435,7 +437,7 @@ func (s *screen) View(ctx *ui.Context, focused bool) string {
 		pad = 0
 	}
 	iw := max(1, cw-2*pad-borderCells(bordered))
-	rows := s.rows(t, server, iw)
+	rows := s.rows(t, cat, server, iw)
 	must := 0
 	for _, r := range rows {
 		if r.prio == prioMust {
@@ -448,7 +450,7 @@ func (s *screen) View(ctx *ui.Context, focused bool) string {
 			pad = 0
 		}
 		iw = max(1, cw-2*pad)
-		rows = s.rows(t, server, iw)
+		rows = s.rows(t, cat, server, iw)
 	}
 	avail := h - borderCells(bordered)
 	rows = fitRows(rows, avail)
@@ -501,27 +503,27 @@ func borderCells(bordered bool) int {
 }
 
 // rows builds every content row for inner width iw.
-func (s *screen) rows(t *theme.Theme, server string, iw int) []row {
+func (s *screen) rows(t *theme.Theme, cat *i18n.T, server string, iw int) []row {
 	text := func(str string, center bool, prio int) row {
 		return row{text: str, center: center, prio: prio, elem: -1, cursor: -1}
 	}
 	spacer := text("", false, prioSpacer)
-	sub := "터미널 마실 — 로그인"
+	sub := cat.Auth.SubtitleLogin()
 	if s.mode == modeSignup {
-		sub = "터미널 마실 — 가입"
+		sub = cat.Auth.SubtitleSignup()
 	}
 	out := []row{
 		text(t.S.Title.Render("masil"), true, prioTitle),
 		text(t.S.Subtitle.Render(sub), true, prioSubtitle),
 		spacer,
-		text(t.S.Dim.Render(textwidth.Truncate("서버: "+textwidth.Sanitize(server), iw, "…")), false, prioServer),
+		text(t.S.Dim.Render(textwidth.Truncate(cat.Auth.ServerLine(textwidth.Sanitize(server)), iw, "…")), false, prioServer),
 		spacer,
 	}
 	es := s.elems()
 	lw := 0
 	for _, e := range es {
 		if e.kind == elemField {
-			lw = max(lw, textwidth.Width(s.fields[e.field].label))
+			lw = max(lw, textwidth.Width(s.fields[e.field].label(cat)))
 		}
 	}
 	const marker = 2
@@ -532,14 +534,15 @@ func (s *screen) rows(t *theme.Theme, server string, iw int) []row {
 		switch e.kind {
 		case elemField:
 			f := s.fields[e.field]
-			mark, label := t.S.Base.Render("  "), t.S.Base.Render(f.label)
+			name := f.label(cat)
+			mark, label := t.S.Base.Render("  "), t.S.Base.Render(name)
 			if focused {
-				mark, label = t.S.Title.Render("› "), t.S.Title.Render(f.label)
+				mark, label = t.S.Title.Render("› "), t.S.Title.Render(name)
 			}
 			if inline {
 				aw := iw - marker - lw - 1
-				in, col := fieldLine(t, f, focused, aw)
-				r := row{text: mark + label + padCells(t, lw-textwidth.Width(f.label)+1) + in, prio: prioMust, elem: i, cursor: -1}
+				in, col := fieldLine(t, cat, f, focused, aw)
+				r := row{text: mark + label + padCells(t, lw-textwidth.Width(name)+1) + in, prio: prioMust, elem: i, cursor: -1}
 				if focused {
 					r.cursor = marker + lw + 1 + col
 				}
@@ -547,16 +550,16 @@ func (s *screen) rows(t *theme.Theme, server string, iw int) []row {
 				continue
 			}
 			out = append(out, row{text: mark + label, prio: prioMust, elem: i, cursor: -1})
-			in, col := fieldLine(t, f, focused, max(1, iw-marker))
+			in, col := fieldLine(t, cat, f, focused, max(1, iw-marker))
 			r := row{text: padCells(t, marker) + in, prio: prioMust, elem: i, cursor: -1}
 			if focused {
 				r.cursor = marker + col
 			}
 			out = append(out, r)
 		case elemButton:
-			label := "[ 로그인 ]"
+			label := "[ " + cat.Auth.ButtonLogin() + " ]"
 			if s.mode == modeSignup {
-				label = "[ 가입하기 ]"
+				label = "[ " + cat.Auth.ButtonSignup() + " ]"
 			}
 			st := t.S.Bold
 			if focused {
@@ -564,9 +567,9 @@ func (s *screen) rows(t *theme.Theme, server string, iw int) []row {
 			}
 			button = row{text: st.Render(label), center: true, prio: prioMust, elem: i, cursor: -1}
 		case elemLink:
-			q, a := "계정이 없나요? ", "가입하기"
+			q, a := cat.Auth.LinkNoAccount()+" ", cat.Auth.LinkSignup()
 			if s.mode == modeSignup {
-				q, a = "이미 계정이 있나요? ", "로그인"
+				q, a = cat.Auth.LinkHaveAccount()+" ", cat.Auth.LinkLogin()
 			}
 			txt := t.S.Dim.Render(q) + t.S.Link.Render(a)
 			if focused {
@@ -576,25 +579,25 @@ func (s *screen) rows(t *theme.Theme, server string, iw int) []row {
 		}
 	}
 	out = append(out, spacer, button, link, spacer)
-	out = append(out, s.messageRows(t, iw)...)
+	out = append(out, s.messageRows(t, cat, iw)...)
 	return out
 }
 
 // messageRows is the notice / error / progress line (always at least one row, at
 // most two, so the form does not jump).
-func (s *screen) messageRows(t *theme.Theme, iw int) []row {
+func (s *screen) messageRows(t *theme.Theme, cat *i18n.T, iw int) []row {
 	var st lipgloss.Style
 	var msg, prefix string
 	switch {
 	case s.busy:
-		st, msg = t.S.Dim, "로그인하는 중…"
+		st, msg = t.S.Dim, cat.Auth.BusyLogin()
 		if s.mode == modeSignup {
-			msg = "가입하는 중…"
+			msg = cat.Auth.BusySignup()
 		}
 		prefix = s.spin.View(t) + t.S.Base.Render(" ")
 		iw -= 2
-	case s.errMsg != "":
-		st, msg = t.S.Error, s.errMsg
+	case s.errMsg != nil:
+		st, msg = t.S.Error, s.errMsg(cat)
 	case s.notice != "":
 		st, msg = t.S.Warning, s.notice
 	}
@@ -619,7 +622,7 @@ func (s *screen) messageRows(t *theme.Theme, iw int) []row {
 // fieldLine draws a field's input area in exactly w cells and returns its cursor
 // column. Long values scroll so the cursor stays visible; an empty field shows its
 // placeholder (dim).
-func fieldLine(t *theme.Theme, f *field, focused bool, w int) (string, int) {
+func fieldLine(t *theme.Theme, cat *i18n.T, f *field, focused bool, w int) (string, int) {
 	st := t.S.StatusBar // chip background
 	if focused {
 		st = t.S.Selected
@@ -629,7 +632,10 @@ func fieldLine(t *theme.Theme, f *field, focused bool, w int) (string, int) {
 	}
 	before, after := f.display()
 	if before == "" && after == "" {
-		ph := textwidth.Truncate(textwidth.Sanitize(f.placeholder), w, "…")
+		ph := ""
+		if f.placeholder != nil {
+			ph = textwidth.Truncate(textwidth.Sanitize(f.placeholder(cat)), w, "…")
+		}
 		return st.Foreground(t.P.Dim).Render(textwidth.PadRight(ph, w)), 0
 	}
 	if textwidth.Width(before) >= w {
@@ -701,4 +707,12 @@ func padCells(t *theme.Theme, n int) string {
 		return ""
 	}
 	return t.S.Base.Render(strings.Repeat(" ", n))
+}
+
+// catalog is ctx's catalog (ko without one).
+func catalog(ctx *ui.Context) *i18n.T {
+	if ctx == nil || ctx.T == nil {
+		return i18n.KoT()
+	}
+	return ctx.T
 }
