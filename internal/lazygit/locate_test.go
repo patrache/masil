@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -44,22 +45,51 @@ func fakeEnv(r *fakeRunner, paths map[string]string) Env {
 	}
 }
 
+// native turns a slash fixture path ("/opt/lg/lazygit") into an absolute
+// path of this OS: itself on Unix, on Windows the same path on a fixed drive
+// (C:\opt\lg\lazygit) — a rooted path without a drive is not absolute
+// there, and the fixtures must not depend on the runner's current drive.
+func native(p string) string {
+	if runtime.GOOS == "windows" && strings.HasPrefix(p, "/") {
+		return "C:" + filepath.FromSlash(p)
+	}
+	return p
+}
+
+// gitTop is what "git rev-parse --show-toplevel" prints for dir: Git for
+// Windows prints forward slashes ("C:/r/masil").
+func gitTop(dir string) string { return filepath.ToSlash(dir) + "\n" }
+
 func TestLocateConfigPathMissing(t *testing.T) {
-	env := fakeEnv(&fakeRunner{}, map[string]string{"lazygit": "/usr/local/bin/lazygit"})
-	if _, err := Locate(env, "/opt/none/lazygit"); !errors.Is(err, ErrNotInstalled) {
+	onPath, cfg := native("/usr/local/bin/lazygit"), native("/opt/lg/lazygit")
+	env := fakeEnv(&fakeRunner{}, map[string]string{"lazygit": onPath})
+	if _, err := Locate(env, native("/opt/none/lazygit")); !errors.Is(err, ErrNotInstalled) {
 		t.Fatalf("missing cfg path: err = %v, want ErrNotInstalled", err)
 	}
 	// The configured path wins over PATH.
-	env = fakeEnv(&fakeRunner{}, map[string]string{"lazygit": "/usr/local/bin/lazygit", "/opt/lg/lazygit": "/opt/lg/lazygit"})
-	if got, err := Locate(env, "/opt/lg/lazygit"); err != nil || got != "/opt/lg/lazygit" {
+	env = fakeEnv(&fakeRunner{}, map[string]string{"lazygit": onPath, cfg: cfg})
+	if got, err := Locate(env, cfg); err != nil || got != cfg {
 		t.Fatalf("cfg path: %q, %v", got, err)
 	}
-	if got, err := Locate(env, ""); err != nil || got != "/usr/local/bin/lazygit" {
+	if got, err := Locate(env, ""); err != nil || got != onPath {
 		t.Fatalf("PATH: %q, %v", got, err)
 	}
 	env = fakeEnv(&fakeRunner{}, nil)
 	if _, err := Locate(env, ""); !errors.Is(err, ErrNotInstalled) {
 		t.Fatalf("not on PATH: err = %v", err)
+	}
+}
+
+// Locate always answers an absolute path: a lookup that gives a rooted path
+// without a drive (Windows) or a relative one is made absolute.
+func TestLocateMakesAbsolute(t *testing.T) {
+	for _, p := range []string{"/usr/local/bin/lazygit", filepath.Join("bin", "lazygit")} {
+		env := fakeEnv(&fakeRunner{}, map[string]string{"lazygit": p})
+		got, err := Locate(env, "")
+		want, _ := filepath.Abs(p)
+		if err != nil || got != want || !filepath.IsAbs(got) {
+			t.Errorf("Locate with %q on PATH = %q, %v; want %q", p, got, err, want)
+		}
 	}
 }
 

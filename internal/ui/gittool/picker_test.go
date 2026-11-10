@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -25,7 +26,21 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-const lgBin = "/usr/local/bin/lazygit"
+// lgBin is where the fake finds lazygit.
+var lgBin = native("/usr/local/bin/lazygit")
+
+// native turns a slash fixture path ("/r/masil") into an absolute path of
+// this OS: itself on Unix; on Windows the same path on a fixed drive
+// (C:\r\masil). lazygit.Locate and RepoRoot make paths absolute, and on
+// Windows a rooted path without a drive is not: the runner's current drive
+// would go in front and the fixtures would match nothing. Other paths (a
+// real temp folder) stay as they are.
+func native(p string) string {
+	if runtime.GOOS == "windows" && strings.HasPrefix(p, "/") {
+		return "C:" + filepath.FromSlash(p)
+	}
+	return p
+}
 
 // runner answers "name arg…" from out; anything else fails like git outside
 // a repository.
@@ -51,7 +66,9 @@ func fakeEnv(installed bool, goos string, repos ...string) (lazygit.Env, runner)
 		lgBin + " --version": "commit=abc, build date=2026-11-07T00:00:00Z, build source=homebrew, version=0.66.3, os=darwin, arch=arm64, git version=2.47.1\n",
 	}, calls: new([]string)}
 	for _, repo := range repos {
-		r.out["git -C "+repo+" rev-parse --show-toplevel"] = repo + "\n"
+		// Git for Windows answers with forward slashes ("C:/r/masil").
+		repo = native(repo)
+		r.out["git -C "+repo+" rev-parse --show-toplevel"] = filepath.ToSlash(repo) + "\n"
 	}
 	return lazygit.Env{
 		LookPath: func(name string) (string, error) {
@@ -117,7 +134,7 @@ func TestHubStatusInstalled(t *testing.T) {
 	env, _ := fakeEnv(true, "darwin")
 	setup(t, env)
 	h := uitest.New(t)
-	setRecent(t, h, "/r/masil", "/r/blog")
+	setRecent(t, h, native("/r/masil"), native("/r/blog"))
 	h.Press("ctrl+t")
 	if row := hubRow(t, h); !strings.Contains(row, "설치됨 v0.66.3 · 최근 masil") {
 		t.Fatalf("hub row = %q", row)
@@ -185,10 +202,10 @@ func TestInstallDialogWindowsTwoCommands(t *testing.T) {
 }
 
 func TestPickerRecentFirst(t *testing.T) {
-	env, _ := fakeEnv(true, "darwin", "/r/masil", "/r/blog")
+	env, _ := fakeEnv(true, "darwin", native("/r/masil"), native("/r/blog"))
 	setup(t, env)
 	h := uitest.New(t)
-	setRecent(t, h, "/r/masil", "/r/blog")
+	setRecent(t, h, native("/r/masil"), native("/r/blog"))
 	h.Press("ctrl+t", "4")
 	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:pick"}) {
 		t.Fatalf("instances = %v, want the picker", ids)
@@ -204,16 +221,16 @@ func TestPickerRecentFirst(t *testing.T) {
 		t.Fatalf("no path row:\n%s", s)
 	}
 	h.Press("enter")
-	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/masil"}) {
+	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/masil")}) {
 		t.Fatalf("after enter: instances = %v, want git:/r/masil only", ids)
 	}
 }
 
 func TestPickerNotRepo(t *testing.T) {
-	env, _ := fakeEnv(true, "darwin", "/r/masil")
+	env, _ := fakeEnv(true, "darwin", native("/r/masil"))
 	setup(t, env)
 	h := uitest.New(t)
-	setRecent(t, h, "/r/masil")
+	setRecent(t, h, native("/r/masil"))
 	h.Press("ctrl+t", "4", "G", "enter")
 	h.Type("/tmp/x")
 	h.Press("enter")
@@ -226,7 +243,7 @@ func TestPickerNotRepo(t *testing.T) {
 	// esc goes back to the list; the error clears on the next choice.
 	h.Press("esc")
 	h.Press("g", "enter")
-	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/masil"}) {
+	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/masil")}) {
 		t.Fatalf("instances = %v", ids)
 	}
 }
@@ -257,12 +274,12 @@ func TestPickerTabCompletes(t *testing.T) {
 }
 
 func TestConfiguredRepoSkipsPicker(t *testing.T) {
-	env, _ := fakeEnv(true, "darwin", "/r/conf")
+	env, _ := fakeEnv(true, "darwin", native("/r/conf"))
 	setup(t, env)
 	h := uitest.New(t)
-	h.Context().Config.Tools = map[string]map[string]any{"lazygit": {"repo": "/r/conf"}}
+	h.Context().Config.Tools = map[string]map[string]any{"lazygit": {"repo": native("/r/conf")}}
 	h.Press("ctrl+t", "4")
-	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/conf"}) {
+	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/conf")}) {
 		t.Fatalf("instances = %v", ids)
 	}
 }
@@ -271,7 +288,7 @@ var leetSizes = append(slices.Clone(uitest.Required), uitest.Size{W: 120, H: 30}
 
 func TestGitGolden(t *testing.T) {
 	t.Run("picker", func(t *testing.T) {
-		env, _ := fakeEnv(true, "darwin", "/r/masil", "/r/blog")
+		env, _ := fakeEnv(true, "darwin", native("/r/masil"), native("/r/blog"))
 		setup(t, env)
 		uitest.ForEachSize(t, leetSizes, func(t *testing.T, h *uitest.Harness) {
 			setRecent(t, h, "/Users/sam/src/masil", "/Users/sam/src/blog", "/Users/sam/work/terminal-sns")

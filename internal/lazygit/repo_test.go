@@ -13,25 +13,26 @@ import (
 
 func TestResolveRepoOrder(t *testing.T) {
 	ctx := context.Background()
+	cfgRepo, start, startSub := native("/cfg/repo"), native("/start"), native("/start/sub")
 	r := &fakeRunner{out: map[string]string{
-		"git -C /cfg/repo rev-parse --show-toplevel":  "/cfg/repo\n",
-		"git -C /start/sub rev-parse --show-toplevel": "/start\n",
+		"git -C " + cfgRepo + " rev-parse --show-toplevel":  gitTop(cfgRepo),
+		"git -C " + startSub + " rev-parse --show-toplevel": gitTop(start),
 	}}
 	env := fakeEnv(r, nil)
 	// 1. the configured repo first.
-	if repo, pick, err := ResolveRepo(ctx, env, "/cfg/repo", "/start/sub"); err != nil || pick || repo != filepath.Clean("/cfg/repo") {
-		t.Fatalf("cfg: %q %v %v", repo, pick, err)
+	if repo, pick, err := ResolveRepo(ctx, env, cfgRepo, startSub); err != nil || pick || repo != cfgRepo {
+		t.Fatalf("cfg: %q %v %v (git ran %q)", repo, pick, err, r.calls)
 	}
 	// 2. the start folder's top level.
-	if repo, pick, err := ResolveRepo(ctx, env, "", "/start/sub"); err != nil || pick || repo != filepath.Clean("/start") {
+	if repo, pick, err := ResolveRepo(ctx, env, "", startSub); err != nil || pick || repo != start {
 		t.Fatalf("start: %q %v %v", repo, pick, err)
 	}
 	// A configured path that is not a repo falls through to the start folder.
-	if repo, pick, err := ResolveRepo(ctx, env, "/not/repo", "/start/sub"); err != nil || pick || repo != filepath.Clean("/start") {
+	if repo, pick, err := ResolveRepo(ctx, env, native("/not/repo"), startSub); err != nil || pick || repo != start {
 		t.Fatalf("bad cfg: %q %v %v", repo, pick, err)
 	}
 	// 3. neither: the picker.
-	if repo, pick, err := ResolveRepo(ctx, env, "", "/home/me"); err != nil || !pick || repo != "" {
+	if repo, pick, err := ResolveRepo(ctx, env, "", native("/home/me")); err != nil || !pick || repo != "" {
 		t.Fatalf("pick: %q %v %v", repo, pick, err)
 	}
 	if repo, pick, err := ResolveRepo(ctx, env, "", ""); err != nil || !pick || repo != "" {
@@ -39,14 +40,39 @@ func TestResolveRepoOrder(t *testing.T) {
 	}
 }
 
+// RepoRoot asks git about the absolute folder and gives back git's answer
+// in this OS's form (Git for Windows answers "C:/r/masil"; CRLF too).
+func TestRepoRootAbsoluteNative(t *testing.T) {
+	ctx := context.Background()
+	repo := native("/r/masil")
+	r := &fakeRunner{out: map[string]string{
+		"git -C " + repo + " rev-parse --show-toplevel": filepath.ToSlash(repo) + "\r\n",
+	}}
+	got, err := RepoRoot(ctx, fakeEnv(r, nil), repo)
+	if err != nil || got != repo {
+		t.Fatalf("RepoRoot = %q, %v; want %q (git ran %q)", got, err, repo, r.calls)
+	}
+	// A rooted folder without a drive is asked about as an absolute one.
+	r = &fakeRunner{}
+	_, _ = RepoRoot(ctx, fakeEnv(r, nil), "/r/masil")
+	abs, _ := filepath.Abs("/r/masil")
+	if want := "git -C " + abs + " rev-parse --show-toplevel"; len(r.calls) != 1 || r.calls[0] != want {
+		t.Fatalf("git ran %q, want %q", r.calls, want)
+	}
+}
+
 func TestRepoRootNotRepo(t *testing.T) {
 	env := fakeEnv(&fakeRunner{}, nil)
-	if _, err := RepoRoot(context.Background(), env, "/tmp/x"); !errors.Is(err, ErrNotRepo) {
+	if _, err := RepoRoot(context.Background(), env, native("/tmp/x")); !errors.Is(err, ErrNotRepo) {
 		t.Fatalf("err = %v, want ErrNotRepo", err)
 	}
-	r := &fakeRunner{out: map[string]string{"git -C /tmp/y rev-parse --show-toplevel": "\n"}}
-	if _, err := RepoRoot(context.Background(), fakeEnv(r, nil), "/tmp/y"); !errors.Is(err, ErrNotRepo) {
+	y := native("/tmp/y")
+	r := &fakeRunner{out: map[string]string{"git -C " + y + " rev-parse --show-toplevel": "\n"}}
+	if _, err := RepoRoot(context.Background(), fakeEnv(r, nil), y); !errors.Is(err, ErrNotRepo) {
 		t.Fatalf("empty output: err = %v, want ErrNotRepo", err)
+	}
+	if len(r.calls) != 1 || r.calls[0] != "git -C "+y+" rev-parse --show-toplevel" {
+		t.Fatalf("empty output: git ran %q", r.calls)
 	}
 }
 

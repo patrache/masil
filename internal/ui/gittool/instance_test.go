@@ -35,14 +35,25 @@ func running(t *testing.T, tenv termhost.Env, repos ...string) (*termpanetest.Fa
 	return f, env
 }
 
+// firstStarted is the first request the fake launcher got (Fatal, not an
+// index panic that would end the whole package run, when there is none).
+func firstStarted(t *testing.T, f *termpanetest.Fake) termhost.Request {
+	t.Helper()
+	got := f.Started()
+	if len(got) == 0 {
+		t.Fatal("nothing was started")
+	}
+	return got[0]
+}
+
 func openMasil(t *testing.T, h *uitest.Harness) {
 	t.Helper()
-	setRecent(t, h, "/r/masil", "/r/blog")
+	setRecent(t, h, native("/r/masil"), native("/r/blog"))
 	h.Press("ctrl+t", "4", "enter")
 }
 
 func TestOpenTwoPresses(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/blog")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	h := uitest.New(t)
 	openMasil(t, h)
 	got := f.Started()
@@ -50,10 +61,10 @@ func TestOpenTwoPresses(t *testing.T) {
 		t.Fatalf("Started = %+v", got)
 	}
 	req := got[0]
-	if req.Program != lgBin || len(req.Args) < 2 || !slices.Equal(req.Args[:2], []string{"-p", "/r/masil"}) {
+	if req.Program != lgBin || len(req.Args) < 2 || !slices.Equal(req.Args[:2], []string{"-p", native("/r/masil")}) {
 		t.Fatalf("request = %+v", req)
 	}
-	if req.ToolID != "git" || req.Title != "lazygit" || req.Dir != "/r/masil" {
+	if req.ToolID != "git" || req.Title != "lazygit" || req.Dir != native("/r/masil") {
 		t.Fatalf("request = %+v", req)
 	}
 	for _, e := range req.Env {
@@ -61,7 +72,7 @@ func TestOpenTwoPresses(t *testing.T) {
 			t.Fatalf("secret-looking env %q", e)
 		}
 	}
-	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/masil"}) {
+	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/masil")}) {
 		t.Fatalf("instances = %v", ids)
 	}
 	if s := h.Screen(); !strings.Contains(s, "lazygit pane") {
@@ -70,7 +81,7 @@ func TestOpenTwoPresses(t *testing.T) {
 	// Opening the same repository again shows the running instance.
 	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}})
 	h.Press("4", "enter")
-	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/masil"}) {
+	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/masil")}) {
 		t.Fatalf("instances = %v", ids)
 	}
 	if n := len(f.Started()); n != 1 {
@@ -85,7 +96,7 @@ func TestPaneThemeOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	withCd := func(t *testing.T) {
-		env, r := fakeEnv(true, "darwin", "/r/masil", "/r/blog")
+		env, r := fakeEnv(true, "darwin", native("/r/masil"), native("/r/blog"))
 		r.out[lgBin+" -cd"] = cfgDir + "\n"
 		t.Cleanup(gittool.SetEnvForTest(env))
 	}
@@ -95,7 +106,7 @@ func TestPaneThemeOverlay(t *testing.T) {
 		withCd(t)
 		h := uitest.New(t)
 		openMasil(t, h)
-		req := f.Started()[0]
+		req := firstStarted(t, f)
 		i := slices.Index(req.Args, "--use-config-file")
 		if i < 0 || i+1 >= len(req.Args) {
 			t.Fatalf("args = %q", req.Args)
@@ -110,7 +121,7 @@ func TestPaneThemeOverlay(t *testing.T) {
 		withCd(t)
 		h := uitest.New(t)
 		openMasil(t, h)
-		req := f.Started()[0]
+		req := firstStarted(t, f)
 		if slices.Contains(req.Args, "--use-config-file") {
 			t.Fatalf("exec args = %q", req.Args)
 		}
@@ -124,17 +135,17 @@ func TestPaneThemeOverlay(t *testing.T) {
 		h := uitest.New(t)
 		h.Context().Config.Tools = map[string]map[string]any{"lazygit": {"theme_overlay": false}}
 		openMasil(t, h)
-		if req := f.Started()[0]; slices.Contains(req.Args, "--use-config-file") {
+		if req := firstStarted(t, f); slices.Contains(req.Args, "--use-config-file") {
 			t.Fatalf("overlay off: args = %q", req.Args)
 		}
 	})
 }
 
 func TestExitedReopen(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/blog")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	h := uitest.New(t)
 	openMasil(t, h)
-	const id = "git:/r/masil"
+	id := "git:" + native("/r/masil")
 	h.Send(f.Exit(id, 0))
 	if s := h.Screen(); !strings.Contains(s, "종료됨 · enter 다시 열기") {
 		t.Fatalf("no exited line:\n%s", s)
@@ -154,14 +165,14 @@ func TestExitedReopen(t *testing.T) {
 	// Another instance's exit is not ours.
 	h2 := uitest.New(t)
 	openMasil(t, h2)
-	h2.Send(f.Exit("git:/r/blog", 0))
+	h2.Send(f.Exit("git:"+native("/r/blog"), 0))
 	if s := h2.Screen(); strings.Contains(s, "종료됨") {
 		t.Fatalf("someone else's exit ended us:\n%s", s)
 	}
 }
 
 func TestPaneLimitToast(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/blog")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	f.SetLimit(0)
 	h := uitest.New(t)
 	openMasil(t, h)
@@ -172,7 +183,7 @@ func TestPaneLimitToast(t *testing.T) {
 	if !strings.Contains(s, "경로 직접 입력") || !strings.Contains(s, "masil") {
 		t.Fatalf("not back to picking:\n%s", s)
 	}
-	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/masil"}) {
+	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/masil")}) {
 		t.Fatalf("instances = %v", ids)
 	}
 	// Choosing again once a pane is free launches in place.
@@ -187,36 +198,36 @@ func TestPaneLimitToast(t *testing.T) {
 }
 
 func TestCwdUpdatesRecent(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/blog")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	h := uitest.New(t)
-	setRecent(t, h, "/r/masil")
+	setRecent(t, h, native("/r/masil"))
 	h.Press("ctrl+t", "4", "enter")
-	h.Send(f.Cwd("git:/r/masil", "/r/blog"))
+	h.Send(f.Cwd("git:"+native("/r/masil"), native("/r/blog")))
 	var st struct {
 		Recent []string `json:"recent"`
 	}
-	if !h.Context().ToolState.Section("git", &st) || len(st.Recent) == 0 || st.Recent[0] != "/r/blog" {
+	if !h.Context().ToolState.Section("git", &st) || len(st.Recent) == 0 || st.Recent[0] != native("/r/blog") {
 		t.Fatalf("recent = %v", st.Recent)
 	}
 	// A folder outside any repository changes nothing; another instance's cwd neither.
-	h.Send(f.Cwd("git:/r/masil", "/tmp/none"))
-	h.Send(f.Cwd("git:/r/other", "/r/masil"))
+	h.Send(f.Cwd("git:"+native("/r/masil"), "/tmp/none"))
+	h.Send(f.Cwd("git:"+native("/r/other"), native("/r/masil")))
 	h.Context().ToolState.Section("git", &st)
-	if !slices.Equal(st.Recent, []string{"/r/blog", "/r/masil"}) {
+	if !slices.Equal(st.Recent, []string{native("/r/blog"), native("/r/masil")}) {
 		t.Fatalf("recent = %v", st.Recent)
 	}
 }
 
 func TestLaunchPushesRecent(t *testing.T) {
-	_, _ = running(t, macEnv, "/r/conf")
+	_, _ = running(t, macEnv, native("/r/conf"))
 	h := uitest.New(t)
-	h.Context().Config.Tools = map[string]map[string]any{"lazygit": {"repo": "/r/conf"}}
+	h.Context().Config.Tools = map[string]map[string]any{"lazygit": {"repo": native("/r/conf")}}
 	h.Press("ctrl+t", "4")
 	var st struct {
 		Recent []string `json:"recent"`
 	}
 	h.Context().ToolState.Section("git", &st)
-	if !slices.Equal(st.Recent, []string{"/r/conf"}) {
+	if !slices.Equal(st.Recent, []string{native("/r/conf")}) {
 		t.Fatalf("recent = %v", st.Recent)
 	}
 	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}})
@@ -226,7 +237,7 @@ func TestLaunchPushesRecent(t *testing.T) {
 }
 
 func TestGitRunningGolden(t *testing.T) {
-	running(t, macEnv, "/r/masil", "/r/blog")
+	running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	uitest.ForEachSize(t, leetSizes, func(t *testing.T, h *uitest.Harness) {
 		openMasil(t, h)
 		h.Golden("git_running")

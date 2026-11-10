@@ -20,13 +20,13 @@ var modeWalk = []uitest.Size{{W: 200, H: 60}, {W: 120, H: 40}, {W: 80, H: 24}, {
 // through every layout mode, each mode shows the tool again, and the frame
 // (the tab row's tool cell at 80x24 included) holds at every size.
 func TestModeSwitchKeepsInstances(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/blog")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	h := uitest.New(t)
 	h.Resize(200, 60)
 	openMasil(t, h)
 	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTools}})
 	h.Press("4", "down", "enter") // the second recent: blog
-	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/masil", "git:/r/blog"}) {
+	if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/masil"), "git:" + native("/r/blog")}) {
 		t.Fatalf("instances = %v:\n%s", ids, h.Screen())
 	}
 	started := len(f.Started())
@@ -39,7 +39,7 @@ func TestModeSwitchKeepsInstances(t *testing.T) {
 		if n := len(f.Started()); n != started {
 			t.Fatalf("%dx%d: Started = %d, want %d (a resize restarted lazygit)", sz.W, sz.H, n, started)
 		}
-		if ids := toolIDs(h); !slices.Equal(ids, []string{"git:/r/masil", "git:/r/blog"}) {
+		if ids := toolIDs(h); !slices.Equal(ids, []string{"git:" + native("/r/masil"), "git:" + native("/r/blog")}) {
 			t.Fatalf("%dx%d: instances = %v", sz.W, sz.H, ids)
 		}
 		if s := h.Screen(); !strings.Contains(s, "lazygit pane") {
@@ -47,7 +47,7 @@ func TestModeSwitchKeepsInstances(t *testing.T) {
 		}
 	}
 	// The other instance comes back too, still the same process.
-	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTool, ID: "git:/r/masil", Arg: ui.ToolGit}})
+	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteTool, ID: "git:" + native("/r/masil"), Arg: ui.ToolGit}})
 	h.Check()
 	if s := h.Screen(); !strings.Contains(s, "lazygit pane") || len(f.Started()) != started {
 		t.Fatalf("masil again: Started %d\n%s", len(f.Started()), s)
@@ -58,7 +58,7 @@ func TestModeSwitchKeepsInstances(t *testing.T) {
 // Choose's tiny rule) without the pane-only color overlay, and the frame
 // holds before and after it returns.
 func TestTinyOpensExec(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/blog")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/blog"))
 	h := uitest.New(t)
 	h.Resize(40, 14)
 	if h.Context().Mode != layout.ModeTiny {
@@ -71,7 +71,7 @@ func TestTinyOpensExec(t *testing.T) {
 	}
 	// The mode termpane.Launch decided (P0 Choose's tiny rule), as the
 	// instance got it in termpane.Launched.Mode.
-	if m := gittool.LaunchedModeForTest(h.Instance(ui.Route{Kind: ui.RouteTool, ID: "git:/r/masil", Arg: ui.ToolGit}.Key())); m != termhost.ModeExec {
+	if m := gittool.LaunchedModeForTest(h.Instance(ui.Route{Kind: ui.RouteTool, ID: "git:" + native("/r/masil"), Arg: ui.ToolGit}.Key())); m != termhost.ModeExec {
 		t.Fatalf("tiny: Launched.Mode = %q, want %q", m, termhost.ModeExec)
 	}
 	if slices.Contains(got[0].Args, "--use-config-file") {
@@ -81,7 +81,7 @@ func TestTinyOpensExec(t *testing.T) {
 		t.Fatalf("tiny did not open a screen switch:\n%s", s)
 	}
 	h.Check()
-	h.Send(f.Exit("git:/r/masil", 0)) // back from the screen switch
+	h.Send(f.Exit("git:"+native("/r/masil"), 0)) // back from the screen switch
 	h.Check()
 	if s := h.Screen(); !strings.Contains(s, "종료됨 · enter 다시 열기") {
 		t.Fatalf("no exited line after the switch back:\n%s", s)

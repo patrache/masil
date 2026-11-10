@@ -6,6 +6,7 @@ package termpanetest
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
@@ -170,10 +171,15 @@ func (h *handle) SendKey(k tea.KeyPressMsg) {
 func (h *handle) SendPaste(string)                 {}
 func (h *handle) SendMouse(tea.MouseMsg, int, int) {}
 func (h *handle) SetFocus(bool)                    {}
+
+// Render draws "<base name of the program> pane WxH". Only the base name,
+// so a frame with a pane in it does not depend on where the tool found the
+// program (on Windows a drive-qualified C:\... path): one golden serves
+// every OS. The full program is in Program() and in Started().
 func (h *handle) Render() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return fmt.Sprintf("%s pane %dx%d", h.program, h.size.W, h.size.H)
+	return fmt.Sprintf("%s pane %dx%d", filepath.Base(h.program), h.size.W, h.size.H)
 }
 func (h *handle) Cursor() (int, int, bool)       { return 0, 0, false }
 func (h *handle) Title() string                  { return "" }
