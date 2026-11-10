@@ -215,6 +215,7 @@ other = "{title} 채널을 삭제할까요?"
 
 [delete_channel_body]
 desc = "채널 삭제 확인 설명"
+no_truncate = true
 other = "메시지도 함께 사라지고 되돌릴 수 없어요"
 
 [delete_channel_failed]
@@ -233,6 +234,7 @@ other = "{name} 방을 삭제할까요?"
 
 [delete_space_body]
 desc = "방 삭제 확인 설명"
+no_truncate = true
 other = "모든 채널과 메시지가 사라지고 되돌릴 수 없어요"
 
 [delete_space_yes]
@@ -1116,6 +1118,7 @@ other = "{name}님을 내보낼까요?"
 
 [kick_body]
 desc = "멤버 내보내기 확인 설명"
+no_truncate = true
 other = "다시 들어오려면 누군가 추가해야 해요"
 
 [kick_failed]
@@ -1195,6 +1198,7 @@ other = "{name}에서 나갈까요?"
 
 [leave_body]
 desc = "그룹 대화 나가기 확인 설명"
+no_truncate = true
 other = "다시 들어오려면 멤버가 추가해 줘야 해요"
 
 [leave_failed]
@@ -1209,6 +1213,7 @@ other = "{name}에서 나갈까요?"
 
 [leave_space_body]
 desc = "방 나가기 확인 설명"
+no_truncate = true
 other = "다시 들어오려면 초대를 받아야 해요"
 
 [leaving_space]
@@ -1601,6 +1606,7 @@ other = "{code} 초대 링크를 폐기할까요?"
 
 [revoke_body]
 desc = "초대 링크 폐기 확인 설명"
+no_truncate = true
 other = "이 코드로는 더 들어올 수 없어요"
 
 [revoke_failed]
@@ -1881,6 +1887,7 @@ other = "{name}님을 방에서 내보낼까요?"
 
 [space_kick_body]
 desc = "방 강퇴 확인 설명"
+no_truncate = true
 other = "다시 초대하면 들어올 수 있어요"
 
 [space_kick_failed]
@@ -2041,6 +2048,7 @@ other = "{name}님에게 방장을 넘길까요?"
 
 [transfer_body]
 desc = "방장 넘기기 확인 설명"
+no_truncate = true
 other = "넘기면 나는 관리자가 돼요"
 
 [transfer_failed]
@@ -2090,6 +2098,7 @@ other = "{name}님의 차단을 풀까요?"
 
 [unban_body]
 desc = "차단 풀기 확인 설명"
+no_truncate = true
 other = "차단을 풀어도 다시 초대해야 들어올 수 있어요"
 
 [unban_failed]

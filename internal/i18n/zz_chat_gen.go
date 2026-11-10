@@ -375,7 +375,8 @@ var areaChat = area{
 			},
 		},
 		"delete_channel_body": {
-			desc: "채널 삭제 확인 설명",
+			desc:       "채널 삭제 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "메시지도 함께 사라지고 되돌릴 수 없어요"},
 				En: {Other: "Its messages go with it. This can't be undone."},
@@ -405,7 +406,8 @@ var areaChat = area{
 			},
 		},
 		"delete_space_body": {
-			desc: "방 삭제 확인 설명",
+			desc:       "방 삭제 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "모든 채널과 메시지가 사라지고 되돌릴 수 없어요"},
 				En: {Other: "All its channels and messages go with it. This can't be undone."},
@@ -1927,7 +1929,8 @@ var areaChat = area{
 			},
 		},
 		"kick_body": {
-			desc: "멤버 내보내기 확인 설명",
+			desc:       "멤버 내보내기 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "다시 들어오려면 누군가 추가해야 해요"},
 				En: {Other: "Someone will have to add them back."},
@@ -2063,7 +2066,8 @@ var areaChat = area{
 			},
 		},
 		"leave_body": {
-			desc: "그룹 대화 나가기 확인 설명",
+			desc:       "그룹 대화 나가기 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "다시 들어오려면 멤버가 추가해 줘야 해요"},
 				En: {Other: "A member will have to add you back."},
@@ -2086,7 +2090,8 @@ var areaChat = area{
 			},
 		},
 		"leave_space_body": {
-			desc: "방 나가기 확인 설명",
+			desc:       "방 나가기 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "다시 들어오려면 초대를 받아야 해요"},
 				En: {Other: "You'll need a new invite to come back."},
@@ -2751,7 +2756,8 @@ var areaChat = area{
 			},
 		},
 		"revoke_body": {
-			desc: "초대 링크 폐기 확인 설명",
+			desc:       "초대 링크 폐기 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "이 코드로는 더 들어올 수 없어요"},
 				En: {Other: "No one can join with this code anymore."},
@@ -3226,7 +3232,8 @@ var areaChat = area{
 			},
 		},
 		"space_kick_body": {
-			desc: "방 강퇴 확인 설명",
+			desc:       "방 강퇴 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "다시 초대하면 들어올 수 있어요"},
 				En: {Other: "They can come back with a new invite."},
@@ -3497,7 +3504,8 @@ var areaChat = area{
 			},
 		},
 		"transfer_body": {
-			desc: "방장 넘기기 확인 설명",
+			desc:       "방장 넘기기 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "넘기면 나는 관리자가 돼요"},
 				En: {Other: "You'll become an admin."},
@@ -3579,7 +3587,8 @@ var areaChat = area{
 			},
 		},
 		"unban_body": {
-			desc: "차단 풀기 확인 설명",
+			desc:       "차단 풀기 확인 설명",
+			noTruncate: true,
 			text: map[Locale]Forms{
 				Ko: {Other: "차단을 풀어도 다시 초대해야 들어올 수 있어요"},
 				En: {Other: "They'll still need an invite to come back."},

@@ -134,19 +134,26 @@ func confirmText(s string) string {
 	}, s)
 }
 
-// TestDestructiveConfirmsNoTruncate (P5 Task 16): the space delete, leave and
-// kick questions are no_truncate keys, and at 40x14 the whole en sentence is on
-// screen (wrapped, never cut).
+// TestDestructiveConfirmsNoTruncate (P5 Task 16): every chat confirm question
+// (*_ask) and its "what it does" sentence (*_body) is a no_truncate key, and at
+// 40x14 the whole en question and sentence of the space delete, leave and kick
+// confirms are on screen (wrapped, never cut).
 func TestDestructiveConfirmsNoTruncate(t *testing.T) {
-	keys := map[string]bool{"delete_space_ask": false, "leave_space_ask": false, "space_kick_ask": false}
+	seen := map[string]bool{}
 	for _, e := range i18n.Entries() {
-		if _, ok := keys[e.Key]; ok && e.Area == "chat" {
-			keys[e.Key] = e.NoTruncate
+		if e.Area != "chat" || !strings.HasSuffix(e.Key, "_ask") && !strings.HasSuffix(e.Key, "_body") {
+			continue
+		}
+		seen[e.Key] = true
+		if !e.NoTruncate {
+			t.Errorf("chat.%s is not no_truncate", e.Key)
 		}
 	}
-	for k, nt := range keys {
-		if !nt {
-			t.Errorf("chat.%s is not no_truncate", k)
+	for _, k := range []string{"delete_space_ask", "delete_space_body", "leave_space_ask", "leave_space_body",
+		"space_kick_ask", "space_kick_body", "delete_channel_body", "kick_body", "leave_body",
+		"revoke_body", "transfer_body", "unban_body"} {
+		if !seen[k] {
+			t.Errorf("chat.%s missing", k)
 		}
 	}
 	en := i18n.For(i18n.En)
@@ -164,10 +171,12 @@ func TestDestructiveConfirmsNoTruncate(t *testing.T) {
 	h := open("owner")
 	h.Press("j", "j", "enter")
 	check("delete", h, en.Chat.DeleteSpaceAsk("노바 개발방"))
+	check("delete body", h, en.Chat.DeleteSpaceBody())
 
 	h = open("member")
 	h.Press("enter")
 	check("leave", h, en.Chat.LeaveSpaceAsk("노바 개발방"))
+	check("leave body", h, en.Chat.LeaveSpaceBody())
 
 	h = open("owner")
 	toMembers(h)
@@ -175,6 +184,7 @@ func TestDestructiveConfirmsNoTruncate(t *testing.T) {
 	h.Press("m")
 	clickOn(t, h, en.Chat.KickYes(), tea.MouseLeft)
 	check("kick", h, en.Chat.SpaceKickAsk(displayName(userBy(t, h.Context().Store, "junho"))))
+	check("kick body", h, en.Chat.SpaceKickBody())
 }
 
 // TestChannelNameRegexEscaped (P5 Task 16): the channel name rule names the
