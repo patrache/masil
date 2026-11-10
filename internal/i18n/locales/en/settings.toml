@@ -138,6 +138,12 @@ other = "Animations"
 [row_clock]
 other = "Clock"
 
+[row_code_complete]
+other = "Code completion"
+
+[row_code_highlight]
+other = "Code highlighting"
+
 [row_desktop]
 other = "Desktop notifications"
 

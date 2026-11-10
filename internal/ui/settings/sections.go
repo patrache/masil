@@ -90,6 +90,8 @@ const (
 	rowImages      = "ui.images"
 	rowAnimations  = "ui.animations"
 	rowPaintBG     = "ui.paint_background"
+	rowCodeHL      = "ui.code_highlight"
+	rowCodeCompl   = "ui.code_complete"
 	rowClock       = "ui.clock"
 	rowDesktop     = "notify.desktop"
 	rowSettingsErr = "notify.load"
@@ -248,6 +250,8 @@ func (s *screen) rows(ctx *ui.Context) []row {
 		value: imageChoices[choiceIndex(imageChoices, cfg.UI.Images)].label(cat)})
 	add(row{id: rowAnimations, sec: secDisplay, kind: kindToggle, label: st.RowAnimations(), on: cfg.UI.Animations})
 	add(row{id: rowPaintBG, sec: secDisplay, kind: kindToggle, label: st.RowPaintBg(), on: cfg.UI.PaintBackground})
+	add(row{id: rowCodeHL, sec: secDisplay, kind: kindToggle, label: st.RowCodeHighlight(), on: cfg.UI.CodeHighlight})
+	add(row{id: rowCodeCompl, sec: secDisplay, kind: kindToggle, label: st.RowCodeComplete(), on: cfg.UI.CodeComplete})
 	add(row{id: rowClock, sec: secDisplay, kind: kindCycle, label: st.RowClock(),
 		value: clockChoices[choiceIndex(clockChoices, cfg.UI.Clock)].label(cat)})
 	// notify: local master switch, then the server switches
@@ -383,6 +387,10 @@ func (s *screen) toggle(ctx *ui.Context, r row) tea.Cmd {
 		return s.saveLocal(ctx, r.id, func(c *config.Config) { c.UI.Animations = v })
 	case rowPaintBG:
 		return s.saveLocal(ctx, r.id, func(c *config.Config) { c.UI.PaintBackground = v })
+	case rowCodeHL:
+		return s.saveLocal(ctx, r.id, func(c *config.Config) { c.UI.CodeHighlight = v })
+	case rowCodeCompl:
+		return s.saveLocal(ctx, r.id, func(c *config.Config) { c.UI.CodeComplete = v })
 	case rowDesktop:
 		return s.saveLocal(ctx, r.id, func(c *config.Config) { c.Notify.Desktop = v })
 	case rowPrivate:

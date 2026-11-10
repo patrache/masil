@@ -361,6 +361,26 @@ func TestLocalToggles(t *testing.T) {
 			t.Fatal("config ui.paint_background not saved")
 		}
 	})
+	t.Run("code editor", func(t *testing.T) { // v0.1.3-1
+		h, _ := newSettings(t, "display")
+		if !h.Context().Config.UI.CodeHighlight || !h.Context().Config.UI.CodeComplete {
+			t.Fatal("code highlighting / completion must start on")
+		}
+		selectRow(t, h, "코드 하이라이트")
+		h.Press("enter")
+		if h.Context().Config.UI.CodeHighlight || loadConfig(t, h).UI.CodeHighlight {
+			t.Fatal("code_highlight not toggled/saved")
+		}
+		selectRow(t, h, "코드 자동추천")
+		h.Press("space")
+		if h.Context().Config.UI.CodeComplete || loadConfig(t, h).UI.CodeComplete {
+			t.Fatal("code_complete not toggled/saved")
+		}
+		h.Press("enter")
+		if !loadConfig(t, h).UI.CodeComplete {
+			t.Fatal("code_complete not back on")
+		}
+	})
 	t.Run("clock and desktop", func(t *testing.T) {
 		h, _ := newSettings(t, "display")
 		selectRow(t, h, "시계")
