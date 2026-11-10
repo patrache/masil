@@ -301,3 +301,32 @@ func FuzzImportPostman(f *testing.F) {
 		}
 	})
 }
+
+// A Postman or curl method that is not an HTTP token (control bytes from a
+// hostile file or pasted command) keeps only its shown text: no control
+// byte reaches the model.
+func TestImportDropsMethodControls(t *testing.T) {
+	bad := "GET\x1b]52;c;ZXZpbA==\a"
+	raw, _ := json.Marshal(bad)
+	doc := `{"info":{"name":"m","schema":"` + postmanSchema + `"},"item":[
+		{"name":"bad","request":{"method":` + string(raw) + `,"url":"https://x.example/a"}},
+		{"name":"ok","request":{"method":"patch","url":"https://x.example/b"}}]}`
+	c, _, err := ImportPostman([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, r := range c.Requests {
+		got[r.Name] = r.Method
+	}
+	if strings.ContainsAny(got["bad"], "\x1b\a") || got["ok"] != "PATCH" {
+		t.Fatalf("methods = %q", got)
+	}
+	r, _, err := ParseCurl("curl -X $'GET\\x1b]0;PWN\\a' https://x.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(r.Method, "\x1b\a") {
+		t.Fatalf("curl method kept controls: %q", r.Method)
+	}
+}

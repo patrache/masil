@@ -3,20 +3,22 @@ package apitool
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/patrache/masil/internal/collab"
 )
 
 // A peer's unknown body kind (the server refuses one; an old or forged
-// document may still hold it) reads as no body; the method is kept as
-// written (Prepare refuses a method that is not a token, the screen
-// sanitizes it).
+// document may still hold it) reads as no body; a method that is not an
+// HTTP token keeps only its shown text (no control byte), and one that is
+// still not a token is refused by Prepare.
 func TestCollectionFromDocUnknownBodyKind(t *testing.T) {
 	objs := []collab.Object{
 		{ID: "col", Type: ObjCol, Fields: map[string]json.RawMessage{"name": mustRaw("c")}},
 		{ID: "req:a", Type: ObjRequest, Fields: map[string]json.RawMessage{"name": mustRaw("a"), "method": mustRaw("GET\x1b]0;x\a"), "body_kind": mustRaw("kind\x1b]52;c;eA==\a")}},
 		{ID: "req:b", Type: ObjRequest, Fields: map[string]json.RawMessage{"name": mustRaw("b"), "method": mustRaw("POST"), "body_kind": mustRaw("json")}},
+		{ID: "req:c", Type: ObjRequest, Fields: map[string]json.RawMessage{"name": mustRaw("c"), "method": mustRaw("GE T\x1b]0;x\a")}},
 	}
 	c, err := CollectionFromDoc(collab.Snapshot{Objects: objs})
 	if err != nil {
@@ -28,8 +30,42 @@ func TestCollectionFromDocUnknownBodyKind(t *testing.T) {
 	if k := c.Requests["b"].Body.Kind; k != BodyJSON {
 		t.Fatalf("json body kind read as %q", k)
 	}
-	if _, err := Prepare(c.Requests["a"], "", &Scope{}, Dyn{}); err == nil {
-		t.Fatal("a method with controls was prepared")
+	if m := c.Requests["a"].Method; strings.ContainsAny(m, "\x1b\a") {
+		t.Fatalf("a method with controls read as %q", m)
+	}
+	if m := c.Requests["b"].Method; m != "POST" {
+		t.Fatalf("POST read as %q", m)
+	}
+	if m := c.Requests["c"].Method; strings.ContainsAny(m, "\x1b\a") {
+		t.Fatalf("a method with controls read as %q", m)
+	}
+	if _, err := Prepare(c.Requests["c"], "", &Scope{}, Dyn{}); !errors.Is(err, ErrBadMethod) {
+		t.Fatalf("a method still not a token was prepared: %v", err)
+	}
+}
+
+// A personal collection file (from git, a teammate, an older masil) is
+// read the same way: a method that is not an HTTP token and an unknown body
+// kind are cleared on load; good ones are kept.
+func TestLoadCollectionNormalizesMethodAndBodyKind(t *testing.T) {
+	st := testStore(t)
+	c := &Collection{Version: CollectionVersion, Name: "c", Requests: map[string]*Request{
+		"a": {ID: "a", Method: "GET\x1b]52;c;ZXZpbA==\a", URL: "https://x.example", Body: Body{Kind: BodyKind("x\x1b]0;PWN\a")}},
+		"b": {ID: "b", Method: "patch", URL: "https://x.example", Body: Body{Kind: BodyJSON, Text: "{}"}},
+	}, Root: Folder{Items: []Node{{Request: "a"}, {Request: "b"}}}}
+	if err := st.SaveCollection(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.LoadCollection("c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := got.Requests["a"], got.Requests["b"]
+	if strings.ContainsAny(a.Method, "\x1b\a") || a.Body.Kind != BodyNone {
+		t.Fatalf("hostile request loaded as method %q, body kind %q", a.Method, a.Body.Kind)
+	}
+	if b.Method != "patch" || b.Body.Kind != BodyJSON {
+		t.Fatalf("good request loaded as method %q, body kind %q", b.Method, b.Body.Kind)
 	}
 }
 

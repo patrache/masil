@@ -494,6 +494,7 @@ func CollectionFromDoc(s collab.Snapshot) (*Collection, error) {
 		}
 		f.into("auth", &r.Auth)
 		f.into("settings", &r.Settings)
+		NormalizeRequest(r)
 		c.Requests[id] = r
 		p := f.str("folder")
 		if _, ok := folders[p]; !ok {

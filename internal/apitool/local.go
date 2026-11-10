@@ -149,6 +149,7 @@ func (s *LocalStore) LoadCollection(name string) (*Collection, error) {
 			return nil, err
 		}
 		r.ID = id
+		NormalizeRequest(&r)
 		c.Requests[id] = &r
 	}
 	inTree := map[string]bool{}

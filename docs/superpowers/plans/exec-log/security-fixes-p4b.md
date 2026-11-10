@@ -22,3 +22,15 @@
 - 내 판단: (aa) 상한은 폴더 1,000개(요청 상한과 같음), 깊이 32. 동료 문서가 넘으면 거부하지 않고 상한 안으로 읽는다 — 폴더 id 순으로 앞 1,000개만 두고 나머지의 항목은 맨 위로, 32단을 넘는 폴더는 맨 위에서 새 사슬을 시작. 내 편집·올리기가 넘으면 `CheckSharedLimits` 가 거부(화면은 기존 `shared_too_large` 토스트).
 - 내 판단: (ac) 설정의 `insecure` 는 계속 공유한다(스펙 C3.7 의 요청 설정, 요청 줄 경고 그대로). 대신 공유 요청이 **남의 것**(foreignInfo: 동료가 마지막으로 바꿨거나 누가 바꿨는지 모름)이고 인증서 검사가 꺼져 있으면 첫 보내기 전에 `insecure_peer`/`insecure_unknown` 으로 묻고(검사 없이 보내기/취소), 승낙은 private_target 과 같은 열쇠(문서/요청/그 버전)로 이번 실행 동안 기억한다 — 동료가 그 요청을 다시 바꾸면 다시 묻는다. 내가 설정 탭에서 직접 끄면 승낙으로 친다. 실행기(컬렉션 실행)는 묻지 않고 승낙 없는 요청을 **검사를 켠 채** 보낸다(자체 서명 인증서면 TLS 실패로 보임). 비밀 변수 사용 여부와 무관하게 묻는다 — 비밀이 없어도 응답을 믿게 되는 문제는 같다.
 - 내 판단: 훑기 — internal/ui/apitool 의 그리기 경로(편집기 6탭·URL 줄 두 갈래·트리·초소형·환경 화면·대화창·실행기·응답 탭·카드)를 확인했다. 대화창 본문·선택지·제목, 트리 행, 응답 머리·검사 줄, 실행기 이름, 카드는 이미 정화. 새로 고친 곳은 본문 종류 이름과 비밀 가림 끝 4글자 두 곳.
+
+## 2차 — 재검토에서 남은 것 (ac)(y)(s)
+
+- (ac) 고침 — `markRequests` 가 작성자 없는 변경(오프라인 사본·hello 스냅숏·압축된 따라잡기)에서 이미 남의 것인 요청의 `Seq` 를 옮기지 않아, 앞 버전에 준 승낙(인증서 검사 끄기·사설 대상, 열쇠 `privKey(문서, 요청, Seq)`)이 동료가 바꾼 URL 에도 그대로 쓰였다. 이제 버전은 늘 옮기고 알던 동료 이름은 둔다(`sharedview.go` `markRequests`). 시험 `TestPeerConsentAskedAgainAfterSnapshot`.
+- (y) 고침 — 걸린 칸 질문이 모든 헤더·쿼리·변수에서 똑같이 "칸: value" 였다. `HeldField.Name`(값 칸일 때 행 key·변수 name)을 `GateIn` 이 채우고, 질문은 "칸: Authorization (value)" 와 "요청: 결제 생성" 을 보인다(정화). 새 카탈로그 키 `held_field_named`, `held_request`(ko, en). 시험 `TestHeldQuestionNamesField`, `TestGateNamesSetValues`(Name 확인 추가).
+- (s) 고침 — 읽기 때 정규화를 더함: `apitool.NormalizeRequest` 를 `LoadCollection`(개인 파일), `CollectionFromDoc`(공유 문서), Postman 가져오기, curl 붙여넣기가 부른다. OpenAPI 가져오기는 메서드를 8개 열거로만, 본문 종류를 상수로만 만들어 따로 하지 않았다. 시험 `TestLoadCollectionNormalizesMethodAndBodyKind`, `TestCollectionFromDocUnknownBodyKind`(바뀜), `TestImportDropsMethodControls`.
+
+## 2차 내 판단
+
+- 내 판단: (s) HTTP 토큰이 아닌 메서드는 비우거나 GET 으로 바꾸지 않고 `textwidth.Sanitize` 한 글자(모든 그리기 자리가 이미 보이던 그것)만 남긴다. 그래서 화면에 "GET" 으로 보이던 것은 GET 으로 나가고, 정화해도 토큰이 아닌 것(예: "GE T")은 전처럼 `Prepare` 가 `ErrBadMethod` 로 막는다 — 1차 판단(동료의 깨진 요청을 조용히 다른 메서드로 바꾸지 않음)을 지키면서 모델에서 제어 바이트를 없앤다. 1차 판단의 "가져오기·로컬 파일은 영역 밖" 부분은 이번에 대체한다. 모르는 `body_kind` 는 어디서 읽든 none. Postman 가져오기의 보고(Ignored)에는 따로 적지 않았다. 서버 `apicol.ts` 의 `method` 는 여전히 문자열 검사만 한다(서버는 이 묶음 범위 밖, 클라이언트 정규화로 충분하다고 봄).
+- 내 판단: (y) 요청 이름은 질문 시점의 공유 상태(`sd.col`, 이미 보낸 연산 반영)에서 행·요청 id 로 찾는다. 환경·컬렉션 변수는 요청이 없으니 요청 줄을 빼고 변수 이름만 보인다. URL 안의 쿼리 값은 칸이 "url" 이라 이름 대신 요청 줄로 구별한다.
+- 내 판단: (ac) 작성자 없는 스냅숏이 버전을 옮기면, 오프라인 사본에서 승낙한 뒤 서버가 더 새 버전을 주면(그 사이 아무 요청이든 바뀌었으면) 한 번 더 묻는다 — 스냅숏(reset)은 모든 객체를 바뀜으로 알리므로 어느 요청이 실제로 바뀌었는지 구별하지 않는다. 같은 버전이면 열쇠가 같아 다시 묻지 않는다.

@@ -276,6 +276,7 @@ func (im *pmImporter) request(it pmItem, name string, parent apitool.Auth) *apit
 		pr.URL, _ = json.Marshal(rawURL)
 	}
 	r := &apitool.Request{ID: ids.New(), Name: name, Method: strings.ToUpper(strings.TrimSpace(string(pr.Method)))}
+	apitool.NormalizeRequest(r)
 	if r.Method == "" {
 		r.Method = "GET"
 	}
