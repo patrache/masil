@@ -67,6 +67,10 @@ type UIConfig struct {
 	// Language is auto | ko | en | zh-Hans (i18n spec 6.2). 0.1.3 opens ko only
 	// and hides the settings row; MASIL_LANG still overrides it.
 	Language string `toml:"language"`
+	// CodeHighlight and CodeComplete are the built-in code editors' syntax
+	// colors and completion menu (v0.1.3-1; default on).
+	CodeHighlight bool `toml:"code_highlight"`
+	CodeComplete  bool `toml:"code_complete"`
 }
 
 // NotifyConfig is the [notify] table.
@@ -103,6 +107,8 @@ func Defaults() *Config {
 			PaintBackground: true,
 			Clock:           "24h",
 			Language:        "auto",
+			CodeHighlight:   true,
+			CodeComplete:    true,
 		},
 		Notify:   NotifyConfig{Desktop: true},
 		Keys:     map[string][]string{},
