@@ -7,6 +7,7 @@ import { rt, type AppEnv } from "../env";
 import { getAuth, requireAuth, resolveUserRef } from "../lib/auth";
 import { all, batch, decodeCursor, encodeCursor, first, parseLimit, stmt } from "../lib/db";
 import { err } from "../lib/errors";
+import { defaultChannelName, langOf } from "../lib/i18n";
 import { idParam } from "../lib/params";
 import { newId } from "../lib/ids";
 import { assertSpaceRole, requireSpaceRole, spaceRoleFrom, spaceRoleStmt } from "../lib/permissions";
@@ -33,8 +34,6 @@ import type { SpaceBanRow, SpaceMemberRow, SpaceRow } from "../types/rows";
 const ICON_EMOJI_MAX_BYTES = 32;
 /** Ban reason: the client's form allows 0..200 code points (plan 04); the server enforces the same. */
 const BAN_REASON_MAX = 200;
-/** Default channel created with every space (api.md 3.5). */
-const DEFAULT_CHANNEL_NAME = "일반";
 
 const zIconEmoji = z
   .string()
@@ -113,6 +112,8 @@ spaceRoutes.post("/spaces", requireAuth, limit("RL_SOCIAL"), vJson(CreateBody), 
   const owned = await first<{ n: number }>(db, "SELECT COUNT(*) AS n FROM spaces WHERE owner_id = ?1 AND deleted_at IS NULL", me);
   if ((owned?.n ?? 0) >= OWNED_SPACES_MAX) throw err.limit("owned_spaces", OWNED_SPACES_MAX);
 
+  // api.md 5.7: the default channel is named in the request language; afterwards the name is user data.
+  const defaultName = defaultChannelName(langOf(c.req.header("Accept-Language")));
   const t = now();
   const spaceId = newId(t);
   const channelId = newId(t);
@@ -135,7 +136,7 @@ spaceRoutes.post("/spaces", requireAuth, limit("RL_SOCIAL"), vJson(CreateBody), 
        VALUES (?1, 'text', ?2, ?3, '', 0, 0, ?4, ?5, ?5)`,
       channelId,
       spaceId,
-      DEFAULT_CHANNEL_NAME,
+      defaultName,
       me,
       t,
     ),

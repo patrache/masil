@@ -4,7 +4,11 @@ import * as z from "zod";
 import type { AppEnv } from "../../src/env";
 import { onError } from "../../src/lib/errors";
 import { decodeCursor, parseLimit } from "../../src/lib/db";
-import { vJson, vQuery, zId, zNonce, zText, zUserRef } from "../../src/lib/validate";
+import { CHANNEL_NAME_RE, vJson, vQuery, zChannelName, zId, zNonce, zText, zUserRef } from "../../src/lib/validate";
+
+// api.md 0.3 channel names: one table shared with the Go client (internal/ui/chat TestChannelNameRuleMatchesServer).
+const channelNamesRaw = import.meta.glob("../fixtures/channel-names.json", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const channelNames = JSON.parse(Object.values(channelNamesRaw)[0]!) as { valid: string[]; invalid: string[] };
 
 function app() {
   const a = new Hono<AppEnv>();
@@ -43,5 +47,17 @@ describe("validate", () => {
   it("cursor/limit errors are invalid_request", () => {
     expect(() => decodeCursor("%%%")).toThrow(expect.objectContaining({ code: "invalid_request", details: { fields: { cursor: "invalid" } } }));
     expect(() => parseLimit("0")).toThrow(expect.objectContaining({ status: 400, details: { fields: { limit: "invalid" } } }));
+  });
+
+  it("channel names allow CJK unified ideographs", () => {
+    for (const n of ["前端", "后端_api", "㐀", "综合"]) expect(CHANNEL_NAME_RE.test(n), n).toBe(true);
+    for (const n of ["前端!", "Ａ", "ｱ", "😀", "一".repeat(33)]) expect(CHANNEL_NAME_RE.test(n), n).toBe(false);
+    expect(CHANNEL_NAME_RE.test("一".repeat(32))).toBe(true);
+    expect(channelNames.valid.length).toBeGreaterThan(0);
+    for (const n of channelNames.valid) {
+      expect(CHANNEL_NAME_RE.test(n), n).toBe(true);
+      expect(zChannelName.safeParse(n).success, n).toBe(true);
+    }
+    for (const n of channelNames.invalid) expect(CHANNEL_NAME_RE.test(n), n).toBe(false);
   });
 });

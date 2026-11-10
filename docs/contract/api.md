@@ -18,7 +18,7 @@
 - 클라이언트는 모든 요청에 `User-Agent: masil/<semver> (<os>; <arch>)` 를 보낸다(예: `masil/0.1.0 (darwin; arm64)`).
 - 응답 헤더 `X-Request-Id: <ULID>` — 오류 보고용.
 - 응답 본문의 알 수 없는 필드는 클라이언트가 무시한다(추가는 하위 호환). 요청의 알 수 없는 필드는 서버가 무시한다.
-- **v0.1.3 — 언어 (i18n 설계서 7.3)**: 클라이언트는 모든 REST 요청과 WebSocket 연결 요청(`GET /v1/ws` — 데몬 notify 연결 포함, `GET /v1/docs/{doc_id}/ws`)에 `Accept-Language: <ko|en|zh-Hans>`(지금 실효 언어 하나, 0.1.3 클라이언트는 `ko`)를 보낸다. 서버는 값이 정확히 `ko`·`en`·`zh-Hans` 중 하나가 아니면(`en-US`·`zh`·빈 값·헤더 없음 포함) `ko` 로 본다. 서버는 이 값을 **저장하지 않는다** — 그 요청 처리 중, 또는 그 소켓 연결의 메모리 안에서만 쓴다. 쓰는 곳은 사용자용 대체 문구(`Alert.title`/`body`, 2장)뿐이다. 언어를 바꾸면 다음 요청부터 새 값, 소켓은 다음 재접속부터.
+- **v0.1.3 — 언어 (i18n 설계서 7.3)**: 클라이언트는 모든 REST 요청과 WebSocket 연결 요청(`GET /v1/ws` — 데몬 notify 연결 포함, `GET /v1/docs/{doc_id}/ws`)에 `Accept-Language: <ko|en|zh-Hans>`(지금 실효 언어 하나, 0.1.3 클라이언트는 `ko`)를 보낸다. 서버는 값이 정확히 `ko`·`en`·`zh-Hans` 중 하나가 아니면(`en-US`·`zh`·빈 값·헤더 없음 포함) `ko` 로 본다. 서버는 이 값을 **저장하지 않는다** — 그 요청 처리 중, 또는 그 소켓 연결의 메모리 안에서만 쓴다. 쓰는 곳은 사용자용 대체 문구(`Alert.title`/`body`, 2장)와 방을 만들 때의 기본 채널 이름(5.7 `POST /v1/spaces`)뿐이다. 언어를 바꾸면 다음 요청부터 새 값, 소켓은 다음 재접속부터.
 
 ### 0.2 사용자 참조 `{user}`
 
@@ -46,7 +46,7 @@
 | story body | 0..200 |
 | guestbook body | 1..300 |
 | space name | 1..50, description 0..200 |
-| channel name (text) | `^[a-z0-9가-힣_-]{1,32}$` |
+| channel name (text) | `^[a-z0-9가-힣㐀-䶿一-鿿_-]{1,32}$` (v0.1.3 P5 Task 20: CJK 통합 한자 U+4E00–U+9FFF·확장 A U+3400–U+4DBF 추가) |
 | channel topic | 0..250 |
 | group_dm name | 0..50 |
 | poll question | 1..200, 선택지 2..10개, 각 1..80 |
@@ -805,7 +805,7 @@ interface WorkspaceShareMember {
 - 비공개 채널은 그 채널 멤버만 보고(방장·관리자라도 멤버가 아니면 목록에 안 보임), 공개 채널은 방 멤버 전원.
 - 방에서 빠지면(**스스로 나가기·강퇴·밴 모두**) 같은 batch 안에서 그 방의 모든 비공개 채널의 `channel_members` 행도 지운다(`channels.member_count` 감소 포함). 밴은 강퇴 + 초대 수락 차단.
 - 방이 삭제되면 그 방의 채널은 모두 소프트 삭제되고, 위 읽기 검사의 "방 미삭제" 조건 때문에 `channel_members` 행이 남아 있어도 접근·청중에서 빠진다.
-- 기본 채널(`default_channel_id`, 생성 시 `일반`)은 삭제 불가(`409 conflict`, `reason:"default_channel"`).
+- 기본 채널(`default_channel_id`, 생성 시 요청 언어의 기본 이름 — 5.7)은 삭제 불가(`409 conflict`, `reason:"default_channel"`).
 - 한도: 사용자당 소유 방 100개, 방당 채널 100개, 방당 멤버 5,000명.
 
 ### 3.6 접속 상태 공개 범위
@@ -1055,7 +1055,7 @@ DM 도 `Channel`(`kind:"dm"|"group_dm"`) 이다. 메시지·고정·읽음·설�
 
 #### `POST /v1/spaces`
 - `RL_SOCIAL`. 요청: `{ "name": "노바 개발방", "description"?: string, "icon_emoji"?: string }`
-- 기본 채널 `일반`(공개) 생성, 만든 사람 owner.
+- 기본 채널(공개) 생성, 만든 사람 owner. 기본 채널 이름은 요청 `Accept-Language`(0.1)로 ko `일반` / en `general` / zh-Hans `综合`, 그 밖(헤더 없음 포함)은 ko `일반`. 만든 뒤에는 사용자 데이터 — 나중에 언어를 바꿔도 이름은 그대로다(v0.1.3, P5 Task 20).
 - `201 { "space": SpaceDetail }` · 이벤트: `space.joined`(나의 연결) · 오류: `422 limit_exceeded`(`owned_spaces`)
 
 #### `GET /v1/spaces/{space_id}`

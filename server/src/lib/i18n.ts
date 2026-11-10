@@ -12,6 +12,18 @@ export function langOf(header: string | null | undefined): Lang {
   return header === "en" || header === "zh-Hans" || header === "ko" ? header : "ko";
 }
 
+// ---- P5 (Task 20) ----
+
+const DEFAULT_CHANNEL_NAMES: Record<Lang, string> = { ko: "일반", en: "general", "zh-Hans": "综合" };
+
+/**
+ * api.md 5.7 POST /v1/spaces: the name of the default channel made with a new space, in the request language
+ * (langOf). Each is a valid channel name (api.md 0.3). Once made, the name is user data — never renamed later.
+ */
+export function defaultChannelName(l: Lang): string {
+  return DEFAULT_CHANNEL_NAMES[l];
+}
+
 /** What an alert's body is: none = "", verbatim = the user's own text (any language), template = rendered here. */
 export type BodyKind = "none" | "verbatim" | "template";
 
