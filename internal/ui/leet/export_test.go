@@ -5,6 +5,7 @@ import (
 
 	"time"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/ui"
@@ -154,4 +155,26 @@ func CompletionLabelsForTest(c ui.Component) []string {
 		out = append(out, it.Label)
 	}
 	return out
+}
+
+// UserShellForTest is the shell t starts on goos with the environment getenv.
+func UserShellForTest(goos string, getenv func(string) string) string { return userShell(goos, getenv) }
+
+// EditorPathForTest is the file the editor slot shows ("" = empty).
+func EditorPathForTest(c ui.Component) string {
+	in := c.(*instance)
+	if in.ed == nil {
+		return ""
+	}
+	return in.ed.Path()
+}
+
+// EditorLangForTest is the built-in editor's highlighting language (its
+// chroma lexer name; "" = no built-in editor).
+func EditorLangForTest(c ui.Component) string {
+	g, ok := c.(*instance).ed.(*goEditor)
+	if !ok {
+		return ""
+	}
+	return codeassist.ChromaName(g.lang)
 }

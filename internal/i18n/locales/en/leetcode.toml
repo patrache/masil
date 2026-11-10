@@ -94,11 +94,17 @@ other = "Open the daily problem"
 [cmd_settings]
 other = "Daily problem settings"
 
+[cmd_terminal]
+other = "Daily problem: open a terminal"
+
 [code_placeholder]
 other = "e open the editor"
 
 [code_stored_warning]
 other = "The code is stored as is on the masil server; anyone who can read this channel and the operators can see it."
+
+[code_title]
+other = "{lang} · {file}"
 
 [code_too_long]
 other = "The code is over 4000 characters and can't be attached"
@@ -149,10 +155,10 @@ other = "🧩 {id} · {difficulty} ── {date} (UTC) · next in {countdown}"
 other = "🧩 {id} {difficulty}"
 
 [hints_wide]
-other = "e editor · r run · s submit · o browser · l language · c card"
+other = "e editor · t terminal · r run · s submit · o browser · c card"
 
 [hints_widget]
-other = "← → problem/code/result · e edit · r run · s submit"
+other = "← → tabs · e edit · r run · s submit · t terminal"
 
 [hub_not_loaded]
 other = "Today's problem not fetched yet"
@@ -171,6 +177,12 @@ other = "Daily LC · {id}"
 
 [judge_failed]
 other = "Couldn't send it · try again in a moment"
+
+[lang_hint]
+other = "l lang: {lang}"
+
+[lang_switched]
+other = "Language: {from} → {to}"
 
 [link_copied]
 other = "Couldn't open a browser; link copied"
@@ -367,11 +379,17 @@ other = "Result"
 [tags]
 other = "Tags {tags}"
 
+[term_title]
+other = "Terminal · {shell}"
+
 [tiny_actions]
 other = "r run · s submit · c card"
 
 [tiny_edit]
 other = "E edit (full screen)"
+
+[tiny_more]
+other = "t terminal · l lang: {lang}"
 
 [tiny_read]
 other = "enter read problem"

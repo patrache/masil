@@ -1,8 +1,8 @@
 [도구]  🧩 오늘의 문제 · 1606                                                                                           
 ╔═ 오늘의 문제 · 1606 ═════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║🧩 1606 · Hard ── 2026-11-05 (UTC) · 다음 문제까지 21:54                                                              ║
-║Find Servers That Handled Most Number of│e 편집기 열기                                                                ║
-║Requests                                │                                                                             ║
+║Find Servers That Handled Most Number of│Go · 2026-11-05-1606-find-servers-that-handled-most-number-of-requests.go    ║
+║Requests                                │e 편집기 열기                                                                ║
 ║태그 Array · Greedy · Heap (Priority Qu…│                                                                             ║
 ║                                        │                                                                             ║
 ║Test fixture: k servers take requests in│                                                                             ║
@@ -25,6 +25,6 @@
 ║입력  3, [1,2,3], [10,12,11]            │                                                                             ║
 ║내 출력  [0,1,2]                        │                                                                             ║
 ║기대  [0,1,2]                           │                                                                             ║
-║e 편집기 · r 실행 · s 제출 · o 브라우저 · l 언어 · c 카드                                                             ║
+║e 편집기 · t 터미널 · r 실행 · s 제출 · o 브라우저 · c 카드 · l 언어: Go                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
  컴팩트  [ ] 탭 이동 · enter 스레드                                                                            ● 온라인 

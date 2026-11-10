@@ -256,6 +256,13 @@ var areaLeetcode = area{
 				En: {Other: "Daily problem settings"},
 			},
 		},
+		"cmd_terminal": {
+			desc: "명령 팔레트 항목: 앞에 있는 오늘의 문제에 터미널(내 $SHELL, 풀이 폴더에서) 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "오늘의 문제: 터미널 열기"},
+				En: {Other: "Daily problem: open a terminal"},
+			},
+		},
 		"code_placeholder": {
 			desc: "편집기 자리가 아직 비었을 때. e = 편집기 열기 키",
 			text: map[Locale]Forms{
@@ -270,6 +277,14 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "코드는 masil 서버에 그대로 저장되고, 이 채널을 읽을 수 있는 사람과 운영자가 볼 수 있어요."},
 				En: {Other: "The code is stored as is on the masil server; anyone who can read this channel and the operators can see it."},
+			},
+		},
+		"code_title": {
+			desc:   "코드 칸 머리 줄: 지금 풀이 언어와 풀이 파일 이름. lang = 언어 이름(Go, Python3 … 번역하지 않음), file = 파일 이름",
+			params: []Param{{Name: "lang", Type: "string"}, {Name: "file", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{lang} · {file}"},
+				En: {Other: "{lang} · {file}"},
 			},
 		},
 		"code_too_long": {
@@ -399,19 +414,19 @@ var areaLeetcode = area{
 			},
 		},
 		"hints_wide": {
-			desc: "문제 보기(표준·지휘소·컴팩트) 맨 아래 키 안내. 키 이름 e r s o l c 는 번역하지 않음",
+			desc: "문제 보기(표준·지휘소·컴팩트) 맨 아래 키 안내(끝에 lang_hint 가 붙음). 키 이름 e t r s o c 는 번역하지 않음",
 			max:  64,
 			text: map[Locale]Forms{
-				Ko: {Other: "e 편집기 · r 실행 · s 제출 · o 브라우저 · l 언어 · c 카드"},
-				En: {Other: "e editor · r run · s submit · o browser · l language · c card"},
+				Ko: {Other: "e 편집기 · t 터미널 · r 실행 · s 제출 · o 브라우저 · c 카드"},
+				En: {Other: "e editor · t terminal · r run · s submit · o browser · c card"},
 			},
 		},
 		"hints_widget": {
-			desc: "위젯 모드 문제 보기 맨 아래 키 안내(하위 탭 문제/코드/결과 이동과 키)",
+			desc: "위젯 모드 문제 보기 맨 아래 키 안내(하위 탭 문제/코드/결과 이동과 키, 끝에 lang_hint 가 붙음)",
 			max:  56,
 			text: map[Locale]Forms{
-				Ko: {Other: "← → 문제/코드/결과 · e 편집 · r 실행 · s 제출"},
-				En: {Other: "← → problem/code/result · e edit · r run · s submit"},
+				Ko: {Other: "← → 문제/코드/결과 · e 편집 · r 실행 · s 제출 · t 터미널"},
+				En: {Other: "← → tabs · e edit · r run · s submit · t terminal"},
 			},
 		},
 		"hub_not_loaded": {
@@ -461,6 +476,23 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "보내지 못했어요 · 잠시 뒤 다시 해 주세요"},
 				En: {Other: "Couldn't send it · try again in a moment"},
+			},
+		},
+		"lang_hint": {
+			desc:   "맨 아래 키 안내 끝에 붙는 지금 풀이 언어. l = 언어 바꾸기 키(번역하지 않음), lang = 언어 이름(Go, Python3 …)",
+			params: []Param{{Name: "lang", Type: "string"}},
+			max:    20,
+			text: map[Locale]Forms{
+				Ko: {Other: "l 언어: {lang}"},
+				En: {Other: "l lang: {lang}"},
+			},
+		},
+		"lang_switched": {
+			desc:   "토스트: l 로 풀이 언어를 바꿨을 때. from = 이전 언어, to = 새 언어(번역하지 않음)",
+			params: []Param{{Name: "from", Type: "string"}, {Name: "to", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "언어: {from} → {to}"},
+				En: {Other: "Language: {from} → {to}"},
 			},
 		},
 		"link_copied": {
@@ -954,6 +986,15 @@ var areaLeetcode = area{
 				En: {Other: "Tags {tags}"},
 			},
 		},
+		"term_title": {
+			desc:   "코드 칸 아래 터미널 머리 줄. shell = 셸 이름(zsh, bash …)",
+			params: []Param{{Name: "shell", Type: "string"}},
+			max:    30,
+			text: map[Locale]Forms{
+				Ko: {Other: "터미널 · {shell}"},
+				En: {Other: "Terminal · {shell}"},
+			},
+		},
 		"tiny_actions": {
 			desc: "초소형 모드 키 안내: 실행·제출·카드",
 			max:  30,
@@ -968,6 +1009,15 @@ var areaLeetcode = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "E 편집(전체 화면)"},
 				En: {Other: "E edit (full screen)"},
+			},
+		},
+		"tiny_more": {
+			desc:   "초소형 모드 키 안내: t 로 터미널(화면 전환), 지금 풀이 언어(l 로 바꿈). lang = 언어 이름",
+			params: []Param{{Name: "lang", Type: "string"}},
+			max:    30,
+			text: map[Locale]Forms{
+				Ko: {Other: "t 터미널 · l 언어: {lang}"},
+				En: {Other: "t terminal · l lang: {lang}"},
 			},
 		},
 		"tiny_read": {
@@ -1166,6 +1216,11 @@ func (a_ LeetcodeT) CmdSettings() string {
 	return a_.t.render(&areaLeetcode, "cmd_settings", false, 0)
 }
 
+// CmdTerminal: 명령 팔레트 항목: 앞에 있는 오늘의 문제에 터미널(내 $SHELL, 풀이 폴더에서) 열기
+func (a_ LeetcodeT) CmdTerminal() string {
+	return a_.t.render(&areaLeetcode, "cmd_terminal", false, 0)
+}
+
 // CodePlaceholder: 편집기 자리가 아직 비었을 때. e = 편집기 열기 키
 func (a_ LeetcodeT) CodePlaceholder() string {
 	return a_.t.render(&areaLeetcode, "code_placeholder", false, 0)
@@ -1174,6 +1229,11 @@ func (a_ LeetcodeT) CodePlaceholder() string {
 // CodeStoredWarning: 풀이 카드 대화상자 주의(A10.5 — 줄여 쓰지 않음): 붙인 코드는 masil 서버에 그대로 저장되고 그 채널을 읽는 사람과 운영자가 볼 수 있다
 func (a_ LeetcodeT) CodeStoredWarning() string {
 	return a_.t.render(&areaLeetcode, "code_stored_warning", false, 0)
+}
+
+// CodeTitle: 코드 칸 머리 줄: 지금 풀이 언어와 풀이 파일 이름. lang = 언어 이름(Go, Python3 … 번역하지 않음), file = 파일 이름
+func (a_ LeetcodeT) CodeTitle(lang string, file string) string {
+	return a_.t.render(&areaLeetcode, "code_title", false, 0, "lang", lang, "file", file)
 }
 
 // CodeTooLong: 풀이 카드 대화상자: 코드가 4000자를 넘어 붙일 수 없을 때
@@ -1256,12 +1316,12 @@ func (a_ LeetcodeT) HeaderWidget(id string, difficulty string) string {
 	return a_.t.render(&areaLeetcode, "header_widget", false, 0, "id", id, "difficulty", difficulty)
 }
 
-// HintsWide: 문제 보기(표준·지휘소·컴팩트) 맨 아래 키 안내. 키 이름 e r s o l c 는 번역하지 않음
+// HintsWide: 문제 보기(표준·지휘소·컴팩트) 맨 아래 키 안내(끝에 lang_hint 가 붙음). 키 이름 e t r s o c 는 번역하지 않음
 func (a_ LeetcodeT) HintsWide() string {
 	return a_.t.render(&areaLeetcode, "hints_wide", false, 0)
 }
 
-// HintsWidget: 위젯 모드 문제 보기 맨 아래 키 안내(하위 탭 문제/코드/결과 이동과 키)
+// HintsWidget: 위젯 모드 문제 보기 맨 아래 키 안내(하위 탭 문제/코드/결과 이동과 키, 끝에 lang_hint 가 붙음)
 func (a_ LeetcodeT) HintsWidget() string {
 	return a_.t.render(&areaLeetcode, "hints_widget", false, 0)
 }
@@ -1294,6 +1354,16 @@ func (a_ LeetcodeT) InstanceTitle(id string) string {
 // JudgeFailed: 실행·제출 요청이 실패했을 때(차단·속도 제한·로그인 만료 외)
 func (a_ LeetcodeT) JudgeFailed() string {
 	return a_.t.render(&areaLeetcode, "judge_failed", false, 0)
+}
+
+// LangHint: 맨 아래 키 안내 끝에 붙는 지금 풀이 언어. l = 언어 바꾸기 키(번역하지 않음), lang = 언어 이름(Go, Python3 …)
+func (a_ LeetcodeT) LangHint(lang string) string {
+	return a_.t.render(&areaLeetcode, "lang_hint", false, 0, "lang", lang)
+}
+
+// LangSwitched: 토스트: l 로 풀이 언어를 바꿨을 때. from = 이전 언어, to = 새 언어(번역하지 않음)
+func (a_ LeetcodeT) LangSwitched(from string, to string) string {
+	return a_.t.render(&areaLeetcode, "lang_switched", false, 0, "from", from, "to", to)
 }
 
 // LinkCopied: 토스트: 브라우저를 열지 못해 문제 링크를 클립보드에 복사했을 때
@@ -1621,6 +1691,11 @@ func (a_ LeetcodeT) Tags(tags string) string {
 	return a_.t.render(&areaLeetcode, "tags", false, 0, "tags", tags)
 }
 
+// TermTitle: 코드 칸 아래 터미널 머리 줄. shell = 셸 이름(zsh, bash …)
+func (a_ LeetcodeT) TermTitle(shell string) string {
+	return a_.t.render(&areaLeetcode, "term_title", false, 0, "shell", shell)
+}
+
 // TinyActions: 초소형 모드 키 안내: 실행·제출·카드
 func (a_ LeetcodeT) TinyActions() string {
 	return a_.t.render(&areaLeetcode, "tiny_actions", false, 0)
@@ -1629,6 +1704,11 @@ func (a_ LeetcodeT) TinyActions() string {
 // TinyEdit: 초소형 모드 키 안내: E 로 화면 전환 편집기(전체 화면)
 func (a_ LeetcodeT) TinyEdit() string {
 	return a_.t.render(&areaLeetcode, "tiny_edit", false, 0)
+}
+
+// TinyMore: 초소형 모드 키 안내: t 로 터미널(화면 전환), 지금 풀이 언어(l 로 바꿈). lang = 언어 이름
+func (a_ LeetcodeT) TinyMore(lang string) string {
+	return a_.t.render(&areaLeetcode, "tiny_more", false, 0, "lang", lang)
 }
 
 // TinyRead: 초소형 모드 키 안내: enter 로 문제 본문 읽기
