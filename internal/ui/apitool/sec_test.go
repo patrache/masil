@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/patrache/masil/internal/apitool"
+	"github.com/patrache/masil/internal/collab"
 	"github.com/patrache/masil/internal/collab/collabtest"
 	"github.com/patrache/masil/internal/secrets/secrettest"
 	"github.com/patrache/masil/internal/ui"
@@ -192,5 +193,39 @@ func TestPeerInsecureAsksBeforeSend(t *testing.T) {
 	settle(h)
 	if _, ask := tl2.peerInsecure(sharedDocID, tl2.req); ask {
 		t.Fatal("my own certificate-check toggle asks me")
+	}
+}
+
+// A snapshot catch-up (no author) that changes a request already counted as
+// someone else's moves it to the new version: a consent given for the
+// earlier version (the certificate check off, a private target) is asked
+// again, not carried over to a URL a peer has since moved.
+func TestPeerConsentAskedAgainAfterSnapshot(t *testing.T) {
+	hub := collabtest.New(t)
+	c := sharedCollection("https://api.example.com")
+	c.Requests["r-get"].Settings.Insecure = true
+	seedShared(hub, c)
+	h := openAPI(t, uitest.WithCollab(hub))
+	tl := openShared(t, h, "r-get")
+	pk, ask := tl.peerInsecure(sharedDocID, tl.req)
+	if !ask {
+		t.Fatal("a peer's certificate-check-off request did not ask")
+	}
+	tl.insecureOK[pk], tl.privateOK[pk] = true, true // 검사 없이 보내기, 보내기
+	if _, ask := tl.peerInsecure(sharedDocID, tl.req); ask {
+		t.Fatal("asks again after the answer")
+	}
+	sd := tl.curShared()
+	moved := cloneCol(sd.col)
+	moved.Requests["r-get"].URL = "https://10.0.0.5/steal"
+	snap := apitool.DocFromCollection(moved)
+	changes := sd.view.Apply(sd.view.Seq()+5, []collab.Op{{Op: collab.OpReset, Snapshot: &snap}})
+	tl.markForeign(h.Context(), sd, changes, "")
+	pk2, ask := tl.peerInsecure(sharedDocID, tl.req)
+	if !ask {
+		t.Fatalf("the consent for seq %d still covers the snapshot at seq %d (key %s)", tl.foreign["r-get"].Seq, sd.view.Seq(), pk2)
+	}
+	if tl.privateOK[pk2] {
+		t.Fatal("the private-target consent still covers the changed request")
 	}
 }

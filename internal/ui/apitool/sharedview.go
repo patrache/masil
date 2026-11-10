@@ -674,7 +674,8 @@ func (t *Tool) markForeign(ctx *ui.Context, sd *sharedDoc, changes []collab.Chan
 }
 
 // markRequests marks reqs someone else's: by author (direct ones also get
-// the "last changed" time), or unknown when author is "".
+// the "last changed" time), or unknown when author is "" (a peer already
+// known keeps their name); either way at the view's current version.
 func (t *Tool) markRequests(ctx *ui.Context, sd *sharedDoc, reqs, direct map[string]bool, author string) {
 	seq := 0
 	if sd.view != nil {
@@ -682,9 +683,14 @@ func (t *Tool) markRequests(ctx *ui.Context, sd *sharedDoc, reqs, direct map[str
 	}
 	for r := range reqs {
 		if author == "" {
-			if !t.foreign[r].foreign() {
-				t.foreign[r] = foreignInfo{Unknown: true, Seq: seq}
+			// A known peer stays named, but the version always moves: a
+			// consent keyed by the earlier one (privKey) asks again.
+			fi := t.foreign[r]
+			if !fi.foreign() {
+				fi.Unknown = true
 			}
+			fi.Seq = seq
+			t.foreign[r] = fi
 			continue
 		}
 		t.foreign[r] = foreignInfo{By: userName(ctx, author), Seq: seq}
