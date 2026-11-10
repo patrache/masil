@@ -3150,7 +3150,7 @@ func AssertPseudoWrapped(tb testing.TB, region, text string, allow []string) // 
 func PseudoAllow(h *Harness) []string                     // P5: fixtures.UserData() + 키 이름 + 슬래시 명령 이름 + "masil"
 // fixtures.UserData() []string — 픽스처의 사용자 글(이름·handle·@handle·채널 #이름·본문·투표·해시태그·미리보기), 원문과 Sanitize 결과
 // e2e: TestPseudoSweep·TestPseudoAfterSwitch·TestPseudoPendingNoStale, 대기 목록 internal/ui/e2e/testdata/pseudo_pending.txt(이관 작업이 자기 영역 키를 지운다)
-// 하네스 기본: ctx.ToolState = t.TempDir() 의 빈 tools-state.json, 기능 플래그 꺼짐(MASIL_FEATURES 없음)
+// 하네스 기본: ctx.ToolState = t.TempDir() 의 빈 tools-state.json, 기능 플래그 = 출시 집합(MASIL_FEATURES 없음 — 0.1.3 은 다섯 도구 모두 켬, P0 Task 31)
 ```
 
 시험 대역(모두 **시험 전용** — `_test.go` 에서만 import):
@@ -3161,7 +3161,7 @@ func PseudoAllow(h *Harness) []string                     // P5: fixtures.UserDa
 | `internal/secrets/secrettest` | 메모리 저장소·누출 확인 | `NewStore(tb, osAvailable) *secrets.Store`, `Values(s) map[string]string`, `AssertNoLeak(t, srv *apitest.Server, logDir, values...)`(요청 메서드·경로·쿼리·헤더·본문 + `logs/`), `AssertNoLeakFrames(t, frames [][]byte, values...)`(보낸 WebSocket 프레임 — apitest 는 소켓을 기록하지 않으므로 시험의 가짜 소켓이 모은 프레임을 넘김) |
 | `internal/collab/collabtest` | CollabHub 가짜(서버와 같은 reducer) | `New(tb) *Hub`, `Seed`, `Dial`, `Ops`, `Inject`, `Kick`, `SetOnline`, `RejectNext`, `Register(srv)` |
 
-- 기능 플래그 시험은 `t.Setenv("MASIL_FEATURES", "<id>"|"all")`.
+- 기능 플래그 시험은 `t.Setenv("MASIL_FEATURES", "<id>"|"all"|"none")`. 환경변수가 있으면(빈 값 포함) 출시 집합(`features.Released()`)보다 이기고, `none`·빈 값은 모두 끔 — 플래그를 끈 0.1.2 화면을 보는 시험은 `none` 을 쓴다. 없으면 출시 집합만 켜짐(`TestReleaseFlagsDefault`).
 
 ### 10.3 필수 시험 목록
 
@@ -3188,7 +3188,7 @@ daemon-release: `daemon` 판정 시험(락 있음/없음/오류 × 서버 신호
 
 **v0.1.3 추가 — P0 필수 시험** (계획 P0 의 각 Task 가 이름까지 정함):
 
-- **기존 골든 무변화**: 도구는 `features.On` 기본 꺼짐 — 허브·`ctrl+t` 도움말 줄·팔레트 항목까지 숨는다. v0.1.2 태그 대비 바뀐 골든은 새 골든(`TestPaneGolden`·`TestHubGolden`·`TestCardGolden`·`TestDiagramGolden/tool_*`)뿐이고, 기능을 켜는 출시 PR(P0 Task 31)만 도움말·팔레트 목록 골든을 바꾸며 그 파일 이름을 적는다(JX9). `MASIL_FEATURES=all` 이어도 도구를 열지 않은 셸 화면은 플래그 끔 화면과 같다(`TestFeaturesOnShellUnchanged`).
+- **기존 골든 무변화**: 도구는 출시 PR(P0 Task 31) 전까지 `features.On` 기본 꺼짐 — 허브·`ctrl+t` 도움말 줄·팔레트 항목까지 숨는다. 출시 PR 뒤 기본값은 출시 집합(다섯 도구)이고 `MASIL_FEATURES=none` 이 0.1.2 화면이다. v0.1.2 태그 대비 바뀐 골든은 새 골든(`TestPaneGolden`·`TestHubGolden`·`TestCardGolden`·`TestDiagramGolden/tool_*`)뿐이고, 기능을 켜는 출시 PR(P0 Task 31)만 도움말·팔레트 목록 골든을 바꾸며 그 파일 이름을 적는다(JX9). `MASIL_FEATURES=all` 이어도 도구를 열지 않은 셸 화면은 플래그 끔 화면과 같다(`TestFeaturesOnShellUnchanged`).
 - **`termhost`**: 에뮬레이터 화면(한글 2칸 폭), 창 크기 변경 신호(SIGWINCH — Setsid/Setctty), 자식이 입력을 안 읽어도 막히지 않음, 0 크기 Resize 생존, 고아 프로세스 없음(부모 SIGKILL 뒤 자식 종료), 패널 4개 상한, OSC 52·OSC 8 무시·제목 Sanitize, 패널 바이트 로그 0.
 - **`termpane`**: `ctrl+\` 의 세 가지 표기(`ctrl+\`·`ctrl+4`·0x1c) 모두 접두키, 자식 종료 시 포커스 반환, TooSmall 왕복 생존, 공유 표시.
 - **import 그래프**: `cmd/masil` `TestImportGraph`(2.2 v0.1.3 규칙).

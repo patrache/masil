@@ -189,7 +189,8 @@ func TestNavCommands(t *testing.T) {
 	}
 
 	runCmd(h2, "logout")
-	if got := overlayTypes(h2.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) {
+	// The release has tools on, so logout asks with the tool-login wipe option (P0 Task 23).
+	if got := overlayTypes(h2.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmCheck"}) {
 		t.Fatalf("logout: overlays %v, want the Confirm", got)
 	}
 	if s := h2.Screen(); !strings.Contains(s, "로그아웃할까요?") || !strings.Contains(s, "이 기기에서 로그아웃해요.") {

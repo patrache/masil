@@ -193,14 +193,15 @@ func TestCommandCompletion(t *testing.T) {
 			t.Fatalf("command item: %+v", c)
 		}
 	}
-	if strings.Join(labels, " ") != "/me /shrug /poll /status /focus /roll /invite" {
+	// The release has tools on, so /tools is listed last (P0 Task 19).
+	if strings.Join(labels, " ") != "/me /shrug /poll /status /focus /roll /invite /tools" {
 		t.Fatalf("\"/\" lists %q", labels)
 	}
 	h := devChannel(t, uitest.Size{W: 120, H: 40})
 	h.Press("i")
 	h.Type("/")
-	if n := len(popupItems(t, h)); n != 7 {
-		t.Fatalf("\"/\" popup has %d items, want 7", n)
+	if n := len(popupItems(t, h)); n != 8 {
+		t.Fatalf("\"/\" popup has %d items, want 8", n)
 	}
 	h.Type("ro")
 	h.Press("enter")

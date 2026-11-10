@@ -237,7 +237,8 @@ func TestRunCommandMsgDispatch(t *testing.T) {
 	// Run from an open palette: the palette closes first, the Confirm is not stacked on it.
 	h.Press("ctrl+k")
 	h.Send(ui.RunCommandMsg{ID: "logout"})
-	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) {
+	// The release has tools on, so logout asks with the tool-login wipe option (P0 Task 23).
+	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmCheck"}) {
 		t.Fatalf("logout from the palette: overlays %v, want only the Confirm", got)
 	}
 	h.Press("esc")
@@ -248,7 +249,7 @@ func TestRunCommandMsgDispatch(t *testing.T) {
 	h.Press("ctrl+k")
 	h.Type("로그아웃")
 	h.Press("enter")
-	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmDialog"}) {
+	if got := overlayTypes(h.Model); !reflect.DeepEqual(got, []string{"*widgets.confirmCheck"}) {
 		t.Fatalf("palette enter on 로그아웃: overlays %v, want only the Confirm", got)
 	}
 	h.Press("esc")

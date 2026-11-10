@@ -123,6 +123,7 @@ func TestLogoutWipeOption(t *testing.T) {
 		}
 	})
 	t.Run("flags off: the 0.1.2 dialog", func(t *testing.T) {
+		t.Setenv("MASIL_FEATURES", "none") // the release turns every tool on by default
 		h, st, mine, _ := logoutWithStore(t)
 		if strings.Contains(h.Screen(), wipeLabel) {
 			t.Fatalf("the wipe option shows with every tool flag off:\n%s", h.Screen())
