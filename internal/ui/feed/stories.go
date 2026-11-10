@@ -892,7 +892,7 @@ func (s *stories) openMenu(ctx *ui.Context) tea.Cmd {
 			menuItem{label: c.Feed.StoryReport(), open: func(ctx *ui.Context) ui.Overlay {
 				return widgets.ReportDialog("story", id, cat(ctx).Feed.StoryOf(name))
 			}},
-			menuItem{label: textMenuAuthor, run: func(*ui.Context) tea.Cmd {
+			menuItem{label: cat(ctx).Feed.MenuAuthor(), run: func(*ui.Context) tea.Cmd {
 				return ui.Navigate(ui.Route{Kind: ui.RouteProfile, ID: author.ID})
 			}},
 		)

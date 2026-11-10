@@ -38,31 +38,15 @@ const (
 	tagProfileSave    = "feed.profile_save:"   // + my user id
 )
 
-// Profile overlay copy, limits and sizes.
+// Profile overlay limits and sizes.
 const (
-	textFollowReqsTitle = "팔로우 요청"
-	textNoFollowReqs    = "대기 중인 팔로우 요청이 없어요"
-	textAccepted        = "팔로우 요청을 수락했어요"
-	textDeclined        = "팔로우 요청을 거절했어요"
-	errContextFollowReq = "팔로우 요청"
-	textEditTitle       = "프로필 편집"
-	textEditName        = "이름"
-	textEditBio         = "소개"
-	textEditAvatar      = "아바타"
-	textBioPlaceholder  = "나를 한 줄로 소개해 보세요"
-	textAvatarHint      = "이미지 경로 · 비우면 그대로"
-	textAvatarClear     = "저장하면 아바타를 지워요 · ctrl+x 취소"
-	textEditKeys        = "tab 다음 칸 · ctrl+x 아바타 지우기 · enter 저장"
-	textNameRequired    = "이름을 입력해 주세요"
-	textProfileSaved    = "프로필을 저장했어요"
-	errContextSave      = "프로필 저장"
-	purposeAvatar       = "avatar"
-	nameLimit           = 32
-	bioLimit            = 160
-	bioRows             = 3
-	editW               = 56
-	editH               = 13
-	editLabelW          = 7 // "아바타 "
+	purposeAvatar = "avatar"
+	nameLimit     = 32
+	bioLimit      = 160
+	bioRows       = 3
+	editW         = 56
+	editH         = 13
+	editLabelW    = 7 // the feed.edit_* labels (max 6 cells) and a space
 )
 
 func init() {
@@ -152,7 +136,7 @@ func (f *followReqs) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		if m.Err != nil || m.Value == nil {
 			f.err = m.Err
-			cmds = append(cmds, profileErr(m.Err, errContextList))
+			cmds = append(cmds, profileErr(m.Err, cat(ctx).Feed.ErrCtxList()))
 			break
 		}
 		if m.Tag == tagFollowReqs {
@@ -182,7 +166,7 @@ func (f *followReqs) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		first := o.take()
 		if m.Err != nil {
 			if first {
-				cmds = append(cmds, profileErr(m.Err, errContextFollowReq))
+				cmds = append(cmds, profileErr(m.Err, cat(ctx).Feed.ErrCtxFollowReq()))
 			}
 			break
 		}
@@ -195,9 +179,9 @@ func (f *followReqs) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		f.entries = out
 		f.refilter(ctx)
 		if first {
-			text := textDeclined
+			text := cat(ctx).Feed.FollowReqDeclined()
 			if o.accept {
-				text = textAccepted
+				text = cat(ctx).Feed.FollowReqAccepted()
 			}
 			cmds = append(cmds, ui.Toast(text, ui.ToastSuccess))
 		}
@@ -217,11 +201,14 @@ func (f *followReqs) Bounds(body layout.Rect) layout.Rect {
 
 func (f *followReqs) Modal() bool { return true }
 
-func (f *followReqs) Title(*ui.Context) (string, ui.Badge) { return textFollowReqsTitle, ui.Badge{} }
+func (f *followReqs) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.FollowRequests(), ui.Badge{}
+}
 
-func (f *followReqs) Help(*ui.Context) []key.Binding {
+func (f *followReqs) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
-	return []key.Binding{b("a", "수락"), b("d", "거절"), b("enter", "프로필")}
+	c := cat(ctx)
+	return []key.Binding{b("a", c.Feed.HelpAccept()), b("d", c.Feed.HelpDecline()), b("enter", c.Feed.HelpProfile())}
 }
 
 // answer accepts or declines the selected request (one request per user at a time).
@@ -314,7 +301,7 @@ func (f *followReqs) View(ctx *ui.Context, _ bool) string {
 	case len(f.shown) == 0 && (f.loading || f.err != nil):
 		return blankRows(t, []string{statusLine(ctx, t, f.spin, f.loading, f.err, w)}, w, h)
 	case len(f.shown) == 0:
-		return widgets.Empty(t, f.size, "", textNoFollowReqs, "")
+		return widgets.Empty(t, f.size, "", cat(ctx).Feed.NoFollowRequests(), "")
 	}
 	listH := h
 	if f.loadingMore {
@@ -368,7 +355,7 @@ func newProfileEdit(ctx *ui.Context) *profileEdit {
 	if me == nil {
 		return nil
 	}
-	e := &profileEdit{meID: me.ID, name: newPathInput(), bio: widgets.NewComposer(textBioPlaceholder), avatar: newPathInput()}
+	e := &profileEdit{meID: me.ID, name: newPathInput(), bio: widgets.NewComposer(cat(ctx).Feed.BioPlaceholder()), avatar: newPathInput()}
 	e.name.CharLimit = nameLimit
 	e.name.SetValue(oneLine(me.DisplayName))
 	e.name.CursorEnd()
@@ -415,7 +402,7 @@ func (e *profileEdit) save(ctx *ui.Context) tea.Cmd {
 	}
 	name := strings.TrimSpace(e.name.Value())
 	if name == "" {
-		return ui.Toast(textNameRequired, ui.ToastError)
+		return ui.Toast(cat(ctx).Feed.NameRequired(), ui.ToastError)
 	}
 	if utf8.RuneCountInString(name) > nameLimit {
 		return ui.Toast(cat(ctx).Feed.TooLong(nameLimit), ui.ToastError)
@@ -492,11 +479,11 @@ func (e *profileEdit) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		e.saving = false
 		if m.Err != nil || m.Value == nil {
-			cmds = append(cmds, profileErr(m.Err, errContextSave))
+			cmds = append(cmds, profileErr(m.Err, cat(ctx).Feed.ErrCtxSaveProfile()))
 			break
 		}
 		applySaved(ctx, m.Value)
-		cmds = append(cmds, closeOverlay, ui.Toast(textProfileSaved, ui.ToastSuccess))
+		cmds = append(cmds, closeOverlay, ui.Toast(cat(ctx).Feed.ProfileSaved(), ui.ToastSuccess))
 	}
 	return tea.Batch(cmds...)
 }
@@ -556,11 +543,14 @@ func (e *profileEdit) Bounds(body layout.Rect) layout.Rect {
 
 func (e *profileEdit) Modal() bool { return true }
 
-func (e *profileEdit) Title(*ui.Context) (string, ui.Badge) { return textEditTitle, ui.Badge{} }
+func (e *profileEdit) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.EditProfile(), ui.Badge{}
+}
 
-func (e *profileEdit) Help(*ui.Context) []key.Binding {
+func (e *profileEdit) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
-	return []key.Binding{b("tab", "다음 칸"), b("enter", "저장"), b("ctrl+x", "아바타 지우기"), b("esc", "취소")}
+	c := cat(ctx)
+	return []key.Binding{b("tab", c.Feed.HelpNextField()), b("enter", c.Common.HelpSave()), b("ctrl+x", c.Feed.HelpRemoveAvatar()), b("esc", c.Common.HelpCancel())}
 }
 
 func (e *profileEdit) Cursor() *tea.Cursor {
@@ -582,9 +572,10 @@ func labeled(t *theme.Theme, label, field string, focused bool, w int) string {
 }
 
 func (e *profileEdit) View(ctx *ui.Context, _ bool) string {
-	t := themeOf(ctx)
+	t, c := themeOf(ctx), cat(ctx)
 	w, h := e.size.W, e.size.H
 	e.cursor = nil
+	e.bio.SetPlaceholder(c.Feed.BioPlaceholder())
 	if w <= 0 || h <= 0 {
 		return ""
 	}
@@ -597,7 +588,7 @@ func (e *profileEdit) View(ctx *ui.Context, _ bool) string {
 	if e.focus == fieldName {
 		curRow, curCol = len(rows), editLabelW+nameCol
 	}
-	rows = append(rows, labeled(t, textEditName, nameLine, e.focus == fieldName, w), rule)
+	rows = append(rows, labeled(t, c.Feed.EditName(), nameLine, e.focus == fieldName, w), rule)
 
 	n := utf8.RuneCountInString(e.bio.Value())
 	count := strconv.Itoa(n) + "/" + strconv.Itoa(bioLimit)
@@ -605,7 +596,7 @@ func (e *profileEdit) View(ctx *ui.Context, _ bool) string {
 	if n > bioLimit {
 		cst = t.S.Error
 	}
-	head := labeled(t, textEditBio, "", e.focus == fieldBio, max(w-textwidth.Width(count), 0))
+	head := labeled(t, c.Feed.EditBio(), "", e.focus == fieldBio, max(w-textwidth.Width(count), 0))
 	rows = append(rows, fit(t, head+cst.Render(count), w))
 	box := strings.Split(e.bio.View(ctx, w, bioRows), "\n")
 	if e.focus == fieldBio {
@@ -618,15 +609,15 @@ func (e *profileEdit) View(ctx *ui.Context, _ bool) string {
 	var avatarLine string
 	avatarCol := 0
 	if e.clearAvatar {
-		avatarLine = fit(t, t.S.Warning.Render(textwidth.Truncate(textAvatarClear, fw, "…")), fw)
+		avatarLine = fit(t, t.S.Warning.Render(textwidth.Truncate(c.Feed.AvatarClear(), fw, "…")), fw)
 	} else {
-		avatarLine, avatarCol = pathLine(t, e.avatar, textAvatarHint, fw)
+		avatarLine, avatarCol = pathLine(t, e.avatar, c.Feed.AvatarHint(), fw)
 	}
 	if e.focus == fieldAvatar {
 		curRow, curCol = len(rows), editLabelW+avatarCol
 	}
-	rows = append(rows, labeled(t, textEditAvatar, avatarLine, e.focus == fieldAvatar, w), rule,
-		fit(t, t.S.Dim.Render(textwidth.Truncate(textEditKeys, w, "…")), w))
+	rows = append(rows, labeled(t, c.Feed.EditAvatar(), avatarLine, e.focus == fieldAvatar, w), rule,
+		fit(t, t.S.Dim.Render(textwidth.Truncate(c.Feed.EditKeys(), w, "…")), w))
 
 	top := 0
 	if curRow >= h {

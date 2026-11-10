@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 )
 
 // blankNames are display names the screen shows as nothing: only runes
@@ -20,9 +21,9 @@ func TestBlankDisplayNameFallsBack(t *testing.T) {
 		if got := displayName(u); got != "sam" {
 			t.Errorf("displayName(%q) = %q, want the handle", name, got)
 		}
-		got := notifText("{n}님이", api.Notification{Actor: &u})
-		if !strings.Contains(got, "sam") {
-			t.Errorf("notifText with actor name %q = %q, want the handle", name, got)
+		got := notifSentence(i18n.KoT(), api.Notification{Type: "follow", Actor: &u}, false)
+		if !strings.Contains(got, "sam님이") {
+			t.Errorf("notifSentence with actor name %q = %q, want the handle", name, got)
 		}
 	}
 }

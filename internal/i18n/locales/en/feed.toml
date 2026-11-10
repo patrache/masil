@@ -18,11 +18,38 @@ other = "Story photo"
 [attach_title]
 other = "Attach photo"
 
+[avatar_clear]
+other = "Saving removes the avatar · ctrl+x to undo"
+
+[avatar_hint]
+other = "Image path · leave empty to keep"
+
+[bio_placeholder]
+other = "Introduce yourself in one line"
+
+[block_ask]
+other = "Block {name}?"
+
+[block_body]
+other = "You won't see each other's posts"
+
+[block_yes]
+other = "Block"
+
 [blocked_done]
 other = "Blocked"
 
+[blocked_hint]
+other = "To unblock: ctrl+k → Blocked"
+
+[blocked_title]
+other = "You blocked this user"
+
 [cancel]
 other = "Cancel"
+
+[cannot_view]
+other = "Posts aren't available"
 
 [card_deleted]
 other = "This post was deleted"
@@ -35,6 +62,18 @@ other = "This post isn't available"
 
 [card_reposted_by]
 other = "{name} reposted"
+
+[chip_edit_profile]
+other = "[Edit profile]"
+
+[chip_follow]
+other = "[Follow]"
+
+[chip_following]
+other = "[Following ✓]"
+
+[chip_requested]
+other = "[Requested]"
 
 [cmd_feed_discover]
 other = "Feed: Everyone (discover)"
@@ -126,6 +165,55 @@ other = "Story posted"
 [compose_upload_failed]
 other = "✕ Upload failed"
 
+[conv_header]
+other = "Unread conversations"
+
+[conv_me]
+other = "Me"
+
+[conv_new]
+one = "{n} new message"
+other = "{n} new messages"
+
+[conv_person]
+other = "{name}"
+
+[conv_poll]
+other = "Poll"
+
+[conv_thread]
+other = "Thread"
+
+[count_followers]
+other = "Followers"
+
+[count_following]
+other = "Following"
+
+[count_posts]
+other = "Posts"
+
+[delete_ask]
+other = "Delete this post?"
+
+[delete_yes]
+other = "Delete"
+
+[edit_avatar]
+other = "Avatar"
+
+[edit_bio]
+other = "Bio"
+
+[edit_keys]
+other = "tab next field · ctrl+x remove avatar · enter save"
+
+[edit_name]
+other = "Name"
+
+[edit_profile]
+other = "Edit profile"
+
 [empty_discover]
 other = "No posts yet"
 
@@ -150,11 +238,32 @@ other = "Delete post"
 [err_ctx_feed]
 other = "Feed"
 
+[err_ctx_follow]
+other = "Follow"
+
+[err_ctx_follow_req]
+other = "Follow request"
+
+[err_ctx_friend]
+other = "Friends"
+
+[err_ctx_guestbook]
+other = "Guestbook"
+
+[err_ctx_guestbook_del]
+other = "Delete guestbook entry"
+
 [err_ctx_like]
 other = "Like"
 
+[err_ctx_list]
+other = "List"
+
 [err_ctx_media]
 other = "Photo"
+
+[err_ctx_notif]
+other = "Notifications"
 
 [err_ctx_poll]
 other = "Poll"
@@ -162,8 +271,17 @@ other = "Poll"
 [err_ctx_post]
 other = "Post"
 
+[err_ctx_profile]
+other = "Profile"
+
+[err_ctx_remove_follower]
+other = "Remove follower"
+
 [err_ctx_repost]
 other = "Repost"
+
+[err_ctx_save_profile]
+other = "Save profile"
 
 [err_ctx_search]
 other = "Search"
@@ -186,8 +304,74 @@ other = "Couldn't load the feed"
 [feed_title]
 other = "Feed"
 
+[follow_req_accepted]
+other = "Follow request accepted"
+
+[follow_req_declined]
+other = "Follow request declined"
+
+[follow_requested]
+other = "Follow request sent"
+
+[follow_requests]
+other = "Follow requests"
+
+[follower_removed]
+other = "Removed from followers"
+
+[followers_title]
+other = "Followers"
+
+[following_title]
+other = "Following"
+
+[follows_you]
+other = "Follows you"
+
+[friend_accepted]
+other = "You and {name} are now friends"
+
+[friend_canceled]
+other = "Friend request canceled"
+
+[friend_declined]
+other = "Friend request declined"
+
+[friend_now]
+other = "You and {name} are friends now"
+
+[friend_sent]
+other = "Friend request sent to {name}"
+
+[guestbook_del_ask]
+other = "Delete this guestbook entry?"
+
+[guestbook_del_yes]
+other = "Delete"
+
+[guestbook_deleted]
+other = "Guestbook entry deleted"
+
+[guestbook_empty]
+other = "The guestbook is empty"
+
+[guestbook_empty_hint]
+other = "Press w to write the first entry"
+
+[guestbook_hidden]
+other = "This entry is secret"
+
+[guestbook_secret_chip]
+other = "🔒 Secret"
+
 [hashtag_empty]
 other = "No posts with this tag yet"
+
+[hashtag_title]
+other = "Hashtags"
+
+[help_accept]
+other = "accept"
 
 [help_attach]
 other = "attach"
@@ -195,8 +379,17 @@ other = "attach"
 [help_background]
 other = "background"
 
+[help_cancel_follow]
+other = "cancel request"
+
 [help_close_poll]
 other = "close poll"
+
+[help_decline]
+other = "decline"
+
+[help_edit_profile]
+other = "edit profile"
 
 [help_end_input]
 other = "done"
@@ -204,8 +397,14 @@ other = "done"
 [help_expand]
 other = "expand"
 
+[help_follow]
+other = "follow"
+
 [help_like]
 other = "like"
+
+[help_mark_all_read]
+other = "mark all read"
 
 [help_menu]
 other = "menu"
@@ -215,6 +414,9 @@ other = "new post"
 
 [help_next]
 other = "next"
+
+[help_next_field]
+other = "next field"
 
 [help_open]
 other = "open"
@@ -234,6 +436,15 @@ other = "post"
 [help_prev]
 other = "prev"
 
+[help_profile]
+other = "profile"
+
+[help_remove_avatar]
+other = "remove avatar"
+
+[help_remove_follower]
+other = "remove follower"
+
 [help_remove_photo]
 other = "remove photo"
 
@@ -246,8 +457,17 @@ other = "repost"
 [help_retry]
 other = "retry"
 
+[help_run]
+other = "run"
+
 [help_search]
 other = "search"
+
+[help_stories]
+other = "stories"
+
+[help_tabs]
+other = "tabs"
 
 [help_tag_feed]
 other = "tag feed"
@@ -258,14 +478,26 @@ other = "#tag"
 [help_tag_search]
 other = "tag search"
 
+[help_unfollow]
+other = "unfollow"
+
 [help_unvote]
 other = "unvote"
+
+[help_view_post]
+other = "view post"
 
 [help_vote]
 other = "vote"
 
 [help_write]
 other = "write"
+
+[help_write_guestbook]
+other = "sign guestbook"
+
+[hint_go_back]
+other = "esc to go back"
 
 [kw_feed_discover]
 other = "discover, explore"
@@ -312,12 +544,190 @@ other = "Photo"
 [media_title_of]
 other = "Photo {n}/{total}"
 
+[menu_author]
+other = "Author's profile"
+
+[menu_block]
+other = "Block author"
+
+[menu_block_user]
+other = "Block"
+
+[menu_delete]
+other = "Delete post"
+
+[menu_friend_accept]
+other = "Accept friend request"
+
+[menu_friend_add]
+other = "Add friend"
+
+[menu_friend_cancel]
+other = "Cancel friend request"
+
+[menu_friend_decline]
+other = "Decline friend request"
+
+[menu_likes]
+other = "Liked by"
+
+[menu_quotes]
+other = "Quotes"
+
+[menu_report]
+other = "Report post"
+
+[menu_report_user]
+other = "Report user"
+
+[menu_reposts]
+other = "Reposted by"
+
+[menu_stories]
+other = "View stories"
+
+[menu_title]
+other = "Post menu"
+
+[menu_unfriend]
+other = "Unfriend"
+
+[name_required]
+other = "Please enter a name"
+
 [new_posts_banner]
 one = "{n} new post · enter"
 other = "{n} new posts · enter"
 
 [new_posts_banner_cap]
 other = "{n}+ new posts · enter"
+
+[no_follow_requests]
+other = "No pending follow requests"
+
+[no_profile_media]
+other = "No photos yet"
+
+[no_profile_posts]
+other = "No posts yet"
+
+[no_profile_replies]
+other = "No replies yet"
+
+[no_quotes]
+other = "No quotes yet"
+
+[nobody]
+other = "Nobody yet"
+
+[notif_empty]
+other = "No new notifications"
+
+[notif_follow]
+other = "{name} followed you"
+
+[notif_follow_accepted]
+other = "{name} accepted your follow request"
+
+[notif_follow_accepted_narrow]
+other = "{name} accepted"
+
+[notif_follow_narrow]
+other = "{name} followed you"
+
+[notif_follow_request]
+other = "{name} asked to follow you"
+
+[notif_follow_request_narrow]
+other = "Follow request from {name}"
+
+[notif_friend_accepted]
+other = "You and {name} are now friends"
+
+[notif_friend_accepted_narrow]
+other = "Friends with {name}"
+
+[notif_friend_request]
+other = "{name} sent you a friend request"
+
+[notif_friend_request_narrow]
+other = "Friend request from {name}"
+
+[notif_guestbook_entry]
+other = "{name} signed your guestbook"
+
+[notif_guestbook_entry_narrow]
+other = "Guestbook from {name}"
+
+[notif_header]
+other = "Notifications"
+
+[notif_load_failed]
+other = "Couldn't load notifications"
+
+[notif_message_mention]
+other = "{name} mentioned you in {space}"
+
+[notif_message_mention_narrow]
+other = "{name} mentioned you"
+
+[notif_other]
+other = "New notification from {name}"
+
+[notif_other_narrow]
+other = "Alert from {name}"
+
+[notif_post_like]
+other = "{name} liked your post"
+
+[notif_post_like_narrow]
+other = "{name} liked"
+
+[notif_post_mention]
+other = "{name} mentioned you in a post"
+
+[notif_post_mention_narrow]
+other = "{name} mentioned you"
+
+[notif_post_quote]
+other = "{name} quoted your post"
+
+[notif_post_quote_narrow]
+other = "{name} quoted"
+
+[notif_post_reply]
+other = "{name} replied to you"
+
+[notif_post_reply_narrow]
+other = "{name} replied"
+
+[notif_post_repost]
+other = "{name} reposted your post"
+
+[notif_post_repost_narrow]
+other = "{name} reposted"
+
+[notif_someone]
+other = "Unknown"
+
+[notif_space]
+other = "a space"
+
+[notif_space_invite]
+other = "{name} invited you to {space}"
+
+[notif_space_invite_narrow]
+other = "Invite to {space}"
+
+[notif_thread_reply]
+other = "{name} replied in a thread"
+
+[notif_thread_reply_narrow]
+other = "{name} replied in thread"
+
+[notif_title]
+other = "Notifications"
+short = "Alerts"
 
 [palette_hashtag_open]
 other = "Open tag feed"
@@ -364,8 +774,68 @@ other = "Replies {n}"
 [post_title]
 other = "Post"
 
+[presence_away]
+other = "Away"
+
+[presence_dnd]
+other = "Do not disturb"
+
+[presence_offline]
+other = "Offline"
+
+[presence_online]
+other = "Online"
+
+[private_hint]
+other = "You'll see posts once your follow request is approved"
+
 [private_no_share]
 other = "Posts from private accounts can't be reposted or quoted"
+
+[private_title]
+other = "This account is private"
+
+[profile_friend]
+other = "Friend"
+
+[profile_load_failed]
+other = "Couldn't load the profile"
+
+[profile_saved]
+other = "Profile saved"
+
+[profile_tab_guestbook]
+other = "Guestbook"
+
+[profile_tab_media]
+other = "Media"
+
+[profile_tab_posts]
+other = "Posts"
+
+[profile_tab_replies]
+other = "Replies"
+
+[profile_title]
+other = "Profile"
+
+[remove_follower_ask]
+other = "Remove {handle} from your followers?"
+
+[remove_follower_body]
+other = "Your posts will no longer reach their Following feed."
+
+[remove_follower_yes]
+other = "Remove"
+
+[report_guestbook_of]
+other = "{name}'s guestbook entry"
+
+[report_post_of]
+other = "{name}'s post"
+
+[requests_count]
+other = "Follow requests {n}"
 
 [retry_hint]
 other = "{text} · {key} retry"
@@ -375,6 +845,9 @@ other = "+ My story"
 
 [ring_mine]
 other = "My story"
+
+[someone]
+other = "Someone"
 
 [stories_none]
 other = "No stories to show right now"
@@ -405,6 +878,12 @@ other = "Viewers"
 
 [story_viewers_n]
 other = "Viewers {n}"
+
+[suspended_badge]
+other = "Suspended account"
+
+[suspended_title]
+other = "This account is suspended"
 
 [tab_discover]
 other = "Feed"
@@ -454,3 +933,27 @@ other = "Tags are at most 50 characters"
 
 [trends_title]
 other = "Trends"
+
+[unfollow_ask]
+other = "Unfollow?"
+
+[unfollow_yes]
+other = "Unfollow"
+
+[unfriend_ask]
+other = "Unfriend {name}?"
+
+[unfriend_body]
+other = "Past DMs stay but may become read-only"
+
+[unfriend_yes]
+other = "Unfriend"
+
+[unfriended]
+other = "You unfriended {name}"
+
+[user_not_found]
+other = "User not found"
+
+[viewers_title]
+other = "Viewers"

@@ -2,12 +2,11 @@ package feed
 
 import (
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/store/chatstore"
@@ -26,11 +25,6 @@ import (
 
 // Section copy.
 const (
-	textConvHeader  = "안 읽은 대화"
-	textNotifHeader = "알림"
-	textConvThread  = "스레드"
-	textConvMe      = "나"
-	textConvPoll    = "투표"
 	iconConvDM      = "✉"
 	iconConvChannel = "#"
 	iconConvThread  = "↩"
@@ -39,16 +33,13 @@ const (
 	convThreadIDPre = "conv:thread:"
 )
 
-// textConvNew is the preview when no message body is known ("새 메시지 3개").
-func textConvNew(n int) string { return "새 메시지 " + strconv.Itoa(n) + "개" }
-
 // convRow is one row of the section.
 type convRow struct {
 	key     string // "conv:<channel>" | "conv:thread:<root>"
 	icon    string
 	title   string // unsanitized
 	author  string // preview prefix ("민지님", "나"); "" = none
-	body    string // preview text; "" = textConvNew(count)
+	body    string // preview text; "" = feed.conv_new(count)
 	count   int
 	mention bool
 	at      time.Time
@@ -81,7 +72,7 @@ func joinRows(ctx *ui.Context, convs []convRow, items []api.Notification) []inbo
 	for i := range convs {
 		r := inboxRow{conv: &convs[i]}
 		if i == 0 && heads {
-			r.head = textConvHeader
+			r.head = cat(ctx).Feed.ConvHeader()
 		}
 		out = append(out, r)
 		for _, id := range convs[i].notifs {
@@ -95,7 +86,7 @@ func joinRows(ctx *ui.Context, convs []convRow, items []api.Notification) []inbo
 		}
 		r := inboxRow{n: x}
 		if first && heads {
-			r.head = textNotifHeader
+			r.head = cat(ctx).Feed.NotifHeader()
 		}
 		first = false
 		out = append(out, r)
@@ -127,7 +118,7 @@ func buildConvs(ctx *ui.Context, items []api.Notification) []convRow {
 			r.route.Query = map[string]string{ui.QueryJump: ui.JumpUnread}
 		}
 		if m, ok := convLast(ctx, ch, c.Anchor); ok {
-			r.author, r.body = convAuthor(ctx, ch, m.Author), convBody(m)
+			r.author, r.body = convAuthor(ctx, ch, m.Author), convBody(cat(ctx), m)
 			if !m.CreatedAt.IsZero() && m.CreatedAt.After(r.at) {
 				r.at = m.CreatedAt
 			}
@@ -171,14 +162,14 @@ func threadConvs(ctx *ui.Context, items []api.Notification) []convRow {
 			}
 			continue
 		}
-		base := textNotifSomeone
+		base := cat(ctx).Feed.NotifSomeone()
 		if ch := s.Channels[chID]; ch != nil {
 			base = convTitle(ctx, ch)
 			if ch.Kind == api.ChannelText { // "#개발": the space name would crowd out the preview
 				base = iconConvChannel + notifLine(deref(ch.Name))
 			}
 		}
-		r := convRow{key: key, icon: iconConvThread, title: textConvThread + " · " + base,
+		r := convRow{key: key, icon: iconConvThread, title: cat(ctx).Feed.ConvThread() + " · " + base,
 			body: x.Preview, count: 1, mention: x.Type == "message_mention", at: x.CreatedAt,
 			route:  ui.Route{Kind: ui.RouteThread, ID: root, Arg: chID, Anchor: deref(x.Context.MessageID)},
 			notifs: []string{x.ID}}
@@ -191,7 +182,7 @@ func threadConvs(ctx *ui.Context, items []api.Notification) []convRow {
 	return out
 }
 
-// personName is a user's shown name (display name, else handle) with 님.
+// personName is a user's shown name (display name, else handle); ko adds 님.
 func personName(ctx *ui.Context, u api.UserSummary) string {
 	if c := ctx.Store.User(u.ID); c != nil {
 		u = *c
@@ -201,9 +192,9 @@ func personName(ctx *ui.Context, u api.UserSummary) string {
 		name = notifLine(u.Handle)
 	}
 	if name == "" {
-		return textNotifSomeone
+		return cat(ctx).Feed.NotifSomeone()
 	}
-	return name + "님"
+	return cat(ctx).Feed.ConvPerson(name)
 }
 
 // convTitle: a DM "민지님", a group DM its name (else "민지님, 준호님"), a text
@@ -233,7 +224,7 @@ func convTitle(ctx *ui.Context, ch *api.Channel) string {
 		}
 	}
 	if len(names) == 0 {
-		return textConvMe
+		return cat(ctx).Feed.ConvMe()
 	}
 	return strings.Join(names, ", ")
 }
@@ -243,7 +234,7 @@ func convTitle(ctx *ui.Context, ch *api.Channel) string {
 func convAuthor(ctx *ui.Context, ch *api.Channel, u api.UserSummary) string {
 	switch {
 	case ctx.Store.IsMe(u.ID):
-		return textConvMe
+		return cat(ctx).Feed.ConvMe()
 	case ch != nil && ch.Kind == api.ChannelDM:
 		return ""
 	}
@@ -251,9 +242,9 @@ func convAuthor(ctx *ui.Context, ch *api.Channel, u api.UserSummary) string {
 }
 
 // convBody is a message's one-line preview text.
-func convBody(m api.Message) string {
+func convBody(c *i18n.T, m api.Message) string {
 	if m.Poll != nil && strings.TrimSpace(m.Body) == "" {
-		return textConvPoll + " · " + m.Poll.Question
+		return c.Feed.ConvPoll() + " · " + m.Poll.Question
 	}
 	return markup.Plain(m.Body, convPreviewMax)
 }
@@ -359,7 +350,7 @@ func (n *notifications) convLine(ctx *ui.Context, r convRow, sel bool, width int
 		return fit(t, gutter+n.paintConv(t, sel, dot, r.icon, "", "", "", "", ""), width)
 	}
 	title := r.title
-	ts := humanize.Relative(nowIn(ctx), r.at)
+	ts := hz(ctx).Relative(nowIn(ctx), r.at)
 	badge := widgets.Badge(t, ui.Badge{Count: r.count, Mention: r.mention})
 	bw, tw := textwidth.Width(badge), textwidth.Width(ts)
 	tail := func() int { // cells of " badge time" right of the text
@@ -391,7 +382,7 @@ func (n *notifications) convLine(ctx *ui.Context, r convRow, sel bool, width int
 		if body != "" {
 			preview = ` · "` + strings.TrimRight(textwidth.Truncate(body, rem-5, "…"), " ") + `"`
 		} else {
-			preview = " · " + textwidth.Truncate(textConvNew(r.count), rem-3, "…")
+			preview = " · " + textwidth.Truncate(cat(ctx).Feed.ConvNew(r.count), rem-3, "…")
 		}
 		rem -= textwidth.Width(preview)
 	}

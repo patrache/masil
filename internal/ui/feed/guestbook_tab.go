@@ -8,7 +8,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/errtext"
-	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -33,20 +33,9 @@ const (
 	tagGuestbookDelete = "feed.guestbook_delete:" // + entry id
 )
 
-// Guestbook copy and layout.
+// Guestbook layout.
 const (
-	textGuestbookEmpty     = "아직 방명록이 비어 있어요"
-	hintGuestbookEmpty     = "w 로 첫 글을 남겨 보세요"
-	chipGuestbookSecret    = "🔒 비밀글"
-	textGuestbookHidden    = "비밀글이에요"
-	textSomeone            = "누군가"
-	textGuestbookDelAsk    = "방명록 글을 지울까요?"
-	textGuestbookDelYes    = "지우기"
-	textGuestbookDeleted   = "방명록 글을 지웠어요"
-	textGuestbookReportOf  = "의 방명록 글"
-	errContextGuestbook    = "방명록"
-	errContextGuestbookDel = "방명록 삭제"
-	guestbookBodyLines     = 6
+	guestbookBodyLines = 6
 )
 
 // guestbookDeleteOutcome is a DELETE /v1/guestbook/{id} request.
@@ -185,7 +174,7 @@ func (p *profile) guestbookUpdate(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			if !more {
 				g.err, g.loaded = m.Err, true
 			}
-			return profileErr(m.Err, errContextGuestbook)
+			return profileErr(m.Err, cat(ctx).Feed.ErrCtxGuestbook())
 		}
 		g.err, g.loaded = nil, true
 		if more {
@@ -229,7 +218,7 @@ func (p *profile) guestbookUpdate(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		first := o.take()
 		if m.Err != nil {
 			if first {
-				return profileErr(m.Err, errContextGuestbookDel)
+				return profileErr(m.Err, cat(ctx).Feed.ErrCtxGuestbookDel())
 			}
 			return nil
 		}
@@ -241,7 +230,7 @@ func (p *profile) guestbookUpdate(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		g.raw = out
 		if first {
-			return ui.Toast(textGuestbookDeleted, ui.ToastSuccess)
+			return ui.Toast(cat(ctx).Feed.GuestbookDeleted(), ui.ToastSuccess)
 		}
 	}
 	return nil
@@ -313,16 +302,16 @@ func (p *profile) deleteEntry(ctx *ui.Context, e api.GuestbookEntry) tea.Cmd {
 		return o, a.DeleteGuestbookEntry(c, id)
 	})
 	mark := func() tea.Msg { return guestbookDeletingMsg{id} }
-	return ui.OpenOverlay(widgets.Confirm(textGuestbookDelAsk, "", textGuestbookDelYes, textCancel, tea.Batch(mark, del)))
+	return ui.OpenOverlay(widgets.Confirm(cat(ctx).Feed.GuestbookDelAsk(), "", cat(ctx).Feed.GuestbookDelYes(), cat(ctx).Feed.Cancel(), tea.Batch(mark, del)))
 }
 
 // guestbookDeletingMsg marks an entry as being deleted (sent with the request).
 type guestbookDeletingMsg struct{ entryID string }
 
 // entryAuthorName is the author's display name ("누군가" when hidden).
-func entryAuthorName(e api.GuestbookEntry) string {
+func entryAuthorName(c *i18n.T, e api.GuestbookEntry) string {
 	if e.Hidden || e.Author == nil {
-		return textSomeone
+		return c.Feed.Someone()
 	}
 	return displayName(*e.Author)
 }
@@ -344,7 +333,7 @@ func (p *profile) guestbookActionKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool
 		if !ok || sel.Hidden {
 			return false, nil
 		}
-		return true, ui.OpenOverlay(widgets.ReportDialog("guestbook_entry", sel.ID, entryAuthorName(sel)+textGuestbookReportOf))
+		return true, ui.OpenOverlay(widgets.ReportDialog("guestbook_entry", sel.ID, cat(ctx).Feed.ReportGuestbookOf(entryAuthorName(cat(ctx), sel))))
 	}
 	return false, nil
 }
@@ -399,7 +388,7 @@ func (p *profile) guestbookView(ctx *ui.Context, w, rest, top int) []string {
 	case len(g.items) == 0 && g.err != nil:
 		return empty("⚠", errtext.Describe(ctx.T, g.err), "")
 	case len(g.items) == 0:
-		return empty("📖", textGuestbookEmpty, hintGuestbookEmpty)
+		return empty("📖", cat(ctx).Feed.GuestbookEmpty(), cat(ctx).Feed.GuestbookEmptyHint())
 	}
 	footer := 0
 	if g.loadingMore {
@@ -436,7 +425,7 @@ func renderGuestbookEntry(ctx *ui.Context, e api.GuestbookEntry, selected bool, 
 	switch {
 	case cw <= 0:
 	case e.Hidden:
-		out = append(out, line(t.S.Dim.Render(textwidth.Truncate(textGuestbookHidden, cw, "…"))))
+		out = append(out, line(t.S.Dim.Render(textwidth.Truncate(cat(ctx).Feed.GuestbookHidden(), cw, "…"))))
 	case e.Body != "":
 		myHandle := ""
 		if me := ctx.Me(); me != nil {
@@ -458,15 +447,16 @@ func entryHeader(ctx *ui.Context, t *theme.Theme, e api.GuestbookEntry, w int) s
 	}
 	age := ""
 	if ctx != nil && ctx.Now != nil {
-		age = " · " + humanize.Relative(ctx.Now(), e.CreatedAt)
+		age = " · " + hz(ctx).Relative(ctx.Now(), e.CreatedAt)
 	}
+	c := cat(ctx)
 	chip := ""
 	if e.IsSecret {
-		chip = "  " + chipGuestbookSecret
+		chip = "  " + c.Feed.GuestbookSecretChip()
 	}
 	var handle, name string
 	if e.Hidden || e.Author == nil {
-		name = textSomeone
+		name = c.Feed.Someone()
 	} else {
 		handle, name = handleOf(*e.Author), displayName(*e.Author)
 	}
@@ -492,7 +482,7 @@ func entryHeader(ctx *ui.Context, t *theme.Theme, e api.GuestbookEntry, w int) s
 	}
 	s := who + t.S.Timestamp.Render(age)
 	if chip != "" {
-		s += t.S.Base.Render("  ") + t.S.Dim.Render(chipGuestbookSecret)
+		s += t.S.Base.Render("  ") + t.S.Dim.Render(c.Feed.GuestbookSecretChip())
 	}
 	return fit(t, s, w)
 }

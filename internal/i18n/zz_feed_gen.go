@@ -55,11 +55,70 @@ var areaFeed = area{
 				En: {Other: "Attach photo"},
 			},
 		},
+		"avatar_clear": {
+			desc: "프로필 편집: 아바타 지우기 예약됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "저장하면 아바타를 지워요 · ctrl+x 취소"},
+				En: {Other: "Saving removes the avatar · ctrl+x to undo"},
+			},
+		},
+		"avatar_hint": {
+			desc: "프로필 편집 아바타 칸 자리 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "이미지 경로 · 비우면 그대로"},
+				En: {Other: "Image path · leave empty to keep"},
+			},
+		},
+		"bio_placeholder": {
+			desc: "프로필 편집 소개 칸 자리 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "나를 한 줄로 소개해 보세요"},
+				En: {Other: "Introduce yourself in one line"},
+			},
+		},
+		"block_ask": {
+			desc:       "차단 확인 질문. name = 상대 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 차단할까요?"},
+				En: {Other: "Block {name}?"},
+			},
+		},
+		"block_body": {
+			desc:       "차단 확인 설명",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "서로의 글이 보이지 않게 돼요"},
+				En: {Other: "You won't see each other's posts"},
+			},
+		},
+		"block_yes": {
+			desc: "차단 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단"},
+				En: {Other: "Block"},
+			},
+		},
 		"blocked_done": {
 			desc: "사용자를 차단한 뒤 토스트",
 			text: map[Locale]Forms{
 				Ko: {Other: "차단했어요"},
 				En: {Other: "Blocked"},
+			},
+		},
+		"blocked_hint": {
+			desc: "차단 해제 안내(설정의 차단 목록 절 이름과 맞춤)",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단 해제는 ctrl+k → 차단 목록"},
+				En: {Other: "To unblock: ctrl+k → Blocked"},
+			},
+		},
+		"blocked_title": {
+			desc: "차단한 사용자의 프로필",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단한 사용자예요"},
+				En: {Other: "You blocked this user"},
 			},
 		},
 		"cancel": {
@@ -68,6 +127,13 @@ var areaFeed = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "취소"},
 				En: {Other: "Cancel"},
+			},
+		},
+		"cannot_view": {
+			desc: "글을 볼 수 없는 프로필",
+			text: map[Locale]Forms{
+				Ko: {Other: "글을 볼 수 없어요"},
+				En: {Other: "Posts aren't available"},
 			},
 		},
 		"card_deleted": {
@@ -97,6 +163,34 @@ var areaFeed = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "{name}님이 리포스트"},
 				En: {Other: "{name} reposted"},
+			},
+		},
+		"chip_edit_profile": {
+			desc: "내 프로필 칩: 프로필 편집",
+			text: map[Locale]Forms{
+				Ko: {Other: "[프로필 편집]"},
+				En: {Other: "[Edit profile]"},
+			},
+		},
+		"chip_follow": {
+			desc: "프로필 관계 칩: 팔로우(누를 수 있음)",
+			text: map[Locale]Forms{
+				Ko: {Other: "[팔로우]"},
+				En: {Other: "[Follow]"},
+			},
+		},
+		"chip_following": {
+			desc: "프로필 관계 칩: 팔로우 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "[팔로잉 ✓]"},
+				En: {Other: "[Following ✓]"},
+			},
+		},
+		"chip_requested": {
+			desc: "프로필 관계 칩: 팔로우 요청함",
+			text: map[Locale]Forms{
+				Ko: {Other: "[요청됨]"},
+				En: {Other: "[Requested]"},
 			},
 		},
 		"cmd_feed_discover": {
@@ -322,6 +416,125 @@ var areaFeed = area{
 				En: {Other: "✕ Upload failed"},
 			},
 		},
+		"conv_header": {
+			desc: "알림함 '안 읽은 대화' 절 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "안 읽은 대화"},
+				En: {Other: "Unread conversations"},
+			},
+		},
+		"conv_me": {
+			desc: "안 읽은 대화 줄: 나(내 메시지·나만 있는 대화)",
+			text: map[Locale]Forms{
+				Ko: {Other: "나"},
+				En: {Other: "Me"},
+			},
+		},
+		"conv_new": {
+			desc:   "안 읽은 대화 미리보기: 본문을 모를 때 새 메시지 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 메시지 {n}개"},
+				En: {One: "{n} new message", Other: "{n} new messages"},
+			},
+		},
+		"conv_person": {
+			desc:   "안 읽은 대화 줄의 사람 이름(ko 는 님을 붙임)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님"},
+				En: {Other: "{name}"},
+			},
+		},
+		"conv_poll": {
+			desc: "안 읽은 대화 미리보기: 투표 메시지(뒤에 ' · 질문')",
+			text: map[Locale]Forms{
+				Ko: {Other: "투표"},
+				En: {Other: "Poll"},
+			},
+		},
+		"conv_thread": {
+			desc: "안 읽은 대화 줄: 스레드 표시(뒤에 ' · 채널')",
+			text: map[Locale]Forms{
+				Ko: {Other: "스레드"},
+				En: {Other: "Thread"},
+			},
+		},
+		"count_followers": {
+			desc: "프로필 숫자 줄 이름표(뒤에 수)",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로워"},
+				En: {Other: "Followers"},
+			},
+		},
+		"count_following": {
+			desc: "프로필 숫자 줄 이름표(뒤에 수)",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로잉"},
+				En: {Other: "Following"},
+			},
+		},
+		"count_posts": {
+			desc: "프로필 숫자 줄 이름표(뒤에 수)",
+			text: map[Locale]Forms{
+				Ko: {Other: "글"},
+				En: {Other: "Posts"},
+			},
+		},
+		"delete_ask": {
+			desc:       "글 삭제 확인 질문",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 글을 삭제할까요?"},
+				En: {Other: "Delete this post?"},
+			},
+		},
+		"delete_yes": {
+			desc: "글 삭제 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
+			},
+		},
+		"edit_avatar": {
+			desc: "프로필 편집 칸 이름표",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "아바타"},
+				En: {Other: "Avatar"},
+			},
+		},
+		"edit_bio": {
+			desc: "프로필 편집 칸 이름표",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "소개"},
+				En: {Other: "Bio"},
+			},
+		},
+		"edit_keys": {
+			desc: "프로필 편집 아래 키 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "tab 다음 칸 · ctrl+x 아바타 지우기 · enter 저장"},
+				En: {Other: "tab next field · ctrl+x remove avatar · enter save"},
+			},
+		},
+		"edit_name": {
+			desc: "프로필 편집 칸 이름표(왼쪽 고정 폭)",
+			max:  6,
+			text: map[Locale]Forms{
+				Ko: {Other: "이름"},
+				En: {Other: "Name"},
+			},
+		},
+		"edit_profile": {
+			desc: "프로필 메뉴·편집 창 제목: 프로필 편집",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필 편집"},
+				En: {Other: "Edit profile"},
+			},
+		},
 		"empty_discover": {
 			desc: "전체 피드가 비었을 때 제목",
 			text: map[Locale]Forms{
@@ -382,6 +595,41 @@ var areaFeed = area{
 				En: {Other: "Feed"},
 			},
 		},
+		"err_ctx_follow": {
+			desc: "오류 알림 머리: 팔로우",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우"},
+				En: {Other: "Follow"},
+			},
+		},
+		"err_ctx_follow_req": {
+			desc: "오류 알림 머리: 팔로우 요청",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우 요청"},
+				En: {Other: "Follow request"},
+			},
+		},
+		"err_ctx_friend": {
+			desc: "오류 알림 머리: 친구",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구"},
+				En: {Other: "Friends"},
+			},
+		},
+		"err_ctx_guestbook": {
+			desc: "오류 알림 머리: 방명록",
+			text: map[Locale]Forms{
+				Ko: {Other: "방명록"},
+				En: {Other: "Guestbook"},
+			},
+		},
+		"err_ctx_guestbook_del": {
+			desc: "오류 알림 머리: 방명록 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "방명록 삭제"},
+				En: {Other: "Delete guestbook entry"},
+			},
+		},
 		"err_ctx_like": {
 			desc: "오류 토스트 앞 머리: 좋아요",
 			max:  16,
@@ -390,12 +638,26 @@ var areaFeed = area{
 				En: {Other: "Like"},
 			},
 		},
+		"err_ctx_list": {
+			desc: "오류 알림 머리: 목록 불러오기",
+			text: map[Locale]Forms{
+				Ko: {Other: "목록"},
+				En: {Other: "List"},
+			},
+		},
 		"err_ctx_media": {
 			desc: "오류 토스트 앞 머리: 사진 보기",
 			max:  16,
 			text: map[Locale]Forms{
 				Ko: {Other: "사진"},
 				En: {Other: "Photo"},
+			},
+		},
+		"err_ctx_notif": {
+			desc: "오류 알림 머리: 알림 불러오기·읽음 처리 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "알림"},
+				En: {Other: "Notifications"},
 			},
 		},
 		"err_ctx_poll": {
@@ -414,12 +676,33 @@ var areaFeed = area{
 				En: {Other: "Post"},
 			},
 		},
+		"err_ctx_profile": {
+			desc: "오류 알림 머리: 프로필",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필"},
+				En: {Other: "Profile"},
+			},
+		},
+		"err_ctx_remove_follower": {
+			desc: "오류 알림 머리: 팔로워 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로워 삭제"},
+				En: {Other: "Remove follower"},
+			},
+		},
 		"err_ctx_repost": {
 			desc: "오류 토스트 앞 머리: 리포스트",
 			max:  16,
 			text: map[Locale]Forms{
 				Ko: {Other: "리포스트"},
 				En: {Other: "Repost"},
+			},
+		},
+		"err_ctx_save_profile": {
+			desc: "오류 알림 머리: 프로필 저장",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필 저장"},
+				En: {Other: "Save profile"},
 			},
 		},
 		"err_ctx_search": {
@@ -477,11 +760,169 @@ var areaFeed = area{
 				En: {Other: "Feed"},
 			},
 		},
+		"follow_req_accepted": {
+			desc: "알림: 팔로우 요청 수락",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우 요청을 수락했어요"},
+				En: {Other: "Follow request accepted"},
+			},
+		},
+		"follow_req_declined": {
+			desc: "알림: 팔로우 요청 거절",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우 요청을 거절했어요"},
+				En: {Other: "Follow request declined"},
+			},
+		},
+		"follow_requested": {
+			desc: "알림: 팔로우를 요청함",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우를 요청했어요"},
+				En: {Other: "Follow request sent"},
+			},
+		},
+		"follow_requests": {
+			desc: "프로필 메뉴·창 제목: 팔로우 요청",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우 요청"},
+				En: {Other: "Follow requests"},
+			},
+		},
+		"follower_removed": {
+			desc: "알림: 팔로워에서 뺌",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로워에서 뺐어요"},
+				En: {Other: "Removed from followers"},
+			},
+		},
+		"followers_title": {
+			desc: "목록 창 제목·프로필 메뉴: 팔로워",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로워"},
+				En: {Other: "Followers"},
+			},
+		},
+		"following_title": {
+			desc: "목록 창 제목·프로필 메뉴: 팔로잉",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로잉"},
+				En: {Other: "Following"},
+			},
+		},
+		"follows_you": {
+			desc: "프로필 관계 표시: 상대가 나를 팔로우",
+			text: map[Locale]Forms{
+				Ko: {Other: "나를 팔로우해요"},
+				En: {Other: "Follows you"},
+			},
+		},
+		"friend_accepted": {
+			desc:   "알림: 받은 친구 요청을 수락함",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구가 되었어요"},
+				En: {Other: "You and {name} are now friends"},
+			},
+		},
+		"friend_canceled": {
+			desc: "알림: 보낸 친구 요청 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청을 취소했어요"},
+				En: {Other: "Friend request canceled"},
+			},
+		},
+		"friend_declined": {
+			desc: "알림: 받은 친구 요청 거절",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청을 거절했어요"},
+				En: {Other: "Friend request declined"},
+			},
+		},
+		"friend_now": {
+			desc:   "알림: 친구 요청이 바로 수락됨",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 이제 친구예요"},
+				En: {Other: "You and {name} are friends now"},
+			},
+		},
+		"friend_sent": {
+			desc:   "알림: 친구 요청을 보냄",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님에게 친구 요청을 보냈어요"},
+				En: {Other: "Friend request sent to {name}"},
+			},
+		},
+		"guestbook_del_ask": {
+			desc:       "방명록 글 삭제 확인 질문",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "방명록 글을 지울까요?"},
+				En: {Other: "Delete this guestbook entry?"},
+			},
+		},
+		"guestbook_del_yes": {
+			desc: "방명록 글 삭제 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "지우기"},
+				En: {Other: "Delete"},
+			},
+		},
+		"guestbook_deleted": {
+			desc: "알림: 방명록 글 삭제됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "방명록 글을 지웠어요"},
+				En: {Other: "Guestbook entry deleted"},
+			},
+		},
+		"guestbook_empty": {
+			desc: "방명록 탭 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 방명록이 비어 있어요"},
+				En: {Other: "The guestbook is empty"},
+			},
+		},
+		"guestbook_empty_hint": {
+			desc: "방명록 탭 빈 상태 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "w 로 첫 글을 남겨 보세요"},
+				En: {Other: "Press w to write the first entry"},
+			},
+		},
+		"guestbook_hidden": {
+			desc: "남이 쓴 비밀글 본문 자리",
+			text: map[Locale]Forms{
+				Ko: {Other: "비밀글이에요"},
+				En: {Other: "This entry is secret"},
+			},
+		},
+		"guestbook_secret_chip": {
+			desc: "방명록 글 비밀글 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "🔒 비밀글"},
+				En: {Other: "🔒 Secret"},
+			},
+		},
 		"hashtag_empty": {
 			desc: "해시태그 피드가 비었을 때",
 			text: map[Locale]Forms{
 				Ko: {Other: "이 태그의 글이 아직 없어요"},
 				En: {Other: "No posts with this tag yet"},
+			},
+		},
+		"hashtag_title": {
+			desc: "해시태그 고르기 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "해시태그"},
+				En: {Other: "Hashtags"},
+			},
+		},
+		"help_accept": {
+			desc: "키 도움말: 수락",
+			text: map[Locale]Forms{
+				Ko: {Other: "수락"},
+				En: {Other: "accept"},
 			},
 		},
 		"help_attach": {
@@ -500,12 +941,33 @@ var areaFeed = area{
 				En: {Other: "background"},
 			},
 		},
+		"help_cancel_follow": {
+			desc: "키 도움말: 팔로우 요청 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "요청 취소"},
+				En: {Other: "cancel request"},
+			},
+		},
 		"help_close_poll": {
 			desc: "상태줄 키 안내: 내 투표 마감(c)",
 			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "마감"},
 				En: {Other: "close poll"},
+			},
+		},
+		"help_decline": {
+			desc: "키 도움말: 거절",
+			text: map[Locale]Forms{
+				Ko: {Other: "거절"},
+				En: {Other: "decline"},
+			},
+		},
+		"help_edit_profile": {
+			desc: "키 도움말: 프로필 편집",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필 편집"},
+				En: {Other: "edit profile"},
 			},
 		},
 		"help_end_input": {
@@ -524,12 +986,27 @@ var areaFeed = area{
 				En: {Other: "expand"},
 			},
 		},
+		"help_follow": {
+			desc: "키 도움말: 팔로우",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우"},
+				En: {Other: "follow"},
+			},
+		},
 		"help_like": {
 			desc: "상태줄 키 안내: 좋아요",
 			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "좋아요"},
 				En: {Other: "like"},
+			},
+		},
+		"help_mark_all_read": {
+			desc: "키 도움말: 알림 모두 읽음",
+			max:  14,
+			text: map[Locale]Forms{
+				Ko: {Other: "모두 읽음"},
+				En: {Other: "mark all read"},
 			},
 		},
 		"help_menu": {
@@ -554,6 +1031,13 @@ var areaFeed = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "다음"},
 				En: {Other: "next"},
+			},
+		},
+		"help_next_field": {
+			desc: "키 도움말: 다음 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "다음 칸"},
+				En: {Other: "next field"},
 			},
 		},
 		"help_open": {
@@ -604,6 +1088,27 @@ var areaFeed = area{
 				En: {Other: "prev"},
 			},
 		},
+		"help_profile": {
+			desc: "키 도움말: 프로필 열기",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필"},
+				En: {Other: "profile"},
+			},
+		},
+		"help_remove_avatar": {
+			desc: "키 도움말: 아바타 지우기",
+			text: map[Locale]Forms{
+				Ko: {Other: "아바타 지우기"},
+				En: {Other: "remove avatar"},
+			},
+		},
+		"help_remove_follower": {
+			desc: "키 도움말: 팔로워에서 빼기",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로워에서 빼기"},
+				En: {Other: "remove follower"},
+			},
+		},
 		"help_remove_photo": {
 			desc: "상태줄 키 안내: 마지막 사진 빼기(x)",
 			max:  12,
@@ -636,12 +1141,33 @@ var areaFeed = area{
 				En: {Other: "retry"},
 			},
 		},
+		"help_run": {
+			desc: "키 도움말: 메뉴 항목 실행",
+			text: map[Locale]Forms{
+				Ko: {Other: "실행"},
+				En: {Other: "run"},
+			},
+		},
 		"help_search": {
 			desc: "상태줄 키 안내: 검색(/)",
 			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "검색"},
 				En: {Other: "search"},
+			},
+		},
+		"help_stories": {
+			desc: "키 도움말: 스토리",
+			text: map[Locale]Forms{
+				Ko: {Other: "스토리"},
+				En: {Other: "stories"},
+			},
+		},
+		"help_tabs": {
+			desc: "키 도움말: 탭 옮기기",
+			text: map[Locale]Forms{
+				Ko: {Other: "탭"},
+				En: {Other: "tabs"},
 			},
 		},
 		"help_tag_feed": {
@@ -668,12 +1194,26 @@ var areaFeed = area{
 				En: {Other: "tag search"},
 			},
 		},
+		"help_unfollow": {
+			desc: "키 도움말: 언팔로우",
+			text: map[Locale]Forms{
+				Ko: {Other: "언팔로우"},
+				En: {Other: "unfollow"},
+			},
+		},
 		"help_unvote": {
 			desc: "상태줄 키 안내: 내 투표 취소(x)",
 			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "투표 취소"},
 				En: {Other: "unvote"},
+			},
+		},
+		"help_view_post": {
+			desc: "키 도움말: 글 보기",
+			text: map[Locale]Forms{
+				Ko: {Other: "글 보기"},
+				En: {Other: "view post"},
 			},
 		},
 		"help_vote": {
@@ -690,6 +1230,20 @@ var areaFeed = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "쓰기"},
 				En: {Other: "write"},
+			},
+		},
+		"help_write_guestbook": {
+			desc: "키 도움말: 방명록 쓰기",
+			text: map[Locale]Forms{
+				Ko: {Other: "방명록 쓰기"},
+				En: {Other: "sign guestbook"},
+			},
+		},
+		"hint_go_back": {
+			desc: "빈 화면 안내: esc 로 돌아가기",
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 로 돌아가기"},
+				En: {Other: "esc to go back"},
 			},
 		},
 		"kw_feed_discover": {
@@ -799,6 +1353,125 @@ var areaFeed = area{
 				En: {Other: "Photo {n}/{total}"},
 			},
 		},
+		"menu_author": {
+			desc: "글·스토리 메뉴: 작성자 프로필",
+			text: map[Locale]Forms{
+				Ko: {Other: "작성자 프로필"},
+				En: {Other: "Author's profile"},
+			},
+		},
+		"menu_block": {
+			desc: "글 메뉴: 작성자 차단",
+			text: map[Locale]Forms{
+				Ko: {Other: "작성자 차단"},
+				En: {Other: "Block author"},
+			},
+		},
+		"menu_block_user": {
+			desc: "프로필 메뉴: 차단",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단"},
+				En: {Other: "Block"},
+			},
+		},
+		"menu_delete": {
+			desc: "글 메뉴: 글 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "글 삭제"},
+				En: {Other: "Delete post"},
+			},
+		},
+		"menu_friend_accept": {
+			desc: "프로필 메뉴: 받은 친구 요청 수락",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청 수락"},
+				En: {Other: "Accept friend request"},
+			},
+		},
+		"menu_friend_add": {
+			desc: "프로필 메뉴: 친구 요청 보내기",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청"},
+				En: {Other: "Add friend"},
+			},
+		},
+		"menu_friend_cancel": {
+			desc: "프로필 메뉴: 보낸 친구 요청 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청 취소"},
+				En: {Other: "Cancel friend request"},
+			},
+		},
+		"menu_friend_decline": {
+			desc: "프로필 메뉴: 받은 친구 요청 거절",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 요청 거절"},
+				En: {Other: "Decline friend request"},
+			},
+		},
+		"menu_likes": {
+			desc: "글 메뉴·목록 제목: 좋아요 누른 사람",
+			text: map[Locale]Forms{
+				Ko: {Other: "좋아요 누른 사람"},
+				En: {Other: "Liked by"},
+			},
+		},
+		"menu_quotes": {
+			desc: "글 메뉴·목록 제목: 인용한 글",
+			text: map[Locale]Forms{
+				Ko: {Other: "인용한 글"},
+				En: {Other: "Quotes"},
+			},
+		},
+		"menu_report": {
+			desc: "글 메뉴: 글 신고",
+			text: map[Locale]Forms{
+				Ko: {Other: "글 신고"},
+				En: {Other: "Report post"},
+			},
+		},
+		"menu_report_user": {
+			desc: "프로필 메뉴: 사용자 신고",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용자 신고"},
+				En: {Other: "Report user"},
+			},
+		},
+		"menu_reposts": {
+			desc: "글 메뉴·목록 제목: 리포스트한 사람",
+			text: map[Locale]Forms{
+				Ko: {Other: "리포스트한 사람"},
+				En: {Other: "Reposted by"},
+			},
+		},
+		"menu_stories": {
+			desc: "프로필 메뉴: 스토리 보기",
+			text: map[Locale]Forms{
+				Ko: {Other: "스토리 보기"},
+				En: {Other: "View stories"},
+			},
+		},
+		"menu_title": {
+			desc: "글 메뉴 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "글 메뉴"},
+				En: {Other: "Post menu"},
+			},
+		},
+		"menu_unfriend": {
+			desc: "프로필 메뉴: 친구 끊기",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구 끊기"},
+				En: {Other: "Unfriend"},
+			},
+		},
+		"name_required": {
+			desc: "프로필 편집: 이름이 비었음",
+			text: map[Locale]Forms{
+				Ko: {Other: "이름을 입력해 주세요"},
+				En: {Other: "Please enter a name"},
+			},
+		},
 		"new_posts_banner": {
 			desc:   "피드 맨 위 새 글 알림 줄(n = 새 글 수, enter 는 키 이름)",
 			params: []Param{{Name: "n", Type: "int"}},
@@ -814,6 +1487,331 @@ var areaFeed = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "새 글 {n}개+ · enter"},
 				En: {Other: "{n}+ new posts · enter"},
+			},
+		},
+		"no_follow_requests": {
+			desc: "팔로우 요청 창 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "대기 중인 팔로우 요청이 없어요"},
+				En: {Other: "No pending follow requests"},
+			},
+		},
+		"no_profile_media": {
+			desc: "프로필 미디어 탭 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 사진이 없어요"},
+				En: {Other: "No photos yet"},
+			},
+		},
+		"no_profile_posts": {
+			desc: "프로필 글 탭 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 글이 없어요"},
+				En: {Other: "No posts yet"},
+			},
+		},
+		"no_profile_replies": {
+			desc: "프로필 답글 탭 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 답글이 없어요"},
+				En: {Other: "No replies yet"},
+			},
+		},
+		"no_quotes": {
+			desc: "인용 목록 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 인용한 글이 없어요"},
+				En: {Other: "No quotes yet"},
+			},
+		},
+		"nobody": {
+			desc: "사용자 목록 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "아직 아무도 없어요"},
+				En: {Other: "Nobody yet"},
+			},
+		},
+		"notif_empty": {
+			desc: "알림이 하나도 없을 때",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 알림이 없어요"},
+				En: {Other: "No new notifications"},
+			},
+		},
+		"notif_follow": {
+			desc:   "알림 문장(넓은 줄): 나를 팔로우",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 나를 팔로우해요"},
+				En: {Other: "{name} followed you"},
+			},
+		},
+		"notif_follow_accepted": {
+			desc:   "알림 문장(넓은 줄): 내 팔로우 요청 수락",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 팔로우 요청을 수락했어요"},
+				En: {Other: "{name} accepted your follow request"},
+			},
+		},
+		"notif_follow_accepted_narrow": {
+			desc:   "알림 문장(좁은 줄): 팔로우 수락",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 수락"},
+				En: {Other: "{name} accepted"},
+			},
+		},
+		"notif_follow_narrow": {
+			desc:   "알림 문장(좁은 줄): 팔로우",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 팔로우"},
+				En: {Other: "{name} followed you"},
+			},
+		},
+		"notif_follow_request": {
+			desc:   "알림 문장(넓은 줄): 팔로우 요청",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 팔로우를 요청했어요"},
+				En: {Other: "{name} asked to follow you"},
+			},
+		},
+		"notif_follow_request_narrow": {
+			desc:   "알림 문장(좁은 줄): 팔로우 요청",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 팔로우 요청"},
+				En: {Other: "Follow request from {name}"},
+			},
+		},
+		"notif_friend_accepted": {
+			desc:   "알림 문장(넓은 줄): 친구가 됨",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구가 되었어요"},
+				En: {Other: "You and {name} are now friends"},
+			},
+		},
+		"notif_friend_accepted_narrow": {
+			desc:   "알림 문장(좁은 줄): 친구가 됨",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구"},
+				En: {Other: "Friends with {name}"},
+			},
+		},
+		"notif_friend_request": {
+			desc:   "알림 문장(넓은 줄): 친구 요청",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 친구 요청을 보냈어요"},
+				En: {Other: "{name} sent you a friend request"},
+			},
+		},
+		"notif_friend_request_narrow": {
+			desc:   "알림 문장(좁은 줄): 친구 요청",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 친구 요청"},
+				En: {Other: "Friend request from {name}"},
+			},
+		},
+		"notif_guestbook_entry": {
+			desc:   "알림 문장(넓은 줄): 내 방명록에 글",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 방명록을 남겼어요"},
+				En: {Other: "{name} signed your guestbook"},
+			},
+		},
+		"notif_guestbook_entry_narrow": {
+			desc:   "알림 문장(좁은 줄): 방명록",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 방명록"},
+				En: {Other: "Guestbook from {name}"},
+			},
+		},
+		"notif_header": {
+			desc: "알림함 안 '알림' 절 머리",
+			text: map[Locale]Forms{
+				Ko: {Other: "알림"},
+				En: {Other: "Notifications"},
+			},
+		},
+		"notif_load_failed": {
+			desc: "알림 목록을 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "알림을 불러오지 못했어요"},
+				En: {Other: "Couldn't load notifications"},
+			},
+		},
+		"notif_message_mention": {
+			desc:   "알림 문장(넓은 줄): 방 대화에서 나를 멘션. space = 방 이름",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 {space}에서 나를 멘션했어요"},
+				En: {Other: "{name} mentioned you in {space}"},
+			},
+		},
+		"notif_message_mention_narrow": {
+			desc:   "알림 문장(좁은 줄): 멘션",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 멘션"},
+				En: {Other: "{name} mentioned you"},
+			},
+		},
+		"notif_other": {
+			desc:   "알림 문장(넓은 줄): 이 클라이언트가 모르는 종류",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 새 알림이 있어요"},
+				En: {Other: "New notification from {name}"},
+			},
+		},
+		"notif_other_narrow": {
+			desc:   "알림 문장(좁은 줄): 모르는 종류",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님의 알림"},
+				En: {Other: "Alert from {name}"},
+			},
+		},
+		"notif_post_like": {
+			desc:   "알림 문장(넓은 줄): 내 글 좋아요. name = 보낸 사람 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 내 글을 좋아해요"},
+				En: {Other: "{name} liked your post"},
+			},
+		},
+		"notif_post_like_narrow": {
+			desc:   "알림 문장(좁은 줄): 내 글 좋아요",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 좋아함"},
+				En: {Other: "{name} liked"},
+			},
+		},
+		"notif_post_mention": {
+			desc:   "알림 문장(넓은 줄): 글에서 나를 멘션",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 글에서 나를 멘션했어요"},
+				En: {Other: "{name} mentioned you in a post"},
+			},
+		},
+		"notif_post_mention_narrow": {
+			desc:   "알림 문장(좁은 줄): 멘션",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 멘션"},
+				En: {Other: "{name} mentioned you"},
+			},
+		},
+		"notif_post_quote": {
+			desc:   "알림 문장(넓은 줄): 내 글 인용",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 내 글을 인용했어요"},
+				En: {Other: "{name} quoted your post"},
+			},
+		},
+		"notif_post_quote_narrow": {
+			desc:   "알림 문장(좁은 줄): 인용",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 인용"},
+				En: {Other: "{name} quoted"},
+			},
+		},
+		"notif_post_reply": {
+			desc:   "알림 문장(넓은 줄): 내 글에 답글",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 답글을 남겼어요"},
+				En: {Other: "{name} replied to you"},
+			},
+		},
+		"notif_post_reply_narrow": {
+			desc:   "알림 문장(좁은 줄): 답글",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 답글"},
+				En: {Other: "{name} replied"},
+			},
+		},
+		"notif_post_repost": {
+			desc:   "알림 문장(넓은 줄): 내 글 리포스트",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 내 글을 리포스트했어요"},
+				En: {Other: "{name} reposted your post"},
+			},
+		},
+		"notif_post_repost_narrow": {
+			desc:   "알림 문장(좁은 줄): 리포스트",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 리포스트"},
+				En: {Other: "{name} reposted"},
+			},
+		},
+		"notif_someone": {
+			desc: "알림·대화 줄에서 이름을 알 수 없는 사람",
+			text: map[Locale]Forms{
+				Ko: {Other: "알 수 없음"},
+				En: {Other: "Unknown"},
+			},
+		},
+		"notif_space": {
+			desc: "알림 문장에서 이름 모르는 방",
+			text: map[Locale]Forms{
+				Ko: {Other: "방"},
+				En: {Other: "a space"},
+			},
+		},
+		"notif_space_invite": {
+			desc:   "알림 문장(넓은 줄): 방 초대. space = 방 이름",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 {space}에 초대했어요"},
+				En: {Other: "{name} invited you to {space}"},
+			},
+		},
+		"notif_space_invite_narrow": {
+			desc:   "알림 문장(좁은 줄): 방 초대",
+			params: []Param{{Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{space} 초대"},
+				En: {Other: "Invite to {space}"},
+			},
+		},
+		"notif_thread_reply": {
+			desc:   "알림 문장(넓은 줄): 스레드 답글",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 스레드에 답글을 달았어요"},
+				En: {Other: "{name} replied in a thread"},
+			},
+		},
+		"notif_thread_reply_narrow": {
+			desc:   "알림 문장(좁은 줄): 스레드 답글",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 스레드 답글"},
+				En: {Other: "{name} replied in thread"},
+			},
+		},
+		"notif_title": {
+			desc: "알림함 판 제목(탭·테두리). 위젯·초소형은 short",
+			max:  14,
+			text: map[Locale]Forms{
+				Ko: {Other: "알림", Short: "알림"},
+				En: {Other: "Notifications", Short: "Alerts"},
 			},
 		},
 		"palette_hashtag_open": {
@@ -927,11 +1925,161 @@ var areaFeed = area{
 				En: {Other: "Post"},
 			},
 		},
+		"presence_away": {
+			desc: "프로필 머리 접속 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "자리 비움"},
+				En: {Other: "Away"},
+			},
+		},
+		"presence_dnd": {
+			desc: "프로필 머리 접속 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "방해 금지"},
+				En: {Other: "Do not disturb"},
+			},
+		},
+		"presence_offline": {
+			desc: "프로필 머리 접속 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "오프라인"},
+				En: {Other: "Offline"},
+			},
+		},
+		"presence_online": {
+			desc: "프로필 머리 접속 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "온라인"},
+				En: {Other: "Online"},
+			},
+		},
+		"private_hint": {
+			desc: "비공개 계정 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우 요청이 승인되면 글을 볼 수 있어요"},
+				En: {Other: "You'll see posts once your follow request is approved"},
+			},
+		},
 		"private_no_share": {
 			desc: "비공개 계정 글을 리포스트·인용하려 할 때 토스트",
 			text: map[Locale]Forms{
 				Ko: {Other: "비공개 계정의 글은 리포스트·인용할 수 없어요"},
 				En: {Other: "Posts from private accounts can't be reposted or quoted"},
+			},
+		},
+		"private_title": {
+			desc: "비공개 계정의 글 탭",
+			text: map[Locale]Forms{
+				Ko: {Other: "비공개 계정이에요"},
+				En: {Other: "This account is private"},
+			},
+		},
+		"profile_friend": {
+			desc: "프로필 관계 표시: 친구",
+			text: map[Locale]Forms{
+				Ko: {Other: "친구"},
+				En: {Other: "Friend"},
+			},
+		},
+		"profile_load_failed": {
+			desc: "프로필을 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필을 불러오지 못했어요"},
+				En: {Other: "Couldn't load the profile"},
+			},
+		},
+		"profile_saved": {
+			desc: "알림: 프로필 저장됨",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필을 저장했어요"},
+				En: {Other: "Profile saved"},
+			},
+		},
+		"profile_tab_guestbook": {
+			desc: "프로필 탭: 방명록",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "방명록"},
+				En: {Other: "Guestbook"},
+			},
+		},
+		"profile_tab_media": {
+			desc: "프로필 탭: 미디어",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "미디어"},
+				En: {Other: "Media"},
+			},
+		},
+		"profile_tab_posts": {
+			desc: "프로필 탭: 글",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "글"},
+				En: {Other: "Posts"},
+			},
+		},
+		"profile_tab_replies": {
+			desc: "프로필 탭: 답글",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "답글"},
+				En: {Other: "Replies"},
+			},
+		},
+		"profile_title": {
+			desc: "프로필 판 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "프로필"},
+				En: {Other: "Profile"},
+			},
+		},
+		"remove_follower_ask": {
+			desc:       "팔로워에서 빼기 확인 질문. handle = @아이디",
+			params:     []Param{{Name: "handle", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{handle}님을 팔로워에서 뺄까요?"},
+				En: {Other: "Remove {handle} from your followers?"},
+			},
+		},
+		"remove_follower_body": {
+			desc:       "팔로워에서 빼기 확인 설명",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "내 글이 그 사람 팔로잉 피드에 더는 오지 않아요."},
+				En: {Other: "Your posts will no longer reach their Following feed."},
+			},
+		},
+		"remove_follower_yes": {
+			desc: "팔로워에서 빼기 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "빼기"},
+				En: {Other: "Remove"},
+			},
+		},
+		"report_guestbook_of": {
+			desc:   "신고 창 대상: 누구의 방명록 글. name = 작성자",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}의 방명록 글"},
+				En: {Other: "{name}'s guestbook entry"},
+			},
+		},
+		"report_post_of": {
+			desc:   "신고 창 대상: 누구의 글. name = 작성자",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}의 글"},
+				En: {Other: "{name}'s post"},
+			},
+		},
+		"requests_count": {
+			desc:   "내 비공개 프로필 칩: 대기 중인 팔로우 요청 수. n = 사람이 읽는 수(1.2천 등)",
+			params: []Param{{Name: "n", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우 요청 {n}"},
+				En: {Other: "Follow requests {n}"},
 			},
 		},
 		"retry_hint": {
@@ -956,6 +2104,13 @@ var areaFeed = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "내 스토리"},
 				En: {Other: "My story"},
+			},
+		},
+		"someone": {
+			desc: "이름 모르는 작성자",
+			text: map[Locale]Forms{
+				Ko: {Other: "누군가"},
+				En: {Other: "Someone"},
 			},
 		},
 		"stories_none": {
@@ -1030,6 +2185,20 @@ var areaFeed = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "본 사람 {n}"},
 				En: {Other: "Viewers {n}"},
+			},
+		},
+		"suspended_badge": {
+			desc: "정지된 계정: 숫자 줄 대신",
+			text: map[Locale]Forms{
+				Ko: {Other: "정지된 계정"},
+				En: {Other: "Suspended account"},
+			},
+		},
+		"suspended_title": {
+			desc: "정지된 계정의 글 탭",
+			text: map[Locale]Forms{
+				Ko: {Other: "정지된 계정이에요"},
+				En: {Other: "This account is suspended"},
 			},
 		},
 		"tab_discover": {
@@ -1156,6 +2325,66 @@ var areaFeed = area{
 				En: {Other: "Trends"},
 			},
 		},
+		"unfollow_ask": {
+			desc: "언팔로우 확인 질문",
+			text: map[Locale]Forms{
+				Ko: {Other: "팔로우를 끊을까요?"},
+				En: {Other: "Unfollow?"},
+			},
+		},
+		"unfollow_yes": {
+			desc: "언팔로우 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "끊기"},
+				En: {Other: "Unfollow"},
+			},
+		},
+		"unfriend_ask": {
+			desc:       "친구 끊기 확인 질문. name = 상대 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구를 끊을까요?"},
+				En: {Other: "Unfriend {name}?"},
+			},
+		},
+		"unfriend_body": {
+			desc:       "친구 끊기 확인 설명",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "지난 DM은 남지만 읽기 전용이 될 수 있어요"},
+				En: {Other: "Past DMs stay but may become read-only"},
+			},
+		},
+		"unfriend_yes": {
+			desc: "친구 끊기 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "끊기"},
+				En: {Other: "Unfriend"},
+			},
+		},
+		"unfriended": {
+			desc:   "알림: 친구를 끊음",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님과 친구를 끊었어요"},
+				En: {Other: "You unfriended {name}"},
+			},
+		},
+		"user_not_found": {
+			desc: "프로필 사용자가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "사용자를 찾을 수 없어요"},
+				En: {Other: "User not found"},
+			},
+		},
+		"viewers_title": {
+			desc: "목록 창 제목: 스토리 본 사람",
+			text: map[Locale]Forms{
+				Ko: {Other: "본 사람"},
+				En: {Other: "Viewers"},
+			},
+		},
 	},
 }
 
@@ -1189,14 +2418,59 @@ func (a_ FeedT) AttachTitle() string {
 	return a_.t.render(&areaFeed, "attach_title", false, 0)
 }
 
+// AvatarClear: 프로필 편집: 아바타 지우기 예약됨
+func (a_ FeedT) AvatarClear() string {
+	return a_.t.render(&areaFeed, "avatar_clear", false, 0)
+}
+
+// AvatarHint: 프로필 편집 아바타 칸 자리 표시
+func (a_ FeedT) AvatarHint() string {
+	return a_.t.render(&areaFeed, "avatar_hint", false, 0)
+}
+
+// BioPlaceholder: 프로필 편집 소개 칸 자리 표시
+func (a_ FeedT) BioPlaceholder() string {
+	return a_.t.render(&areaFeed, "bio_placeholder", false, 0)
+}
+
+// BlockAsk: 차단 확인 질문. name = 상대 이름
+func (a_ FeedT) BlockAsk(name string) string {
+	return a_.t.render(&areaFeed, "block_ask", false, 0, "name", name)
+}
+
+// BlockBody: 차단 확인 설명
+func (a_ FeedT) BlockBody() string {
+	return a_.t.render(&areaFeed, "block_body", false, 0)
+}
+
+// BlockYes: 차단 확인 단추
+func (a_ FeedT) BlockYes() string {
+	return a_.t.render(&areaFeed, "block_yes", false, 0)
+}
+
 // BlockedDone: 사용자를 차단한 뒤 토스트
 func (a_ FeedT) BlockedDone() string {
 	return a_.t.render(&areaFeed, "blocked_done", false, 0)
 }
 
+// BlockedHint: 차단 해제 안내(설정의 차단 목록 절 이름과 맞춤)
+func (a_ FeedT) BlockedHint() string {
+	return a_.t.render(&areaFeed, "blocked_hint", false, 0)
+}
+
+// BlockedTitle: 차단한 사용자의 프로필
+func (a_ FeedT) BlockedTitle() string {
+	return a_.t.render(&areaFeed, "blocked_title", false, 0)
+}
+
 // Cancel: 확인 창의 취소 단추
 func (a_ FeedT) Cancel() string {
 	return a_.t.render(&areaFeed, "cancel", false, 0)
+}
+
+// CannotView: 글을 볼 수 없는 프로필
+func (a_ FeedT) CannotView() string {
+	return a_.t.render(&areaFeed, "cannot_view", false, 0)
 }
 
 // CardDeleted: 글 카드: 지워진 글 자리에 나오는 줄
@@ -1217,6 +2491,26 @@ func (a_ FeedT) CardNotVisible() string {
 // CardRepostedBy: 글 카드 맨 위 리포스트 줄(↻ 뒤, name = 리포스트한 사람의 표시 이름)
 func (a_ FeedT) CardRepostedBy(name string) string {
 	return a_.t.render(&areaFeed, "card_reposted_by", false, 0, "name", name)
+}
+
+// ChipEditProfile: 내 프로필 칩: 프로필 편집
+func (a_ FeedT) ChipEditProfile() string {
+	return a_.t.render(&areaFeed, "chip_edit_profile", false, 0)
+}
+
+// ChipFollow: 프로필 관계 칩: 팔로우(누를 수 있음)
+func (a_ FeedT) ChipFollow() string {
+	return a_.t.render(&areaFeed, "chip_follow", false, 0)
+}
+
+// ChipFollowing: 프로필 관계 칩: 팔로우 중
+func (a_ FeedT) ChipFollowing() string {
+	return a_.t.render(&areaFeed, "chip_following", false, 0)
+}
+
+// ChipRequested: 프로필 관계 칩: 팔로우 요청함
+func (a_ FeedT) ChipRequested() string {
+	return a_.t.render(&areaFeed, "chip_requested", false, 0)
 }
 
 // CmdFeedDiscover: 명령 팔레트 줄: 전체 피드(발견)로 가기
@@ -1369,6 +2663,86 @@ func (a_ FeedT) ComposeUploadFailed() string {
 	return a_.t.render(&areaFeed, "compose_upload_failed", false, 0)
 }
 
+// ConvHeader: 알림함 '안 읽은 대화' 절 머리
+func (a_ FeedT) ConvHeader() string {
+	return a_.t.render(&areaFeed, "conv_header", false, 0)
+}
+
+// ConvMe: 안 읽은 대화 줄: 나(내 메시지·나만 있는 대화)
+func (a_ FeedT) ConvMe() string {
+	return a_.t.render(&areaFeed, "conv_me", false, 0)
+}
+
+// ConvNew: 안 읽은 대화 미리보기: 본문을 모를 때 새 메시지 수
+func (a_ FeedT) ConvNew(n int) string {
+	return a_.t.render(&areaFeed, "conv_new", false, n, "n", strconv.Itoa(n))
+}
+
+// ConvPerson: 안 읽은 대화 줄의 사람 이름(ko 는 님을 붙임)
+func (a_ FeedT) ConvPerson(name string) string {
+	return a_.t.render(&areaFeed, "conv_person", false, 0, "name", name)
+}
+
+// ConvPoll: 안 읽은 대화 미리보기: 투표 메시지(뒤에 ' · 질문')
+func (a_ FeedT) ConvPoll() string {
+	return a_.t.render(&areaFeed, "conv_poll", false, 0)
+}
+
+// ConvThread: 안 읽은 대화 줄: 스레드 표시(뒤에 ' · 채널')
+func (a_ FeedT) ConvThread() string {
+	return a_.t.render(&areaFeed, "conv_thread", false, 0)
+}
+
+// CountFollowers: 프로필 숫자 줄 이름표(뒤에 수)
+func (a_ FeedT) CountFollowers() string {
+	return a_.t.render(&areaFeed, "count_followers", false, 0)
+}
+
+// CountFollowing: 프로필 숫자 줄 이름표(뒤에 수)
+func (a_ FeedT) CountFollowing() string {
+	return a_.t.render(&areaFeed, "count_following", false, 0)
+}
+
+// CountPosts: 프로필 숫자 줄 이름표(뒤에 수)
+func (a_ FeedT) CountPosts() string {
+	return a_.t.render(&areaFeed, "count_posts", false, 0)
+}
+
+// DeleteAsk: 글 삭제 확인 질문
+func (a_ FeedT) DeleteAsk() string {
+	return a_.t.render(&areaFeed, "delete_ask", false, 0)
+}
+
+// DeleteYes: 글 삭제 확인 단추
+func (a_ FeedT) DeleteYes() string {
+	return a_.t.render(&areaFeed, "delete_yes", false, 0)
+}
+
+// EditAvatar: 프로필 편집 칸 이름표
+func (a_ FeedT) EditAvatar() string {
+	return a_.t.render(&areaFeed, "edit_avatar", false, 0)
+}
+
+// EditBio: 프로필 편집 칸 이름표
+func (a_ FeedT) EditBio() string {
+	return a_.t.render(&areaFeed, "edit_bio", false, 0)
+}
+
+// EditKeys: 프로필 편집 아래 키 안내
+func (a_ FeedT) EditKeys() string {
+	return a_.t.render(&areaFeed, "edit_keys", false, 0)
+}
+
+// EditName: 프로필 편집 칸 이름표(왼쪽 고정 폭)
+func (a_ FeedT) EditName() string {
+	return a_.t.render(&areaFeed, "edit_name", false, 0)
+}
+
+// EditProfile: 프로필 메뉴·편집 창 제목: 프로필 편집
+func (a_ FeedT) EditProfile() string {
+	return a_.t.render(&areaFeed, "edit_profile", false, 0)
+}
+
 // EmptyDiscover: 전체 피드가 비었을 때 제목
 func (a_ FeedT) EmptyDiscover() string {
 	return a_.t.render(&areaFeed, "empty_discover", false, 0)
@@ -1409,14 +2783,49 @@ func (a_ FeedT) ErrCtxFeed() string {
 	return a_.t.render(&areaFeed, "err_ctx_feed", false, 0)
 }
 
+// ErrCtxFollow: 오류 알림 머리: 팔로우
+func (a_ FeedT) ErrCtxFollow() string {
+	return a_.t.render(&areaFeed, "err_ctx_follow", false, 0)
+}
+
+// ErrCtxFollowReq: 오류 알림 머리: 팔로우 요청
+func (a_ FeedT) ErrCtxFollowReq() string {
+	return a_.t.render(&areaFeed, "err_ctx_follow_req", false, 0)
+}
+
+// ErrCtxFriend: 오류 알림 머리: 친구
+func (a_ FeedT) ErrCtxFriend() string {
+	return a_.t.render(&areaFeed, "err_ctx_friend", false, 0)
+}
+
+// ErrCtxGuestbook: 오류 알림 머리: 방명록
+func (a_ FeedT) ErrCtxGuestbook() string {
+	return a_.t.render(&areaFeed, "err_ctx_guestbook", false, 0)
+}
+
+// ErrCtxGuestbookDel: 오류 알림 머리: 방명록 삭제
+func (a_ FeedT) ErrCtxGuestbookDel() string {
+	return a_.t.render(&areaFeed, "err_ctx_guestbook_del", false, 0)
+}
+
 // ErrCtxLike: 오류 토스트 앞 머리: 좋아요
 func (a_ FeedT) ErrCtxLike() string {
 	return a_.t.render(&areaFeed, "err_ctx_like", false, 0)
 }
 
+// ErrCtxList: 오류 알림 머리: 목록 불러오기
+func (a_ FeedT) ErrCtxList() string {
+	return a_.t.render(&areaFeed, "err_ctx_list", false, 0)
+}
+
 // ErrCtxMedia: 오류 토스트 앞 머리: 사진 보기
 func (a_ FeedT) ErrCtxMedia() string {
 	return a_.t.render(&areaFeed, "err_ctx_media", false, 0)
+}
+
+// ErrCtxNotif: 오류 알림 머리: 알림 불러오기·읽음 처리 실패
+func (a_ FeedT) ErrCtxNotif() string {
+	return a_.t.render(&areaFeed, "err_ctx_notif", false, 0)
 }
 
 // ErrCtxPoll: 오류 토스트 앞 머리("투표: <오류>")
@@ -1429,9 +2838,24 @@ func (a_ FeedT) ErrCtxPost() string {
 	return a_.t.render(&areaFeed, "err_ctx_post", false, 0)
 }
 
+// ErrCtxProfile: 오류 알림 머리: 프로필
+func (a_ FeedT) ErrCtxProfile() string {
+	return a_.t.render(&areaFeed, "err_ctx_profile", false, 0)
+}
+
+// ErrCtxRemoveFollower: 오류 알림 머리: 팔로워 삭제
+func (a_ FeedT) ErrCtxRemoveFollower() string {
+	return a_.t.render(&areaFeed, "err_ctx_remove_follower", false, 0)
+}
+
 // ErrCtxRepost: 오류 토스트 앞 머리: 리포스트
 func (a_ FeedT) ErrCtxRepost() string {
 	return a_.t.render(&areaFeed, "err_ctx_repost", false, 0)
+}
+
+// ErrCtxSaveProfile: 오류 알림 머리: 프로필 저장
+func (a_ FeedT) ErrCtxSaveProfile() string {
+	return a_.t.render(&areaFeed, "err_ctx_save_profile", false, 0)
 }
 
 // ErrCtxSearch: 오류 토스트 앞 머리: 검색
@@ -1469,9 +2893,119 @@ func (a_ FeedT) FeedTitle() string {
 	return a_.t.render(&areaFeed, "feed_title", false, 0)
 }
 
+// FollowReqAccepted: 알림: 팔로우 요청 수락
+func (a_ FeedT) FollowReqAccepted() string {
+	return a_.t.render(&areaFeed, "follow_req_accepted", false, 0)
+}
+
+// FollowReqDeclined: 알림: 팔로우 요청 거절
+func (a_ FeedT) FollowReqDeclined() string {
+	return a_.t.render(&areaFeed, "follow_req_declined", false, 0)
+}
+
+// FollowRequested: 알림: 팔로우를 요청함
+func (a_ FeedT) FollowRequested() string {
+	return a_.t.render(&areaFeed, "follow_requested", false, 0)
+}
+
+// FollowRequests: 프로필 메뉴·창 제목: 팔로우 요청
+func (a_ FeedT) FollowRequests() string {
+	return a_.t.render(&areaFeed, "follow_requests", false, 0)
+}
+
+// FollowerRemoved: 알림: 팔로워에서 뺌
+func (a_ FeedT) FollowerRemoved() string {
+	return a_.t.render(&areaFeed, "follower_removed", false, 0)
+}
+
+// FollowersTitle: 목록 창 제목·프로필 메뉴: 팔로워
+func (a_ FeedT) FollowersTitle() string {
+	return a_.t.render(&areaFeed, "followers_title", false, 0)
+}
+
+// FollowingTitle: 목록 창 제목·프로필 메뉴: 팔로잉
+func (a_ FeedT) FollowingTitle() string {
+	return a_.t.render(&areaFeed, "following_title", false, 0)
+}
+
+// FollowsYou: 프로필 관계 표시: 상대가 나를 팔로우
+func (a_ FeedT) FollowsYou() string {
+	return a_.t.render(&areaFeed, "follows_you", false, 0)
+}
+
+// FriendAccepted: 알림: 받은 친구 요청을 수락함
+func (a_ FeedT) FriendAccepted(name string) string {
+	return a_.t.render(&areaFeed, "friend_accepted", false, 0, "name", name)
+}
+
+// FriendCanceled: 알림: 보낸 친구 요청 취소
+func (a_ FeedT) FriendCanceled() string {
+	return a_.t.render(&areaFeed, "friend_canceled", false, 0)
+}
+
+// FriendDeclined: 알림: 받은 친구 요청 거절
+func (a_ FeedT) FriendDeclined() string {
+	return a_.t.render(&areaFeed, "friend_declined", false, 0)
+}
+
+// FriendNow: 알림: 친구 요청이 바로 수락됨
+func (a_ FeedT) FriendNow(name string) string {
+	return a_.t.render(&areaFeed, "friend_now", false, 0, "name", name)
+}
+
+// FriendSent: 알림: 친구 요청을 보냄
+func (a_ FeedT) FriendSent(name string) string {
+	return a_.t.render(&areaFeed, "friend_sent", false, 0, "name", name)
+}
+
+// GuestbookDelAsk: 방명록 글 삭제 확인 질문
+func (a_ FeedT) GuestbookDelAsk() string {
+	return a_.t.render(&areaFeed, "guestbook_del_ask", false, 0)
+}
+
+// GuestbookDelYes: 방명록 글 삭제 확인 단추
+func (a_ FeedT) GuestbookDelYes() string {
+	return a_.t.render(&areaFeed, "guestbook_del_yes", false, 0)
+}
+
+// GuestbookDeleted: 알림: 방명록 글 삭제됨
+func (a_ FeedT) GuestbookDeleted() string {
+	return a_.t.render(&areaFeed, "guestbook_deleted", false, 0)
+}
+
+// GuestbookEmpty: 방명록 탭 빈 상태
+func (a_ FeedT) GuestbookEmpty() string {
+	return a_.t.render(&areaFeed, "guestbook_empty", false, 0)
+}
+
+// GuestbookEmptyHint: 방명록 탭 빈 상태 안내
+func (a_ FeedT) GuestbookEmptyHint() string {
+	return a_.t.render(&areaFeed, "guestbook_empty_hint", false, 0)
+}
+
+// GuestbookHidden: 남이 쓴 비밀글 본문 자리
+func (a_ FeedT) GuestbookHidden() string {
+	return a_.t.render(&areaFeed, "guestbook_hidden", false, 0)
+}
+
+// GuestbookSecretChip: 방명록 글 비밀글 표시
+func (a_ FeedT) GuestbookSecretChip() string {
+	return a_.t.render(&areaFeed, "guestbook_secret_chip", false, 0)
+}
+
 // HashtagEmpty: 해시태그 피드가 비었을 때
 func (a_ FeedT) HashtagEmpty() string {
 	return a_.t.render(&areaFeed, "hashtag_empty", false, 0)
+}
+
+// HashtagTitle: 해시태그 고르기 창 제목
+func (a_ FeedT) HashtagTitle() string {
+	return a_.t.render(&areaFeed, "hashtag_title", false, 0)
+}
+
+// HelpAccept: 키 도움말: 수락
+func (a_ FeedT) HelpAccept() string {
+	return a_.t.render(&areaFeed, "help_accept", false, 0)
 }
 
 // HelpAttach: 상태줄 키 안내: 첨부(enter)
@@ -1484,9 +3018,24 @@ func (a_ FeedT) HelpBackground() string {
 	return a_.t.render(&areaFeed, "help_background", false, 0)
 }
 
+// HelpCancelFollow: 키 도움말: 팔로우 요청 취소
+func (a_ FeedT) HelpCancelFollow() string {
+	return a_.t.render(&areaFeed, "help_cancel_follow", false, 0)
+}
+
 // HelpClosePoll: 상태줄 키 안내: 내 투표 마감(c)
 func (a_ FeedT) HelpClosePoll() string {
 	return a_.t.render(&areaFeed, "help_close_poll", false, 0)
+}
+
+// HelpDecline: 키 도움말: 거절
+func (a_ FeedT) HelpDecline() string {
+	return a_.t.render(&areaFeed, "help_decline", false, 0)
+}
+
+// HelpEditProfile: 키 도움말: 프로필 편집
+func (a_ FeedT) HelpEditProfile() string {
+	return a_.t.render(&areaFeed, "help_edit_profile", false, 0)
 }
 
 // HelpEndInput: 상태줄 키 안내: 입력창에서 나가기(esc)
@@ -1499,9 +3048,19 @@ func (a_ FeedT) HelpExpand() string {
 	return a_.t.render(&areaFeed, "help_expand", false, 0)
 }
 
+// HelpFollow: 키 도움말: 팔로우
+func (a_ FeedT) HelpFollow() string {
+	return a_.t.render(&areaFeed, "help_follow", false, 0)
+}
+
 // HelpLike: 상태줄 키 안내: 좋아요
 func (a_ FeedT) HelpLike() string {
 	return a_.t.render(&areaFeed, "help_like", false, 0)
+}
+
+// HelpMarkAllRead: 키 도움말: 알림 모두 읽음
+func (a_ FeedT) HelpMarkAllRead() string {
+	return a_.t.render(&areaFeed, "help_mark_all_read", false, 0)
 }
 
 // HelpMenu: 상태줄 키 안내: 메뉴 열기
@@ -1517,6 +3076,11 @@ func (a_ FeedT) HelpNewPost() string {
 // HelpNext: 상태줄 키 안내: 다음(사진·스토리)
 func (a_ FeedT) HelpNext() string {
 	return a_.t.render(&areaFeed, "help_next", false, 0)
+}
+
+// HelpNextField: 키 도움말: 다음 칸
+func (a_ FeedT) HelpNextField() string {
+	return a_.t.render(&areaFeed, "help_next_field", false, 0)
 }
 
 // HelpOpen: 상태줄 키 안내: 고른 줄 열기
@@ -1549,6 +3113,21 @@ func (a_ FeedT) HelpPrev() string {
 	return a_.t.render(&areaFeed, "help_prev", false, 0)
 }
 
+// HelpProfile: 키 도움말: 프로필 열기
+func (a_ FeedT) HelpProfile() string {
+	return a_.t.render(&areaFeed, "help_profile", false, 0)
+}
+
+// HelpRemoveAvatar: 키 도움말: 아바타 지우기
+func (a_ FeedT) HelpRemoveAvatar() string {
+	return a_.t.render(&areaFeed, "help_remove_avatar", false, 0)
+}
+
+// HelpRemoveFollower: 키 도움말: 팔로워에서 빼기
+func (a_ FeedT) HelpRemoveFollower() string {
+	return a_.t.render(&areaFeed, "help_remove_follower", false, 0)
+}
+
 // HelpRemovePhoto: 상태줄 키 안내: 마지막 사진 빼기(x)
 func (a_ FeedT) HelpRemovePhoto() string {
 	return a_.t.render(&areaFeed, "help_remove_photo", false, 0)
@@ -1569,9 +3148,24 @@ func (a_ FeedT) HelpRetry() string {
 	return a_.t.render(&areaFeed, "help_retry", false, 0)
 }
 
+// HelpRun: 키 도움말: 메뉴 항목 실행
+func (a_ FeedT) HelpRun() string {
+	return a_.t.render(&areaFeed, "help_run", false, 0)
+}
+
 // HelpSearch: 상태줄 키 안내: 검색(/)
 func (a_ FeedT) HelpSearch() string {
 	return a_.t.render(&areaFeed, "help_search", false, 0)
+}
+
+// HelpStories: 키 도움말: 스토리
+func (a_ FeedT) HelpStories() string {
+	return a_.t.render(&areaFeed, "help_stories", false, 0)
+}
+
+// HelpTabs: 키 도움말: 탭 옮기기
+func (a_ FeedT) HelpTabs() string {
+	return a_.t.render(&areaFeed, "help_tabs", false, 0)
 }
 
 // HelpTagFeed: 상태줄 키 안내: 고른 태그의 피드 열기(enter)
@@ -1589,9 +3183,19 @@ func (a_ FeedT) HelpTagSearch() string {
 	return a_.t.render(&areaFeed, "help_tag_search", false, 0)
 }
 
+// HelpUnfollow: 키 도움말: 언팔로우
+func (a_ FeedT) HelpUnfollow() string {
+	return a_.t.render(&areaFeed, "help_unfollow", false, 0)
+}
+
 // HelpUnvote: 상태줄 키 안내: 내 투표 취소(x)
 func (a_ FeedT) HelpUnvote() string {
 	return a_.t.render(&areaFeed, "help_unvote", false, 0)
+}
+
+// HelpViewPost: 키 도움말: 글 보기
+func (a_ FeedT) HelpViewPost() string {
+	return a_.t.render(&areaFeed, "help_view_post", false, 0)
 }
 
 // HelpVote: 상태줄 키 안내: 투표하기(enter)
@@ -1602,6 +3206,16 @@ func (a_ FeedT) HelpVote() string {
 // HelpWrite: 상태줄 키 안내: 입력창으로 가서 쓰기(i)
 func (a_ FeedT) HelpWrite() string {
 	return a_.t.render(&areaFeed, "help_write", false, 0)
+}
+
+// HelpWriteGuestbook: 키 도움말: 방명록 쓰기
+func (a_ FeedT) HelpWriteGuestbook() string {
+	return a_.t.render(&areaFeed, "help_write_guestbook", false, 0)
+}
+
+// HintGoBack: 빈 화면 안내: esc 로 돌아가기
+func (a_ FeedT) HintGoBack() string {
+	return a_.t.render(&areaFeed, "hint_go_back", false, 0)
 }
 
 // KwFeedDiscover: search keywords, comma separated: 명령 팔레트에서 전체 피드를 찾는 말(화면에 안 나옴)
@@ -1679,6 +3293,91 @@ func (a_ FeedT) MediaTitleOf(n int, total int) string {
 	return a_.t.render(&areaFeed, "media_title_of", false, 0, "n", strconv.Itoa(n), "total", strconv.Itoa(total))
 }
 
+// MenuAuthor: 글·스토리 메뉴: 작성자 프로필
+func (a_ FeedT) MenuAuthor() string {
+	return a_.t.render(&areaFeed, "menu_author", false, 0)
+}
+
+// MenuBlock: 글 메뉴: 작성자 차단
+func (a_ FeedT) MenuBlock() string {
+	return a_.t.render(&areaFeed, "menu_block", false, 0)
+}
+
+// MenuBlockUser: 프로필 메뉴: 차단
+func (a_ FeedT) MenuBlockUser() string {
+	return a_.t.render(&areaFeed, "menu_block_user", false, 0)
+}
+
+// MenuDelete: 글 메뉴: 글 삭제
+func (a_ FeedT) MenuDelete() string {
+	return a_.t.render(&areaFeed, "menu_delete", false, 0)
+}
+
+// MenuFriendAccept: 프로필 메뉴: 받은 친구 요청 수락
+func (a_ FeedT) MenuFriendAccept() string {
+	return a_.t.render(&areaFeed, "menu_friend_accept", false, 0)
+}
+
+// MenuFriendAdd: 프로필 메뉴: 친구 요청 보내기
+func (a_ FeedT) MenuFriendAdd() string {
+	return a_.t.render(&areaFeed, "menu_friend_add", false, 0)
+}
+
+// MenuFriendCancel: 프로필 메뉴: 보낸 친구 요청 취소
+func (a_ FeedT) MenuFriendCancel() string {
+	return a_.t.render(&areaFeed, "menu_friend_cancel", false, 0)
+}
+
+// MenuFriendDecline: 프로필 메뉴: 받은 친구 요청 거절
+func (a_ FeedT) MenuFriendDecline() string {
+	return a_.t.render(&areaFeed, "menu_friend_decline", false, 0)
+}
+
+// MenuLikes: 글 메뉴·목록 제목: 좋아요 누른 사람
+func (a_ FeedT) MenuLikes() string {
+	return a_.t.render(&areaFeed, "menu_likes", false, 0)
+}
+
+// MenuQuotes: 글 메뉴·목록 제목: 인용한 글
+func (a_ FeedT) MenuQuotes() string {
+	return a_.t.render(&areaFeed, "menu_quotes", false, 0)
+}
+
+// MenuReport: 글 메뉴: 글 신고
+func (a_ FeedT) MenuReport() string {
+	return a_.t.render(&areaFeed, "menu_report", false, 0)
+}
+
+// MenuReportUser: 프로필 메뉴: 사용자 신고
+func (a_ FeedT) MenuReportUser() string {
+	return a_.t.render(&areaFeed, "menu_report_user", false, 0)
+}
+
+// MenuReposts: 글 메뉴·목록 제목: 리포스트한 사람
+func (a_ FeedT) MenuReposts() string {
+	return a_.t.render(&areaFeed, "menu_reposts", false, 0)
+}
+
+// MenuStories: 프로필 메뉴: 스토리 보기
+func (a_ FeedT) MenuStories() string {
+	return a_.t.render(&areaFeed, "menu_stories", false, 0)
+}
+
+// MenuTitle: 글 메뉴 창 제목
+func (a_ FeedT) MenuTitle() string {
+	return a_.t.render(&areaFeed, "menu_title", false, 0)
+}
+
+// MenuUnfriend: 프로필 메뉴: 친구 끊기
+func (a_ FeedT) MenuUnfriend() string {
+	return a_.t.render(&areaFeed, "menu_unfriend", false, 0)
+}
+
+// NameRequired: 프로필 편집: 이름이 비었음
+func (a_ FeedT) NameRequired() string {
+	return a_.t.render(&areaFeed, "name_required", false, 0)
+}
+
 // NewPostsBanner: 피드 맨 위 새 글 알림 줄(n = 새 글 수, enter 는 키 이름)
 func (a_ FeedT) NewPostsBanner(n int) string {
 	return a_.t.render(&areaFeed, "new_posts_banner", false, n, "n", strconv.Itoa(n))
@@ -1687,6 +3386,221 @@ func (a_ FeedT) NewPostsBanner(n int) string {
 // NewPostsBannerCap: 피드 맨 위 새 글 알림 줄, 새 글이 n 개 이상일 때(enter 는 키 이름)
 func (a_ FeedT) NewPostsBannerCap(n int) string {
 	return a_.t.render(&areaFeed, "new_posts_banner_cap", false, 0, "n", strconv.Itoa(n))
+}
+
+// NoFollowRequests: 팔로우 요청 창 빈 상태
+func (a_ FeedT) NoFollowRequests() string {
+	return a_.t.render(&areaFeed, "no_follow_requests", false, 0)
+}
+
+// NoProfileMedia: 프로필 미디어 탭 빈 상태
+func (a_ FeedT) NoProfileMedia() string {
+	return a_.t.render(&areaFeed, "no_profile_media", false, 0)
+}
+
+// NoProfilePosts: 프로필 글 탭 빈 상태
+func (a_ FeedT) NoProfilePosts() string {
+	return a_.t.render(&areaFeed, "no_profile_posts", false, 0)
+}
+
+// NoProfileReplies: 프로필 답글 탭 빈 상태
+func (a_ FeedT) NoProfileReplies() string {
+	return a_.t.render(&areaFeed, "no_profile_replies", false, 0)
+}
+
+// NoQuotes: 인용 목록 빈 상태
+func (a_ FeedT) NoQuotes() string {
+	return a_.t.render(&areaFeed, "no_quotes", false, 0)
+}
+
+// Nobody: 사용자 목록 빈 상태
+func (a_ FeedT) Nobody() string {
+	return a_.t.render(&areaFeed, "nobody", false, 0)
+}
+
+// NotifEmpty: 알림이 하나도 없을 때
+func (a_ FeedT) NotifEmpty() string {
+	return a_.t.render(&areaFeed, "notif_empty", false, 0)
+}
+
+// NotifFollow: 알림 문장(넓은 줄): 나를 팔로우
+func (a_ FeedT) NotifFollow(name string) string {
+	return a_.t.render(&areaFeed, "notif_follow", false, 0, "name", name)
+}
+
+// NotifFollowAccepted: 알림 문장(넓은 줄): 내 팔로우 요청 수락
+func (a_ FeedT) NotifFollowAccepted(name string) string {
+	return a_.t.render(&areaFeed, "notif_follow_accepted", false, 0, "name", name)
+}
+
+// NotifFollowAcceptedNarrow: 알림 문장(좁은 줄): 팔로우 수락
+func (a_ FeedT) NotifFollowAcceptedNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_follow_accepted_narrow", false, 0, "name", name)
+}
+
+// NotifFollowNarrow: 알림 문장(좁은 줄): 팔로우
+func (a_ FeedT) NotifFollowNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_follow_narrow", false, 0, "name", name)
+}
+
+// NotifFollowRequest: 알림 문장(넓은 줄): 팔로우 요청
+func (a_ FeedT) NotifFollowRequest(name string) string {
+	return a_.t.render(&areaFeed, "notif_follow_request", false, 0, "name", name)
+}
+
+// NotifFollowRequestNarrow: 알림 문장(좁은 줄): 팔로우 요청
+func (a_ FeedT) NotifFollowRequestNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_follow_request_narrow", false, 0, "name", name)
+}
+
+// NotifFriendAccepted: 알림 문장(넓은 줄): 친구가 됨
+func (a_ FeedT) NotifFriendAccepted(name string) string {
+	return a_.t.render(&areaFeed, "notif_friend_accepted", false, 0, "name", name)
+}
+
+// NotifFriendAcceptedNarrow: 알림 문장(좁은 줄): 친구가 됨
+func (a_ FeedT) NotifFriendAcceptedNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_friend_accepted_narrow", false, 0, "name", name)
+}
+
+// NotifFriendRequest: 알림 문장(넓은 줄): 친구 요청
+func (a_ FeedT) NotifFriendRequest(name string) string {
+	return a_.t.render(&areaFeed, "notif_friend_request", false, 0, "name", name)
+}
+
+// NotifFriendRequestNarrow: 알림 문장(좁은 줄): 친구 요청
+func (a_ FeedT) NotifFriendRequestNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_friend_request_narrow", false, 0, "name", name)
+}
+
+// NotifGuestbookEntry: 알림 문장(넓은 줄): 내 방명록에 글
+func (a_ FeedT) NotifGuestbookEntry(name string) string {
+	return a_.t.render(&areaFeed, "notif_guestbook_entry", false, 0, "name", name)
+}
+
+// NotifGuestbookEntryNarrow: 알림 문장(좁은 줄): 방명록
+func (a_ FeedT) NotifGuestbookEntryNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_guestbook_entry_narrow", false, 0, "name", name)
+}
+
+// NotifHeader: 알림함 안 '알림' 절 머리
+func (a_ FeedT) NotifHeader() string {
+	return a_.t.render(&areaFeed, "notif_header", false, 0)
+}
+
+// NotifLoadFailed: 알림 목록을 불러오지 못함
+func (a_ FeedT) NotifLoadFailed() string {
+	return a_.t.render(&areaFeed, "notif_load_failed", false, 0)
+}
+
+// NotifMessageMention: 알림 문장(넓은 줄): 방 대화에서 나를 멘션. space = 방 이름
+func (a_ FeedT) NotifMessageMention(name string, space string) string {
+	return a_.t.render(&areaFeed, "notif_message_mention", false, 0, "name", name, "space", space)
+}
+
+// NotifMessageMentionNarrow: 알림 문장(좁은 줄): 멘션
+func (a_ FeedT) NotifMessageMentionNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_message_mention_narrow", false, 0, "name", name)
+}
+
+// NotifOther: 알림 문장(넓은 줄): 이 클라이언트가 모르는 종류
+func (a_ FeedT) NotifOther(name string) string {
+	return a_.t.render(&areaFeed, "notif_other", false, 0, "name", name)
+}
+
+// NotifOtherNarrow: 알림 문장(좁은 줄): 모르는 종류
+func (a_ FeedT) NotifOtherNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_other_narrow", false, 0, "name", name)
+}
+
+// NotifPostLike: 알림 문장(넓은 줄): 내 글 좋아요. name = 보낸 사람 이름
+func (a_ FeedT) NotifPostLike(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_like", false, 0, "name", name)
+}
+
+// NotifPostLikeNarrow: 알림 문장(좁은 줄): 내 글 좋아요
+func (a_ FeedT) NotifPostLikeNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_like_narrow", false, 0, "name", name)
+}
+
+// NotifPostMention: 알림 문장(넓은 줄): 글에서 나를 멘션
+func (a_ FeedT) NotifPostMention(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_mention", false, 0, "name", name)
+}
+
+// NotifPostMentionNarrow: 알림 문장(좁은 줄): 멘션
+func (a_ FeedT) NotifPostMentionNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_mention_narrow", false, 0, "name", name)
+}
+
+// NotifPostQuote: 알림 문장(넓은 줄): 내 글 인용
+func (a_ FeedT) NotifPostQuote(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_quote", false, 0, "name", name)
+}
+
+// NotifPostQuoteNarrow: 알림 문장(좁은 줄): 인용
+func (a_ FeedT) NotifPostQuoteNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_quote_narrow", false, 0, "name", name)
+}
+
+// NotifPostReply: 알림 문장(넓은 줄): 내 글에 답글
+func (a_ FeedT) NotifPostReply(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_reply", false, 0, "name", name)
+}
+
+// NotifPostReplyNarrow: 알림 문장(좁은 줄): 답글
+func (a_ FeedT) NotifPostReplyNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_reply_narrow", false, 0, "name", name)
+}
+
+// NotifPostRepost: 알림 문장(넓은 줄): 내 글 리포스트
+func (a_ FeedT) NotifPostRepost(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_repost", false, 0, "name", name)
+}
+
+// NotifPostRepostNarrow: 알림 문장(좁은 줄): 리포스트
+func (a_ FeedT) NotifPostRepostNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_post_repost_narrow", false, 0, "name", name)
+}
+
+// NotifSomeone: 알림·대화 줄에서 이름을 알 수 없는 사람
+func (a_ FeedT) NotifSomeone() string {
+	return a_.t.render(&areaFeed, "notif_someone", false, 0)
+}
+
+// NotifSpace: 알림 문장에서 이름 모르는 방
+func (a_ FeedT) NotifSpace() string {
+	return a_.t.render(&areaFeed, "notif_space", false, 0)
+}
+
+// NotifSpaceInvite: 알림 문장(넓은 줄): 방 초대. space = 방 이름
+func (a_ FeedT) NotifSpaceInvite(name string, space string) string {
+	return a_.t.render(&areaFeed, "notif_space_invite", false, 0, "name", name, "space", space)
+}
+
+// NotifSpaceInviteNarrow: 알림 문장(좁은 줄): 방 초대
+func (a_ FeedT) NotifSpaceInviteNarrow(space string) string {
+	return a_.t.render(&areaFeed, "notif_space_invite_narrow", false, 0, "space", space)
+}
+
+// NotifThreadReply: 알림 문장(넓은 줄): 스레드 답글
+func (a_ FeedT) NotifThreadReply(name string) string {
+	return a_.t.render(&areaFeed, "notif_thread_reply", false, 0, "name", name)
+}
+
+// NotifThreadReplyNarrow: 알림 문장(좁은 줄): 스레드 답글
+func (a_ FeedT) NotifThreadReplyNarrow(name string) string {
+	return a_.t.render(&areaFeed, "notif_thread_reply_narrow", false, 0, "name", name)
+}
+
+// NotifTitle: 알림함 판 제목(탭·테두리). 위젯·초소형은 short
+func (a_ FeedT) NotifTitle() string {
+	return a_.t.render(&areaFeed, "notif_title", false, 0)
+}
+
+// NotifTitleShort: 알림함 판 제목(탭·테두리). 위젯·초소형은 short (short form)
+func (a_ FeedT) NotifTitleShort() string {
+	return a_.t.render(&areaFeed, "notif_title", true, 0)
 }
 
 // PaletteHashtagOpen: 명령 팔레트 #태그 항목의 흐린 설명: 그 태그 피드 열기
@@ -1764,9 +3678,109 @@ func (a_ FeedT) PostTitle() string {
 	return a_.t.render(&areaFeed, "post_title", false, 0)
 }
 
+// PresenceAway: 프로필 머리 접속 상태
+func (a_ FeedT) PresenceAway() string {
+	return a_.t.render(&areaFeed, "presence_away", false, 0)
+}
+
+// PresenceDnd: 프로필 머리 접속 상태
+func (a_ FeedT) PresenceDnd() string {
+	return a_.t.render(&areaFeed, "presence_dnd", false, 0)
+}
+
+// PresenceOffline: 프로필 머리 접속 상태
+func (a_ FeedT) PresenceOffline() string {
+	return a_.t.render(&areaFeed, "presence_offline", false, 0)
+}
+
+// PresenceOnline: 프로필 머리 접속 상태
+func (a_ FeedT) PresenceOnline() string {
+	return a_.t.render(&areaFeed, "presence_online", false, 0)
+}
+
+// PrivateHint: 비공개 계정 안내
+func (a_ FeedT) PrivateHint() string {
+	return a_.t.render(&areaFeed, "private_hint", false, 0)
+}
+
 // PrivateNoShare: 비공개 계정 글을 리포스트·인용하려 할 때 토스트
 func (a_ FeedT) PrivateNoShare() string {
 	return a_.t.render(&areaFeed, "private_no_share", false, 0)
+}
+
+// PrivateTitle: 비공개 계정의 글 탭
+func (a_ FeedT) PrivateTitle() string {
+	return a_.t.render(&areaFeed, "private_title", false, 0)
+}
+
+// ProfileFriend: 프로필 관계 표시: 친구
+func (a_ FeedT) ProfileFriend() string {
+	return a_.t.render(&areaFeed, "profile_friend", false, 0)
+}
+
+// ProfileLoadFailed: 프로필을 불러오지 못함
+func (a_ FeedT) ProfileLoadFailed() string {
+	return a_.t.render(&areaFeed, "profile_load_failed", false, 0)
+}
+
+// ProfileSaved: 알림: 프로필 저장됨
+func (a_ FeedT) ProfileSaved() string {
+	return a_.t.render(&areaFeed, "profile_saved", false, 0)
+}
+
+// ProfileTabGuestbook: 프로필 탭: 방명록
+func (a_ FeedT) ProfileTabGuestbook() string {
+	return a_.t.render(&areaFeed, "profile_tab_guestbook", false, 0)
+}
+
+// ProfileTabMedia: 프로필 탭: 미디어
+func (a_ FeedT) ProfileTabMedia() string {
+	return a_.t.render(&areaFeed, "profile_tab_media", false, 0)
+}
+
+// ProfileTabPosts: 프로필 탭: 글
+func (a_ FeedT) ProfileTabPosts() string {
+	return a_.t.render(&areaFeed, "profile_tab_posts", false, 0)
+}
+
+// ProfileTabReplies: 프로필 탭: 답글
+func (a_ FeedT) ProfileTabReplies() string {
+	return a_.t.render(&areaFeed, "profile_tab_replies", false, 0)
+}
+
+// ProfileTitle: 프로필 판 제목
+func (a_ FeedT) ProfileTitle() string {
+	return a_.t.render(&areaFeed, "profile_title", false, 0)
+}
+
+// RemoveFollowerAsk: 팔로워에서 빼기 확인 질문. handle = @아이디
+func (a_ FeedT) RemoveFollowerAsk(handle string) string {
+	return a_.t.render(&areaFeed, "remove_follower_ask", false, 0, "handle", handle)
+}
+
+// RemoveFollowerBody: 팔로워에서 빼기 확인 설명
+func (a_ FeedT) RemoveFollowerBody() string {
+	return a_.t.render(&areaFeed, "remove_follower_body", false, 0)
+}
+
+// RemoveFollowerYes: 팔로워에서 빼기 확인 단추
+func (a_ FeedT) RemoveFollowerYes() string {
+	return a_.t.render(&areaFeed, "remove_follower_yes", false, 0)
+}
+
+// ReportGuestbookOf: 신고 창 대상: 누구의 방명록 글. name = 작성자
+func (a_ FeedT) ReportGuestbookOf(name string) string {
+	return a_.t.render(&areaFeed, "report_guestbook_of", false, 0, "name", name)
+}
+
+// ReportPostOf: 신고 창 대상: 누구의 글. name = 작성자
+func (a_ FeedT) ReportPostOf(name string) string {
+	return a_.t.render(&areaFeed, "report_post_of", false, 0, "name", name)
+}
+
+// RequestsCount: 내 비공개 프로필 칩: 대기 중인 팔로우 요청 수. n = 사람이 읽는 수(1.2천 등)
+func (a_ FeedT) RequestsCount(n string) string {
+	return a_.t.render(&areaFeed, "requests_count", false, 0, "n", n)
 }
 
 // RetryHint: 불러오기 실패 줄(text = 실패 문장, key = 다시 시도 키 이름 그대로)
@@ -1782,6 +3796,11 @@ func (a_ FeedT) RingAdd() string {
 // RingMine: 피드 위 스토리 줄의 내 스토리 자리(이름 8칸 자리와 같은 줄)
 func (a_ FeedT) RingMine() string {
 	return a_.t.render(&areaFeed, "ring_mine", false, 0)
+}
+
+// Someone: 이름 모르는 작성자
+func (a_ FeedT) Someone() string {
+	return a_.t.render(&areaFeed, "someone", false, 0)
 }
 
 // StoriesNone: 볼 스토리가 없을 때(토스트·빈 화면)
@@ -1832,6 +3851,16 @@ func (a_ FeedT) StoryViewers() string {
 // StoryViewersN: 내 스토리 메뉴 줄: 본 사람 목록과 수(n = 줄인 숫자 글자)
 func (a_ FeedT) StoryViewersN(n string) string {
 	return a_.t.render(&areaFeed, "story_viewers_n", false, 0, "n", n)
+}
+
+// SuspendedBadge: 정지된 계정: 숫자 줄 대신
+func (a_ FeedT) SuspendedBadge() string {
+	return a_.t.render(&areaFeed, "suspended_badge", false, 0)
+}
+
+// SuspendedTitle: 정지된 계정의 글 탭
+func (a_ FeedT) SuspendedTitle() string {
+	return a_.t.render(&areaFeed, "suspended_title", false, 0)
 }
 
 // TabDiscover: 피드 화면 맨 위 탭: 전체 피드(발견)
@@ -1912,4 +3941,44 @@ func (a_ FeedT) TrendsTagTooLong() string {
 // TrendsTitle: 트렌드 화면 테두리 제목
 func (a_ FeedT) TrendsTitle() string {
 	return a_.t.render(&areaFeed, "trends_title", false, 0)
+}
+
+// UnfollowAsk: 언팔로우 확인 질문
+func (a_ FeedT) UnfollowAsk() string {
+	return a_.t.render(&areaFeed, "unfollow_ask", false, 0)
+}
+
+// UnfollowYes: 언팔로우 확인 단추
+func (a_ FeedT) UnfollowYes() string {
+	return a_.t.render(&areaFeed, "unfollow_yes", false, 0)
+}
+
+// UnfriendAsk: 친구 끊기 확인 질문. name = 상대 이름
+func (a_ FeedT) UnfriendAsk(name string) string {
+	return a_.t.render(&areaFeed, "unfriend_ask", false, 0, "name", name)
+}
+
+// UnfriendBody: 친구 끊기 확인 설명
+func (a_ FeedT) UnfriendBody() string {
+	return a_.t.render(&areaFeed, "unfriend_body", false, 0)
+}
+
+// UnfriendYes: 친구 끊기 확인 단추
+func (a_ FeedT) UnfriendYes() string {
+	return a_.t.render(&areaFeed, "unfriend_yes", false, 0)
+}
+
+// Unfriended: 알림: 친구를 끊음
+func (a_ FeedT) Unfriended(name string) string {
+	return a_.t.render(&areaFeed, "unfriended", false, 0, "name", name)
+}
+
+// UserNotFound: 프로필 사용자가 없음
+func (a_ FeedT) UserNotFound() string {
+	return a_.t.render(&areaFeed, "user_not_found", false, 0)
+}
+
+// ViewersTitle: 목록 창 제목: 스토리 본 사람
+func (a_ FeedT) ViewersTitle() string {
+	return a_.t.render(&areaFeed, "viewers_title", false, 0)
 }
