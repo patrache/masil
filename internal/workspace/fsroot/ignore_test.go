@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -197,7 +199,69 @@ func TestGitIgnorerFallsBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != 1 || !got[0] || !got[1] || got[2] {
-		t.Errorf("fallback result = %v (calls %d), want [true true false]", got, calls)
+	// 2 calls: the batch, then the empty probe that shows git refuses the
+	// repository itself (no per-path retries).
+	if calls != 2 || !got[0] || !got[1] || got[2] {
+		t.Errorf("fallback result = %v (calls %d), want [true true false] in 2 calls", got, calls)
+	}
+}
+
+// Exit 128 for a batch caused by some of its paths: git is asked again on
+// smaller parts, the paths git still refuses alone get the built-in parser,
+// the rest keep git's answer. A repository git refuses outright (the empty
+// probe fails too) goes to the built-in parser at once, without retries.
+func TestGitIgnorerSplitsRefusedBatch(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".gitignore", "*.log\n")
+	var calls [][]string
+	fake := func(_ context.Context, _ string, stdin []byte) ([]byte, int, error) {
+		var paths []string
+		for _, p := range strings.Split(string(stdin), "\x00") {
+			if p != "" {
+				paths = append(paths, p)
+			}
+		}
+		calls = append(calls, paths)
+		var out []byte
+		for _, p := range paths {
+			if strings.HasPrefix(p, "lnk/") {
+				return nil, 128, nil
+			}
+			if p == "secret.txt" || p == "x.log" { // git-only rule (info/exclude) + .gitignore
+				out = append(out, p+"\x00"...)
+			}
+		}
+		if len(out) == 0 {
+			return nil, 1, nil
+		}
+		return out, 0, nil
+	}
+	rels := []string{"a.txt", "lnk/x.log", "secret.txt", "lnk/b.txt", "c.txt", "x.log"}
+	got, err := NewGitIgnorer(dir, fake).Ignored(rels, make([]bool, len(rels)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []bool{false, true, true, false, false, true}
+	if !slices.Equal(got, want) {
+		t.Errorf("Ignored = %v, want %v (calls %v)", got, want, calls)
+	}
+	if len(calls) > 2*len(rels)+1 {
+		t.Errorf("%d git calls for %d paths, want at most %d", len(calls), len(rels), 2*len(rels)+1)
+	}
+
+	calls = nil
+	broken := func(_ context.Context, _ string, stdin []byte) ([]byte, int, error) {
+		calls = append(calls, nil)
+		return nil, 128, nil
+	}
+	got, err = NewGitIgnorer(dir, broken).Ignored(rels, make([]bool, len(rels)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []bool{false, true, false, false, false, true}; !slices.Equal(got, want) {
+		t.Errorf("broken repo: Ignored = %v, want built-in %v", got, want)
+	}
+	if len(calls) != 2 {
+		t.Errorf("broken repo: %d git calls, want 2 (batch + empty probe)", len(calls))
 	}
 }

@@ -725,9 +725,6 @@ func (h *Host) recheckPeerDoc(rel string) {
 	if !h.peerVisible(rel) {
 		return
 	}
-	for _, f := range h.docs.root.RuleFiles(rel) {
-		h.rules.TrackNow(f)
-	}
 	if _, err := h.docs.root.Check(rel, true); err != nil {
 		h.hide(rel, DocErrorCode(err))
 	}
@@ -738,26 +735,36 @@ func (h *Host) recheckPeerDoc(rel string) {
 // relayed again.
 func (h *Host) onDocDisk(rel string) { h.recheckPeerDoc(rel) }
 
-// pollRules re-checks every document participants have open when an
-// ignore-rule file that bears on one of them changed (every DiskPoll; the
-// rule files are stat'ed, git runs only after a change).
+// pollRules re-checks every document participants have open, every
+// DiskPoll, and hides the ones that no longer pass. Rules outside the folder
+// (a parent repository's .gitignore, the gitdir of a gitfile worktree,
+// core.excludesFile, git's global excludes) cannot all be watched as files,
+// so the check runs whether or not anything is seen to change (fail closed,
+// v0.1.3 security (af)): one batched ignore-rule question (one git
+// check-ignore) per poll for at most MaxOpenDocs paths, none between polls
+// and none while participants have nothing open.
 func (h *Host) pollRules(now time.Time) {
-	if h.rules == nil || now.Sub(h.lastRulePoll) < DiskPoll {
+	if now.Sub(h.lastRulePoll) < DiskPoll {
 		return
 	}
 	h.lastRulePoll = now
-	if len(h.rules.Poll()) == 0 {
-		return
-	}
 	h.peerMu.Lock()
 	rels := make([]string, 0, len(h.peerDocs))
-	for rel := range h.peerDocs {
-		rels = append(rels, rel)
+	for rel, n := range h.peerDocs {
+		if n > 0 && h.hidden[rel] == "" {
+			rels = append(rels, rel)
+		}
 	}
 	h.peerMu.Unlock()
+	if len(rels) == 0 {
+		return
+	}
 	slices.Sort(rels)
-	for _, rel := range rels {
-		h.recheckPeerDoc(rel)
+	_, errs := h.docs.root.CheckBatch(rels, true)
+	for i, err := range errs {
+		if err != nil {
+			h.hide(rels[i], DocErrorCode(err))
+		}
 	}
 }
 
@@ -838,9 +845,6 @@ func (h *Host) onDocOpen(seat uint8, m wire.DocOpen) {
 		clean = v.Rel
 		opens[clean] = true
 		h.peerOpen(clean, 1)
-		for _, f := range h.docs.root.RuleFiles(clean) {
-			h.rules.TrackNow(f)
-		}
 	}
 	// The state goes out under the manager's lock: no edit can be broadcast
 	// between reading seq and queueing doc_state.

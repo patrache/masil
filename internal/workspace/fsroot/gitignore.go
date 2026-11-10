@@ -101,6 +101,15 @@ func (a anyIgnorer) Ignored(rels []string, dirs []bool) ([]bool, error) {
 
 // gitIgnorer asks git (exact .gitignore, info/exclude and core.excludesFile
 // semantics) and falls back to the built-in parser when git fails.
+//
+// git exits 128 for a whole batch when any one path is invalid for it ("is
+// beyond a symbolic link", a path inside a submodule). That must not drop
+// the rules from outside the folder for the other paths (v0.1.3 security
+// (af) follow-up), so on exit 128 git is first asked with no paths: if that
+// works the repository is fine and the batch is split in halves until each
+// part is answered by git or is one path git refuses, which alone gets the
+// built-in parser. At most 2n+1 git calls for n paths, all within one
+// gitTimeout; a repository git refuses outright costs 2 calls.
 type gitIgnorer struct {
 	dir      string
 	run      GitRunner
@@ -111,6 +120,48 @@ func (g gitIgnorer) Ignored(rels []string, dirs []bool) ([]bool, error) {
 	if len(rels) == 0 {
 		return nil, nil
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	out, code, err := g.ask(ctx, rels)
+	if err == nil && (code == 0 || code == 1) {
+		return out, nil
+	}
+	if err == nil && code == 128 && len(rels) > 1 {
+		if _, pc, perr := g.ask(ctx, nil); perr == nil && (pc == 0 || pc == 1) {
+			out = make([]bool, len(rels))
+			h := len(rels) / 2
+			g.split(ctx, rels[:h], dirs[:h], out[:h])
+			g.split(ctx, rels[h:], dirs[h:], out[h:])
+			return out, nil
+		}
+	}
+	return g.fallback.Ignored(rels, dirs)
+}
+
+// split writes into out the answers for rels: git's when it answers, the
+// halves again on exit 128, the built-in parser for a single refused path
+// or when git fails otherwise (time-out).
+func (g gitIgnorer) split(ctx context.Context, rels []string, dirs []bool, out []bool) {
+	res, code, err := g.ask(ctx, rels)
+	if err == nil && (code == 0 || code == 1) {
+		copy(out, res)
+		return
+	}
+	if err == nil && code == 128 && len(rels) > 1 {
+		h := len(rels) / 2
+		g.split(ctx, rels[:h], dirs[:h], out[:h])
+		g.split(ctx, rels[h:], dirs[h:], out[h:])
+		return
+	}
+	fb, ferr := g.fallback.Ignored(rels, dirs)
+	for i := range out {
+		out[i] = ferr != nil || fb[i] // a failing fallback hides (fail closed)
+	}
+}
+
+// ask runs one git check-ignore for rels. code 0 or 1 with a nil err is an
+// answer (out[i] = rels[i] ignored); anything else is a failure.
+func (g gitIgnorer) ask(ctx context.Context, rels []string) ([]bool, int, error) {
 	// Paths go without a trailing slash: git looks at the file system to see
 	// whether an existing path is a folder, and "x/" would wrongly match "x/**".
 	var in bytes.Buffer
@@ -118,26 +169,21 @@ func (g gitIgnorer) Ignored(rels []string, dirs []bool) ([]bool, error) {
 		in.WriteString(rel)
 		in.WriteByte(0)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
-	defer cancel()
 	stdout, code, err := g.run(ctx, g.dir, in.Bytes())
-	switch {
-	case err == nil && code == 1:
-		return make([]bool, len(rels)), nil
-	case err == nil && code == 0:
-		hit := map[string]bool{}
-		for _, p := range bytes.Split(stdout, []byte{0}) {
-			if len(p) > 0 {
-				hit[string(p)] = true
-			}
-		}
-		out := make([]bool, len(rels))
-		for i, rel := range rels {
-			out[i] = hit[rel]
-		}
-		return out, nil
+	out := make([]bool, len(rels))
+	if err != nil || code != 0 {
+		return out, code, err
 	}
-	return g.fallback.Ignored(rels, dirs)
+	hit := map[string]bool{}
+	for _, p := range bytes.Split(stdout, []byte{0}) {
+		if len(p) > 0 {
+			hit[string(p)] = true
+		}
+	}
+	for i, rel := range rels {
+		out[i] = hit[rel]
+	}
+	return out, code, nil
 }
 
 func rootReader(dir string) readerFunc {
@@ -153,8 +199,8 @@ func rootReader(dir string) readerFunc {
 
 // NewGitIgnorer uses `git -C dir check-ignore -z --stdin` (2 s limit,
 // GIT_OPTIONAL_LOCKS=0; exit 1 = nothing ignored; exit 128 or no git = the
-// built-in parser). run nil = the real git. .masilignore files are applied on
-// top.
+// built-in parser, only for the refused paths when git answers the others).
+// run nil = the real git. .masilignore files are applied on top.
 func NewGitIgnorer(dir string, run GitRunner) Ignorer {
 	if run == nil {
 		run = runGit

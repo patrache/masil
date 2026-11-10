@@ -122,9 +122,8 @@ type Host struct {
 	// with the doc_state error; not relayed, closed on the next tick (under
 	// peerMu).
 	hidden map[string]string
-	// rules watches the ignore-rule files of the documents participants
-	// have open; a change re-checks them all.
-	rules        *fsroot.Watcher
+	// lastRulePoll: when the documents participants have open were last
+	// re-checked (every DiskPoll, pollRules).
 	lastRulePoll time.Time
 
 	props     []*proposal
@@ -183,7 +182,6 @@ func NewHost(cfg HostConfig) *Host {
 		h.docs = NewDocManager(cfg.Root, nil, cfg.Clock)
 	}
 	if h.docs != nil {
-		h.rules = fsroot.NewWatcher(h.docs.root)
 		h.docs.setHook(h, h.onDocSequenced, h.onDocDisk)
 	}
 	return h
