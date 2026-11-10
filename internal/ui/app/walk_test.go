@@ -197,3 +197,34 @@ func checkShown(t *testing.T, h *uitest.Harness, label string) {
 		}
 	}
 }
+
+// Review fix: on a one-pane screen tab / shift+tab walk the same sequence as
+// ] / [ — on the compact tool surface the open tools, not the hidden chat walk.
+func TestWalkBarAgreesWithTabKeyCompact(t *testing.T) {
+	installStubTools(t, "all")
+	for _, chat := range []bool{false, true} {
+		for _, key := range []string{"tab", "shift+tab"} {
+			h := walkHarness(t, uitest.Size{W: 120, H: 30}, chat)
+			delta := 1
+			if key == "shift+tab" {
+				delta = -1
+			}
+			labels, cur := bar(h)
+			for range len(labels) {
+				want := ((cur+delta)%len(labels) + len(labels)) % len(labels)
+				h.Press(key)
+				got, now := bar(h)
+				if !slices.Equal(got, labels) {
+					if labels[want] != h.Context().T.Tools.TabLabel() {
+						t.Fatalf("chat=%v %s: the bar changed %q -> %q", chat, key, labels, got)
+					}
+					break
+				}
+				if now != want {
+					t.Fatalf("chat=%v %s: from %d (%q) the key went to %d, the bar marks %d", chat, key, cur, labels, now, want)
+				}
+				cur = now
+			}
+		}
+	}
+}

@@ -80,10 +80,11 @@ func (m *Model) followMain() {
 }
 
 // cycleFocus is focus.next/focus.prev (delta +1/-1): the next ring pane, wrapping. A
-// ring of at most one pane (compact, widget, tiny) cycles tabs instead (tab.next/prev).
+// ring of at most one pane (compact, widget, tiny) walks the top tab bar instead,
+// exactly as ] / [ do (walkStep: the open tools on the tool surface).
 func (m *Model) cycleFocus(delta int) tea.Cmd {
 	if len(focusRing(m.lay)) <= 1 {
-		return m.switchTab(delta)
+		return m.walkStep(delta)
 	}
 	m.nextPane(delta)
 	return nil

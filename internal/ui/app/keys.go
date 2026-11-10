@@ -396,19 +396,6 @@ func (m *Model) applyToggle(n NavState, intent *FocusIntent) tea.Cmd {
 	return m.relayout()
 }
 
-// switchTab is tab.next/tab.prev (delta +1/-1). When Main had the focus, the focus
-// intent follows what Main shows now.
-func (m *Model) switchTab(delta int) tea.Cmd {
-	wasMain := m.focus.Slot == layout.SlotMain
-	prev := m.toolSnap()
-	m.nav = m.nav.cycleTab(delta, m.lay.Mode)
-	cmd := m.relayout()
-	if wasMain {
-		m.followMain()
-	}
-	return tea.Batch(cmd, m.toolSwitched(prev))
-}
-
 // goBack is nav.back / ui.BackMsg: one step back on the surface of the focused slot.
 func (m *Model) goBack() tea.Cmd {
 	m.nav = m.nav.back(m.focus.Slot, m.lay.Mode, m.lay)
