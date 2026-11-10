@@ -27,6 +27,7 @@ var areaChat = area{
 		},
 		"add_submit": {
 			desc: "멤버 추가 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "추가"},
 				En: {Other: "Add"},
@@ -69,6 +70,7 @@ var areaChat = area{
 		},
 		"ban_submit": {
 			desc: "방 차단(밴) 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "차단"},
 				En: {Other: "Ban"},
@@ -138,6 +140,7 @@ var areaChat = area{
 		},
 		"block_yes": {
 			desc: "차단 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "차단"},
 				En: {Other: "Block"},
@@ -160,6 +163,7 @@ var areaChat = area{
 		},
 		"cancel": {
 			desc: "확인 창 취소 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "취소"},
 				En: {Other: "Cancel"},
@@ -181,6 +185,7 @@ var areaChat = area{
 		},
 		"change_submit": {
 			desc: "바꾸기 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "바꾸기"},
 				En: {Other: "Save"},
@@ -330,6 +335,7 @@ var areaChat = area{
 		},
 		"create_submit": {
 			desc: "채널·방 만들기 대화상자의 만들기 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "만들기"},
 				En: {Other: "Create"},
@@ -415,6 +421,7 @@ var areaChat = area{
 		},
 		"delete_space_yes": {
 			desc: "방 삭제 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "삭제"},
 				En: {Other: "Delete"},
@@ -430,6 +437,7 @@ var areaChat = area{
 		},
 		"delete_yes": {
 			desc: "삭제 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "삭제"},
 				En: {Other: "Delete"},
@@ -437,6 +445,7 @@ var areaChat = area{
 		},
 		"dm_new_submit": {
 			desc: "새 대화 창 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "대화 시작"},
 				En: {Other: "Start chat"},
@@ -903,6 +912,7 @@ var areaChat = area{
 		},
 		"friend_add_submit": {
 			desc: "친구 추가 창 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "요청 보내기"},
 				En: {Other: "Send request"},
@@ -932,6 +942,7 @@ var areaChat = area{
 		"friends_tab_friends": {
 			desc:   "친구 판 탭: 친구 수",
 			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
 			text: map[Locale]Forms{
 				Ko: {Other: "친구 {n}"},
 				En: {Other: "Friends {n}"},
@@ -940,6 +951,7 @@ var areaChat = area{
 		"friends_tab_incoming": {
 			desc:   "친구 판 탭: 받은 요청 수",
 			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
 			text: map[Locale]Forms{
 				Ko: {Other: "받은 요청 {n}"},
 				En: {Other: "Received {n}"},
@@ -948,6 +960,7 @@ var areaChat = area{
 		"friends_tab_outgoing": {
 			desc:   "친구 판 탭: 보낸 요청 수",
 			params: []Param{{Name: "n", Type: "int"}},
+			max:    14,
 			text: map[Locale]Forms{
 				Ko: {Other: "보낸 요청 {n}"},
 				En: {Other: "Sent {n}"},
@@ -990,6 +1003,7 @@ var areaChat = area{
 		},
 		"help_copy": {
 			desc: "도움말 줄: 복사",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "복사"},
 				En: {Other: "copy"},
@@ -997,6 +1011,7 @@ var areaChat = area{
 		},
 		"help_find": {
 			desc: "도움말 줄: 찾기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "찾기"},
 				En: {Other: "search"},
@@ -1004,6 +1019,7 @@ var areaChat = area{
 		},
 		"help_find_member": {
 			desc: "도움말 줄: 멤버 찾기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "멤버 찾기"},
 				En: {Other: "find member"},
@@ -1011,6 +1027,7 @@ var areaChat = area{
 		},
 		"help_jump": {
 			desc: "키 도움말: 그 메시지로 이동",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "이동"},
 				En: {Other: "jump"},
@@ -1018,6 +1035,7 @@ var areaChat = area{
 		},
 		"help_menu": {
 			desc: "도움말 줄: 메뉴",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "메뉴"},
 				En: {Other: "menu"},
@@ -1025,6 +1043,7 @@ var areaChat = area{
 		},
 		"help_more": {
 			desc: "도움말 줄: 더보기 메뉴",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "더보기"},
 				En: {Other: "more"},
@@ -1032,6 +1051,7 @@ var areaChat = area{
 		},
 		"help_name_field": {
 			desc: "키 도움말: 이름 칸으로",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "이름 칸"},
 				En: {Other: "name field"},
@@ -1039,6 +1059,7 @@ var areaChat = area{
 		},
 		"help_new_channel": {
 			desc: "도움말 줄: 새 채널",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "새 채널"},
 				En: {Other: "new channel"},
@@ -1046,6 +1067,7 @@ var areaChat = area{
 		},
 		"help_next_field": {
 			desc: "키 도움말: 다음 칸",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "다음 칸"},
 				En: {Other: "next field"},
@@ -1053,14 +1075,16 @@ var areaChat = area{
 		},
 		"help_open": {
 			desc: "도움말 줄: 열기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "열기"},
 				En: {Other: "open"},
 			},
 		},
 		"help_pick_then": {
-			desc:   "키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글",
+			desc:   "키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글 (max 는 submit 을 뺀 폭 — submit 단추 키는 max 12)",
 			params: []Param{{Name: "submit", Type: "string"}},
+			max:    8,
 			text: map[Locale]Forms{
 				Ko: {Other: "고르기·{submit}"},
 				En: {Other: "pick·{submit}"},
@@ -1068,6 +1092,7 @@ var areaChat = area{
 		},
 		"help_retry": {
 			desc: "키 도움말: 다시 시도",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "다시 시도"},
 				En: {Other: "retry"},
@@ -1075,6 +1100,7 @@ var areaChat = area{
 		},
 		"help_run": {
 			desc: "키 도움말: 메뉴 항목 실행",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "실행"},
 				En: {Other: "run"},
@@ -1082,6 +1108,7 @@ var areaChat = area{
 		},
 		"help_scope": {
 			desc: "키 도움말: 검색 범위 바꾸기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "범위"},
 				En: {Other: "scope"},
@@ -1089,6 +1116,7 @@ var areaChat = area{
 		},
 		"help_search": {
 			desc: "키 도움말: 검색",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "검색"},
 				En: {Other: "search"},
@@ -1096,6 +1124,7 @@ var areaChat = area{
 		},
 		"help_settings": {
 			desc: "도움말 줄: 설정",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "설정"},
 				En: {Other: "settings"},
@@ -1103,6 +1132,7 @@ var areaChat = area{
 		},
 		"help_stop_find": {
 			desc: "도움말 줄: 그만 찾기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "그만 찾기"},
 				En: {Other: "stop"},
@@ -1110,6 +1140,7 @@ var areaChat = area{
 		},
 		"help_tabs": {
 			desc: "키 도움말: 탭 옮기기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "탭"},
 				En: {Other: "tabs"},
@@ -1117,6 +1148,7 @@ var areaChat = area{
 		},
 		"help_unban": {
 			desc: "도움말 줄: 차단 풀기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "차단 풀기"},
 				En: {Other: "unban"},
@@ -1124,6 +1156,7 @@ var areaChat = area{
 		},
 		"help_unpin": {
 			desc: "키 도움말: 고정 해제",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "고정 해제"},
 				En: {Other: "unpin"},
@@ -1332,6 +1365,7 @@ var areaChat = area{
 		},
 		"invite_direct_submit": {
 			desc: "친구 직접 초대 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "초대"},
 				En: {Other: "Invite"},
@@ -1744,6 +1778,7 @@ var areaChat = area{
 		},
 		"item_join": {
 			desc: "초대 메뉴·도움말: 참여하기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "참여하기"},
 				En: {Other: "Join"},
@@ -1758,6 +1793,7 @@ var areaChat = area{
 		},
 		"item_leave": {
 			desc: "그룹 대화 설정 메뉴·확인 단추: 나가기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "나가기"},
 				En: {Other: "Leave"},
@@ -1787,6 +1823,7 @@ var areaChat = area{
 		},
 		"item_open_space": {
 			desc: "초대 메뉴·도움말: 이미 멤버인 방 열기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "열기"},
 				En: {Other: "Open"},
@@ -1857,6 +1894,7 @@ var areaChat = area{
 		},
 		"item_revoke_invite": {
 			desc: "초대 링크 메뉴·확인 단추: 폐기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "폐기"},
 				En: {Other: "Revoke"},
@@ -1945,6 +1983,7 @@ var areaChat = area{
 		},
 		"kick_yes": {
 			desc: "멤버 내보내기 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "내보내기"},
 				En: {Other: "Remove"},
@@ -2441,6 +2480,7 @@ var areaChat = area{
 		},
 		"picker_ok": {
 			desc: "사람 고르기 기본 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "확인"},
 				En: {Other: "OK"},
@@ -3210,6 +3250,7 @@ var areaChat = area{
 		},
 		"space_join_submit": {
 			desc: "방 참여 대화상자 단추: 초대 미리 보기",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "미리 보기"},
 				En: {Other: "Preview"},
@@ -3396,6 +3437,7 @@ var areaChat = area{
 		},
 		"tab_bans": {
 			desc: "방 설정 탭: 차단된 사람",
+			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "차단됨"},
 				En: {Other: "Banned"},
@@ -3403,6 +3445,7 @@ var areaChat = area{
 		},
 		"tab_channels": {
 			desc: "방 설정 탭: 채널",
+			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "채널"},
 				En: {Other: "Channels"},
@@ -3410,6 +3453,7 @@ var areaChat = area{
 		},
 		"tab_invites": {
 			desc: "방 설정 탭: 초대",
+			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "초대"},
 				En: {Other: "Invites"},
@@ -3417,6 +3461,7 @@ var areaChat = area{
 		},
 		"tab_members": {
 			desc: "방 설정 탭: 멤버",
+			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "멤버"},
 				En: {Other: "Members"},
@@ -3424,22 +3469,25 @@ var areaChat = area{
 		},
 		"tab_overview": {
 			desc: "방 설정 탭: 개요",
+			max:  10,
 			text: map[Locale]Forms{
 				Ko: {Other: "개요"},
 				En: {Other: "Overview"},
 			},
 		},
 		"thread_parent_euro": {
-			desc:   "키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름",
+			desc:   "키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름 (max 는 label 을 뺀 폭)",
 			params: []Param{{Name: "label", Type: "string"}},
+			max:    6,
 			text: map[Locale]Forms{
 				Ko: {Other: "{label}으로"},
 				En: {Other: "to {label}"},
 			},
 		},
 		"thread_parent_ro": {
-			desc:   "키 도움말: 스레드에서 원래 채널로(받침 없음·ㄹ). label = 채널 이름",
+			desc:   "키 도움말: 스레드에서 원래 채널로(받침 없음·ㄹ). label = 채널 이름 (max 는 label 을 뺀 폭)",
 			params: []Param{{Name: "label", Type: "string"}},
+			max:    6,
 			text: map[Locale]Forms{
 				Ko: {Other: "{label}로"},
 				En: {Other: "to {label}"},
@@ -3520,6 +3568,7 @@ var areaChat = area{
 		},
 		"transfer_submit": {
 			desc: "방장 넘기기: 고르기 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "고르기"},
 				En: {Other: "Choose"},
@@ -3534,6 +3583,7 @@ var areaChat = area{
 		},
 		"transfer_yes": {
 			desc: "방장 넘기기 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "넘기기"},
 				En: {Other: "Transfer"},
@@ -3603,6 +3653,7 @@ var areaChat = area{
 		},
 		"unban_yes": {
 			desc: "차단 풀기 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "풀기"},
 				En: {Other: "Unban"},
@@ -3642,6 +3693,7 @@ var areaChat = area{
 		},
 		"unfriend_yes": {
 			desc: "친구 끊기 확인 단추",
+			max:  12,
 			text: map[Locale]Forms{
 				Ko: {Other: "끊기"},
 				En: {Other: "Unfriend"},
@@ -4431,7 +4483,7 @@ func (a_ ChatT) HelpOpen() string {
 	return a_.t.render(&areaChat, "help_open", false, 0)
 }
 
-// HelpPickThen: 키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글
+// HelpPickThen: 키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글 (max 는 submit 을 뺀 폭 — submit 단추 키는 max 12)
 func (a_ ChatT) HelpPickThen(submit string) string {
 	return a_.t.render(&areaChat, "help_pick_then", false, 0, "submit", submit)
 }
@@ -6061,12 +6113,12 @@ func (a_ ChatT) TabOverview() string {
 	return a_.t.render(&areaChat, "tab_overview", false, 0)
 }
 
-// ThreadParentEuro: 키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름
+// ThreadParentEuro: 키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름 (max 는 label 을 뺀 폭)
 func (a_ ChatT) ThreadParentEuro(label string) string {
 	return a_.t.render(&areaChat, "thread_parent_euro", false, 0, "label", label)
 }
 
-// ThreadParentRo: 키 도움말: 스레드에서 원래 채널로(받침 없음·ㄹ). label = 채널 이름
+// ThreadParentRo: 키 도움말: 스레드에서 원래 채널로(받침 없음·ㄹ). label = 채널 이름 (max 는 label 을 뺀 폭)
 func (a_ ChatT) ThreadParentRo(label string) string {
 	return a_.t.render(&areaChat, "thread_parent_ro", false, 0, "label", label)
 }

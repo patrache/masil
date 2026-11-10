@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"unicode"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/i18n"
+	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui/uitest"
 )
 
@@ -196,5 +198,46 @@ func TestChannelNameRegexEscaped(t *testing.T) {
 	}
 	if !strings.Contains(src, `\x{AC00}-\x{D7A3}`) {
 		t.Fatalf("channelNameRe lacks the escaped Hangul range: %s", src)
+	}
+}
+
+// narrowKeyRe and narrowDescRe pick the chat keys drawn in a narrow slot:
+// buttons (confirm *_yes, dialog *_submit, cancel, OK, menu items that are
+// also confirm buttons), key-hint words (help_*, the thread's "to #channel",
+// menu items shown in a help line) and tab names.
+var (
+	narrowKeyRe  = regexp.MustCompile(`^(cancel|picker_ok|help_.*|tab_.*|friends_tab_.*|thread_parent_.*|.*_yes|.*_submit)$`)
+	narrowDescRe = regexp.MustCompile(`단추[^ ]|단추$|·도움말:`)
+)
+
+// TestChatNarrowSlotsBudget (P5 Tasks 14~16, Global Constraint "좁은 자리"):
+// every chat button, key hint and tab name has a max, and every language's
+// text without arguments fits it (the generator checks the same on go
+// generate). Status lines that only name a button ("아래 줄") are not narrow.
+func TestChatNarrowSlotsBudget(t *testing.T) {
+	n := 0
+	for _, e := range i18n.Entries() {
+		if e.Area != "chat" || strings.Contains(e.Desc, "아래 줄") ||
+			!narrowKeyRe.MatchString(e.Key) && !narrowDescRe.MatchString(e.Desc) {
+			continue
+		}
+		n++
+		if e.Max == 0 {
+			t.Errorf("chat.%s (%q): narrow slot without max", e.Key, e.Desc)
+			continue
+		}
+		if len(e.Params) > 0 {
+			continue // widths with arguments are the generator's check
+		}
+		for l, f := range e.Text {
+			for _, s := range []string{f.One, f.Other, f.Short} {
+				if w := textwidth.Width(s); w > e.Max {
+					t.Errorf("chat.%s (%s) %q is %d cells > max %d", e.Key, l, s, w, e.Max)
+				}
+			}
+		}
+	}
+	if n < 50 {
+		t.Fatalf("only %d narrow chat keys found; the selection rule broke", n)
 	}
 }
