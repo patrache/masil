@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,6 +19,8 @@ import (
 	"time"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/apitool"
+	"github.com/patrache/masil/internal/leetcode"
 	"github.com/patrache/masil/internal/leetcode/leetcodetest"
 	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/secrets/secrettest"
@@ -34,6 +37,9 @@ import (
 
 // toolsDate is the harness clock's UTC date (uitest.Start).
 const toolsDate = "2026-11-05"
+
+// leetRunID is the run id of leetcodetest's interpret_ok.json.
+const leetRunID = "runcode_1762650000.123456_r1"
 
 // paneLimitText is the start of termpane.pane_limit (ko).
 const paneLimitText = "패널은 동시에 4개까지예요"
@@ -57,7 +63,7 @@ func setupTools(t *testing.T) *toolsRig {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	for _, k := range []string{"LEETCODE_SESSION", "LEETCODE_CSRF", "LEETCODE_CF_CLEARANCE", "EDITOR"} {
+	for _, k := range []string{leetcode.EnvSession, leetcode.EnvCSRF, leetcode.EnvCFClearance, "EDITOR"} {
 		t.Setenv(k, "")
 	}
 	r := &toolsRig{repo: t.TempDir()}
@@ -93,7 +99,7 @@ func setupTools(t *testing.T) *toolsRig {
 	return r
 }
 
-// leetAPI answers what today's problem asks masil (a signed-out LeetCode user).
+// leetAPI answers what today's problem asks the masil server.
 func leetAPI(t *testing.T, h *uitest.Harness) {
 	t.Helper()
 	if err := h.Context().ToolState.SetSection(ui.ToolLeet, map[string]any{"first_run_done": true}); err != nil {
@@ -292,21 +298,134 @@ func shareRelay(t *testing.T, h *uitest.Harness) (*sharetest.Relay, *sentFrames)
 	return relay, rec
 }
 
-// storeSecrets puts a tool secret of leet and of the API tool in h's store
-// and returns their values.
-func storeSecrets(t *testing.T, h *uitest.Harness, st *secrets.Store) []string {
+// The tool secrets the leak checks look for. Each is stored under the key
+// its tool reads, and each scenario makes the tool really use it (useSecrets)
+// before the checks: a value no tool loaded could not leak, and the check
+// would pass whatever the tools did.
+const (
+	leetSession = "LEETCODE-COOKIE-e2e-5f1c"
+	leetCSRF    = "LEETCODE-CSRF-e2e-77b0"
+	apiToken    = "API-TOKEN-e2e-9a7d"
+)
+
+// The API tool's seeded collection, request and environment (C3.7 files).
+const (
+	apiCol = "e2e"
+	apiReq = "ping"
+	apiEnv = "e2e"
+)
+
+// apiTarget is the API the API tool calls: it records the Authorization
+// header of each request.
+type apiTarget struct {
+	URL   string
+	mu    sync.Mutex
+	auths []string
+}
+
+func (a *apiTarget) got() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.auths)
+}
+
+// storeSecrets keeps today's problem's LeetCode cookies and the API tool's
+// {{token}} in st under the keys the two tools read (leetcode.CredNS.Key,
+// apitool.SecretKey of a personal environment), and seeds the API tool's
+// files so that it opens on a request using {{token}} against a local API.
+// Call it before the tools open. It returns the values.
+func storeSecrets(t *testing.T, h *uitest.Harness, st *secrets.Store) (*apiTarget, []string) {
 	t.Helper()
-	values := []string{"LEETCODE-COOKIE-e2e-5f1c", "API-TOKEN-e2e-9a7d"}
-	for i, k := range []struct{ tool, name string }{{ui.ToolLeet, "cookie.session"}, {ui.ToolAPI, "env/prod/TOKEN"}} {
-		key, ok := h.Context().SecretKey(k.tool, k.name)
-		if !ok {
-			t.Fatal("no secret scope")
-		}
-		if _, err := st.Put(context.Background(), key, secrets.New(values[i])); err != nil {
-			t.Fatal(err)
+	ctx := h.Context()
+	server, user, ok := ctx.SecretScope()
+	if !ok {
+		t.Fatal("no secret scope")
+	}
+	if err := leetcode.SaveCredentials(context.Background(), st, leetcode.CredNS{ServerHost: server, UserID: user},
+		leetcode.Credentials{Session: secrets.New(leetSession), CSRF: secrets.New(leetCSRF)}); err != nil {
+		t.Fatal(err)
+	}
+
+	target := &apiTarget{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		target.mu.Lock()
+		target.auths = append(target.auths, r.Header.Get("Authorization"))
+		target.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(srv.Close)
+	target.URL = srv.URL
+	env := &apitool.Env{ID: "env-e2e", Name: apiEnv, Vars: []apitool.Var{
+		{Name: "base_url", Value: srv.URL},
+		{Name: "token", Secret: true, AllowedHosts: []string{"127.0.0.1"}},
+	}}
+	ls := apitool.OpenLocal(ctx.Paths)
+	if err := ls.SaveEnv(env); err != nil {
+		t.Fatal(err)
+	}
+	col := &apitool.Collection{Version: apitool.CollectionVersion, ID: "c-e2e", Name: apiCol,
+		Root: apitool.Folder{Items: []apitool.Node{{Request: apiReq}}},
+		Requests: map[string]*apitool.Request{apiReq: {ID: apiReq, Name: "ping", Method: "GET", URL: "{{base_url}}/ping",
+			Headers: []apitool.KV{{ID: "h1", Key: "Authorization", Value: "Bearer {{token}}"}}}}}
+	if err := ls.SaveCollection(col); err != nil {
+		t.Fatal(err)
+	}
+	if err := ctx.ToolState.SetSection(ui.ToolAPI, map[string]any{"collection": apiCol, "request": apiReq, "env": apiEnv}); err != nil {
+		t.Fatal(err)
+	}
+	key, ok := ctx.SecretKey(ui.ToolAPI, apitool.SecretKey("", env.ID, "token"))
+	if !ok {
+		t.Fatal("no secret scope")
+	}
+	if _, err := st.Put(context.Background(), key, secrets.New(apiToken)); err != nil {
+		t.Fatal(err)
+	}
+	return target, []string{leetSession, leetCSRF, apiToken}
+}
+
+// useSecrets makes both tools use their stored secret, and fails t unless
+// they did: r in today's problem sends the cookies to the fake LeetCode, and
+// enter in the API tool sends {{token}} to the local API. It leaves the API
+// tool in front.
+func useSecrets(t *testing.T, h *uitest.Harness, r *toolsRig, target *apiTarget) {
+	t.Helper()
+	r.lc.QueueCheck(leetRunID, "check_run_success.json")
+	h.Send(ui.NavigateMsg{Route: leetRoute})
+	if h.Instance(leetRoute.Key()) == nil {
+		openFromHub(h, "1")
+	}
+	h.Press("r")
+	cookie := ""
+	for _, rec := range r.lc.Requests() {
+		if strings.HasSuffix(rec.Path, "/interpret_solution/") {
+			cookie = rec.Header.Get("Cookie")
 		}
 	}
-	return values
+	if !strings.Contains(cookie, leetcode.NameSession+"="+leetSession) || !strings.Contains(cookie, leetcode.NameCSRF+"="+leetCSRF) {
+		t.Fatalf("today's problem did not run with the stored cookies (cookie set: %t):\n%s", cookie != "", h.Screen())
+	}
+	h.Advance(time.Second) // the run's check
+
+	openFromHub(h, "5")
+	if len(openTools(h)[ui.ToolAPI]) != 1 {
+		t.Fatalf("the API tool did not open:\n%s", h.Screen())
+	}
+	h.Press("enter")
+	for i := 0; len(target.got()) == 0; i++ {
+		if i == 400 {
+			t.Fatalf("the API tool sent no request:\n%s", h.Screen())
+		}
+		h.Advance(50 * time.Millisecond)
+		time.Sleep(2 * time.Millisecond)
+	}
+	if got := target.got(); got[0] != "Bearer "+apiToken {
+		t.Fatalf("the API tool did not resolve the stored {{token}} (Authorization %q)", strings.ReplaceAll(got[0], apiToken, "<token>"))
+	}
+	for range 10 { // the response lands
+		h.Advance(50 * time.Millisecond)
+		time.Sleep(2 * time.Millisecond)
+	}
 }
 
 // settleShare pumps the relay and the harness until the relay is quiet.
@@ -331,12 +450,13 @@ func settleShare(h *uitest.Harness, relay *sharetest.Relay) {
 func TestKillSwitchFromArchScreen(t *testing.T) {
 	for _, front := range []string{"arch", "api", "chat", "hub"} {
 		t.Run(front, func(t *testing.T) {
-			setupTools(t)
+			r := setupTools(t)
 			termpanetest.Install(t)
 			st := secrettest.NewStore(t, true)
 			h := uitest.New(t, uitest.WithSecrets(st))
 			h.Resize(200, 60)
-			values := storeSecrets(t, h, st)
+			leetAPI(t, h)
+			target, values := storeSecrets(t, h, st)
 			relay, sent := shareRelay(t, h)
 			ws := workspaceRoute("workspace:kill", workspaceFolder(t))
 			h.Send(ui.NavigateMsg{Route: ws})
@@ -347,6 +467,7 @@ func TestKillSwitchFromArchScreen(t *testing.T) {
 				t.Fatalf("not sharing:\n%s", h.Screen())
 			}
 			t.Cleanup(func() { h.Send(ui.CloseToolMsg{InstanceID: ws.ID}) })
+			useSecrets(t, h, r, target) // while the share is live
 
 			switch front {
 			case "arch":
@@ -406,7 +527,7 @@ func TestFiveToolsOpenTogether(t *testing.T) {
 	h := uitest.New(t, uitest.WithSecrets(st))
 	h.Resize(200, 60)
 	leetAPI(t, h)
-	values := storeSecrets(t, h, st)
+	target, values := storeSecrets(t, h, st)
 
 	openFromHub(h, "1")
 	h.Send(ui.NavigateMsg{Route: workspaceRoute("workspace:five", workspaceFolder(t))})
@@ -433,6 +554,7 @@ func TestFiveToolsOpenTogether(t *testing.T) {
 		}
 		inst[rt.Key()] = c
 	}
+	useSecrets(t, h, r, target)
 
 	for _, sz := range fiveSizes {
 		h.Resize(sz.W, sz.H)
