@@ -457,20 +457,73 @@ func ExtractAll(ex []Extract, r *Response) (map[string]string, []error) {
 	return out, errs
 }
 
-// ApplyExtracts stores extracted values: a secret variable goes to the Vault
-// (never to a file or document); a shared collection keeps plain values as my
+// Extract refusal reasons (ExtractBlockedError.Reason).
+const (
+	// ExtractNotShared: a shared request's extract names a secret declared
+	// only in my own layer (globals), which it may not overwrite.
+	ExtractNotShared = "not shared"
+	// ExtractHostNotAllowed: the response host is not an allowed host of the
+	// shared secret.
+	ExtractHostNotAllowed = "host not allowed"
+)
+
+// ExtractBlockedError: an extracted value was not stored in the secret Var
+// (Host = the response host). Nothing was written for it.
+type ExtractBlockedError struct{ Var, Host, Reason string }
+
+func (e *ExtractBlockedError) Error() string {
+	return "apitool: extract {{" + e.Var + "}} not stored: " + e.Reason
+}
+
+// ExtractSecretKey is the vault key an extracted value for name, read from a
+// response of host, goes to, and whether name is secret. In a shared
+// collection only a secret declared in the shared document is written, and
+// only when host is one of its allowed hosts (my value's hosts); otherwise
+// *ExtractBlockedError. A personal collection writes its secrets as before.
+func (s *Scope) ExtractSecretKey(name, host string) (vaultKey string, secret bool, err error) {
+	for _, d := range s.declarations(name) {
+		if !d.v.Secret {
+			continue
+		}
+		if s.DocID == "" {
+			return SecretKey("", d.slot, name), true, nil
+		}
+		if !d.shared {
+			return "", true, &ExtractBlockedError{Var: name, Host: normHost(host), Reason: ExtractNotShared}
+		}
+		var hosts []string
+		if s.Mine != nil {
+			hosts = s.Mine.Hosts[d.slot+"/"+name]
+		}
+		if !hostAllowed(host, hosts) {
+			return "", true, &ExtractBlockedError{Var: name, Host: normHost(host), Reason: ExtractHostNotAllowed}
+		}
+		return SecretKey(s.DocID, d.slot, name), true, nil
+	}
+	return "", false, nil
+}
+
+// ApplyExtracts stores extracted values read from a response of host: a
+// secret variable goes to the Vault (never to a file or document; see
+// ExtractSecretKey for which); a shared collection keeps plain values as my
 // value (Mine, never synced); otherwise the environment, or my globals
-// without one. changed lists the names written (sorted). A Vault error such
-// as secrets.ErrNeedConsent stops it.
-func ApplyExtracts(vals map[string]string, s *Scope) (changed []string, err error) {
+// without one. changed lists the names written (sorted). A refused secret is
+// skipped and reported (*ExtractBlockedError, joined) after the others; a
+// Vault error such as secrets.ErrNeedConsent stops it.
+func ApplyExtracts(vals map[string]string, s *Scope, host string) (changed []string, err error) {
 	names := make([]string, 0, len(vals))
 	for n := range vals {
 		names = append(names, n)
 	}
 	sort.Strings(names)
+	var blocked []error
 	for _, name := range names {
 		v := vals[name]
-		if key, _, secret := s.SecretSlot(name); secret {
+		if key, secret, kerr := s.ExtractSecretKey(name, host); secret {
+			if kerr != nil {
+				blocked = append(blocked, kerr)
+				continue
+			}
 			if s.Vault == nil {
 				return changed, fmt.Errorf("apitool: no vault for {{%s}}", name)
 			}
@@ -505,7 +558,7 @@ func ApplyExtracts(vals map[string]string, s *Scope) (changed []string, err erro
 			changed = append(changed, name)
 		}
 	}
-	return changed, nil
+	return changed, errors.Join(blocked...)
 }
 
 func setVar(vs *[]Var, name, value string) bool {

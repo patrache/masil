@@ -36,8 +36,9 @@ func (e *PrivateTargetError) Error() string {
 // RedirectBlock records a redirect not followed because the next host is not
 // allowed for the secret Var; the 3xx response is returned as is.
 type RedirectBlock struct {
-	To  string // host name
-	Var string
+	To       string // host name
+	Var      string
+	Insecure bool // an https request using a secret redirected to plain http
 }
 
 // normHost lower-cases a host, drops a port, brackets and a final dot.
@@ -149,7 +150,10 @@ func IsPrivateAddr(a netip.Addr) bool {
 	return false
 }
 
-// IsPrivateHostname: localhost, *.localhost, *.local, or a private IP literal.
+// IsPrivateHostname: localhost, *.localhost, *.local, a private IP literal,
+// or a non-canonical IPv4 form ("2130706433", "127.1", "0x7f.1", "0177.0.0.1"):
+// a proxy or the OS resolver may read it as any address (inet_aton), so it
+// is never taken for a public name.
 func IsPrivateHostname(h string) bool {
 	h = normHost(h)
 	if h == "localhost" || strings.HasSuffix(h, ".localhost") || strings.HasSuffix(h, ".local") {
@@ -158,7 +162,30 @@ func IsPrivateHostname(h string) bool {
 	if a, err := netip.ParseAddr(h); err == nil {
 		return IsPrivateAddr(a)
 	}
-	return false
+	return numericLastLabel(h)
+}
+
+// numericLastLabel: the last dot label is a decimal or 0x-hex number, which
+// makes the host an IPv4 address to URL parsers and inet_aton (a public DNS
+// name never ends in a number).
+func numericLastLabel(h string) bool {
+	last := h[strings.LastIndexByte(h, '.')+1:]
+	digits := "0123456789"
+	if len(last) >= 2 && last[0] == '0' && (last[1] == 'x' || last[1] == 'X') {
+		last, digits = last[2:], "0123456789abcdefABCDEF"
+		if last == "" {
+			return true
+		}
+	}
+	if last == "" {
+		return false
+	}
+	for i := 0; i < len(last); i++ {
+		if !strings.ContainsRune(digits, rune(last[i])) {
+			return false
+		}
+	}
+	return true
 }
 
 // guard is the per-send state of the target checks.
@@ -168,7 +195,7 @@ type guard struct {
 	target string // the request's own host (PrivateOK covers this one only)
 
 	mu      sync.Mutex
-	proxies map[string]bool // proxy host names in use (not the target)
+	proxies map[string]bool // proxy "host:port" in use (not the target)
 	block   *RedirectBlock
 }
 
@@ -228,9 +255,26 @@ func (g *guard) proxy(req *http.Request) (*url.URL, error) {
 		}
 	}
 	g.mu.Lock()
-	g.proxies[normHost(u.Hostname())] = true
+	g.proxies[proxyAddr(u)] = true
 	g.mu.Unlock()
 	return u, nil
+}
+
+// proxyAddr is the "host:port" net/http dials for the proxy u (the scheme's
+// default port when u has none).
+func proxyAddr(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		switch strings.ToLower(u.Scheme) {
+		case "https":
+			port = "443"
+		case "socks5", "socks5h":
+			port = "1080"
+		default:
+			port = "80"
+		}
+	}
+	return net.JoinHostPort(normHost(u.Hostname()), port)
 }
 
 // resolve looks host up with Sender.Resolver, else the system resolver.
@@ -250,7 +294,7 @@ func (g *guard) dial(ctx context.Context, network, addr string) (net.Conn, error
 		return nil, err
 	}
 	g.mu.Lock()
-	viaProxy := g.proxies[normHost(host)]
+	viaProxy := g.proxies[net.JoinHostPort(normHost(host), port)]
 	g.mu.Unlock()
 	check := g.checks(host) && !viaProxy
 	d := &net.Dialer{}
@@ -295,9 +339,16 @@ func (g *guard) dial(ctx context.Context, network, addr string) (net.Conn, error
 
 // redirect stops a redirect to a host outside the allowed hosts shared by
 // every secret the request uses (net/http would keep X-Api-Key and the query),
-// also when a relative redirect keeps a Host override (req.Host).
+// also when a relative redirect keeps a Host override (req.Host), and an
+// https -> http redirect while a secret is in use (same host too).
 func (g *guard) redirect(req *http.Request) error {
 	host := normHost(req.URL.Hostname())
+	if v, ok := firstSecret(g.p.Used); ok && downgrade(req) {
+		g.mu.Lock()
+		g.block = &RedirectBlock{To: host, Var: v.Name, Insecure: true}
+		g.mu.Unlock()
+		return http.ErrUseLastResponse
+	}
 	var he *HostNotAllowedError
 	if err := checkHosts(g.p.Used, host, req.Host); errors.As(err, &he) {
 		g.mu.Lock()
@@ -306,6 +357,24 @@ func (g *guard) redirect(req *http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	return g.preflight(host)
+}
+
+// downgrade: req follows a redirect from an https request to plain http
+// (net/http would resend X-Api-Key and the query in the clear).
+func downgrade(req *http.Request) bool {
+	if req.Response == nil || req.Response.Request == nil || req.Response.Request.URL == nil {
+		return false
+	}
+	return strings.EqualFold(req.Response.Request.URL.Scheme, "https") && !strings.EqualFold(req.URL.Scheme, "https")
+}
+
+func firstSecret(used []Value) (Value, bool) {
+	for _, v := range used {
+		if v.Secret {
+			return v, true
+		}
+	}
+	return Value{}, false
 }
 
 func (g *guard) redirectBlock() *RedirectBlock {

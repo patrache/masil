@@ -559,6 +559,22 @@ var areaApitest = area{
 				En: {Other: "Export"},
 			},
 		},
+		"extract_host_blocked": {
+			desc:   "공유 요청의 추출 값을, 응답한 호스트가 그 비밀 변수의 허용 호스트가 아니라서 넣지 않았을 때의 토스트(var = 변수 이름, host = 응답한 호스트)",
+			params: []Param{{Name: "var", Type: "string"}, {Name: "host", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{host} 는 {{{var}}} 의 허용 호스트가 아니라서 추출한 값을 넣지 않았어요"},
+				En: {Other: "Didn't store the extracted value: {host} is not an allowed host of {{{var}}}"},
+			},
+		},
+		"extract_not_shared": {
+			desc:   "공유 요청의 추출 규칙이 내 개인 비밀 변수(공유 문서에 없는 변수)를 바꾸려 해서 막았을 때의 토스트(var = 변수 이름)",
+			params: []Param{{Name: "var", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "공유 요청이 내 비밀 변수 {{{var}}} 을 바꾸려 해서 막았어요"},
+				En: {Other: "Blocked a shared request from changing my secret {{{var}}}"},
+			},
+		},
 		"file_changed": {
 			desc: "열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄",
 			text: map[Locale]Forms{
@@ -2131,6 +2147,16 @@ func (a_ ApitestT) ExportSaved(path string) string {
 // ExportTitle: 내보내기 창 제목
 func (a_ ApitestT) ExportTitle() string {
 	return a_.t.render(&areaApitest, "export_title", false, 0)
+}
+
+// ExtractHostBlocked: 공유 요청의 추출 값을, 응답한 호스트가 그 비밀 변수의 허용 호스트가 아니라서 넣지 않았을 때의 토스트(var = 변수 이름, host = 응답한 호스트)
+func (a_ ApitestT) ExtractHostBlocked(varArg string, host string) string {
+	return a_.t.render(&areaApitest, "extract_host_blocked", false, 0, "var", varArg, "host", host)
+}
+
+// ExtractNotShared: 공유 요청의 추출 규칙이 내 개인 비밀 변수(공유 문서에 없는 변수)를 바꾸려 해서 막았을 때의 토스트(var = 변수 이름)
+func (a_ ApitestT) ExtractNotShared(varArg string) string {
+	return a_.t.render(&areaApitest, "extract_not_shared", false, 0, "var", varArg)
 }
 
 // FileChanged: 열어 둔 개인 컬렉션 파일을 masil 밖에서 고쳤을 때의 안내 줄

@@ -275,7 +275,7 @@ func (r *Runner) one(ctx context.Context, colID string, req *Request, scope *Sco
 		}
 	}
 	if vals, _ := ExtractAll(req.Extracts, resp); len(vals) > 0 {
-		if _, err := ApplyExtracts(vals, scope); err != nil {
+		if _, err := ApplyExtracts(vals, scope, resp.Host); err != nil {
 			ev.Response = resp
 			return fail(ReasonExtract, err)
 		}
