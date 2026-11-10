@@ -484,15 +484,47 @@ func heldKey(ops []collab.Op, h apitool.HeldField) string {
 }
 
 // heldDialog asks about the first held field: make it a variable, share it
-// anyway, or keep it here.
+// anyway, or keep it here. It names the field (the row's key or variable's
+// name with it) and its request, so each answer says what it shares.
 func (t *Tool) heldDialog(ctx *ui.Context, sd *sharedDoc) tea.Cmd {
 	a := ctx.T.Apitest
 	h := sd.held.held[0]
 	name := suggestName(h.Finding.Rule, h.F)
+	field := a.HeldField(textwidth.Sanitize(h.F))
+	if h.Name != "" {
+		field = a.HeldFieldNamed(textwidth.Sanitize(h.Name), textwidth.Sanitize(h.F))
+	}
+	body := []string{a.SecretDetected(), field}
+	if r := heldRequestName(sd.col, h.Obj); r != "" {
+		body = append(body, a.HeldRequest(textwidth.Sanitize(r)))
+	}
+	body = append(body, a.SecretName())
 	return ui.OpenOverlay(&dialog{inst: t.route.ID, kind: dkHeld, title: a.HeldTitle(), data: sd.id, prefW: 64,
-		body:    []string{a.SecretDetected(), a.HeldField(h.F), a.SecretName()},
+		body:    body,
 		input:   newLineInput(name),
 		choices: []string{a.SecretToVar(), a.UploadAnyway(), a.Cancel()}})
+}
+
+// heldRequestName is the name of the request object obj (a request or one
+// of its rows) belongs to in c ("" = none, e.g. a variable).
+func heldRequestName(c *apitool.Collection, obj string) string {
+	if c == nil {
+		return ""
+	}
+	if id, ok := strings.CutPrefix(obj, "req:"); ok {
+		if r := c.Requests[id]; r != nil {
+			return r.Name
+		}
+		return ""
+	}
+	if id, ok := strings.CutPrefix(obj, "row:"); ok {
+		for _, r := range c.Requests {
+			if slices.Contains(rowIDs(r), id) {
+				return r.Name
+			}
+		}
+	}
+	return ""
 }
 
 // heldAnswer follows the held question.

@@ -367,6 +367,16 @@ desc = "공유 전 확인 창: 걸린 칸(field = 칸 이름, 번역하지 않�
 params = { field = "string" }
 other = "칸: {field}"
 
+[held_field_named]
+desc = "공유 전 확인 창: 걸린 칸과 그 행의 키 또는 변수 이름(name = 키·변수 이름, field = 칸 이름, 둘 다 번역하지 않음)"
+params = { name = "string", field = "string" }
+other = "칸: {name} ({field})"
+
+[held_request]
+desc = "공유 전 확인 창: 걸린 칸이 속한 요청(request = 요청 이름)"
+params = { request = "string" }
+other = "요청: {request}"
+
 [held_title]
 desc = "공유로 나가기 전 비밀값을 찾았을 때의 창 제목"
 max = 30

@@ -229,3 +229,46 @@ func TestPeerConsentAskedAgainAfterSnapshot(t *testing.T) {
 		t.Fatal("the private-target consent still covers the changed request")
 	}
 }
+
+// Each held question names what it would share (the row's key and the
+// request), and "share anyway" uploads exactly the value it named.
+func TestHeldQuestionNamesField(t *testing.T) {
+	const key2 = "q8Zr3Kp9Lm2Xw7Tb5Nc4Vh6Jd1Fs0Gy"
+	hub := collabtest.New(t)
+	seedShared(hub, sharedCollection("https://api.example.com"))
+	h := openAPI(t, uitest.WithCollab(hub))
+	tl := openShared(t, h, "r-get")
+	tl.req.Headers = []apitool.KV{{Key: "Authorization", Value: "Bearer " + testJWT}}
+	tl.req.Query = []apitool.KV{{Key: "api_key", Value: key2}}
+	tl.ed.load(tl.req)
+	h.Send(syncNowMsg{t: tl})
+	waitFor(t, h, "the held question", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	settle(h)
+	o := overlayText(h)
+	if !hasWhole(o, ko.HeldRequest("Get")) {
+		t.Fatalf("the held question does not name the request:\n%s", o)
+	}
+	auth := hasWhole(o, ko.HeldFieldNamed("Authorization", "value"))
+	apiKey := hasWhole(o, ko.HeldFieldNamed("api_key", "value"))
+	if auth == apiKey {
+		t.Fatalf("the held question names neither or both fields (auth %v, api_key %v):\n%s", auth, apiKey, o)
+	}
+	shown, other := testJWT, key2
+	if apiKey {
+		shown, other = key2, testJWT
+	}
+	h.Press("down", "enter") // 그래도 올리기
+	waitFor(t, h, "the named secret on the hub", func() bool { return strings.Contains(opsText(hub), shown) })
+	waitFor(t, h, "the question about the other field", func() bool { return hasWhole(overlayText(h), ko.SecretDetected()) })
+	settle(h)
+	if strings.Contains(opsText(hub), other) {
+		t.Fatalf("share anyway sent a value it did not name: %s", opsText(hub))
+	}
+	want := ko.HeldFieldNamed("api_key", "value")
+	if apiKey {
+		want = ko.HeldFieldNamed("Authorization", "value")
+	}
+	if o := overlayText(h); !hasWhole(o, want) {
+		t.Fatalf("the second question does not name the other field:\n%s", o)
+	}
+}

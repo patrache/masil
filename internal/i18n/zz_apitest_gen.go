@@ -607,6 +607,22 @@ var areaApitest = area{
 				En: {Other: "Field: {field}"},
 			},
 		},
+		"held_field_named": {
+			desc:   "공유 전 확인 창: 걸린 칸과 그 행의 키 또는 변수 이름(name = 키·변수 이름, field = 칸 이름, 둘 다 번역하지 않음)",
+			params: []Param{{Name: "name", Type: "string"}, {Name: "field", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "칸: {name} ({field})"},
+				En: {Other: "Field: {name} ({field})"},
+			},
+		},
+		"held_request": {
+			desc:   "공유 전 확인 창: 걸린 칸이 속한 요청(request = 요청 이름)",
+			params: []Param{{Name: "request", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "요청: {request}"},
+				En: {Other: "Request: {request}"},
+			},
+		},
 		"held_title": {
 			desc: "공유로 나가기 전 비밀값을 찾았을 때의 창 제목",
 			max:  30,
@@ -2196,6 +2212,16 @@ func (a_ ApitestT) FindPrompt() string {
 // HeldField: 공유 전 확인 창: 걸린 칸(field = 칸 이름, 번역하지 않음)
 func (a_ ApitestT) HeldField(field string) string {
 	return a_.t.render(&areaApitest, "held_field", false, 0, "field", field)
+}
+
+// HeldFieldNamed: 공유 전 확인 창: 걸린 칸과 그 행의 키 또는 변수 이름(name = 키·변수 이름, field = 칸 이름, 둘 다 번역하지 않음)
+func (a_ ApitestT) HeldFieldNamed(name string, field string) string {
+	return a_.t.render(&areaApitest, "held_field_named", false, 0, "name", name, "field", field)
+}
+
+// HeldRequest: 공유 전 확인 창: 걸린 칸이 속한 요청(request = 요청 이름)
+func (a_ ApitestT) HeldRequest(request string) string {
+	return a_.t.render(&areaApitest, "held_request", false, 0, "request", request)
 }
 
 // HeldTitle: 공유로 나가기 전 비밀값을 찾았을 때의 창 제목

@@ -363,6 +363,12 @@ func TestGateNamesSetValues(t *testing.T) {
 	if held[3].Obj != "req:r-get" || held[3].F != "url" {
 		t.Fatalf("held[3] = %+v", held[3])
 	}
+	// Each held value names its row or variable (the question shows it).
+	for i, want := range []string{"X-Api-Key", "API_TOKEN", "X-Session", ""} {
+		if held[i].Name != want {
+			t.Fatalf("held[%d].Name = %q, want %q", i, held[i].Name, want)
+		}
+	}
 	if len(send) != 2 || send[0].Field != "key" || send[1].ID != "row:q1" {
 		t.Fatalf("send = %+v", send)
 	}
@@ -372,7 +378,7 @@ func TestGateNamesSetValues(t *testing.T) {
 	next := fixture()
 	next.Requests["r-pay"].Headers = append(next.Requests["r-pay"].Headers, KV{ID: "h10", Key: "X-API-Key", Value: key})
 	s1, h1 := GateIn(base, Diff(base, next))
-	if len(h1) != 1 {
+	if len(h1) != 1 || h1[0].Name != "X-API-Key" {
 		t.Fatalf("first held = %+v", h1)
 	}
 	d := collab.NewDoc(DocFromCollection(base))

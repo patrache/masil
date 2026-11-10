@@ -232,6 +232,12 @@ other = "Find "
 [held_field]
 other = "Field: {field}"
 
+[held_field_named]
+other = "Field: {name} ({field})"
+
+[held_request]
+other = "Request: {request}"
+
 [held_title]
 other = "Check before sharing"
 

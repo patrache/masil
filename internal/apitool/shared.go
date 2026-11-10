@@ -698,9 +698,12 @@ func sameJSON(a, b json.RawMessage) bool {
 // HeldField is a field Gate kept back: op OpIndex of the input, object Obj,
 // field F, and the detector's first finding in it; Text is the string the
 // finding's offsets are in (the field's value, or a string inside it).
+// Name is the row's key or the variable's name when F is its "value" ("" =
+// none known), so a question about the field can say which one it is.
 type HeldField struct {
 	OpIndex int
 	Obj, F  string
+	Name    string
 	Finding Finding
 	Text    string
 }
@@ -722,7 +725,7 @@ func GateIn(base *Collection, ops []collab.Op) (send []collab.Op, held []HeldFie
 		switch op.Op {
 		case collab.OpSet:
 			if f, text, ok := scanField(op.Field, op.Value, names[op.ID]); ok {
-				held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: op.Field, Finding: f, Text: text})
+				held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: op.Field, Name: valueName(op.Field, names[op.ID]), Finding: f, Text: text})
 				continue
 			}
 			send = append(send, op)
@@ -740,7 +743,7 @@ func GateIn(base *Collection, ops []collab.Op) (send []collab.Op, held []HeldFie
 			var keep map[string]json.RawMessage
 			for _, k := range names {
 				if f, text, ok := scanField(k, op.Fields[k], hint); ok {
-					held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: k, Finding: f, Text: text})
+					held = append(held, HeldField{OpIndex: i, Obj: op.ID, F: k, Name: valueName(k, hint), Finding: f, Text: text})
 					if keep == nil {
 						keep = maps.Clone(op.Fields)
 					}
@@ -756,6 +759,14 @@ func GateIn(base *Collection, ops []collab.Op) (send []collab.Op, held []HeldFie
 		}
 	}
 	return send, held
+}
+
+// valueName is name when field is a row's or variable's "value", else "".
+func valueName(field, name string) string {
+	if field != "value" {
+		return ""
+	}
+	return name
 }
 
 // valueNames maps each row and variable object to the name of its value:
