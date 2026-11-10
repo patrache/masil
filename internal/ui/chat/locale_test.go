@@ -67,3 +67,56 @@ func TestTypingLineJosa(t *testing.T) {
 		}
 	}
 }
+
+// TestSystemEventSentences (P5 Task 15): every SystemEvent.event keeps its ko
+// sentence; en has Hangul only in the argument values (names, topics).
+func TestSystemEventSentences(t *testing.T) {
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	ctx := h.Context()
+	minji := userBy(t, ctx.Store, "minji")
+	enCtx := *ctx
+	enCtx.T, enCtx.Lang = i18n.For(i18n.En), i18n.En
+	target := minji.ID
+	for _, c := range []struct {
+		ev     api.SystemEvent
+		ko, en string
+	}{
+		{api.SystemEvent{Event: "member_joined", ActorID: minji.ID}, "민지님이 들어왔어요", "민지 joined"},
+		{api.SystemEvent{Event: "group_member_added", ActorID: "x", TargetUserID: &target}, "민지님이 들어왔어요", "민지 joined"},
+		{api.SystemEvent{Event: "member_left", ActorID: minji.ID}, "민지님이 나갔어요", "민지 left"},
+		{api.SystemEvent{Event: "member_kicked", ActorID: "x", TargetUserID: &target}, "민지님이 내보내졌어요", "민지 was removed"},
+		{api.SystemEvent{Event: "group_member_removed", ActorID: "x", TargetUserID: &target}, "민지님이 빠졌어요", "민지 left the conversation"},
+		{api.SystemEvent{Event: "channel_created", Data: api.SystemEventData{Name: "개발"}}, "#개발 채널을 만들었어요", "Created #개발"},
+		{api.SystemEvent{Event: "channel_renamed", Data: api.SystemEventData{Name: "개발"}}, "채널 이름 변경: #개발", "Channel renamed: #개발"},
+		{api.SystemEvent{Event: "channel_topic_changed", Data: api.SystemEventData{Topic: "배포 주간"}}, "주제 변경: 배포 주간", "Topic changed: 배포 주간"},
+		{api.SystemEvent{Event: "message_pinned"}, "메시지를 고정했어요", "Pinned a message"},
+		{api.SystemEvent{Event: "group_renamed", Data: api.SystemEventData{Name: "점심팟"}}, "대화 이름 변경: 점심팟", "Conversation renamed: 점심팟"},
+	} {
+		if got := systemText(ctx, c.ev); got != c.ko {
+			t.Errorf("%s ko = %q, want %q", c.ev.Event, got, c.ko)
+		}
+		got := systemText(&enCtx, c.ev)
+		if got != c.en {
+			t.Errorf("%s en = %q, want %q", c.ev.Event, got, c.en)
+		}
+		args := strings.NewReplacer("민지", "", "개발", "", "배포 주간", "", "점심팟", "").Replace(got)
+		if hasHangul(args) {
+			t.Errorf("%s en %q: Hangul outside the arguments", c.ev.Event, got)
+		}
+	}
+}
+
+// TestRowsFollowLocaleSwitch (P5 Task 15): the day dividers and the thread's
+// replies divider are built into the rows, so a language switch rebuilds them.
+func TestRowsFollowLocaleSwitch(t *testing.T) {
+	t.Setenv("MASIL_LANG", "")
+	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	if !strings.Contains(h.Screen(), "요일") {
+		t.Fatalf("no ko day divider before the switch:\n%s", h.Screen())
+	}
+	h.SetLocale("en")
+	if s := h.Screen(); strings.Contains(s, "요일") || !strings.Contains(s, "day,") {
+		t.Fatalf("day divider not rebuilt after the switch:\n%s", s)
+	}
+}

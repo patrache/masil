@@ -123,7 +123,7 @@ func memberRowActions(ctx *ui.Context, spaceID string, m api.SpaceMember) []menu
 	if me == api.RoleOwner && m.Role != api.RoleOwner || me == api.RoleAdmin && m.Role == api.RoleMember {
 		items = append(items,
 			menuItem{Label: itemSpaceKick, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-				return nil, widgets.Confirm(name+spaceKickAsk, spaceKickBody, itemSpaceKick, cancelText, kickCmd(ctx, spaceID, u))
+				return nil, widgets.Confirm(name+spaceKickAsk, spaceKickBody, itemSpaceKick, cat(ctx).Chat.Cancel(), kickCmd(ctx, spaceID, u))
 			}},
 			menuItem{Label: itemBan, Danger: true, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 				return nil, banForm(spaceID, u)
@@ -833,7 +833,7 @@ func (b *banTab) update(_ *ui.Context, msg tea.Msg) tea.Cmd {
 
 // unban asks before lifting the ban of the row.
 func (b *banTab) unban(ctx *ui.Context, it friendItem) tea.Cmd {
-	return ui.OpenOverlay(widgets.Confirm(it.Label+unbanAskSuffix, unbanBody, unbanYes, cancelText, unbanCmd(ctx, b.v.spaceID, it.user)))
+	return ui.OpenOverlay(widgets.Confirm(it.Label+unbanAskSuffix, unbanBody, unbanYes, cat(ctx).Chat.Cancel(), unbanCmd(ctx, b.v.spaceID, it.user)))
 }
 
 // unbanCmd lifts u's ban (DELETE bans/{user}); the row leaves at once.

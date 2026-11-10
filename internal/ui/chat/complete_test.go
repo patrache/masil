@@ -160,7 +160,7 @@ func TestEmojiCompletion(t *testing.T) {
 		t.Fatal("must not send")
 	}
 	// Korean names match by containment; one character after ':' is not enough
-	if got := emojiCandidates("축하"); len(got) == 0 || got[0].Insert != "🎉 " {
+	if got := emojiCandidates(i18n.KoT(), "축하"); len(got) == 0 || got[0].Insert != "🎉 " {
 		t.Fatalf("축하: %+v", got)
 	}
 	h.Type("밥 :t")
@@ -175,7 +175,7 @@ func TestEmojiTable(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, e := range emojiTable {
-		if e.Name == "" || e.Ko == "" || e.Name != strings.ToLower(e.Name) || seen[e.Name] {
+		if e.Name == "" || emojiName(i18n.KoT(), e) == "" || emojiName(i18n.For(i18n.En), e) == "" || e.Name != strings.ToLower(e.Name) || seen[e.Name] {
 			t.Fatalf("bad or duplicate name: %+v", e)
 		}
 		seen[e.Name] = true
@@ -349,7 +349,7 @@ func TestMentionMembersFollowMembership(t *testing.T) {
 func TestEmojiCompletionSmoking(t *testing.T) {
 	for _, q := range []string{"smok", "흡연"} {
 		found := false
-		for _, c := range emojiCandidates(q) {
+		for _, c := range emojiCandidates(i18n.KoT(), q) {
 			if strings.Contains(c.Insert, "🚬") {
 				found = true
 			}

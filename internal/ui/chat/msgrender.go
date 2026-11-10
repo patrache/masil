@@ -70,16 +70,7 @@ const (
 	lineNameMax     = 16 // DensityLine name cap (cells)
 	minimalNameMax  = 6  // DensityMinimal name cap (cells)
 	bubbleRatio     = 80 // bubble width, percent of the row
-	blockedText     = "차단한 사용자의 메시지"
-	deletedText     = "삭제된 메시지"
-	editedText      = "(수정됨)"
-	sendingText     = " · 보내는 중…"
-	failedText      = " · 전송 실패 — enter 다시 보내기 · d 버리기"
-	failedShort     = " · 전송 실패"
-	failedHint      = " — enter 다시 보내기 · d 버리기"
 	pendingBodyMin  = 10 // one-line densities keep this much of a pending body before shortening the status
-	loadingText     = "불러오는 중…"
-	unknownUser     = "알 수 없는 사용자"
 )
 
 // buildRows turns a window of messages plus the list's pending sends into rows:
@@ -115,7 +106,7 @@ func buildRows(ctx *ui.Context, msgs []api.Message, pending []chatstore.PendingM
 		if full {
 			if day := m.CreatedAt.In(loc).Format("20060102"); day != lastDay {
 				lastDay = day
-				rows = append(rows, row{Kind: rowDay, ID: "day:" + day, Text: humanize.DayDivider(m.CreatedAt, loc)})
+				rows = append(rows, row{Kind: rowDay, ID: "day:" + day, Text: hz(ctx).DayDivider(m.CreatedAt, loc)})
 			}
 		}
 		rows = append(rows, row{Kind: rowMessage, ID: m.ID, Msg: m})
@@ -169,9 +160,9 @@ func renderRow(ctx *ui.Context, r row, st msgStyle) []string {
 			lines = []string{rule(t, t.S.Dim, "── "+textwidth.Sanitize(r.Text)+" ", st.Width, false)}
 		}
 	case rowUnread:
-		lines = []string{rule(t, t.S.Error, " 새 메시지 ", st.Width, true)}
+		lines = []string{rule(t, t.S.Error, " "+cat(ctx).Chat.UnreadRule()+" ", st.Width, true)}
 	case rowLoading:
-		lines = []string{centerLine(t, t.S.Dim, loadingText, st.Width)}
+		lines = []string{centerLine(t, t.S.Dim, cat(ctx).Chat.Loading(), st.Width)}
 	case rowNotice:
 		for _, l := range textwidth.Wrap(textwidth.Sanitize(r.Text), st.Width) {
 			lines = append(lines, centerLine(t, t.S.Dim, l, st.Width))
@@ -198,14 +189,14 @@ func renderMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle)
 	mine := s != nil && s.IsMe(m.Author.ID)
 	switch {
 	case !mine && s != nil && s.IsBlocked(m.Author.ID):
-		return []string{fit(t.S.Dim.Render(blockedText), st.Width)}
+		return []string{fit(t.S.Dim.Render(cat(ctx).Chat.BlockedMsg()), st.Width)}
 	case m.Kind == "system" && !m.Deleted:
 		txt := ""
 		if m.System != nil {
 			txt = systemText(ctx, *m.System)
 		}
 		if txt == "" {
-			txt = markup.Plain(m.Body, st.Width)
+			txt = markup.Plain(m.Body, st.Width, cat(ctx).Common.CodeSummary)
 		}
 		return []string{centerLine(t, t.S.System, "── "+txt+" ──", st.Width)}
 	case m.Kind == "me" && !m.Deleted:
@@ -237,7 +228,7 @@ func fullMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle) [
 		out = append(out, pad+l)
 	}
 	if !m.Deleted {
-		for _, l := range metaLines(t, m, bw, st.InThread) {
+		for _, l := range metaLines(cat(ctx), t, m, bw, st.InThread) {
 			out = append(out, pad+l)
 		}
 	}
@@ -250,7 +241,7 @@ func lineMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle) s
 		textwidth.Truncate(widgets.UserName(t, m.Author, isMe(ctx, m.Author.ID)), lineNameMax, "…") + blank(t, 1)
 	suffix := ""
 	if !m.Deleted && !st.InThread && m.Thread != nil && m.Thread.ReplyCount > 0 {
-		suffix = t.S.Dim.Render(" 💬" + humanize.Count(m.Thread.ReplyCount))
+		suffix = t.S.Dim.Render(" 💬" + hz(ctx).Count(m.Thread.ReplyCount))
 	}
 	room := st.Width - textwidth.Width(head) - textwidth.Width(suffix)
 	body := ""
@@ -270,13 +261,13 @@ func minimalMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle
 		var card []string
 		switch {
 		case m.Deleted:
-			body = t.S.Deleted.Render(textwidth.Truncate(deletedText, room, "…"))
+			body = t.S.Deleted.Render(textwidth.Truncate(cat(ctx).Chat.MsgDeleted(), room, "…"))
 		case cardLines(ctx, m, room, &card):
 			if len(card) > 0 {
 				body = card[0]
 			}
 		default:
-			body = t.S.Base.Render(markup.Plain(plainBody(m), room))
+			body = t.S.Base.Render(markup.Plain(plainBody(m), room, cat(ctx).Common.CodeSummary))
 		}
 	}
 	return fit(name+body, st.Width)
@@ -290,7 +281,7 @@ func bubbleMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, mine bool, s
 	if !st.Continuation {
 		clock := t.S.Timestamp.Render(clockOf(ctx, m.CreatedAt))
 		if mine {
-			me := widgets.UserName(t, api.UserSummary{ID: m.Author.ID, DisplayName: "나"}, true)
+			me := widgets.UserName(t, api.UserSummary{ID: m.Author.ID, DisplayName: cat(ctx).Chat.Me()}, true)
 			out = append(out, clock+blank(t, 1)+me)
 		} else {
 			name := widgets.UserName(t, m.Author, false)
@@ -301,7 +292,7 @@ func bubbleMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, mine bool, s
 	pad, bw := bubbleDims(st.Width)
 	out = append(out, bubble(t, bodyLines(ctx, t, m, bw), pad)...)
 	if !m.Deleted {
-		out = append(out, bubbleMeta(t, m, max(1, st.Width*bubbleRatio/100), st.InThread)...)
+		out = append(out, bubbleMeta(cat(ctx), t, m, max(1, st.Width*bubbleRatio/100), st.InThread)...)
 	}
 	if mine {
 		out = alignRight(t, out, st.Width)
@@ -312,7 +303,7 @@ func bubbleMessage(ctx *ui.Context, t *theme.Theme, m *api.Message, mine bool, s
 // renderMe: "* 이름 본문" (no header) — wrapped in full/bubble, one line otherwise.
 func renderMe(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle) []string {
 	name := textwidth.Sanitize(displayName(m.Author))
-	text := "* " + name + " " + markup.Plain(m.Body, 4*len(m.Body)+8)
+	text := "* " + name + " " + markup.Plain(m.Body, 4*len(m.Body)+8, cat(ctx).Common.CodeSummary)
 	edited := m.EditedAt != nil
 	switch st.Density {
 	case ui.DensityLine, ui.DensityMinimal:
@@ -335,7 +326,7 @@ func renderMe(ctx *ui.Context, t *theme.Theme, m *api.Message, st msgStyle) []st
 		out = append(out, t.S.Base.Italic(true).Render(l))
 	}
 	if edited {
-		out = appendSuffix(out, " "+editedText, t.S.Dim, st.Width)
+		out = appendSuffix(out, " "+cat(ctx).Chat.Edited(), t.S.Dim, st.Width)
 	}
 	return out
 }
@@ -367,12 +358,12 @@ func bodyLines(ctx *ui.Context, t *theme.Theme, m *api.Message, width int) []str
 		return nil
 	}
 	if m.Deleted {
-		return []string{fit(t.S.Deleted.Render(deletedText), width)}
+		return []string{fit(t.S.Deleted.Render(cat(ctx).Chat.MsgDeleted()), width)}
 	}
 	var out []string
 	switch {
 	case m.Kind == "poll" && m.Poll != nil:
-		out = pollLines(t, *m.Poll, width)
+		out = pollLines(cat(ctx), t, *m.Poll, width)
 	case m.Kind == "roll" && m.Roll != nil:
 		for _, l := range textwidth.Wrap(rollText(*m.Roll), width) {
 			out = append(out, t.S.Base.Render(l))
@@ -382,7 +373,7 @@ func bodyLines(ctx *ui.Context, t *theme.Theme, m *api.Message, width int) []str
 		out = markup.Render(markup.Parse(m.Body, markup.ParseOptions{Hashtags: false}), t, renderOpts(ctx, m, width, false))
 	}
 	if m.EditedAt != nil {
-		out = appendSuffix(out, " "+editedText, t.S.Dim, width)
+		out = appendSuffix(out, " "+cat(ctx).Chat.Edited(), t.S.Dim, width)
 	}
 	return out
 }
@@ -391,7 +382,7 @@ func bodyLines(ctx *ui.Context, t *theme.Theme, m *api.Message, width int) []str
 func compactBody(ctx *ui.Context, t *theme.Theme, m *api.Message, width int) string {
 	switch {
 	case m.Deleted:
-		return t.S.Deleted.Render(textwidth.Truncate(deletedText, width, "…"))
+		return t.S.Deleted.Render(textwidth.Truncate(cat(ctx).Chat.MsgDeleted(), width, "…"))
 	case m.Kind == "poll" && m.Poll != nil:
 		return t.S.Base.Render(textwidth.Truncate("📊 "+textwidth.Sanitize(m.Poll.Question), width, "…"))
 	case m.Kind == "roll" && m.Roll != nil:
@@ -442,7 +433,9 @@ func plainBody(m *api.Message) string {
 }
 
 func renderOpts(ctx *ui.Context, m *api.Message, width int, compact bool) markup.RenderOptions {
-	o := markup.RenderOptions{Width: width, Mentions: m.Mentions, MentionHere: m.MentionHere, Compact: compact, Hyperlinks: true}
+	c := cat(ctx)
+	o := markup.RenderOptions{Width: width, Mentions: m.Mentions, MentionHere: m.MentionHere, Compact: compact, Hyperlinks: true,
+		MoreTail: c.Common.MoreTail(), CodeSummary: c.Common.CodeSummary}
 	if me := ctx.Me(); me != nil {
 		o.MyHandle = me.Handle
 	}
@@ -451,24 +444,24 @@ func renderOpts(ctx *ui.Context, m *api.Message, width int, compact bool) markup
 
 // pollLines: "📊 투표: 질문[ (마감)]", the widgets.PollView option lines, then
 // "N명 참여[ · 복수 선택]".
-func pollLines(t *theme.Theme, p api.Poll, width int) []string {
-	head := "📊 투표: " + textwidth.Sanitize(p.Question)
+func pollLines(c *i18n.T, t *theme.Theme, p api.Poll, width int) []string {
+	head := c.Chat.PollHead(textwidth.Sanitize(p.Question))
 	if p.Closed {
-		head += " (마감)"
+		head += " " + c.Chat.PollClosedMark()
 	}
 	out := []string{t.S.Bold.Render(textwidth.Truncate(head, width, "…"))}
 	if pv := widgets.PollView(t, p, width, -1); len(pv) > 1 {
 		out = append(out, pv[1:]...)
 	}
-	meta := strconv.Itoa(p.VoterCount) + "명 참여"
+	meta := c.Chat.PollVoters(p.VoterCount)
 	if p.Multi {
-		meta += " · 복수 선택"
+		meta += " · " + c.Chat.PollMulti()
 	}
 	return append(out, t.S.Dim.Render(textwidth.Truncate(meta, width, "…")))
 }
 
 // metaLines: reaction chips and "💬 답글 N개" (one line when they fit).
-func metaLines(t *theme.Theme, m *api.Message, width int, inThread bool) []string {
+func metaLines(c *i18n.T, t *theme.Theme, m *api.Message, width int, inThread bool) []string {
 	if width <= 0 {
 		return nil
 	}
@@ -476,7 +469,7 @@ func metaLines(t *theme.Theme, m *api.Message, width int, inThread bool) []strin
 	if inThread || m.Thread == nil || m.Thread.ReplyCount <= 0 {
 		return lines
 	}
-	replies := t.S.Dim.Render(textwidth.Truncate("💬 답글 "+humanize.Count(m.Thread.ReplyCount)+"개", width, "…"))
+	replies := t.S.Dim.Render(textwidth.Truncate(c.Chat.MetaReplies(humanize.For(c.Locale()).Count(m.Thread.ReplyCount)), width, "…"))
 	sep := t.S.Dim.Render(" · ")
 	if n := len(lines); n > 0 && textwidth.Width(lines[n-1])+textwidth.Width(sep)+textwidth.Width(replies) <= width {
 		lines[n-1] += sep + replies
@@ -486,10 +479,10 @@ func metaLines(t *theme.Theme, m *api.Message, width int, inThread bool) []strin
 }
 
 // bubbleMeta: "💬N" then the chips under a bubble.
-func bubbleMeta(t *theme.Theme, m *api.Message, width int, inThread bool) []string {
+func bubbleMeta(c *i18n.T, t *theme.Theme, m *api.Message, width int, inThread bool) []string {
 	lead := ""
 	if !inThread && m.Thread != nil && m.Thread.ReplyCount > 0 {
-		lead = t.S.Dim.Render(textwidth.Truncate("💬"+humanize.Count(m.Thread.ReplyCount), width, "…"))
+		lead = t.S.Dim.Render(textwidth.Truncate("💬"+humanize.For(c.Locale()).Count(m.Thread.ReplyCount), width, "…"))
 	}
 	room := width
 	if lead != "" {
@@ -565,7 +558,7 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 	if p.Failed != nil {
 		stStyle = t.S.Error
 	}
-	status := stStyle.Render(statusPlain(p))
+	status := stStyle.Render(statusPlain(cat(ctx), p))
 	switch st.Density {
 	case ui.DensityLine, ui.DensityMinimal:
 		head := textwidth.Truncate(widgets.UserName(t, me, true), minimalNameMax, "…") + blank(t, 1)
@@ -578,7 +571,8 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 		room := st.Width - textwidth.Width(head) - textwidth.Width(status)
 		if p.Failed != nil {
 			reason := failedReason(ctx, p)
-			for _, alt := range []string{failedShort + ": " + reason + failedHint, failedShort + ": " + reason, failedShort} {
+			short, hint := " · "+cat(ctx).Chat.SendFailed(), " — "+cat(ctx).Chat.SendFailedHint()
+			for _, alt := range []string{short + ": " + reason + hint, short + ": " + reason, short} {
 				status = stStyle.Render(alt)
 				room = st.Width - textwidth.Width(head) - textwidth.Width(status)
 				if room >= min(textwidth.Width(body), pendingBodyMin) {
@@ -591,18 +585,18 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 		}
 		b := ""
 		if room > 0 {
-			b = t.S.Dim.Render(markup.Plain(body, room))
+			b = t.S.Dim.Render(markup.Plain(body, room, cat(ctx).Common.CodeSummary))
 		}
 		return []string{fit(head+b+status, st.Width)}
 	case ui.DensityBubble:
 		var out []string
 		if !st.Continuation {
 			out = append(out, t.S.Timestamp.Render(clockOf(ctx, p.SentAt))+blank(t, 1)+
-				widgets.UserName(t, api.UserSummary{ID: me.ID, DisplayName: "나"}, true))
+				widgets.UserName(t, api.UserSummary{ID: me.ID, DisplayName: cat(ctx).Chat.Me()}, true))
 		}
 		pad, bw := bubbleDims(st.Width)
 		out = append(out, bubble(t, dimWrap(t, body, bw), pad)...)
-		for _, l := range textwidth.Wrap(strings.TrimPrefix(statusPlain(p), " · "), st.Width) {
+		for _, l := range textwidth.Wrap(strings.TrimPrefix(statusPlain(cat(ctx), p), " · "), st.Width) {
 			out = append(out, stStyle.Render(l))
 		}
 		if p.Failed != nil {
@@ -618,7 +612,7 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 	}
 	ind := indentOf(st.Width)
 	bw := st.Width - ind
-	lines := appendSuffix(dimWrap(t, body, bw), statusPlain(p), stStyle, bw)
+	lines := appendSuffix(dimWrap(t, body, bw), statusPlain(cat(ctx), p), stStyle, bw)
 	if p.Failed != nil {
 		for _, l := range textwidth.Wrap(failedReason(ctx, p), max(1, bw)) {
 			lines = append(lines, stStyle.Render(l))
@@ -635,11 +629,13 @@ func failedReason(ctx *ui.Context, p *chatstore.PendingMessage) string {
 	return errtext.Describe(tOf(ctx), p.Failed)
 }
 
-func statusPlain(p *chatstore.PendingMessage) string {
+// statusPlain is the pending message's suffix: " · 보내는 중…" or
+// " · 전송 실패 — enter 다시 보내기 · d 버리기".
+func statusPlain(c *i18n.T, p *chatstore.PendingMessage) string {
 	if p.Failed != nil {
-		return failedText
+		return " · " + c.Chat.SendFailed() + " — " + c.Chat.SendFailedHint()
 	}
-	return sendingText
+	return " · " + c.Common.Sending()
 }
 
 // dimWrap wraps sanitized text to width in S.Dim.
@@ -653,7 +649,7 @@ func dimWrap(t *theme.Theme, s string, width int) []string {
 
 // ---- texts ----
 
-// systemText is the Korean sentence of a system event (sanitized). X = the
+// systemText is the sentence of a system event in the screen language (sanitized). X = the
 // target user's display name, else the actor's.
 func systemText(ctx *ui.Context, e api.SystemEvent) string {
 	who := e.ActorID
@@ -661,26 +657,27 @@ func systemText(ctx *ui.Context, e api.SystemEvent) string {
 		who = *e.TargetUserID
 	}
 	x := nameOf(ctx, who)
+	c := cat(ctx)
 	var s string
 	switch e.Event {
 	case "member_joined", "group_member_added":
-		s = x + "님이 들어왔어요"
+		s = c.Chat.SysMemberJoined(x)
 	case "member_left":
-		s = x + "님이 나갔어요"
+		s = c.Chat.SysMemberLeft(x)
 	case "member_kicked":
-		s = x + "님이 내보내졌어요"
+		s = c.Chat.SysMemberKicked(x)
 	case "group_member_removed":
-		s = x + "님이 빠졌어요"
+		s = c.Chat.SysGroupMemberRemoved(x)
 	case "channel_created":
-		s = "#" + e.Data.Name + " 채널을 만들었어요"
+		s = c.Chat.SysChannelCreated(e.Data.Name)
 	case "channel_renamed":
-		s = "채널 이름 변경: #" + e.Data.Name
+		s = c.Chat.SysChannelRenamed(e.Data.Name)
 	case "channel_topic_changed":
-		s = "주제 변경: " + e.Data.Topic
+		s = c.Chat.SysTopicChanged(e.Data.Topic)
 	case "message_pinned":
-		s = "메시지를 고정했어요"
+		s = c.Chat.SysMessagePinned()
 	case "group_renamed":
-		s = "대화 이름 변경: " + e.Data.Name
+		s = c.Chat.SysGroupRenamed(e.Data.Name)
 	}
 	return textwidth.Sanitize(s)
 }
@@ -705,14 +702,14 @@ func rollText(r api.RollResult) string {
 	return out + expr + " = " + strconv.Itoa(r.Total)
 }
 
-// nameOf is a user's display name from the store (unsanitized), or unknownUser.
+// nameOf is a user's display name from the store (unsanitized), or chat.unknown_user.
 func nameOf(ctx *ui.Context, id string) string {
 	if ctx != nil && ctx.Store != nil {
 		if u := ctx.Store.User(id); u != nil {
 			return displayName(*u)
 		}
 	}
-	return unknownUser
+	return cat(ctx).Chat.UnknownUser()
 }
 
 // displayName is the display name, falling back to the handle (unsanitized)
@@ -741,7 +738,7 @@ func locOf(ctx *ui.Context) *time.Location {
 // clockOf is "11:05" (or "오전 11:05" with ui.clock = "12h").
 func clockOf(ctx *ui.Context, at time.Time) string {
 	h12 := ctx != nil && ctx.Config != nil && ctx.Config.UI.Clock == "12h"
-	return humanize.Clock(at, locOf(ctx), h12)
+	return hz(ctx).Clock(at, locOf(ctx), h12)
 }
 
 // ---- line helpers ----

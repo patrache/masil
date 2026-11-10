@@ -3,14 +3,44 @@
 [accept_failed]
 other = "Couldn't accept the friend request"
 
+[actions_title]
+other = "Message"
+
+[anchor_not_found]
+other = "Reply not found"
+
+[block_ask]
+other = "Block {name}?"
+
+[block_body]
+other = "Their messages fold away and you can't DM each other"
+
+[block_failed]
+other = "Couldn't block"
+
+[block_yes]
+other = "Block"
+
+[blocked_msg]
+other = "Message from a blocked user"
+
+[blocked_user]
+other = "Blocked {name}"
+
 [cancel]
 other = "Cancel"
 
 [cancel_failed]
 other = "Couldn't cancel the friend request"
 
+[cant_edit]
+other = "This message can't be edited"
+
 [channel_row_new]
 other = "＋ New channel"
+
+[channel_title]
+other = "Channel"
 
 [cmd_dm_new]
 other = "New conversation (DM, group DM)"
@@ -21,8 +51,26 @@ other = "Add friend"
 [cmd_friends]
 other = "Friends"
 
+[cmd_pins]
+other = "Pinned messages"
+
+[cmd_search]
+other = "Search messages"
+
 [decline_failed]
 other = "Couldn't decline the friend request"
+
+[delete_body]
+other = "Delete this message?"
+
+[delete_failed]
+other = "Couldn't delete the message"
+
+[delete_title]
+other = "Delete message"
+
+[delete_yes]
+other = "Delete"
 
 [dm_new_submit]
 other = "Start chat"
@@ -47,6 +95,171 @@ other = "Me: {body}"
 
 [dms_title]
 other = "DMs"
+
+[edit_failed]
+other = "Couldn't edit the message"
+
+[edit_label]
+other = "Editing · esc to cancel"
+
+[edited]
+other = "(edited)"
+
+[emoji_angry]
+other = "angry"
+
+[emoji_beer]
+other = "beer"
+
+[emoji_bug]
+other = "bug"
+
+[emoji_bulb]
+other = "idea"
+
+[emoji_cake]
+other = "birthday"
+
+[emoji_calendar]
+other = "schedule"
+
+[emoji_check]
+other = "check"
+
+[emoji_chicken]
+other = "chicken"
+
+[emoji_clap]
+other = "clap"
+
+[emoji_coffee]
+other = "coffee"
+
+[emoji_cool]
+other = "cool"
+
+[emoji_cry]
+other = "sad"
+
+[emoji_eyes]
+other = "eyes"
+
+[emoji_fire]
+other = "fire"
+
+[emoji_gift]
+other = "gift"
+
+[emoji_handshake]
+other = "handshake"
+
+[emoji_heart]
+other = "heart"
+
+[emoji_hourglass]
+other = "waiting"
+
+[emoji_hug]
+other = "hug"
+
+[emoji_hundred]
+other = "hundred"
+
+[emoji_joy]
+other = "laughing"
+
+[emoji_love]
+other = "in love"
+
+[emoji_memo]
+other = "memo"
+
+[emoji_muscle]
+other = "strong"
+
+[emoji_ok]
+other = "okay"
+
+[emoji_party]
+other = "party"
+
+[emoji_pin]
+other = "pin"
+
+[emoji_pizza]
+other = "pizza"
+
+[emoji_pray]
+other = "please"
+
+[emoji_raised]
+other = "hooray"
+
+[emoji_rice]
+other = "rice"
+
+[emoji_rocket]
+other = "rocket"
+
+[emoji_siren]
+other = "alert"
+
+[emoji_sleepy]
+other = "sleepy"
+
+[emoji_smile]
+other = "smile"
+
+[emoji_smoking]
+other = "smoking"
+
+[emoji_sob]
+other = "sobbing"
+
+[emoji_sparkles]
+other = "sparkles"
+
+[emoji_speech]
+other = "speech"
+
+[emoji_star]
+other = "star"
+
+[emoji_sweat]
+other = "awkward"
+
+[emoji_tada]
+other = "celebrate"
+
+[emoji_thinking]
+other = "thinking"
+
+[emoji_thumbsdown]
+other = "thumbs down"
+
+[emoji_thumbsup]
+other = "thumbs up"
+
+[emoji_wave]
+other = "hello"
+
+[emoji_wink]
+other = "wink"
+
+[emoji_x]
+other = "no"
+
+[emoji_zap]
+other = "lightning"
+
+[form_off]
+other = "[ ] Off"
+
+[form_on]
+other = "[x] On"
+
+[form_status]
+other = "enter {submit} · tab next field · esc close"
 
 [friend_accepted]
 other = "You and {name} are now friends"
@@ -78,20 +291,47 @@ other = "Sent {n}"
 [friends_title]
 other = "Friends"
 
+[gone_hint]
+other = "esc to go back"
+
+[gone_title]
+other = "This channel was deleted or isn't available"
+
 [group_dm_refused]
 other = "Some of these people can't be in a conversation together"
+
+[help_jump]
+other = "jump"
 
 [help_name_field]
 other = "name field"
 
+[help_next_field]
+other = "next field"
+
 [help_pick_then]
 other = "pick·{submit}"
+
+[help_retry]
+other = "retry"
 
 [help_run]
 other = "run"
 
+[help_scope]
+other = "scope"
+
+[help_search]
+other = "search"
+
 [help_tabs]
 other = "tabs"
+
+[help_unpin]
+other = "unpin"
+
+[here_detail]
+other = "Everyone online now"
 
 [home_empty_hint]
 other = "Press ctrl+k to find commands"
@@ -126,11 +366,29 @@ other = "＋ Create a space"
 [home_title]
 other = "Home"
 
+[invite_failed]
+other = "Couldn't invite"
+
+[invite_link_failed]
+other = "Couldn't create an invite link"
+
+[invite_space_only]
+other = "You can only invite from a space channel"
+
 [invite_space_title]
 other = "Invite to which space?"
 
+[invited]
+other = "Invited {who} to {space}"
+
 [item_accept]
 other = "Accept"
+
+[item_author]
+other = "Author · {name}"
+
+[item_block_author]
+other = "Block author"
 
 [item_block_user]
 other = "Block"
@@ -138,23 +396,59 @@ other = "Block"
 [item_cancel_request]
 other = "Cancel request"
 
+[item_close_poll]
+other = "Close poll"
+
+[item_copy]
+other = "Copy"
+
 [item_decline]
 other = "Decline"
+
+[item_delete]
+other = "Delete"
+
+[item_edit]
+other = "Edit"
 
 [item_invite_to_space]
 other = "Invite to a space"
 
+[item_pin]
+other = "Pin"
+
 [item_profile]
 other = "View profile"
+
+[item_react]
+other = "React"
+
+[item_react_users]
+other = "Reactions"
+
+[item_report]
+other = "Report"
 
 [item_report_user]
 other = "Report user"
 
+[item_retract]
+other = "Retract vote"
+
 [item_send_dm]
 other = "Send DM"
 
+[item_thread]
+other = "Reply in thread"
+
 [item_unfriend]
 other = "Unfriend"
+
+[item_unpin]
+other = "Unpin"
+
+[item_vote]
+other = "Vote: {option}"
 
 [kw_dm_new]
 other = "conversation, chat, send message"
@@ -165,8 +459,20 @@ other = "send friend request"
 [kw_friends]
 other = "friend requests"
 
+[kw_pins]
+other = "pin"
+
+[kw_search]
+other = "find"
+
+[load_failed]
+other = "Couldn't load messages"
+
 [loading]
 other = "Loading…"
+
+[me]
+other = "Me"
 
 [member_count]
 one = "{n} member"
@@ -194,6 +500,22 @@ other = "Create a space"
 [menu_space_join]
 other = "Join with a code"
 
+[meta_replies]
+other = "💬 Replies {n}"
+
+[msg_copied]
+other = "Copied"
+
+[msg_deleted]
+other = "Deleted message"
+
+[new_below]
+one = "{n} new message ↓"
+other = "{n} new messages ↓"
+
+[no_delete_perm]
+other = "You can't delete this"
+
 [no_incoming]
 other = "No friend requests"
 
@@ -202,6 +524,12 @@ other = "No sent friend requests"
 
 [no_outgoing_hint]
 other = "Send one with ＋ Add friend on the Friends tab"
+
+[no_pin_perm]
+other = "You can't pin here"
+
+[not_mine_edit]
+other = "You can only edit your own messages"
 
 [now_friends]
 other = "You and {name} are friends now"
@@ -249,8 +577,48 @@ other = "enter {submit} · esc close"
 [picker_type_hint]
 other = "Type a name or @handle"
 
+[pin_failed]
+other = "Couldn't change the pin"
+
+[pinned]
+other = "Message pinned"
+
+[pins_empty]
+other = "No pinned messages"
+
+[pins_failed]
+other = "Couldn't load pinned messages"
+
+[pins_title]
+other = "📌 Pinned messages"
+
+[placeholder_channel]
+other = "Message {name}"
+
+[placeholder_dm]
+other = "Message {name}"
+
+[poll_closed]
+other = "This poll is closed"
+
+[poll_closed_mark]
+other = "(closed)"
+
+[poll_head]
+other = "📊 Poll: {q}"
+
+[poll_multi]
+other = "Multiple choice"
+
+[poll_voters]
+one = "{n} voter"
+other = "{n} voters"
+
 [rail_home]
 other = "⌂"
+
+[react_failed]
+other = "Couldn't change the reaction"
 
 [reaction_users_empty]
 other = "Nobody yet"
@@ -261,14 +629,71 @@ other = "Couldn't load the list"
 [reaction_users_title]
 other = "Reacted with {emoji}"
 
+[read_only]
+other = "This conversation is read-only"
+
+[read_only_blocked]
+other = "You blocked this user"
+
 [reconnecting]
 other = "Reconnecting"
+
+[replies_label]
+other = "Replies {n}"
+
+[reply_no_pin]
+other = "Replies can't be pinned"
+
+[report_message_of]
+other = "{name}'s message"
 
 [request_sent]
 other = "Friend request sent to {name}"
 
 [role_owner]
 other = "Owner"
+
+[scope_all]
+other = "Everywhere"
+
+[scope_channel]
+other = "This channel"
+
+[scope_space]
+other = "This space"
+
+[search_empty]
+other = "No results"
+
+[search_empty_hint]
+other = "Try different words"
+
+[search_idle]
+other = "Search your messages"
+
+[search_idle_hint]
+other = "Type a query and press enter"
+
+[search_loading]
+other = "Searching…"
+
+[search_more_failed]
+other = "Couldn't load more results"
+
+[search_placeholder]
+other = "Search messages — type and press enter"
+
+[search_scope_too_wide]
+other = "The search is too broad — pick a space or channel"
+
+[search_title]
+other = "Search"
+
+[send_failed]
+other = "Not sent"
+
+[send_failed_hint]
+other = "enter resend · d discard"
 
 [side_channels_label]
 other = "Channels"
@@ -366,6 +791,48 @@ other = "Switch space"
 [space_unnamed]
 other = "Space"
 
+[sys_channel_created]
+other = "Created #{name}"
+
+[sys_channel_renamed]
+other = "Channel renamed: #{name}"
+
+[sys_group_member_removed]
+other = "{name} left the conversation"
+
+[sys_group_renamed]
+other = "Conversation renamed: {name}"
+
+[sys_member_joined]
+other = "{name} joined"
+
+[sys_member_kicked]
+other = "{name} was removed"
+
+[sys_member_left]
+other = "{name} left"
+
+[sys_message_pinned]
+other = "Pinned a message"
+
+[sys_topic_changed]
+other = "Topic changed: {topic}"
+
+[thread_parent_euro]
+other = "to {label}"
+
+[thread_parent_ro]
+other = "to {label}"
+
+[thread_placeholder]
+other = "› Reply"
+
+[thread_poll]
+other = "Polls can't be created in a thread"
+
+[thread_title]
+other = "Thread"
+
 [typing_many]
 other = "Several people are typing…"
 
@@ -392,3 +859,15 @@ other = "Unfriend"
 
 [unfriended]
 other = "You unfriended {name}"
+
+[unknown_user]
+other = "Unknown user"
+
+[unpinned]
+other = "Unpinned"
+
+[unread_rule]
+other = "New messages"
+
+[vote_failed]
+other = "Couldn't vote"

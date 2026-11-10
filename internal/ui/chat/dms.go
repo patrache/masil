@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -134,7 +133,7 @@ func dmRow(ctx *ui.Context, t *theme.Theme, ch *api.Channel, cw int) string {
 	bw := textwidth.Width(ansi.Strip(badge))
 	when := ""
 	if ch.LastMessageAt != nil && ctx.Now != nil {
-		when = humanize.Relative(ctx.Now(), *ch.LastMessageAt)
+		when = hz(ctx).Relative(ctx.Now(), *ch.LastMessageAt)
 	}
 	right := func() int {
 		w := bw

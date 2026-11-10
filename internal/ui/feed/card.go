@@ -255,6 +255,7 @@ func (b *cardBuilder) fullCard(it api.TimelineItem, p *api.Post, o cardOpts) {
 		doc := markup.Parse(p.Body, markup.ParseOptions{Hashtags: true})
 		for _, l := range markup.Render(doc, t, markup.RenderOptions{
 			Width: b.cw, MyHandle: b.myHandle(), Mentions: p.Mentions, MaxLines: maxLines, Hyperlinks: true,
+			MoreTail: b.c.Common.MoreTail(),
 		}) {
 			b.hashtagHits(b.add(l), p.Hashtags, gutterW)
 		}
@@ -405,7 +406,7 @@ func (b *cardBuilder) quote(p *api.Post) {
 		ts := " · " + hz(b.ctx).Relative(b.now(), qp.CreatedAt)
 		who, _ := b.authorLabel(qp.Author, max(qw-textwidth.Width(ts), 2))
 		head := who + t.S.Timestamp.Render(ts)
-		body := markup.Plain(qp.Body, qw)
+		body := markup.Plain(qp.Body, qw, b.c.Common.CodeSummary)
 		if body == "" {
 			body = previewOf(qp, qw)
 		}
@@ -485,6 +486,7 @@ func (b *cardBuilder) lineCard(it api.TimelineItem, p *api.Post) {
 		doc := markup.Parse(p.Body, markup.ParseOptions{Hashtags: true})
 		if ls := markup.Render(doc, t, markup.RenderOptions{
 			Width: bodyW, MyHandle: b.myHandle(), Mentions: p.Mentions, Compact: true, Hyperlinks: true,
+			CodeSummary: b.c.Common.CodeSummary,
 		}); len(ls) > 0 {
 			body = ls[0]
 		}
@@ -523,7 +525,7 @@ func (b *cardBuilder) minimalCard(p *api.Post) {
 	case p.Deleted:
 		body = t.S.Deleted.Render(textwidth.Truncate(b.c.Feed.CardDeleted(), bodyW, "…"))
 	case p.Body != "":
-		body = t.S.Base.Render(markup.Plain(p.Body, bodyW))
+		body = t.S.Base.Render(markup.Plain(p.Body, bodyW, b.c.Common.CodeSummary))
 	default:
 		body = t.S.Base.Render(previewOf(p, bodyW))
 	}

@@ -1,3 +1,9 @@
+[code_summary]
+desc = "한 줄 요약에서 코드 블록 자리. n = 코드 줄 수"
+params = { n = "int" }
+count = "n"
+other = "‹코드 {n}줄›"
+
 [help_cancel]
 desc = "상태줄 키 안내: 창을 닫고 취소(esc)"
 max = 10
@@ -34,6 +40,10 @@ other = "한국어"
 [lang_name_zh]
 desc = "언어 목록의 간체 중국어 이름 — 모든 언어에서 그 언어 자신의 이름"
 other = "简体中文"
+
+[more_tail]
+desc = "줄 수를 넘긴 본문 끝(markup MaxLines)"
+other = "… 더 보기"
 
 [palette_group_command]
 desc = "명령 팔레트의 묶음 머리: 명령"

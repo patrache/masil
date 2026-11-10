@@ -808,7 +808,7 @@ func (s *stories) photoLines(ctx *ui.Context, th *theme.Theme, st *api.Story, la
 	}
 	if lay.captionH > 0 {
 		doc := markup.Parse(st.Body, markup.ParseOptions{Hashtags: true})
-		lines := markup.Render(doc, th, markup.RenderOptions{Width: max(w-4, 1), MaxLines: lay.captionH})
+		lines := markup.Render(doc, th, markup.RenderOptions{Width: max(w-4, 1), MaxLines: lay.captionH, MoreTail: cat(ctx).Common.MoreTail()})
 		for i := 0; i < lay.captionH; i++ {
 			l := ""
 			if i < len(lines) {

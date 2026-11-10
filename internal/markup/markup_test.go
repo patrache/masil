@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -19,7 +20,10 @@ import (
 
 const sample = "오늘 배포 몇 시에 해요? **급함** `make deploy` _진짜_\n```bash\n$ wrangler deploy --env prod\n```\n@minji @nobody @here 링크 [문서](https://example.com/docs) https://example.com/very/long/path, #golang snake_case"
 
-var amber = theme.Get(theme.Amber)
+var (
+	amber = theme.Get(theme.Amber)
+	koCat = i18n.KoT()
+)
 
 var minji = api.MentionRef{UserID: "01JBMINJI", Handle: "minji"}
 
@@ -138,7 +142,7 @@ func TestParseBackslashedMarkerIsText(t *testing.T) {
 		if got := allText(d); got != body {
 			t.Errorf("Parse(%q) text = %q", body, got)
 		}
-		if got := markup.Plain(body, 80); got != body {
+		if got := markup.Plain(body, 80, koCat.Common.CodeSummary); got != body {
 			t.Errorf("Plain(%q) = %q", body, got)
 		}
 	}
@@ -212,7 +216,7 @@ func TestRenderMentions(t *testing.T) {
 
 func TestRenderCompact(t *testing.T) {
 	d := markup.Parse(sample, markup.ParseOptions{})
-	lines := markup.Render(d, amber, markup.RenderOptions{Width: 200, Compact: true})
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 200, Compact: true, CodeSummary: koCat.Common.CodeSummary})
 	if len(lines) != 1 {
 		t.Fatalf("compact lines = %d: %q", len(lines), lines)
 	}
@@ -223,11 +227,11 @@ func TestRenderCompact(t *testing.T) {
 	if strings.Contains(got, "wrangler") {
 		t.Fatalf("compact shows code: %q", got)
 	}
-	narrow := markup.Render(d, amber, markup.RenderOptions{Width: 30, Compact: true})
+	narrow := markup.Render(d, amber, markup.RenderOptions{Width: 30, Compact: true, CodeSummary: koCat.Common.CodeSummary})
 	if len(narrow) != 1 || ansi.StringWidth(narrow[0]) > 30 || !strings.HasSuffix(ansi.Strip(narrow[0]), "…") {
 		t.Fatalf("narrow compact = %q", narrow)
 	}
-	multi := markup.Render(markup.Parse("a\nb\n\nc", markup.ParseOptions{}), amber, markup.RenderOptions{Width: 80, Compact: true})
+	multi := markup.Render(markup.Parse("a\nb\n\nc", markup.ParseOptions{}), amber, markup.RenderOptions{Width: 80, Compact: true, CodeSummary: koCat.Common.CodeSummary})
 	if len(multi) != 1 || ansi.Strip(multi[0]) != "a b  c" {
 		t.Fatalf("newlines compact = %q", multi)
 	}
@@ -235,7 +239,7 @@ func TestRenderCompact(t *testing.T) {
 
 func TestRenderMaxLines(t *testing.T) {
 	d := markup.Parse("줄1\n줄2\n줄3\n줄4\n줄5", markup.ParseOptions{})
-	lines := markup.Render(d, amber, markup.RenderOptions{Width: 40, MaxLines: 2})
+	lines := markup.Render(d, amber, markup.RenderOptions{Width: 40, MaxLines: 2, MoreTail: koCat.Common.MoreTail()})
 	if len(lines) != 2 {
 		t.Fatalf("lines = %q", lines)
 	}
@@ -244,7 +248,7 @@ func TestRenderMaxLines(t *testing.T) {
 	}
 	checkLines(t, lines, 40)
 	// Exactly MaxLines => no marker.
-	exact := markup.Render(markup.Parse("a\nb", markup.ParseOptions{}), amber, markup.RenderOptions{Width: 40, MaxLines: 2})
+	exact := markup.Render(markup.Parse("a\nb", markup.ParseOptions{}), amber, markup.RenderOptions{Width: 40, MaxLines: 2, MoreTail: koCat.Common.MoreTail()})
 	if len(exact) != 2 || strings.Contains(ansi.Strip(exact[1]), "더 보기") {
 		t.Fatalf("exact = %q", exact)
 	}
@@ -291,7 +295,7 @@ func TestHighlightFallback(t *testing.T) {
 }
 
 func TestPlain(t *testing.T) {
-	p := markup.Plain(sample, 30)
+	p := markup.Plain(sample, 30, koCat.Common.CodeSummary)
 	if strings.Contains(p, "\n") || strings.Contains(p, "**") || strings.Contains(p, "`") {
 		t.Fatalf("plain = %q", p)
 	}
@@ -304,13 +308,13 @@ func TestPlain(t *testing.T) {
 	if !strings.HasPrefix(p, "오늘 배포 몇 시에 해요? 급함") {
 		t.Fatalf("plain = %q", p)
 	}
-	full := markup.Plain(sample, 1<<16)
+	full := markup.Plain(sample, 1<<16, koCat.Common.CodeSummary)
 	for _, s := range []string{"make deploy 진짜 ‹코드 1줄› @minji", "링크 문서 https://example.com/very/long/path, #golang snake_case"} {
 		if !strings.Contains(full, s) {
 			t.Errorf("full plain %q missing %q", full, s)
 		}
 	}
-	if got := markup.Plain("a ❄️\x1b[1mb", 80); got != "a ❄b" {
+	if got := markup.Plain("a ❄️\x1b[1mb", 80, koCat.Common.CodeSummary); got != "a ❄b" {
 		t.Errorf("sanitized plain = %q", got)
 	}
 }
@@ -590,7 +594,7 @@ func TestRenderLinkURLEscapes(t *testing.T) {
 				}
 			}
 			for _, w := range []int{80, 12} {
-				for _, o := range []markup.RenderOptions{{Width: w, Hyperlinks: true}, {Width: w, Hyperlinks: true, Compact: true}} {
+				for _, o := range []markup.RenderOptions{{Width: w, Hyperlinks: true}, {Width: w, Hyperlinks: true, Compact: true, CodeSummary: koCat.Common.CodeSummary}} {
 					lines := markup.Render(d, amber, o)
 					checkLines(t, lines, w)
 					for _, l := range lines {

@@ -407,9 +407,9 @@ func (b *inviteTab) menu(ctx *ui.Context, it inviteItem) tea.Cmd {
 	code, space := it.inv.Code, b.v.spaceID
 	shown := textwidth.Sanitize(code)
 	return ui.OpenOverlay(newMenu(shown, []menuItem{
-		{Label: itemCopy, Hint: "y", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return copyInviteCmd(ctx, code), nil }},
+		{Label: cat(ctx).Chat.ItemCopy(), Hint: "y", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return copyInviteCmd(ctx, code), nil }},
 		{Label: itemRevokeInvite, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, widgets.Confirm(shown+revokeAskSuffix, revokeBody, itemRevokeInvite, cancelText, revokeInviteCmd(ctx, space, code))
+			return nil, widgets.Confirm(shown+revokeAskSuffix, revokeBody, itemRevokeInvite, cat(ctx).Chat.Cancel(), revokeInviteCmd(ctx, space, code))
 		}},
 	}))
 }

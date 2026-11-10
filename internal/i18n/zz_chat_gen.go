@@ -18,6 +18,66 @@ var areaChat = area{
 				En: {Other: "Couldn't accept the friend request"},
 			},
 		},
+		"actions_title": {
+			desc: "메시지 동작 메뉴 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지"},
+				En: {Other: "Message"},
+			},
+		},
+		"anchor_not_found": {
+			desc: "알림·링크로 연 답글이 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "답글을 찾을 수 없어요"},
+				En: {Other: "Reply not found"},
+			},
+		},
+		"block_ask": {
+			desc:       "차단 확인 질문. name = 이름",
+			params:     []Param{{Name: "name", Type: "string"}},
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 차단할까요?"},
+				En: {Other: "Block {name}?"},
+			},
+		},
+		"block_body": {
+			desc:       "차단 확인 설명",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "차단하면 그 사람의 메시지가 접히고 DM을 주고받을 수 없어요"},
+				En: {Other: "Their messages fold away and you can't DM each other"},
+			},
+		},
+		"block_failed": {
+			desc: "오류 알림 머리: 차단 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단하지 못했어요"},
+				En: {Other: "Couldn't block"},
+			},
+		},
+		"block_yes": {
+			desc: "차단 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단"},
+				En: {Other: "Block"},
+			},
+		},
+		"blocked_msg": {
+			desc: "차단한 사용자의 메시지 자리",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단한 사용자의 메시지"},
+				En: {Other: "Message from a blocked user"},
+			},
+		},
+		"blocked_user": {
+			desc:   "알림: 차단함. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님을 차단했어요"},
+				En: {Other: "Blocked {name}"},
+			},
+		},
 		"cancel": {
 			desc: "확인 창 취소 단추",
 			text: map[Locale]Forms{
@@ -32,11 +92,25 @@ var areaChat = area{
 				En: {Other: "Couldn't cancel the friend request"},
 			},
 		},
+		"cant_edit": {
+			desc: "수정할 수 없는 메시지",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 메시지는 수정할 수 없어요"},
+				En: {Other: "This message can't be edited"},
+			},
+		},
 		"channel_row_new": {
 			desc: "사이드바 줄: 새 채널 만들기(방장·관리자)",
 			text: map[Locale]Forms{
 				Ko: {Other: "＋ 새 채널"},
 				En: {Other: "＋ New channel"},
+			},
+		},
+		"channel_title": {
+			desc: "채널 판 제목(채널을 모를 때)",
+			text: map[Locale]Forms{
+				Ko: {Other: "채널"},
+				En: {Other: "Channel"},
 			},
 		},
 		"cmd_dm_new": {
@@ -60,11 +134,55 @@ var areaChat = area{
 				En: {Other: "Friends"},
 			},
 		},
+		"cmd_pins": {
+			desc: "명령 팔레트: 고정 메시지 보기",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정 메시지 보기"},
+				En: {Other: "Pinned messages"},
+			},
+		},
+		"cmd_search": {
+			desc: "명령 팔레트: 메시지 검색",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지 검색"},
+				En: {Other: "Search messages"},
+			},
+		},
 		"decline_failed": {
 			desc: "오류 알림 머리: 친구 요청 거절 실패",
 			text: map[Locale]Forms{
 				Ko: {Other: "친구 요청을 거절하지 못했어요"},
 				En: {Other: "Couldn't decline the friend request"},
+			},
+		},
+		"delete_body": {
+			desc:       "메시지 삭제 확인 질문",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "이 메시지를 삭제할까요?"},
+				En: {Other: "Delete this message?"},
+			},
+		},
+		"delete_failed": {
+			desc: "오류 알림 머리: 메시지 삭제 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지를 삭제하지 못했어요"},
+				En: {Other: "Couldn't delete the message"},
+			},
+		},
+		"delete_title": {
+			desc:       "메시지 삭제 확인 제목",
+			noTruncate: true,
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지 삭제"},
+				En: {Other: "Delete message"},
+			},
+		},
+		"delete_yes": {
+			desc: "삭제 확인 단추",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
 			},
 		},
 		"dm_new_submit": {
@@ -123,6 +241,392 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "DM"},
 				En: {Other: "DMs"},
+			},
+		},
+		"edit_failed": {
+			desc: "오류 알림 머리: 메시지 수정 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지를 수정하지 못했어요"},
+				En: {Other: "Couldn't edit the message"},
+			},
+		},
+		"edit_label": {
+			desc: "입력창 위: 메시지 수정 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "수정 중 · esc 취소"},
+				En: {Other: "Editing · esc to cancel"},
+			},
+		},
+		"edited": {
+			desc: "메시지 뒤: 수정됨 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "(수정됨)"},
+				En: {Other: "(edited)"},
+			},
+		},
+		"emoji_angry": {
+			desc: ":emoji 완성의 이모지 이름(😡). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "화남"},
+				En: {Other: "angry"},
+			},
+		},
+		"emoji_beer": {
+			desc: ":emoji 완성의 이모지 이름(🍺). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "맥주"},
+				En: {Other: "beer"},
+			},
+		},
+		"emoji_bug": {
+			desc: ":emoji 완성의 이모지 이름(🐛). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "버그"},
+				En: {Other: "bug"},
+			},
+		},
+		"emoji_bulb": {
+			desc: ":emoji 완성의 이모지 이름(💡). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "아이디어"},
+				En: {Other: "idea"},
+			},
+		},
+		"emoji_cake": {
+			desc: ":emoji 완성의 이모지 이름(🎂). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "생일"},
+				En: {Other: "birthday"},
+			},
+		},
+		"emoji_calendar": {
+			desc: ":emoji 완성의 이모지 이름(📅). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "일정"},
+				En: {Other: "schedule"},
+			},
+		},
+		"emoji_check": {
+			desc: ":emoji 완성의 이모지 이름(✅). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "확인"},
+				En: {Other: "check"},
+			},
+		},
+		"emoji_chicken": {
+			desc: ":emoji 완성의 이모지 이름(🍗). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "치킨"},
+				En: {Other: "chicken"},
+			},
+		},
+		"emoji_clap": {
+			desc: ":emoji 완성의 이모지 이름(👏). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "박수"},
+				En: {Other: "clap"},
+			},
+		},
+		"emoji_coffee": {
+			desc: ":emoji 완성의 이모지 이름(☕). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "커피"},
+				En: {Other: "coffee"},
+			},
+		},
+		"emoji_cool": {
+			desc: ":emoji 완성의 이모지 이름(😎). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "멋짐"},
+				En: {Other: "cool"},
+			},
+		},
+		"emoji_cry": {
+			desc: ":emoji 완성의 이모지 이름(😢). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "슬픔"},
+				En: {Other: "sad"},
+			},
+		},
+		"emoji_eyes": {
+			desc: ":emoji 완성의 이모지 이름(👀). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "눈"},
+				En: {Other: "eyes"},
+			},
+		},
+		"emoji_fire": {
+			desc: ":emoji 완성의 이모지 이름(🔥). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "불"},
+				En: {Other: "fire"},
+			},
+		},
+		"emoji_gift": {
+			desc: ":emoji 완성의 이모지 이름(🎁). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "선물"},
+				En: {Other: "gift"},
+			},
+		},
+		"emoji_handshake": {
+			desc: ":emoji 완성의 이모지 이름(🤝). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "악수"},
+				En: {Other: "handshake"},
+			},
+		},
+		"emoji_heart": {
+			desc: ":emoji 완성의 이모지 이름(💖). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "하트"},
+				En: {Other: "heart"},
+			},
+		},
+		"emoji_hourglass": {
+			desc: ":emoji 완성의 이모지 이름(⏳). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "기다림"},
+				En: {Other: "waiting"},
+			},
+		},
+		"emoji_hug": {
+			desc: ":emoji 완성의 이모지 이름(🤗). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "포옹"},
+				En: {Other: "hug"},
+			},
+		},
+		"emoji_hundred": {
+			desc: ":emoji 완성의 이모지 이름(💯). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "백점"},
+				En: {Other: "hundred"},
+			},
+		},
+		"emoji_joy": {
+			desc: ":emoji 완성의 이모지 이름(😂). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "웃음"},
+				En: {Other: "laughing"},
+			},
+		},
+		"emoji_love": {
+			desc: ":emoji 완성의 이모지 이름(😍). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "반함"},
+				En: {Other: "in love"},
+			},
+		},
+		"emoji_memo": {
+			desc: ":emoji 완성의 이모지 이름(📝). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "메모"},
+				En: {Other: "memo"},
+			},
+		},
+		"emoji_muscle": {
+			desc: ":emoji 완성의 이모지 이름(💪). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "힘내"},
+				En: {Other: "strong"},
+			},
+		},
+		"emoji_ok": {
+			desc: ":emoji 완성의 이모지 이름(👌). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "오케이"},
+				En: {Other: "okay"},
+			},
+		},
+		"emoji_party": {
+			desc: ":emoji 완성의 이모지 이름(🥳). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "파티"},
+				En: {Other: "party"},
+			},
+		},
+		"emoji_pin": {
+			desc: ":emoji 완성의 이모지 이름(📌). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정"},
+				En: {Other: "pin"},
+			},
+		},
+		"emoji_pizza": {
+			desc: ":emoji 완성의 이모지 이름(🍕). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "피자"},
+				En: {Other: "pizza"},
+			},
+		},
+		"emoji_pray": {
+			desc: ":emoji 완성의 이모지 이름(🙏). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "부탁"},
+				En: {Other: "please"},
+			},
+		},
+		"emoji_raised": {
+			desc: ":emoji 완성의 이모지 이름(🙌). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "만세"},
+				En: {Other: "hooray"},
+			},
+		},
+		"emoji_rice": {
+			desc: ":emoji 완성의 이모지 이름(🍚). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "밥"},
+				En: {Other: "rice"},
+			},
+		},
+		"emoji_rocket": {
+			desc: ":emoji 완성의 이모지 이름(🚀). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "로켓"},
+				En: {Other: "rocket"},
+			},
+		},
+		"emoji_siren": {
+			desc: ":emoji 완성의 이모지 이름(🚨). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "비상"},
+				En: {Other: "alert"},
+			},
+		},
+		"emoji_sleepy": {
+			desc: ":emoji 완성의 이모지 이름(😴). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "졸림"},
+				En: {Other: "sleepy"},
+			},
+		},
+		"emoji_smile": {
+			desc: ":emoji 완성의 이모지 이름(😀). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "미소"},
+				En: {Other: "smile"},
+			},
+		},
+		"emoji_smoking": {
+			desc: ":emoji 완성의 이모지 이름(🚬). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "흡연"},
+				En: {Other: "smoking"},
+			},
+		},
+		"emoji_sob": {
+			desc: ":emoji 완성의 이모지 이름(😭). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "엉엉"},
+				En: {Other: "sobbing"},
+			},
+		},
+		"emoji_sparkles": {
+			desc: ":emoji 완성의 이모지 이름(✨). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "반짝"},
+				En: {Other: "sparkles"},
+			},
+		},
+		"emoji_speech": {
+			desc: ":emoji 완성의 이모지 이름(💬). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "말풍선"},
+				En: {Other: "speech"},
+			},
+		},
+		"emoji_star": {
+			desc: ":emoji 완성의 이모지 이름(⭐). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "별"},
+				En: {Other: "star"},
+			},
+		},
+		"emoji_sweat": {
+			desc: ":emoji 완성의 이모지 이름(😅). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "머쓱"},
+				En: {Other: "awkward"},
+			},
+		},
+		"emoji_tada": {
+			desc: ":emoji 완성의 이모지 이름(🎉). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "축하"},
+				En: {Other: "celebrate"},
+			},
+		},
+		"emoji_thinking": {
+			desc: ":emoji 완성의 이모지 이름(🤔). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "생각"},
+				En: {Other: "thinking"},
+			},
+		},
+		"emoji_thumbsdown": {
+			desc: ":emoji 완성의 이모지 이름(👎). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "싫어요"},
+				En: {Other: "thumbs down"},
+			},
+		},
+		"emoji_thumbsup": {
+			desc: ":emoji 완성의 이모지 이름(👍). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "좋아요"},
+				En: {Other: "thumbs up"},
+			},
+		},
+		"emoji_wave": {
+			desc: ":emoji 완성의 이모지 이름(👋). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "안녕"},
+				En: {Other: "hello"},
+			},
+		},
+		"emoji_wink": {
+			desc: ":emoji 완성의 이모지 이름(😉). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "윙크"},
+				En: {Other: "wink"},
+			},
+		},
+		"emoji_x": {
+			desc: ":emoji 완성의 이모지 이름(❌). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "아니"},
+				En: {Other: "no"},
+			},
+		},
+		"emoji_zap": {
+			desc: ":emoji 완성의 이모지 이름(⚡). 검색에도 씀",
+			text: map[Locale]Forms{
+				Ko: {Other: "번개"},
+				En: {Other: "lightning"},
+			},
+		},
+		"form_off": {
+			desc: "폼 켬/끔 칸: 꺼짐",
+			text: map[Locale]Forms{
+				Ko: {Other: "[ ] 꺼짐"},
+				En: {Other: "[ ] Off"},
+			},
+		},
+		"form_on": {
+			desc: "폼 켬/끔 칸: 켜짐",
+			text: map[Locale]Forms{
+				Ko: {Other: "[x] 켜짐"},
+				En: {Other: "[x] On"},
+			},
+		},
+		"form_status": {
+			desc:   "폼 아래 줄. submit = 확인 단추 글",
+			params: []Param{{Name: "submit", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "enter {submit} · tab 다음 칸 · esc 닫기"},
+				En: {Other: "enter {submit} · tab next field · esc close"},
 			},
 		},
 		"friend_accepted": {
@@ -199,6 +703,20 @@ var areaChat = area{
 				En: {Other: "Friends"},
 			},
 		},
+		"gone_hint": {
+			desc: "채널 화면 안내: esc 로 뒤로",
+			text: map[Locale]Forms{
+				Ko: {Other: "esc 뒤로"},
+				En: {Other: "esc to go back"},
+			},
+		},
+		"gone_title": {
+			desc: "채널 화면: 지워졌거나 볼 수 없는 채널",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제되었거나 볼 수 없는 채널이에요"},
+				En: {Other: "This channel was deleted or isn't available"},
+			},
+		},
 		"group_dm_refused": {
 			desc: "그룹 DM 생성·추가가 차단 관계로 거부됨",
 			text: map[Locale]Forms{
@@ -206,11 +724,25 @@ var areaChat = area{
 				En: {Other: "Some of these people can't be in a conversation together"},
 			},
 		},
+		"help_jump": {
+			desc: "키 도움말: 그 메시지로 이동",
+			text: map[Locale]Forms{
+				Ko: {Other: "이동"},
+				En: {Other: "jump"},
+			},
+		},
 		"help_name_field": {
 			desc: "키 도움말: 이름 칸으로",
 			text: map[Locale]Forms{
 				Ko: {Other: "이름 칸"},
 				En: {Other: "name field"},
+			},
+		},
+		"help_next_field": {
+			desc: "키 도움말: 다음 칸",
+			text: map[Locale]Forms{
+				Ko: {Other: "다음 칸"},
+				En: {Other: "next field"},
 			},
 		},
 		"help_pick_then": {
@@ -221,6 +753,13 @@ var areaChat = area{
 				En: {Other: "pick·{submit}"},
 			},
 		},
+		"help_retry": {
+			desc: "키 도움말: 다시 시도",
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 시도"},
+				En: {Other: "retry"},
+			},
+		},
 		"help_run": {
 			desc: "키 도움말: 메뉴 항목 실행",
 			text: map[Locale]Forms{
@@ -228,11 +767,39 @@ var areaChat = area{
 				En: {Other: "run"},
 			},
 		},
+		"help_scope": {
+			desc: "키 도움말: 검색 범위 바꾸기",
+			text: map[Locale]Forms{
+				Ko: {Other: "범위"},
+				En: {Other: "scope"},
+			},
+		},
+		"help_search": {
+			desc: "키 도움말: 검색",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색"},
+				En: {Other: "search"},
+			},
+		},
 		"help_tabs": {
 			desc: "키 도움말: 탭 옮기기",
 			text: map[Locale]Forms{
 				Ko: {Other: "탭"},
 				En: {Other: "tabs"},
+			},
+		},
+		"help_unpin": {
+			desc: "키 도움말: 고정 해제",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정 해제"},
+				En: {Other: "unpin"},
+			},
+		},
+		"here_detail": {
+			desc: "@here 완성 설명",
+			text: map[Locale]Forms{
+				Ko: {Other: "지금 접속한 사람 모두"},
+				En: {Other: "Everyone online now"},
 			},
 		},
 		"home_empty_hint": {
@@ -315,6 +882,27 @@ var areaChat = area{
 				En: {Other: "Home"},
 			},
 		},
+		"invite_failed": {
+			desc: "오류 알림 머리: 초대 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대하지 못했어요"},
+				En: {Other: "Couldn't invite"},
+			},
+		},
+		"invite_link_failed": {
+			desc: "오류 알림 머리: 초대 링크 만들기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "초대 링크를 만들지 못했어요"},
+				En: {Other: "Couldn't create an invite link"},
+			},
+		},
+		"invite_space_only": {
+			desc: "방 채널이 아닌 곳에서 /invite",
+			text: map[Locale]Forms{
+				Ko: {Other: "방 채널에서만 초대할 수 있어요"},
+				En: {Other: "You can only invite from a space channel"},
+			},
+		},
 		"invite_space_title": {
 			desc: "친구를 초대할 방 고르기 메뉴 제목",
 			text: map[Locale]Forms{
@@ -322,11 +910,34 @@ var areaChat = area{
 				En: {Other: "Invite to which space?"},
 			},
 		},
+		"invited": {
+			desc:   "알림: 방에 초대함. who = 이름·@아이디, space = 방 이름",
+			params: []Param{{Name: "who", Type: "string"}, {Name: "space", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{who}님을 {space}에 초대했어요"},
+				En: {Other: "Invited {who} to {space}"},
+			},
+		},
 		"item_accept": {
 			desc: "친구 요청 메뉴: 수락",
 			text: map[Locale]Forms{
 				Ko: {Other: "수락"},
 				En: {Other: "Accept"},
+			},
+		},
+		"item_author": {
+			desc:   "메시지 메뉴: 작성자 프로필. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "작성자 · {name}"},
+				En: {Other: "Author · {name}"},
+			},
+		},
+		"item_block_author": {
+			desc: "메시지 메뉴: 작성자 차단",
+			text: map[Locale]Forms{
+				Ko: {Other: "작성자 차단"},
+				En: {Other: "Block author"},
 			},
 		},
 		"item_block_user": {
@@ -343,11 +954,39 @@ var areaChat = area{
 				En: {Other: "Cancel request"},
 			},
 		},
+		"item_close_poll": {
+			desc: "메시지 메뉴: 투표 마감",
+			text: map[Locale]Forms{
+				Ko: {Other: "투표 마감"},
+				En: {Other: "Close poll"},
+			},
+		},
+		"item_copy": {
+			desc: "메뉴: 복사",
+			text: map[Locale]Forms{
+				Ko: {Other: "복사"},
+				En: {Other: "Copy"},
+			},
+		},
 		"item_decline": {
 			desc: "친구 요청 메뉴: 거절",
 			text: map[Locale]Forms{
 				Ko: {Other: "거절"},
 				En: {Other: "Decline"},
+			},
+		},
+		"item_delete": {
+			desc: "메시지 메뉴: 삭제",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제"},
+				En: {Other: "Delete"},
+			},
+		},
+		"item_edit": {
+			desc: "메시지 메뉴: 수정",
+			text: map[Locale]Forms{
+				Ko: {Other: "수정"},
+				En: {Other: "Edit"},
 			},
 		},
 		"item_invite_to_space": {
@@ -357,11 +996,39 @@ var areaChat = area{
 				En: {Other: "Invite to a space"},
 			},
 		},
+		"item_pin": {
+			desc: "메시지 메뉴: 고정",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정"},
+				En: {Other: "Pin"},
+			},
+		},
 		"item_profile": {
 			desc: "사용자 메뉴: 프로필 보기",
 			text: map[Locale]Forms{
 				Ko: {Other: "프로필 보기"},
 				En: {Other: "View profile"},
+			},
+		},
+		"item_react": {
+			desc: "메시지 메뉴: 리액션",
+			text: map[Locale]Forms{
+				Ko: {Other: "리액션"},
+				En: {Other: "React"},
+			},
+		},
+		"item_react_users": {
+			desc: "메시지 메뉴·창 제목: 리액션 누른 사람",
+			text: map[Locale]Forms{
+				Ko: {Other: "리액션 누른 사람"},
+				En: {Other: "Reactions"},
+			},
+		},
+		"item_report": {
+			desc: "메시지 메뉴: 신고",
+			text: map[Locale]Forms{
+				Ko: {Other: "신고"},
+				En: {Other: "Report"},
 			},
 		},
 		"item_report_user": {
@@ -371,6 +1038,13 @@ var areaChat = area{
 				En: {Other: "Report user"},
 			},
 		},
+		"item_retract": {
+			desc: "메시지 메뉴: 투표 취소",
+			text: map[Locale]Forms{
+				Ko: {Other: "투표 취소"},
+				En: {Other: "Retract vote"},
+			},
+		},
 		"item_send_dm": {
 			desc: "사용자 메뉴: DM 보내기",
 			text: map[Locale]Forms{
@@ -378,11 +1052,33 @@ var areaChat = area{
 				En: {Other: "Send DM"},
 			},
 		},
+		"item_thread": {
+			desc: "메시지 메뉴: 스레드로 답글",
+			text: map[Locale]Forms{
+				Ko: {Other: "스레드로 답글"},
+				En: {Other: "Reply in thread"},
+			},
+		},
 		"item_unfriend": {
 			desc: "친구 메뉴: 친구 끊기",
 			text: map[Locale]Forms{
 				Ko: {Other: "친구 끊기"},
 				En: {Other: "Unfriend"},
+			},
+		},
+		"item_unpin": {
+			desc: "메시지 메뉴: 고정 해제",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정 해제"},
+				En: {Other: "Unpin"},
+			},
+		},
+		"item_vote": {
+			desc:   "메시지 메뉴: 투표 선택지. option = 선택지",
+			params: []Param{{Name: "option", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "투표: {option}"},
+				En: {Other: "Vote: {option}"},
 			},
 		},
 		"kw_dm_new": {
@@ -406,11 +1102,39 @@ var areaChat = area{
 				En: {Other: "friend requests"},
 			},
 		},
+		"kw_pins": {
+			desc: "명령 팔레트 검색어: 고정 메시지",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정, 고정 메시지, 핀"},
+				En: {Other: "pin"},
+			},
+		},
+		"kw_search": {
+			desc: "명령 팔레트 검색어: 메시지 검색",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색, 메시지 찾기"},
+				En: {Other: "find"},
+			},
+		},
+		"load_failed": {
+			desc: "메시지 목록을 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지를 불러오지 못했어요"},
+				En: {Other: "Couldn't load messages"},
+			},
+		},
 		"loading": {
 			desc: "불러오는 중 표시",
 			text: map[Locale]Forms{
 				Ko: {Other: "불러오는 중…"},
 				En: {Other: "Loading…"},
+			},
+		},
+		"me": {
+			desc: "내 이름 자리: 나",
+			text: map[Locale]Forms{
+				Ko: {Other: "나"},
+				En: {Other: "Me"},
 			},
 		},
 		"member_count": {
@@ -474,6 +1198,44 @@ var areaChat = area{
 				En: {Other: "Join with a code"},
 			},
 		},
+		"meta_replies": {
+			desc:   "메시지 아래: 스레드 답글 수. n = 사람이 읽는 수",
+			params: []Param{{Name: "n", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "💬 답글 {n}개"},
+				En: {Other: "💬 Replies {n}"},
+			},
+		},
+		"msg_copied": {
+			desc: "알림: 복사함",
+			text: map[Locale]Forms{
+				Ko: {Other: "복사했어요"},
+				En: {Other: "Copied"},
+			},
+		},
+		"msg_deleted": {
+			desc: "삭제된 메시지 자리",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제된 메시지"},
+				En: {Other: "Deleted message"},
+			},
+		},
+		"new_below": {
+			desc:   "메시지 판 아래: 안 본 새 메시지 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 메시지 {n}개 ↓"},
+				En: {One: "{n} new message ↓", Other: "{n} new messages ↓"},
+			},
+		},
+		"no_delete_perm": {
+			desc: "삭제 권한 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "삭제할 권한이 없어요"},
+				En: {Other: "You can't delete this"},
+			},
+		},
 		"no_incoming": {
 			desc: "받은 요청 탭이 빔",
 			text: map[Locale]Forms{
@@ -493,6 +1255,20 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "친구 탭의 ＋ 친구 추가로 요청을 보내 보세요"},
 				En: {Other: "Send one with ＋ Add friend on the Friends tab"},
+			},
+		},
+		"no_pin_perm": {
+			desc: "고정 권한 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정할 권한이 없어요"},
+				En: {Other: "You can't pin here"},
+			},
+		},
+		"not_mine_edit": {
+			desc: "남의 메시지 수정 시도",
+			text: map[Locale]Forms{
+				Ko: {Other: "내 메시지만 수정할 수 있어요"},
+				En: {Other: "You can only edit your own messages"},
 			},
 		},
 		"now_friends": {
@@ -604,12 +1380,108 @@ var areaChat = area{
 				En: {Other: "Type a name or @handle"},
 			},
 		},
+		"pin_failed": {
+			desc: "오류 알림 머리: 고정 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정을 바꾸지 못했어요"},
+				En: {Other: "Couldn't change the pin"},
+			},
+		},
+		"pinned": {
+			desc: "알림: 메시지 고정함",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지를 고정했어요"},
+				En: {Other: "Message pinned"},
+			},
+		},
+		"pins_empty": {
+			desc: "고정 메시지가 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정된 메시지가 없어요"},
+				En: {Other: "No pinned messages"},
+			},
+		},
+		"pins_failed": {
+			desc: "고정 메시지를 불러오지 못함",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정 메시지를 불러오지 못했어요"},
+				En: {Other: "Couldn't load pinned messages"},
+			},
+		},
+		"pins_title": {
+			desc: "고정 메시지 창 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "📌 고정 메시지"},
+				En: {Other: "📌 Pinned messages"},
+			},
+		},
+		"placeholder_channel": {
+			desc:   "입력창 자리 표시(채널). name = '# 채널' 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}에 메시지 보내기"},
+				En: {Other: "Message {name}"},
+			},
+		},
+		"placeholder_dm": {
+			desc:   "입력창 자리 표시(DM). name = 상대 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}에게 메시지 보내기"},
+				En: {Other: "Message {name}"},
+			},
+		},
+		"poll_closed": {
+			desc: "마감된 투표에 투표 시도",
+			text: map[Locale]Forms{
+				Ko: {Other: "마감된 투표예요"},
+				En: {Other: "This poll is closed"},
+			},
+		},
+		"poll_closed_mark": {
+			desc: "투표 머리 뒤: 마감됨(앞에 빈칸)",
+			text: map[Locale]Forms{
+				Ko: {Other: "(마감)"},
+				En: {Other: "(closed)"},
+			},
+		},
+		"poll_head": {
+			desc:   "투표 메시지 머리. q = 질문",
+			params: []Param{{Name: "q", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "📊 투표: {q}"},
+				En: {Other: "📊 Poll: {q}"},
+			},
+		},
+		"poll_multi": {
+			desc: "투표 아래: 복수 선택 표시(앞에 ' · ')",
+			text: map[Locale]Forms{
+				Ko: {Other: "복수 선택"},
+				En: {Other: "Multiple choice"},
+			},
+		},
+		"poll_voters": {
+			desc:   "투표 아래: 참여한 사람 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "{n}명 참여"},
+				En: {One: "{n} voter", Other: "{n} voters"},
+			},
+		},
 		"rail_home": {
 			desc: "레일의 홈 글자(가운데 3칸 안)",
 			max:  3,
 			text: map[Locale]Forms{
 				Ko: {Other: "홈"},
 				En: {Other: "⌂"},
+			},
+		},
+		"react_failed": {
+			desc: "오류 알림 머리: 리액션 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "리액션을 바꾸지 못했어요"},
+				En: {Other: "Couldn't change the reaction"},
 			},
 		},
 		"reaction_users_empty": {
@@ -634,11 +1506,48 @@ var areaChat = area{
 				En: {Other: "Reacted with {emoji}"},
 			},
 		},
+		"read_only": {
+			desc: "입력창 자리: 읽기 전용 대화",
+			text: map[Locale]Forms{
+				Ko: {Other: "읽기 전용 대화예요"},
+				En: {Other: "This conversation is read-only"},
+			},
+		},
+		"read_only_blocked": {
+			desc: "입력창 자리: 차단한 사용자와의 DM",
+			text: map[Locale]Forms{
+				Ko: {Other: "차단한 사용자와의 대화예요"},
+				En: {Other: "You blocked this user"},
+			},
+		},
 		"reconnecting": {
 			desc: "첫 동기화 실패 안내: 다시 연결 중",
 			text: map[Locale]Forms{
 				Ko: {Other: "다시 연결 중"},
 				En: {Other: "Reconnecting"},
+			},
+		},
+		"replies_label": {
+			desc:   "스레드 머리: 답글 수. n = 사람이 읽는 수(1.2천 등)",
+			params: []Param{{Name: "n", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "답글 {n}개"},
+				En: {Other: "Replies {n}"},
+			},
+		},
+		"reply_no_pin": {
+			desc: "답글 고정 시도",
+			text: map[Locale]Forms{
+				Ko: {Other: "답글은 고정할 수 없어요"},
+				En: {Other: "Replies can't be pinned"},
+			},
+		},
+		"report_message_of": {
+			desc:   "신고 창 대상: 누구의 메시지",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}의 메시지"},
+				En: {Other: "{name}'s message"},
 			},
 		},
 		"request_sent": {
@@ -654,6 +1563,104 @@ var areaChat = area{
 			text: map[Locale]Forms{
 				Ko: {Other: "방장"},
 				En: {Other: "Owner"},
+			},
+		},
+		"scope_all": {
+			desc: "검색 범위: 전체",
+			text: map[Locale]Forms{
+				Ko: {Other: "전체"},
+				En: {Other: "Everywhere"},
+			},
+		},
+		"scope_channel": {
+			desc: "검색 범위: 이 채널",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 채널"},
+				En: {Other: "This channel"},
+			},
+		},
+		"scope_space": {
+			desc: "검색 범위: 이 방",
+			text: map[Locale]Forms{
+				Ko: {Other: "이 방"},
+				En: {Other: "This space"},
+			},
+		},
+		"search_empty": {
+			desc: "검색 결과 없음",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색 결과가 없어요"},
+				En: {Other: "No results"},
+			},
+		},
+		"search_empty_hint": {
+			desc: "검색 결과 없음 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "다른 낱말로 찾아 보세요"},
+				En: {Other: "Try different words"},
+			},
+		},
+		"search_idle": {
+			desc: "검색 전 빈 상태",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지를 검색해 보세요"},
+				En: {Other: "Search your messages"},
+			},
+		},
+		"search_idle_hint": {
+			desc: "검색 전 안내",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색어를 입력하고 enter"},
+				En: {Other: "Type a query and press enter"},
+			},
+		},
+		"search_loading": {
+			desc: "검색 중",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색 중…"},
+				En: {Other: "Searching…"},
+			},
+		},
+		"search_more_failed": {
+			desc: "오류 알림 머리: 검색 결과 더 불러오기 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색 결과를 더 불러오지 못했어요"},
+				En: {Other: "Couldn't load more results"},
+			},
+		},
+		"search_placeholder": {
+			desc: "검색 칸 자리 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지 검색 — 검색어를 입력하고 enter"},
+				En: {Other: "Search messages — type and press enter"},
+			},
+		},
+		"search_scope_too_wide": {
+			desc: "검색 범위가 너무 넓다는 서버 응답",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색 범위가 너무 넓어요 — 방이나 채널을 골라 주세요"},
+				En: {Other: "The search is too broad — pick a space or channel"},
+			},
+		},
+		"search_title": {
+			desc: "검색 판 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "검색"},
+				En: {Other: "Search"},
+			},
+		},
+		"send_failed": {
+			desc: "보내지 못한 메시지 뒤(앞에 ' · ')",
+			text: map[Locale]Forms{
+				Ko: {Other: "전송 실패"},
+				En: {Other: "Not sent"},
+			},
+		},
+		"send_failed_hint": {
+			desc: "보내지 못한 메시지 안내(앞에 ' — ')",
+			text: map[Locale]Forms{
+				Ko: {Other: "enter 다시 보내기 · d 버리기"},
+				En: {Other: "enter resend · d discard"},
 			},
 		},
 		"side_channels_label": {
@@ -896,6 +1903,114 @@ var areaChat = area{
 				En: {Other: "Space"},
 			},
 		},
+		"sys_channel_created": {
+			desc:   "시스템 메시지: 채널 만듦. name = 채널 이름(# 없이)",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "#{name} 채널을 만들었어요"},
+				En: {Other: "Created #{name}"},
+			},
+		},
+		"sys_channel_renamed": {
+			desc:   "시스템 메시지: 채널 이름 바뀜",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "채널 이름 변경: #{name}"},
+				En: {Other: "Channel renamed: #{name}"},
+			},
+		},
+		"sys_group_member_removed": {
+			desc:   "시스템 메시지: 그룹 대화에서 빠짐",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 빠졌어요"},
+				En: {Other: "{name} left the conversation"},
+			},
+		},
+		"sys_group_renamed": {
+			desc:   "시스템 메시지: 그룹 대화 이름 바뀜",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "대화 이름 변경: {name}"},
+				En: {Other: "Conversation renamed: {name}"},
+			},
+		},
+		"sys_member_joined": {
+			desc:   "시스템 메시지: 들어옴. name = 이름",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 들어왔어요"},
+				En: {Other: "{name} joined"},
+			},
+		},
+		"sys_member_kicked": {
+			desc:   "시스템 메시지: 내보내짐",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 내보내졌어요"},
+				En: {Other: "{name} was removed"},
+			},
+		},
+		"sys_member_left": {
+			desc:   "시스템 메시지: 나감",
+			params: []Param{{Name: "name", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{name}님이 나갔어요"},
+				En: {Other: "{name} left"},
+			},
+		},
+		"sys_message_pinned": {
+			desc: "시스템 메시지: 메시지 고정",
+			text: map[Locale]Forms{
+				Ko: {Other: "메시지를 고정했어요"},
+				En: {Other: "Pinned a message"},
+			},
+		},
+		"sys_topic_changed": {
+			desc:   "시스템 메시지: 주제 바뀜",
+			params: []Param{{Name: "topic", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "주제 변경: {topic}"},
+				En: {Other: "Topic changed: {topic}"},
+			},
+		},
+		"thread_parent_euro": {
+			desc:   "키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름",
+			params: []Param{{Name: "label", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{label}으로"},
+				En: {Other: "to {label}"},
+			},
+		},
+		"thread_parent_ro": {
+			desc:   "키 도움말: 스레드에서 원래 채널로(받침 없음·ㄹ). label = 채널 이름",
+			params: []Param{{Name: "label", Type: "string"}},
+			text: map[Locale]Forms{
+				Ko: {Other: "{label}로"},
+				En: {Other: "to {label}"},
+			},
+		},
+		"thread_placeholder": {
+			desc: "스레드 입력창 자리 표시",
+			text: map[Locale]Forms{
+				Ko: {Other: "› 답글"},
+				En: {Other: "› Reply"},
+			},
+		},
+		"thread_poll": {
+			desc: "스레드에서 /poll",
+			text: map[Locale]Forms{
+				Ko: {Other: "스레드에서는 투표를 만들 수 없어요"},
+				En: {Other: "Polls can't be created in a thread"},
+			},
+		},
+		"thread_title": {
+			desc: "스레드 판 제목",
+			text: map[Locale]Forms{
+				Ko: {Other: "스레드"},
+				En: {Other: "Thread"},
+			},
+		},
 		"typing_many": {
 			desc: "입력 중 줄: 세 명 이상",
 			text: map[Locale]Forms{
@@ -965,12 +2080,80 @@ var areaChat = area{
 				En: {Other: "You unfriended {name}"},
 			},
 		},
+		"unknown_user": {
+			desc: "이름을 모르는 사용자",
+			text: map[Locale]Forms{
+				Ko: {Other: "알 수 없는 사용자"},
+				En: {Other: "Unknown user"},
+			},
+		},
+		"unpinned": {
+			desc: "알림: 고정 해제함",
+			text: map[Locale]Forms{
+				Ko: {Other: "고정을 해제했어요"},
+				En: {Other: "Unpinned"},
+			},
+		},
+		"unread_rule": {
+			desc: "메시지 판의 안 읽은 줄 구분선 글(양옆 빈칸은 코드가 붙임)",
+			text: map[Locale]Forms{
+				Ko: {Other: "새 메시지"},
+				En: {Other: "New messages"},
+			},
+		},
+		"vote_failed": {
+			desc: "오류 알림 머리: 투표 실패",
+			text: map[Locale]Forms{
+				Ko: {Other: "투표하지 못했어요"},
+				En: {Other: "Couldn't vote"},
+			},
+		},
 	},
 }
 
 // AcceptFailed: 오류 알림 머리: 친구 요청 수락 실패
 func (a_ ChatT) AcceptFailed() string {
 	return a_.t.render(&areaChat, "accept_failed", false, 0)
+}
+
+// ActionsTitle: 메시지 동작 메뉴 제목
+func (a_ ChatT) ActionsTitle() string {
+	return a_.t.render(&areaChat, "actions_title", false, 0)
+}
+
+// AnchorNotFound: 알림·링크로 연 답글이 없음
+func (a_ ChatT) AnchorNotFound() string {
+	return a_.t.render(&areaChat, "anchor_not_found", false, 0)
+}
+
+// BlockAsk: 차단 확인 질문. name = 이름
+func (a_ ChatT) BlockAsk(name string) string {
+	return a_.t.render(&areaChat, "block_ask", false, 0, "name", name)
+}
+
+// BlockBody: 차단 확인 설명
+func (a_ ChatT) BlockBody() string {
+	return a_.t.render(&areaChat, "block_body", false, 0)
+}
+
+// BlockFailed: 오류 알림 머리: 차단 실패
+func (a_ ChatT) BlockFailed() string {
+	return a_.t.render(&areaChat, "block_failed", false, 0)
+}
+
+// BlockYes: 차단 확인 단추
+func (a_ ChatT) BlockYes() string {
+	return a_.t.render(&areaChat, "block_yes", false, 0)
+}
+
+// BlockedMsg: 차단한 사용자의 메시지 자리
+func (a_ ChatT) BlockedMsg() string {
+	return a_.t.render(&areaChat, "blocked_msg", false, 0)
+}
+
+// BlockedUser: 알림: 차단함. name = 이름
+func (a_ ChatT) BlockedUser(name string) string {
+	return a_.t.render(&areaChat, "blocked_user", false, 0, "name", name)
 }
 
 // Cancel: 확인 창 취소 단추
@@ -983,9 +2166,19 @@ func (a_ ChatT) CancelFailed() string {
 	return a_.t.render(&areaChat, "cancel_failed", false, 0)
 }
 
+// CantEdit: 수정할 수 없는 메시지
+func (a_ ChatT) CantEdit() string {
+	return a_.t.render(&areaChat, "cant_edit", false, 0)
+}
+
 // ChannelRowNew: 사이드바 줄: 새 채널 만들기(방장·관리자)
 func (a_ ChatT) ChannelRowNew() string {
 	return a_.t.render(&areaChat, "channel_row_new", false, 0)
+}
+
+// ChannelTitle: 채널 판 제목(채널을 모를 때)
+func (a_ ChatT) ChannelTitle() string {
+	return a_.t.render(&areaChat, "channel_title", false, 0)
 }
 
 // CmdDmNew: 명령 팔레트: 새 대화
@@ -1003,9 +2196,39 @@ func (a_ ChatT) CmdFriends() string {
 	return a_.t.render(&areaChat, "cmd_friends", false, 0)
 }
 
+// CmdPins: 명령 팔레트: 고정 메시지 보기
+func (a_ ChatT) CmdPins() string {
+	return a_.t.render(&areaChat, "cmd_pins", false, 0)
+}
+
+// CmdSearch: 명령 팔레트: 메시지 검색
+func (a_ ChatT) CmdSearch() string {
+	return a_.t.render(&areaChat, "cmd_search", false, 0)
+}
+
 // DeclineFailed: 오류 알림 머리: 친구 요청 거절 실패
 func (a_ ChatT) DeclineFailed() string {
 	return a_.t.render(&areaChat, "decline_failed", false, 0)
+}
+
+// DeleteBody: 메시지 삭제 확인 질문
+func (a_ ChatT) DeleteBody() string {
+	return a_.t.render(&areaChat, "delete_body", false, 0)
+}
+
+// DeleteFailed: 오류 알림 머리: 메시지 삭제 실패
+func (a_ ChatT) DeleteFailed() string {
+	return a_.t.render(&areaChat, "delete_failed", false, 0)
+}
+
+// DeleteTitle: 메시지 삭제 확인 제목
+func (a_ ChatT) DeleteTitle() string {
+	return a_.t.render(&areaChat, "delete_title", false, 0)
+}
+
+// DeleteYes: 삭제 확인 단추
+func (a_ ChatT) DeleteYes() string {
+	return a_.t.render(&areaChat, "delete_yes", false, 0)
 }
 
 // DmNewSubmit: 새 대화 창 확인 단추
@@ -1046,6 +2269,281 @@ func (a_ ChatT) DmsMine(body string) string {
 // DmsTitle: DM 판 제목·사이드바 줄
 func (a_ ChatT) DmsTitle() string {
 	return a_.t.render(&areaChat, "dms_title", false, 0)
+}
+
+// EditFailed: 오류 알림 머리: 메시지 수정 실패
+func (a_ ChatT) EditFailed() string {
+	return a_.t.render(&areaChat, "edit_failed", false, 0)
+}
+
+// EditLabel: 입력창 위: 메시지 수정 중
+func (a_ ChatT) EditLabel() string {
+	return a_.t.render(&areaChat, "edit_label", false, 0)
+}
+
+// Edited: 메시지 뒤: 수정됨 표시
+func (a_ ChatT) Edited() string {
+	return a_.t.render(&areaChat, "edited", false, 0)
+}
+
+// EmojiAngry: :emoji 완성의 이모지 이름(😡). 검색에도 씀
+func (a_ ChatT) EmojiAngry() string {
+	return a_.t.render(&areaChat, "emoji_angry", false, 0)
+}
+
+// EmojiBeer: :emoji 완성의 이모지 이름(🍺). 검색에도 씀
+func (a_ ChatT) EmojiBeer() string {
+	return a_.t.render(&areaChat, "emoji_beer", false, 0)
+}
+
+// EmojiBug: :emoji 완성의 이모지 이름(🐛). 검색에도 씀
+func (a_ ChatT) EmojiBug() string {
+	return a_.t.render(&areaChat, "emoji_bug", false, 0)
+}
+
+// EmojiBulb: :emoji 완성의 이모지 이름(💡). 검색에도 씀
+func (a_ ChatT) EmojiBulb() string {
+	return a_.t.render(&areaChat, "emoji_bulb", false, 0)
+}
+
+// EmojiCake: :emoji 완성의 이모지 이름(🎂). 검색에도 씀
+func (a_ ChatT) EmojiCake() string {
+	return a_.t.render(&areaChat, "emoji_cake", false, 0)
+}
+
+// EmojiCalendar: :emoji 완성의 이모지 이름(📅). 검색에도 씀
+func (a_ ChatT) EmojiCalendar() string {
+	return a_.t.render(&areaChat, "emoji_calendar", false, 0)
+}
+
+// EmojiCheck: :emoji 완성의 이모지 이름(✅). 검색에도 씀
+func (a_ ChatT) EmojiCheck() string {
+	return a_.t.render(&areaChat, "emoji_check", false, 0)
+}
+
+// EmojiChicken: :emoji 완성의 이모지 이름(🍗). 검색에도 씀
+func (a_ ChatT) EmojiChicken() string {
+	return a_.t.render(&areaChat, "emoji_chicken", false, 0)
+}
+
+// EmojiClap: :emoji 완성의 이모지 이름(👏). 검색에도 씀
+func (a_ ChatT) EmojiClap() string {
+	return a_.t.render(&areaChat, "emoji_clap", false, 0)
+}
+
+// EmojiCoffee: :emoji 완성의 이모지 이름(☕). 검색에도 씀
+func (a_ ChatT) EmojiCoffee() string {
+	return a_.t.render(&areaChat, "emoji_coffee", false, 0)
+}
+
+// EmojiCool: :emoji 완성의 이모지 이름(😎). 검색에도 씀
+func (a_ ChatT) EmojiCool() string {
+	return a_.t.render(&areaChat, "emoji_cool", false, 0)
+}
+
+// EmojiCry: :emoji 완성의 이모지 이름(😢). 검색에도 씀
+func (a_ ChatT) EmojiCry() string {
+	return a_.t.render(&areaChat, "emoji_cry", false, 0)
+}
+
+// EmojiEyes: :emoji 완성의 이모지 이름(👀). 검색에도 씀
+func (a_ ChatT) EmojiEyes() string {
+	return a_.t.render(&areaChat, "emoji_eyes", false, 0)
+}
+
+// EmojiFire: :emoji 완성의 이모지 이름(🔥). 검색에도 씀
+func (a_ ChatT) EmojiFire() string {
+	return a_.t.render(&areaChat, "emoji_fire", false, 0)
+}
+
+// EmojiGift: :emoji 완성의 이모지 이름(🎁). 검색에도 씀
+func (a_ ChatT) EmojiGift() string {
+	return a_.t.render(&areaChat, "emoji_gift", false, 0)
+}
+
+// EmojiHandshake: :emoji 완성의 이모지 이름(🤝). 검색에도 씀
+func (a_ ChatT) EmojiHandshake() string {
+	return a_.t.render(&areaChat, "emoji_handshake", false, 0)
+}
+
+// EmojiHeart: :emoji 완성의 이모지 이름(💖). 검색에도 씀
+func (a_ ChatT) EmojiHeart() string {
+	return a_.t.render(&areaChat, "emoji_heart", false, 0)
+}
+
+// EmojiHourglass: :emoji 완성의 이모지 이름(⏳). 검색에도 씀
+func (a_ ChatT) EmojiHourglass() string {
+	return a_.t.render(&areaChat, "emoji_hourglass", false, 0)
+}
+
+// EmojiHug: :emoji 완성의 이모지 이름(🤗). 검색에도 씀
+func (a_ ChatT) EmojiHug() string {
+	return a_.t.render(&areaChat, "emoji_hug", false, 0)
+}
+
+// EmojiHundred: :emoji 완성의 이모지 이름(💯). 검색에도 씀
+func (a_ ChatT) EmojiHundred() string {
+	return a_.t.render(&areaChat, "emoji_hundred", false, 0)
+}
+
+// EmojiJoy: :emoji 완성의 이모지 이름(😂). 검색에도 씀
+func (a_ ChatT) EmojiJoy() string {
+	return a_.t.render(&areaChat, "emoji_joy", false, 0)
+}
+
+// EmojiLove: :emoji 완성의 이모지 이름(😍). 검색에도 씀
+func (a_ ChatT) EmojiLove() string {
+	return a_.t.render(&areaChat, "emoji_love", false, 0)
+}
+
+// EmojiMemo: :emoji 완성의 이모지 이름(📝). 검색에도 씀
+func (a_ ChatT) EmojiMemo() string {
+	return a_.t.render(&areaChat, "emoji_memo", false, 0)
+}
+
+// EmojiMuscle: :emoji 완성의 이모지 이름(💪). 검색에도 씀
+func (a_ ChatT) EmojiMuscle() string {
+	return a_.t.render(&areaChat, "emoji_muscle", false, 0)
+}
+
+// EmojiOk: :emoji 완성의 이모지 이름(👌). 검색에도 씀
+func (a_ ChatT) EmojiOk() string {
+	return a_.t.render(&areaChat, "emoji_ok", false, 0)
+}
+
+// EmojiParty: :emoji 완성의 이모지 이름(🥳). 검색에도 씀
+func (a_ ChatT) EmojiParty() string {
+	return a_.t.render(&areaChat, "emoji_party", false, 0)
+}
+
+// EmojiPin: :emoji 완성의 이모지 이름(📌). 검색에도 씀
+func (a_ ChatT) EmojiPin() string {
+	return a_.t.render(&areaChat, "emoji_pin", false, 0)
+}
+
+// EmojiPizza: :emoji 완성의 이모지 이름(🍕). 검색에도 씀
+func (a_ ChatT) EmojiPizza() string {
+	return a_.t.render(&areaChat, "emoji_pizza", false, 0)
+}
+
+// EmojiPray: :emoji 완성의 이모지 이름(🙏). 검색에도 씀
+func (a_ ChatT) EmojiPray() string {
+	return a_.t.render(&areaChat, "emoji_pray", false, 0)
+}
+
+// EmojiRaised: :emoji 완성의 이모지 이름(🙌). 검색에도 씀
+func (a_ ChatT) EmojiRaised() string {
+	return a_.t.render(&areaChat, "emoji_raised", false, 0)
+}
+
+// EmojiRice: :emoji 완성의 이모지 이름(🍚). 검색에도 씀
+func (a_ ChatT) EmojiRice() string {
+	return a_.t.render(&areaChat, "emoji_rice", false, 0)
+}
+
+// EmojiRocket: :emoji 완성의 이모지 이름(🚀). 검색에도 씀
+func (a_ ChatT) EmojiRocket() string {
+	return a_.t.render(&areaChat, "emoji_rocket", false, 0)
+}
+
+// EmojiSiren: :emoji 완성의 이모지 이름(🚨). 검색에도 씀
+func (a_ ChatT) EmojiSiren() string {
+	return a_.t.render(&areaChat, "emoji_siren", false, 0)
+}
+
+// EmojiSleepy: :emoji 완성의 이모지 이름(😴). 검색에도 씀
+func (a_ ChatT) EmojiSleepy() string {
+	return a_.t.render(&areaChat, "emoji_sleepy", false, 0)
+}
+
+// EmojiSmile: :emoji 완성의 이모지 이름(😀). 검색에도 씀
+func (a_ ChatT) EmojiSmile() string {
+	return a_.t.render(&areaChat, "emoji_smile", false, 0)
+}
+
+// EmojiSmoking: :emoji 완성의 이모지 이름(🚬). 검색에도 씀
+func (a_ ChatT) EmojiSmoking() string {
+	return a_.t.render(&areaChat, "emoji_smoking", false, 0)
+}
+
+// EmojiSob: :emoji 완성의 이모지 이름(😭). 검색에도 씀
+func (a_ ChatT) EmojiSob() string {
+	return a_.t.render(&areaChat, "emoji_sob", false, 0)
+}
+
+// EmojiSparkles: :emoji 완성의 이모지 이름(✨). 검색에도 씀
+func (a_ ChatT) EmojiSparkles() string {
+	return a_.t.render(&areaChat, "emoji_sparkles", false, 0)
+}
+
+// EmojiSpeech: :emoji 완성의 이모지 이름(💬). 검색에도 씀
+func (a_ ChatT) EmojiSpeech() string {
+	return a_.t.render(&areaChat, "emoji_speech", false, 0)
+}
+
+// EmojiStar: :emoji 완성의 이모지 이름(⭐). 검색에도 씀
+func (a_ ChatT) EmojiStar() string {
+	return a_.t.render(&areaChat, "emoji_star", false, 0)
+}
+
+// EmojiSweat: :emoji 완성의 이모지 이름(😅). 검색에도 씀
+func (a_ ChatT) EmojiSweat() string {
+	return a_.t.render(&areaChat, "emoji_sweat", false, 0)
+}
+
+// EmojiTada: :emoji 완성의 이모지 이름(🎉). 검색에도 씀
+func (a_ ChatT) EmojiTada() string {
+	return a_.t.render(&areaChat, "emoji_tada", false, 0)
+}
+
+// EmojiThinking: :emoji 완성의 이모지 이름(🤔). 검색에도 씀
+func (a_ ChatT) EmojiThinking() string {
+	return a_.t.render(&areaChat, "emoji_thinking", false, 0)
+}
+
+// EmojiThumbsdown: :emoji 완성의 이모지 이름(👎). 검색에도 씀
+func (a_ ChatT) EmojiThumbsdown() string {
+	return a_.t.render(&areaChat, "emoji_thumbsdown", false, 0)
+}
+
+// EmojiThumbsup: :emoji 완성의 이모지 이름(👍). 검색에도 씀
+func (a_ ChatT) EmojiThumbsup() string {
+	return a_.t.render(&areaChat, "emoji_thumbsup", false, 0)
+}
+
+// EmojiWave: :emoji 완성의 이모지 이름(👋). 검색에도 씀
+func (a_ ChatT) EmojiWave() string {
+	return a_.t.render(&areaChat, "emoji_wave", false, 0)
+}
+
+// EmojiWink: :emoji 완성의 이모지 이름(😉). 검색에도 씀
+func (a_ ChatT) EmojiWink() string {
+	return a_.t.render(&areaChat, "emoji_wink", false, 0)
+}
+
+// EmojiX: :emoji 완성의 이모지 이름(❌). 검색에도 씀
+func (a_ ChatT) EmojiX() string {
+	return a_.t.render(&areaChat, "emoji_x", false, 0)
+}
+
+// EmojiZap: :emoji 완성의 이모지 이름(⚡). 검색에도 씀
+func (a_ ChatT) EmojiZap() string {
+	return a_.t.render(&areaChat, "emoji_zap", false, 0)
+}
+
+// FormOff: 폼 켬/끔 칸: 꺼짐
+func (a_ ChatT) FormOff() string {
+	return a_.t.render(&areaChat, "form_off", false, 0)
+}
+
+// FormOn: 폼 켬/끔 칸: 켜짐
+func (a_ ChatT) FormOn() string {
+	return a_.t.render(&areaChat, "form_on", false, 0)
+}
+
+// FormStatus: 폼 아래 줄. submit = 확인 단추 글
+func (a_ ChatT) FormStatus(submit string) string {
+	return a_.t.render(&areaChat, "form_status", false, 0, "submit", submit)
 }
 
 // FriendAccepted: 알림: 친구 요청 수락
@@ -1098,9 +2596,24 @@ func (a_ ChatT) FriendsTitle() string {
 	return a_.t.render(&areaChat, "friends_title", false, 0)
 }
 
+// GoneHint: 채널 화면 안내: esc 로 뒤로
+func (a_ ChatT) GoneHint() string {
+	return a_.t.render(&areaChat, "gone_hint", false, 0)
+}
+
+// GoneTitle: 채널 화면: 지워졌거나 볼 수 없는 채널
+func (a_ ChatT) GoneTitle() string {
+	return a_.t.render(&areaChat, "gone_title", false, 0)
+}
+
 // GroupDmRefused: 그룹 DM 생성·추가가 차단 관계로 거부됨
 func (a_ ChatT) GroupDmRefused() string {
 	return a_.t.render(&areaChat, "group_dm_refused", false, 0)
+}
+
+// HelpJump: 키 도움말: 그 메시지로 이동
+func (a_ ChatT) HelpJump() string {
+	return a_.t.render(&areaChat, "help_jump", false, 0)
 }
 
 // HelpNameField: 키 도움말: 이름 칸으로
@@ -1108,9 +2621,19 @@ func (a_ ChatT) HelpNameField() string {
 	return a_.t.render(&areaChat, "help_name_field", false, 0)
 }
 
+// HelpNextField: 키 도움말: 다음 칸
+func (a_ ChatT) HelpNextField() string {
+	return a_.t.render(&areaChat, "help_next_field", false, 0)
+}
+
 // HelpPickThen: 키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글
 func (a_ ChatT) HelpPickThen(submit string) string {
 	return a_.t.render(&areaChat, "help_pick_then", false, 0, "submit", submit)
+}
+
+// HelpRetry: 키 도움말: 다시 시도
+func (a_ ChatT) HelpRetry() string {
+	return a_.t.render(&areaChat, "help_retry", false, 0)
 }
 
 // HelpRun: 키 도움말: 메뉴 항목 실행
@@ -1118,9 +2641,29 @@ func (a_ ChatT) HelpRun() string {
 	return a_.t.render(&areaChat, "help_run", false, 0)
 }
 
+// HelpScope: 키 도움말: 검색 범위 바꾸기
+func (a_ ChatT) HelpScope() string {
+	return a_.t.render(&areaChat, "help_scope", false, 0)
+}
+
+// HelpSearch: 키 도움말: 검색
+func (a_ ChatT) HelpSearch() string {
+	return a_.t.render(&areaChat, "help_search", false, 0)
+}
+
 // HelpTabs: 키 도움말: 탭 옮기기
 func (a_ ChatT) HelpTabs() string {
 	return a_.t.render(&areaChat, "help_tabs", false, 0)
+}
+
+// HelpUnpin: 키 도움말: 고정 해제
+func (a_ ChatT) HelpUnpin() string {
+	return a_.t.render(&areaChat, "help_unpin", false, 0)
+}
+
+// HereDetail: @here 완성 설명
+func (a_ ChatT) HereDetail() string {
+	return a_.t.render(&areaChat, "here_detail", false, 0)
 }
 
 // HomeEmptyHint: 홈 빈 상태 안내
@@ -1178,14 +2721,44 @@ func (a_ ChatT) HomeTitle() string {
 	return a_.t.render(&areaChat, "home_title", false, 0)
 }
 
+// InviteFailed: 오류 알림 머리: 초대 실패
+func (a_ ChatT) InviteFailed() string {
+	return a_.t.render(&areaChat, "invite_failed", false, 0)
+}
+
+// InviteLinkFailed: 오류 알림 머리: 초대 링크 만들기 실패
+func (a_ ChatT) InviteLinkFailed() string {
+	return a_.t.render(&areaChat, "invite_link_failed", false, 0)
+}
+
+// InviteSpaceOnly: 방 채널이 아닌 곳에서 /invite
+func (a_ ChatT) InviteSpaceOnly() string {
+	return a_.t.render(&areaChat, "invite_space_only", false, 0)
+}
+
 // InviteSpaceTitle: 친구를 초대할 방 고르기 메뉴 제목
 func (a_ ChatT) InviteSpaceTitle() string {
 	return a_.t.render(&areaChat, "invite_space_title", false, 0)
 }
 
+// Invited: 알림: 방에 초대함. who = 이름·@아이디, space = 방 이름
+func (a_ ChatT) Invited(who string, space string) string {
+	return a_.t.render(&areaChat, "invited", false, 0, "who", who, "space", space)
+}
+
 // ItemAccept: 친구 요청 메뉴: 수락
 func (a_ ChatT) ItemAccept() string {
 	return a_.t.render(&areaChat, "item_accept", false, 0)
+}
+
+// ItemAuthor: 메시지 메뉴: 작성자 프로필. name = 이름
+func (a_ ChatT) ItemAuthor(name string) string {
+	return a_.t.render(&areaChat, "item_author", false, 0, "name", name)
+}
+
+// ItemBlockAuthor: 메시지 메뉴: 작성자 차단
+func (a_ ChatT) ItemBlockAuthor() string {
+	return a_.t.render(&areaChat, "item_block_author", false, 0)
 }
 
 // ItemBlockUser: 사용자 메뉴: 차단
@@ -1198,9 +2771,29 @@ func (a_ ChatT) ItemCancelRequest() string {
 	return a_.t.render(&areaChat, "item_cancel_request", false, 0)
 }
 
+// ItemClosePoll: 메시지 메뉴: 투표 마감
+func (a_ ChatT) ItemClosePoll() string {
+	return a_.t.render(&areaChat, "item_close_poll", false, 0)
+}
+
+// ItemCopy: 메뉴: 복사
+func (a_ ChatT) ItemCopy() string {
+	return a_.t.render(&areaChat, "item_copy", false, 0)
+}
+
 // ItemDecline: 친구 요청 메뉴: 거절
 func (a_ ChatT) ItemDecline() string {
 	return a_.t.render(&areaChat, "item_decline", false, 0)
+}
+
+// ItemDelete: 메시지 메뉴: 삭제
+func (a_ ChatT) ItemDelete() string {
+	return a_.t.render(&areaChat, "item_delete", false, 0)
+}
+
+// ItemEdit: 메시지 메뉴: 수정
+func (a_ ChatT) ItemEdit() string {
+	return a_.t.render(&areaChat, "item_edit", false, 0)
 }
 
 // ItemInviteToSpace: 친구 메뉴: 방에 초대
@@ -1208,9 +2801,29 @@ func (a_ ChatT) ItemInviteToSpace() string {
 	return a_.t.render(&areaChat, "item_invite_to_space", false, 0)
 }
 
+// ItemPin: 메시지 메뉴: 고정
+func (a_ ChatT) ItemPin() string {
+	return a_.t.render(&areaChat, "item_pin", false, 0)
+}
+
 // ItemProfile: 사용자 메뉴: 프로필 보기
 func (a_ ChatT) ItemProfile() string {
 	return a_.t.render(&areaChat, "item_profile", false, 0)
+}
+
+// ItemReact: 메시지 메뉴: 리액션
+func (a_ ChatT) ItemReact() string {
+	return a_.t.render(&areaChat, "item_react", false, 0)
+}
+
+// ItemReactUsers: 메시지 메뉴·창 제목: 리액션 누른 사람
+func (a_ ChatT) ItemReactUsers() string {
+	return a_.t.render(&areaChat, "item_react_users", false, 0)
+}
+
+// ItemReport: 메시지 메뉴: 신고
+func (a_ ChatT) ItemReport() string {
+	return a_.t.render(&areaChat, "item_report", false, 0)
 }
 
 // ItemReportUser: 사용자 메뉴: 사용자 신고
@@ -1218,14 +2831,34 @@ func (a_ ChatT) ItemReportUser() string {
 	return a_.t.render(&areaChat, "item_report_user", false, 0)
 }
 
+// ItemRetract: 메시지 메뉴: 투표 취소
+func (a_ ChatT) ItemRetract() string {
+	return a_.t.render(&areaChat, "item_retract", false, 0)
+}
+
 // ItemSendDm: 사용자 메뉴: DM 보내기
 func (a_ ChatT) ItemSendDm() string {
 	return a_.t.render(&areaChat, "item_send_dm", false, 0)
 }
 
+// ItemThread: 메시지 메뉴: 스레드로 답글
+func (a_ ChatT) ItemThread() string {
+	return a_.t.render(&areaChat, "item_thread", false, 0)
+}
+
 // ItemUnfriend: 친구 메뉴: 친구 끊기
 func (a_ ChatT) ItemUnfriend() string {
 	return a_.t.render(&areaChat, "item_unfriend", false, 0)
+}
+
+// ItemUnpin: 메시지 메뉴: 고정 해제
+func (a_ ChatT) ItemUnpin() string {
+	return a_.t.render(&areaChat, "item_unpin", false, 0)
+}
+
+// ItemVote: 메시지 메뉴: 투표 선택지. option = 선택지
+func (a_ ChatT) ItemVote(option string) string {
+	return a_.t.render(&areaChat, "item_vote", false, 0, "option", option)
 }
 
 // KwDmNew: 명령 팔레트 검색어(쉼표로 나눔): 새 대화
@@ -1243,9 +2876,29 @@ func (a_ ChatT) KwFriends() string {
 	return a_.t.render(&areaChat, "kw_friends", false, 0)
 }
 
+// KwPins: 명령 팔레트 검색어: 고정 메시지
+func (a_ ChatT) KwPins() string {
+	return a_.t.render(&areaChat, "kw_pins", false, 0)
+}
+
+// KwSearch: 명령 팔레트 검색어: 메시지 검색
+func (a_ ChatT) KwSearch() string {
+	return a_.t.render(&areaChat, "kw_search", false, 0)
+}
+
+// LoadFailed: 메시지 목록을 불러오지 못함
+func (a_ ChatT) LoadFailed() string {
+	return a_.t.render(&areaChat, "load_failed", false, 0)
+}
+
 // Loading: 불러오는 중 표시
 func (a_ ChatT) Loading() string {
 	return a_.t.render(&areaChat, "loading", false, 0)
+}
+
+// Me: 내 이름 자리: 나
+func (a_ ChatT) Me() string {
+	return a_.t.render(&areaChat, "me", false, 0)
 }
 
 // MemberCount: 방 카드·방 설정: 멤버 수
@@ -1288,6 +2941,31 @@ func (a_ ChatT) MenuSpaceJoin() string {
 	return a_.t.render(&areaChat, "menu_space_join", false, 0)
 }
 
+// MetaReplies: 메시지 아래: 스레드 답글 수. n = 사람이 읽는 수
+func (a_ ChatT) MetaReplies(n string) string {
+	return a_.t.render(&areaChat, "meta_replies", false, 0, "n", n)
+}
+
+// MsgCopied: 알림: 복사함
+func (a_ ChatT) MsgCopied() string {
+	return a_.t.render(&areaChat, "msg_copied", false, 0)
+}
+
+// MsgDeleted: 삭제된 메시지 자리
+func (a_ ChatT) MsgDeleted() string {
+	return a_.t.render(&areaChat, "msg_deleted", false, 0)
+}
+
+// NewBelow: 메시지 판 아래: 안 본 새 메시지 수
+func (a_ ChatT) NewBelow(n int) string {
+	return a_.t.render(&areaChat, "new_below", false, n, "n", strconv.Itoa(n))
+}
+
+// NoDeletePerm: 삭제 권한 없음
+func (a_ ChatT) NoDeletePerm() string {
+	return a_.t.render(&areaChat, "no_delete_perm", false, 0)
+}
+
 // NoIncoming: 받은 요청 탭이 빔
 func (a_ ChatT) NoIncoming() string {
 	return a_.t.render(&areaChat, "no_incoming", false, 0)
@@ -1301,6 +2979,16 @@ func (a_ ChatT) NoOutgoing() string {
 // NoOutgoingHint: 보낸 요청 탭 빈 상태 안내
 func (a_ ChatT) NoOutgoingHint() string {
 	return a_.t.render(&areaChat, "no_outgoing_hint", false, 0)
+}
+
+// NoPinPerm: 고정 권한 없음
+func (a_ ChatT) NoPinPerm() string {
+	return a_.t.render(&areaChat, "no_pin_perm", false, 0)
+}
+
+// NotMineEdit: 남의 메시지 수정 시도
+func (a_ ChatT) NotMineEdit() string {
+	return a_.t.render(&areaChat, "not_mine_edit", false, 0)
 }
 
 // NowFriends: 알림: 친구 요청이 바로 수락됨
@@ -1378,9 +3066,74 @@ func (a_ ChatT) PickerTypeHint() string {
 	return a_.t.render(&areaChat, "picker_type_hint", false, 0)
 }
 
+// PinFailed: 오류 알림 머리: 고정 실패
+func (a_ ChatT) PinFailed() string {
+	return a_.t.render(&areaChat, "pin_failed", false, 0)
+}
+
+// Pinned: 알림: 메시지 고정함
+func (a_ ChatT) Pinned() string {
+	return a_.t.render(&areaChat, "pinned", false, 0)
+}
+
+// PinsEmpty: 고정 메시지가 없음
+func (a_ ChatT) PinsEmpty() string {
+	return a_.t.render(&areaChat, "pins_empty", false, 0)
+}
+
+// PinsFailed: 고정 메시지를 불러오지 못함
+func (a_ ChatT) PinsFailed() string {
+	return a_.t.render(&areaChat, "pins_failed", false, 0)
+}
+
+// PinsTitle: 고정 메시지 창 제목
+func (a_ ChatT) PinsTitle() string {
+	return a_.t.render(&areaChat, "pins_title", false, 0)
+}
+
+// PlaceholderChannel: 입력창 자리 표시(채널). name = '# 채널' 이름
+func (a_ ChatT) PlaceholderChannel(name string) string {
+	return a_.t.render(&areaChat, "placeholder_channel", false, 0, "name", name)
+}
+
+// PlaceholderDm: 입력창 자리 표시(DM). name = 상대 이름
+func (a_ ChatT) PlaceholderDm(name string) string {
+	return a_.t.render(&areaChat, "placeholder_dm", false, 0, "name", name)
+}
+
+// PollClosed: 마감된 투표에 투표 시도
+func (a_ ChatT) PollClosed() string {
+	return a_.t.render(&areaChat, "poll_closed", false, 0)
+}
+
+// PollClosedMark: 투표 머리 뒤: 마감됨(앞에 빈칸)
+func (a_ ChatT) PollClosedMark() string {
+	return a_.t.render(&areaChat, "poll_closed_mark", false, 0)
+}
+
+// PollHead: 투표 메시지 머리. q = 질문
+func (a_ ChatT) PollHead(q string) string {
+	return a_.t.render(&areaChat, "poll_head", false, 0, "q", q)
+}
+
+// PollMulti: 투표 아래: 복수 선택 표시(앞에 ' · ')
+func (a_ ChatT) PollMulti() string {
+	return a_.t.render(&areaChat, "poll_multi", false, 0)
+}
+
+// PollVoters: 투표 아래: 참여한 사람 수
+func (a_ ChatT) PollVoters(n int) string {
+	return a_.t.render(&areaChat, "poll_voters", false, n, "n", strconv.Itoa(n))
+}
+
 // RailHome: 레일의 홈 글자(가운데 3칸 안)
 func (a_ ChatT) RailHome() string {
 	return a_.t.render(&areaChat, "rail_home", false, 0)
+}
+
+// ReactFailed: 오류 알림 머리: 리액션 실패
+func (a_ ChatT) ReactFailed() string {
+	return a_.t.render(&areaChat, "react_failed", false, 0)
 }
 
 // ReactionUsersEmpty: 리액션 누른 사람이 없음
@@ -1398,9 +3151,34 @@ func (a_ ChatT) ReactionUsersTitle(emoji string) string {
 	return a_.t.render(&areaChat, "reaction_users_title", false, 0, "emoji", emoji)
 }
 
+// ReadOnly: 입력창 자리: 읽기 전용 대화
+func (a_ ChatT) ReadOnly() string {
+	return a_.t.render(&areaChat, "read_only", false, 0)
+}
+
+// ReadOnlyBlocked: 입력창 자리: 차단한 사용자와의 DM
+func (a_ ChatT) ReadOnlyBlocked() string {
+	return a_.t.render(&areaChat, "read_only_blocked", false, 0)
+}
+
 // Reconnecting: 첫 동기화 실패 안내: 다시 연결 중
 func (a_ ChatT) Reconnecting() string {
 	return a_.t.render(&areaChat, "reconnecting", false, 0)
+}
+
+// RepliesLabel: 스레드 머리: 답글 수. n = 사람이 읽는 수(1.2천 등)
+func (a_ ChatT) RepliesLabel(n string) string {
+	return a_.t.render(&areaChat, "replies_label", false, 0, "n", n)
+}
+
+// ReplyNoPin: 답글 고정 시도
+func (a_ ChatT) ReplyNoPin() string {
+	return a_.t.render(&areaChat, "reply_no_pin", false, 0)
+}
+
+// ReportMessageOf: 신고 창 대상: 누구의 메시지
+func (a_ ChatT) ReportMessageOf(name string) string {
+	return a_.t.render(&areaChat, "report_message_of", false, 0, "name", name)
 }
 
 // RequestSent: 알림: 친구 요청 보냄
@@ -1411,6 +3189,76 @@ func (a_ ChatT) RequestSent(name string) string {
 // RoleOwner: 멤버 줄의 역할: 방장
 func (a_ ChatT) RoleOwner() string {
 	return a_.t.render(&areaChat, "role_owner", false, 0)
+}
+
+// ScopeAll: 검색 범위: 전체
+func (a_ ChatT) ScopeAll() string {
+	return a_.t.render(&areaChat, "scope_all", false, 0)
+}
+
+// ScopeChannel: 검색 범위: 이 채널
+func (a_ ChatT) ScopeChannel() string {
+	return a_.t.render(&areaChat, "scope_channel", false, 0)
+}
+
+// ScopeSpace: 검색 범위: 이 방
+func (a_ ChatT) ScopeSpace() string {
+	return a_.t.render(&areaChat, "scope_space", false, 0)
+}
+
+// SearchEmpty: 검색 결과 없음
+func (a_ ChatT) SearchEmpty() string {
+	return a_.t.render(&areaChat, "search_empty", false, 0)
+}
+
+// SearchEmptyHint: 검색 결과 없음 안내
+func (a_ ChatT) SearchEmptyHint() string {
+	return a_.t.render(&areaChat, "search_empty_hint", false, 0)
+}
+
+// SearchIdle: 검색 전 빈 상태
+func (a_ ChatT) SearchIdle() string {
+	return a_.t.render(&areaChat, "search_idle", false, 0)
+}
+
+// SearchIdleHint: 검색 전 안내
+func (a_ ChatT) SearchIdleHint() string {
+	return a_.t.render(&areaChat, "search_idle_hint", false, 0)
+}
+
+// SearchLoading: 검색 중
+func (a_ ChatT) SearchLoading() string {
+	return a_.t.render(&areaChat, "search_loading", false, 0)
+}
+
+// SearchMoreFailed: 오류 알림 머리: 검색 결과 더 불러오기 실패
+func (a_ ChatT) SearchMoreFailed() string {
+	return a_.t.render(&areaChat, "search_more_failed", false, 0)
+}
+
+// SearchPlaceholder: 검색 칸 자리 표시
+func (a_ ChatT) SearchPlaceholder() string {
+	return a_.t.render(&areaChat, "search_placeholder", false, 0)
+}
+
+// SearchScopeTooWide: 검색 범위가 너무 넓다는 서버 응답
+func (a_ ChatT) SearchScopeTooWide() string {
+	return a_.t.render(&areaChat, "search_scope_too_wide", false, 0)
+}
+
+// SearchTitle: 검색 판 제목
+func (a_ ChatT) SearchTitle() string {
+	return a_.t.render(&areaChat, "search_title", false, 0)
+}
+
+// SendFailed: 보내지 못한 메시지 뒤(앞에 ' · ')
+func (a_ ChatT) SendFailed() string {
+	return a_.t.render(&areaChat, "send_failed", false, 0)
+}
+
+// SendFailedHint: 보내지 못한 메시지 안내(앞에 ' — ')
+func (a_ ChatT) SendFailedHint() string {
+	return a_.t.render(&areaChat, "send_failed_hint", false, 0)
 }
 
 // SideChannelsLabel: 사이드바 채널 절 머리(앞에 '─ ')
@@ -1573,6 +3421,76 @@ func (a_ ChatT) SpaceUnnamed() string {
 	return a_.t.render(&areaChat, "space_unnamed", false, 0)
 }
 
+// SysChannelCreated: 시스템 메시지: 채널 만듦. name = 채널 이름(# 없이)
+func (a_ ChatT) SysChannelCreated(name string) string {
+	return a_.t.render(&areaChat, "sys_channel_created", false, 0, "name", name)
+}
+
+// SysChannelRenamed: 시스템 메시지: 채널 이름 바뀜
+func (a_ ChatT) SysChannelRenamed(name string) string {
+	return a_.t.render(&areaChat, "sys_channel_renamed", false, 0, "name", name)
+}
+
+// SysGroupMemberRemoved: 시스템 메시지: 그룹 대화에서 빠짐
+func (a_ ChatT) SysGroupMemberRemoved(name string) string {
+	return a_.t.render(&areaChat, "sys_group_member_removed", false, 0, "name", name)
+}
+
+// SysGroupRenamed: 시스템 메시지: 그룹 대화 이름 바뀜
+func (a_ ChatT) SysGroupRenamed(name string) string {
+	return a_.t.render(&areaChat, "sys_group_renamed", false, 0, "name", name)
+}
+
+// SysMemberJoined: 시스템 메시지: 들어옴. name = 이름
+func (a_ ChatT) SysMemberJoined(name string) string {
+	return a_.t.render(&areaChat, "sys_member_joined", false, 0, "name", name)
+}
+
+// SysMemberKicked: 시스템 메시지: 내보내짐
+func (a_ ChatT) SysMemberKicked(name string) string {
+	return a_.t.render(&areaChat, "sys_member_kicked", false, 0, "name", name)
+}
+
+// SysMemberLeft: 시스템 메시지: 나감
+func (a_ ChatT) SysMemberLeft(name string) string {
+	return a_.t.render(&areaChat, "sys_member_left", false, 0, "name", name)
+}
+
+// SysMessagePinned: 시스템 메시지: 메시지 고정
+func (a_ ChatT) SysMessagePinned() string {
+	return a_.t.render(&areaChat, "sys_message_pinned", false, 0)
+}
+
+// SysTopicChanged: 시스템 메시지: 주제 바뀜
+func (a_ ChatT) SysTopicChanged(topic string) string {
+	return a_.t.render(&areaChat, "sys_topic_changed", false, 0, "topic", topic)
+}
+
+// ThreadParentEuro: 키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름
+func (a_ ChatT) ThreadParentEuro(label string) string {
+	return a_.t.render(&areaChat, "thread_parent_euro", false, 0, "label", label)
+}
+
+// ThreadParentRo: 키 도움말: 스레드에서 원래 채널로(받침 없음·ㄹ). label = 채널 이름
+func (a_ ChatT) ThreadParentRo(label string) string {
+	return a_.t.render(&areaChat, "thread_parent_ro", false, 0, "label", label)
+}
+
+// ThreadPlaceholder: 스레드 입력창 자리 표시
+func (a_ ChatT) ThreadPlaceholder() string {
+	return a_.t.render(&areaChat, "thread_placeholder", false, 0)
+}
+
+// ThreadPoll: 스레드에서 /poll
+func (a_ ChatT) ThreadPoll() string {
+	return a_.t.render(&areaChat, "thread_poll", false, 0)
+}
+
+// ThreadTitle: 스레드 판 제목
+func (a_ ChatT) ThreadTitle() string {
+	return a_.t.render(&areaChat, "thread_title", false, 0)
+}
+
 // TypingMany: 입력 중 줄: 세 명 이상
 func (a_ ChatT) TypingMany() string {
 	return a_.t.render(&areaChat, "typing_many", false, 0)
@@ -1616,4 +3534,24 @@ func (a_ ChatT) UnfriendYes() string {
 // Unfriended: 알림: 친구를 끊음
 func (a_ ChatT) Unfriended(name string) string {
 	return a_.t.render(&areaChat, "unfriended", false, 0, "name", name)
+}
+
+// UnknownUser: 이름을 모르는 사용자
+func (a_ ChatT) UnknownUser() string {
+	return a_.t.render(&areaChat, "unknown_user", false, 0)
+}
+
+// Unpinned: 알림: 고정 해제함
+func (a_ ChatT) Unpinned() string {
+	return a_.t.render(&areaChat, "unpinned", false, 0)
+}
+
+// UnreadRule: 메시지 판의 안 읽은 줄 구분선 글(양옆 빈칸은 코드가 붙임)
+func (a_ ChatT) UnreadRule() string {
+	return a_.t.render(&areaChat, "unread_rule", false, 0)
+}
+
+// VoteFailed: 오류 알림 머리: 투표 실패
+func (a_ ChatT) VoteFailed() string {
+	return a_.t.render(&areaChat, "vote_failed", false, 0)
 }

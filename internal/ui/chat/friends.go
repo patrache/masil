@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -196,7 +195,7 @@ func requestItems(ctx *ui.Context, reqs []api.FriendRequest, kind friendKind) []
 		}
 		age := ""
 		if ctx.Now != nil && !r.CreatedAt.IsZero() {
-			age = humanize.Relative(ctx.Now(), r.CreatedAt)
+			age = hz(ctx).Relative(ctx.Now(), r.CreatedAt)
 		}
 		out = append(out, friendItem{
 			ID: "req:" + r.ID, Label: strings.TrimSpace(textwidth.Sanitize(displayName(u))), Handle: textwidth.Sanitize(u.Handle),

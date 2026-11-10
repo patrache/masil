@@ -293,7 +293,7 @@ func (v *spaceSettingsView) overviewActions(ctx *ui.Context) []menuItem {
 	}
 	if role == api.RoleOwner {
 		items = append(items, menuItem{Label: itemDeleteSpace, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, widgets.Confirm(name+deleteSpaceAsk, deleteSpaceBody, deleteSpaceYes, cancelText, deleteSpaceCmd(ctx, id, true))
+			return nil, widgets.Confirm(name+deleteSpaceAsk, deleteSpaceBody, deleteSpaceYes, cat(ctx).Chat.Cancel(), deleteSpaceCmd(ctx, id, true))
 		}})
 	} else {
 		items = append(items, menuItem{Label: itemReportSpace, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
@@ -790,7 +790,7 @@ func transferLoader(_ *ui.Context, spaceID string) ui.Overlay {
 					return nil, nil
 				}
 				name := textwidth.Sanitize(displayName(picked))
-				return nil, widgets.Confirm(name+transferAskSuffix, transferBody, transferYes, cancelText, transferSpaceCmd(ctx, spaceID, picked))
+				return nil, widgets.Confirm(name+transferAskSuffix, transferBody, transferYes, cat(ctx).Chat.Cancel(), transferSpaceCmd(ctx, spaceID, picked))
 			},
 		})
 	})
@@ -849,7 +849,7 @@ func leaveSpaceConfirm(ctx *ui.Context, spaceID string, fromSettings bool) ui.Ov
 		name = textwidth.Sanitize(sd.Name)
 	}
 	// it stays open until the result lands: space.leave runs from any route
-	return confirmAndAwait(name+leaveSpaceAsk, leaveSpaceBody, leaveSpaceYes, cancelText, leavingSpaceText, tagSpaceLeave+spaceID, leaveSpaceCmd(ctx, spaceID, fromSettings))
+	return confirmAndAwait(name+leaveSpaceAsk, leaveSpaceBody, leaveSpaceYes, cat(ctx).Chat.Cancel(), leavingSpaceText, tagSpaceLeave+spaceID, leaveSpaceCmd(ctx, spaceID, fromSettings))
 }
 
 // leaveSpaceCmd leaves the space; on success it is gone and home opens.

@@ -246,7 +246,7 @@ func convBody(c *i18n.T, m api.Message) string {
 	if m.Poll != nil && strings.TrimSpace(m.Body) == "" {
 		return c.Feed.ConvPoll() + " · " + m.Poll.Question
 	}
-	return markup.Plain(m.Body, convPreviewMax)
+	return markup.Plain(m.Body, convPreviewMax, c.Common.CodeSummary)
 }
 
 // convLast is the newest known top-level message of ch after the read pointer:

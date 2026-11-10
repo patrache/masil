@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/keymap"
@@ -101,7 +100,7 @@ func (o *inviteCreated) metaLine(ctx *ui.Context) string {
 		if ctx != nil && ctx.Now != nil {
 			now = ctx.Now()
 		}
-		exp = inviteExpiryPrefix + humanize.MessageTime(now, *o.inv.ExpiresAt, locOf(ctx))
+		exp = inviteExpiryPrefix + hz(ctx).MessageTime(now, *o.inv.ExpiresAt, locOf(ctx))
 	}
 	uses := inviteUnlimited
 	if o.inv.MaxUses != nil {

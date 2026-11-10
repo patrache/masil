@@ -296,7 +296,7 @@ func itemLine(ctx *ui.Context, t *theme.Theme, a api.Alert, selected bool, w int
 	head := alertIcon(a.Kind) + " " + textwidth.Sanitize(a.Title)
 	left := textwidth.Truncate(head, leftW, "…")
 	if rest := leftW - textwidth.Width(left); rest > 2 && textwidth.Width(left) == textwidth.Width(head) {
-		if body := markup.Plain(a.Body, rest-2); body != "" {
+		if body := markup.Plain(a.Body, rest-2, cat(ctx).Common.CodeSummary); body != "" {
 			left = st(left) + t.S.Dim.Render("  "+body)
 		} else {
 			left = st(left)
@@ -347,7 +347,7 @@ func (d *focusSummary) View(ctx *ui.Context, _ bool) string {
 			if s := textwidth.Sanitize(a.Title); s != "" {
 				title = s
 			}
-			text = markup.Plain(a.Body, cw)
+			text = markup.Plain(a.Body, cw, cat(ctx).Common.CodeSummary)
 		}
 		head = append(head, t.S.Base.Bold(true).Render(title), t.S.Base.Render(text))
 		body = append(body, t.S.Dim.Render(c.Fun.SummaryLoading()))

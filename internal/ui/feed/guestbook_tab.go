@@ -432,7 +432,7 @@ func renderGuestbookEntry(ctx *ui.Context, e api.GuestbookEntry, selected bool, 
 			myHandle = me.Handle
 		}
 		doc := markup.Parse(e.Body, markup.ParseOptions{Hashtags: false})
-		for _, l := range markup.Render(doc, t, markup.RenderOptions{Width: cw, MyHandle: myHandle, MaxLines: guestbookBodyLines, Hyperlinks: true}) {
+		for _, l := range markup.Render(doc, t, markup.RenderOptions{Width: cw, MyHandle: myHandle, MaxLines: guestbookBodyLines, Hyperlinks: true, MoreTail: cat(ctx).Common.MoreTail()}) {
 			out = append(out, line(l))
 		}
 	}

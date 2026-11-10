@@ -1,6 +1,7 @@
 package markup
 
 import (
+	"cmp"
 	"strconv"
 	"strings"
 
@@ -20,12 +21,19 @@ type RenderOptions struct {
 	MyHandle    string           // highlight mentions of me
 	Mentions    []api.MentionRef // only these @handles are styled as mentions (resolved by server)
 	MentionHere bool
-	Compact     bool // single-line summary mode: code blocks => "‹코드 N줄›", newlines => " "
-	MaxLines    int  // 0 = unlimited; overflow adds "… 더 보기"
+	Compact     bool // single-line summary mode: code blocks => CodeSummary, newlines => " "
+	MaxLines    int  // 0 = unlimited; overflow ends the last line with MoreTail
 	Hyperlinks  bool // OSC 8 via lipgloss Style.Hyperlink
+	// MoreTail ends the last line when MaxLines cuts the text (the caller's
+	// language, e.g. common.more_tail); "" = a bare "…".
+	MoreTail string
+	// CodeSummary stands for a code block in Compact mode, given its line
+	// count (the caller's language, e.g. common.code_summary); nil = "‹N›".
+	CodeSummary func(lines int) string
 }
 
-const moreTail = "… 더 보기"
+// fallbackMore is MoreTail when the caller set none (markup has no wording).
+const fallbackMore = "…"
 
 // styleKind names the theme style of a cell; cells with equal styleKey render as one run.
 type styleKind int
@@ -66,12 +74,16 @@ type seg struct {
 	key  styleKey
 }
 
-func codeSummary(code string) string {
+// summarizeCode is sum (or the bare "‹N›") for a code block of code.
+func summarizeCode(code string, sum func(lines int) string) string {
 	n := 0
 	if code != "" {
 		n = strings.Count(code, "\n") + 1
 	}
-	return "‹코드 " + strconv.Itoa(n) + "줄›"
+	if sum != nil {
+		return sum(n)
+	}
+	return "‹" + strconv.Itoa(n) + "›"
 }
 
 // Render returns lines, each Width <= o.Width, sanitized.
@@ -96,7 +108,7 @@ func Render(d Doc, t *theme.Theme, o RenderOptions) []string {
 	if o.MaxLines > 0 && len(lines) > o.MaxLines {
 		lines = lines[:o.MaxLines]
 		last := trimSpaceCells(lines[len(lines)-1])
-		lines[len(lines)-1] = truncCells(last, o.Width, moreTail, styleKey{kind: kDim}, true)
+		lines[len(lines)-1] = truncCells(last, o.Width, cmp.Or(o.MoreTail, fallbackMore), styleKey{kind: kDim}, true)
 	}
 	out := make([]string, len(lines))
 	for i, l := range lines {
@@ -113,7 +125,7 @@ func compactLine(d Doc, o RenderOptions) line {
 			segs = append(segs, seg{" ", styleKey{}})
 		}
 		if b.Kind == Code {
-			segs = append(segs, seg{codeSummary(b.Code), styleKey{kind: kDim}})
+			segs = append(segs, seg{summarizeCode(b.Code, o.CodeSummary), styleKey{kind: kDim}})
 			continue
 		}
 		for _, s := range inlineSegs(b.Inline, o) {

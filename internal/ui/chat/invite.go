@@ -13,7 +13,6 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/errtext"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -591,7 +590,7 @@ func (v *inviteView) View(ctx *ui.Context, focused bool) string {
 		if ctx != nil && ctx.Now != nil {
 			now = ctx.Now()
 		}
-		until = humanize.MessageTime(now, *p.ExpiresAt, locOf(ctx)) + inviteUntilSuffix
+		until = hz(ctx).MessageTime(now, *p.ExpiresAt, locOf(ctx)) + inviteUntilSuffix
 	}
 	actions := inviteLinkActions
 	if p.AlreadyMember {
@@ -723,7 +722,7 @@ func (v *inviteView) renderRow(ctx *ui.Context, in api.DirectInvite, selected bo
 	}
 	detail := strings.TrimSpace(textwidth.Sanitize(displayName(in.Inviter)))
 	if ctx != nil && ctx.Now != nil {
-		detail += " · " + humanize.Relative(ctx.Now().In(locOf(ctx)), in.CreatedAt)
+		detail += " · " + hz(ctx).Relative(ctx.Now().In(locOf(ctx)), in.CreatedAt)
 	}
 	name = textwidth.Truncate(name, cw, "…")
 	rest := cw - textwidth.Width(name)

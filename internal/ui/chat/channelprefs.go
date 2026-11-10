@@ -217,7 +217,7 @@ func groupDMItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 	return append(items, menuItem{Label: itemLeave, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 		cur := liveChannel(ctx, id, &snap)
 		label := textwidth.Sanitize(ctx.Store.ChannelLabel(id))
-		return nil, widgets.Confirm(label+leaveAskSuffix, leaveBody, itemLeave, cancelText, leaveChannelCmd(ctx, cur))
+		return nil, widgets.Confirm(label+leaveAskSuffix, leaveBody, itemLeave, cat(ctx).Chat.Cancel(), leaveChannelCmd(ctx, cur))
 	}})
 }
 
@@ -233,7 +233,7 @@ func textChannelItems(ctx *ui.Context, ch *api.Channel) []menuItem {
 	if manage {
 		del := menuItem{Label: itemDeleteChannel, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			cur := liveChannel(ctx, id, &snap)
-			return nil, widgets.Confirm(channelTitle(ctx, cur, false)+deleteAskSuffix, deleteChanBody, deleteYes, cancelText, deleteChannelCmd(ctx, cur))
+			return nil, widgets.Confirm(channelTitle(ctx, cur, false)+deleteAskSuffix, deleteChanBody, cat(ctx).Chat.DeleteYes(), cat(ctx).Chat.Cancel(), deleteChannelCmd(ctx, cur))
 		}}
 		if sd := spaceOf(ctx, ch); sd != nil && sd.DefaultChannelID == id {
 			del.Disabled, del.Hint = true, defaultChanHint
@@ -499,7 +499,7 @@ func kickMenu(ctx *ui.Context, ch *api.Channel, users []api.UserSummary) ui.Over
 		}
 		name := textwidth.Sanitize(displayName(u))
 		items = append(items, menuItem{Label: name, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-			return nil, widgets.Confirm(name+kickAskSuffix, kickBody, kickYes, cancelText, kickMemberCmd(ctx, ch.ID, u))
+			return nil, widgets.Confirm(name+kickAskSuffix, kickBody, kickYes, cat(ctx).Chat.Cancel(), kickMemberCmd(ctx, ch.ID, u))
 		}})
 	}
 	if len(items) == 0 {

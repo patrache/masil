@@ -4,6 +4,42 @@
 desc = "오류 알림 머리: 친구 요청 수락 실패"
 other = "친구 요청을 수락하지 못했어요"
 
+[actions_title]
+desc = "메시지 동작 메뉴 제목"
+other = "메시지"
+
+[anchor_not_found]
+desc = "알림·링크로 연 답글이 없음"
+other = "답글을 찾을 수 없어요"
+
+[block_ask]
+desc = "차단 확인 질문. name = 이름"
+params = { name = "string" }
+no_truncate = true
+other = "{name}님을 차단할까요?"
+
+[block_body]
+desc = "차단 확인 설명"
+no_truncate = true
+other = "차단하면 그 사람의 메시지가 접히고 DM을 주고받을 수 없어요"
+
+[block_failed]
+desc = "오류 알림 머리: 차단 실패"
+other = "차단하지 못했어요"
+
+[block_yes]
+desc = "차단 확인 단추"
+other = "차단"
+
+[blocked_msg]
+desc = "차단한 사용자의 메시지 자리"
+other = "차단한 사용자의 메시지"
+
+[blocked_user]
+desc = "알림: 차단함. name = 이름"
+params = { name = "string" }
+other = "{name}님을 차단했어요"
+
 [cancel]
 desc = "확인 창 취소 단추"
 other = "취소"
@@ -12,9 +48,17 @@ other = "취소"
 desc = "오류 알림 머리: 친구 요청 취소 실패"
 other = "친구 요청을 취소하지 못했어요"
 
+[cant_edit]
+desc = "수정할 수 없는 메시지"
+other = "이 메시지는 수정할 수 없어요"
+
 [channel_row_new]
 desc = "사이드바 줄: 새 채널 만들기(방장·관리자)"
 other = "＋ 새 채널"
+
+[channel_title]
+desc = "채널 판 제목(채널을 모를 때)"
+other = "채널"
 
 [cmd_dm_new]
 desc = "명령 팔레트: 새 대화"
@@ -28,9 +72,35 @@ other = "친구 추가"
 desc = "명령 팔레트: 친구 목록"
 other = "친구 목록"
 
+[cmd_pins]
+desc = "명령 팔레트: 고정 메시지 보기"
+other = "고정 메시지 보기"
+
+[cmd_search]
+desc = "명령 팔레트: 메시지 검색"
+other = "메시지 검색"
+
 [decline_failed]
 desc = "오류 알림 머리: 친구 요청 거절 실패"
 other = "친구 요청을 거절하지 못했어요"
+
+[delete_body]
+desc = "메시지 삭제 확인 질문"
+no_truncate = true
+other = "이 메시지를 삭제할까요?"
+
+[delete_failed]
+desc = "오류 알림 머리: 메시지 삭제 실패"
+other = "메시지를 삭제하지 못했어요"
+
+[delete_title]
+desc = "메시지 삭제 확인 제목"
+no_truncate = true
+other = "메시지 삭제"
+
+[delete_yes]
+desc = "삭제 확인 단추"
+other = "삭제"
 
 [dm_new_submit]
 desc = "새 대화 창 확인 단추"
@@ -65,6 +135,227 @@ other = "나: {body}"
 desc = "DM 판 제목·사이드바 줄"
 max = 8
 other = "DM"
+
+[edit_failed]
+desc = "오류 알림 머리: 메시지 수정 실패"
+other = "메시지를 수정하지 못했어요"
+
+[edit_label]
+desc = "입력창 위: 메시지 수정 중"
+other = "수정 중 · esc 취소"
+
+[edited]
+desc = "메시지 뒤: 수정됨 표시"
+other = "(수정됨)"
+
+[emoji_angry]
+desc = ":emoji 완성의 이모지 이름(😡). 검색에도 씀"
+other = "화남"
+
+[emoji_beer]
+desc = ":emoji 완성의 이모지 이름(🍺). 검색에도 씀"
+other = "맥주"
+
+[emoji_bug]
+desc = ":emoji 완성의 이모지 이름(🐛). 검색에도 씀"
+other = "버그"
+
+[emoji_bulb]
+desc = ":emoji 완성의 이모지 이름(💡). 검색에도 씀"
+other = "아이디어"
+
+[emoji_cake]
+desc = ":emoji 완성의 이모지 이름(🎂). 검색에도 씀"
+other = "생일"
+
+[emoji_calendar]
+desc = ":emoji 완성의 이모지 이름(📅). 검색에도 씀"
+other = "일정"
+
+[emoji_check]
+desc = ":emoji 완성의 이모지 이름(✅). 검색에도 씀"
+other = "확인"
+
+[emoji_chicken]
+desc = ":emoji 완성의 이모지 이름(🍗). 검색에도 씀"
+other = "치킨"
+
+[emoji_clap]
+desc = ":emoji 완성의 이모지 이름(👏). 검색에도 씀"
+other = "박수"
+
+[emoji_coffee]
+desc = ":emoji 완성의 이모지 이름(☕). 검색에도 씀"
+other = "커피"
+
+[emoji_cool]
+desc = ":emoji 완성의 이모지 이름(😎). 검색에도 씀"
+other = "멋짐"
+
+[emoji_cry]
+desc = ":emoji 완성의 이모지 이름(😢). 검색에도 씀"
+other = "슬픔"
+
+[emoji_eyes]
+desc = ":emoji 완성의 이모지 이름(👀). 검색에도 씀"
+other = "눈"
+
+[emoji_fire]
+desc = ":emoji 완성의 이모지 이름(🔥). 검색에도 씀"
+other = "불"
+
+[emoji_gift]
+desc = ":emoji 완성의 이모지 이름(🎁). 검색에도 씀"
+other = "선물"
+
+[emoji_handshake]
+desc = ":emoji 완성의 이모지 이름(🤝). 검색에도 씀"
+other = "악수"
+
+[emoji_heart]
+desc = ":emoji 완성의 이모지 이름(💖). 검색에도 씀"
+other = "하트"
+
+[emoji_hourglass]
+desc = ":emoji 완성의 이모지 이름(⏳). 검색에도 씀"
+other = "기다림"
+
+[emoji_hug]
+desc = ":emoji 완성의 이모지 이름(🤗). 검색에도 씀"
+other = "포옹"
+
+[emoji_hundred]
+desc = ":emoji 완성의 이모지 이름(💯). 검색에도 씀"
+other = "백점"
+
+[emoji_joy]
+desc = ":emoji 완성의 이모지 이름(😂). 검색에도 씀"
+other = "웃음"
+
+[emoji_love]
+desc = ":emoji 완성의 이모지 이름(😍). 검색에도 씀"
+other = "반함"
+
+[emoji_memo]
+desc = ":emoji 완성의 이모지 이름(📝). 검색에도 씀"
+other = "메모"
+
+[emoji_muscle]
+desc = ":emoji 완성의 이모지 이름(💪). 검색에도 씀"
+other = "힘내"
+
+[emoji_ok]
+desc = ":emoji 완성의 이모지 이름(👌). 검색에도 씀"
+other = "오케이"
+
+[emoji_party]
+desc = ":emoji 완성의 이모지 이름(🥳). 검색에도 씀"
+other = "파티"
+
+[emoji_pin]
+desc = ":emoji 완성의 이모지 이름(📌). 검색에도 씀"
+other = "고정"
+
+[emoji_pizza]
+desc = ":emoji 완성의 이모지 이름(🍕). 검색에도 씀"
+other = "피자"
+
+[emoji_pray]
+desc = ":emoji 완성의 이모지 이름(🙏). 검색에도 씀"
+other = "부탁"
+
+[emoji_raised]
+desc = ":emoji 완성의 이모지 이름(🙌). 검색에도 씀"
+other = "만세"
+
+[emoji_rice]
+desc = ":emoji 완성의 이모지 이름(🍚). 검색에도 씀"
+other = "밥"
+
+[emoji_rocket]
+desc = ":emoji 완성의 이모지 이름(🚀). 검색에도 씀"
+other = "로켓"
+
+[emoji_siren]
+desc = ":emoji 완성의 이모지 이름(🚨). 검색에도 씀"
+other = "비상"
+
+[emoji_sleepy]
+desc = ":emoji 완성의 이모지 이름(😴). 검색에도 씀"
+other = "졸림"
+
+[emoji_smile]
+desc = ":emoji 완성의 이모지 이름(😀). 검색에도 씀"
+other = "미소"
+
+[emoji_smoking]
+desc = ":emoji 완성의 이모지 이름(🚬). 검색에도 씀"
+other = "흡연"
+
+[emoji_sob]
+desc = ":emoji 완성의 이모지 이름(😭). 검색에도 씀"
+other = "엉엉"
+
+[emoji_sparkles]
+desc = ":emoji 완성의 이모지 이름(✨). 검색에도 씀"
+other = "반짝"
+
+[emoji_speech]
+desc = ":emoji 완성의 이모지 이름(💬). 검색에도 씀"
+other = "말풍선"
+
+[emoji_star]
+desc = ":emoji 완성의 이모지 이름(⭐). 검색에도 씀"
+other = "별"
+
+[emoji_sweat]
+desc = ":emoji 완성의 이모지 이름(😅). 검색에도 씀"
+other = "머쓱"
+
+[emoji_tada]
+desc = ":emoji 완성의 이모지 이름(🎉). 검색에도 씀"
+other = "축하"
+
+[emoji_thinking]
+desc = ":emoji 완성의 이모지 이름(🤔). 검색에도 씀"
+other = "생각"
+
+[emoji_thumbsdown]
+desc = ":emoji 완성의 이모지 이름(👎). 검색에도 씀"
+other = "싫어요"
+
+[emoji_thumbsup]
+desc = ":emoji 완성의 이모지 이름(👍). 검색에도 씀"
+other = "좋아요"
+
+[emoji_wave]
+desc = ":emoji 완성의 이모지 이름(👋). 검색에도 씀"
+other = "안녕"
+
+[emoji_wink]
+desc = ":emoji 완성의 이모지 이름(😉). 검색에도 씀"
+other = "윙크"
+
+[emoji_x]
+desc = ":emoji 완성의 이모지 이름(❌). 검색에도 씀"
+other = "아니"
+
+[emoji_zap]
+desc = ":emoji 완성의 이모지 이름(⚡). 검색에도 씀"
+other = "번개"
+
+[form_off]
+desc = "폼 켬/끔 칸: 꺼짐"
+other = "[ ] 꺼짐"
+
+[form_on]
+desc = "폼 켬/끔 칸: 켜짐"
+other = "[x] 켜짐"
+
+[form_status]
+desc = "폼 아래 줄. submit = 확인 단추 글"
+params = { submit = "string" }
+other = "enter {submit} · tab 다음 칸 · esc 닫기"
 
 [friend_accepted]
 desc = "알림: 친구 요청 수락"
@@ -110,26 +401,62 @@ other = "보낸 요청 {n}"
 desc = "친구 판 제목"
 other = "친구"
 
+[gone_hint]
+desc = "채널 화면 안내: esc 로 뒤로"
+other = "esc 뒤로"
+
+[gone_title]
+desc = "채널 화면: 지워졌거나 볼 수 없는 채널"
+other = "삭제되었거나 볼 수 없는 채널이에요"
+
 [group_dm_refused]
 desc = "그룹 DM 생성·추가가 차단 관계로 거부됨"
 other = "함께 대화할 수 없는 참여자가 있어요"
 
+[help_jump]
+desc = "키 도움말: 그 메시지로 이동"
+other = "이동"
+
 [help_name_field]
 desc = "키 도움말: 이름 칸으로"
 other = "이름 칸"
+
+[help_next_field]
+desc = "키 도움말: 다음 칸"
+other = "다음 칸"
 
 [help_pick_then]
 desc = "키 도움말: 고르기, 그다음 확인 동작. submit = 확인 단추 글"
 params = { submit = "string" }
 other = "고르기·{submit}"
 
+[help_retry]
+desc = "키 도움말: 다시 시도"
+other = "다시 시도"
+
 [help_run]
 desc = "키 도움말: 메뉴 항목 실행"
 other = "실행"
 
+[help_scope]
+desc = "키 도움말: 검색 범위 바꾸기"
+other = "범위"
+
+[help_search]
+desc = "키 도움말: 검색"
+other = "검색"
+
 [help_tabs]
 desc = "키 도움말: 탭 옮기기"
 other = "탭"
+
+[help_unpin]
+desc = "키 도움말: 고정 해제"
+other = "고정 해제"
+
+[here_detail]
+desc = "@here 완성 설명"
+other = "지금 접속한 사람 모두"
 
 [home_empty_hint]
 desc = "홈 빈 상태 안내"
@@ -178,13 +505,39 @@ other = "＋ 방 만들기"
 desc = "홈 판 제목"
 other = "홈"
 
+[invite_failed]
+desc = "오류 알림 머리: 초대 실패"
+other = "초대하지 못했어요"
+
+[invite_link_failed]
+desc = "오류 알림 머리: 초대 링크 만들기 실패"
+other = "초대 링크를 만들지 못했어요"
+
+[invite_space_only]
+desc = "방 채널이 아닌 곳에서 /invite"
+other = "방 채널에서만 초대할 수 있어요"
+
 [invite_space_title]
 desc = "친구를 초대할 방 고르기 메뉴 제목"
 other = "어느 방에 초대할까요?"
 
+[invited]
+desc = "알림: 방에 초대함. who = 이름·@아이디, space = 방 이름"
+params = { who = "string", space = "string" }
+other = "{who}님을 {space}에 초대했어요"
+
 [item_accept]
 desc = "친구 요청 메뉴: 수락"
 other = "수락"
+
+[item_author]
+desc = "메시지 메뉴: 작성자 프로필. name = 이름"
+params = { name = "string" }
+other = "작성자 · {name}"
+
+[item_block_author]
+desc = "메시지 메뉴: 작성자 차단"
+other = "작성자 차단"
 
 [item_block_user]
 desc = "사용자 메뉴: 차단"
@@ -194,29 +547,78 @@ other = "차단"
 desc = "보낸 친구 요청 메뉴: 요청 취소"
 other = "요청 취소"
 
+[item_close_poll]
+desc = "메시지 메뉴: 투표 마감"
+other = "투표 마감"
+
+[item_copy]
+desc = "메뉴: 복사"
+other = "복사"
+
 [item_decline]
 desc = "친구 요청 메뉴: 거절"
 other = "거절"
+
+[item_delete]
+desc = "메시지 메뉴: 삭제"
+other = "삭제"
+
+[item_edit]
+desc = "메시지 메뉴: 수정"
+other = "수정"
 
 [item_invite_to_space]
 desc = "친구 메뉴: 방에 초대"
 other = "방에 초대"
 
+[item_pin]
+desc = "메시지 메뉴: 고정"
+other = "고정"
+
 [item_profile]
 desc = "사용자 메뉴: 프로필 보기"
 other = "프로필 보기"
+
+[item_react]
+desc = "메시지 메뉴: 리액션"
+other = "리액션"
+
+[item_react_users]
+desc = "메시지 메뉴·창 제목: 리액션 누른 사람"
+other = "리액션 누른 사람"
+
+[item_report]
+desc = "메시지 메뉴: 신고"
+other = "신고"
 
 [item_report_user]
 desc = "사용자 메뉴: 사용자 신고"
 other = "사용자 신고"
 
+[item_retract]
+desc = "메시지 메뉴: 투표 취소"
+other = "투표 취소"
+
 [item_send_dm]
 desc = "사용자 메뉴: DM 보내기"
 other = "DM 보내기"
 
+[item_thread]
+desc = "메시지 메뉴: 스레드로 답글"
+other = "스레드로 답글"
+
 [item_unfriend]
 desc = "친구 메뉴: 친구 끊기"
 other = "친구 끊기"
+
+[item_unpin]
+desc = "메시지 메뉴: 고정 해제"
+other = "고정 해제"
+
+[item_vote]
+desc = "메시지 메뉴: 투표 선택지. option = 선택지"
+params = { option = "string" }
+other = "투표: {option}"
 
 [kw_dm_new]
 desc = "명령 팔레트 검색어(쉼표로 나눔): 새 대화"
@@ -230,9 +632,25 @@ other = "친구 요청 보내기"
 desc = "명령 팔레트 검색어: 친구 목록"
 other = "친구, 친구 요청"
 
+[kw_pins]
+desc = "명령 팔레트 검색어: 고정 메시지"
+other = "고정, 고정 메시지, 핀"
+
+[kw_search]
+desc = "명령 팔레트 검색어: 메시지 검색"
+other = "검색, 메시지 찾기"
+
+[load_failed]
+desc = "메시지 목록을 불러오지 못함"
+other = "메시지를 불러오지 못했어요"
+
 [loading]
 desc = "불러오는 중 표시"
 other = "불러오는 중…"
+
+[me]
+desc = "내 이름 자리: 나"
+other = "나"
 
 [member_count]
 desc = "방 카드·방 설정: 멤버 수"
@@ -271,6 +689,29 @@ other = "방 만들기"
 desc = "방 전환·추가 메뉴: 초대 코드로 참여"
 other = "초대 코드로 참여"
 
+[meta_replies]
+desc = "메시지 아래: 스레드 답글 수. n = 사람이 읽는 수"
+params = { n = "string" }
+other = "💬 답글 {n}개"
+
+[msg_copied]
+desc = "알림: 복사함"
+other = "복사했어요"
+
+[msg_deleted]
+desc = "삭제된 메시지 자리"
+other = "삭제된 메시지"
+
+[new_below]
+desc = "메시지 판 아래: 안 본 새 메시지 수"
+params = { n = "int" }
+count = "n"
+other = "새 메시지 {n}개 ↓"
+
+[no_delete_perm]
+desc = "삭제 권한 없음"
+other = "삭제할 권한이 없어요"
+
 [no_incoming]
 desc = "받은 요청 탭이 빔"
 other = "받은 친구 요청이 없어요"
@@ -282,6 +723,14 @@ other = "보낸 친구 요청이 없어요"
 [no_outgoing_hint]
 desc = "보낸 요청 탭 빈 상태 안내"
 other = "친구 탭의 ＋ 친구 추가로 요청을 보내 보세요"
+
+[no_pin_perm]
+desc = "고정 권한 없음"
+other = "고정할 권한이 없어요"
+
+[not_mine_edit]
+desc = "남의 메시지 수정 시도"
+other = "내 메시지만 수정할 수 있어요"
 
 [now_friends]
 desc = "알림: 친구 요청이 바로 수락됨"
@@ -347,10 +796,67 @@ other = "enter {submit} · esc 닫기"
 desc = "사람 고르기: 검색어 입력 안내"
 other = "이름이나 @아이디를 입력해 보세요"
 
+[pin_failed]
+desc = "오류 알림 머리: 고정 실패"
+other = "고정을 바꾸지 못했어요"
+
+[pinned]
+desc = "알림: 메시지 고정함"
+other = "메시지를 고정했어요"
+
+[pins_empty]
+desc = "고정 메시지가 없음"
+other = "고정된 메시지가 없어요"
+
+[pins_failed]
+desc = "고정 메시지를 불러오지 못함"
+other = "고정 메시지를 불러오지 못했어요"
+
+[pins_title]
+desc = "고정 메시지 창 제목"
+other = "📌 고정 메시지"
+
+[placeholder_channel]
+desc = "입력창 자리 표시(채널). name = '# 채널' 이름"
+params = { name = "string" }
+other = "{name}에 메시지 보내기"
+
+[placeholder_dm]
+desc = "입력창 자리 표시(DM). name = 상대 이름"
+params = { name = "string" }
+other = "{name}에게 메시지 보내기"
+
+[poll_closed]
+desc = "마감된 투표에 투표 시도"
+other = "마감된 투표예요"
+
+[poll_closed_mark]
+desc = "투표 머리 뒤: 마감됨(앞에 빈칸)"
+other = "(마감)"
+
+[poll_head]
+desc = "투표 메시지 머리. q = 질문"
+params = { q = "string" }
+other = "📊 투표: {q}"
+
+[poll_multi]
+desc = "투표 아래: 복수 선택 표시(앞에 ' · ')"
+other = "복수 선택"
+
+[poll_voters]
+desc = "투표 아래: 참여한 사람 수"
+params = { n = "int" }
+count = "n"
+other = "{n}명 참여"
+
 [rail_home]
 desc = "레일의 홈 글자(가운데 3칸 안)"
 max = 3
 other = "홈"
+
+[react_failed]
+desc = "오류 알림 머리: 리액션 실패"
+other = "리액션을 바꾸지 못했어요"
 
 [reaction_users_empty]
 desc = "리액션 누른 사람이 없음"
@@ -365,9 +871,31 @@ desc = "리액션 누른 사람 창 제목. emoji = 리액션"
 params = { emoji = "string" }
 other = "{emoji} 누른 사람"
 
+[read_only]
+desc = "입력창 자리: 읽기 전용 대화"
+other = "읽기 전용 대화예요"
+
+[read_only_blocked]
+desc = "입력창 자리: 차단한 사용자와의 DM"
+other = "차단한 사용자와의 대화예요"
+
 [reconnecting]
 desc = "첫 동기화 실패 안내: 다시 연결 중"
 other = "다시 연결 중"
+
+[replies_label]
+desc = "스레드 머리: 답글 수. n = 사람이 읽는 수(1.2천 등)"
+params = { n = "string" }
+other = "답글 {n}개"
+
+[reply_no_pin]
+desc = "답글 고정 시도"
+other = "답글은 고정할 수 없어요"
+
+[report_message_of]
+desc = "신고 창 대상: 누구의 메시지"
+params = { name = "string" }
+other = "{name}의 메시지"
 
 [request_sent]
 desc = "알림: 친구 요청 보냄"
@@ -377,6 +905,62 @@ other = "{name}님에게 친구 요청을 보냈어요"
 [role_owner]
 desc = "멤버 줄의 역할: 방장"
 other = "방장"
+
+[scope_all]
+desc = "검색 범위: 전체"
+other = "전체"
+
+[scope_channel]
+desc = "검색 범위: 이 채널"
+other = "이 채널"
+
+[scope_space]
+desc = "검색 범위: 이 방"
+other = "이 방"
+
+[search_empty]
+desc = "검색 결과 없음"
+other = "검색 결과가 없어요"
+
+[search_empty_hint]
+desc = "검색 결과 없음 안내"
+other = "다른 낱말로 찾아 보세요"
+
+[search_idle]
+desc = "검색 전 빈 상태"
+other = "메시지를 검색해 보세요"
+
+[search_idle_hint]
+desc = "검색 전 안내"
+other = "검색어를 입력하고 enter"
+
+[search_loading]
+desc = "검색 중"
+other = "검색 중…"
+
+[search_more_failed]
+desc = "오류 알림 머리: 검색 결과 더 불러오기 실패"
+other = "검색 결과를 더 불러오지 못했어요"
+
+[search_placeholder]
+desc = "검색 칸 자리 표시"
+other = "메시지 검색 — 검색어를 입력하고 enter"
+
+[search_scope_too_wide]
+desc = "검색 범위가 너무 넓다는 서버 응답"
+other = "검색 범위가 너무 넓어요 — 방이나 채널을 골라 주세요"
+
+[search_title]
+desc = "검색 판 제목"
+other = "검색"
+
+[send_failed]
+desc = "보내지 못한 메시지 뒤(앞에 ' · ')"
+other = "전송 실패"
+
+[send_failed_hint]
+desc = "보내지 못한 메시지 안내(앞에 ' — ')"
+other = "enter 다시 보내기 · d 버리기"
 
 [side_channels_label]
 desc = "사이드바 채널 절 머리(앞에 '─ ')"
@@ -522,6 +1106,72 @@ other = "방 전환"
 desc = "이름이 빈 방"
 other = "방"
 
+[sys_channel_created]
+desc = "시스템 메시지: 채널 만듦. name = 채널 이름(# 없이)"
+params = { name = "string" }
+other = "#{name} 채널을 만들었어요"
+
+[sys_channel_renamed]
+desc = "시스템 메시지: 채널 이름 바뀜"
+params = { name = "string" }
+other = "채널 이름 변경: #{name}"
+
+[sys_group_member_removed]
+desc = "시스템 메시지: 그룹 대화에서 빠짐"
+params = { name = "string" }
+other = "{name}님이 빠졌어요"
+
+[sys_group_renamed]
+desc = "시스템 메시지: 그룹 대화 이름 바뀜"
+params = { name = "string" }
+other = "대화 이름 변경: {name}"
+
+[sys_member_joined]
+desc = "시스템 메시지: 들어옴. name = 이름"
+params = { name = "string" }
+other = "{name}님이 들어왔어요"
+
+[sys_member_kicked]
+desc = "시스템 메시지: 내보내짐"
+params = { name = "string" }
+other = "{name}님이 내보내졌어요"
+
+[sys_member_left]
+desc = "시스템 메시지: 나감"
+params = { name = "string" }
+other = "{name}님이 나갔어요"
+
+[sys_message_pinned]
+desc = "시스템 메시지: 메시지 고정"
+other = "메시지를 고정했어요"
+
+[sys_topic_changed]
+desc = "시스템 메시지: 주제 바뀜"
+params = { topic = "string" }
+other = "주제 변경: {topic}"
+
+[thread_parent_euro]
+desc = "키 도움말: 스레드에서 원래 채널로(받침 있음). label = 채널 이름"
+params = { label = "string" }
+other = "{label}으로"
+
+[thread_parent_ro]
+desc = "키 도움말: 스레드에서 원래 채널로(받침 없음·ㄹ). label = 채널 이름"
+params = { label = "string" }
+other = "{label}로"
+
+[thread_placeholder]
+desc = "스레드 입력창 자리 표시"
+other = "› 답글"
+
+[thread_poll]
+desc = "스레드에서 /poll"
+other = "스레드에서는 투표를 만들 수 없어요"
+
+[thread_title]
+desc = "스레드 판 제목"
+other = "스레드"
+
 [typing_many]
 desc = "입력 중 줄: 세 명 이상"
 other = "여러 명이 입력 중…"
@@ -563,3 +1213,19 @@ other = "끊기"
 desc = "알림: 친구를 끊음"
 params = { name = "string" }
 other = "{name}님과 친구를 끊었어요"
+
+[unknown_user]
+desc = "이름을 모르는 사용자"
+other = "알 수 없는 사용자"
+
+[unpinned]
+desc = "알림: 고정 해제함"
+other = "고정을 해제했어요"
+
+[unread_rule]
+desc = "메시지 판의 안 읽은 줄 구분선 글(양옆 빈칸은 코드가 붙임)"
+other = "새 메시지"
+
+[vote_failed]
+desc = "오류 알림 머리: 투표 실패"
+other = "투표하지 못했어요"

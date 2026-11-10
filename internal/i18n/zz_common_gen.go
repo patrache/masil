@@ -3,12 +3,23 @@
 
 package i18n
 
+import "strconv"
+
 // CommonT holds the "common" area messages (locales/*/common.toml).
 type CommonT struct{ t *T }
 
 var areaCommon = area{
 	name: "common",
 	keys: map[string]*entry{
+		"code_summary": {
+			desc:   "한 줄 요약에서 코드 블록 자리. n = 코드 줄 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "‹코드 {n}줄›"},
+				En: {One: "‹code: {n} line›", Other: "‹code: {n} lines›"},
+			},
+		},
 		"help_cancel": {
 			desc: "상태줄 키 안내: 창을 닫고 취소(esc)",
 			max:  10,
@@ -73,6 +84,13 @@ var areaCommon = area{
 				ZhHans: {Other: "简体中文"},
 			},
 		},
+		"more_tail": {
+			desc: "줄 수를 넘긴 본문 끝(markup MaxLines)",
+			text: map[Locale]Forms{
+				Ko: {Other: "… 더 보기"},
+				En: {Other: "… more"},
+			},
+		},
 		"palette_group_command": {
 			desc: "명령 팔레트의 묶음 머리: 명령",
 			text: map[Locale]Forms{
@@ -105,6 +123,11 @@ var areaCommon = area{
 			},
 		},
 	},
+}
+
+// CodeSummary: 한 줄 요약에서 코드 블록 자리. n = 코드 줄 수
+func (a_ CommonT) CodeSummary(n int) string {
+	return a_.t.render(&areaCommon, "code_summary", false, n, "n", strconv.Itoa(n))
 }
 
 // HelpCancel: 상태줄 키 안내: 창을 닫고 취소(esc)
@@ -145,6 +168,11 @@ func (a_ CommonT) LangNameKo() string {
 // LangNameZh: 언어 목록의 간체 중국어 이름 — 모든 언어에서 그 언어 자신의 이름
 func (a_ CommonT) LangNameZh() string {
 	return a_.t.render(&areaCommon, "lang_name_zh", false, 0)
+}
+
+// MoreTail: 줄 수를 넘긴 본문 끝(markup MaxLines)
+func (a_ CommonT) MoreTail() string {
+	return a_.t.render(&areaCommon, "more_tail", false, 0)
 }
 
 // PaletteGroupCommand: 명령 팔레트의 묶음 머리: 명령
