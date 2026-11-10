@@ -4,6 +4,9 @@ pane/main/channel
 pane/main/feed
 pane/main/home
 pane/main/notifications
+# pane/main/settings stays until P5 Task 19: only its border title "설정" (drawn
+# by the app shell) is left; the body is checked after a switch by
+# settings TestErrorsFollowLocaleSwitch and TestSettingsColumnWidthFromWidest.
 pane/main/settings
 pane/main/thread
 pane/sidebar
