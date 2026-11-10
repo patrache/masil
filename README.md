@@ -115,7 +115,7 @@ Pinning a mode: `ctrl+w` then `1` Command · `2` Standard · `3` Compact · `4` 
 | `?` (`f1`) | Help |
 | `f` | Open/close the feed |
 | `ctrl+t` | Tools hub ↔ chat — also leaves a panel (see [Tools](#tools)) |
-| `[` / `]` | Previous/next tab — Widget·Tiny `Chat → DM → Feed → Alerts`, Compact·Standard `open tabs → DM → Feed → Alerts`, Command `open tabs → DM` (on single-pane screens also `tab` / `shift+tab`) |
+| `[` / `]` | Previous/next tab — Widget·Tiny `Chat → DM → Feed → Alerts`, Compact·Standard `open tabs → DM → Feed → Alerts`, Command `open tabs → DM`; on the tool surface, the open tools (on single-pane screens also `tab` / `shift+tab`). The tab row at the top of every screen lists everything `[` `]` step through right now, in order (`[` marks the previous entry, `]` the next); click a tab to go there |
 | `t` / `enter` | Open the thread of the selected message |
 | `c` (in a thread) | Go to that thread's channel or DM, with the root message selected |
 | `y` | Copy the selected message |
