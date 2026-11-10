@@ -61,3 +61,22 @@ So the flake is not caused by this branch. The final full run was green.
 - Push the branch, then tag `v0.1.3-1` and release it.
 - After the release, check that `releases/latest` points at v0.1.3-1 and that the tap formula carries `version "0.1.3-1"`.
 - Windows CI was not run here. GOOS=windows vet passes, and the new unix-only tests are behind build tags or skips.
+
+## 리뷰 반영
+
+Four review findings. Each was checked against the code before it was changed. All four were right and are fixed.
+
+| # | Commit | Finding → what changed |
+|---|---|---|
+| R1 | de4b0818 | **Job control and an orphaned claude.** With `-i`, a `claude()` function's real claude ran in its own process group, so Close's group SIGKILL never reached it. Reproduced red first: `TestLoginShellCloseKillsFunctionChild` (termhost, real zsh and bash, HOME/ZDOTDIR rc files defining `claude() { trap '' HUP; sh -c 'echo CHILD $$; exec sleep 1000'; }`). The child outlived Close in both shells. The script now starts with `set +m`, and the test passes on both. |
+| R2 | ebabf5ec | **`\033[3J` in exec mode.** In the macOS exec fallback, `\033[3J` wiped the user's real terminal scrollback. `termhost.Request.PaneExec` is now the pane-mode argv and runs `launch.PaneShellScript` (`set +m; printf '\033[3J\033[H\033[2J'; claude "$@"`). `Exec`, used by exec and window mode, runs `launch.ExecShellScript` (`set +m; printf '\033[H\033[2J'; claude "$@"`): it clears only the visible screen and never touches scrollback. `ViaLoginShell` gained a `pane bool` parameter. `Request.command(mode)` chooses the argv. Tests: launch (no `3J` in the exec script), termhost (`TestExecModeRunsExecNotPaneExec`, popup args use Exec, pane start uses PaneExec), workspace (`TestClaudeStartsThroughLoginShell` checks both argvs). |
+| R3 | 66695545 | **The hub cursor jumped.** Reproduced red first: `TestHubZoomKeepsCursor` (ctrl+w z on the hub) and `TestHubChatHubKeepsCursor` (hub → chat → hub). In both, enter went to git's open row instead of the row the user picked. `ui.ToolSwitchedMsg.Toggled` is now set only by `Model.toggleTools`, and the hub repositions only on a Toggled message, so zoom and tools.next/prev leave its cursor alone. `NavState.toggleTools` clears `ToolLast` when the hub itself was the active entry. Because of that, `TestToggleToolsFromHubKeepsLast` (the old behaviour) became `TestToggleToolsFromHubClearsLast`. `TestToolSwitchedToggledOnlyByToggle` asserts the flag sequence. |
+| R4 | 878121af | **README wording.** README.ko.md said the hint is "늘" shown, but `toolsHint` only follows the ctrl+k hint, which only Command and Standard mode show. Both READMEs now say: Command/Standard (지휘소·표준) mode, on the chat status bar, next to `ctrl+k`. |
+
+내 판단 (R2): the exec and window script still clears the *visible* screen (`\033[H\033[2J`). Otherwise the rc output (p10k instant prompt) would stay above claude on the real terminal. Scrollback is never touched. `termpanetest` fake `cloneReq` also clones `PaneExec`.
+
+Verification after the fixes:
+- `go test ./...` (full, no -short): see the result below.
+- `GOOS=windows go vet ./...`: OK.
+- `go vet ./...`: OK.
+- Final verify (main session, workflow wzf1tbh3j): full `go test ./...` PASS; tmux QA of ctrl+t hub/leave/x-label/status hint PASS; login-shell account switch PASS (glowb → ~/.claude-work, elsewhere unset).
