@@ -39,7 +39,9 @@ type oaImporter struct {
 	env     *apitool.Env
 	folders map[string]*apitool.Folder
 	seenRef map[string]bool
-	out     int // text produced so far (MaxImportOutput)
+	colIdx  map[string]int // col.Vars index by name
+	out     int            // text produced so far (MaxImportOutput)
+	work    int            // steps taken so far (MaxImportWork)
 }
 
 // charge counts n produced bytes; over the budget reports true.
@@ -48,7 +50,13 @@ func (im *oaImporter) charge(n int) bool {
 	return im.over()
 }
 
-func (im *oaImporter) over() bool { return im.out > MaxImportOutput }
+func (im *oaImporter) over() bool { return im.out > MaxImportOutput || im.work > MaxImportWork }
+
+// step counts n steps of work; over the budget reports true.
+func (im *oaImporter) step(n int) bool {
+	im.work += n
+	return im.over()
+}
 
 // encode is encodeJSON within what is left of the output budget; past it
 // the import is over budget (run stops with ErrTooLarge) and "" is returned.
@@ -99,7 +107,7 @@ func ImportOpenAPI(data []byte) (*apitool.Collection, Report, error) {
 	if !strings.HasPrefix(ver, "3.0") && !strings.HasPrefix(ver, "3.1") {
 		return nil, Report{}, ErrNotOpenAPI
 	}
-	im := &oaImporter{root: root, folders: map[string]*apitool.Folder{}, seenRef: map[string]bool{}}
+	im := &oaImporter{root: root, folders: map[string]*apitool.Folder{}, seenRef: map[string]bool{}, colIdx: map[string]int{}}
 	return im.run()
 }
 
@@ -111,9 +119,18 @@ func (im *oaImporter) run() (*apitool.Collection, Report, error) {
 	im.col = &apitool.Collection{Version: apitool.CollectionVersion, ID: ids.New(), Name: name, Requests: map[string]*apitool.Request{}}
 	im.env = &apitool.Env{ID: ids.New(), Name: OpenAPIEnvName, Vars: []apitool.Var{{Name: "base_url", Value: im.baseURL()}}}
 
+	tooLarge := func() (*apitool.Collection, Report, error) {
+		if im.work > MaxImportWork {
+			return nil, Report{}, fmt.Errorf("%w (an import takes more than %d steps)", ErrTooLarge, MaxImportWork)
+		}
+		return nil, Report{}, fmt.Errorf("%w (an import makes more than %d bytes)", ErrTooLarge, MaxImportOutput)
+	}
 	paths := obj(im.root.get("paths"))
 	if paths != nil {
 		for _, p := range paths.keys {
+			if im.step(1) {
+				return tooLarge()
+			}
 			if !validPath(p) {
 				im.rep.Ignored = append(im.rep.Ignored, "path: "+p)
 				continue
@@ -123,6 +140,9 @@ func (im *oaImporter) run() (*apitool.Collection, Report, error) {
 				continue
 			}
 			for _, m := range item.keys {
+				if im.step(1) {
+					return tooLarge()
+				}
 				if !isMethod(m) {
 					continue
 				}
@@ -130,10 +150,13 @@ func (im *oaImporter) run() (*apitool.Collection, Report, error) {
 					im.operation(p, strings.ToUpper(m), item, op)
 				}
 				if im.over() {
-					return nil, Report{}, fmt.Errorf("%w (an import makes more than %d bytes)", ErrTooLarge, MaxImportOutput)
+					return tooLarge()
 				}
 			}
 		}
+	}
+	if im.over() {
+		return tooLarge()
 	}
 	if hooks := obj(im.root.get("webhooks")); hooks != nil {
 		for _, k := range hooks.keys {
@@ -192,6 +215,9 @@ func (im *oaImporter) resolve(v any) any {
 		if first == "" {
 			first = ref
 		}
+		if im.step(1 + len(ref)/rowCost) {
+			return nil // run stops with ErrTooLarge
+		}
 		if !strings.HasPrefix(ref, "#/") {
 			im.ignoreRef("$ref " + ref)
 			return nil
@@ -216,7 +242,9 @@ func (im *oaImporter) ignoreRef(s string) {
 // pointer walks a JSON pointer (after "#/") from the document root.
 func (im *oaImporter) pointer(p string) any {
 	var cur any = im.root
-	for _, seg := range strings.Split(p, "/") {
+	for more := true; more; {
+		var seg string
+		seg, p, more = strings.Cut(p, "/")
 		if s, err := url.PathUnescape(seg); err == nil {
 			seg = s
 		}
@@ -321,6 +349,9 @@ func (im *oaImporter) params(item, op *object) []*object {
 	for _, list := range []any{item.get("parameters"), op.get("parameters")} {
 		arr, _ := list.([]any)
 		for _, raw := range arr {
+			if im.step(1) {
+				return out // run stops with ErrTooLarge
+			}
 			p := obj(im.resolve(raw))
 			if p == nil {
 				continue
@@ -338,14 +369,13 @@ func (im *oaImporter) params(item, op *object) []*object {
 }
 
 func (im *oaImporter) colVar(name, value string) {
-	for i, v := range im.col.Vars {
-		if v.Name == name {
-			if v.Value == "" {
-				im.col.Vars[i].Value = value
-			}
-			return
+	if i, ok := im.colIdx[name]; ok {
+		if im.col.Vars[i].Value == "" {
+			im.col.Vars[i].Value = value
 		}
+		return
 	}
+	im.colIdx[name] = len(im.col.Vars)
 	im.col.Vars = append(im.col.Vars, apitool.Var{Name: name, Value: value})
 }
 
@@ -373,6 +403,9 @@ func (im *oaImporter) exampleAt(o *object, depth int) (any, bool) {
 	switch ex := o.get("examples").(type) {
 	case *object:
 		for _, k := range ex.keys {
+			if im.step(1) {
+				return nil, false // run stops with ErrTooLarge
+			}
 			if e := obj(im.resolve(ex.vals[k])); e != nil {
 				if v, ok := e.vals["value"]; ok {
 					return v, true
@@ -432,6 +465,9 @@ func (im *oaImporter) body(content *object) apitool.Body {
 	}
 	pick := func(match func(string) bool) (string, *object) {
 		for _, k := range content.keys {
+			if im.step(1) {
+				return "", nil // run stops with ErrTooLarge
+			}
 			if match(strings.ToLower(k)) {
 				return k, obj(im.resolve(content.vals[k]))
 			}
@@ -450,7 +486,7 @@ func (im *oaImporter) body(content *object) apitool.Body {
 		}
 		return b
 	}
-	if _, m := pick(func(k string) bool { return k == formContentType }); m != nil || hasKey(content, formContentType) {
+	if _, m := pick(func(k string) bool { return k == formContentType }); m != nil || (!im.step(len(content.keys)) && hasKey(content, formContentType)) {
 		return apitool.Body{Kind: apitool.BodyURLEncoded, Form: im.formFields(m, false)}
 	}
 	if _, m := pick(func(k string) bool { return strings.HasPrefix(k, "multipart/") }); m != nil {
@@ -484,6 +520,9 @@ func (im *oaImporter) formFields(media *object, multipart bool) []apitool.FormFi
 	}
 	var out []apitool.FormField
 	for _, name := range props.keys {
+		if im.step(1) {
+			break // run stops with ErrTooLarge
+		}
 		p := obj(im.resolve(props.vals[name]))
 		f := apitool.FormField{KV: apitool.KV{Key: name}}
 		format := str(p.get("format"))

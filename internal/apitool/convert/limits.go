@@ -25,6 +25,12 @@ const (
 	MaxImportOutput = MaxImportBytes
 	// rowCost is what a produced row or request counts beyond its text.
 	rowCost = 16
+	// MaxImportWork caps the steps an import takes: every key or element it
+	// visits is one, every $ref it follows one per rowCost bytes of the
+	// reference. $ref fan-out that produces nothing (a shared path item's
+	// stray keys, nameless parameters) must not run for minutes on a small
+	// file; over it the import is ErrTooLarge.
+	MaxImportWork = MaxImportBytes
 )
 
 var (
