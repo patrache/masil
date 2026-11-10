@@ -43,7 +43,7 @@ func TestPaneStartsExecArgv(t *testing.T) {
 	req := Request{
 		Program: "claude", Args: []string{"--settings", "/tmp/a b.json"}, Title: "claude",
 		Exec:     []string{"/nonexistent/exec-mode-only"},
-		PaneExec: []string{sh, "-l", "-i", "-c", `set +m; printf '\033[3J\033[H\033[2J'; claude "$@"`, "claude", "--settings", "/tmp/a b.json"},
+		PaneExec: []string{sh, "-l", "-i", "-c", launch.PaneShellScript, "claude", t.TempDir(), "--settings", "/tmp/a b.json"},
 	}
 	p, err := StartPane(req, Size{W: 60, H: 6}, PaneOptions{})
 	if err != nil {
@@ -71,11 +71,79 @@ func TestPaneStartsExecArgv(t *testing.T) {
 }
 
 func TestPopupArgsUseExec(t *testing.T) {
-	req := Request{Program: "claude", Args: []string{"-c"}, Exec: []string{"/bin/zsh", "-l", "-i", "-c", "s", "claude", "-c"},
-		PaneExec: []string{"/bin/zsh", "-l", "-i", "-c", "pane-only", "claude", "-c"}}
+	req := Request{Program: "claude", Args: []string{"-c"}, Exec: []string{"/bin/zsh", "-l", "-i", "-c", "s", "claude", "/w", "-c"},
+		PaneExec: []string{"/bin/zsh", "-l", "-i", "-c", "pane-only", "claude", "/w", "-c"}, Dir: "/w", ExecDir: "/home/me"}
 	got := strings.Join(popupArgs(req, "3.2"), " ")
-	if want := "display-popup -E -w 90% -h 90% -- /bin/zsh -l -i -c s claude -c"; got != want {
+	if want := "display-popup -E -d /home/me -w 90% -h 90% -- /bin/zsh -l -i -c s claude /w -c"; got != want {
 		t.Fatalf("popup args = %q, want %q", got, want)
+	}
+	// Without the wrap the program starts in the folder itself.
+	req = Request{Program: "nvim", Dir: "/w", ExecDir: "/home/me"}
+	if got := strings.Join(popupArgs(req, "3.2"), " "); !strings.Contains(got, "-d /w ") {
+		t.Fatalf("popup args = %q, want -d /w", got)
+	}
+}
+
+// v0.1.3-1 security review: the login shell's rc files run in $HOME (the
+// request's ExecDir), never in the workspace folder (a repo that may not be
+// trusted); the script then changes to the folder, so a claude() FUNCTION
+// that reads $PWD when called — the owner's account switch — still sees the
+// folder. Real zsh and bash, with rc files that record $PWD.
+func TestLoginShellRcRunsInHome(t *testing.T) {
+	for _, name := range []string{"zsh", "bash"} {
+		t.Run(name, func(t *testing.T) {
+			shell, err := exec.LookPath(name)
+			if err != nil {
+				t.Skip("no " + name)
+			}
+			home, _ := filepath.EvalSymlinks(t.TempDir())
+			folder, _ := filepath.EvalSymlinks(t.TempDir())
+			rc := "printf 'RC %s\\n' \"$PWD\" >> '" + filepath.Join(home, "log") + "'\n" +
+				"claude() { printf 'FN %s %s\\n' \"$PWD\" \"$*\" >> '" + filepath.Join(home, "log") + "'; }\n"
+			for _, f := range []string{".zshrc", ".bash_profile", ".bashrc"} {
+				if err := os.WriteFile(filepath.Join(home, f), []byte(rc), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, pane := range []bool{true, false} {
+				_ = os.Remove(filepath.Join(home, "log"))
+				argv := launch.ViaLoginShell([]string{"claude", "-c"}, shell, runtime.GOOS, folder, pane)
+				req := Request{Program: "claude", Args: []string{"-c"}, Title: "claude", Dir: folder, ExecDir: home,
+					Env: []string{"HOME=" + home, "ZDOTDIR=" + home}}
+				if pane {
+					req.PaneExec = argv
+				} else {
+					req.Exec = argv
+				}
+				if got := req.dir(ModePane); pane && got != home {
+					t.Fatalf("pane dir = %q, want %q", got, home)
+				}
+				if got := req.dir(ModeExec); !pane && got != home {
+					t.Fatalf("exec dir = %q, want %q", got, home)
+				}
+				if pane {
+					p, err := StartPane(req, Size{W: 80, H: 6}, PaneOptions{})
+					if err != nil {
+						t.Fatalf("StartPane: %v", err)
+					}
+					waitExited(t, p, 10*time.Second)
+				} else {
+					c := &processCommand{req: req}
+					var out strings.Builder
+					c.SetStdout(&out)
+					c.SetStderr(&out)
+					_ = c.Run()
+				}
+				b, _ := os.ReadFile(filepath.Join(home, "log"))
+				log := string(b)
+				if strings.Contains(log, "RC "+folder) || !strings.Contains(log, "RC "+home+"\n") {
+					t.Fatalf("pane=%v: rc files ran in the wrong folder:\n%s", pane, log)
+				}
+				if !strings.Contains(log, "FN "+folder+" -c\n") {
+					t.Fatalf("pane=%v: claude() did not run in the folder with its args:\n%s", pane, log)
+				}
+			}
+		})
 	}
 }
 
@@ -101,12 +169,12 @@ func TestLoginShellCloseKillsFunctionChild(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			argv := launch.ViaLoginShell([]string{"claude", "-c"}, shell, runtime.GOOS, true)
+			argv := launch.ViaLoginShell([]string{"claude", "-c"}, shell, runtime.GOOS, home, true)
 			if argv == nil {
 				t.Fatalf("ViaLoginShell(%s) = nil", shell)
 			}
 			req := Request{Program: "claude", Args: []string{"-c"}, Title: "claude", PaneExec: argv,
-				Env: []string{"HOME=" + home, "ZDOTDIR=" + home}}
+				Dir: home, ExecDir: home, Env: []string{"HOME=" + home, "ZDOTDIR=" + home}}
 			p, err := StartPane(req, Size{W: 60, H: 6}, PaneOptions{})
 			if err != nil {
 				t.Fatalf("StartPane: %v", err)
@@ -145,8 +213,8 @@ func TestExecModeRunsExecNotPaneExec(t *testing.T) {
 	sh := fakeShell(t)
 	req := Request{
 		Program: "claude", Args: []string{"-c"}, Title: "claude",
-		Exec:     launch.ViaLoginShell([]string{"claude", "-c"}, sh, "darwin", false),
-		PaneExec: launch.ViaLoginShell([]string{"claude", "-c"}, sh, "darwin", true),
+		Exec:     launch.ViaLoginShell([]string{"claude", "-c"}, sh, "darwin", "/w", false),
+		PaneExec: launch.ViaLoginShell([]string{"claude", "-c"}, sh, "darwin", "/w", true),
 	}
 	if req.Exec == nil || req.PaneExec == nil {
 		t.Fatalf("fake shell %q not wrapped", sh)

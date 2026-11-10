@@ -52,8 +52,8 @@ func TmuxVersion() string {
 // are no Args.
 func popupArgs(req Request, version string) []string {
 	args := []string{"display-popup", "-E"}
-	if req.Dir != "" {
-		args = append(args, "-d", tmuxEscape(req.Dir))
+	if dir := req.dir(ModeWindow); dir != "" {
+		args = append(args, "-d", tmuxEscape(dir))
 	}
 	args = append(args, "-w", "90%", "-h", "90%")
 	if title := textwidth.Sanitize(req.Title); title != "" && tmuxAtLeast(version, 3, 3) {

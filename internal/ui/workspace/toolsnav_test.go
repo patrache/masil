@@ -11,6 +11,7 @@ import (
 	"github.com/patrache/masil/internal/ui/app"
 	"github.com/patrache/masil/internal/ui/uitest"
 	"github.com/patrache/masil/internal/workspace/launch"
+	"github.com/patrache/masil/internal/workspace/wire"
 )
 
 // 0.1.3 patch (tools-nav fix 2): ctrl+t — also ctrl+ㅅ on a Korean layout —
@@ -50,8 +51,9 @@ func TestCtrlTLeavesWorkspaceTerminal(t *testing.T) {
 }
 
 // 0.1.3 patch (tools-nav fix 5): claude in a workspace terminal starts through
-// the login shell ($SHELL zsh/bash, not Windows) with the folder as its
-// working directory; masil's own argv — what Check, the share dialog and the
+// the login shell ($SHELL zsh/bash, not Windows); v0.1.3-1 security review:
+// the shell starts in $HOME (ExecDir) and its script changes to the folder,
+// passed as $1, so the rc files never run inside the repo; masil's own argv — what Check, the share dialog and the
 // title see — is unchanged, --settings file included. Other shells, other
 // programs: a direct exec, as before.
 func TestClaudeStartsThroughLoginShell(t *testing.T) {
@@ -71,6 +73,8 @@ func TestClaudeStartsThroughLoginShell(t *testing.T) {
 		t.Run(tc.shell+" "+strings.Join(tc.argv, " "), func(t *testing.T) {
 			fake := setup(t)
 			t.Setenv("SHELL", tc.shell)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
 			h := uitest.New(t)
 			s := openFolder(t, h, "workspace:test", copyFixture(t))
 			h.Send(launchMsgForTest(s, tc.argv))
@@ -83,18 +87,21 @@ func TestClaudeStartsThroughLoginShell(t *testing.T) {
 				t.Fatalf("request = %+v, want %s in %s", req, tc.argv[0], s.dir)
 			}
 			if !tc.wrap {
-				if req.Exec != nil || req.PaneExec != nil {
+				if req.Exec != nil || req.PaneExec != nil || req.ExecDir != "" {
 					t.Fatalf("exec = %q, pane exec %q, want a direct exec", req.Exec, req.PaneExec)
 				}
 				return
 			}
 			// Review fix: only the pane argv wipes scrollback (\033[3J); exec
 			// mode (the macOS fallback) writes to the user's real terminal.
-			want := append([]string{tc.shell, "-l", "-i", "-c", launch.PaneShellScript, "claude"}, req.Args...)
+			if req.ExecDir != home {
+				t.Fatalf("the login shell starts in %q, want $HOME %q", req.ExecDir, home)
+			}
+			want := append([]string{tc.shell, "-l", "-i", "-c", launch.PaneShellScript, "claude", s.dir}, req.Args...)
 			if !slices.Equal(req.PaneExec, want) {
 				t.Fatalf("pane exec = %q, want %q", req.PaneExec, want)
 			}
-			want = append([]string{tc.shell, "-l", "-i", "-c", launch.ExecShellScript, "claude"}, req.Args...)
+			want = append([]string{tc.shell, "-l", "-i", "-c", launch.ExecShellScript, "claude", s.dir}, req.Args...)
 			if !slices.Equal(req.Exec, want) || strings.Contains(strings.Join(req.Exec, " "), "3J") {
 				t.Fatalf("exec = %q, want %q (no scrollback erase)", req.Exec, want)
 			}
@@ -106,5 +113,30 @@ func TestClaudeStartsThroughLoginShell(t *testing.T) {
 				t.Fatalf("the share check sees %q", term.Argv())
 			}
 		})
+	}
+}
+
+// v0.1.3-1 security review: only the folder's owner starts programs (the
+// login-shell claude among them). A share guest's surface has no launcher:
+// its keys and a launch request reaching it start nothing.
+func TestGuestNeverLaunches(t *testing.T) {
+	fake := setup(t)
+	t.Setenv("SHELL", "/bin/zsh")
+	h := uitest.New(t)
+	r := newGuestRig(t, h, nil)
+	r.admit(wire.LevelEditor)
+	before := len(fake.Started())
+	for _, keys := range [][]string{{"n"}, {"ctrl+\\", "n"}, {"ctrl+\\", "e"}, {"ctrl+\\", "3"}, {"n"}} {
+		h.Press(keys...)
+		r.settle()
+		h.Press("esc")
+	}
+	h.Send(launchMsgForTest(r.s, []string{"claude"}))
+	r.settle()
+	if got := fake.Started(); len(got) != before {
+		t.Fatalf("a guest started %+v", got[before:])
+	}
+	if r.s.dlg != nil && strings.Contains(r.h.Screen(), h.Context().T.Workspace.NewtermTitle()) {
+		t.Fatalf("a guest got the new-terminal list:\n%s", h.Screen())
 	}
 }

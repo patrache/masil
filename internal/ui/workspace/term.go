@@ -94,9 +94,12 @@ func (s *Surface) termMode() termhost.Mode {
 	return termhost.ModeExec
 }
 
-// launchTerm starts argv in the folder.
+// launchTerm starts argv in the folder. Only the folder's owner starts
+// programs: a share guest's surface (no folder of its own) never does,
+// whatever reaches it (v0.1.3-1 security review; no wire frame asks the
+// owner to start one either).
 func (s *Surface) launchTerm(ctx *ui.Context, argv []string, mode termhost.Mode) tea.Cmd {
-	if len(argv) == 0 || argv[0] == "" {
+	if len(argv) == 0 || argv[0] == "" || s.guest != nil || s.root == nil {
 		return nil
 	}
 	s.term.next++
@@ -121,8 +124,16 @@ func (s *Surface) launchTerm(ctx *ui.Context, argv []string, mode termhost.Mode)
 	// aliases and PATH apply (0.1.3 patch: a claude() function picking the
 	// account by folder). req keeps masil's own argv for every check. Only
 	// the pane argv wipes scrollback: in exec mode it is the user's terminal.
-	req.Exec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS, false)
-	req.PaneExec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS, true)
+	// The shell starts in $HOME and changes to the folder itself, so the rc
+	// files never run inside a repo that may not be trusted (v0.1.3-1
+	// security review); without a home folder claude starts directly.
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		req.Exec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS, s.dir, false)
+		req.PaneExec = launch.ViaLoginShell(out, loginShell(), runtime.GOOS, s.dir, true)
+		if req.Exec != nil {
+			req.ExecDir = home
+		}
+	}
 	opts := termpane.Options{ToolID: ui.ToolWorkspace, InstanceID: id, OnPrefix: s.prefixKey}
 	l, cmd, err := termpane.Launch(ctx, req, opts)
 	if err != nil {
