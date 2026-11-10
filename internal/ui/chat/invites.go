@@ -141,7 +141,11 @@ func inviteExpiryDate(ctx *ui.Context, at time.Time) string {
 	}
 	loc := locOf(ctx)
 	t, n := at.In(loc), now.In(loc)
-	d := hz(ctx).MonthDay(t, loc)
+	// The time catalog's month_day with its month_short_N word: the same text
+	// as humanize's this-year date, built here so P5 batch 2 does not widen
+	// humanize's API (P0-owned, open to P5 Task 5 only).
+	month, _ := c.Lookup("time", "month_short_"+strconv.Itoa(int(t.Month())), nil)
+	d := c.Time.MonthDay(month, strconv.Itoa(t.Day()))
 	if t.Year() != n.Year() {
 		d = c.Chat.DateWithYear(strconv.Itoa(t.Year()), d)
 	}

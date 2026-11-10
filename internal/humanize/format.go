@@ -170,9 +170,6 @@ func (f Formatter) DayDivider(t time.Time, loc *time.Location) string {
 		strconv.Itoa(t.Day()), f.word("weekday_", int(t.Weekday())))
 }
 
-// MonthDay is the date without the year in loc ("11월 12일", "Nov 12").
-func (f Formatter) MonthDay(t time.Time, loc *time.Location) string { return f.monthDay(in(t, loc)) }
-
 func (f Formatter) monthDay(t time.Time) string {
 	return f.cat().Time.MonthDay(f.word("month_short_", int(t.Month())), strconv.Itoa(t.Day()))
 }

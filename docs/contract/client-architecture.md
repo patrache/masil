@@ -2660,6 +2660,7 @@ func Chosung(s string) string                        // "개발" => "ㄱㅂ" (Ko
 const (GroupNav = "nav"; GroupCommand = "command"; GroupSettings = "settings")
 ```
 - 검색 후보 = `Label(ctx.T)` + `Label(i18n.For(i18n.En))` + `Keywords`(Label 이 없으면 기존 `Title`) — 한국어 화면에서도 영어 이름으로 찾는다(i18n 설계서 6.4.4). 기존 `Group: "명령"` 같은 호출부는 상수로 바꾼다(문구는 그대로).
+- **P5 2묶음 추가**(Task 11~16 — chat·feed·fun 의 한국어 검색어를 Go 소스에서 카탈로그로 옮기려고): `Command.KeywordsIn func(t *i18n.T) []string`(선택 — 검색할 때 화면 언어 `ctx.T` 로 불러 후보에 더함, nil 이면 없음), `func Words(s string) []string`(카탈로그의 쉼표 목록 `"친구, 친구 요청"` 을 나눔, 빈 낱말 버림). `Keywords` 는 언어와 무관한(ASCII) 낱말만. 검색 후보 = 위 + `KeywordsIn(ctx.T)`. 다른 언어의 검색어는 찾지 않는다.
 - 도구 팔레트 항목(`ui/tools`): `palette.Source` 가 아니라 도구 ID 마다 명령 하나 `tools.open.<id>`(다섯 개, `Group: GroupNav`) — 팔레트는 고른 명령 항목을 등록된 id 로 `ui.RunCommand` 하므로 항목이 등록된 명령이어야 한다. 제목 `Label` = `<아이콘> <spec.Name(ctx.T)>`(그릴 때마다), `Keywords` = `tools`·도구 ID, `Available` = `ui.ToolByID(id)` 가 ok(등록됨·플래그 켜짐), 실행 = `spec.Open(ctx, termhost.ModeAuto)`.
 
 | 등록 패키지 | 명령 id |
