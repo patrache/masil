@@ -4,40 +4,50 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
 
-// A path key that does not start with "/" (or carries '@' or '\') would
-// change the host after {{base_url}}: it is skipped and reported.
+// A path key that does not start with a single "/" (or carries '\') would
+// change the host after {{base_url}}: it is skipped and reported. A '@'
+// after the leading "/" sits in the path (the authority already ended), so
+// keys like Discord's /users/@me import.
 func TestOpenAPIPathKeyMustBeAPath(t *testing.T) {
 	doc := `{"openapi":"3.0.3","servers":[{"url":"https://api.example.com"}],"paths":{
 		"@evil.com/x":{"get":{"summary":"at"}},
 		"evil.com/y":{"get":{"summary":"rel"}},
-		"/a@evil.com":{"get":{"summary":"at2"}},
+		"//evil.com/z":{"get":{"summary":"netpath"}},
 		"/a\\b":{"get":{"summary":"bs"}},
+		"/users/@me":{"get":{"summary":"me"}},
+		"/a@evil.com":{"get":{"summary":"at2"}},
 		"/ok/{id}":{"get":{"summary":"ok"}}}}`
 	col, rep, err := ImportOpenAPI([]byte(doc))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(col.Requests) != 1 {
-		var urls []string
-		for _, r := range col.Requests {
-			urls = append(urls, r.URL)
-		}
-		t.Fatalf("requests = %v, want only /ok/{id}", urls)
-	}
+	var urls []string
 	for _, r := range col.Requests {
-		if r.URL != "{{base_url}}/ok/{{id}}" {
-			t.Errorf("url = %q", r.URL)
-		}
+		urls = append(urls, r.URL)
 	}
-	for _, k := range []string{"@evil.com/x", "evil.com/y", "/a@evil.com", `/a\b`} {
+	slices.Sort(urls)
+	want := []string{"{{base_url}}/a@evil.com", "{{base_url}}/ok/{{id}}", "{{base_url}}/users/@me"}
+	if !slices.Equal(urls, want) {
+		t.Fatalf("urls = %v, want %v", urls, want)
+	}
+	for _, k := range []string{"@evil.com/x", "evil.com/y", "//evil.com/z", `/a\b`} {
 		if !hasPrefix(rep.Ignored, "path: "+k) {
 			t.Errorf("Ignored %v lacks %q", rep.Ignored, k)
+		}
+	}
+	// the host stays the base URL's once the request is built
+	for _, u := range urls {
+		full := strings.Replace(u, "{{base_url}}", "https://api.example.com", 1)
+		if pu, err := url.Parse(strings.ReplaceAll(full, "{{id}}", "1")); err != nil || pu.Host != "api.example.com" {
+			t.Errorf("%q: host %v (%v)", full, pu, err)
 		}
 	}
 }

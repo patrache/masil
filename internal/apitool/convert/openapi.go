@@ -70,9 +70,11 @@ func (im *oaImporter) encode(v any, indent bool) string {
 }
 
 // validPath: a path key appended to {{base_url}} must stay a path ("@x" or
-// "x.com/…" would change the host, '\\' is read as '/' by some clients).
+// "x.com/…" would change the host, "//x" is a host to a scheme-only base,
+// '\\' is read as '/' by some clients). After a single leading "/" the
+// authority has ended, so a '@' there is only path (/users/@me).
 func validPath(p string) bool {
-	return strings.HasPrefix(p, "/") && !strings.ContainsAny(p, "@\\")
+	return strings.HasPrefix(p, "/") && !strings.HasPrefix(p, "//") && !strings.Contains(p, "\\")
 }
 
 // ImportOpenAPI reads an OpenAPI 3.0/3.1 JSON document (C3.9): every path

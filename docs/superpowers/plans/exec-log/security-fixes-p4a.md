@@ -12,6 +12,8 @@ Branch `fix/v013-sec-p4a` (from dev/v0.1.3). Findings: the commit security revie
 | k | already fixed in fdb4cacf (postman.go formdata: FileName = base name, File never set, Dropped "file: <key> (<src>)") | pinned with the l commit | TestImportPostmanFileSrcNotKept |
 | l | fixed | fix(apitool/convert): Postman export writes the form file name… | TestExportPostmanNoLocalPath |
 | m | fixed | fix(apitool/convert): Postman collection variables with a credential-like name… | TestImportPostmanSensitiveCollectionVarIsSecret |
+| j (2차) | fixed | fix(apitool/convert): bound OpenAPI $ref fan-out work, not only output (851b66ae) | TestOpenAPIRefFanOutWorkBudget, TestOpenAPILongRefWorkBudget, TestOpenAPIManyPathParamsLinear, TestOpenAPIRealisticReuseImports |
+| i (2차) | fixed | fix(apitool/convert): OpenAPI path keys may carry '@' after the leading "/" | TestOpenAPIPathKeyMustBeAPath (갱신) |
 | ad | fixed | fix(server/collab): apicol validator refuses Object.prototype field and settings names | test/unit/collab-proto-keys.test.ts |
 
 ## 내 판단
@@ -41,6 +43,19 @@ Branch `fix/v013-sec-p4a` (from dev/v0.1.3). Findings: the commit security revie
     자라는 버퍼(encodeCapped)로 쓰고 넘으면 그 자리에서 멈춰 ErrTooLarge. 들여쓰기 배치는 json.Indent 와 같다.
     입력 해독(decodeJSON) 비용은 입력 크기에 비례하는 기존 비용이라 손대지 않았다(1MB 입력 해독에 약 100MB 할당 —
     별건으로 볼 만함).
+- **j 2차(리뷰 후속)** 글자 예산만으로는 $ref 로 재사용되는 경로 항목의 메서드 아닌 키, 이름 없는·객체 아닌 매개변수,
+  value 없는 examples 처럼 **결과를 만들지 않는 반복**이 공짜라 작은 파일로 수 분~수십 분 걸렸다. 작업 예산
+  `MaxImportWork`(= MaxImportBytes, 10M 걸음)을 더했다: 방문한 키·원소마다 1, 따라간 $ref 마다 1 + 참조 길이/16.
+  넘으면 같은 ErrTooLarge(기존 "너무 큼" 문구). 기준: 경로 1000개 × 메서드 4 × 공유 매개변수 30 + 폼 필드 30 인
+  정상 명세(결과 약 5MB)가 약 0.98M 걸음을 써서 예산의 1/10 이고, 결과 예산(10MB)을 다 채우는 정상 명세도 약 2M
+  걸음이라 작업 예산이 먼저 막히지 않는다. 최악(이름 없는 매개변수 팬아웃)은 이 기계에서 약 2.3초에 끝난다.
+  JSON 포인터는 참조 전체를 미리 쪼개지 않고 한 구획씩 걷는다. colVar 는 이름 색인 맵으로 바꿨다(경로 매개변수
+  80k 개 단일 연산 15.3s → 0.23s). 화면 쪽 취소(prompts.go 가져오기)는 손대지 않았다 — 시간이 유한해졌으므로.
+- **i 2차(리뷰 후속)** `@` 전면 거절을 풀었다: 키가 "/" 하나로 시작하면 권한부(authority)는 {{base_url}} 에서 이미
+  끝나므로 뒤의 `@` 는 경로일 뿐이다(Discord `/users/@me`, `/applications/@me` 가 다시 요청이 된다). 대신 `//` 로
+  시작하는 키를 거절에 더했다 — base_url 이 `https:` 처럼 스킴만 있으면 `//evil.com` 이 호스트가 되기 때문.
+  `\` 거절은 유지. 기존 테스트의 `/a@evil.com` 은 이제 받아들이는 쪽으로 옮겼다(호스트는 base_url 그대로임을
+  테스트가 url.Parse 로 확인).
 - **m** 컬렉션 변수도 환경처럼 `type: "secret"` 또는 이름이 자격 증명처럼 보이면(SensitiveHeader: token, secret, key,
   auth, session, password …) 비밀로 가져오고 값은 버리며 Dropped `variable value: <name>` 로 알린다(환경 가져오기와
   달리 금고에 넣을 값을 돌려주지 않는다 — 기존 컬렉션 비밀 처리와 같게). 기존 테스트
