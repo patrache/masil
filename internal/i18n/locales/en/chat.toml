@@ -1,0 +1,82 @@
+# Chat area: channels, DMs, threads, the composer and slash commands.
+
+[slash_err_dice]
+other = "Write dice like 2d6 (1–20 dice, 2–1000 sides, modifier ±1000)"
+
+[slash_err_focus_range]
+other = "Focus time must be 1 minute to 12 hours"
+
+[slash_err_invite_expiry]
+other = "Invite link expiry must be 5 minutes to 30 days"
+
+[slash_err_invite_handle]
+other = "Usernames are 3–20 lowercase letters, digits or _"
+
+[slash_err_invite_uses]
+other = "Invite uses must be 1 to 1000"
+
+[slash_err_poll_duration]
+other = "Poll duration must be 1 minute to 7 days"
+
+[slash_err_poll_empty]
+other = "The question and options can't be empty"
+
+[slash_err_poll_few]
+other = "Add at least 2 options"
+
+[slash_err_poll_many]
+other = "Up to 10 options"
+
+[slash_err_unclosed_quote]
+other = "A quote isn't closed"
+
+[slash_focus_desc]
+other = "Turn focus mode on or off"
+
+[slash_focus_usage]
+other = "/focus [25m|off]"
+
+[slash_invite_desc]
+other = "Invite to the space"
+
+[slash_invite_usage]
+other = "/invite @username | link [7d] [uses]"
+
+[slash_me_desc]
+other = "Send an action in the third person"
+
+[slash_me_usage]
+other = "/me <action>"
+
+[slash_poll_desc]
+other = "Create a poll"
+
+[slash_poll_usage]
+other = "/poll \"question\" \"option\"… [--multi] [--for 1h]"
+
+[slash_roll_desc]
+other = "Roll dice"
+
+[slash_roll_usage]
+other = "/roll 2d6"
+
+[slash_shrug_desc]
+other = "Add {face}"
+
+[slash_shrug_usage]
+other = "/shrug [text]"
+
+[slash_status_desc]
+other = "Change your status message"
+
+[slash_status_usage]
+other = "/status [emoji] <text>"
+
+[slash_unknown]
+other = "Unknown command: /{name}"
+
+[slash_usage]
+other = "Usage: {usage}"
+
+[slash_usage_check]
+other = "Check the command usage"

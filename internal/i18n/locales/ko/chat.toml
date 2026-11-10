@@ -1,0 +1,125 @@
+# Chat area: channels, DMs, threads, the composer and slash commands.
+
+[slash_err_dice]
+desc = "입력창 오류: /roll 형식. 2d6·±1000 은 그대로"
+no_truncate = true
+other = "주사위는 2d6 처럼 적어 주세요 (1~20개, 2~1000면, 보정 ±1000)"
+
+[slash_err_focus_range]
+desc = "입력창 오류: /focus 시간 범위"
+no_truncate = true
+other = "집중 시간은 1분~12시간이에요"
+
+[slash_err_invite_expiry]
+desc = "입력창 오류: /invite link 의 만료 범위"
+no_truncate = true
+other = "초대 링크 만료는 5분~30일이에요"
+
+[slash_err_invite_handle]
+desc = "입력창 오류: /invite @아이디 의 형식(handle 규칙)"
+no_truncate = true
+other = "아이디는 영문 소문자·숫자·_ 3~20자예요"
+
+[slash_err_invite_uses]
+desc = "입력창 오류: /invite link 의 사용 횟수 범위"
+no_truncate = true
+other = "초대 횟수는 1~1000번이에요"
+
+[slash_err_poll_duration]
+desc = "입력창 오류: /poll --for 기간 범위"
+no_truncate = true
+other = "투표 기간은 1분~7일이에요"
+
+[slash_err_poll_empty]
+desc = "입력창 오류: /poll 의 빈 질문·선택지"
+no_truncate = true
+other = "질문과 선택지는 비울 수 없어요"
+
+[slash_err_poll_few]
+desc = "입력창 오류: /poll 선택지가 2개보다 적음"
+no_truncate = true
+other = "선택지를 2개 이상 적어 주세요"
+
+[slash_err_poll_many]
+desc = "입력창 오류: /poll 선택지가 10개보다 많음"
+no_truncate = true
+other = "선택지는 10개까지예요"
+
+[slash_err_unclosed_quote]
+desc = "입력창 오류: /poll 의 따옴표가 닫히지 않음"
+no_truncate = true
+other = "따옴표가 닫히지 않았어요"
+
+[slash_focus_desc]
+desc = "슬래시 명령 /focus 의 설명(입력창 완성 목록·도움말)."
+other = "집중 모드를 켜거나 꺼요"
+
+[slash_focus_usage]
+desc = "슬래시 명령 /focus 의 사용법 줄. 명령 이름(/focus)·옵션(--multi 등)·예(25m, 2d6, 7d, link, off)는 번역하지 않음, <…>·[…] 안의 자리 이름만 번역"
+other = "/focus [25m|off]"
+
+[slash_invite_desc]
+desc = "슬래시 명령 /invite 의 설명(입력창 완성 목록·도움말)."
+other = "방에 초대해요"
+
+[slash_invite_usage]
+desc = "슬래시 명령 /invite 의 사용법 줄. 명령 이름(/invite)·옵션(--multi 등)·예(25m, 2d6, 7d, link, off)는 번역하지 않음, <…>·[…] 안의 자리 이름만 번역"
+other = "/invite @아이디 | link [7d] [횟수]"
+
+[slash_me_desc]
+desc = "슬래시 명령 /me 의 설명(입력창 완성 목록·도움말)."
+other = "행동을 3인칭으로 보내요"
+
+[slash_me_usage]
+desc = "슬래시 명령 /me 의 사용법 줄. 명령 이름(/me)·옵션(--multi 등)·예(25m, 2d6, 7d, link, off)는 번역하지 않음, <…>·[…] 안의 자리 이름만 번역"
+other = "/me <행동>"
+
+[slash_poll_desc]
+desc = "슬래시 명령 /poll 의 설명(입력창 완성 목록·도움말)."
+other = "투표를 만들어요"
+
+[slash_poll_usage]
+desc = "슬래시 명령 /poll 의 사용법 줄. 명령 이름(/poll)·옵션(--multi 등)·예(25m, 2d6, 7d, link, off)는 번역하지 않음, <…>·[…] 안의 자리 이름만 번역"
+other = "/poll \"질문\" \"선택지\"… [--multi] [--for 1h]"
+
+[slash_roll_desc]
+desc = "슬래시 명령 /roll 의 설명(입력창 완성 목록·도움말)."
+other = "주사위를 굴려요"
+
+[slash_roll_usage]
+desc = "슬래시 명령 /roll 의 사용법 줄. 명령 이름(/roll)·옵션(--multi 등)·예(25m, 2d6, 7d, link, off)는 번역하지 않음, <…>·[…] 안의 자리 이름만 번역"
+other = "/roll 2d6"
+
+[slash_shrug_desc]
+desc = "슬래시 명령 /shrug 의 설명(입력창 완성 목록·도움말). face = ¯\\_(ツ)_/¯ (그대로 둠)"
+params = { face = "string" }
+other = "{face} 를 붙여요"
+
+[slash_shrug_usage]
+desc = "슬래시 명령 /shrug 의 사용법 줄. 명령 이름(/shrug)·옵션(--multi 등)·예(25m, 2d6, 7d, link, off)는 번역하지 않음, <…>·[…] 안의 자리 이름만 번역"
+other = "/shrug [글]"
+
+[slash_status_desc]
+desc = "슬래시 명령 /status 의 설명(입력창 완성 목록·도움말)."
+other = "상태 메시지를 바꿔요"
+
+[slash_status_usage]
+desc = "슬래시 명령 /status 의 사용법 줄. 명령 이름(/status)·옵션(--multi 등)·예(25m, 2d6, 7d, link, off)는 번역하지 않음, <…>·[…] 안의 자리 이름만 번역"
+other = "/status [이모지] <글>"
+
+[slash_unknown]
+desc = "입력창 오류: 없는 슬래시 명령. name = 사용자가 친 명령 이름(번역하지 않음, / 없이)"
+params = { name = "string" }
+no_truncate = true
+other = "알 수 없는 명령이에요: /{name}"
+
+[slash_usage]
+desc = "입력창 오류: 명령 형식이 틀림. usage = 그 명령의 사용법 줄(slash_*_usage)"
+params = { usage = "string" }
+no_truncate = true
+other = "사용법: {usage}"
+
+[slash_usage_check]
+desc = "입력창 오류: 명령 형식이 틀림(사용법 줄이 없는 명령)"
+no_truncate = true
+other = "사용법을 확인해 주세요"

@@ -150,8 +150,17 @@ func TestSlashCatalogLocale(t *testing.T) {
 	if cat[0] != want[0] {
 		t.Fatalf("Catalog(ko)[0] = %+v, want %+v", cat[0], want[0])
 	}
-	if !reflect.DeepEqual(cat, catalog) {
-		t.Fatalf("Catalog(ko) must equal the 0.1.2 table:\n%+v\n%+v", cat, catalog)
+	old := []Spec{
+		{Me, "/me <행동>", "행동을 3인칭으로 보내요"},
+		{Shrug, "/shrug [글]", shrugFace + " 를 붙여요"},
+		{Poll, `/poll "질문" "선택지"… [--multi] [--for 1h]`, "투표를 만들어요"},
+		{Status, "/status [이모지] <글>", "상태 메시지를 바꿔요"},
+		{Focus, "/focus [25m|off]", "집중 모드를 켜거나 꺼요"},
+		{Roll, "/roll 2d6", "주사위를 굴려요"},
+		{Invite, "/invite @아이디 | link [7d] [횟수]", "방에 초대해요"},
+	}
+	if !reflect.DeepEqual(cat, old) {
+		t.Fatalf("Catalog(ko) must equal the 0.1.2 table:\n%+v\n%+v", cat, old)
 	}
 	if got := Catalog(nil); !reflect.DeepEqual(got, cat) {
 		t.Fatalf("Catalog(nil) = %+v, want the ko table", got)
