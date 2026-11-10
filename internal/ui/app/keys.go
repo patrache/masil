@@ -74,6 +74,12 @@ func completing(c ui.Component) bool {
 	return ok && capturing(c) && cp.Completing()
 }
 
+// codeCompleting reports whether c is a code editor taking ctrl+n / ctrl+p.
+func codeCompleting(c ui.Component) bool {
+	cc, ok := c.(ui.CodeCompleter)
+	return ok && capturing(c) && cc.CompletionKeys()
+}
+
 // handleKey gives msg to c's HandleKey (not a KeyHandler => not handled).
 func (m *Model) handleKey(c ui.Component, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if kh, ok := c.(ui.KeyHandler); ok {
@@ -127,6 +133,13 @@ func (m *Model) routeKey(msg tea.KeyPressMsg) tea.Cmd {
 func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 	keys := m.ctx.Keys
 	comp := m.focusedComponent()
+
+	// 2.4 a code editor's completion keys (v0.1.3-1), before ctrl+n's notifications
+	if s := msg.String(); (s == "ctrl+n" || s == "ctrl+p") && codeCompleting(comp) {
+		if handled, cmd := m.handleKey(comp, msg); handled {
+			return cmd
+		}
+	}
 
 	// 3. hard globals
 	switch {

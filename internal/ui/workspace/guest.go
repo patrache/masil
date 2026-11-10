@@ -531,6 +531,7 @@ func (s *Surface) guestDocState(ctx *ui.Context, m wire.DocState) tea.Cmd {
 	}
 	d := &openDoc{rel: m.Doc, readOnly: m.ReadOnly, reason: m.Reason}
 	d.ed = editor.New(ctx.Theme, text, m.ReadOnly || g.level < wire.LevelEditor)
+	s.code.setupAssist(ctx, d)
 	s.code.docs = append(s.code.docs, d)
 	s.code.cur = len(s.code.docs) - 1
 	s.code.msg = ""
@@ -554,6 +555,7 @@ func (s *Surface) guestCodeKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.
 	if d == nil {
 		return false, nil
 	}
+	s.code.applyAssist(ctx, d)
 	handled, cmd := d.ed.HandleKey(msg)
 	s.guestFlushOps(d)
 	if !handled {
@@ -981,13 +983,7 @@ func (s *Surface) guestPaste(ctx *ui.Context, text string) {
 		if d == nil || d.ed.ReadOnly() || d.ed.Mode() != "insert" {
 			return
 		}
-		for _, r := range textwidth.SanitizeInput(text) {
-			if r == '\n' {
-				d.ed.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-			} else {
-				d.ed.HandleKey(tea.KeyPressMsg{Code: r, Text: string(r)})
-			}
-		}
+		d.ed.Paste(textwidth.SanitizeInput(text))
 		s.guestFlushOps(d)
 	}
 }

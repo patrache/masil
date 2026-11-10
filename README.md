@@ -111,7 +111,7 @@ Pinning a mode: `ctrl+w` then `1` Command · `2` Standard · `3` Compact · `4` 
 |---|---|
 | `ctrl+k` | Command palette — go to a space, channel, DM or person |
 | `ctrl+f` | Search everything |
-| `ctrl+n` | Notifications |
+| `ctrl+n` | Notifications (in a built-in code editor's insert mode: completion, see [Tools](#tools)) |
 | `?` (`f1`) | Help |
 | `f` | Open/close the feed |
 | `ctrl+t` | Tools hub ↔ chat — also leaves a panel (see [Tools](#tools)) |
@@ -146,6 +146,7 @@ masil 0.1.3 adds five tools next to chat. `ctrl+t` always opens the tools hub �
 - Programs a tool runs (lazygit, nvim, workspace terminals) open in a panel inside masil, take over the whole terminal until they exit, or open in a tmux popup. The tool picks one; `m` in the hub lets you choose. Windows has no panels (the program takes over the terminal instead). At most 4 panels run at once, across all tools.
 - In a panel every key goes to the program, except `ctrl+t`: it leaves the panel and goes back to chat — the program keeps running, and the hub's `enter` takes you back into it (so the program itself never gets `ctrl+t`). `ctrl+\` is the prefix key: `ctrl+\` then `esc` back to masil, `z` zoom, `x` end the program, `?` help. On a Korean keyboard layout both keys work as typed (`ctrl+ㅅ`, `ctrl+₩`).
 - `claude` in a workspace terminal starts through your login shell (`$SHELL -l -i`, zsh or bash, macOS/Linux), so a `claude` shell function or alias in your `~/.zshrc` / `~/.bashrc` — for example one that picks the account by folder — applies.
+- The built-in code editors (Daily LC's built-in editor, the workspace code view) color code in your theme and suggest words as you type — keywords, builtins and words already in your open files, no LSP: in insert mode the menu opens after 2 letters or with `ctrl+n` / `ctrl+space`, `↑`/`↓` or `ctrl+n`/`ctrl+p` pick, `tab`/`enter` insert, `esc` closes it (a second `esc` leaves insert mode); turn either off in Settings → Display.
 - Tool logins and secrets (your LeetCode login, API keys) stay on this PC — in the macOS Keychain, Windows Credential Manager or Linux Secret Service — and are never sent to the masil server. Settings (`ctrl+k` → Settings) → **Tool logins** lists them and forgets them.
 - lazygit — https://github.com/jesseduffield/lazygit (MIT, install it yourself)
 - To run masil without any tool, set `MASIL_FEATURES=none`.

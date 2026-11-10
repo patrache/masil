@@ -35,8 +35,8 @@ func TestSettingsColumnWidthFromWidest(t *testing.T) {
 		short, widest  string
 		on, off, clock string
 	}{
-		{i18n.Ko, "마우스", "배경색 칠하기", "켜짐", "꺼짐", "시계"},
-		{i18n.En, "Mouse", "Paint background", "On", "Off", "Clock"},
+		{i18n.Ko, "마우스", "코드 하이라이트", "켜짐", "꺼짐", "시계"},
+		{i18n.En, "Mouse", "Code highlighting", "On", "Off", "Clock"},
 	} {
 		h, _ := newSettings(t, "display", uitest.WithLocale(tc.loc))
 		want := textwidth.Width(tc.widest) + 1

@@ -206,6 +206,9 @@ func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			if p, err := leetcode.SolutionPath(solutionDir(ctx), in.date, in.q.FrontendID, in.q.Slug, currentLang(ctx)); err != nil || p != in.ed.Path() {
 				return in.dropEditor()
 			}
+			if g, ok := in.ed.(*goEditor); ok { // the same file (python3 / python): its keywords
+				g.setLang(currentLang(ctx).Slug)
+			}
 		}
 		return nil
 	case ui.ResultMsg[*api.LeetMe]:
@@ -335,6 +338,20 @@ func (in *instance) Resize(ctx *ui.Context, size ui.Size) {
 func (in *instance) GrabsKeys() bool {
 	p, ok := in.ed.(*paneEditor)
 	return ok && in.edFocus && p.GrabsKeys()
+}
+
+// Completing implements ui.Completer: tab accepts the built-in editor's
+// open completion menu instead of moving the focus.
+func (in *instance) Completing() bool {
+	g, ok := in.ed.(*goEditor)
+	return ok && in.edFocus && g.m.CompletionMenuVisible()
+}
+
+// CompletionKeys implements ui.CodeCompleter: ctrl+n / ctrl+p are the
+// built-in editor's while it types with completion on.
+func (in *instance) CompletionKeys() bool {
+	g, ok := in.ed.(*goEditor)
+	return ok && in.edFocus && g.completionKeys()
 }
 
 // CapturesInput: the editor has the printable keys.

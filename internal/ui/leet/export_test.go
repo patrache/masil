@@ -124,3 +124,20 @@ func TakeEnvCookiesForTest(tb interface{ Cleanup(func()) }) {
 		envCookieMu.Unlock()
 	})
 }
+
+// EditorViewForTest is the built-in editor's own styled view (ok=false: no
+// built-in editor is open).
+func EditorViewForTest(ctx *ui.Context, c ui.Component) (string, bool) {
+	g, ok := c.(*instance).ed.(*goEditor)
+	if !ok {
+		return "", false
+	}
+	return g.View(ctx, true), true
+}
+
+// CompletionMenuForTest reports whether the built-in editor's completion
+// menu is up.
+func CompletionMenuForTest(c ui.Component) bool {
+	g, ok := c.(*instance).ed.(*goEditor)
+	return ok && g.m.CompletionMenuVisible()
+}

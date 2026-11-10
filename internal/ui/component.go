@@ -71,6 +71,12 @@ type Persistent interface {
 // CapturesInput() && Completing() gets the key through HandleKey first.
 type Completer interface{ Completing() bool }
 
+// CodeCompleter is a code editor that is in insert mode with its completion
+// on (v0.1.3-1): vim's completion keys ctrl+n and ctrl+p reach its
+// HandleKey before the hard globals (ctrl+n is otherwise the
+// notifications); a key it leaves unhandled goes on as before.
+type CodeCompleter interface{ CompletionKeys() bool }
+
 // Point is a cell coordinate.
 type Point struct{ X, Y int }
 

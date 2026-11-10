@@ -122,7 +122,8 @@ func TestDefaults(t *testing.T) {
 	if c.Layout != wantLayout {
 		t.Fatalf("layout = %+v, want %+v", c.Layout, wantLayout)
 	}
-	wantUI := config.UIConfig{Mouse: true, Images: "auto", Animations: true, PaintBackground: true, Clock: "24h", Language: "auto"}
+	wantUI := config.UIConfig{Mouse: true, Images: "auto", Animations: true, PaintBackground: true, Clock: "24h", Language: "auto",
+		CodeHighlight: true, CodeComplete: true}
 	if c.UI != wantUI {
 		t.Fatalf("ui = %+v, want %+v", c.UI, wantUI)
 	}
@@ -523,5 +524,21 @@ func TestUILanguageValidated(t *testing.T) {
 		if err != nil || c.UI.Language != v {
 			t.Fatalf("language %q: got %q, err %v", v, c.UI.Language, err)
 		}
+	}
+}
+
+// The code editors' switches (v0.1.3-1): on unless the file turns them off;
+// an old file without them keeps them on.
+func TestCodeEditorSwitches(t *testing.T) {
+	p := testPaths(t)
+	writeConfig(t, p, "[ui]\nmouse=false\n", 0o600)
+	c, err := config.Load(p)
+	if err != nil || !c.UI.CodeHighlight || !c.UI.CodeComplete {
+		t.Fatalf("old file: %+v, %v", c.UI, err)
+	}
+	writeConfig(t, p, "[ui]\ncode_highlight=false\ncode_complete=false\n", 0o600)
+	c, err = config.Load(p)
+	if err != nil || c.UI.CodeHighlight || c.UI.CodeComplete {
+		t.Fatalf("turned off: %+v, %v", c.UI, err)
 	}
 }

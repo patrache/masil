@@ -369,6 +369,22 @@ var areaSettings = area{
 				En: {Other: "Clock"},
 			},
 		},
+		"row_code_complete": {
+			desc: "설정 줄 이름(줄 이름 열 너비 = 그 절에서 가장 넓은 이름). 내장 코드 편집기의 자동추천 메뉴 켜기/끄기",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "코드 자동추천"},
+				En: {Other: "Code completion"},
+			},
+		},
+		"row_code_highlight": {
+			desc: "설정 줄 이름(줄 이름 열 너비 = 그 절에서 가장 넓은 이름). 내장 코드 편집기의 문법 색 켜기/끄기",
+			max:  24,
+			text: map[Locale]Forms{
+				Ko: {Other: "코드 하이라이트"},
+				En: {Other: "Code highlighting"},
+			},
+		},
 		"row_desktop": {
 			desc: "설정 줄 이름(줄 이름 열 너비 = 그 절에서 가장 넓은 이름)",
 			max:  24,
@@ -976,6 +992,16 @@ func (a_ SettingsT) RowAnimations() string {
 // RowClock: 설정 줄 이름(줄 이름 열 너비 = 그 절에서 가장 넓은 이름)
 func (a_ SettingsT) RowClock() string {
 	return a_.t.render(&areaSettings, "row_clock", false, 0)
+}
+
+// RowCodeComplete: 설정 줄 이름(줄 이름 열 너비 = 그 절에서 가장 넓은 이름). 내장 코드 편집기의 자동추천 메뉴 켜기/끄기
+func (a_ SettingsT) RowCodeComplete() string {
+	return a_.t.render(&areaSettings, "row_code_complete", false, 0)
+}
+
+// RowCodeHighlight: 설정 줄 이름(줄 이름 열 너비 = 그 절에서 가장 넓은 이름). 내장 코드 편집기의 문법 색 켜기/끄기
+func (a_ SettingsT) RowCodeHighlight() string {
+	return a_.t.render(&areaSettings, "row_code_highlight", false, 0)
 }
 
 // RowDesktop: 설정 줄 이름(줄 이름 열 너비 = 그 절에서 가장 넓은 이름)

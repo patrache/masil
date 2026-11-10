@@ -6,10 +6,14 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/ionut-t/goeditor/core"
 
+	"github.com/patrache/masil/internal/codeassist"
 	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/third_party/goeditor"
 	"github.com/patrache/masil/internal/ui"
 )
@@ -30,24 +34,165 @@ type goEditor struct {
 
 	// leave is set when a key asks to leave the editor (esc in normal mode, :q).
 	leave bool
+
+	// v0.1.3-1: syntax colors and completion (the settings' switches).
+	lang   string // codeassist language
+	th     *theme.Theme
+	styles map[chroma.TokenType]lipgloss.Style
+	hlOn   bool
+	cpOn   bool
+	forced bool // ctrl+n / ctrl+space: the menu from the first char
+	words  codeassist.Index
 }
 
 var _ codeEditor = (*goEditor)(nil)
 
 // newGoEditor opens path (it must exist) in a goeditor buffer, colored for
 // a dark or light background as masil's theme is (goeditor would ask the
-// terminal itself, racing Bubble Tea for its input: third_party/goeditor).
-func newGoEditor(path string, dark bool) (codeEditor, error) {
+// terminal itself, racing Bubble Tea for its input: third_party/goeditor),
+// its syntax in th's colors for lang (a LeetCode slug).
+func newGoEditor(path string, th *theme.Theme, lang string) (codeEditor, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	m := goeditor.New(80, 20, goeditor.WithDarkBackground(dark))
+	m := goeditor.New(80, 20, goeditor.WithDarkBackground(th.Dark))
 	m.SetContent(string(b))
 	m.Focus()
-	e := &goEditor{m: m, path: path}
+	m.WithCompletionAutoTrigger(false) // masil asks and answers (refreshCompletion)
+	m.SetCompletionMenuMaxVisibleItems(codeassist.MaxVisible)
+	e := &goEditor{m: m, path: path, lang: codeassist.FromLeet(lang), th: th, cpOn: true}
+	e.m.SetSyntaxStyle(e.tokenStyle)
+	e.setHighlight(true)
 	e.drain()
 	return e, nil
+}
+
+// tokenStyle is a token's color in masil's theme (cached).
+func (e *goEditor) tokenStyle(tt chroma.TokenType) lipgloss.Style {
+	if e.styles == nil {
+		e.styles = map[chroma.TokenType]lipgloss.Style{}
+	}
+	st, ok := e.styles[tt]
+	if !ok {
+		st = e.th.EditorTokenStyle(tt)
+		e.styles[tt] = st
+	}
+	return st
+}
+
+func (e *goEditor) setHighlight(on bool) {
+	e.hlOn = on
+	if on {
+		e.m.SetLanguage(codeassist.ChromaName(e.lang), "")
+	} else {
+		e.m.SetLanguage("", "")
+	}
+}
+
+// setLang follows a language change that kept the file (python3 / python).
+func (e *goEditor) setLang(slug string) {
+	if l := codeassist.FromLeet(slug); l != e.lang {
+		e.lang = l
+		e.setHighlight(e.hlOn)
+	}
+}
+
+// applyAssist follows the settings' switches and the theme.
+func (e *goEditor) applyAssist(ctx *ui.Context) {
+	if th := themeOf(ctx); th != e.th {
+		e.th, e.styles = th, nil
+		e.m.SetSyntaxStyle(e.tokenStyle)
+	}
+	hl, cp := true, true
+	if ctx != nil && ctx.Config != nil {
+		hl, cp = ctx.Config.UI.CodeHighlight, ctx.Config.UI.CodeComplete
+	}
+	if hl != e.hlOn {
+		e.setHighlight(hl)
+	}
+	if e.cpOn = cp; !cp {
+		e.closeCompletion()
+	}
+}
+
+// completionKeys: ctrl+n / ctrl+p are mine now (insert mode, completion on).
+func (e *goEditor) completionKeys() bool { return e.cpOn && e.m.IsInsertMode() }
+
+// refreshCompletion asks for the menu of the word being typed and answers
+// at once (goeditor's own request goes out on a timer masil never runs).
+func (e *goEditor) refreshCompletion() {
+	if !e.cpOn || !e.m.IsInsertMode() {
+		e.closeCompletion()
+		return
+	}
+	b := e.m.GetEditor().GetBuffer()
+	pos := b.GetCursor().Position
+	line := b.GetLineRunes(pos.Row)
+	prefix := codeassist.Prefix(line, pos.Col)
+	if !e.forced && len([]rune(prefix)) < codeassist.MinPrefix {
+		e.closeCompletion()
+		return
+	}
+	e.words.Update(b.GetLines())
+	items := codeassist.Complete(e.lang, prefix, codeassist.WordAt(line, pos.Col), e.words.Counts())
+	if len(items) == 0 {
+		e.closeCompletion()
+		return
+	}
+	cs := make([]core.Completion, len(items))
+	for i, it := range items {
+		cs[i] = core.Completion{Text: it, Label: textwidth.Sanitize(it)}
+	}
+	e.answer(cs)
+}
+
+// answer opens the menu with cs (none: closes it).
+func (e *goEditor) answer(cs []core.Completion) {
+	e.feed(tea.KeyPressMsg{Code: tea.KeySpace, Mod: tea.ModCtrl}) // the request: its context
+	var req *core.CompletionContext
+	for _, s := range e.drain() {
+		if r, ok := s.(core.CompletionRequestSignal); ok {
+			c := r.Context()
+			req = &c
+		}
+	}
+	if req != nil {
+		e.feed(goeditor.CompletionResponseMsg{Completions: cs, Context: *req})
+	}
+}
+
+func (e *goEditor) closeCompletion() {
+	e.forced = false
+	if e.m.CompletionMenuVisible() && e.m.IsInsertMode() {
+		e.answer(nil)
+	}
+}
+
+// menuKeys are what goeditor's open menu takes.
+var menuKeys = map[string]bool{"up": true, "down": true, "ctrl+n": true, "ctrl+p": true,
+	"tab": true, "enter": true, "esc": true, "ctrl+y": true, "ctrl+e": true}
+
+// afterTyping updates the menu after a key in insert mode: a word rune
+// refills (or opens) it, a deletion refills an open one, anything else
+// closes it.
+func (e *goEditor) afterTyping(msg tea.KeyPressMsg) {
+	switch {
+	case msg.Text != "":
+		for _, r := range msg.Text {
+			if !codeassist.IsWordRune(r) {
+				e.closeCompletion()
+				return
+			}
+		}
+		e.refreshCompletion()
+	case msg.Code == tea.KeyBackspace || msg.Code == tea.KeyDelete:
+		if e.m.CompletionMenuVisible() {
+			e.refreshCompletion()
+		}
+	default:
+		e.closeCompletion()
+	}
 }
 
 func (e *goEditor) Path() string { return e.path }
@@ -117,8 +262,27 @@ func (e *goEditor) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		}
 		return true, emit(submitRequestedMsg{id: e.id})
 	}
+	e.applyAssist(ctx)
+	open := e.m.CompletionMenuVisible()
+	if e.m.IsInsertMode() && !open && (k == "ctrl+n" || k == "ctrl+space" || k == "ctrl+@") {
+		if e.cpOn {
+			e.forced = true
+			e.refreshCompletion()
+		}
+		return true, nil
+	}
 	e.feed(msg)
 	cmd := e.afterKey(ctx)
+	switch {
+	case !e.m.IsInsertMode():
+		e.forced = false
+	case open && menuKeys[k]:
+		if !e.m.CompletionMenuVisible() {
+			e.forced = false // accepted or closed
+		}
+	default:
+		e.afterTyping(msg)
+	}
 	return true, cmd
 }
 
@@ -177,6 +341,7 @@ func (e *goEditor) drain() []core.Signal {
 }
 
 func (e *goEditor) View(ctx *ui.Context, _ bool) string {
+	e.applyAssist(ctx)
 	w, h := e.size.W, e.size.H
 	if w <= 0 || h <= 0 {
 		return ""
