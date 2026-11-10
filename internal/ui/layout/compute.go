@@ -12,7 +12,7 @@ const (
 	SlotThread        SlotID = "thread"        // 지휘소 오른쪽 위 / 표준 아래 분할
 	SlotMembers       SlotID = "members"       // 지휘소 오른쪽 위(스레드 닫힘일 때) (chat)
 	SlotNotifications SlotID = "notifications" // 지휘소 오른쪽 아래 (sns-fun)
-	SlotTabs          SlotID = "tabs"          // 컴팩트·위젯·초소형 상단 탭 (core)
+	SlotTabs          SlotID = "tabs"          // 상단 탭: [ / ] 가 오가는 곳 전부 (core; TooSmall 외 모든 모드)
 	SlotContext       SlotID = "context"       // 위젯 탭 아래 "#개발 · 노바 개발방 ▾" (core, 내용은 경로 제목)
 	SlotStatus        SlotID = "status"        // 하단 상태줄 (core)
 	SlotTool          SlotID = "tool"          // 지휘소 도구 표면: 피드 열 + 오른쪽 열 자리 (A8.3)
@@ -92,6 +92,8 @@ func Compute(mode Mode, cols, rows int, st State) Layout {
 	b := h - 1 // body height; the last row is the status line in every mode
 	switch l.Mode {
 	case ModeCommand:
+		add(SlotTabs, 0, 0, w, 1, false) // the [ / ] walk (0.1.3 patch)
+		y, b := 1, b-1
 		rail := min(6, w)
 		side := min(clamp(w*13/100, 24, 34), w-rail)
 		right := min(clamp(w*17/100, 32, 48), w-rail-side)
@@ -99,43 +101,45 @@ func Compute(mode Mode, cols, rows int, st State) Layout {
 		chat := rest * 7 / 12
 		feed := rest - chat
 		x := 0
-		add(SlotRail, x, 0, rail, b, true)
+		add(SlotRail, x, y, rail, b, true)
 		x += rail
-		add(SlotSidebar, x, 0, side, b, true)
+		add(SlotSidebar, x, y, side, b, true)
 		x += side
 		if st.Zoomed {
-			add(SlotTool, x, 0, chat+feed+right, b, true)
+			add(SlotTool, x, y, chat+feed+right, b, true)
 			break
 		}
-		add(SlotMain, x, 0, chat, b, true)
+		add(SlotMain, x, y, chat, b, true)
 		if st.ToolOpen {
 			x += chat
-			add(SlotTool, x, 0, feed+right, b, true)
+			add(SlotTool, x, y, feed+right, b, true)
 			break
 		}
 		x += chat
-		add(SlotFeed, x, 0, feed, b, true)
+		add(SlotFeed, x, y, feed, b, true)
 		x += feed
 		top := b * 55 / 100
 		upper := SlotMembers
 		if st.ThreadOpen {
 			upper = SlotThread
 		}
-		add(upper, x, 0, right, top, true)
-		add(SlotNotifications, x, top, right, b-top, true)
+		add(upper, x, y, right, top, true)
+		add(SlotNotifications, x, y+top, right, b-top, true)
 	case ModeStandard:
+		add(SlotTabs, 0, 0, w, 1, false)
+		y, b := 1, b-1
 		side := min(clamp(w*22/100, 24, 32), w)
 		if st.Zoomed {
 			side = 0
 		}
 		main := w - side
-		add(SlotSidebar, 0, 0, side, b, true)
+		add(SlotSidebar, 0, y, side, b, true)
 		top := max(10, b*60/100)
 		if st.ThreadOpen && !st.FeedSwapped && b-top >= 6 {
-			add(SlotMain, side, 0, main, top, true)
-			add(SlotThread, side, top, main, b-top, true)
+			add(SlotMain, side, y, main, top, true)
+			add(SlotThread, side, y+top, main, b-top, true)
 		} else {
-			add(SlotMain, side, 0, main, b, true)
+			add(SlotMain, side, y, main, b, true)
 		}
 	case ModeCompact:
 		add(SlotTabs, 0, 0, w, 1, false)

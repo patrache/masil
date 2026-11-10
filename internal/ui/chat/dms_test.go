@@ -76,7 +76,7 @@ func TestDMTabBar(t *testing.T) {
 			bar := tabBarLine(h)
 			mustContainInOrder(t, bar, c.want...)
 			// DM badge = 민지 2 + group 4 (blocked 준호's 5 never counts)
-			if !regexp.MustCompile(`DM\s+6\b`).MatchString(bar) {
+			if !regexp.MustCompile(`DM\]?\s+6\b`).MatchString(bar) {
 				t.Fatalf("DM badge 6 missing: %q", bar)
 			}
 			if c.mode != layout.ModeCompact && !regexp.MustCompile(c.want[0]+`\s+3\b`).MatchString(bar) {

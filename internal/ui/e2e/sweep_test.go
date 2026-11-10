@@ -77,7 +77,7 @@ func TestHostileScreens(t *testing.T) {
 		route ui.Route
 		want  string // shown at 120x40: the hostile data really is on screen
 	}{
-		{"channel", hostileRoute, "공백없는긴단어"},
+		{"channel", hostileRoute, strings.Repeat("x", 60)}, // the long message's tail (its head scrolls above the top tab bar row)
 		{"thread", ui.Route{Kind: ui.RouteThread, ID: hostileThreadRoot(t), Arg: fixtures.ChHostile}, "리액션 폭탄"},
 		{"post", ui.Route{Kind: ui.RoutePost, ID: fixtures.HostileTimeline()[0].Post.ID}, "오백 자짜리 글"},
 		{"profile", ui.Route{Kind: ui.RouteProfile, ID: "@" + hostileHandle}, "팔로워 1.2억"},

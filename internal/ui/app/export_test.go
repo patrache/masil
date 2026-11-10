@@ -82,3 +82,15 @@ func OptionsFromEnvForTest(o Options) Options { return optionsFromEnv(o) }
 
 // PaneListForTest is the quit question's program list.
 func PaneListForTest(m *Model, names []string) string { return paneList(m, names) }
+
+// TabBarForTest is the top tab bar's labels (the [ / ] walk) and current entry.
+func TabBarForTest(m *Model) (labels []string, active int) {
+	items, active := m.walkItems()
+	for _, it := range items {
+		labels = append(labels, it.Label)
+	}
+	return labels, active
+}
+
+// TabHitForTest maps a column of the last drawn tab bar to its entry.
+func TabHitForTest(m *Model, x int) (int, bool) { return m.tabs.Hit(x) }

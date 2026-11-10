@@ -23,15 +23,13 @@ import (
 // and the feed stack (one key, one place). It is in front when Front ==
 // FrontTools. Every entry point (ctrl+t, tools.* commands, the tab) exists only
 // while a tool feature flag is on (features.Any): with no tool open the shell
-// is the 0.1.2 shell byte for byte.
+// is the 0.1.2 shell, but for the top tab bar of the [ / ] walk (walk.go,
+// 0.1.3 patch), which every mode now has.
 
 // maxTools is the tool-surface limit, the hub included (A8.4). One place is
 // always kept for the hub: at most maxTools-1 instances, so the hub (where
 // the limit toast sends the user to close one) can always be opened.
 const maxTools = 6
-
-// widgetTools is the widget/tiny tab index of the tool tab (after 채팅/DM/피드/알림).
-const widgetTools = 4
 
 // hubRoute is the single hub route (key "tools//").
 var hubRoute = ui.Route{Kind: ui.RouteTools}
@@ -202,14 +200,20 @@ func (n NavState) toggleTools(mode layout.Mode) (NavState, FocusIntent) {
 	return c.openTool(hubRoute, mode)
 }
 
-// cycleTool shows the next (delta +1) or previous open tool, wrapping.
+// cycleTool shows the next (delta +1) or previous open tool, wrapping: one step
+// along walkTools (walk.go).
 func (n NavState) cycleTool(delta int, mode layout.Mode) (NavState, FocusIntent) {
 	c := n.clone()
 	if len(c.Tools) == 0 {
 		return c, FocusIntent{}
 	}
-	size := len(c.Tools)
-	c.ToolActive = ((c.ToolActive+delta)%size + size) % size
+	return c.showToolAt(wrapWalk(c.ToolActive, delta, len(c.Tools)), mode)
+}
+
+// showToolAt shows the open tool i (in range) on the tool surface.
+func (n NavState) showToolAt(i int, mode layout.Mode) (NavState, FocusIntent) {
+	c := n.clone()
+	c.ToolActive = i
 	c.Front = FrontTools
 	r, _ := c.activeTool()
 	return c, FocusIntent{Slot: toolSlotFor(mode), RouteKey: r.Key()}

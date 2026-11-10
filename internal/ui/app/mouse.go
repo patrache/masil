@@ -149,8 +149,5 @@ func (m *Model) clickTab(x int) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	m.nav = m.nav.selectTab(i, m.lay.Mode)
-	cmd := m.relayout()
-	m.followMain()
-	return cmd
+	return m.walkGo(m.walkScope(), i, true)
 }

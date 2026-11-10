@@ -109,8 +109,8 @@ func TestPaneSizesAndResize(t *testing.T) {
 		t.Fatalf("Instance(%q) = %T, want *stub.Chat", key, h.Instance(key))
 	}
 	last := func() ui.Size { return ch.Resizes[len(ch.Resizes)-1] }
-	if got := last(); got != (ui.Size{W: 76, H: 57}) {
-		t.Fatalf("200x60 main inner = %+v, want {76 57}", got)
+	if got := last(); got != (ui.Size{W: 76, H: 56}) { // row 0 is the tab bar
+		t.Fatalf("200x60 main inner = %+v, want {76 56}", got)
 	}
 	n := len(ch.Resizes)
 	h.Resize(200, 60) // same size: no Resize call
@@ -119,8 +119,8 @@ func TestPaneSizesAndResize(t *testing.T) {
 	}
 	serial := ch.Serial
 	h.Resize(120, 40)
-	if got := last(); got != (ui.Size{W: 92, H: 37}) {
-		t.Fatalf("120x40 main inner = %+v, want {92 37}", got)
+	if got := last(); got != (ui.Size{W: 92, H: 36}) {
+		t.Fatalf("120x40 main inner = %+v, want {92 36}", got)
 	}
 	if ch2 := h.Instance(key).(*stub.Chat); ch2 != ch || ch2.Serial != serial {
 		t.Fatalf("instance changed across resize: serial %d -> %d", serial, ch2.Serial)

@@ -190,14 +190,10 @@ func (m *Model) globalKeys(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Batch(cmd, m.openHelp())
 	case keys.Matches(msg, keymap.FeedToggle):
 		return tea.Batch(cmd, m.applyToggle(m.nav.toggleFeed(m.lay.Mode)))
-	case keys.Matches(msg, keymap.TabPrev) && m.onToolSurface():
-		return tea.Batch(cmd, m.applyTools(m.nav.cycleTool(-1, m.lay.Mode)))
-	case keys.Matches(msg, keymap.TabNext) && m.onToolSurface():
-		return tea.Batch(cmd, m.applyTools(m.nav.cycleTool(+1, m.lay.Mode)))
-	case keys.Matches(msg, keymap.TabPrev):
-		return tea.Batch(cmd, m.switchTab(-1))
+	case keys.Matches(msg, keymap.TabPrev): // the walk of the top tab bar (walk.go)
+		return tea.Batch(cmd, m.walkStep(-1))
 	case keys.Matches(msg, keymap.TabNext):
-		return tea.Batch(cmd, m.switchTab(+1))
+		return tea.Batch(cmd, m.walkStep(+1))
 	case keys.Matches(msg, keymap.NavBack):
 		return tea.Batch(cmd, m.goBack())
 	case keys.Matches(msg, keymap.NavHistoryBack):

@@ -10,46 +10,27 @@ import (
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
-// tabItems returns the SlotTabs entries for the current mode and the active index
-// (CA 5.4 "탭"):
-//   - compact: every NavState tab root (home "홈", channel label + its My badge), then
-//     the fixed DM (Store.DMUnread), 피드 and 알림 (Store.InboxBadge: notifications +
-//     unread conversations);
-//   - widget: 채팅 (Store.ChannelUnread, Mention when any) / DM / 피드 / 알림;
-//   - tiny: the same four as 챗 / DM / 피 / 알.
-//
-// The active entry is Tabs[Active] (FrontTab), DM (FrontTab on the DM surface), or
-// the feed/notifications entry.
-func (m *Model) tabItems() ([]widgets.Tab, int) {
+// fixedTabsSet is the walk's fixed entries (CA 5.4 "탭"): 채팅
+// (Store.ChannelUnread, Mention when any), DM (Store.DMUnread), 피드, 알림
+// (Store.InboxBadge: notifications + unread conversations) and 도구; tiny
+// labels them 챗 / DM / 피 / 알 / its short tool label (with the share dot).
+type fixedTabsSet struct{ chat, dm, feed, notif, tools widgets.Tab }
+
+func (m *Model) fixedTabs() fixedTabsSet {
 	st := m.ctx.Store
 	notif := widgets.Tab{Label: "알림", Badge: ui.Badge{Count: st.InboxBadge()}}
 	feed := widgets.Tab{Label: "피드"}
 	du, dm := st.DMUnread()
 	dms := widgets.Tab{Label: "DM", Badge: ui.Badge{Count: du, Mention: dm > 0}}
-	if m.lay.Mode == layout.ModeCompact {
-		var items []widgets.Tab
-		for _, t := range m.nav.Tabs {
-			items = append(items, m.rootTab(t.Stack[0]))
-		}
-		items = append(items, dms, feed, notif)
-		if m.nav.toolTabs() > 0 {
-			items = append(items, widgets.Tab{Label: m.ctx.T.Tools.TabLabel()})
-		}
-		return items, m.nav.clone().barPos()
-	}
 	unread, mentions := st.ChannelUnread()
 	chat := widgets.Tab{Label: "채팅", Badge: ui.Badge{Count: unread, Mention: mentions > 0}}
-	tools := widgets.Tab{Label: m.ctx.T.Tools.TabLabel()}
+	tools := widgets.Tab{Label: m.ctx.T.Tools.TabLabel(), Short: m.ctx.T.Tools.TabLabelShort()}
 	if m.lay.Mode == layout.ModeTiny {
 		chat.Label, feed.Label, notif.Label = "챗", "피", "알"
 		tools.Label = m.ctx.T.Tools.TabLabelShort()
 		tools.Badge = m.toolsTabBadge()
 	}
-	items := []widgets.Tab{chat, dms, feed, notif}
-	if m.nav.toolTabs() > 0 { // the tool tab exists while a tool is open (A8.3)
-		items = append(items, tools)
-	}
-	return items, m.nav.widgetPos()
+	return fixedTabsSet{chat: chat, dm: dms, feed: feed, notif: notif, tools: tools}
 }
 
 // toolsTabBadge is the tiny tool cell's mark: a dot while an open tool
@@ -83,10 +64,10 @@ func (m *Model) rootTab(r ui.Route) widgets.Tab {
 	return t
 }
 
-// tabBar renders SlotTabs at exactly w cells (widgets.Tabs scrolls to keep the active
-// tab visible and marks hidden ones with ‹ ›).
+// tabBar renders SlotTabs at exactly w cells: the walk (walkItems) on a
+// widgets.WalkBar, every entry kept on the line (labels shortened as needed).
 func (m *Model) tabBar(w int) string {
-	items, active := m.tabItems()
+	items, active := m.walkItems()
 	m.tabs.Set(items, active)
 	return m.tabs.View(m.ctx.Theme, w)
 }

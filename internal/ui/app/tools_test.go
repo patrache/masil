@@ -211,8 +211,8 @@ func TestCommandModeKeepsChatColumn(t *testing.T) {
 	if got != 1 {
 		t.Errorf("chat column got %d events, want 1", got)
 	}
-	if !strings.Contains(h.Screen(), "git 88x57") {
-		t.Errorf("tool not drawn at 88x57:\n%s", h.Screen())
+	if !strings.Contains(h.Screen(), "git 88x56") { // the top row is the tab bar
+		t.Errorf("tool not drawn at 88x56:\n%s", h.Screen())
 	}
 	// Opening another channel from the chat column keeps the tool beside it.
 	h.Send(ui.NavigateMsg{Route: ui.Route{Kind: ui.RouteChannel, ID: fixtures.ChGeneral}})
@@ -405,6 +405,11 @@ func TestCompactToolTab(t *testing.T) {
 	h.Resize(120, 30)
 	before := tabRow(h)
 	openTool(h, ui.ToolGit, "g1")
+	// On the tool surface the bar lists what [ / ] walk there: the open tools.
+	if row := tabRow(h); !strings.Contains(row, "tool git") || strings.Contains(row, "도구") {
+		t.Errorf("compact tab bar on the tool surface: %q", row)
+	}
+	h.Press("ctrl+t") // back to the chat: the chat walk, with the 도구 tab
 	row := tabRow(h)
 	if !strings.Contains(row, "도구") || strings.Contains(before, "도구") {
 		t.Errorf("compact tab bar: before %q after %q", before, row)
