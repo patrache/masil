@@ -182,7 +182,7 @@ func TestCloseCodeOf(t *testing.T) {
 	if got := share.CloseCodeOf(err); got != share.CloseEnded {
 		t.Errorf("ended = %d", got)
 	}
-	for code, want := range map[share.CloseCode]int{share.CloseProtocol: 4000, share.CloseRateLimited: 4008, share.CloseEnded: 4100, share.CloseKicked: 4101, share.CloseReplaced: 4102} {
+	for code, want := range map[share.CloseCode]int{share.CloseProtocol: 4000, share.CloseUnauthorized: 4001, share.CloseSuspended: 4003, share.CloseRateLimited: 4008, share.CloseEnded: 4100, share.CloseKicked: 4101, share.CloseReplaced: 4102} {
 		if int(code) != want {
 			t.Errorf("close code %d, want %d", code, want)
 		}

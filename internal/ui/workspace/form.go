@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -84,6 +85,9 @@ type form struct {
 	hint   func(ctx *ui.Context) string
 	// shareOnly: the dialog belongs to the running share (it goes when the share ends)
 	shareOnly bool
+	// holdUntil: a dialog that opened by itself drops every key until then,
+	// so the keys the owner was typing elsewhere do not answer it
+	holdUntil time.Time
 	queue     bool // the proposal queue
 	sel       int  // index into the selectable rows
 	scroll    int
@@ -124,6 +128,9 @@ func (f *form) capturesInput(ctx *ui.Context) bool {
 }
 
 func (f *form) handleKey(ctx *ui.Context, msg tea.KeyPressMsg) tea.Cmd {
+	if !f.holdUntil.IsZero() && nowClock(ctx).Now().Before(f.holdUntil) {
+		return nil
+	}
 	if f.keys != nil {
 		if ok, cmd := f.keys(ctx, msg); ok {
 			return cmd

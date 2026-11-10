@@ -187,8 +187,8 @@ export function workspaceHub(rt: Runtime, shareId: string) {
   return rt.env.WORKSPACE_HUB.getByName(shareId);
 }
 
-/** POST to a hub's internal path (`/end`, `/kick`); a failure is logged, never surfaced (D1 already committed). */
-async function tellHub(rt: Runtime, shareId: string, path: "/end" | "/kick", body: unknown): Promise<void> {
+/** POST to a hub's internal path (`/end`, `/kick`, `/revoke`); a failure is logged, never surfaced (D1 already committed). */
+async function tellHub(rt: Runtime, shareId: string, path: "/end" | "/kick" | "/revoke", body: unknown): Promise<void> {
   try {
     const res = await workspaceHub(rt, shareId).fetch(`https://hub${path}`, {
       method: "POST",
@@ -457,4 +457,31 @@ export async function endShare(rt: Runtime, shareId: string, reason: EndReason, 
   await publishEvent(rt, { users: audience.map((r) => r.user_id) }, "workspace_share.ended", { share_id: shareId, reason });
   if (!opts.fromHub) await tellHub(rt, shareId, "/end", { reason });
   return true;
+}
+
+/**
+ * After services/users.ts revokeSessions (callers wrap it in rt.waitUntil), like closeDocSessions: the user's share
+ * sockets of those sessions close with `code` (4001, 4003 for a suspension) in every live share they own or are an
+ * active member of. A suspended owner's live shares also end ("ended", every socket 4100): the owner cannot come back
+ * within the grace.
+ */
+export async function closeWorkspaceSessions(rt: Runtime, userId: string, sessionIds: string[] | "all", code: 4001 | 4003): Promise<void> {
+  const rows = await all<{ id: string; owned: number }>(
+    rt.env.DB,
+    `SELECT s.id, s.owner_id = ?1 AS owned FROM workspace_shares s
+      WHERE s.status = 'live'
+        AND (s.owner_id = ?1 OR EXISTS (SELECT 1 FROM workspace_share_members m
+                                         WHERE m.share_id = s.id AND m.user_id = ?1 AND m.removed_at IS NULL))`,
+    userId,
+  );
+  for (const r of rows) {
+    await tellHub(rt, r.id, "/revoke", { user_id: userId, session_ids: sessionIds, code });
+    if (code === 4003 && r.owned === 1) {
+      try {
+        await endShare(rt, r.id, "ended");
+      } catch (e) {
+        console.error({ msg: "closeWorkspaceSessions: endShare failed", share_id: r.id, err: errFields(e) });
+      }
+    }
+  }
 }

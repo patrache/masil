@@ -64,6 +64,8 @@ export interface ShareMeta {
 interface HubConn {
   seat: number;
   userId: string;
+  /** the session that opened it (logout / suspension close it: /revoke) */
+  sessionId?: string;
   /** closed by the hub: its close event changes nothing (kick / end / replace need no departure; a 4000 / 4008 close
    *  runs departed() itself, see drop) */
   gone?: boolean;
@@ -223,6 +225,21 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     }
   }
 
+  /**
+   * After services/users.ts revokeSessions (logout / revoke / password change 4001, suspension 4003): closes the user's
+   * sockets of those sessions ("all" = every one; a socket without a recorded session counts as matching) and runs the
+   * departure — the owner hears srv_peer left, or the owner's last socket arms the grace alarm.
+   */
+  private async revokeSessions(userId: string, sessionIds: string[] | "all", code: 4001 | 4003): Promise<void> {
+    const ids = sessionIds === "all" ? null : new Set(sessionIds);
+    for (const ws of this.live(`u:${userId}`)) {
+      const c = this.conn(ws);
+      if (c === null || c.gone) continue;
+      if (ids !== null && c.sessionId !== undefined && !ids.has(c.sessionId)) continue;
+      await this.drop(ws, c, code, code === 4003 ? "account suspended" : "session revoked");
+    }
+  }
+
   // ---------------------------------------------------------------- requests
 
   async fetch(request: Request): Promise<Response> {
@@ -247,6 +264,15 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
       await this.kickUser(userId, seat);
       return new Response(null, { status: 204 });
     }
+    if (request.method === "POST" && path === "/revoke") {
+      const body = parseJson<{ user_id?: unknown; session_ids?: unknown; code?: unknown }>(await request.text());
+      const userId = typeof body?.user_id === "string" ? body.user_id : null;
+      const ids = body?.session_ids === "all" ? "all" : Array.isArray(body?.session_ids) && body.session_ids.every((x) => typeof x === "string") ? (body.session_ids as string[]) : null;
+      const code = body?.code === 4001 || body?.code === 4003 ? body.code : null;
+      if (userId === null || ids === null || code === null) return new Response("bad revoke", { status: 400 });
+      await this.revokeSessions(userId, ids, code);
+      return new Response(null, { status: 204 });
+    }
     return new Response("not found", { status: 404 });
   }
 
@@ -255,10 +281,10 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
    * /kick or /end sees it), then D1 is read again: a kick or end that committed after the Worker's read refuses it.
    */
   private async onConnect(request: Request): Promise<Response> {
-    const auth = parseJson<{ userId?: unknown }>(request.headers.get("X-Masil-Auth"));
+    const auth = parseJson<{ userId?: unknown; sessionId?: unknown }>(request.headers.get("X-Masil-Auth"));
     const share = parseJson<ShareMeta>(request.headers.get("X-Masil-Share"));
     const seat = Number(request.headers.get("X-Masil-Seat") ?? "NaN");
-    if (typeof auth?.userId !== "string" || share === null || typeof share.share_id !== "string" || !Number.isInteger(seat) || seat < 0 || seat > MAX_SEAT) {
+    if (typeof auth?.userId !== "string" || typeof auth.sessionId !== "string" || share === null || typeof share.share_id !== "string" || !Number.isInteger(seat) || seat < 0 || seat > MAX_SEAT) {
       return new Response("missing share auth", { status: 401 });
     }
     if ((request.headers.get("Upgrade") ?? "").toLowerCase() !== "websocket") return new Response("expected websocket upgrade", { status: 400 });
@@ -267,6 +293,7 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
       await this.ctx.storage.put("meta", { share_id: share.share_id, owner_id: share.owner_id, title: share.title } satisfies ShareMeta);
     }
     const userId = auth.userId;
+    const sessionId = auth.sessionId;
     // the user's older sockets are replaced (4102) only once this one is allowed: a refused or failed connect leaves
     // them as they were (an owner whose old socket closed here would get no grace alarm)
     const olds = this.live(`u:${userId}`);
@@ -274,16 +301,23 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server, [`seat:${seat}`, `u:${userId}`]);
-    server.serializeAttachment({ seat, userId } satisfies HubConn);
+    server.serializeAttachment({ seat, userId, sessionId } satisfies HubConn);
     let ok: boolean;
+    let sessionOk: boolean;
     try {
-      ok = await stillAllowed(this.env.DB, share.share_id, userId);
+      // a logout / suspension that committed after the Worker's read found no socket here yet: refuse it now
+      [ok, sessionOk] = await Promise.all([stillAllowed(this.env.DB, share.share_id, userId), this.sessionLive(sessionId, userId)]);
     } catch (e) {
       console.error({ msg: "WorkspaceHub: connect check failed", share_id: share.share_id, err: errFields(e) });
       this.close(server, 1011, "try again");
       // an owner whose old socket closed while D1 was read has none left: the grace alarm still runs
       if (seat === SEAT_OWNER) await this.departed(server, { seat, userId });
       return new Response("try again", { status: 503 });
+    }
+    if (!sessionOk) {
+      this.close(server, 4001, "session revoked");
+      if (seat === SEAT_OWNER) await this.departed(server, { seat, userId });
+      return new Response("session revoked", { status: 401 });
     }
     if (!ok || server.readyState !== WebSocket.OPEN || (await this.ended())) {
       this.close(server, 1000, "not found");
@@ -312,6 +346,13 @@ export class WorkspaceHub extends DurableObject<Cloudflare.Env> {
     );
     if (seat !== SEAT_OWNER) this.toOwner(this.peerFrame(seat, userId, "joined"));
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  private async sessionLive(sessionId: string, userId: string): Promise<boolean> {
+    const r = await this.env.DB.prepare("SELECT 1 AS ok FROM sessions WHERE id = ?1 AND user_id = ?2 AND revoked_at IS NULL AND expires_at > ?3")
+      .bind(sessionId, userId, Date.now())
+      .first<{ ok: number }>();
+    return r !== null;
   }
 
   // ---------------------------------------------------------------- frames

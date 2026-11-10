@@ -4,7 +4,7 @@
 import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import { FLAG_GROUP_START, HEADER_LEN, MAX_FRAME } from "../../src/do/workspace-frame";
-import { api, connectWs, makeFriends, signup, waitFor, type TestUser } from "../helpers";
+import { api, connectWs, login, makeAdmin, makeFriends, signup, waitFor, type TestUser } from "../helpers";
 import { connectWorkspaceWs, frame, json, shareWsRaw, type WsBin } from "../workspace-helpers";
 
 const hub = (shareId: string) => env.WORKSPACE_HUB.getByName(shareId);
@@ -361,5 +361,85 @@ describe("WorkspaceHub: limits and alerts", () => {
     o.send("ctl_attention", { to: 254, payload: {} });
     await watch.next("alert", (d) => d.alert.kind === "workspace_attention");
     expect(watch.frames.filter((f) => f.type === "alert" && f.data.alert.kind === "workspace_attention")).toHaveLength(2);
+  });
+});
+
+// v0.1.3 security (r): a revoked session's share socket closes like its doc sockets (collab.md 4.1) — 4001 for logout /
+// revoke / password change, 4003 for a suspension — and a suspended owner's share ends.
+async function sessionIdOf(u: TestUser): Promise<string> {
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.token)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const row = await env.DB.prepare("SELECT id FROM sessions WHERE token_hash = ?1").bind(hash).first<{ id: string }>();
+  if (!row) throw new Error("no session for token");
+  return row.id;
+}
+
+describe("WorkspaceHub: revoked sessions", () => {
+  it("a member's logout closes their share socket 4001; the owner hears srv_peer left", async () => {
+    const { members, o, ps } = await room(1);
+    expect((await api(members[0]!.token).post("/v1/auth/logout")).status).toBe(204);
+    expect((await ps[0]!.closed).code).toBe(4001);
+    expect(json(await o.next("srv_peer", (f) => json(f).state === "left"))).toEqual({ seat: 1, user_id: members[0]!.user.id, state: "left" });
+  });
+
+  it("logging out another session leaves the open share socket alone", async () => {
+    const { members, o, ps } = await room(1);
+    const second = await login(members[0]!.handle, members[0]!.password);
+    expect((await api(second.token).post("/v1/auth/logout")).status).toBe(204);
+    await syncOwner(o, ps[0]!, 1);
+    await sync(o, ps[0]!, 1);
+    expect(ps[0]!.ws.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it("a password change closes the other sessions' share sockets 4001", async () => {
+    const { members, ps } = await room(1);
+    const m = members[0]!;
+    const second = await login(m.handle, m.password);
+    const r = await api(second.token).post("/v1/auth/password", { current_password: m.password, new_password: `${m.password}-new` });
+    expect(r.status).toBe(204);
+    expect((await ps[0]!.closed).code).toBe(4001);
+  });
+
+  it("the owner's logout closes the owner socket 4001 and arms the grace alarm", async () => {
+    const { owner, shareId, o } = await room(1);
+    expect((await api(owner.token).post("/v1/auth/logout")).status).toBe(204);
+    expect((await o.closed).code).toBe(4001);
+    expect(await waitFor(() => runInDurableObject(hub(shareId), (_i, state) => state.storage.getAlarm()), (v) => v !== null)).not.toBeNull();
+  });
+
+  it("a member's suspension closes their share socket 4003", async () => {
+    const { members, o, ps } = await room(1);
+    const adm = await signup();
+    await makeAdmin(adm);
+    expect((await api(adm.token).post(`/v1/admin/users/@${members[0]!.handle}/suspend`, { reason: "spam" })).status).toBe(200);
+    expect((await ps[0]!.closed).code).toBe(4003);
+    await o.next("srv_peer", (f) => json(f).state === "left");
+  });
+
+  it("the owner's suspension closes the owner socket 4003 and ends the share (members 4100)", async () => {
+    const { owner, shareId, o, ps } = await room(1);
+    const adm = await signup();
+    await makeAdmin(adm);
+    expect((await api(adm.token).post(`/v1/admin/users/@${owner.handle}/suspend`, { reason: "spam" })).status).toBe(200);
+    expect((await o.closed).code).toBe(4003);
+    expect((await ps[0]!.closed).code).toBe(4100);
+    expect(await waitFor(async () => (await env.DB.prepare("SELECT status FROM workspace_shares WHERE id = ?1").bind(shareId).first<any>()).status, (v) => v === "ended")).toBe("ended");
+  });
+
+  it("a late upgrade whose session was revoked first is refused with 401", async () => {
+    const owner = await signup();
+    const m = await signup();
+    const shareId = await shareOf(owner, [m]);
+    const sid = await sessionIdOf(m);
+    expect((await api(m.token).post("/v1/auth/logout")).status).toBe(204);
+    const res = await hub(shareId).fetch("https://hub/connect", {
+      headers: {
+        Upgrade: "websocket",
+        "X-Masil-Auth": JSON.stringify({ userId: m.user.id, sessionId: sid }),
+        "X-Masil-Seat": "1",
+        "X-Masil-Share": JSON.stringify({ share_id: shareId, owner_id: owner.user.id, title: "ws" }),
+      },
+    });
+    expect(res.status).toBe(401);
+    expect(res.webSocket).toBeNull();
   });
 });
