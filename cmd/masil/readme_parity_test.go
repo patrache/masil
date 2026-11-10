@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"unicode"
 
 	"github.com/patrache/masil/internal/i18n"
 )
@@ -192,10 +191,6 @@ func TestGoreleaserArchivesReadmes(t *testing.T) {
 			t.Errorf(".goreleaser.yaml: archives[].files lacks %s (has %q)", want, files)
 		}
 	}
-}
-
-func hasHangul(s string) bool {
-	return strings.IndexFunc(s, func(r rune) bool { return unicode.Is(unicode.Hangul, r) }) >= 0
 }
 
 // The Homebrew formula is read by people in any language: desc is English and
