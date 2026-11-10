@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -20,16 +21,27 @@ type managerFixture struct {
 	mu   sync.Mutex
 	runs []*Client
 	errs int
+	// finds counts Find calls per language; a non-nil findGate makes Find
+	// wait for it to close.
+	finds    map[string]int
+	findGate chan struct{}
 }
 
 func newManagerFixture(t *testing.T, modes ...string) *managerFixture {
 	t.Helper()
-	f := &managerFixture{clk: newFakeClock(), root: t.TempDir()}
+	f := &managerFixture{clk: newFakeClock(), root: t.TempDir(), finds: map[string]int{}}
 	srv := fakeServer(t, modes...)
 	opts := Options{Clock: f.clk, Logger: slog.New(slog.DiscardHandler)}
 	f.m = NewManager(ManagerOptions{
 		Client: opts,
 		Find: func(lang string) (Server, bool) {
+			f.mu.Lock()
+			f.finds[lang]++
+			gate := f.findGate
+			f.mu.Unlock()
+			if gate != nil {
+				<-gate
+			}
 			if lang != "go" {
 				return Server{}, false
 			}
@@ -151,7 +163,6 @@ func TestManagerRefusesNonLocal(t *testing.T) {
 		"relative path":  {f.root, "a.go"},
 		"outside root":   {f.root, outside},
 		"root itself":    {f.root, f.root},
-		"missing root":   {filepath.Join(f.root, "nope"), filepath.Join(f.root, "nope", "a.go")},
 		"empty":          {"", ""},
 		"dotdot in path": {f.root, filepath.Join(f.root, "..", "x.go")},
 	} {
@@ -159,15 +170,24 @@ func TestManagerRefusesNonLocal(t *testing.T) {
 			t.Errorf("%s: %v, want ErrNotLocal", name, err)
 		}
 	}
+	// A root that is not a folder, and a language without a server, are
+	// found out on the start goroutine (Open does no file-system work): Open
+	// accepts the file and Complete answers ErrUnavailable.
 	file := filepath.Join(f.root, "f.go")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.m.Open(file, filepath.Join(file, "a.go"), ""); !errors.Is(err, ErrNotLocal) {
-		t.Errorf("a file as root: %v", err)
-	}
-	if err := f.m.Open(f.root, filepath.Join(f.root, "a.py"), "x"); !errors.Is(err, ErrUnavailable) {
-		t.Errorf("no server for python: %v", err)
+	for name, args := range map[string][2]string{
+		"missing root":         {filepath.Join(f.root, "nope"), filepath.Join(f.root, "nope", "a.go")},
+		"a file as root":       {file, filepath.Join(file, "a.go")},
+		"no server for python": {f.root, filepath.Join(f.root, "a.py")},
+	} {
+		if err := f.m.Open(args[0], args[1], "x"); err != nil {
+			t.Errorf("%s: Open %v", name, err)
+		}
+		if _, err := f.m.Complete(context.Background(), args[1], 0, 0); !errors.Is(err, ErrUnavailable) {
+			t.Errorf("%s: Complete %v, want ErrUnavailable", name, err)
+		}
 	}
 	if err := f.m.Open(f.root, filepath.Join(f.root, "notes.txt"), "x"); !errors.Is(err, ErrUnavailable) {
 		t.Errorf("unknown language: %v", err)
@@ -329,5 +349,75 @@ func TestSharedStopAll(t *testing.T) {
 	StopAll(context.Background())
 	if err := Shared().Open(t.TempDir(), filepath.Join(t.TempDir(), "x.go"), ""); !errors.Is(err, ErrNotLocal) && !errors.Is(err, ErrClosed) {
 		t.Errorf("after StopAll: %v", err)
+	}
+}
+
+// TestManagerOpenDoesNoLookup: Open never runs Find (a PATH scan; on
+// Windows every PATHEXT per folder) on the caller's goroutine, and a
+// language without a server is looked up once, not on every Open.
+func TestManagerOpenDoesNoLookup(t *testing.T) {
+	f := newManagerFixture(t)
+	gate := make(chan struct{})
+	f.mu.Lock()
+	f.findGate = gate
+	f.mu.Unlock()
+	path := filepath.Join(f.root, "main.go")
+	opened := make(chan error, 1)
+	go func() { opened <- f.m.Open(f.root, path, "fmt.Pr") }()
+	select {
+	case err := <-opened:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		close(gate)
+		t.Fatal("Open waited for the PATH lookup")
+	}
+	close(gate)
+	if l := completeEventually(t, f.m, path, 0, 6); len(l.Items) != 2 {
+		t.Fatalf("items %+v", l.Items)
+	}
+
+	py := filepath.Join(f.root, "a.py")
+	for range 3 {
+		_ = f.m.Open(f.root, py, "x")
+		_, _ = f.m.Complete(context.Background(), py, 0, 0)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.finds["python"] != 1 || f.finds["go"] != 1 {
+		t.Errorf("Find calls %v, want one per language", f.finds)
+	}
+}
+
+// TestManagerStopAllKillsStartingServer: a server still in its initialize
+// handshake (jdtls, metals) is killed within StopAll's budget, not left
+// running for InitTimeout after masil exits.
+func TestManagerStopAllKillsStartingServer(t *testing.T) {
+	pidfile := filepath.Join(t.TempDir(), "pid")
+	f := newManagerFixture(t, "slowinit", pidfileMode+pidfile)
+	path := filepath.Join(f.root, "a.go")
+	if err := f.m.Open(f.root, path, "x"); err != nil {
+		t.Fatal(err)
+	}
+	pid := 0
+	for deadline := time.Now().Add(15 * time.Second); pid == 0; {
+		if b, err := os.ReadFile(pidfile); err == nil && len(b) > 0 {
+			pid, _ = strconv.Atoi(string(b))
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("fake server never started")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	start := time.Now()
+	f.m.StopAll(ctx)
+	if d := time.Since(start); d >= 2*time.Second {
+		t.Errorf("StopAll used its whole budget (%v)", d)
+	}
+	if processAlive(pid) {
+		t.Fatalf("StopAll returned with the starting server (pid %d) still running", pid)
 	}
 }

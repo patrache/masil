@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -377,5 +378,59 @@ func TestEnvScrubbed(t *testing.T) {
 	}
 	if env["FAKE_LSP_KEEP"] != "kept" {
 		t.Errorf("ordinary variable lost: %v", env)
+	}
+}
+
+// waitGone waits until pid is no longer running.
+func waitGone(t *testing.T, pid int, what string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for processAlive(pid) {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s (pid %d) still running", what, pid)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// TestShutdownKillsProcessTree: a server that ignores exit is killed with
+// everything it started (npm servers run as cmd.exe → node.exe on Windows,
+// wrapper scripts fork on Unix).
+func TestShutdownKillsProcessTree(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	c, err := Options{ShutdownGrace: 300 * time.Millisecond, Logger: slog.New(slog.DiscardHandler)}.
+		Start(ctx, fakeServer(t, "noexit", "child"), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := state(t, c).Child
+	if child <= 0 || !processAlive(child) {
+		t.Fatalf("fake child not running (pid %d)", child)
+	}
+	t.Cleanup(func() {
+		if p, err := os.FindProcess(child); err == nil {
+			_ = p.Kill()
+		}
+	})
+	_ = c.Shutdown(context.Background())
+	waitGone(t, child, "the server's child")
+}
+
+// TestBadHeaderKillsServer: once a header is unreadable the framing is lost
+// for good, so the client kills the server (the Manager restarts it on next
+// use) instead of reading bodies as headers and timing out forever.
+func TestBadHeaderKillsServer(t *testing.T) {
+	c := startFake(t, nil, "garbage")
+	uri := URIFromPath(filepath.Join(c.Root(), "main.go"))
+	c.DidOpen(uri, "go", "x")
+	_, err := c.Complete(context.Background(), uri, 0, 1)
+	if !errors.Is(err, ErrClosed) && !errors.Is(err, ErrTimeout) {
+		t.Fatalf("Complete after a broken header: %v", err)
+	}
+	select {
+	case <-c.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("server kept running after the framing broke")
 	}
 }

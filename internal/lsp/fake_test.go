@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -32,12 +34,25 @@ import (
 //	ask        before answering initialize, the server asks the client
 //	           workspace/configuration and window/workDoneProgress/create
 //	           and an unknown method, and fails initialize if any goes unanswered
+//	slowinit   initialize is never answered
+//	child      at start the server runs a child of its own (`fake-lsp-sleeper`,
+//	           sleeps an hour); its pid is fakeState.Child
+//	garbage    a completion request is answered with a broken header line
+//	pidfile=P  at start the server writes its pid to file P
 
-const fakeArg = "fake-lsp-server"
+const (
+	fakeArg     = "fake-lsp-server"
+	sleeperArg  = "fake-lsp-sleeper"
+	pidfileMode = "pidfile="
+)
 
 func TestMain(m *testing.M) {
 	if len(os.Args) >= 3 && os.Args[1] == fakeArg {
 		os.Exit(runFakeServer(strings.Split(os.Args[2], ",")))
+	}
+	if len(os.Args) >= 2 && os.Args[1] == sleeperArg {
+		time.Sleep(time.Hour)
+		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }
@@ -65,6 +80,7 @@ type fakeState struct {
 	Env         map[string]string  `json:"env"`
 	Cancelled   []int64            `json:"cancelled"`
 	Initialized bool               `json:"initialized"`
+	Child       int                `json:"child"` // pid of the "child" mode's own child
 }
 
 type fakeDoc struct {
@@ -88,6 +104,20 @@ func runFakeServer(modes []string) int {
 		wmu.Unlock()
 	}
 	st := fakeState{Docs: map[string]fakeDoc{}, Answers: map[string]string{}, Env: map[string]string{}}
+	for _, m := range modes {
+		if p, ok := strings.CutPrefix(m, pidfileMode); ok {
+			_ = os.WriteFile(p, []byte(strconv.Itoa(os.Getpid())), 0o600)
+		}
+	}
+	if has("child") {
+		exe, _ := os.Executable()
+		child := exec.Command(exe, sleeperArg) // stdio: the null device
+		if err := child.Start(); err != nil {
+			fmt.Fprintln(os.Stderr, "fake: child:", err)
+			return 4
+		}
+		st.Child = child.Process.Pid
+	}
 	for _, k := range []string{"LEETCODE_SESSION", "LEETCODE_CSRFTOKEN", "LEETCODE_CFCLEARANCE", "FAKE_LSP_KEEP"} {
 		st.Env[k] = os.Getenv(k)
 	}
@@ -121,6 +151,9 @@ func runFakeServer(modes []string) int {
 		switch m.Method {
 		case "initialize":
 			st.Init = m.Params
+			if has("slowinit") {
+				continue
+			}
 			if has("ask") {
 				pendingInit = m.ID
 				send(map[string]any{"jsonrpc": "2.0", "id": "c1", "method": "workspace/configuration",
@@ -186,6 +219,12 @@ func runFakeServer(modes []string) int {
 			}
 			if has("slow") {
 				continue // the cancel answers it
+			}
+			if has("garbage") {
+				wmu.Lock()
+				os.Stdout.WriteString("garbage\r\n\r\n")
+				wmu.Unlock()
+				continue
 			}
 			var p struct {
 				TextDocument textDocumentID `json:"textDocument"`

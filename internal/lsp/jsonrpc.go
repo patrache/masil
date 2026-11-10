@@ -62,13 +62,23 @@ type outResponse struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
-// errFrame reports a malformed frame header.
-var errFrame = errors.New("lsp: bad frame")
+var (
+	// errFrame reports a header that cannot be read: where the body ends is
+	// unknown, so the stream is out of sync for good.
+	errFrame = errors.New("lsp: bad frame")
+	// errBody reports a frame whose body was consumed whole (or skipped, when
+	// longer than the limit) but is unusable: the next frame reads fine.
+	errBody = errors.New("lsp: bad message body")
+)
 
-// readFrame reads one Content-Length framed body. Header names are matched
-// case-insensitively and other headers (Content-Type) are ignored.
-func readFrame(r *bufio.Reader) ([]byte, error) {
-	length := -1
+// readFrame reads one Content-Length framed body of at most maxFrame bytes.
+func readFrame(r *bufio.Reader) ([]byte, error) { return readFrameLimit(r, maxFrame) }
+
+// readFrameLimit reads one Content-Length framed body. Header names are
+// matched case-insensitively and other headers (Content-Type) are ignored.
+// A body longer than limit is skipped (errBody).
+func readFrameLimit(r *bufio.Reader, limit int) ([]byte, error) {
+	length := int64(-1)
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil {
@@ -92,12 +102,22 @@ func readFrame(r *bufio.Reader) ([]byte, error) {
 			return nil, fmt.Errorf("%w: header %q", errFrame, line)
 		}
 		if strings.EqualFold(strings.TrimSpace(name), "Content-Length") {
-			n, err := strconv.Atoi(strings.TrimSpace(value))
-			if err != nil || n < 0 || n > maxFrame {
+			n, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			if err != nil || n < 0 {
 				return nil, fmt.Errorf("%w: Content-Length %q", errFrame, value)
 			}
 			length = n
 		}
+	}
+	if length > int64(limit) {
+		n, err := io.CopyN(io.Discard, r, length)
+		if err != nil {
+			if err == io.EOF {
+				err = io.ErrUnexpectedEOF
+			}
+			return nil, err
+		}
+		return nil, fmt.Errorf("%w: %d bytes skipped (limit %d)", errBody, n, limit)
 	}
 	body := make([]byte, length)
 	if _, err := io.ReadFull(r, body); err != nil {
@@ -109,15 +129,17 @@ func readFrame(r *bufio.Reader) ([]byte, error) {
 	return body, nil
 }
 
-// readMessage reads and decodes one message.
-func readMessage(r *bufio.Reader) (*message, error) {
-	body, err := readFrame(r)
+// readMessage reads and decodes one message of at most maxFrame bytes.
+func readMessage(r *bufio.Reader) (*message, error) { return readMessageLimit(r, maxFrame) }
+
+func readMessageLimit(r *bufio.Reader, limit int) (*message, error) {
+	body, err := readFrameLimit(r, limit)
 	if err != nil {
 		return nil, err
 	}
 	var m message
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("%w: %v", errFrame, err)
+		return nil, fmt.Errorf("%w: %v", errBody, err)
 	}
 	return &m, nil
 }

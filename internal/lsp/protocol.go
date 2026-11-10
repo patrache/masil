@@ -147,9 +147,6 @@ func parseCompletion(raw json.RawMessage) (List, error) {
 		}
 		wire, incomplete = l.Items, l.IsIncomplete
 	}
-	if len(wire) > maxItems {
-		wire, incomplete = wire[:maxItems], true
-	}
 	out := List{Incomplete: incomplete, Items: make([]Item, 0, len(wire))}
 	for _, w := range wire {
 		if w.Label == "" {
@@ -189,7 +186,11 @@ func parseCompletion(raw json.RawMessage) (List, error) {
 		}
 		out.Items = append(out.Items, it)
 	}
+	// Sort before the cap: the best-ranked items stay wherever the server put them.
 	slices.SortStableFunc(out.Items, func(a, b Item) int { return cmp.Compare(a.SortText, b.SortText) })
+	if len(out.Items) > maxItems {
+		out.Items, out.Incomplete = slices.Clip(out.Items[:maxItems]), true
+	}
 	return out, nil
 }
 

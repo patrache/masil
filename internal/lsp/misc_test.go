@@ -290,3 +290,57 @@ func TestStderrLogCap(t *testing.T) {
 		t.Error("no drop note")
 	}
 }
+
+// TestFramingRecovery: a body that is read whole but unusable (bad JSON, or
+// longer than the limit and skipped) is errBody and the next frame reads
+// fine; a broken header is errFrame (framing lost).
+func TestFramingRecovery(t *testing.T) {
+	good := `{"jsonrpc":"2.0","method":"ok"}`
+	frame := func(body string) string { return "Content-Length: " + itoa(len(body)) + "\r\n\r\n" + body }
+	stream := frame("{not json") + frame(strings.Repeat("x", 64)) + frame(good)
+	r := bufio.NewReader(strings.NewReader(stream))
+	if _, err := readMessageLimit(r, 32); !errors.Is(err, errBody) || errors.Is(err, errFrame) {
+		t.Fatalf("bad JSON: %v, want errBody", err)
+	}
+	if _, err := readMessageLimit(r, 32); !errors.Is(err, errBody) || errors.Is(err, errFrame) {
+		t.Fatalf("oversized body: %v, want errBody", err)
+	}
+	if m, err := readMessageLimit(r, 32); err != nil || m.Method != "ok" {
+		t.Fatalf("frame after the skipped ones: %+v %v", m, err)
+	}
+	for _, bad := range []string{"Content-Length: x\r\n\r\n{}", "garbage\r\n\r\n", "Content-Length: -1\r\n\r\n"} {
+		if _, err := readMessage(bufio.NewReader(strings.NewReader(bad))); !errors.Is(err, errFrame) || errors.Is(err, errBody) {
+			t.Errorf("%q: %v, want errFrame", bad, err)
+		}
+	}
+}
+
+// TestParseCompletionCapKeepsBestRanked: past maxItems the list is cut after
+// sorting, so the server's best-ranked items survive wherever it put them.
+func TestParseCompletionCapKeepsBestRanked(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("[")
+	for i := range maxItems + 5 {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		if i >= maxItems {
+			b.WriteString(`{"label":"best` + itoa(i-maxItems) + `","sortText":"a"}`)
+		} else {
+			b.WriteString(`{"label":"x","sortText":"z"}`)
+		}
+	}
+	b.WriteString("]")
+	l, err := parseCompletion([]byte(b.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(l.Items) != maxItems || !l.Incomplete {
+		t.Fatalf("cap: %d items, incomplete %v", len(l.Items), l.Incomplete)
+	}
+	for i := range 5 {
+		if want := "best" + itoa(i); l.Items[i].Label != want {
+			t.Fatalf("item %d = %q, want %q (best-ranked items dropped)", i, l.Items[i].Label, want)
+		}
+	}
+}

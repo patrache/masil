@@ -81,6 +81,7 @@ type Client struct {
 	opts Options
 	log  *slog.Logger
 	cmd  *exec.Cmd
+	tree *procTree // the server and what it started (nil: only the server itself)
 
 	stdin io.WriteCloser
 
@@ -153,11 +154,14 @@ func (o Options) Start(ctx context.Context, srv Server, rootDir string) (*Client
 	cmd.Stdout = pw
 	cmd.Stderr = &stderrLog{log: c.log, left: maxStderrLines}
 	cmd.WaitDelay = time.Second // a grandchild holding stdout open cannot hang Wait
-	hideWindow(cmd)
+	procAttr(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("lsp: start %s: %w", srv.Name, err)
 	}
 	c.cmd, c.stdin = cmd, stdin
+	if c.tree, err = newProcTree(cmd); err != nil {
+		c.log.Warn("lsp: cannot group the server's processes; a kill reaches only the server itself", "err", err)
+	}
 	c.log.Info("lsp server started", "pid", cmd.Process.Pid, "root", root)
 
 	readerDone := make(chan struct{})
@@ -460,7 +464,10 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// kill ends the server and every process it started (its process group on
+// Unix, its Job object on Windows).
 func (c *Client) kill() {
+	c.tree.kill()
 	if c.cmd != nil && c.cmd.Process != nil {
 		_ = c.cmd.Process.Kill()
 	}
@@ -468,6 +475,7 @@ func (c *Client) kill() {
 
 // finish runs once the process has exited and all its output is read.
 func (c *Client) finish(err error) {
+	c.tree.close() // what the server left running ends with it
 	c.mu.Lock()
 	c.waitErr = err
 	pending := c.pending
@@ -629,11 +637,16 @@ func (c *Client) readLoop(r *bufio.Reader) {
 	for {
 		m, err := readMessage(r)
 		if err != nil {
+			if errors.Is(err, errBody) {
+				c.log.Warn("lsp read: message dropped", "err", err)
+				continue // the body was consumed whole; framing is still in sync
+			}
 			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
-				c.log.Warn("lsp read", "err", err)
-				if errors.Is(err, errFrame) {
-					continue // a bad JSON body; framing itself is still in sync
-				}
+				// A broken header (or stdout cut mid-frame): no later answer can
+				// be read. Kill the server so it counts as a crash and the
+				// Manager restarts it on next use.
+				c.log.Warn("lsp read: framing lost; killing the server", "err", err)
+				c.kill()
 			}
 			_, _ = io.Copy(io.Discard, r)
 			return

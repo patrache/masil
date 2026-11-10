@@ -31,33 +31,39 @@ type ManagerOptions struct {
 	Start func(ctx context.Context, srv Server, root string) (*Client, error)
 }
 
-// Manager runs one Client per (language, root folder) for the editors. All
-// its methods return quickly: servers start on goroutines, notifications are
-// queued, and Complete is bounded by CompletionTimeout, so a tea.Cmd can call
-// it directly.
+// Manager runs one Client per (language, root folder) for the editors. Open,
+// Change, Close and Client return at once and touch no file system (the PATH
+// lookup and the root check run with the server start on a goroutine), so
+// the UI goroutine may call them. Complete waits up to CompletionTimeout:
+// call it from a tea.Cmd.
 type Manager struct {
 	opts ManagerOptions
 	log  *slog.Logger
+
+	// startCtx bounds every server start; StopAll cancels it, so a server
+	// still in its initialize handshake is killed rather than outliving masil.
+	startCtx    context.Context
+	startCancel context.CancelFunc
 
 	mu      sync.Mutex
 	closed  bool
 	servers map[serverKey]*entry
 	docs    map[string]*document // by cleaned absolute path
-	wg      sync.WaitGroup       // shutdowns in flight
+	wg      sync.WaitGroup       // starts and shutdowns in flight
 }
 
 type serverKey struct{ lang, root string }
 
 type document struct {
 	key  serverKey
-	srv  Server // what Find picked at Open (an idle-stopped server restarts without a new PATH lookup)
+	srv  Server // what Find picked for key (an idle-stopped server restarts without a new PATH lookup); zero until then
 	uri  string
 	text string
 }
 
 type entry struct {
 	key      serverKey
-	srv      Server
+	srv      Server        // zero until the first start's Find
 	client   *Client       // nil while starting, after a crash or a failed start
 	starting chan struct{} // non-nil while a start runs; closed when it ends
 	started  bool          // a start was attempted before (a new one is a restart)
@@ -85,24 +91,30 @@ func NewManager(o ManagerOptions) *Manager {
 		co := o.Client
 		o.Start = co.Start
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		opts:    o,
-		log:     o.Client.Logger,
-		servers: map[serverKey]*entry{},
-		docs:    map[string]*document{},
+		opts:        o,
+		log:         o.Client.Logger,
+		startCtx:    ctx,
+		startCancel: cancel,
+		servers:     map[serverKey]*entry{},
+		docs:        map[string]*document{},
 	}
 }
 
-// ErrNotLocal: Open was given a root that is not an existing absolute local
-// folder, or a file outside it.
+// ErrNotLocal: Open was given a root or path that is not absolute, or a file
+// outside the root.
 var ErrNotLocal = errors.New("lsp: not a file in a local folder")
 
 // Open starts serving file path (absolute, inside root) with text. root is
 // the local user's own project folder (the workspace root, the LeetCode
 // solution folder); never call Open on behalf of a share guest. It returns
-// ErrUnavailable when no server is found for the file (keep word completion)
-// and ErrNotLocal for a bad root/path. The server starts in the background;
-// opening an open path updates its text.
+// ErrNotLocal for a root/path that is not absolute or a file outside root,
+// and ErrUnavailable for a file no server here knows, or once the server
+// for it was found missing or given up (keep word completion). The server
+// is looked up and started in the background — a root that is not an
+// existing folder, or no server on PATH, shows later as ErrUnavailable from
+// Complete. Opening an open path updates its text.
 func (m *Manager) Open(root, path, text string) error {
 	root, path, err := localPaths(root, path)
 	if err != nil {
@@ -114,26 +126,13 @@ func (m *Manager) Open(root, path, text string) error {
 	}
 	key := serverKey{lang: lang, root: root}
 	m.mu.Lock()
-	e := m.servers[key]
-	var srv Server
-	if e != nil {
-		srv = e.srv
-	}
-	m.mu.Unlock()
-	if e == nil {
-		// The PATH lookup runs outside the lock (it reads the file system).
-		var ok bool
-		if srv, ok = m.opts.Find(lang); !ok {
-			return ErrUnavailable
-		}
-	}
-	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
 		return ErrClosed
 	}
-	if e = m.servers[key]; e == nil { // new, or idle-stopped meanwhile
-		e = &entry{key: key, srv: srv}
+	e := m.servers[key]
+	if e == nil {
+		e = &entry{key: key}
 		m.servers[key] = e
 	}
 	if e.gaveUp {
@@ -159,8 +158,9 @@ func (m *Manager) Open(root, path, text string) error {
 	return nil
 }
 
-// localPaths checks Open's arguments: root an existing absolute folder, path
-// absolute and inside it. Both come back cleaned.
+// localPaths checks Open's arguments without touching the file system: root
+// and path absolute, path inside root. Both come back cleaned. (That root is
+// an existing folder is checked by the start, see rootIsDir.)
 func localPaths(root, path string) (string, string, error) {
 	if root == "" || path == "" || !filepath.IsAbs(root) || !filepath.IsAbs(path) {
 		return "", "", ErrNotLocal
@@ -170,10 +170,13 @@ func localPaths(root, path string) (string, string, error) {
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return "", "", ErrNotLocal
 	}
-	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
-		return "", "", ErrNotLocal
-	}
 	return root, path, nil
+}
+
+// rootIsDir reports whether root is an existing folder.
+func rootIsDir(root string) bool {
+	fi, err := os.Stat(root)
+	return err == nil && fi.IsDir()
 }
 
 // Change replaces the text of an open path (sent debounced). A path that is
@@ -310,13 +313,36 @@ func (m *Manager) ensureLocked(e *entry) chan struct{} {
 	e.started = true
 	ch := make(chan struct{})
 	e.starting = ch
-	go m.start(e, ch)
+	m.wg.Add(1) // under m.mu with m.closed false: before StopAll's Wait
+	go m.start(e, e.srv, ch)
 	return ch
 }
 
-func (m *Manager) start(e *entry, ch chan struct{}) {
+// start runs on its own goroutine: the file-system work (root check, PATH
+// lookup) and the initialize handshake, bounded by m.startCtx.
+func (m *Manager) start(e *entry, srv Server, ch chan struct{}) {
+	defer m.wg.Done()
 	defer close(ch)
-	c, err := m.opts.Start(context.Background(), e.srv, e.key.root)
+	if !rootIsDir(e.key.root) {
+		m.unavailable(e, "lsp root is not a folder; no server for it", "root", e.key.root)
+		return
+	}
+	if len(srv.Command) == 0 {
+		var ok bool
+		if srv, ok = m.opts.Find(e.key.lang); !ok {
+			m.unavailable(e, "no language server on PATH", "lang", e.key.lang)
+			return
+		}
+		m.mu.Lock()
+		e.srv = srv
+		for _, d := range m.docs {
+			if d.key == e.key {
+				d.srv = srv
+			}
+		}
+		m.mu.Unlock()
+	}
+	c, err := m.opts.Start(m.startCtx, srv, e.key.root)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	e.starting = nil
@@ -336,6 +362,16 @@ func (m *Manager) start(e *entry, ch chan struct{}) {
 	}
 	m.scheduleIdleLocked(e, m.opts.IdleTimeout)
 	go m.watch(e, c)
+}
+
+// unavailable marks e as having no server for the rest of the run (like
+// giving up, but quietly: nothing crashed).
+func (m *Manager) unavailable(e *entry, msg string, args ...any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e.starting = nil
+	e.gaveUp = true
+	m.log.Info(msg, args...)
 }
 
 // watch notices a crash: the entry forgets the client and the next use restarts it.
@@ -386,11 +422,13 @@ func (m *Manager) shutdownAsyncLocked(c *Client) {
 }
 
 // StopAll shuts every server down (in parallel, each killed after
-// ShutdownGrace) and waits for them; the Manager serves nothing afterwards.
+// ShutdownGrace) and waits for them until ctx ends; the Manager serves
+// nothing afterwards. A server still in its initialize handshake is killed
+// at once.
 func (m *Manager) StopAll(ctx context.Context) {
 	m.mu.Lock()
 	m.closed = true
-	var starting []chan struct{}
+	m.startCancel() // a handshake in flight fails: Client.Start kills its process
 	for _, e := range m.servers {
 		if e.idle != nil {
 			e.idle.Stop()
@@ -400,18 +438,11 @@ func (m *Manager) StopAll(ctx context.Context) {
 			m.shutdownAsyncLocked(e.client)
 			e.client = nil
 		}
-		if e.starting != nil {
-			starting = append(starting, e.starting)
-		}
 	}
 	m.mu.Unlock()
-	// A start in flight shuts its client down itself (m.closed) once it ends.
-	for _, ch := range starting {
-		select {
-		case <-ch:
-		case <-ctx.Done():
-		}
-	}
+	// m.wg counts the starts in flight too (one that won the race with the
+	// cancel shuts its client down itself, adding to m.wg while it still
+	// counts): waiting for it covers every process this Manager started.
 	done := make(chan struct{})
 	go func() { m.wg.Wait(); close(done) }()
 	select {
