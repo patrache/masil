@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/patrache/masil/internal/i18n"
 )
 
 // Name is a theme id.
@@ -27,24 +29,42 @@ type Palette struct{ BG, FG, Dim, Line, Acc, Acc2, Acc3, Acc4, Chip, SelBG, Code
 // Theme is a palette with derived styles.
 type Theme struct {
 	Name   Name
-	Letter string // "A".."D"
-	Label  string // "Charm 보라", "미드나잇 블루", "크림 파스텔", "레트로 앰버"
+	Letter string // "A".."D" (the name in a language: Label(t, Name))
 	Dark   bool
 	P      Palette
 	Border lipgloss.Border // RoundedBorder / NormalBorder / RoundedBorder / DoubleBorder
 	S      Styles
 }
 
-func newTheme(n Name, letter, label string, dark bool, p Palette, border lipgloss.Border) *Theme {
-	return &Theme{Name: n, Letter: letter, Label: label, Dark: dark, P: p, Border: border, S: newStyles(p, border)}
+func newTheme(n Name, letter string, dark bool, p Palette, border lipgloss.Border) *Theme {
+	return &Theme{Name: n, Letter: letter, Dark: dark, P: p, Border: border, S: newStyles(p, border)}
+}
+
+// Label is theme n's name in t's language ("Charm 보라", "Retro amber"); an
+// unknown name is itself. nil t = ko.
+func Label(t *i18n.T, n Name) string {
+	if t == nil {
+		t = i18n.KoT()
+	}
+	switch n {
+	case Charm:
+		return t.Settings.ThemeCharm()
+	case Midnight:
+		return t.Settings.ThemeMidnight()
+	case Cream:
+		return t.Settings.ThemeCream()
+	case Amber:
+		return t.Settings.ThemeAmber()
+	}
+	return string(n)
 }
 
 // themes is built once; themes are read-only after init.
 var themes = []*Theme{
-	newTheme(Charm, "A", "Charm 보라", true, charmPalette, lipgloss.RoundedBorder()),
-	newTheme(Midnight, "B", "미드나잇 블루", true, midnightPalette, lipgloss.NormalBorder()),
-	newTheme(Cream, "C", "크림 파스텔", false, creamPalette, lipgloss.RoundedBorder()),
-	newTheme(Amber, "D", "레트로 앰버", true, amberPalette, lipgloss.DoubleBorder()),
+	newTheme(Charm, "A", true, charmPalette, lipgloss.RoundedBorder()),
+	newTheme(Midnight, "B", true, midnightPalette, lipgloss.NormalBorder()),
+	newTheme(Cream, "C", false, creamPalette, lipgloss.RoundedBorder()),
+	newTheme(Amber, "D", true, amberPalette, lipgloss.DoubleBorder()),
 }
 
 // Get returns the theme by name; an unknown name yields the Default theme.

@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/secrets"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -208,5 +209,5 @@ func (s *screen) onToolLoginForgot(ctx *ui.Context, m toolLoginForgotMsg) {
 		return
 	}
 	slog.Warn("forget tool login", "tool", m.tool, "err", m.err)
-	s.rowErr[rowToolPrefix+m.tool] = ctx.T.Tools.LoginsForgetFailed()
+	s.rowErr[rowToolPrefix+m.tool] = func(t *i18n.T) string { return t.Tools.LoginsForgetFailed() }
 }

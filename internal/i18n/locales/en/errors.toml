@@ -1,0 +1,145 @@
+# Errors area: one-line error descriptions (errtext.Describe).
+
+[code_account_suspended]
+other = "This account is suspended"
+
+[code_action_not_allowed]
+other = "You can't do that right now"
+
+[code_already_exists]
+other = "It already exists"
+
+[code_already_member]
+other = "Already a member"
+
+[code_banned_from_space]
+other = "You can't enter this space"
+
+[code_canceled]
+other = "Canceled"
+
+[code_conflict]
+other = "You can't do that in the current state"
+
+[code_dm_not_allowed]
+other = "You can't send a DM to this user"
+
+[code_forbidden]
+other = "You don't have permission"
+
+[code_handle_taken]
+other = "That username is already taken"
+
+[code_internal_error]
+other = "Something went wrong on the server"
+
+[code_invalid_credentials]
+other = "Wrong username or password"
+
+[code_invalid_json]
+other = "The request is malformed"
+
+[code_invite_invalid]
+other = "This invite has expired or can't be used anymore"
+
+[code_limit_exceeded]
+other = "Limit reached"
+
+[code_network]
+other = "Can't reach the server"
+
+[code_not_admin]
+other = "Only operators can do this"
+
+[code_not_found]
+other = "Not found"
+
+[code_payload_too_large]
+other = "The file is too large (max 5MB)"
+
+[code_poll_closed]
+other = "This poll is closed"
+
+[code_private_account]
+other = "This account is private"
+
+[code_rate_limited]
+other = "Too fast. Please try again in a moment"
+
+[code_read_only]
+other = "This conversation is read-only"
+
+[code_service_unavailable]
+other = "The server is busy. Please try again"
+
+[code_unauthorized]
+other = "Please log in"
+
+[code_unsupported_media_type]
+other = "This image format isn't supported"
+
+[code_upgrade_required]
+other = "Please update masil"
+
+[field_bio]
+other = "Bio"
+
+[field_body]
+other = "Body"
+
+[field_display_name]
+other = "Display name"
+
+[field_handle]
+other = "Username"
+
+[field_name]
+other = "Name"
+
+[field_password]
+other = "Password"
+
+[field_path]
+other = "ID or code"
+
+[field_q]
+other = "Search"
+
+[field_reason]
+other = "{label}: {reason}"
+
+[field_text]
+other = "Status"
+
+[invalid_request_generic]
+other = "Please check your input"
+
+[limit_exceeded_max]
+other = "Limit reached (max {max})"
+
+[rate_limited_after]
+other = "Too fast. Try again in {sec}s"
+
+[reason_invalid]
+other = "Invalid format"
+
+[reason_not_allowed]
+other = "Not allowed"
+
+[reason_required]
+other = "Required"
+
+[reason_too_long]
+other = "Too long"
+
+[reason_too_short]
+other = "Too short"
+
+[unknown]
+other = "Unknown error"
+
+[unknown_code]
+other = "Unknown error ({code})"
+
+[upgrade_required_min]
+other = "Please update masil (at least {min})"

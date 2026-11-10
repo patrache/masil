@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -191,7 +192,7 @@ func (o *pinsView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 		o.loading = false
 		if m.Err != nil {
-			o.failed = pinsFailed + ": " + api.Describe(m.Err)
+			o.failed = pinsFailed + ": " + errtext.Describe(ctx.T, m.Err)
 			return nil
 		}
 		o.failed = ""

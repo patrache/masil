@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
@@ -719,7 +720,7 @@ func (t *trends) View(ctx *ui.Context, _ bool) string {
 		case t.postQ != t.query && len(t.posts.items) == 0:
 			out = append(out, t.statusLine(ctx, w))
 		case len(t.posts.items) == 0 && t.postErr != nil:
-			empty("⚠", textwidth.Sanitize(api.Describe(t.postErr)), "")
+			empty("⚠", errtext.Describe(ctx.T, t.postErr), "")
 		case len(t.posts.items) == 0:
 			empty(iconSearch, textSearchEmpty, hintSearchEmpty)
 		default:

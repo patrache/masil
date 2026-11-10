@@ -14,6 +14,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/termcaps"
@@ -41,36 +42,39 @@ const (
 	secLogout   = "logout"
 )
 
+// label is a text in the shown language, rendered at draw time.
+type label func(t *i18n.T) string
+
 // section is one settings section.
 type section struct {
-	id, title string
+	id    string
+	title label
 }
 
 // sections in display order.
 var sections = []section{
-	{secTheme, "테마"},
-	{secLayout, "레이아웃"},
-	{secDisplay, "화면"},
-	{secNotify, "알림"},
-	{secPrivacy, "개인정보"},
-	{secFocus, "집중 모드"},
-	{secBlocks, "차단 목록"},
-	{secSessions, "기기·세션"},
-	{secPassword, "비밀번호"},
-	{secTools, ""}, // "도구 로그인" (catalog; drawn only with rows, toollogins.go)
-	{secLogout, "로그아웃"},
+	{secTheme, func(t *i18n.T) string { return t.Settings.SectionTheme() }},
+	{secLayout, func(t *i18n.T) string { return t.Settings.SectionLayout() }},
+	{secDisplay, func(t *i18n.T) string { return t.Settings.SectionDisplay() }},
+	{secNotify, func(t *i18n.T) string { return t.Settings.SectionNotify() }},
+	{secPrivacy, func(t *i18n.T) string { return t.Settings.PrivacySection() }},
+	{secFocus, func(t *i18n.T) string { return t.Settings.SectionFocus() }},
+	{secBlocks, func(t *i18n.T) string { return t.Settings.SectionBlocks() }},
+	{secSessions, func(t *i18n.T) string { return t.Settings.SectionSessions() }},
+	{secPassword, func(t *i18n.T) string { return t.Settings.SectionPassword() }},
+	{secTools, func(t *i18n.T) string { return t.Tools.LoginsSection() }}, // drawn only with rows (toollogins.go)
+	{secLogout, func(t *i18n.T) string { return t.Settings.SectionLogout() }},
 }
 
-// sectionTitle is sec's title in the shown language where it comes from the
-// catalog (the tool logins section), else its Korean title.
-func sectionTitle(ctx *ui.Context, sec section) string {
-	if sec.id == secTools {
-		if ctx != nil && ctx.T != nil {
-			return ctx.T.Tools.LoginsSection()
-		}
-		return i18n.KoT().Tools.LoginsSection()
+// sectionTitle is sec's title in the shown language.
+func sectionTitle(ctx *ui.Context, sec section) string { return sec.title(catOf(ctx)) }
+
+// catOf is ctx's catalog (ko without one).
+func catOf(ctx *ui.Context) *i18n.T {
+	if ctx == nil || ctx.T == nil {
+		return i18n.KoT()
 	}
-	return sec.title
+	return ctx.T
 }
 
 // sectionIndex is the index of section id in sections (-1 = unknown).
@@ -105,31 +109,51 @@ const (
 
 // Server notify switches (CA 4.3.2 NotifySettings), in display order.
 var notifyRows = []struct {
-	id, label string
-	get       func(n *api.NotifySettings) *bool
-	patch     func(p *api.NotifySettingsPatch) *api.Opt[bool]
+	id    string
+	label label
+	get   func(n *api.NotifySettings) *bool
+	patch func(p *api.NotifySettingsPatch) *api.Opt[bool]
 }{
-	{"notify.dm", "DM 알림", func(n *api.NotifySettings) *bool { return &n.DM }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.DM }},
-	{"notify.mention", "멘션 알림", func(n *api.NotifySettings) *bool { return &n.Mention }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.Mention }},
-	{"notify.invite", "초대 알림", func(n *api.NotifySettings) *bool { return &n.Invite }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.Invite }},
-	{"notify.friend_request", "친구 요청 알림", func(n *api.NotifySettings) *bool { return &n.FriendRequest }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.FriendRequest }},
-	{"notify.thread_reply", "스레드 답글 알림", func(n *api.NotifySettings) *bool { return &n.ThreadReply }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.ThreadReply }},
-	{"notify.social", "소셜 알림", func(n *api.NotifySettings) *bool { return &n.Social }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.Social }},
+	{"notify.dm", func(t *i18n.T) string { return t.Settings.RowNotifyDm() }, func(n *api.NotifySettings) *bool { return &n.DM }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.DM }},
+	{"notify.mention", func(t *i18n.T) string { return t.Settings.RowNotifyMention() }, func(n *api.NotifySettings) *bool { return &n.Mention }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.Mention }},
+	{"notify.invite", func(t *i18n.T) string { return t.Settings.RowNotifyInvite() }, func(n *api.NotifySettings) *bool { return &n.Invite }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.Invite }},
+	{"notify.friend_request", func(t *i18n.T) string { return t.Settings.RowNotifyFriendRequest() }, func(n *api.NotifySettings) *bool { return &n.FriendRequest }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.FriendRequest }},
+	{"notify.thread_reply", func(t *i18n.T) string { return t.Settings.RowNotifyThreadReply() }, func(n *api.NotifySettings) *bool { return &n.ThreadReply }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.ThreadReply }},
+	{"notify.social", func(t *i18n.T) string { return t.Settings.RowNotifySocial() }, func(n *api.NotifySettings) *bool { return &n.Social }, func(p *api.NotifySettingsPatch) *api.Opt[bool] { return &p.Social }},
 }
 
 // choice is one value of a cycle row.
-type choice struct{ value, label string }
+type choice struct {
+	value string
+	label label
+}
+
+// fixed is a label that is the same in every language (a product name).
+func fixed(s string) label { return func(*i18n.T) string { return s } }
 
 var (
+	valueAuto  = func(t *i18n.T) string { return t.Settings.ValueAuto() }
 	pinChoices = []choice{
-		{"auto", "자동"}, {"command", "지휘소"}, {"standard", "표준"},
-		{"compact", "컴팩트"}, {"widget", "위젯"}, {"tiny", "초소형"},
+		{"auto", valueAuto},
+		{"command", func(t *i18n.T) string { return t.Settings.ValuePinCommand() }},
+		{"standard", func(t *i18n.T) string { return t.Settings.ValuePinStandard() }},
+		{"compact", func(t *i18n.T) string { return t.Settings.ValuePinCompact() }},
+		{"widget", func(t *i18n.T) string { return t.Settings.ValuePinWidget() }},
+		{"tiny", func(t *i18n.T) string { return t.Settings.ValuePinTiny() }},
 	}
 	imageChoices = []choice{
-		{"auto", "자동"}, {"kitty", "Kitty"}, {"iterm2", "iTerm2"}, {"halfblock", "하프블록"}, {"off", "끔"},
+		{"auto", valueAuto}, {"kitty", fixed("Kitty")}, {"iterm2", fixed("iTerm2")},
+		{"halfblock", func(t *i18n.T) string { return t.Settings.ValueImagesHalfblock() }},
+		{"off", func(t *i18n.T) string { return t.Settings.ValueImagesOff() }},
 	}
-	clockChoices    = []choice{{"24h", "24시간"}, {"12h", "12시간"}}
-	dmPolicyChoices = []choice{{"friends_and_spaces", "친구·같은 방 멤버"}, {"friends_only", "친구만"}}
+	clockChoices = []choice{
+		{"24h", func(t *i18n.T) string { return t.Settings.ValueClock24h() }},
+		{"12h", func(t *i18n.T) string { return t.Settings.ValueClock12h() }},
+	}
+	dmPolicyChoices = []choice{
+		{"friends_and_spaces", func(t *i18n.T) string { return t.Settings.PrivacyDmFriendsAndSpaces() }},
+		{"friends_only", func(t *i18n.T) string { return t.Settings.PrivacyDmFriendsOnly() }},
+	}
 )
 
 // choiceIndex is the index of v in cs (case-insensitive; unknown => 0).
@@ -142,35 +166,6 @@ func choiceIndex(cs []choice, v string) int {
 
 // step moves i by dir in n values, wrapping around.
 func step(i, dir, n int) int { return ((i+dir)%n + n) % n }
-
-// Texts.
-const (
-	textOn            = "켜짐"
-	textOff           = "꺼짐"
-	textLoading       = "불러오는 중…"
-	textRetry         = "enter 다시 시도"
-	textNoBlocks      = "차단한 사람이 없어요"
-	textNoSessions    = "다른 세션이 없어요"
-	textCurrentDevice = "현재 기기"
-	textSaveFailed    = "설정을 저장하지 못했어요"
-	textFixConfig     = "config.toml 을 고친 뒤 다시 해 주세요"
-	textSettingsLoad  = "서버 설정을 불러오지 못했어요"
-	textFocusRange    = "1~720 사이의 분으로 입력해 주세요"
-	textPwButton      = "[ 비밀번호 바꾸기 ]"
-	textPwBusy        = "바꾸는 중…"
-	textPwChanged     = "비밀번호를 바꿨어요"
-	textPwWrong       = "현재 비밀번호가 맞지 않아요"
-	textPwCurEmpty    = "현재 비밀번호를 입력해 주세요"
-	textPwNewEmpty    = "새 비밀번호를 입력해 주세요"
-	textPwShort       = "비밀번호는 8자 이상이에요"
-	textPwLong        = "비밀번호는 128자 이하예요"
-	textPwMismatch    = "비밀번호가 서로 달라요"
-	textPwSame        = "새 비밀번호가 지금과 같아요"
-	textPwEditHint    = "enter 입력"
-	textLogoutHint    = "이 기기에서 로그아웃해요"
-	textUnblockTitle  = "차단을 풀까요?"
-	textRevokeTitle   = "이 기기를 로그아웃할까요?"
-)
 
 // Limits (api.md: focus_default_min 1..720, password 8..128 code points).
 const (
@@ -233,47 +228,51 @@ func (s *screen) rows(ctx *ui.Context) []row {
 		cfg = config.Defaults()
 	}
 	t := themeOf(ctx)
+	cat := catOf(ctx)
+	st := cat.Settings
 	var out []row
 	add := func(r row) {
-		r.err = s.rowErr[r.id]
+		if f := s.rowErr[r.id]; f != nil {
+			r.err = f(cat) // rendered when drawn: follows a language switch
+		}
 		out = append(out, r)
 	}
 	// theme
-	add(row{id: rowTheme, sec: secTheme, kind: kindCycle, label: "테마", value: t.Letter + " · " + t.Label})
+	add(row{id: rowTheme, sec: secTheme, kind: kindCycle, label: st.RowTheme(), value: t.Letter + " · " + theme.Label(cat, t.Name)})
 	// layout
-	add(row{id: rowPin, sec: secLayout, kind: kindCycle, label: "레이아웃 고정",
-		value: pinChoices[choiceIndex(pinChoices, cfg.Layout.Pin)].label})
+	add(row{id: rowPin, sec: secLayout, kind: kindCycle, label: st.RowPin(),
+		value: pinChoices[choiceIndex(pinChoices, cfg.Layout.Pin)].label(cat)})
 	// display
-	add(row{id: rowMouse, sec: secDisplay, kind: kindToggle, label: "마우스", on: cfg.UI.Mouse})
-	add(row{id: rowImages, sec: secDisplay, kind: kindCycle, label: "이미지",
-		value: imageChoices[choiceIndex(imageChoices, cfg.UI.Images)].label})
-	add(row{id: rowAnimations, sec: secDisplay, kind: kindToggle, label: "애니메이션", on: cfg.UI.Animations})
-	add(row{id: rowPaintBG, sec: secDisplay, kind: kindToggle, label: "배경색 칠하기", on: cfg.UI.PaintBackground})
-	add(row{id: rowClock, sec: secDisplay, kind: kindCycle, label: "시계",
-		value: clockChoices[choiceIndex(clockChoices, cfg.UI.Clock)].label})
+	add(row{id: rowMouse, sec: secDisplay, kind: kindToggle, label: st.RowMouse(), on: cfg.UI.Mouse})
+	add(row{id: rowImages, sec: secDisplay, kind: kindCycle, label: st.RowImages(),
+		value: imageChoices[choiceIndex(imageChoices, cfg.UI.Images)].label(cat)})
+	add(row{id: rowAnimations, sec: secDisplay, kind: kindToggle, label: st.RowAnimations(), on: cfg.UI.Animations})
+	add(row{id: rowPaintBG, sec: secDisplay, kind: kindToggle, label: st.RowPaintBg(), on: cfg.UI.PaintBackground})
+	add(row{id: rowClock, sec: secDisplay, kind: kindCycle, label: st.RowClock(),
+		value: clockChoices[choiceIndex(clockChoices, cfg.UI.Clock)].label(cat)})
 	// notify: local master switch, then the server switches
-	add(row{id: rowDesktop, sec: secNotify, kind: kindToggle, label: "데스크톱 알림", on: cfg.Notify.Desktop, sub: "이 기기"})
-	if s.settingsErr != "" {
-		add(row{id: rowSettingsErr, sec: secNotify, kind: kindAction, info: textSettingsLoad + ": " + s.settingsErr, bad: true})
+	add(row{id: rowDesktop, sec: secNotify, kind: kindToggle, label: st.RowDesktop(), on: cfg.Notify.Desktop, sub: st.RowDesktopSub()})
+	if s.settingsErr != nil {
+		add(row{id: rowSettingsErr, sec: secNotify, kind: kindAction, info: st.SettingsLoadFailed(s.settingsErr(cat)), bad: true})
 	}
 	for _, n := range notifyRows {
-		add(row{id: n.id, sec: secNotify, kind: kindToggle, label: n.label, on: *n.get(&s.settings.Notify)})
+		add(row{id: n.id, sec: secNotify, kind: kindToggle, label: n.label(cat), on: *n.get(&s.settings.Notify)})
 	}
 	// privacy
-	add(row{id: rowDMPolicy, sec: secPrivacy, kind: kindCycle, label: "DM 받기",
-		value: dmPolicyChoices[choiceIndex(dmPolicyChoices, s.settings.DMPolicy)].label})
-	add(row{id: rowPrivate, sec: secPrivacy, kind: kindToggle, label: "비공개 계정", on: s.settings.IsPrivate})
+	add(row{id: rowDMPolicy, sec: secPrivacy, kind: kindCycle, label: st.PrivacyDmPolicy(),
+		value: dmPolicyChoices[choiceIndex(dmPolicyChoices, s.settings.DMPolicy)].label(cat)})
+	add(row{id: rowPrivate, sec: secPrivacy, kind: kindToggle, label: st.PrivacyPrivate(), on: s.settings.IsPrivate})
 	// focus
-	add(row{id: rowFocusMin, sec: secFocus, kind: kindNumber, label: "집중 기본 시간",
-		value: strconv.Itoa(s.settings.FocusDefaultMin) + "분", field: s.num})
+	add(row{id: rowFocusMin, sec: secFocus, kind: kindNumber, label: st.RowFocusDefault(),
+		value: st.FocusMinutes(s.settings.FocusDefaultMin), field: s.num})
 	// blocks
 	switch {
-	case s.blocks.err != "":
-		add(row{id: rowBlocksState, sec: secBlocks, kind: kindAction, info: s.blocks.err, bad: true})
+	case s.blocks.err != nil:
+		add(row{id: rowBlocksState, sec: secBlocks, kind: kindAction, info: s.blocks.err(cat), bad: true})
 	case !s.blocks.loaded:
-		add(row{id: rowBlocksState, sec: secBlocks, kind: kindInfo, info: textLoading})
+		add(row{id: rowBlocksState, sec: secBlocks, kind: kindInfo, info: st.Loading()})
 	case len(s.blocks.items) == 0:
-		add(row{id: rowBlocksState, sec: secBlocks, kind: kindInfo, info: textNoBlocks})
+		add(row{id: rowBlocksState, sec: secBlocks, kind: kindInfo, info: st.NoBlocks()})
 	}
 	for _, b := range s.blocks.items {
 		u := b.User
@@ -282,36 +281,36 @@ func (s *screen) rows(ctx *ui.Context) []row {
 			name = textwidth.Sanitize(u.Handle)
 		}
 		add(row{id: rowBlockPrefix + u.ID, sec: secBlocks, kind: kindAction, label: name,
-			value: "@" + textwidth.Sanitize(u.Handle), sub: humanize.Relative(ctx.Now().In(ctx.Loc), b.CreatedAt) + " 차단"})
+			value: "@" + textwidth.Sanitize(u.Handle), sub: st.BlockedAgo(humanize.For(cat.Locale()).Relative(ctx.Now().In(ctx.Loc), b.CreatedAt))})
 	}
 	// sessions
 	switch {
-	case s.sessions.err != "":
-		add(row{id: rowSessState, sec: secSessions, kind: kindAction, info: s.sessions.err, bad: true})
+	case s.sessions.err != nil:
+		add(row{id: rowSessState, sec: secSessions, kind: kindAction, info: s.sessions.err(cat), bad: true})
 	case !s.sessions.loaded:
-		add(row{id: rowSessState, sec: secSessions, kind: kindInfo, info: textLoading})
+		add(row{id: rowSessState, sec: secSessions, kind: kindInfo, info: st.Loading()})
 	case len(s.sessions.items) == 0:
-		add(row{id: rowSessState, sec: secSessions, kind: kindInfo, info: textNoSessions})
+		add(row{id: rowSessState, sec: secSessions, kind: kindInfo, info: st.NoSessions()})
 	}
 	for _, se := range s.sessions.items {
 		name := textwidth.Sanitize(se.DeviceName)
 		if strings.TrimSpace(name) == "" {
-			name = clientLabel(se.Client)
+			name = clientLabel(cat, se.Client)
 		}
 		r := row{id: rowSessPrefix + se.ID, sec: secSessions, kind: kindAction, label: name,
-			value: clientLabel(se.Client), sub: "마지막 사용 " + humanize.Relative(ctx.Now().In(ctx.Loc), se.LastUsedAt)}
+			value: clientLabel(cat, se.Client), sub: st.LastUsed(humanize.For(cat.Locale()).Relative(ctx.Now().In(ctx.Loc), se.LastUsedAt))}
 		if se.Current {
-			r.good = textCurrentDevice
+			r.good = st.CurrentDevice()
 		}
 		add(r)
 	}
 	// password
 	for i, id := range passwordRows {
-		add(row{id: id, sec: secPassword, kind: kindPassword, label: passwordLabels[i], field: s.pw[i]})
+		add(row{id: id, sec: secPassword, kind: kindPassword, label: passwordLabels[i](cat), field: s.pw[i]})
 	}
-	submit := row{id: rowPwSubmit, sec: secPassword, kind: kindButton, label: textPwButton}
+	submit := row{id: rowPwSubmit, sec: secPassword, kind: kindButton, label: "[ " + st.PwButton() + " ]"}
 	if s.pwBusy {
-		submit.sub = textPwBusy
+		submit.sub = st.PwBusy()
 	}
 	add(submit)
 	// tool logins (v0.1.3 A9.4)
@@ -319,24 +318,28 @@ func (s *screen) rows(ctx *ui.Context) []row {
 		add(r)
 	}
 	// logout
-	add(row{id: rowLogout, sec: secLogout, kind: kindAction, label: "로그아웃", sub: textLogoutHint})
+	add(row{id: rowLogout, sec: secLogout, kind: kindAction, label: st.RowLogout(), sub: st.LogoutHint()})
 	return out
 }
 
 // passwordLabels are the labels of passwordRows.
-var passwordLabels = []string{"현재 비밀번호", "새 비밀번호", "새 비밀번호 확인"}
+var passwordLabels = []label{
+	func(t *i18n.T) string { return t.Settings.RowPwCurrent() },
+	func(t *i18n.T) string { return t.Settings.RowPwNew() },
+	func(t *i18n.T) string { return t.Settings.RowPwConfirm() },
+}
 
-// clientLabel is the Korean name of a session client.
-func clientLabel(c string) string {
+// clientLabel is the name of a session client in t's language.
+func clientLabel(t *i18n.T, c string) string {
 	switch c {
 	case "tui":
-		return "터미널"
+		return t.Settings.ClientTui()
 	case "daemon":
-		return "알림 데몬"
+		return t.Settings.ClientDaemon()
 	case "admin":
-		return "관리 도구"
+		return t.Settings.ClientAdmin()
 	}
-	return "기타"
+	return t.Settings.ClientOther()
 }
 
 // themeOf is ctx.Theme (the default theme without one).
@@ -445,17 +448,17 @@ func (s *screen) saveLocal(ctx *ui.Context, id string, apply func(*config.Config
 	apply(ctx.Config)
 	delete(s.rowErr, id)
 	if err := config.Save(ctx.Paths, ctx.Config); errors.Is(err, config.ErrNotLoaded) {
-		s.rowErr[id] = textFixConfig // config.toml did not load: never overwrite it
+		s.rowErr[id] = func(t *i18n.T) string { return t.Settings.FixConfig() } // config.toml did not load: never overwrite it
 	} else if err != nil {
 		slog.Warn("save config", "err", err)
-		s.rowErr[id] = textSaveFailed
+		s.rowErr[id] = func(t *i18n.T) string { return t.Settings.SaveFailed() }
 	}
 	return nil
 }
 
 // patch sends one server setting (only that Opt filled) after applying it
 // optimistically; the response replaces Store.Settings, a failure reverts the rows to
-// Store.Settings and shows api.Describe under the row.
+// Store.Settings and shows errtext.Describe under the row.
 func (s *screen) patch(ctx *ui.Context, id string, req api.UpdateSettingsRequest, optimistic func(*api.Settings)) tea.Cmd {
 	optimistic(&s.settings)
 	delete(s.rowErr, id)
@@ -472,7 +475,7 @@ func (s *screen) act(ctx *ui.Context, r row) tea.Cmd {
 	case strings.HasPrefix(r.id, rowToolPrefix):
 		return s.confirmForget(ctx, r)
 	case r.id == rowSettingsErr:
-		s.settingsErr = ""
+		s.settingsErr = nil
 		return s.fetchSettings(ctx)
 	case r.id == rowBlocksState:
 		return s.fetchBlocks(ctx)
@@ -497,11 +500,12 @@ func (s *screen) confirmUnblock(ctx *ui.Context, userID string) tea.Cmd {
 	if u.Handle != "" {
 		ref = api.Handle(u.Handle)
 	}
-	body := "@" + textwidth.Sanitize(u.Handle) + "님이 다시 DM 을 보내고 글을 볼 수 있어요."
+	st := catOf(ctx).Settings
+	body := st.UnblockBody(textwidth.Sanitize(u.Handle))
 	run := ui.Do(ctx, tagUnblock+userID, func(c context.Context, a *api.Client) (struct{}, error) {
 		return struct{}{}, a.Unblock(c, ref)
 	})
-	return ui.OpenOverlay(widgets.Confirm(textUnblockTitle, body, "차단 풀기", "취소", run))
+	return ui.OpenOverlay(widgets.Confirm(st.UnblockTitle(), body, st.UnblockYes(), st.Cancel(), run))
 }
 
 // confirmRevoke asks before DELETE /v1/auth/sessions/{id}; the current session is
@@ -512,14 +516,15 @@ func (s *screen) confirmRevoke(ctx *ui.Context, id string) tea.Cmd {
 		return nil
 	}
 	se := s.sessions.items[i]
+	st := catOf(ctx).Settings
 	name := textwidth.Sanitize(se.DeviceName)
 	if strings.TrimSpace(name) == "" {
-		name = clientLabel(se.Client)
+		name = clientLabel(catOf(ctx), se.Client)
 	}
 	run := ui.Do(ctx, tagRevoke+id, func(c context.Context, a *api.Client) (struct{}, error) {
 		return struct{}{}, a.RevokeSession(c, id)
 	})
-	return ui.OpenOverlay(widgets.Confirm(textRevokeTitle, name+" 의 masil 이 로그아웃돼요.", "로그아웃", "취소", run))
+	return ui.OpenOverlay(widgets.Confirm(st.RevokeTitle(), st.RevokeBody(name), st.RevokeYes(), st.Cancel(), run))
 }
 
 // ---- fetches ----
@@ -528,8 +533,8 @@ func (s *screen) confirmRevoke(ctx *ui.Context, id string) tea.Cmd {
 type listState[T any] struct {
 	items  []T
 	loaded bool
-	err    string
-	gen    int // generation of the latest fetch (stale results are dropped)
+	err    label // load error line (nil = none), rendered when drawn
+	gen    int   // generation of the latest fetch (stale results are dropped)
 }
 
 func (s *screen) fetchSettings(ctx *ui.Context) tea.Cmd {
@@ -552,12 +557,22 @@ func (s *screen) fetchSessions(ctx *ui.Context) tea.Cmd {
 	})
 }
 
-// describe is api.Describe with a fallback for a nil-coded error.
-func describe(err error) string {
-	if d := api.Describe(err); d != "" {
+// describe is errtext.Describe with a fallback for a nil error.
+func describe(t *i18n.T, err error) string {
+	if d := errtext.Describe(t, err); d != "" {
 		return d
 	}
-	return api.Describe(&api.Error{Code: "internal_error"})
+	return errtext.Describe(t, &api.Error{Code: "internal_error"})
+}
+
+// describeErr is err's error line, rendered in the shown language when drawn.
+func describeErr(err error) label {
+	return func(t *i18n.T) string { return describe(t, err) }
+}
+
+// retryErr is a list load error line with the retry hint.
+func retryErr(err error) label {
+	return func(t *i18n.T) string { return describe(t, err) + " · " + t.Settings.Retry() }
 }
 
 // onSettings handles GET/PATCH /v1/me/settings results.
@@ -566,13 +581,13 @@ func (s *screen) onSettings(ctx *ui.Context, m ui.ResultMsg[*api.Settings]) {
 	if m.Err != nil || m.Value == nil {
 		if isUpdate {
 			s.settings = ctx.Store.Settings // revert to the last known server state
-			s.rowErr[id] = describe(m.Err)
+			s.rowErr[id] = describeErr(m.Err)
 		} else {
-			s.settingsErr = describe(m.Err)
+			s.settingsErr = describeErr(m.Err)
 		}
 		return
 	}
-	s.settingsErr = ""
+	s.settingsErr = nil
 	s.settings = *m.Value
 	ctx.Store.Settings = *m.Value
 	if ctx.Store.Me != nil {
@@ -589,10 +604,10 @@ func (s *screen) onBlocks(ctx *ui.Context, m ui.ResultMsg[[]api.BlockEntry]) {
 		return
 	}
 	if m.Err != nil {
-		s.blocks.err = describe(m.Err) + " · " + textRetry
+		s.blocks.err = retryErr(m.Err)
 		return
 	}
-	s.blocks.items, s.blocks.loaded, s.blocks.err = m.Value, true, ""
+	s.blocks.items, s.blocks.loaded, s.blocks.err = m.Value, true, nil
 	if ctx.Store.Blocks == nil {
 		return
 	}
@@ -615,7 +630,7 @@ func (s *screen) onBlocks(ctx *ui.Context, m ui.ResultMsg[[]api.BlockEntry]) {
 func (s *screen) onUnblock(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 	userID := strings.TrimPrefix(m.Tag, tagUnblock)
 	if m.Err != nil {
-		s.rowErr[rowBlockPrefix+userID] = describe(m.Err)
+		s.rowErr[rowBlockPrefix+userID] = describeErr(m.Err)
 		return
 	}
 	s.blocks.items = slices.DeleteFunc(slices.Clone(s.blocks.items), func(b api.BlockEntry) bool { return b.User.ID == userID })
@@ -624,12 +639,12 @@ func (s *screen) onUnblock(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 }
 
 // onSessions handles a ListSessions result (the current session first).
-func (s *screen) onSessions(m ui.ResultMsg[[]api.Session]) {
+func (s *screen) onSessions(ctx *ui.Context, m ui.ResultMsg[[]api.Session]) {
 	if strings.TrimPrefix(m.Tag, tagSessions) != strconv.Itoa(s.sessions.gen) {
 		return
 	}
 	if m.Err != nil {
-		s.sessions.err = describe(m.Err) + " · " + textRetry
+		s.sessions.err = retryErr(m.Err)
 		return
 	}
 	items := slices.Clone(m.Value)
@@ -642,14 +657,14 @@ func (s *screen) onSessions(m ui.ResultMsg[[]api.Session]) {
 		}
 		return 1
 	})
-	s.sessions.items, s.sessions.loaded, s.sessions.err = items, true, ""
+	s.sessions.items, s.sessions.loaded, s.sessions.err = items, true, nil
 }
 
 // onRevoke handles a RevokeSession result.
-func (s *screen) onRevoke(m ui.ResultMsg[struct{}]) {
+func (s *screen) onRevoke(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 	id := strings.TrimPrefix(m.Tag, tagRevoke)
 	if m.Err != nil {
-		s.rowErr[rowSessPrefix+id] = describe(m.Err)
+		s.rowErr[rowSessPrefix+id] = describeErr(m.Err)
 		return
 	}
 	s.sessions.items = slices.DeleteFunc(slices.Clone(s.sessions.items), func(se api.Session) bool { return se.ID == id })
@@ -689,7 +704,7 @@ func (s *screen) editedField() *field {
 func (s *screen) commitNumber(ctx *ui.Context) tea.Cmd {
 	v, err := strconv.Atoi(s.num.value())
 	if err != nil || v < focusMinLo || v > focusMinHi {
-		s.rowErr[rowFocusMin] = textFocusRange
+		s.rowErr[rowFocusMin] = func(t *i18n.T) string { return t.Settings.FocusRange() }
 		return nil
 	}
 	s.stopEdit()
@@ -709,7 +724,7 @@ func (s *screen) submitPassword(ctx *ui.Context) tea.Cmd {
 		delete(s.rowErr, id)
 	}
 	cur, next, confirm := s.pw[0].value(), s.pw[1].value(), s.pw[2].value()
-	fail := func(id, text string) tea.Cmd {
+	fail := func(id string, text label) tea.Cmd {
 		s.rowErr[id] = text
 		s.selectID(id)
 		s.startEdit(id)
@@ -718,17 +733,17 @@ func (s *screen) submitPassword(ctx *ui.Context) tea.Cmd {
 	n := utf8.RuneCountInString(next)
 	switch {
 	case cur == "":
-		return fail(rowPwCurrent, textPwCurEmpty)
+		return fail(rowPwCurrent, func(t *i18n.T) string { return t.Settings.PwCurEmpty() })
 	case n == 0:
-		return fail(rowPwNew, textPwNewEmpty)
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwNewEmpty() })
 	case n < passwordMin:
-		return fail(rowPwNew, textPwShort)
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwShort() })
 	case n > passwordMax:
-		return fail(rowPwNew, textPwLong)
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwLong() })
 	case next == cur:
-		return fail(rowPwNew, textPwSame)
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwSame() })
 	case confirm != next:
-		return fail(rowPwConfirm, textPwMismatch)
+		return fail(rowPwConfirm, func(t *i18n.T) string { return t.Settings.PwMismatch() })
 	}
 	s.stopEdit()
 	s.pwBusy = true
@@ -745,10 +760,9 @@ func (s *screen) onPassword(ctx *ui.Context, m ui.ResultMsg[struct{}]) tea.Cmd {
 	}
 	s.pwBusy = false
 	if m.Err != nil {
-		text := describe(m.Err)
-		id := rowPwSubmit
+		text, id := describeErr(m.Err), rowPwSubmit
 		if api.CodeOf(m.Err) == "invalid_credentials" {
-			text, id = textPwWrong, rowPwCurrent
+			text, id = func(t *i18n.T) string { return t.Settings.PwWrong() }, rowPwCurrent
 			s.pw[0].clear()
 		}
 		s.rowErr[id] = text
@@ -762,5 +776,5 @@ func (s *screen) onPassword(ctx *ui.Context, m ui.ResultMsg[struct{}]) tea.Cmd {
 		f.clear()
 	}
 	// Every other session was revoked (api.md 5.1): refresh the list.
-	return tea.Batch(ui.Toast(textPwChanged, ui.ToastSuccess), s.fetchSessions(ctx))
+	return tea.Batch(ui.Toast(catOf(ctx).Settings.PwChanged(), ui.ToastSuccess), s.fetchSessions(ctx))
 }

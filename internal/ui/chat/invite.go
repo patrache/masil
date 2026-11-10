@@ -12,7 +12,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -69,7 +71,7 @@ const (
 )
 
 // inviteErrorText is the in-place text of an invite failure (api.md 0.5, 5.8).
-func inviteErrorText(err error) string {
+func inviteErrorText(t *i18n.T, err error) string {
 	switch {
 	case api.IsCode(err, "invite_invalid"):
 		switch invalidReason(err) {
@@ -85,7 +87,7 @@ func inviteErrorText(err error) string {
 	case api.IsCode(err, "banned_from_space"):
 		return "이 방에 들어갈 수 없어요"
 	}
-	return api.Describe(err)
+	return errtext.Describe(t, err)
 }
 
 // invalidReason is details.reason of an invite_invalid error ("" when absent).
@@ -565,7 +567,7 @@ func (v *inviteView) View(ctx *ui.Context, focused bool) string {
 	case inviteDirectOne:
 		switch {
 		case v.final != nil:
-			return widgets.Empty(t, v.size, "⚠", directErrorText(v.final), inviteCloseHint)
+			return widgets.Empty(t, v.size, "⚠", directErrorText(tOf(ctx), v.final), inviteCloseHint)
 		case v.gone || v.invite == nil:
 			return widgets.Empty(t, v.size, "📭", inviteGoneText, inviteCloseHint)
 		}
@@ -578,7 +580,7 @@ func (v *inviteView) View(ctx *ui.Context, focused bool) string {
 		if finalInviteError(v.err) {
 			hint = inviteCloseHint
 		}
-		return widgets.Empty(t, v.size, "⚠", inviteErrorText(v.err), hint)
+		return widgets.Empty(t, v.size, "⚠", inviteErrorText(tOf(ctx), v.err), hint)
 	case v.preview == nil:
 		return v.centerRows(t, []cardRow{{text: inviteLoadingText, style: t.S.Dim.Render, spin: true}})
 	}
@@ -599,9 +601,9 @@ func (v *inviteView) View(ctx *ui.Context, focused bool) string {
 }
 
 // directErrorText is the in-place text of a settled direct-invite failure.
-func directErrorText(err error) string {
+func directErrorText(t *i18n.T, err error) string {
 	if api.IsCode(err, "banned_from_space") {
-		return inviteErrorText(err)
+		return inviteErrorText(t, err)
 	}
 	return inviteGoneText
 }

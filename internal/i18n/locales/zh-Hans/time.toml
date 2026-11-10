@@ -1,0 +1,154 @@
+# Time area: dates, times, counts and durations (humanize, i18n 6.7).
+
+[am]
+other = "上午"
+
+[clock_12h]
+other = "{ampm}{time}"
+
+[count_tier1]
+other = "{n}万"
+
+[count_tier2]
+other = "{n}亿"
+
+[count_tier3]
+other = "{n}万亿"
+
+[day_divider]
+other = "{year}年{month}月{day}日 {weekday}"
+
+[duration_hours]
+other = "{n}小时"
+
+[duration_hours_minutes]
+other = "{h}小时{m}分钟"
+
+[duration_minutes]
+other = "{n}分钟"
+
+[duration_seconds]
+other = "{n}秒"
+
+[full_date]
+other = "{year}/{month}/{day}"
+
+[month_day]
+other = "{month}月{day}日"
+
+[month_day_at]
+other = "{date} {clock}"
+
+[month_long_1]
+other = "1"
+
+[month_long_10]
+other = "10"
+
+[month_long_11]
+other = "11"
+
+[month_long_12]
+other = "12"
+
+[month_long_2]
+other = "2"
+
+[month_long_3]
+other = "3"
+
+[month_long_4]
+other = "4"
+
+[month_long_5]
+other = "5"
+
+[month_long_6]
+other = "6"
+
+[month_long_7]
+other = "7"
+
+[month_long_8]
+other = "8"
+
+[month_long_9]
+other = "9"
+
+[month_short_1]
+other = "1"
+
+[month_short_10]
+other = "10"
+
+[month_short_11]
+other = "11"
+
+[month_short_12]
+other = "12"
+
+[month_short_2]
+other = "2"
+
+[month_short_3]
+other = "3"
+
+[month_short_4]
+other = "4"
+
+[month_short_5]
+other = "5"
+
+[month_short_6]
+other = "6"
+
+[month_short_7]
+other = "7"
+
+[month_short_8]
+other = "8"
+
+[month_short_9]
+other = "9"
+
+[pm]
+other = "下午"
+
+[relative_hours]
+other = "{n}小时"
+
+[relative_minutes]
+other = "{n}分钟"
+
+[relative_now]
+other = "刚刚"
+
+[relative_past_year]
+other = "{yy}/{mon}/{day}"
+
+[relative_yesterday]
+other = "昨天"
+
+[weekday_0]
+other = "星期日"
+
+[weekday_1]
+other = "星期一"
+
+[weekday_2]
+other = "星期二"
+
+[weekday_3]
+other = "星期三"
+
+[weekday_4]
+other = "星期四"
+
+[weekday_5]
+other = "星期五"
+
+[weekday_6]
+other = "星期六"
+
+[yesterday_at]
+other = "昨天 {clock}"

@@ -8,6 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/palette"
 )
@@ -84,21 +86,21 @@ func userRefs(users []api.UserSummary) []api.UserRef {
 
 // describeGroupDMErr words a failed group DM create/add: dm_not_allowed without
 // details.user_ids is a block between two would-be members, which the server never
-// names (api.md 3.1, D2); everything else (can_dm failures included) is api.Describe.
-func describeGroupDMErr(err error, _ []api.UserSummary) string {
+// names (api.md 3.1, D2); everything else (can_dm failures included) is errtext.Describe.
+func describeGroupDMErr(t *i18n.T, err error, _ []api.UserSummary) string {
 	var e *api.Error
 	if errors.As(err, &e) && e.Code == "dm_not_allowed" && len(e.UserIDs()) == 0 {
 		return groupDMRefusedText
 	}
-	return api.Describe(err)
+	return errtext.Describe(t, err)
 }
 
 // describeDMErr is dm.new's DescribeErr: two picks or more are a group DM.
-func describeDMErr(err error, picked []api.UserSummary) string {
+func describeDMErr(t *i18n.T, err error, picked []api.UserSummary) string {
 	if len(picked) >= 2 {
-		return describeGroupDMErr(err, picked)
+		return describeGroupDMErr(t, err, picked)
 	}
-	return api.Describe(err)
+	return errtext.Describe(t, err)
 }
 
 // newDMDialog is the dm.new picker: friends (online first) plus a server search,

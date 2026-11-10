@@ -8,7 +8,6 @@ package autostart
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +17,9 @@ import (
 // Status is what Query reports about the autostart registration.
 type Status struct {
 	Installed, Running bool
-	Detail             string
+	Detail             string // where it is registered ("launchd <plist>", …)
+	ExeMissing         string // the registered executable when it no longer exists ("" = present)
+	ExeUnknown         bool   // the registration names no executable (broken plist/unit/value): gone, no path to show
 }
 
 // Fixed registration names (contract 9.2).
@@ -42,11 +43,12 @@ var (
 )
 
 // StableExecutable maps a Homebrew Cellar path (<prefix>/Cellar/masil/<ver>/bin/masil) to <prefix>/bin/masil
-// when that exists, and rejects `go run` temp binaries (path containing "go-build") with a Korean error.
+// when that exists, and rejects `go run` temp binaries (path containing "go-build") with an
+// *ExeError{Kind: ExeTemporary}.
 func StableExecutable(exe string) (string, error) {
 	slash := filepath.ToSlash(exe)
 	if strings.Contains(slash, "go-build") {
-		return "", fmt.Errorf("임시 빌드 실행 파일(%s)은 자동 시작에 등록할 수 없습니다 — 'go run' 대신 설치한 masil 로 다시 실행하세요", exe)
+		return "", &ExeError{Kind: ExeTemporary, Exe: exe}
 	}
 	if i := strings.Index(slash, "/Cellar/masil/"); i >= 0 {
 		link := filepath.FromSlash(slash[:i] + "/bin/masil")

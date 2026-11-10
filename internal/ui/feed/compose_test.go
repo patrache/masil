@@ -13,6 +13,8 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/slash"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/store/feedstore"
@@ -666,7 +668,7 @@ func TestAttachErrors(t *testing.T) {
 
 	h.API.Error("POST /v1/uploads", http.StatusUnsupportedMediaType, "unsupported_media_type")
 	attach(h, writePNG(t))
-	if !strings.Contains(toastText(h), squash(api.Describe(&api.Error{Code: "unsupported_media_type"}))) {
+	if !strings.Contains(toastText(h), squash(errtext.Describe(i18n.KoT(), &api.Error{Code: "unsupported_media_type"}))) {
 		t.Fatalf("415 toast = %q", toastText(h))
 	}
 	if s := h.Screen(); !strings.Contains(s, "✕ 업로드 실패") {

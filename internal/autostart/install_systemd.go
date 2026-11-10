@@ -1,7 +1,6 @@
 package autostart
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,8 +8,6 @@ import (
 
 	"github.com/patrache/masil/internal/config"
 )
-
-var errNoSystemd = errors.New("systemd 사용자 세션을 찾지 못했습니다 — 'masil daemon run' 을 셸 시작 파일에 넣어 실행하세요")
 
 func systemdUnitPath() (string, error) {
 	home, err := homeDir()
@@ -30,10 +27,10 @@ func haveSystemctl() bool {
 // with no user bus have systemctl but `systemctl --user` cannot reach anything.
 func probeUserManager() error {
 	if !haveSystemctl() {
-		return errNoSystemd
+		return ErrNoSystemd
 	}
 	if _, err := runCmd("systemctl", "--user", "show-environment"); err != nil {
-		return fmt.Errorf("%w (%v)", errNoSystemd, err)
+		return noSystemd(err)
 	}
 	return nil
 }
@@ -135,6 +132,6 @@ func systemdQuery() (Status, error) {
 	if err != nil {
 		return st, fmt.Errorf("autostart: read %s: %w", unit, err)
 	}
-	st.Detail = withExeCheck(st.Detail, unitExe(b))
+	withExeCheck(&st, unitExe(b))
 	return st, nil
 }

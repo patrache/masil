@@ -18,6 +18,7 @@ import (
 	"github.com/patrache/masil/internal/autostart"
 	"github.com/patrache/masil/internal/config"
 	"github.com/patrache/masil/internal/daemon"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/instance"
 )
 
@@ -101,14 +102,14 @@ func TestDaemonStatus(t *testing.T) {
 		// logged in via MASIL_SERVER=127.0.0.1:9999 in this shell; the daemon uses the default
 		"shell_env":   {withShellServer(withMismatch(ok, "http://127.0.0.1:9999"), "http://127.0.0.1:9999"), installed, nil},
 		"desktop_off": {withDesktop(ok, false), installed, nil},
-		"stale_exe":   {ok, autostart.Status{Installed: true, Detail: installed.Detail + " · 실행 파일 없음: /opt/homebrew/Cellar/masil/0.1.0/bin/masil"}, nil},
+		"stale_exe":   {ok, autostart.Status{Installed: true, Detail: installed.Detail, ExeMissing: "/opt/homebrew/Cellar/masil/0.1.0/bin/masil"}, nil},
 		"unsupported": {ok, autostart.Status{}, autostart.ErrUnsupported},
 		"problems":    {withProblems(ok, `time=2026-11-05T11:04:00+09:00 level=WARN msg="session rejected; waiting for new credentials" reason=unauthorized token="msl_…(redacted)"`), installed, nil},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			var b strings.Builder
-			renderStatus(&b, c.r, c.as, c.asErr, now, seoul)
+			renderStatus(&b, nil, c.r, c.as, c.asErr, now, seoul)
 			golden.RequireEqual(t, b.String())
 		})
 	}
@@ -123,7 +124,7 @@ func TestDaemonStatusOKMatchesSpec(t *testing.T) {
 		State: &daemon.State{Version: 1, LastSeq: 1041, SavedAt: now.Add(-time.Minute)}}
 	as := autostart.Status{Installed: true, Running: true, Detail: "launchd /Users/sam/Library/LaunchAgents/com.patrache.masil.daemon.plist"}
 	var b strings.Builder
-	renderStatus(&b, r, as, nil, now, seoul)
+	renderStatus(&b, nil, r, as, nil, now, seoul)
 	want := "masil 알림 데몬\n" +
 		"  자동 시작  등록됨 · launchd /Users/sam/Library/LaunchAgents/com.patrache.masil.daemon.plist\n" +
 		"  실행       실행 중\n" +
@@ -140,7 +141,7 @@ func TestDaemonStatusSanitizes(t *testing.T) {
 	r := daemon.Report{LoggedIn: true, Handle: "sam\x1b[2J", CredServer: "http://x", ConfigServer: "http://x",
 		Problems: []string{"time=x level=WARN msg=\"a\x1b]0;pwn\x07\""}}
 	var b strings.Builder
-	renderStatus(&b, r, autostart.Status{}, nil, time.Now(), time.UTC)
+	renderStatus(&b, nil, r, autostart.Status{}, nil, time.Now(), time.UTC)
 	if strings.ContainsAny(b.String(), "\x1b\x07") {
 		t.Fatalf("control characters leaked: %q", b.String())
 	}
@@ -416,7 +417,20 @@ func TestDaemonStatusCommand(t *testing.T) {
 
 // `masil help` lists the daemon in core's "masil <cmd> — <설명>" format.
 func TestDaemonInHelp(t *testing.T) {
-	if !strings.Contains(helpText(), "  masil daemon run|install|uninstall|status — 알림 데몬") {
-		t.Fatalf("help:\n%s", helpText())
+	if !strings.Contains(helpText(nil), "  masil daemon run|install|uninstall|status — 알림 데몬") {
+		t.Fatalf("help:\n%s", helpText(nil))
+	}
+}
+
+// A registration naming no executable renders the 0.1.2 ko note with an
+// empty path, byte for byte (P5 M5; review of Task 10).
+func TestAutostartDetailUnknownExeKO(t *testing.T) {
+	st := autostart.Status{Installed: true, Detail: "launchd /x.plist", ExeUnknown: true}
+	if got, want := autostartDetail(i18n.KoT(), st), "launchd /x.plist · 실행 파일 없음: "; got != want {
+		t.Fatalf("autostartDetail(ko) = %q, want %q", got, want)
+	}
+	st = autostart.Status{Installed: true, Detail: "launchd /x.plist", ExeMissing: "/old/masil"}
+	if got, want := autostartDetail(i18n.KoT(), st), "launchd /x.plist · 실행 파일 없음: /old/masil"; got != want {
+		t.Fatalf("autostartDetail(ko) = %q, want %q", got, want)
 	}
 }

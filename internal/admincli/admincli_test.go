@@ -18,6 +18,8 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 )
 
 var clock = time.Date(2026, 11, 5, 2, 5, 0, 0, time.UTC) // 11:05 in Seoul
@@ -486,7 +488,7 @@ func TestAdminOtherError(t *testing.T) {
 	if err == nil || errors.Is(err, ErrUsage) {
 		t.Fatalf("err = %v", err)
 	}
-	if want := "오류: " + api.Describe(err) + "\n"; errOut != want {
+	if want := "오류: " + errtext.Describe(i18n.KoT(), err) + "\n"; errOut != want {
 		t.Fatalf("stderr %q, want %q", errOut, want)
 	}
 }

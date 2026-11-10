@@ -1,0 +1,133 @@
+# Daemon area: `masil daemon …` messages, status and autostart errors.
+
+[already_running]
+other = "The daemon is already running."
+
+[autostart_check_failed]
+other = "check failed — {err}"
+
+[autostart_installed]
+other = "installed · {detail}"
+
+[autostart_not_installed]
+other = "not installed — masil daemon install"
+
+[autostart_unsupported]
+other = "not supported on this OS"
+
+[detach_failed]
+other = "Couldn't start the daemon in the background: {err}"
+
+[detached]
+other = "Started the daemon in the background (log: {log})"
+
+[detail_exe_missing]
+other = "{detail} · executable missing: {exe}"
+
+[exe_missing]
+other = "Couldn't find the executable for autostart: {exe}: {err}"
+
+[exe_not_absolute]
+other = "The executable path for autostart is not absolute: {exe}"
+
+[exe_not_regular]
+other = "The executable for autostart is not a regular file: {exe}"
+
+[exe_path_failed]
+other = "Couldn't find the executable path: {err}"
+
+[exe_temporary]
+other = "A temporary build ({exe}) can't be used for autostart — run the installed masil instead of 'go run'"
+
+[install_desktop_off]
+other = "[notify] desktop is off in config.toml, so no alerts will show."
+
+[install_failed]
+other = "Couldn't set up autostart: {err}"
+
+[install_not_logged_in]
+other = "You're not logged in yet — alerts start after 'masil login'."
+
+[install_shell_server]
+other = "⚠ This shell's MASIL_SERVER ({shell}) is not passed to the autostarted daemon — it connects to {server}. Set server in config.toml to the same address."
+
+[installed]
+other = "Autostart set up: {detail}"
+
+[label_account]
+other = "Account"
+
+[label_autostart]
+other = "Autostart"
+
+[label_notify]
+other = "Alerts"
+
+[label_running]
+other = "Process"
+
+[label_sync]
+other = "Sync"
+
+[log_open_failed]
+other = "Couldn't open the daemon log file ({path}): {err}"
+
+[no_systemd]
+other = "Couldn't find a systemd user session — run 'masil daemon run' from your shell startup file"
+
+[not_logged_in]
+other = "not logged in — masil login"
+
+[notify_off]
+other = "off (config.toml [notify] desktop = false)"
+
+[notify_on]
+other = "on"
+
+[recent_warnings]
+other = "Recent warnings"
+
+[restart_required]
+other = "The executable changed; exiting — autostart will start the new version."
+
+[runkey_config_dir]
+other = "Windows autostart doesn't support MASIL_CONFIG_DIR"
+
+[running]
+other = "running"
+
+[server_mismatch]
+other = "⚠ You logged in to {cred} but the daemon uses {daemon}, so no alerts arrive."
+
+[server_mismatch_fix]
+other = "Log in again to the same server, or set server in config.toml to match."
+
+[status_shell_server]
+other = "⚠ This shell's MASIL_SERVER ({shell}) is not passed to the autostarted daemon."
+
+[status_title]
+other = "masil notification daemon"
+
+[stopped]
+other = "stopped"
+
+[stopped_error]
+other = "The daemon stopped with an error: {err}"
+
+[sync_none]
+other = "no record"
+
+[sync_saved]
+other = "saved {time} · seq {seq}"
+
+[uninstall_failed]
+other = "Couldn't remove autostart: {err}"
+
+[uninstall_windows_note]
+other = "The daemon running now won't start again from your next login."
+
+[uninstalled]
+other = "Autostart removed."
+
+[usage_desc]
+other = "notification daemon (run · autostart on/off · status)"

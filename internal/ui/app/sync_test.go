@@ -18,6 +18,8 @@ import (
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
@@ -181,7 +183,7 @@ func assertLoggedOut(t *testing.T, h *uitest.Harness, credFile, notice string) {
 	if notice != "" && !strings.Contains(h.Screen(), notice) {
 		t.Errorf("screen must show %q:\n%s", notice, h.Screen())
 	}
-	if strings.Contains(h.Screen(), api.Describe(&api.Error{Status: 401, Code: "unauthorized"})) {
+	if strings.Contains(h.Screen(), errtext.Describe(i18n.KoT(), &api.Error{Status: 401, Code: "unauthorized"})) {
 		t.Errorf("no unauthorized error toast on the login screen:\n%s", h.Screen())
 	}
 	for _, sz := range uitest.Required {
@@ -429,7 +431,7 @@ func TestUnauthorizedMidSessionReturnsToLogin(t *testing.T) {
 			t.Fatalf("GetMe err = %v", err)
 		}
 		h.Send(ui.ErrorMsg{Err: err})
-		if !strings.Contains(h.Screen(), api.Describe(err)) {
+		if !strings.Contains(h.Screen(), errtext.Describe(i18n.KoT(), err)) {
 			t.Errorf("error toast missing:\n%s", h.Screen())
 		}
 		if _, err := os.Stat(cred); err != nil {

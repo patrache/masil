@@ -21,7 +21,9 @@ import (
 	"time"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 )
 
@@ -214,7 +216,7 @@ func (r *runner) apiErr(err error) error {
 	case r.name == "suspend" && api.IsCode(err, "conflict"):
 		fmt.Fprintln(r.o.Stderr, adminConflict)
 	default:
-		fmt.Fprintln(r.o.Stderr, "오류: "+textwidth.Sanitize(api.Describe(err)))
+		fmt.Fprintln(r.o.Stderr, "오류: "+errtext.Describe(i18n.KoT(), err))
 	}
 	return err
 }

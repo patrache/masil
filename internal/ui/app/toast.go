@@ -9,6 +9,8 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/widgets"
@@ -78,10 +80,10 @@ func (s *toastState) newestFirst() []toastItem {
 
 // errorToast turns an ErrorMsg into its toast text: "<Context>: <Describe>" (Describe
 // alone when Context is empty).
-func errorToast(e ui.ErrorMsg) ui.ToastMsg {
-	text := api.Describe(e.Err)
+func errorToast(t *i18n.T, e ui.ErrorMsg) ui.ToastMsg {
+	text := errtext.Describe(t, e.Err)
 	if text == "" {
-		text = api.Describe(errUnknown)
+		text = errtext.Describe(t, errUnknown)
 	}
 	if e.Context != "" {
 		text = e.Context + ": " + text

@@ -89,7 +89,7 @@ func TestQueryWindows(t *testing.T) {
 	}
 	os.Remove(exe)
 	st, err = runKeyQuery(keys)
-	if err != nil || !st.Installed || st.Detail != detail+" · 실행 파일 없음: "+exe {
+	if err != nil || !st.Installed || st.Detail != detail || st.ExeMissing != exe {
 		t.Fatalf("missing exe: %+v, %v", st, err)
 	}
 	if _, err := runKeyQuery(brokenRunKey{}); !errors.Is(err, errAccess) {

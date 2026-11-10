@@ -17,7 +17,8 @@ import (
 const usageAdmin = "운영자 명령 (reports | report | resolve | remove | suspend | unsuspend | users | actions)"
 
 func init() {
-	register(command{Name: "admin", Usage: usageAdmin, Hidden: true, Run: adminCmd})
+	// The operator CLI stays Korean in every language (i18n 1.3).
+	register(command{Name: "admin", Usage: func(*i18n.T) string { return usageAdmin }, Hidden: true, Run: adminCmd})
 }
 
 // adminClientFn builds the API client for `masil admin`; tests replace it.

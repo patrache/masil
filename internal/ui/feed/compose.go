@@ -572,7 +572,7 @@ func (c *compose) send(ctx *ui.Context) tea.Cmd {
 		}
 		cmd, ok, err := slash.Parse(body)
 		if err != nil {
-			return ui.Toast(err.Error(), ui.ToastInfo)
+			return ui.Toast(slash.Message(ctx.T, err), ui.ToastInfo)
 		}
 		if ok && cmd.Poll != nil {
 			poll, text = cmd.Poll, ""
@@ -794,7 +794,7 @@ func (c *compose) pollLines(ctx *ui.Context, w int) []string {
 	}
 	cmd, _, err := slash.Parse(body)
 	if err != nil {
-		return warn(err.Error())
+		return warn(slash.Message(tOf(ctx), err))
 	}
 	if cmd == nil || cmd.Poll == nil {
 		return nil

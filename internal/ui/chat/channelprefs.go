@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -618,7 +619,7 @@ func (l *loader[T]) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	if m, ok := msg.(ui.ResultMsg[loaded[T]]); ok && m.Value.owner == l {
 		l.spinner.Stop()
 		if m.Err != nil {
-			l.errMsg = api.Describe(m.Err)
+			l.errMsg = errtext.Describe(ctx.T, m.Err)
 			return nil
 		}
 		o := l.then(ctx, m.Value.v)

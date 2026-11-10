@@ -16,7 +16,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -251,8 +253,8 @@ func (v *searchView) more(ctx *ui.Context) tea.Cmd {
 }
 
 // searchErrText is the on-screen text of a failed search: limit_exceeded with
-// details.what == "search_scope" asks for a narrower scope, else api.Describe.
-func searchErrText(err error) string {
+// details.what == "search_scope" asks for a narrower scope, else errtext.Describe.
+func searchErrText(t *i18n.T, err error) string {
 	var e *api.Error
 	if api.IsCode(err, "limit_exceeded") && errors.As(err, &e) {
 		var d struct {
@@ -262,10 +264,10 @@ func searchErrText(err error) string {
 			return searchScopeText
 		}
 	}
-	return api.Describe(err)
+	return errtext.Describe(t, err)
 }
 
-func (v *searchView) onPage(m ui.ResultMsg[searchPage]) tea.Cmd {
+func (v *searchView) onPage(ctx *ui.Context, m ui.ResultMsg[searchPage]) tea.Cmd {
 	if m.Value.more {
 		v.loadingMore = false
 		if m.Err != nil {
@@ -288,7 +290,7 @@ func (v *searchView) onPage(m ui.ResultMsg[searchPage]) tea.Cmd {
 	v.list = v.newList()
 	v.hits, v.next, v.errText = nil, nil, ""
 	if m.Err != nil {
-		v.errText = searchErrText(m.Err)
+		v.errText = searchErrText(ctx.T, m.Err)
 	} else if m.Value.page != nil {
 		for _, h := range m.Value.page.Items {
 			if !slices.ContainsFunc(v.hits, func(x api.MessageSearchHit) bool { return x.Message.ID == h.Message.ID }) {
@@ -314,7 +316,7 @@ func (v *searchView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case ui.ResultMsg[searchPage]:
 		if m.Value.owner == v && m.Value.gen == v.gen {
-			return v.onPage(m)
+			return v.onPage(ctx, m)
 		}
 	case tea.PasteMsg:
 		if v.inputOn {

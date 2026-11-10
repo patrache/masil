@@ -264,7 +264,7 @@ func (cc *chatComposer) submit(ctx *ui.Context) tea.Cmd {
 	cmd, ok, err := slash.Parse(body)
 	switch {
 	case err != nil: // a usage error: the draft stays for a fix
-		return ui.Toast(err.Error(), ui.ToastError)
+		return ui.Toast(slash.Message(ctx.T, err), ui.ToastError)
 	case ok:
 		return runSlash(ctx, cc, body, cmd)
 	}

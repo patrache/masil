@@ -176,7 +176,7 @@ func (m *Model) onBootstrapDone(msg bootstrapDoneMsg) tea.Cmd {
 		m.bootAgain = false
 		if api.CodeOf(res.Err) != "unauthorized" { // 401: the session ends instead (takeFlags)
 			if !failedBefore { // one toast per outage, not one per retry
-				cmds = append(cmds, m.toasts.push(m.ctx, errorToast(ui.ErrorMsg{Err: res.Err})))
+				cmds = append(cmds, m.toasts.push(m.ctx, errorToast(m.ctx.T, ui.ErrorMsg{Err: res.Err})))
 			}
 			cmds = append(cmds, ui.After(m.ctx, bootstrapRetry, bootstrapRetryMsg{gen: m.bootGen}))
 		}

@@ -1,0 +1,246 @@
+# Daemon area: `masil daemon …` messages, `masil daemon status` and the
+# autostart errors (cmd/masil/cmd_daemon.go, internal/autostart).
+
+[already_running]
+desc = "masil daemon run 결과: 이미 실행 중"
+no_truncate = true
+other = "데몬이 이미 실행 중입니다."
+
+[autostart_check_failed]
+desc = "status 자동 시작 값: 확인하지 못함. err = 오류 설명"
+params = { err = "string" }
+no_truncate = true
+other = "확인 실패 — {err}"
+
+[autostart_installed]
+desc = "status 자동 시작 값: 등록됨. detail = 등록 위치"
+params = { detail = "string" }
+no_truncate = true
+other = "등록됨 · {detail}"
+
+[autostart_not_installed]
+desc = "status 자동 시작 값: 등록 안 됨(명령은 번역하지 않음)"
+no_truncate = true
+other = "등록 안 됨 — masil daemon install"
+
+[autostart_unsupported]
+desc = "status 자동 시작 값: 이 OS 는 지원하지 않음"
+no_truncate = true
+other = "이 OS 는 지원하지 않음"
+
+[detach_failed]
+desc = "masil daemon run 오류: 백그라운드로 못 띄움. err = 오류 설명"
+params = { err = "string" }
+no_truncate = true
+other = "데몬을 백그라운드로 띄우지 못했습니다: {err}"
+
+[detached]
+desc = "masil daemon run 결과: 백그라운드에서 시작함. log = 로그 파일 경로"
+params = { log = "string" }
+no_truncate = true
+other = "백그라운드에서 데몬을 시작했습니다 (로그: {log})"
+
+[detail_exe_missing]
+desc = "등록 위치 뒤: 등록된 실행 파일이 없어짐. detail = 등록 위치, exe = 등록된 실행 파일 경로"
+params = { detail = "string", exe = "string" }
+no_truncate = true
+other = "{detail} · 실행 파일 없음: {exe}"
+
+[exe_missing]
+desc = "자동 시작 오류: 실행 파일이 없음. exe = 경로, err = 운영체제 오류"
+params = { exe = "string", err = "string" }
+no_truncate = true
+other = "자동 시작에 등록할 실행 파일을 찾지 못했습니다: {exe}: {err}"
+
+[exe_not_absolute]
+desc = "자동 시작 오류: 실행 파일 경로가 절대 경로가 아님. exe = 경로"
+params = { exe = "string" }
+no_truncate = true
+other = "자동 시작에 등록할 실행 파일 경로가 절대 경로가 아닙니다: {exe}"
+
+[exe_not_regular]
+desc = "자동 시작 오류: 실행 파일이 일반 파일이 아님. exe = 경로"
+params = { exe = "string" }
+no_truncate = true
+other = "자동 시작에 등록할 실행 파일이 일반 파일이 아닙니다: {exe}"
+
+[exe_path_failed]
+desc = "masil daemon install 오류: 실행 파일 경로를 못 찾음. err = 오류 설명"
+params = { err = "string" }
+no_truncate = true
+other = "실행 파일 경로를 찾지 못했습니다: {err}"
+
+[exe_temporary]
+desc = "자동 시작 오류: go run 임시 빌드는 등록 못 함('go run'·masil 은 번역하지 않음). exe = 경로"
+params = { exe = "string" }
+no_truncate = true
+other = "임시 빌드 실행 파일({exe})은 자동 시작에 등록할 수 없습니다 — 'go run' 대신 설치한 masil 로 다시 실행하세요"
+
+[install_desktop_off]
+desc = "masil daemon install 경고: 데스크톱 알림이 꺼져 있음(설정 이름은 번역하지 않음)"
+no_truncate = true
+other = "config.toml 의 [notify] desktop 이 꺼져 있어 알림이 뜨지 않습니다."
+
+[install_failed]
+desc = "masil daemon install 오류. err = 오류 설명"
+params = { err = "string" }
+no_truncate = true
+other = "자동 시작을 등록하지 못했습니다: {err}"
+
+[install_not_logged_in]
+desc = "masil daemon install 경고: 로그인 전이라 알림이 오지 않음('masil login' 은 번역하지 않음)"
+no_truncate = true
+other = "아직 로그인하지 않았습니다 — 'masil login' 뒤부터 알림이 옵니다."
+
+[install_shell_server]
+desc = "masil daemon install 경고: 셸의 MASIL_SERVER 는 자동 시작된 데몬에 전달되지 않음. shell = 셸의 값, server = 데몬이 쓰는 주소"
+params = { shell = "string", server = "string" }
+no_truncate = true
+other = "⚠ 셸의 MASIL_SERVER({shell})는 자동 시작된 데몬에 전달되지 않습니다 — 데몬은 {server} 에 접속합니다. config.toml 의 server 를 같은 주소로 맞추세요."
+
+[installed]
+desc = "masil daemon install 결과. detail = 등록 위치(경로 그대로)"
+params = { detail = "string" }
+no_truncate = true
+other = "자동 시작을 등록했습니다: {detail}"
+
+[label_account]
+desc = "masil daemon status 의 왼쪽 이름 칸(열 너비 = 가장 넓은 이름 + 2)"
+max = 12
+no_truncate = true
+other = "계정"
+
+[label_autostart]
+desc = "masil daemon status 의 왼쪽 이름 칸(열 너비 = 가장 넓은 이름 + 2)"
+max = 12
+no_truncate = true
+other = "자동 시작"
+
+[label_notify]
+desc = "masil daemon status 의 왼쪽 이름 칸(열 너비 = 가장 넓은 이름 + 2)"
+max = 12
+no_truncate = true
+other = "알림"
+
+[label_running]
+desc = "masil daemon status 의 왼쪽 이름 칸(열 너비 = 가장 넓은 이름 + 2)"
+max = 12
+no_truncate = true
+other = "실행"
+
+[label_sync]
+desc = "masil daemon status 의 왼쪽 이름 칸(열 너비 = 가장 넓은 이름 + 2)"
+max = 12
+no_truncate = true
+other = "동기화"
+
+[log_open_failed]
+desc = "masil daemon run 오류: 데몬 로그 파일을 못 엶. path = 경로, err = 오류 설명"
+params = { path = "string", err = "string" }
+no_truncate = true
+other = "데몬 로그 파일({path})을 열지 못했습니다: {err}"
+
+[no_systemd]
+desc = "자동 시작 오류(Linux): systemd 사용자 세션이 없음('masil daemon run' 은 번역하지 않음)"
+no_truncate = true
+other = "systemd 사용자 세션을 찾지 못했습니다 — 'masil daemon run' 을 셸 시작 파일에 넣어 실행하세요"
+
+[not_logged_in]
+desc = "status 계정 값: 로그인 안 됨(명령은 번역하지 않음)"
+no_truncate = true
+other = "로그인 안 됨 — masil login"
+
+[notify_off]
+desc = "status 알림 값: 꺼짐과 그 설정(설정 줄은 번역하지 않음)"
+no_truncate = true
+other = "꺼짐 (config.toml [notify] desktop = false)"
+
+[notify_on]
+desc = "status 알림 값: 켜짐"
+no_truncate = true
+other = "켜짐"
+
+[recent_warnings]
+desc = "status: 최근 경고 목록 머리"
+no_truncate = true
+other = "최근 경고"
+
+[restart_required]
+desc = "masil daemon run: 실행 파일이 바뀌어 끝냄, 자동 시작이 새 버전을 띄움"
+no_truncate = true
+other = "실행 파일이 바뀌어 종료합니다 — 자동 시작이 새 버전으로 다시 띄웁니다."
+
+[runkey_config_dir]
+desc = "자동 시작 오류(Windows): MASIL_CONFIG_DIR 를 쓰면 등록 못 함"
+no_truncate = true
+other = "Windows 자동 시작은 MASIL_CONFIG_DIR 를 지원하지 않습니다"
+
+[running]
+desc = "status 실행 값: 실행 중"
+no_truncate = true
+other = "실행 중"
+
+[server_mismatch]
+desc = "데몬 경고: 로그인한 서버와 데몬의 서버가 다름. cred = 로그인한 서버, daemon = 데몬이 쓰는 서버"
+params = { cred = "string", daemon = "string" }
+no_truncate = true
+other = "⚠ 로그인한 서버({cred})와 데몬이 쓰는 서버({daemon})가 달라 알림을 받지 않습니다."
+
+[server_mismatch_fix]
+desc = "서버가 다르다는 경고 다음 줄: 고치는 법(앞 들여쓰기는 코드가 붙임)"
+no_truncate = true
+other = "같은 서버로 다시 로그인하거나 config.toml 의 server 를 맞추세요."
+
+[status_shell_server]
+desc = "status 경고: 이 셸의 MASIL_SERVER 는 자동 시작된 데몬에 전달되지 않음. shell = 셸의 값"
+params = { shell = "string" }
+no_truncate = true
+other = "⚠ 이 셸의 MASIL_SERVER({shell})는 자동 시작된 데몬에 전달되지 않습니다."
+
+[status_title]
+desc = "masil daemon status 첫 줄(masil 은 번역하지 않음)"
+no_truncate = true
+other = "masil 알림 데몬"
+
+[stopped]
+desc = "status 실행 값: 멈춤"
+no_truncate = true
+other = "멈춤"
+
+[stopped_error]
+desc = "masil daemon run 오류: 데몬이 오류로 멈춤. err = 오류 설명"
+params = { err = "string" }
+no_truncate = true
+other = "데몬이 오류로 멈췄습니다: {err}"
+
+[sync_none]
+desc = "status 동기화 값: 기록 없음"
+no_truncate = true
+other = "기록 없음"
+
+[sync_saved]
+desc = "status 동기화 값: 마지막 저장 시각과 seq. time = 사람이 읽는 시각, seq = 숫자(seq 는 번역하지 않음)"
+params = { time = "string", seq = "string" }
+no_truncate = true
+other = "{time} 저장 · seq {seq}"
+
+[uninstall_failed]
+desc = "masil daemon uninstall 오류. err = 오류 설명"
+params = { err = "string" }
+no_truncate = true
+other = "자동 시작을 해제하지 못했습니다: {err}"
+
+[uninstall_windows_note]
+desc = "masil daemon uninstall 결과(Windows): 지금 데몬은 계속 돌고 다음 로그인부터 안 뜸"
+no_truncate = true
+other = "지금 실행 중인 데몬은 다음 로그인부터 뜨지 않습니다."
+
+[uninstalled]
+desc = "masil daemon uninstall 결과"
+no_truncate = true
+other = "자동 시작을 해제했습니다."
+
+[usage_desc]
+desc = "masil help 의 데몬 줄에서 명령 뒤 설명(명령 줄은 번역하지 않음)"
+no_truncate = true
+other = "알림 데몬 (실행 · 자동 시작 등록/해제 · 상태)"

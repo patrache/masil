@@ -11,11 +11,18 @@ type T struct {
 	Alerts     AlertsT
 	Apitest    ApitestT
 	Archcanvas ArchcanvasT
+	Auth       AuthT
+	Chat       ChatT
+	Cli        CliT
 	Common     CommonT
+	Daemon     DaemonT
+	Errors     ErrorsT
 	Lazygit    LazygitT
 	Leetcode   LeetcodeT
+	Settings   SettingsT
 	Termpane   TermpaneT
 	Testonly   TestonlyT
+	Time       TimeT
 	Tools      ToolsT
 	Workspace  WorkspaceT
 }
@@ -25,11 +32,18 @@ func newT(l Locale) *T {
 	t.Alerts = AlertsT{t}
 	t.Apitest = ApitestT{t}
 	t.Archcanvas = ArchcanvasT{t}
+	t.Auth = AuthT{t}
+	t.Chat = ChatT{t}
+	t.Cli = CliT{t}
 	t.Common = CommonT{t}
+	t.Daemon = DaemonT{t}
+	t.Errors = ErrorsT{t}
 	t.Lazygit = LazygitT{t}
 	t.Leetcode = LeetcodeT{t}
+	t.Settings = SettingsT{t}
 	t.Termpane = TermpaneT{t}
 	t.Testonly = TestonlyT{t}
+	t.Time = TimeT{t}
 	t.Tools = ToolsT{t}
 	t.Workspace = WorkspaceT{t}
 	return t
@@ -40,11 +54,18 @@ var areas = map[string]*area{
 	"alerts":     &areaAlerts,
 	"apitest":    &areaApitest,
 	"archcanvas": &areaArchcanvas,
+	"auth":       &areaAuth,
+	"chat":       &areaChat,
+	"cli":        &areaCli,
 	"common":     &areaCommon,
+	"daemon":     &areaDaemon,
+	"errors":     &areaErrors,
 	"lazygit":    &areaLazygit,
 	"leetcode":   &areaLeetcode,
+	"settings":   &areaSettings,
 	"termpane":   &areaTermpane,
 	"testonly":   &areaTestonly,
+	"time":       &areaTime,
 	"tools":      &areaTools,
 	"workspace":  &areaWorkspace,
 }

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
 	"github.com/patrache/masil/internal/ui/uitest"
@@ -120,7 +122,7 @@ func TestLikeFailureReverts(t *testing.T) {
 	if !strings.Contains(s, "♥ 12") || strings.Contains(s, "♥ 13") {
 		t.Fatalf("like not reverted:\n%s", s)
 	}
-	want := []rune(api.Describe(&api.Error{Status: http.StatusTooManyRequests, Code: "rate_limited"}))
+	want := []rune(errtext.Describe(i18n.KoT(), &api.Error{Status: http.StatusTooManyRequests, Code: "rate_limited"}))
 	if len(want) > 20 {
 		want = want[:20]
 	}

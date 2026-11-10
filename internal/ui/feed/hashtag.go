@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -488,7 +489,7 @@ func (h *hashtag) View(ctx *ui.Context, _ bool) string {
 	case len(items) == 0 && (h.loading || !h.loaded):
 		out = append(out, h.loadingLine(ctx, w))
 	case len(items) == 0 && h.err != nil:
-		out = strings.Split(widgets.Empty(t, h.size, "⚠", textwidth.Sanitize(api.Describe(h.err)), ""), "\n")
+		out = strings.Split(widgets.Empty(t, h.size, "⚠", errtext.Describe(ctx.T, h.err), ""), "\n")
 	case len(items) == 0:
 		out = strings.Split(widgets.Empty(t, h.size, iconHashtagEmpty, textHashtagEmpty, ""), "\n")
 	default:

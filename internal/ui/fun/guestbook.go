@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -147,7 +148,7 @@ func (g *guestbookWrite) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 			if err == nil {
 				err = &api.Error{Code: "network"}
 			}
-			return ui.Toast(api.Describe(err), ui.ToastError)
+			return ui.Toast(errtext.Describe(ctx.T, err), ui.ToastError)
 		}
 		return tea.Batch(closeOverlay, ui.Toast(textGuestbookWritten, ui.ToastSuccess))
 	}
