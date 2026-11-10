@@ -1,6 +1,7 @@
 package pricing
 
 import (
+	"os"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -164,14 +165,21 @@ func TestRegionLatency(t *testing.T) {
 	}
 }
 
+// TestNoNetworkImports checks every release GOOS, not only the host's: a
+// _windows.go file deeper in the graph can pull in net (golang.org/x/sys/windows
+// does) where the darwin and linux builds never see it.
 func TestNoNetworkImports(t *testing.T) {
-	out, err := exec.Command("go", "list", "-deps", ".").CombinedOutput()
-	if err != nil {
-		t.Fatalf("go list: %v\n%s", err, out)
-	}
-	for _, dep := range strings.Fields(string(out)) {
-		if dep == "net" || dep == "net/http" {
-			t.Fatalf("pricing depends on %s", dep)
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		cmd := exec.Command("go", "list", "-deps", ".")
+		cmd.Env = append(os.Environ(), "GOOS="+goos)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("GOOS=%s go list: %v\n%s", goos, err, out)
+		}
+		for _, dep := range strings.Fields(string(out)) {
+			if dep == "net" || dep == "net/http" {
+				t.Errorf("GOOS=%s: pricing depends on %s", goos, dep)
+			}
 		}
 	}
 }
