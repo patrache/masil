@@ -26,4 +26,14 @@ func TestGoldenSolo(t *testing.T) {
 			h.Golden("solo_widget_" + tab.name)
 		}
 	})
+	// The Windows screen, pinned on every OS: no pane, the full-screen
+	// notice in the terminal cell (the other goldens run with panes on).
+	t.Run("windows", func(t *testing.T) {
+		t.Cleanup(SetPaneSupportedForTest(false))
+		h := uitest.New(t)
+		h.Resize(120, 40)
+		s := openFolder(t, h, "workspace:golden", copyFixture(t))
+		s.openDoc(h.Context(), hubTS)
+		h.Golden("solo_windows")
+	})
 }

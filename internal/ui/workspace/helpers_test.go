@@ -50,9 +50,16 @@ func copyFixture(t *testing.T) string {
 }
 
 // setup turns the workspace flag on and fakes the terminal launcher; call it
-// before uitest.New.
+// before uitest.New. Embedded panes are on whatever the OS: the panes are
+// termpanetest fakes (no PTY or ConPTY), so the terminal and sharing logic
+// and the shared goldens are the same on every OS. What Windows does instead
+// (no pane, the notice, no terminal sharing) is tested on every OS by the
+// tests that call SetPaneSupportedForTest(false) after setup
+// (TestWindowsTerminalNotice, TestWindowsShareDialogNoTerminals,
+// TestWindowsGuestCanWatch, TestGoldenSolo/windows).
 func setup(t *testing.T) *termpanetest.Fake {
 	t.Helper()
+	t.Cleanup(SetPaneSupportedForTest(true))
 	t.Setenv("MASIL_FEATURES", "workspace")
 	forgetSurfaces()
 	t.Cleanup(forgetSurfaces)
