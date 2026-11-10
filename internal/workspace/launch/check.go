@@ -124,14 +124,17 @@ func Check(argv []string) Verdict {
 		}
 		return Verdict{Allowed: true, Warnings: []Warning{WarnUnknownProgram}}
 	}
-	mode := defaultClaudeMode
+	// Every option-like token counts, after "--" too: claude's parser can
+	// take a "--" as the value of the option before it ("--append-system-
+	// prompt -- --permission-mode dontAsk"), leaving what follows live
+	// (v0.1.3 security (n)(o)). A prompt word after "--" that merely starts
+	// with "-" and names one of these flags is blocked as well; that costs
+	// nothing real.
+	mode, explicit := defaultClaudeMode, false
 	args := argv[1:]
 	for i := 0; i < len(args); i++ {
 		a := args[i]
-		if a == "--" {
-			break
-		}
-		if !strings.HasPrefix(a, "-") {
+		if a == "--" || !strings.HasPrefix(a, "-") {
 			continue
 		}
 		flag, value, hasValue := strings.Cut(a, "=")
@@ -164,7 +167,12 @@ func Check(argv []string) Verdict {
 		if !allowedMode(value) {
 			return Verdict{Reason: ReasonModeNotAllowed, Mode: value}
 		}
-		mode = value
+		// Two different modes: which one claude keeps depends on how it
+		// parses the options in between, so the mode cannot be named.
+		if explicit && value != mode {
+			return Verdict{Reason: ReasonModeNotAllowed, Mode: value}
+		}
+		mode, explicit = value, true
 	}
 	v := Verdict{Allowed: true, Mode: mode}
 	if mode == "acceptEdits" {

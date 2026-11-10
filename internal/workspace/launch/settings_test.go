@@ -18,11 +18,11 @@ func TestPrepareSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out) != len(argv)+4 || out[len(out)-4] != "--permission-mode" || out[len(out)-3] != "plan" ||
-		out[len(out)-2] != "--settings" || !slices.Equal(out[:len(argv)], argv) {
+	if len(out) != len(argv)+4 || out[0] != "claude" || out[1] != "--permission-mode" || out[2] != "plan" ||
+		out[3] != "--settings" || !slices.Equal(out[5:], argv[1:]) {
 		t.Fatalf("out = %v", out)
 	}
-	p := out[len(out)-1]
+	p := out[4]
 	if filepath.Dir(p) != tmp {
 		t.Errorf("settings file %q not in tmpDir", p)
 	}

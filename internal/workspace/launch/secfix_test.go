@@ -46,9 +46,9 @@ func TestCheckSettingsExactPreparedPath(t *testing.T) {
 	}
 }
 
-// v0.1.3 security (o): Prepare always ends the options with the mode Check
-// reported, so a --permission-mode token that claude reads as another
-// option's value cannot leave claude in a settings-file default mode.
+// v0.1.3 security (o): Prepare always pins the mode Check reported (right
+// after the program name), so a --permission-mode token that claude reads as
+// another option's value cannot leave claude in a settings-file default mode.
 func TestPrepareAlwaysPinsCheckedMode(t *testing.T) {
 	for _, tc := range []struct {
 		argv []string
@@ -63,16 +63,67 @@ func TestPrepareAlwaysPinsCheckedMode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		at := slices.Index(out, "--")
-		if at < 0 {
-			at = len(out)
-		}
-		opts := out[:at]
-		if len(opts) < 4 || opts[len(opts)-4] != "--permission-mode" || opts[len(opts)-3] != tc.mode || opts[len(opts)-2] != "--settings" {
-			t.Errorf("Prepare(%q) = %q, want ... --permission-mode %s --settings <file>", tc.argv, out, tc.mode)
+		if len(out) < 5 || out[1] != "--permission-mode" || out[2] != tc.mode || out[3] != "--settings" {
+			t.Errorf("Prepare(%q) = %q, want claude --permission-mode %s --settings <file> ...", tc.argv, out, tc.mode)
 		}
 		if v := Check(out); !v.Allowed || v.Mode != tc.mode {
 			t.Errorf("Check(%q) = %+v, want allowed %s", out, v, tc.mode)
+		}
+		cleanup()
+	}
+}
+
+// v0.1.3 security (n)(o) follow-up: claude's option parser can take a "--"
+// as the value of the option before it, leaving later options live. Check
+// therefore validates option-like tokens after "--" too.
+func TestCheckOptionsAfterDoubleDash(t *testing.T) {
+	for _, tc := range []struct {
+		argv []string
+		want Reason
+	}{
+		{[]string{"claude", "--append-system-prompt", "--", "--permission-mode", "dontAsk"}, ReasonModeNotAllowed},
+		{[]string{"claude", "--append-system-prompt", "--", "--permission-mode=bypassPermissions"}, ReasonModeNotAllowed},
+		{[]string{"claude", "--append-system-prompt", "--", "--settings", "/home/u/my.json"}, ReasonUserSettings},
+		{[]string{"claude", "--", "--settings={\"permissions\":{}}"}, ReasonUserSettings},
+		{[]string{"claude", "--", "--dangerously-skip-permissions"}, ReasonBypassFlag},
+		// Two different modes: which one claude keeps depends on how it
+		// parses the options in between, so Check cannot name it.
+		{[]string{"claude", "--permission-mode", "acceptEdits", "--add-dir", "--permission-mode", "plan"}, ReasonModeNotAllowed},
+	} {
+		if v := Check(tc.argv); v.Allowed || v.Reason != tc.want {
+			t.Errorf("Check(%q) = %+v, want blocked with %v", tc.argv, v, tc.want)
+		}
+	}
+	// A prompt after "--" that only mentions the words stays allowed.
+	for _, argv := range [][]string{
+		{"claude", "--", "be dangerously fast with --permission-mode"},
+		{"claude", "--permission-mode", "plan", "--permission-mode=plan", "--", "hi"},
+	} {
+		if v := Check(argv); !v.Allowed {
+			t.Errorf("Check(%q) = %+v, want allowed", argv, v)
+		}
+	}
+}
+
+// Prepare puts the pinned mode and masil's --settings right after the
+// program name, where no option of the user's can take them as its value.
+func TestPreparePinsBeforeUserOptions(t *testing.T) {
+	for _, argv := range [][]string{
+		{"claude", "--append-system-prompt", "--", "hi"},
+		{"claude", "--append-system-prompt"},
+		{"claude", "--permission-mode", "plan"},
+	} {
+		out, cleanup, err := Prepare(argv, "", t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		mode := Check(argv).Mode
+		if len(out) != len(argv)+4 || out[0] != argv[0] || out[1] != "--permission-mode" || out[2] != mode ||
+			out[3] != "--settings" || !slices.Equal(out[5:], argv[1:]) {
+			t.Errorf("Prepare(%q) = %q, want claude --permission-mode %s --settings <file> <args>", argv, out, mode)
+		}
+		if v := Check(out); !v.Allowed || v.Mode != mode {
+			t.Errorf("Check(%q) = %+v, want allowed %s", out, v, mode)
 		}
 		cleanup()
 	}

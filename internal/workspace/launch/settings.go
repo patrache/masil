@@ -25,7 +25,7 @@ type claudeSettings struct {
 // hookEvents are the claude hooks the receiver observes.
 var hookEvents = []string{"Notification", "PermissionRequest", "Stop"}
 
-// hasModeFlag reports a --permission-mode flag among args (before "--").
+// hasModeFlag reports a --permission-mode flag among args.
 func hasModeFlag(args []string) bool {
 	for _, a := range args {
 		if flag, _, _ := strings.Cut(a, "="); flag == permissionModeFlag {
@@ -35,7 +35,7 @@ func hasModeFlag(args []string) bool {
 	return false
 }
 
-// pinnedMode is the --permission-mode Prepare appends: the mode Check
+// pinnedMode is the --permission-mode Prepare adds: the mode Check
 // reports for an allowed argv, "manual" for a blocked one without a mode
 // flag, none for a blocked one with its own (a local-only terminal keeps
 // the mode the user asked for; sharing it stays blocked).
@@ -52,14 +52,16 @@ func pinnedMode(argv []string, opts []string) string {
 // Prepare returns the argv to run. For claude it writes a 0600 settings file
 // in tmpDir that disables the bypass permission mode and points the
 // Notification, PermissionRequest and Stop hooks at hookURL (omitted when
-// hookURL is empty), and appends "--settings <file>" (before a "--", if any).
-// Before it, it appends "--permission-mode <the mode Check reported>"
-// (manual without a flag) even when the user gave one: the command-line mode
-// wins over permissions.defaultMode from any settings file (user, project,
-// local), and the last flag wins over an earlier one claude might read as
-// another option's value, so the mode Check reported is the one claude
-// starts in (v0.1.3 security (o)). The file is registered as masil's own
-// for Check until cleanup.
+// hookURL is empty), and puts "--permission-mode <the mode Check reported>
+// --settings <file>" right after the program name (manual without a flag,
+// and even when the user gave one). The command-line mode wins over
+// permissions.defaultMode from any settings file (user, project, local).
+// Right after the program name no option of the user's can take either
+// flag as its value (claude's parser may take the next token, even "--" or
+// another flag, as an option's value), and Check refuses any user mode
+// token that differs from the reported one, so the mode Check reported is
+// the one claude starts in (v0.1.3 security (o)). The file is registered as
+// masil's own for Check until cleanup.
 // cleanup removes the file; call it when the program exits or the workspace
 // closes. The user's own settings files are not touched. Other programs get
 // argv unchanged and a no-op cleanup.
@@ -99,20 +101,13 @@ func Prepare(argv []string, hookURL, tmpDir string) (out []string, cleanup func(
 	if err := f.Close(); err != nil {
 		return fail(err)
 	}
-	at := len(argv)
-	for i, a := range argv[1:] {
-		if a == "--" {
-			at = i + 1
-			break
-		}
-	}
 	out = make([]string, 0, len(argv)+4)
-	out = append(out, argv[:at]...)
-	if mode := pinnedMode(argv, argv[1:at]); mode != "" {
+	out = append(out, argv[0])
+	if mode := pinnedMode(argv, argv[1:]); mode != "" {
 		out = append(out, permissionModeFlag, mode)
 	}
 	out = append(out, settingsFlag, p)
-	out = append(out, argv[at:]...)
+	out = append(out, argv[1:]...)
 	markPrepared(p, true)
 	var once sync.Once
 	return out, func() {

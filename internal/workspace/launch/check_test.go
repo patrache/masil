@@ -118,9 +118,9 @@ func TestPreparePinsMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup2()
-	// The user's own flag is kept and the checked mode is pinned after it
-	// (v0.1.3 security (o)).
-	if out2[1] != "--permission-mode=plan" || slices.Index(out2, "--permission-mode") != 2 || out2[3] != "plan" {
-		t.Errorf("out = %v, want the user's flag kept and --permission-mode plan pinned after it", out2)
+	// The user's own flag is kept and the checked mode is pinned right after
+	// the program name (v0.1.3 security (o)).
+	if out2[1] != "--permission-mode" || out2[2] != "plan" || out2[len(out2)-1] != "--permission-mode=plan" {
+		t.Errorf("out = %v, want --permission-mode plan pinned first and the user's flag kept", out2)
 	}
 }
