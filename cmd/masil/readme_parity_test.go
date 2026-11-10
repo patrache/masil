@@ -231,3 +231,30 @@ func TestHomebrewDescEnglish(t *testing.T) {
 		}
 	}
 }
+
+// TestReadmeLanguageRowConditional: the Settings language row only appears
+// while i18n.Selectable() (two or more languages open), so the README line
+// that names its path must say so — otherwise a 0.1.3 reader (Korean only)
+// looks for a row that is not there. The wording holds before and after the
+// other languages open, so it is not tied to the gate.
+func TestReadmeLanguageRowConditional(t *testing.T) {
+	for _, c := range []struct{ rel, path, cond string }{
+		{"README.md", "Display → **Language**", "Once more than one language is open"},
+		{"README.ko.md", "화면 → **언어**", "언어가 둘 이상 열리면"},
+	} {
+		doc := readRepo(t, c.rel)
+		found := false
+		for _, l := range strings.Split(doc, "\n") {
+			if !strings.Contains(l, c.path) {
+				continue
+			}
+			found = true
+			if !strings.Contains(l, c.cond) {
+				t.Errorf("%s: the line naming %q must say %q (the row is hidden while one language is open):\n%s", c.rel, c.path, c.cond, l)
+			}
+		}
+		if !found {
+			t.Errorf("%s: no line names the Settings path %q", c.rel, c.path)
+		}
+	}
+}

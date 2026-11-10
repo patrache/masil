@@ -202,7 +202,7 @@ language = "auto"          # auto | ko | en | zh-Hans
 
 - `"auto"` (the default) follows your OS language. You can fix it to `"ko"` (한국어), `"en"` (English) or `"zh-Hans"` (简体中文).
 - The `MASIL_LANG` environment variable, when set, wins over `config.toml` (e.g. `MASIL_LANG=en masil`).
-- Inside the app, change it in Settings (`ctrl+k` → Settings) → Display → **Language**.
+- Once more than one language is open, you can also change it inside the app in Settings (`ctrl+k` → Settings) → Display → **Language**.
 - This release opens **Korean only**. English and Simplified Chinese open after native-speaker review; until then changing `language` still shows Korean and the language row does not appear in Settings. `MASIL_LANG` shows the unreviewed translations as they are (text without a translation falls back to English, then Korean).
 
 ## Uninstall
