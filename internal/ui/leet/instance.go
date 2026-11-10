@@ -242,8 +242,11 @@ func (in *instance) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if in.ed != nil && in.canEdit() {
 			if p, err := leetcode.SolutionPath(solutionDir(ctx), in.date, in.q.FrontendID, in.q.Slug, currentLang(ctx)); err != nil || p != in.ed.Path() {
 				// the other language's file, at once (its own highlighting)
-				re := reopenEditorMsg{id: in.id, focus: in.edFocus}
-				_, pane := in.ed.(*paneEditor)
+				p, pane := in.ed.(*paneEditor)
+				// A new nvim starts with the keys; one the user had left
+				// (ctrl+\ esc, so l reached the tool) comes back without
+				// them: the tool keeps the keys, e goes into it.
+				re := reopenEditorMsg{id: in.id, focus: in.edFocus && (!pane || p.GrabsKeys())}
 				drop := in.dropEditor()
 				switch {
 				case err != nil:
@@ -784,10 +787,13 @@ func (in *instance) codeLines(ctx *ui.Context, th *theme.Theme, w, h int) []stri
 	return rows
 }
 
-// hints is the bottom key line: the editor's while it has the keys.
+// hints is the bottom key line: the editor's or the shell's while it has
+// the keys.
 func (in *instance) hints(ctx *ui.Context, th *theme.Theme, wide string, w int) string {
 	t := ctx.T
-	if in.ed != nil && in.edFocus {
+	if in.termFocus && in.term != nil && in.term.GrabsKeys() {
+		wide = t.Leetcode.TermHint() // the keys go to the shell
+	} else if in.ed != nil && in.edFocus {
 		switch e := in.ed.(type) {
 		case *goEditor:
 			wide = t.Leetcode.RunUsesSavedGoeditor()

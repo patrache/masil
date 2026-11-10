@@ -81,3 +81,26 @@ A 와 C 는 같은 코드(코드 칸 배치·키 안내·`edRect`)를 고쳐서 
 - 배치: 터미널을 코드 칸 아래 절반에 둔 것 (전체 화면 B 는 하지 않음 — 기존 `ctrl+\ z` / `ctrl+w z` 확대 그대로).
 - 도구를 닫으면 셸도 끝나는 것 (nvim 칸과 같은 규칙).
 - en `hints_widget` 문구를 「← → tabs」 로 줄인 것.
+
+## 리뷰 반영
+
+리뷰 지적 3건 (A·C 만 — 전체 화면 B 는 오너가 취소). 셋 다 확인 후 반영, 건너뛴 것 없음.
+
+1. **(major) nvim 을 연 채 l 로 언어를 바꾸면 새 nvim 이 키를 가져감** — 확인됨. l 이 도구에 닿으려면
+   ctrl+\ esc 로 nvim 에서 나와 있어야 하는데 그때도 edFocus 는 true 라 `reopenEditorMsg{focus: true}` 가
+   되고, 새 termpane 은 grab=true 로 시작해 다음 l 이 nvim 의 커서 이동이 되었다 (Go → Python3 다음에서 멈춤).
+   고침: nvim 칸이고 옛 nvim 이 키를 갖고 있지 않았으면 `focus=false` 로 다시 연다
+   (`focus: in.edFocus && (!pane || p.GrabsKeys())`) — 도구가 키를 갖고, e 로 새 nvim 에 들어간다.
+   TDD: `TestLangSwitchReopensNvim` 에 「Exit 뒤 l 이 다시 언어를 바꾸고 (l 언어: Python), nvim 키에 l 이
+   없다」 를 더해 실패 확인 후 고침.
+2. **(minor) 셸이 키를 가진 동안 맨 아래 안내가 문제 화면 키** — 확인됨 (`e 편집기 · t 터미널 · r 실행 …` 인데
+   그 키들은 셸로 감). 고침: `hints()` 에서 `termFocus && term.GrabsKeys()` 를 먼저 보고 새 i18n 키
+   `term_hint` (ko 「ctrl+\ r 실행 · ctrl+\ s 제출 · ctrl+\ esc 나가기」, en 「ctrl+\ r run · ctrl+\ s submit ·
+   ctrl+\ esc leave」) 를 쓴다. 끝의 `l 언어: X` 는 joinHint 로 그대로. TDD: `TestTerminalKeyOpensShell` 에
+   셸 안에서 ctrl+\ r 안내 + `l 언어: Go` 단언 (실패 확인). 그 테스트의 「t 다시 들어간 뒤 t 터미널 안내」
+   단언은 새 동작과 어긋나므로 「ctrl+\ esc 로 나온 뒤 t 터미널 안내, 셸 안내 없음」 으로 옮겼다.
+3. **(minor) leet 터미널에서 ctrl+t 로 나가는 테스트 없음** — 확인됨 (동작은 이미 맞음: app 의 grabbing
+   특례). 테스트만 추가: `toolsnav_test.go` `TestCtrlTLeavesLeetTerminal` — ctrl+t, ctrl+ㅅ, BaseCode 't' 의
+   ctrl+ㅅ 셋 다 도구 화면을 떠나고 셸 키에는 `l s` 만 남는다. 처음부터 통과 (회귀 고정용).
+
+검증: `go test ./...` (-short 없이) 통과, `GOOS=windows go vet ./...` 통과.

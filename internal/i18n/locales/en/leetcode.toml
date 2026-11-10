@@ -379,6 +379,9 @@ other = "Result"
 [tags]
 other = "Tags {tags}"
 
+[term_hint]
+other = "ctrl+\\ r run · ctrl+\\ s submit · ctrl+\\ esc leave"
+
 [term_title]
 other = "Terminal · {shell}"
 

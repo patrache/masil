@@ -44,6 +44,13 @@ func TestTerminalKeyOpensShell(t *testing.T) {
 		t.Fatalf("terminal not shown:\n%s", s)
 	}
 	h.Check()
+	// While the shell has the keys the hint says how to run from inside it.
+	if !strings.Contains(s, "ctrl+\\ r 실행") || strings.Contains(s, "e 편집기 · t 터미널") {
+		t.Fatalf("no shell hint while the shell has the keys:\n%s", s)
+	}
+	if !strings.Contains(s, "l 언어: Go") {
+		t.Fatalf("no language tail in the shell hint:\n%s", s)
+	}
 	// Keys go to the shell, r included.
 	h.Type("ls")
 	h.Press("r")
@@ -68,8 +75,10 @@ func TestTerminalKeyOpensShell(t *testing.T) {
 	if keys := e.pane.Keys(termID); keys[len(keys)-1] != "x" {
 		t.Fatalf("t did not go back into the shell: %q", keys)
 	}
-	if s := h.Screen(); !strings.Contains(s, "t 터미널") {
-		t.Fatalf("no t hint:\n%s", s)
+	// Left again, the hint is the tool's (t goes back in).
+	h.Press("ctrl+\\", "esc")
+	if s := h.Screen(); !strings.Contains(s, "t 터미널") || strings.Contains(s, "ctrl+\\ esc 나가기") {
+		t.Fatalf("no t hint after leaving the shell:\n%s", s)
 	}
 }
 

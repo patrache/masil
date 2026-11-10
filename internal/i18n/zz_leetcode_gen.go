@@ -986,6 +986,13 @@ var areaLeetcode = area{
 				En: {Other: "Tags {tags}"},
 			},
 		},
+		"term_hint": {
+			desc: "LeetCode 도구의 터미널(셸)에 입력 중일 때 맨 아래 안내: 키는 셸로 가고 ctrl+\\ r/s 로 실행·제출, ctrl+\\ esc 로 나감 (끝에 lang_hint 가 붙음). 키 이름은 번역하지 않음",
+			text: map[Locale]Forms{
+				Ko: {Other: "ctrl+\\ r 실행 · ctrl+\\ s 제출 · ctrl+\\ esc 나가기"},
+				En: {Other: "ctrl+\\ r run · ctrl+\\ s submit · ctrl+\\ esc leave"},
+			},
+		},
 		"term_title": {
 			desc:   "코드 칸 아래 터미널 머리 줄. shell = 셸 이름(zsh, bash …)",
 			params: []Param{{Name: "shell", Type: "string"}},
@@ -1689,6 +1696,11 @@ func (a_ LeetcodeT) TabResult() string {
 // Tags: 문제 보기 태그 줄. tags = LeetCode 태그 이름들을 ' · ' 로 이은 것(번역하지 않음)
 func (a_ LeetcodeT) Tags(tags string) string {
 	return a_.t.render(&areaLeetcode, "tags", false, 0, "tags", tags)
+}
+
+// TermHint: LeetCode 도구의 터미널(셸)에 입력 중일 때 맨 아래 안내: 키는 셸로 가고 ctrl+\ r/s 로 실행·제출, ctrl+\ esc 로 나감 (끝에 lang_hint 가 붙음). 키 이름은 번역하지 않음
+func (a_ LeetcodeT) TermHint() string {
+	return a_.t.render(&areaLeetcode, "term_hint", false, 0)
 }
 
 // TermTitle: 코드 칸 아래 터미널 머리 줄. shell = 셸 이름(zsh, bash …)

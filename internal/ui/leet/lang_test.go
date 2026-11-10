@@ -2,6 +2,7 @@ package leet_test
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -104,4 +105,13 @@ func TestLangSwitchReopensNvim(t *testing.T) {
 		t.Fatalf("editor = %q", got)
 	}
 	h.Check()
+	// The new nvim comes back left, as the old one was: l is the tool's
+	// again (the next language), not a key for nvim.
+	h.Press("l")
+	if keys := e.pane.Keys("leet:today"); slices.Contains(keys, "l") {
+		t.Fatalf("nvim got l after the language change: %q", keys)
+	}
+	if s := h.Screen(); !strings.Contains(s, "l 언어: Python") || strings.Contains(s, "l 언어: Python3") {
+		t.Fatalf("a second l did not change the language:\n%s", s)
+	}
 }

@@ -55,3 +55,26 @@ func TestCtrlTLeavesGoeditor(t *testing.T) {
 		})
 	}
 }
+
+// ... and from the leet terminal (v0.1.3-1): the shell has the keys, but
+// ctrl+t in any spelling still leaves for the chat and never reaches it.
+func TestCtrlTLeavesLeetTerminal(t *testing.T) {
+	for _, key := range []tea.KeyPressMsg{{Code: 't', Mod: tea.ModCtrl}, {Code: 'ㅅ', Mod: tea.ModCtrl}, {Code: 'ㅅ', BaseCode: 't', Mod: tea.ModCtrl}} {
+		t.Run(key.String(), func(t *testing.T) {
+			e := setup(t)
+			e.lc.SetDailyDate("2026-11-05")
+			t.Setenv("SHELL", "/bin/zsh")
+			h := uitest.New(t)
+			openToday(t, h)
+			h.Press("t")
+			h.Type("ls")
+			h.Send(key)
+			if h.Nav().Front == app.FrontTools {
+				t.Fatalf("%s did not leave the leet terminal", key.String())
+			}
+			if keys := e.pane.Keys("leet:today#term"); !slices.Equal(keys, []string{"l", "s"}) {
+				t.Fatalf("the shell got %q, want only l s", keys)
+			}
+		})
+	}
+}
