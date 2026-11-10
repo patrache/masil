@@ -1,0 +1,456 @@
+# Feed area (en).
+
+[attach_hint]
+other = "File path · e.g. ~/Pictures/photo.jpg"
+
+[attach_info]
+other = "PNG·JPEG·GIF·WebP · up to 5MB · metadata is removed"
+
+[attach_keys]
+other = "enter attach · esc cancel"
+
+[attach_not_found]
+other = "File not found"
+
+[attach_story_title]
+other = "Story photo"
+
+[attach_title]
+other = "Attach photo"
+
+[blocked_done]
+other = "Blocked"
+
+[cancel]
+other = "Cancel"
+
+[card_deleted]
+other = "This post was deleted"
+
+[card_image_loading]
+other = "Loading image"
+
+[card_not_visible]
+other = "This post isn't available"
+
+[card_reposted_by]
+other = "{name} reposted"
+
+[cmd_feed_discover]
+other = "Feed: Everyone (discover)"
+
+[cmd_feed_following]
+other = "Feed: Following"
+
+[cmd_follow_requests]
+other = "Follow requests"
+
+[cmd_notifications]
+other = "Notifications"
+
+[cmd_post_new]
+other = "Write a post"
+
+[cmd_profile_edit]
+other = "Edit profile"
+
+[cmd_profile_me]
+other = "My profile"
+
+[cmd_story_new]
+other = "Post a story"
+
+[cmd_trends]
+other = "Trends Top 10"
+
+[compose_discard_ask]
+other = "Discard this draft?"
+
+[compose_discard_body]
+other = "The text and attached photos will be lost."
+
+[compose_discard_no]
+other = "Keep writing"
+
+[compose_discard_yes]
+other = "Discard"
+
+[compose_empty]
+other = "Write something first"
+
+[compose_max_photos]
+other = "You can attach up to 4 photos"
+
+[compose_new]
+other = "New post"
+
+[compose_photo_count]
+other = "Photos {n}/{max}"
+
+[compose_placeholder_post]
+other = "What's on your mind?"
+
+[compose_placeholder_story]
+other = "Say something short · stories disappear after 24 hours"
+
+[compose_posted]
+other = "Posted"
+
+[compose_quote]
+other = "Quote"
+
+[compose_reply]
+other = "Reply"
+
+[compose_reply_no_poll]
+other = "Replies can't have polls"
+
+[compose_reply_to]
+other = "Reply · @{handle}"
+
+[compose_still_sending]
+other = "Posting · one moment"
+
+[compose_still_uploading]
+other = "Photos are still uploading"
+
+[compose_story]
+other = "New story"
+
+[compose_story_bg]
+other = "Background {bg}"
+
+[compose_story_posted]
+other = "Story posted"
+
+[compose_upload_failed]
+other = "✕ Upload failed"
+
+[empty_discover]
+other = "No posts yet"
+
+[empty_discover_hint]
+other = "Press c to write the first post"
+
+[empty_following]
+other = "Posts from people you follow show up here"
+
+[empty_following_hint]
+other = "Press 1 for the full feed"
+
+[err_ctx_block]
+other = "Block"
+
+[err_ctx_compose]
+other = "Posting"
+
+[err_ctx_delete_post]
+other = "Delete post"
+
+[err_ctx_feed]
+other = "Feed"
+
+[err_ctx_like]
+other = "Like"
+
+[err_ctx_media]
+other = "Photo"
+
+[err_ctx_poll]
+other = "Poll"
+
+[err_ctx_post]
+other = "Post"
+
+[err_ctx_repost]
+other = "Repost"
+
+[err_ctx_search]
+other = "Search"
+
+[err_ctx_stories]
+other = "Stories"
+
+[err_ctx_story_delete]
+other = "Delete story"
+
+[err_ctx_story_post]
+other = "Story"
+
+[err_ctx_trends]
+other = "Trends"
+
+[feed_load_failed]
+other = "Couldn't load the feed"
+
+[feed_title]
+other = "Feed"
+
+[hashtag_empty]
+other = "No posts with this tag yet"
+
+[help_attach]
+other = "attach"
+
+[help_background]
+other = "background"
+
+[help_close_poll]
+other = "close poll"
+
+[help_end_input]
+other = "done"
+
+[help_expand]
+other = "expand"
+
+[help_like]
+other = "like"
+
+[help_menu]
+other = "menu"
+
+[help_new_post]
+other = "new post"
+
+[help_next]
+other = "next"
+
+[help_open]
+other = "open"
+
+[help_open_post]
+other = "open post"
+
+[help_photo]
+other = "photo"
+
+[help_pick]
+other = "pick"
+
+[help_post]
+other = "post"
+
+[help_prev]
+other = "prev"
+
+[help_remove_photo]
+other = "remove photo"
+
+[help_reply]
+other = "reply"
+
+[help_repost]
+other = "repost"
+
+[help_retry]
+other = "retry"
+
+[help_search]
+other = "search"
+
+[help_tag_feed]
+other = "tag feed"
+
+[help_tag_key]
+other = "#tag"
+
+[help_tag_search]
+other = "tag search"
+
+[help_unvote]
+other = "unvote"
+
+[help_vote]
+other = "vote"
+
+[help_write]
+other = "write"
+
+[kw_feed_discover]
+other = "discover, explore"
+
+[kw_feed_following]
+other = "timeline"
+
+[kw_follow_requests]
+other = "follow"
+
+[kw_notifications]
+other = "alerts, inbox"
+
+[kw_post_new]
+other = "write, compose"
+
+[kw_profile_edit]
+other = "name, bio"
+
+[kw_profile_me]
+other = "profile"
+
+[kw_story_new]
+other = "story"
+
+[kw_trends]
+other = "hashtag, search"
+
+[loading]
+other = "Loading…"
+
+[media_failed]
+other = "Couldn't load the photo"
+
+[media_loading]
+other = "Loading photo…"
+
+[media_none]
+other = "No photos to show"
+
+[media_title]
+other = "Photo"
+
+[media_title_of]
+other = "Photo {n}/{total}"
+
+[new_posts_banner]
+one = "{n} new post · enter"
+other = "{n} new posts · enter"
+
+[new_posts_banner_cap]
+other = "{n}+ new posts · enter"
+
+[palette_hashtag_open]
+other = "Open tag feed"
+
+[palette_trend_rank]
+other = "Trending #{n}"
+
+[poll_close_ask]
+other = "Close this poll?"
+
+[poll_close_yes]
+other = "Close poll"
+
+[poll_closed]
+other = "This poll is closed"
+
+[poll_menu]
+other = "Vote"
+
+[poll_title]
+other = "Poll"
+
+[post_continue]
+other = "↳ Continue thread"
+
+[post_deleted]
+other = "Post deleted"
+
+[post_load_failed]
+other = "Couldn't load the post"
+
+[post_load_failed_hint]
+other = "Press esc to go back"
+
+[post_more_replies]
+other = "More replies"
+
+[post_no_replies]
+other = "No replies yet · press r to reply"
+
+[post_replies_rule]
+other = "Replies {n}"
+
+[post_title]
+other = "Post"
+
+[private_no_share]
+other = "Posts from private accounts can't be reposted or quoted"
+
+[retry_hint]
+other = "{text} · {key} retry"
+
+[ring_add]
+other = "+ My story"
+
+[ring_mine]
+other = "My story"
+
+[stories_none]
+other = "No stories to show right now"
+
+[stories_title]
+other = "Stories"
+
+[story_delete]
+other = "Delete"
+
+[story_delete_ask]
+other = "Delete this story?"
+
+[story_deleted]
+other = "Story deleted"
+
+[story_of]
+other = "{name}'s story"
+
+[story_photo]
+other = "Photo"
+
+[story_report]
+other = "Report"
+
+[story_viewers]
+other = "Viewers"
+
+[story_viewers_n]
+other = "Viewers {n}"
+
+[tab_discover]
+other = "Feed"
+
+[tab_following]
+other = "Following"
+
+[tab_trends]
+other = "#Trends"
+
+[too_long]
+one = "Over {n} character"
+other = "Over {n} characters"
+
+[trends_computed_at]
+other = "As of {time}"
+
+[trends_empty]
+other = "No trends yet"
+
+[trends_empty_hint]
+other = "Add a #tag to your posts"
+
+[trends_meta]
+other = "Posts {posts} · People {authors}"
+
+[trends_meta_recent]
+other = "Posts in 24h {posts}"
+
+[trends_open_tag_feed]
+other = "open tag feed"
+
+[trends_query_too_long]
+other = "Searches are at most 100 characters"
+
+[trends_search_empty]
+other = "No results"
+
+[trends_search_empty_hint]
+other = "Start with # to search tags"
+
+[trends_search_hint]
+other = "#tag or search posts"
+
+[trends_tag_too_long]
+other = "Tags are at most 50 characters"
+
+[trends_title]
+other = "Trends"

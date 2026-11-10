@@ -13,7 +13,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
@@ -33,21 +32,8 @@ const (
 	storyCaptionN = 3               // most caption rows under a photo
 )
 
-// Story viewer copy.
-const (
-	textStoriesTitle   = "스토리"
-	textNoStories      = "지금 볼 수 있는 스토리가 없어요"
-	textStoryViewers   = "본 사람"
-	textStoryDelete    = "삭제"
-	textStoryDeleteAsk = "이 스토리를 삭제할까요?"
-	textStoryDeleted   = "스토리를 삭제했어요"
-	textStoryReport    = "신고"
-	textStoryOf        = "의 스토리"
-	textStoryPhoto     = "사진"
-	textStoryPaused    = "⏸"
-	errContextStories  = "스토리"
-	errContextStoryDel = "스토리 삭제"
-)
+// textStoryPaused marks a paused story (copy: the feed catalog area, story_*).
+const textStoryPaused = "⏸"
 
 // Story viewer result tags (ui.Do).
 const (
@@ -421,7 +407,7 @@ func (s *stories) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 				s.dropTemp(func(st api.Story) bool { return st.ID != d.StoryID })
 			}
 		}
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+	case ui.ModeChangedMsg, ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		cmds = append(cmds, s.renderCurrent(ctx))
 	default:
 		if rt := reflect.TypeOf(msg); rt != nil && rt.PkgPath() == widgetsPkg {
@@ -467,8 +453,8 @@ func (s *stories) onUserStories(ctx *ui.Context, m ui.ResultMsg[[]api.Story]) te
 	s.loading = false
 	s.spin.Stop()
 	if m.Err != nil {
-		err := m.Err
-		return tea.Batch(func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errContextStories} }, s.finish())
+		err, where := m.Err, cat(ctx).Feed.ErrCtxStories()
+		return tea.Batch(func() tea.Msg { return ui.ErrorMsg{Err: err, Context: where} }, s.finish())
 	}
 	now := ctx.Now()
 	var kept []api.Story
@@ -478,7 +464,7 @@ func (s *stories) onUserStories(ctx *ui.Context, m ui.ResultMsg[[]api.Story]) te
 		}
 	}
 	if len(kept) == 0 {
-		return tea.Batch(ui.Toast(textNoStories, ui.ToastInfo), s.finish())
+		return tea.Batch(ui.Toast(cat(ctx).Feed.StoriesNone(), ui.ToastInfo), s.finish())
 	}
 	last := kept[len(kept)-1]
 	s.temp = &api.StoryGroup{User: kept[0].Author, Stories: kept, HasUnseen: anyStoryUnseen(kept), LatestAt: last.CreatedAt}
@@ -500,16 +486,16 @@ func (s *stories) onDeleted(ctx *ui.Context, m ui.ResultMsg[*storyDeleteOutcome]
 		return nil
 	}
 	if m.Err != nil {
-		err := m.Err
-		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errContextStoryDel} }
+		err, where := m.Err, cat(ctx).Feed.ErrCtxStoryDelete()
+		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: where} }
 	}
 	if fs := s.fs(ctx); fs != nil {
 		fs.RemoveStory(o.storyID)
 	}
-	return ui.Toast(textStoryDeleted, ui.ToastSuccess)
+	return ui.Toast(cat(ctx).Feed.StoryDeleted(), ui.ToastSuccess)
 }
 
-// deleteStory is the Cmd behind "삭제": DELETE /v1/stories/{id} (tag "feed.delete_story:<id>").
+// deleteStory is the Cmd behind the menu's delete: DELETE /v1/stories/{id} (tag "feed.delete_story:<id>").
 func deleteStory(ctx *ui.Context, storyID string) tea.Cmd {
 	o := &storyDeleteOutcome{storyID: storyID}
 	return ui.Do(ctx, tagDeleteStory+storyID, func(c context.Context, a *api.Client) (*storyDeleteOutcome, error) {
@@ -605,12 +591,12 @@ func (s *stories) View(ctx *ui.Context, _ bool) string {
 	}
 	s.prune(ctx)
 	if s.loading {
-		line := fit(th, th.S.Base.Render("  ")+s.spin.View(th)+th.S.Dim.Render(" "+textLoading), w)
+		line := fit(th, th.S.Base.Render("  ")+s.spin.View(th)+th.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 		return blankRows(th, []string{line}, w, h)
 	}
 	g, idx, ok := s.resolve(ctx)
 	if !ok {
-		return strings.Join(textwidth.Fit(strings.Split(widgets.Empty(th, s.size, "", textNoStories, ""), "\n"), w, h), "\n")
+		return strings.Join(textwidth.Fit(strings.Split(widgets.Empty(th, s.size, "", cat(ctx).Feed.StoriesNone(), ""), "\n"), w, h), "\n")
 	}
 	st := &g.Stories[idx]
 	lay := storyLayoutOf(s.size, st)
@@ -678,7 +664,7 @@ func (s *stories) headerLine(ctx *ui.Context, th *theme.Theme, g *api.StoryGroup
 	self := ctx.Store.IsMe(st.Author.ID)
 	left := th.S.Base.Foreground(th.UserColor(st.Author.ID, self)).Bold(true).Render(handleOf(st.Author)) +
 		th.S.Base.Render(" "+displayName(st.Author)) +
-		th.S.Dim.Render(" · "+humanize.Relative(now, created))
+		th.S.Dim.Render(" · "+hz(ctx).Relative(now, created))
 	right := strconv.Itoa(idx+1) + "/" + strconv.Itoa(len(g.Stories))
 	if s.paused {
 		right = textStoryPaused + " " + right
@@ -805,7 +791,7 @@ func (s *stories) photoLines(ctx *ui.Context, th *theme.Theme, st *api.Story, la
 	img := s.imgs.cell(ctx, *st.Media, lay.imgCols, lay.imgRows)
 	if img == nil {
 		ph := *st
-		ph.Body = textStoryPhoto
+		ph.Body = cat(ctx).Feed.StoryPhoto()
 		out = append(out, storyBox(ctx, th, &ph, w, imgH)...)
 	} else {
 		top := (imgH - len(img)) / 2
@@ -885,24 +871,26 @@ func (s *stories) openMenu(ctx *ui.Context) tea.Cmd {
 	}
 	id, author := st.ID, st.Author
 	var items []menuItem
+	c := cat(ctx)
 	if ctx.Store.IsMe(author.ID) {
-		label := textStoryViewers
+		label := c.Feed.StoryViewers()
 		if st.ViewCount != nil {
-			label += " " + humanize.Count(*st.ViewCount)
+			label = c.Feed.StoryViewersN(hz(ctx).Count(*st.ViewCount))
 		}
 		items = append(items,
 			menuItem{label: label, open: func(ctx *ui.Context) ui.Overlay {
 				return overlayOrNil(newUserList(ctx, listStoryViewers+" "+id))
 			}},
-			menuItem{label: textStoryDelete, open: func(ctx *ui.Context) ui.Overlay {
-				return widgets.Confirm(textStoryDeleteAsk, "", textDeleteYes, textCancel, deleteStory(ctx, id))
+			menuItem{label: c.Feed.StoryDelete(), open: func(ctx *ui.Context) ui.Overlay {
+				c := cat(ctx)
+				return widgets.Confirm(c.Feed.StoryDeleteAsk(), "", c.Feed.StoryDelete(), c.Feed.Cancel(), deleteStory(ctx, id))
 			}},
 		)
 	} else {
 		name := displayName(author)
 		items = append(items,
-			menuItem{label: textStoryReport, open: func(*ui.Context) ui.Overlay {
-				return widgets.ReportDialog("story", id, name+textStoryOf)
+			menuItem{label: c.Feed.StoryReport(), open: func(ctx *ui.Context) ui.Overlay {
+				return widgets.ReportDialog("story", id, cat(ctx).Feed.StoryOf(name))
 			}},
 			menuItem{label: textMenuAuthor, run: func(*ui.Context) tea.Cmd {
 				return ui.Navigate(ui.Route{Kind: ui.RouteProfile, ID: author.ID})
@@ -911,19 +899,22 @@ func (s *stories) openMenu(ctx *ui.Context) tea.Cmd {
 	}
 	s.paused = true
 	s.cancel()
-	return ui.OpenOverlay(&menu{title: textStoriesTitle, width: menuW, items: items})
+	return ui.OpenOverlay(&menu{title: c.Feed.StoriesTitle(), width: menuW, items: items})
 }
 
 // ---- optional capabilities ----
 
-func (s *stories) Title(*ui.Context) (string, ui.Badge) { return textStoriesTitle, ui.Badge{} }
+func (s *stories) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.StoriesTitle(), ui.Badge{}
+}
 
 func (s *stories) Help(ctx *ui.Context) []key.Binding {
+	c := cat(ctx)
 	b := ctx.Keys.Binding(keymap.MsgActions)
-	b.SetHelp(b.Help().Key, "메뉴")
+	b.SetHelp(b.Help().Key, c.Feed.HelpMenu())
 	return []key.Binding{
-		key.NewBinding(key.WithKeys("space", "right", "n"), key.WithHelp("space", "다음")),
-		key.NewBinding(key.WithKeys("left", "p"), key.WithHelp("←", "이전")),
+		key.NewBinding(key.WithKeys("space", "right", "n"), key.WithHelp("space", c.Feed.HelpNext())),
+		key.NewBinding(key.WithKeys("left", "p"), key.WithHelp("←", c.Feed.HelpPrev())),
 		b,
 	}
 }

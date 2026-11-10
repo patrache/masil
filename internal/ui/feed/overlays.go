@@ -340,7 +340,7 @@ func newPostActions(ctx *ui.Context, postID string) *menu {
 	name := displayName(author)
 	var items []menuItem
 	if p.Poll != nil {
-		items = append(items, menuItem{label: textPollMenu, open: func(ctx *ui.Context) ui.Overlay {
+		items = append(items, menuItem{label: cat(ctx).Feed.PollMenu(), open: func(ctx *ui.Context) ui.Overlay {
 			return pollVoteOverlay(ctx, postID)
 		}})
 	}
@@ -669,7 +669,7 @@ func (l *userList) renderRow(ctx *ui.Context, u api.UserSummary, selected bool, 
 // statusLine is the spinner / error line shown instead of an empty list.
 func statusLine(ctx *ui.Context, t *theme.Theme, spin *widgets.Spinner, loading bool, err error, w int) string {
 	if loading {
-		return fit(t, t.S.Base.Render("  ")+spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
+		return fit(t, t.S.Base.Render("  ")+spin.View(t)+t.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 	}
 	return fit(t, t.S.Base.Render("  ")+t.S.Error.Render(errtext.Describe(tOf(ctx), err)), w)
 }

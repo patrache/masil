@@ -418,17 +418,17 @@ func (e *profileEdit) save(ctx *ui.Context) tea.Cmd {
 		return ui.Toast(textNameRequired, ui.ToastError)
 	}
 	if utf8.RuneCountInString(name) > nameLimit {
-		return ui.Toast(tooLongText(nameLimit), ui.ToastError)
+		return ui.Toast(cat(ctx).Feed.TooLong(nameLimit), ui.ToastError)
 	}
 	bio := strings.TrimSpace(e.bio.Value())
 	if utf8.RuneCountInString(bio) > bioLimit {
-		return ui.Toast(tooLongText(bioLimit), ui.ToastError)
+		return ui.Toast(cat(ctx).Feed.TooLong(bioLimit), ui.ToastError)
 	}
 	file := strings.TrimSpace(e.avatar.Value())
 	if file != "" {
 		file = expandHome(file)
 		if !fileExists(file) {
-			return ui.Toast(textFileNotFound, ui.ToastError)
+			return ui.Toast(cat(ctx).Feed.AttachNotFound(), ui.ToastError)
 		}
 	}
 	var req api.UpdateProfileRequest

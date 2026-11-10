@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/patrache/masil/internal/i18n"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -52,41 +53,12 @@ const (
 // storyBGs is the "b" cycle (api.md 5.16 bg), starting at the default.
 var storyBGs = []string{"accent", "accent2", "accent3", "accent4", "plain"}
 
-// Composer copy.
-const (
-	textComposeNew    = "새 글"
-	textComposeReply  = "답글"
-	textComposeQuote  = "인용"
-	textComposeStory  = "새 스토리"
-	placeholderPost   = "무슨 생각을 하고 있나요?"
-	placeholderStory  = "스토리에 짧게 남겨 보세요 · 24시간 뒤 사라져요"
-	textEmptyPost     = "내용을 입력해 주세요"
-	textMaxPhotos     = "사진은 4장까지예요"
-	textReplyNoPoll   = "답글에는 투표를 붙일 수 없어요"
-	textPosted        = "올렸어요"
-	textStoryPosted   = "스토리를 올렸어요"
-	textStillUpload   = "사진을 올리는 중이에요"
-	textStillSending  = "올리는 중이에요 · 잠시만 기다려 주세요"
-	textUploadFailed  = "✕ 업로드 실패"
-	textDiscardAsk    = "작성 중인 글을 버릴까요?"
-	textDiscardBody   = "쓴 내용과 첨부한 사진이 사라져요."
-	textDiscardYes    = "버리기"
-	textDiscardNo     = "계속 쓰기"
-	textStoryBG       = "배경 "
-	textPhotoCount    = "사진 "
-	errContextCompose = "글 올리기"
-	errContextStory   = "스토리 올리기"
-)
-
 // Composer result tags (ui.Do): "feed.<action>:<target>".
 const (
 	tagComposeSend   = "feed.compose:"        // + compose route key
 	tagComposeTarget = "feed.compose_target:" // + compose route key
 	tagDeleteUpload  = "feed.delete_upload:"  // + upload id
 )
-
-// tooLongText is the toast for a body over limit code points.
-func tooLongText(limit int) string { return fmt.Sprintf("%d자를 넘었어요", limit) }
 
 // attachment is one picked photo: uploading while Upload and Err are both nil.
 type attachment struct {
@@ -179,14 +151,19 @@ func modeOf(r ui.Route) string {
 
 // newCompose builds RouteCompose (Arg "post"|"story", ID = reply / quote target,
 // Query["mode"] = "reply"|"quote").
-func newCompose(_ *ui.Context, r ui.Route) ui.Component {
+func newCompose(ctx *ui.Context, r ui.Route) ui.Component {
 	c := &compose{key: r.Key(), route: r, mode: modeOf(r), bg: storyBGs[0], spin: widgets.NewSpinner()}
-	ph := placeholderPost
-	if c.mode == modeStory {
-		ph = placeholderStory
-	}
-	c.input = widgets.NewComposer(ph)
+	c.input = widgets.NewComposer(c.placeholder(cat(ctx)))
 	return c
+}
+
+// placeholder is the input's empty hint in t's language (redrawn every View, so
+// it follows a language switch).
+func (c *compose) placeholder(t *i18n.T) string {
+	if c.mode == modeStory {
+		return t.Feed.ComposePlaceholderStory()
+	}
+	return t.Feed.ComposePlaceholderPost()
 }
 
 func (c *compose) fs(ctx *ui.Context) *feedstore.FeedStore {
@@ -273,7 +250,7 @@ func (c *compose) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case attachPickMsg:
 		if m.Route == c.key {
 			if c.sending {
-				cmds = append(cmds, ui.Toast(textStillSending, ui.ToastInfo))
+				cmds = append(cmds, ui.Toast(cat(ctx).Feed.ComposeStillSending(), ui.ToastInfo))
 			} else {
 				cmds = append(cmds, c.onPick(ctx, m))
 			}
@@ -325,7 +302,7 @@ func (c *compose) onTarget(ctx *ui.Context, m ui.ResultMsg[*api.Post]) tea.Cmd {
 			}
 			return nil
 		}
-		return postErr(m.Err)
+		return postErr(ctx, m.Err)
 	}
 	if fs := c.fs(ctx); fs != nil {
 		fs.ObservePosts(*m.Value)
@@ -356,9 +333,9 @@ func (c *compose) uploadingAny() bool {
 }
 
 // openAttach opens feed.attach for this instance (posts: at most 4 photos).
-func (c *compose) openAttach() tea.Cmd {
+func (c *compose) openAttach(ctx *ui.Context) tea.Cmd {
 	if !c.story() && c.photos() >= maxPostMedia {
-		return ui.Toast(textMaxPhotos, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.ComposeMaxPhotos(), ui.ToastInfo)
 	}
 	return ui.OpenRegisteredOverlay(overlayAttach, c.purpose()+" "+c.key)
 }
@@ -373,7 +350,7 @@ func (c *compose) onPick(ctx *ui.Context, m attachPickMsg) tea.Cmd {
 		}
 		c.atts = nil
 	} else if c.photos() >= maxPostMedia {
-		return ui.Toast(textMaxPhotos, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.ComposeMaxPhotos(), ui.ToastInfo)
 	}
 	c.seq++
 	a := attachment{Name: filepath.Base(m.Path), seq: c.seq}
@@ -420,7 +397,7 @@ func (c *compose) onAttached(ctx *ui.Context, a attachment) tea.Cmd {
 	for i := range c.atts {
 		if c.atts[i].seq == a.seq && c.atts[i].uploading() {
 			c.atts[i] = a
-			return attachErr(a.Err)
+			return attachErr(ctx, a.Err)
 		}
 	}
 	return deleteUpload(ctx, a.Upload)
@@ -428,18 +405,19 @@ func (c *compose) onAttached(ctx *ui.Context, a attachment) tea.Cmd {
 
 // attachErr reports a failed upload: a missing file, an image imgrender cannot
 // use (as the server's 415 / 413 wording) or the API error.
-func attachErr(err error) tea.Cmd {
+func attachErr(ctx *ui.Context, err error) tea.Cmd {
+	where := cat(ctx).Feed.AttachTitle()
 	switch {
 	case err == nil:
 		return nil
 	case errors.Is(err, fs.ErrNotExist):
-		return ui.Toast(textFileNotFound, ui.ToastError)
+		return ui.Toast(cat(ctx).Feed.AttachNotFound(), ui.ToastError)
 	case errors.Is(err, imgrender.ErrUnsupported):
 		err = &api.Error{Code: "unsupported_media_type"}
 	case errors.Is(err, imgrender.ErrTooLarge):
 		err = &api.Error{Code: "payload_too_large"}
 	}
-	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: textAttachTitle} }
+	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: where} }
 }
 
 // deleteUpload drops a pending upload (DELETE /v1/uploads/{id}); errors are
@@ -502,14 +480,16 @@ func (c *compose) discard(ctx *ui.Context) tea.Cmd {
 }
 
 // leave is esc outside the input: a draft asks first, else back.
-func (c *compose) leave() tea.Cmd {
+func (c *compose) leave(ctx *ui.Context) tea.Cmd {
 	if !c.hasDraft() {
 		return ui.Back()
 	}
 	route := c.key
 	reset := func() tea.Msg { return discardMsg{Route: route} }
 	// "계속 쓰기" (or esc) closes the dialog straight back into the input.
-	return tea.Batch(c.input.Focus(), ui.OpenOverlay(widgets.Confirm(textDiscardAsk, textDiscardBody, textDiscardYes, textDiscardNo, tea.Batch(reset, ui.Back()))))
+	t := cat(ctx)
+	return tea.Batch(c.input.Focus(), ui.OpenOverlay(widgets.Confirm(t.Feed.ComposeDiscardAsk(), t.Feed.ComposeDiscardBody(),
+		t.Feed.ComposeDiscardYes(), t.Feed.ComposeDiscardNo(), tea.Batch(reset, ui.Back()))))
 }
 
 func (c *compose) cycleBG() {
@@ -537,17 +517,17 @@ func (c *compose) send(ctx *ui.Context) tea.Cmd {
 		return nil
 	}
 	if c.uploadingAny() {
-		return ui.Toast(textStillUpload, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.ComposeStillUploading(), ui.ToastInfo)
 	}
 	body := c.input.Value()
 	text := strings.TrimSpace(body)
 	media := c.mediaIDs()
 	if c.story() {
 		if utf8.RuneCountInString(body) > storyLimit {
-			return ui.Toast(tooLongText(storyLimit), ui.ToastInfo)
+			return ui.Toast(cat(ctx).Feed.TooLong(storyLimit), ui.ToastInfo)
 		}
 		if text == "" && len(media) == 0 {
-			return ui.Toast(textEmptyPost, ui.ToastInfo)
+			return ui.Toast(cat(ctx).Feed.ComposeEmpty(), ui.ToastInfo)
 		}
 		req := api.CreateStoryRequest{Body: text, BG: c.bg}
 		if len(media) > 0 {
@@ -568,7 +548,7 @@ func (c *compose) send(ctx *ui.Context) tea.Cmd {
 	var poll *api.PollInput
 	if isPollInput(body) {
 		if c.mode == modeReply {
-			return ui.Toast(textReplyNoPoll, ui.ToastInfo)
+			return ui.Toast(cat(ctx).Feed.ComposeReplyNoPoll(), ui.ToastInfo)
 		}
 		cmd, ok, err := slash.Parse(body)
 		if err != nil {
@@ -579,10 +559,10 @@ func (c *compose) send(ctx *ui.Context) tea.Cmd {
 		}
 	}
 	if poll == nil && utf8.RuneCountInString(body) > postLimit {
-		return ui.Toast(tooLongText(postLimit), ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.TooLong(postLimit), ui.ToastInfo)
 	}
 	if poll == nil && text == "" && len(media) == 0 && c.mode != modeQuote {
-		return ui.Toast(textEmptyPost, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.ComposeEmpty(), ui.ToastInfo)
 	}
 	if c.nonce == "" {
 		c.nonce = ids.New()
@@ -622,9 +602,9 @@ func (c *compose) onSent(ctx *ui.Context, m ui.ResultMsg[*composeResult]) tea.Cm
 	}
 	c.sending = false
 	if m.Err != nil || m.Value == nil {
-		errCtx := errContextCompose
+		errCtx := cat(ctx).Feed.ErrCtxCompose()
 		if c.story() {
-			errCtx = errContextStory
+			errCtx = cat(ctx).Feed.ErrCtxStoryPost()
 		}
 		err := m.Err
 		if err == nil {
@@ -633,7 +613,7 @@ func (c *compose) onSent(ctx *ui.Context, m ui.ResultMsg[*composeResult]) tea.Cm
 		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errCtx} }
 	}
 	r := m.Value
-	done := textPosted
+	done := cat(ctx).Feed.ComposePosted()
 	if fs := c.fs(ctx); fs != nil {
 		if r.Post != nil {
 			fs.ObservePosts(*r.Post)
@@ -651,7 +631,7 @@ func (c *compose) onSent(ctx *ui.Context, m ui.ResultMsg[*composeResult]) tea.Cm
 		}
 	}
 	if r.Story != nil {
-		done = textStoryPosted
+		done = cat(ctx).Feed.ComposeStoryPosted()
 	}
 	c.reset()
 	cmds := []tea.Cmd{ui.Toast(done, ui.ToastSuccess), c.input.Focus()}
@@ -718,20 +698,21 @@ func (c *compose) layout(ctx *ui.Context) composeLayout {
 	return l
 }
 
-// heading is the header text: 새 글 / 답글 · @hana / 인용 / 새 스토리.
+// heading is the header text: new post / reply · @hana / quote / new story.
 func (c *compose) heading(ctx *ui.Context) string {
+	t := cat(ctx)
 	switch c.mode {
 	case modeStory:
-		return textComposeStory
+		return t.Feed.ComposeStory()
 	case modeQuote:
-		return textComposeQuote
+		return t.Feed.ComposeQuote()
 	case modeReply:
 		if p := c.targetPost(ctx); p != nil && !p.Deleted && p.Author.Handle != "" && !c.blocked(ctx, p) {
-			return textComposeReply + " · @" + textwidth.Sanitize(p.Author.Handle)
+			return t.Feed.ComposeReplyTo(textwidth.Sanitize(p.Author.Handle))
 		}
-		return textComposeReply
+		return t.Feed.ComposeReply()
 	}
-	return textComposeNew
+	return t.Feed.ComposeNew()
 }
 
 func (c *compose) blocked(ctx *ui.Context, p *api.Post) bool {
@@ -748,11 +729,11 @@ func (c *compose) contextLines(ctx *ui.Context, w int) []string {
 	p := c.targetPost(ctx)
 	switch {
 	case p == nil && c.targetFailed:
-		return []string{fit(th, th.S.Base.Render("  ")+th.S.Deleted.Render(textNotVisible), w)}
+		return []string{fit(th, th.S.Base.Render("  ")+th.S.Deleted.Render(cat(ctx).Feed.CardNotVisible()), w)}
 	case p == nil:
-		return []string{fit(th, th.S.Base.Render("  ")+c.spin.View(th)+th.S.Dim.Render(" "+textLoading), w)}
+		return []string{fit(th, th.S.Base.Render("  ")+c.spin.View(th)+th.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)}
 	case c.blocked(ctx, p):
-		return []string{fit(th, th.S.Base.Render("  ")+th.S.Deleted.Render(textNotVisible), w)}
+		return []string{fit(th, th.S.Base.Render("  ")+th.S.Deleted.Render(cat(ctx).Feed.CardNotVisible()), w)}
 	}
 	it := api.TimelineItem{ID: p.ID, Type: "post", Post: *p}
 	if c.mode == modeReply {
@@ -808,7 +789,7 @@ func (c *compose) pollLines(ctx *ui.Context, w int) []string {
 		out = append(out, fit(th, l, w))
 	}
 	if c.mode == modeReply {
-		out = append(out, warn(textReplyNoPoll)...)
+		out = append(out, warn(cat(ctx).Feed.ComposeReplyNoPoll())...)
 	}
 	return out
 }
@@ -826,14 +807,14 @@ func humanBytes(n int64) string {
 	return fmt.Sprintf("%.1fMB", float64(n)/(1024*1024))
 }
 
-// chip is "🖼 photo.jpg 1.2MB ✓", "🖼 photo.jpg ⠋" or "🖼 photo.jpg ✕ 업로드 실패".
-func (c *compose) chip(th *theme.Theme, a attachment) string {
+// chip is "🖼 photo.jpg 1.2MB ✓", "🖼 photo.jpg ⠋" or "🖼 photo.jpg ✕ <upload failed>".
+func (c *compose) chip(t *i18n.T, th *theme.Theme, a attachment) string {
 	s := th.S.Base.Render("🖼 " + textwidth.Truncate(textwidth.Sanitize(a.Name), chipNameW, "…") + " ")
 	switch {
 	case a.uploading():
 		return s + c.spin.View(th)
 	case a.Err != nil:
-		return s + th.S.Error.Render(textUploadFailed)
+		return s + th.S.Error.Render(t.Feed.ComposeUploadFailed())
 	}
 	size := a.Size
 	if size == 0 && a.Upload != nil {
@@ -852,7 +833,7 @@ func (c *compose) chipLines(ctx *ui.Context, w int) []string {
 	var out []string
 	cur, curW := "", 0
 	for _, a := range c.atts {
-		ch := c.chip(th, a)
+		ch := c.chip(cat(ctx), th, a)
 		cw := textwidth.Width(ch)
 		if cw > w {
 			ch, cw = textwidth.Truncate(ch, w, "…"), w
@@ -918,9 +899,9 @@ func (c *compose) footer(ctx *ui.Context, w int) string {
 	info := ""
 	switch {
 	case c.story():
-		info = textStoryBG + c.bg
+		info = cat(ctx).Feed.ComposeStoryBg(c.bg)
 	case len(c.atts) > 0:
-		info = fmt.Sprintf("%s%d/%d", textPhotoCount, c.photos(), maxPostMedia)
+		info = cat(ctx).Feed.ComposePhotoCount(c.photos(), maxPostMedia)
 	}
 	left := fit(th, th.S.Dim.Render(textwidth.Truncate(info, max(w-cw-1, 0), "…")), w-cw)
 	return left + cst.Render(count)
@@ -932,6 +913,7 @@ func (c *compose) View(ctx *ui.Context, _ bool) string {
 	if w <= 0 || h <= 0 {
 		return ""
 	}
+	c.input.SetPlaceholder(c.placeholder(cat(ctx)))
 	l := c.layout(ctx)
 	var out []string
 	if l.header {
@@ -979,7 +961,7 @@ func (c *compose) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 			had := c.input.Value() != ""
 			return had, c.input.Update(ctx, msg)
 		case s == "ctrl+o":
-			return true, c.openAttach()
+			return true, c.openAttach(ctx)
 		case km.Matches(msg, keymap.ComposeSend):
 			return true, c.send(ctx)
 		case km.Matches(msg, keymap.ComposeLeave):
@@ -992,14 +974,14 @@ func (c *compose) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd
 	case km.Matches(msg, keymap.ComposeFocus), s == "enter":
 		return true, c.focusInput()
 	case s == "o" || s == "ctrl+o":
-		return true, c.openAttach()
+		return true, c.openAttach(ctx)
 	case s == "x":
 		return true, c.removeLast(ctx)
 	case s == "b" && c.story():
 		c.cycleBG()
 		return true, nil
 	case km.Matches(msg, keymap.ComposeLeave):
-		return true, c.leave()
+		return true, c.leave(ctx)
 	}
 	return false, nil
 }
@@ -1023,7 +1005,7 @@ func (c *compose) handleKeySending(ctx *ui.Context, msg tea.KeyPressMsg) (bool, 
 	case km.Matches(msg, keymap.ComposeFocus), s == "enter":
 		return true, c.focusInput()
 	case s == "o", s == "ctrl+o", s == "x", s == "b" && c.story(), km.Matches(msg, keymap.ComposeLeave):
-		return true, ui.Toast(textStillSending, ui.ToastInfo)
+		return true, ui.Toast(cat(ctx).Feed.ComposeStillSending(), ui.ToastInfo)
 	}
 	return false, nil
 }
@@ -1062,14 +1044,15 @@ func (c *compose) Title(ctx *ui.Context) (string, ui.Badge) { return c.heading(c
 
 func (c *compose) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
+	t := cat(ctx)
 	if c.input.Focused() {
-		return []key.Binding{b("enter", "올리기"), b("ctrl+o", "사진"), b("esc", "입력 끝")}
+		return []key.Binding{b("enter", t.Feed.HelpPost()), b("ctrl+o", t.Feed.HelpPhoto()), b("esc", t.Feed.HelpEndInput())}
 	}
-	out := []key.Binding{b("i", "쓰기"), b("o", "사진"), b("x", "사진 빼기")}
+	out := []key.Binding{b("i", t.Feed.HelpWrite()), b("o", t.Feed.HelpPhoto()), b("x", t.Feed.HelpRemovePhoto())}
 	if c.story() {
-		out = append(out, b("b", "배경"))
+		out = append(out, b("b", t.Feed.HelpBackground()))
 	}
-	return append(out, b("esc", "닫기"))
+	return append(out, b("esc", t.Common.HelpClose()))
 }
 
 // SaveState is {Mode, Body, Attachments, BG, Nonce}.

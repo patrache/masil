@@ -101,8 +101,8 @@ func TestPaletteCommandMeta(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s not registered", id)
 		}
-		if c.Title != w.title || c.Group != w.group || c.KeyHint != w.hint || c.Run == nil {
-			t.Errorf("%s = {%q %q %q run=%v}, want {%q %q %q run}", id, c.Title, c.Group, c.KeyHint, c.Run != nil, w.title, w.group, w.hint)
+		if c.TitleIn(ko) != w.title || c.Group != w.group || c.KeyHint != w.hint || c.Run == nil {
+			t.Errorf("%s = {%q %q %q run=%v}, want {%q %q %q run}", id, c.TitleIn(ko), c.Group, c.KeyHint, c.Run != nil, w.title, w.group, w.hint)
 		}
 	}
 }

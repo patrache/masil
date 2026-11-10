@@ -663,7 +663,7 @@ func nowIn(ctx *ui.Context) time.Time {
 
 func (n *notifications) loadingLine(ctx *ui.Context, w int) string {
 	t := themeOf(ctx)
-	return fit(t, t.S.Base.Render("  ")+n.spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
+	return fit(t, t.S.Base.Render("  ")+n.spin.View(t)+t.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 }
 
 func (n *notifications) View(ctx *ui.Context, focused bool) string {
@@ -854,7 +854,7 @@ func (n *notifications) Help(ctx *ui.Context) []key.Binding {
 	open.SetHelp(open.Help().Key, "열기")
 	if n.err != nil && len(n.rows) == 0 {
 		r := ctx.Keys.Binding(keymap.PostReply)
-		r.SetHelp(r.Help().Key, textRetry)
+		r.SetHelp(r.Help().Key, cat(ctx).Feed.HelpRetry())
 		return []key.Binding{r}
 	}
 	if !n.pageLoaded() {

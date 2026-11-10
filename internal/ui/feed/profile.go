@@ -447,7 +447,7 @@ func (p *profile) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if m.RouteKey == p.key() {
 			cmds = append(cmds, p.retry(ctx)) // shown again (reopened)
 		}
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+	case ui.ModeChangedMsg, ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		imagesChanged = true
 	default:
 		if rt := reflect.TypeOf(msg); rt != nil && rt.PkgPath() == widgetsPkg {
@@ -534,7 +534,7 @@ func (p *profile) onPage(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.TimelineI
 				l.err = m.Err
 				l.loaded = true
 			}
-			return profileErr(m.Err, errContextFeed)
+			return profileErr(m.Err, cat(ctx).Feed.ErrCtxFeed())
 		}
 		l.err = nil
 		l.loaded = true
@@ -1180,7 +1180,7 @@ func (p *profile) avatarLines(ctx *ui.Context) []string {
 
 func (p *profile) loadingLine(ctx *ui.Context, w int) string {
 	t := themeOf(ctx)
-	return fit(t, t.S.Base.Render("  ")+p.spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
+	return fit(t, t.S.Base.Render("  ")+p.spin.View(t)+t.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 }
 
 // lockedState is the empty state drawn instead of the tabs, if any.
@@ -1552,7 +1552,7 @@ func (p *profile) Help(ctx *ui.Context) []key.Binding {
 	b := func(k, desc string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc)) }
 	if p.prof == nil && p.loadFailed {
 		r := ctx.Keys.Binding(keymap.PostReply)
-		r.SetHelp(r.Help().Key, textRetry)
+		r.SetHelp(r.Help().Key, cat(ctx).Feed.HelpRetry())
 		return []key.Binding{r}
 	}
 	out := []key.Binding{}

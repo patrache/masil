@@ -2,7 +2,6 @@ package feed
 
 import (
 	"context"
-	"fmt"
 	"image"
 	"image/color"
 	"log/slog"
@@ -43,15 +42,6 @@ import (
 // image to draw yet (loading or failed).
 
 const tagMediaPost = "feed.media_post:" // GET /v1/posts/{id} for a post the FeedStore lacks
-
-// Viewer copy.
-const (
-	textMediaTitle   = "사진"
-	textMediaLoading = "사진을 불러오는 중…"
-	textMediaFailed  = "사진을 불러오지 못했어요"
-	textMediaNone    = "볼 수 있는 사진이 없어요"
-	errContextMedia  = "사진"
-)
 
 // App overlay degrade thresholds (CA 5.3.7): a body narrower or shorter than
 // this (or tiny mode) gets the overlay full screen without a border.
@@ -201,7 +191,7 @@ func (v *mediaView) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		if strings.HasPrefix(m.Tag, mediaTagPrefix) && v.imgs.requested[id] && (m.Err != nil || m.Value == nil) {
 			v.failed[id] = true
 		}
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+	case ui.ModeChangedMsg, ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		// The box or the letterbox color changed and the terminal repaints: send again.
 		cmds = append(cmds, v.emit(ctx, true))
 	}
@@ -227,8 +217,8 @@ func (v *mediaView) onPost(ctx *ui.Context, m ui.ResultMsg[*api.Post]) tea.Cmd {
 		if m.Err == nil || api.IsCode(m.Err, "not_found") {
 			return nil
 		}
-		err := m.Err
-		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errContextMedia} }
+		err, where := m.Err, cat(ctx).Feed.ErrCtxMedia()
+		return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: where} }
 	}
 	if ctx != nil && ctx.Store != nil {
 		if fs := feedstore.Get(ctx.Store); fs != nil {
@@ -343,19 +333,19 @@ func (v *mediaView) Modal() bool { return true }
 func (v *mediaView) Title(ctx *ui.Context) (string, ui.Badge) {
 	ms := v.photos(ctx)
 	if len(ms) == 0 {
-		return textMediaTitle, ui.Badge{}
+		return cat(ctx).Feed.MediaTitle(), ui.Badge{}
 	}
-	return fmt.Sprintf("%s %d/%d", textMediaTitle, min(max(v.idx, 0), len(ms)-1)+1, len(ms)), ui.Badge{}
+	return cat(ctx).Feed.MediaTitleOf(min(max(v.idx, 0), len(ms)-1)+1, len(ms)), ui.Badge{}
 }
 
 func (v *mediaView) Help(ctx *ui.Context) []key.Binding {
 	var out []key.Binding
 	if len(v.photos(ctx)) > 1 {
 		out = append(out,
-			key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "이전")),
-			key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "다음")))
+			key.NewBinding(key.WithKeys("left"), key.WithHelp("←", cat(ctx).Feed.HelpPrev())),
+			key.NewBinding(key.WithKeys("right"), key.WithHelp("→", cat(ctx).Feed.HelpNext())))
 	}
-	return append(out, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")))
+	return append(out, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", cat(ctx).Common.HelpClose())))
 }
 
 func (v *mediaView) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
@@ -415,15 +405,15 @@ func (v *mediaView) View(ctx *ui.Context, _ bool) string {
 	m, ok := v.current(ctx)
 	switch {
 	case v.fetching:
-		return widgets.Empty(t, v.size, "", textMediaLoading, "")
+		return widgets.Empty(t, v.size, "", cat(ctx).Feed.MediaLoading(), "")
 	case !ok:
-		return widgets.Empty(t, v.size, "🖼", textMediaNone, "")
+		return widgets.Empty(t, v.size, "🖼", cat(ctx).Feed.MediaNone(), "")
 	case v.failed[m.ID]:
-		return widgets.Empty(t, v.size, "🖼", textMediaFailed, "")
+		return widgets.Empty(t, v.size, "🖼", cat(ctx).Feed.MediaFailed(), "")
 	}
 	img := v.imgs.image(m.ID)
 	if img == nil {
-		return widgets.Empty(t, v.size, "", textMediaLoading, "")
+		return widgets.Empty(t, v.size, "", cat(ctx).Feed.MediaLoading(), "")
 	}
 	return blankRows(t, v.photoLines(ctx, m, img), w, h)
 }

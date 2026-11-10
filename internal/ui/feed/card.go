@@ -3,6 +3,7 @@
 package feed
 
 import (
+	"github.com/patrache/masil/internal/i18n"
 	"strconv"
 	"strings"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
-	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -46,9 +46,10 @@ type cardOpts struct {
 	Density  ui.Density
 	Selected bool
 	PollSel  int                                        // poll option slice position with the Selected background; -1 = none
-	Image    func(m api.Media, cols, rows int) []string // nil or nil result => dim placeholder box "이미지 불러오는 중"
-	// ExactTime shows the header time as humanize.MessageTime ("11:05",
-	// "어제 11:05", ...) instead of the relative "3분" (the post detail's main post).
+	Image    func(m api.Media, cols, rows int) []string // nil or nil result => dim placeholder box (feed.card_image_loading)
+	// ExactTime shows the header time as humanize MessageTime ("11:05",
+	// yesterday's "<yesterday> 11:05", ...) instead of the relative one (the post
+	// detail's main post).
 	ExactTime bool
 }
 
@@ -69,14 +70,8 @@ const (
 	imageMaxRows   = 12
 )
 
-// Card strings (UI copy is Korean).
-const (
-	textDeleted     = "삭제된 글이에요"
-	textNotVisible  = "볼 수 없는 글이에요"
-	textImageLoad   = "이미지 불러오는 중"
-	textRepostedBy  = "님이 리포스트"
-	pollPreviewIcon = "📊 "
-)
+// pollPreviewIcon leads a poll's one-line preview (card copy: the feed catalog area).
+const pollPreviewIcon = "📊 "
 
 // hiddenByBlock reports whether a timeline item must be skipped because its
 // author or its reposter is blocked. renderCard does not filter; callers do.
@@ -149,7 +144,8 @@ func renderCard(ctx *ui.Context, it api.TimelineItem, p *api.Post, o cardOpts) c
 type cardBuilder struct {
 	ctx    *ui.Context
 	t      *theme.Theme
-	w, cw  int // card width, content width (w - gutter)
+	c      *i18n.T // the screen's catalog
+	w, cw  int     // card width, content width (w - gutter)
 	gutter string
 	lines  []string
 	hits   []cardHit
@@ -164,7 +160,7 @@ func newCardBuilder(ctx *ui.Context, o cardOpts) *cardBuilder {
 	if o.Selected {
 		g = t.S.Base.Foreground(t.P.Acc).Render("▎") + t.S.Base.Render(" ")
 	}
-	return &cardBuilder{ctx: ctx, t: t, w: o.Width, cw: o.Width - gutterW, gutter: g}
+	return &cardBuilder{ctx: ctx, t: t, c: cat(ctx), w: o.Width, cw: o.Width - gutterW, gutter: g}
 }
 
 // fit truncates s to exactly w cells, padding with Base-styled spaces.
@@ -240,13 +236,13 @@ func handleOf(u api.UserSummary) string { return "@" + textwidth.Sanitize(u.Hand
 func (b *cardBuilder) fullCard(it api.TimelineItem, p *api.Post, o cardOpts) {
 	t := b.t
 	if it.Type == "repost" && it.RepostedBy != nil {
-		idx := b.add(t.S.Dim.Render("↻ " + displayName(*it.RepostedBy) + textRepostedBy))
+		idx := b.add(t.S.Dim.Render("↻ " + b.c.Feed.CardRepostedBy(displayName(*it.RepostedBy))))
 		b.hit(idx, gutterW, gutterW+min(b.cw, textwidth.Width("↻ "+displayName(*it.RepostedBy))), hitAuthor, it.RepostedBy.ID)
 	}
 	b.header(p, o.ExactTime)
 
 	if p.Deleted {
-		b.add(t.S.Deleted.Render(textDeleted))
+		b.add(t.S.Deleted.Render(b.c.Feed.CardDeleted()))
 		b.addRaw(t.S.Base.Foreground(t.P.Line).Render(strings.Repeat("┄", max(b.w, 0))))
 		return
 	}
@@ -279,13 +275,13 @@ func (b *cardBuilder) fullCard(it api.TimelineItem, p *api.Post, o cardOpts) {
 
 // header is "@handle 이름 · 3분" (exact: "· 11:05"): the name is cut first so the time stays.
 func (b *cardBuilder) header(p *api.Post, exact bool) {
-	ts := " · " + humanize.Relative(b.now(), p.CreatedAt)
+	ts := " · " + hz(b.ctx).Relative(b.now(), p.CreatedAt)
 	if exact {
 		var loc *time.Location
 		if b.ctx != nil {
 			loc = b.ctx.Loc
 		}
-		ts = " · " + humanize.MessageTime(b.now(), p.CreatedAt, loc)
+		ts = " · " + hz(b.ctx).MessageTime(b.now(), p.CreatedAt, loc)
 	}
 	idx, whoW := 0, 0
 	if room := b.cw - textwidth.Width(ts); room >= 2 {
@@ -349,7 +345,7 @@ func (b *cardBuilder) images(p *api.Post, o cardOpts) {
 		img = o.Image(p.Media[0], cols, rows)
 	}
 	if len(img) == 0 {
-		img = placeholderBox(b.t, cols, rows)
+		img = placeholderBox(b.t, b.c.Feed.CardImageLoading(), cols, rows)
 	}
 	for r := 0; r < rows; r++ {
 		var l string
@@ -366,8 +362,9 @@ func (b *cardBuilder) images(p *api.Post, o cardOpts) {
 	}
 }
 
-// placeholderBox is a dim cols x rows frame with "이미지 불러오는 중" in the middle.
-func placeholderBox(t *theme.Theme, cols, rows int) []string {
+// placeholderBox is a dim cols x rows frame with label (feed.card_image_loading)
+// in the middle.
+func placeholderBox(t *theme.Theme, label string, cols, rows int) []string {
 	dim := t.S.Dim
 	out := make([]string, rows)
 	if cols < 2 || rows < 2 {
@@ -385,8 +382,7 @@ func placeholderBox(t *theme.Theme, cols, rows int) []string {
 		case i == rows-1:
 			out[i] = dim.Render("└" + strings.Repeat("─", inner) + "┘")
 		case i == mid:
-			label := textwidth.Center(textwidth.Truncate(textImageLoad, inner, "…"), inner)
-			out[i] = dim.Render("│" + label + "│")
+			out[i] = dim.Render("│" + textwidth.Center(textwidth.Truncate(label, inner, "…"), inner) + "│")
 		default:
 			out[i] = dim.Render("│" + strings.Repeat(" ", inner) + "│")
 		}
@@ -406,7 +402,7 @@ func (b *cardBuilder) quote(p *api.Post) {
 	switch {
 	case q.Available && q.Post != nil && !q.Post.Deleted:
 		qp := q.Post
-		ts := " · " + humanize.Relative(b.now(), qp.CreatedAt)
+		ts := " · " + hz(b.ctx).Relative(b.now(), qp.CreatedAt)
 		who, _ := b.authorLabel(qp.Author, max(qw-textwidth.Width(ts), 2))
 		head := who + t.S.Timestamp.Render(ts)
 		body := markup.Plain(qp.Body, qw)
@@ -418,9 +414,9 @@ func (b *cardBuilder) quote(p *api.Post) {
 			b.hit(idx, gutterW, b.w, hitQuote, qp.ID)
 		}
 	case q.Available && q.Post != nil, !q.Available && q.Reason == "deleted":
-		b.add(bar + t.S.Deleted.Render(textDeleted))
+		b.add(bar + t.S.Deleted.Render(b.c.Feed.CardDeleted()))
 	default:
-		b.add(bar + t.S.Deleted.Render(textNotVisible))
+		b.add(bar + t.S.Deleted.Render(b.c.Feed.CardNotVisible()))
 	}
 }
 
@@ -450,13 +446,13 @@ func (b *cardBuilder) stats(p *api.Post, spaced bool) string {
 		}
 		return dim.Render(s)
 	}
-	out := icon("♥", p.Viewer.Liked, t.S.Base.Foreground(t.P.Acc2).Bold(true)) + dim.Render(gap+humanize.Count(p.LikeCount))
+	out := icon("♥", p.Viewer.Liked, t.S.Base.Foreground(t.P.Acc2).Bold(true)) + dim.Render(gap+hz(b.ctx).Count(p.LikeCount))
 	if p.RepostCount > 0 || p.Viewer.Reposted {
-		out += dim.Render(sep) + icon("↻", p.Viewer.Reposted, t.S.Base.Foreground(t.P.Acc3)) + dim.Render(gap+humanize.Count(p.RepostCount))
+		out += dim.Render(sep) + icon("↻", p.Viewer.Reposted, t.S.Base.Foreground(t.P.Acc3)) + dim.Render(gap+hz(b.ctx).Count(p.RepostCount))
 	}
-	out += dim.Render(sep + "💬" + gap + humanize.Count(p.ReplyCount))
+	out += dim.Render(sep + "💬" + gap + hz(b.ctx).Count(p.ReplyCount))
 	if p.QuoteCount > 0 {
-		out += dim.Render(sep + "❝" + gap + humanize.Count(p.QuoteCount))
+		out += dim.Render(sep + "❝" + gap + hz(b.ctx).Count(p.QuoteCount))
 	}
 	return out
 }
@@ -464,7 +460,7 @@ func (b *cardBuilder) stats(p *api.Post, spaced bool) string {
 // lineCard is DensityLine: "3분 @hana 오늘 첫 눈 ❄ 사무실 창밖 🖼1 ♥12 ↻3 💬4".
 func (b *cardBuilder) lineCard(it api.TimelineItem, p *api.Post) {
 	t := b.t
-	prefix := t.S.Timestamp.Render(humanize.Relative(b.now(), p.CreatedAt)) + t.S.Base.Render(" ")
+	prefix := t.S.Timestamp.Render(hz(b.ctx).Relative(b.now(), p.CreatedAt)) + t.S.Base.Render(" ")
 	if it.Type == "repost" && it.RepostedBy != nil {
 		prefix += t.S.Dim.Render("↻ "+b.shortHandle(displayName(*it.RepostedBy))) + t.S.Base.Render(" ")
 	}
@@ -484,7 +480,7 @@ func (b *cardBuilder) lineCard(it api.TimelineItem, p *api.Post) {
 	switch {
 	case bodyW <= 0:
 	case p.Deleted:
-		body = t.S.Deleted.Render(textwidth.Truncate(textDeleted, bodyW, "…"))
+		body = t.S.Deleted.Render(textwidth.Truncate(b.c.Feed.CardDeleted(), bodyW, "…"))
 	case p.Body != "":
 		doc := markup.Parse(p.Body, markup.ParseOptions{Hashtags: true})
 		if ls := markup.Render(doc, t, markup.RenderOptions{
@@ -518,14 +514,14 @@ func (b *cardBuilder) minimalCard(p *api.Post) {
 		if p.Viewer.Liked {
 			heart = t.S.Base.Foreground(t.P.Acc2).Bold(true).Render("♥")
 		}
-		suffix = t.S.Dim.Render(" ") + heart + t.S.Dim.Render(humanize.Count(p.LikeCount))
+		suffix = t.S.Dim.Render(" ") + heart + t.S.Dim.Render(hz(b.ctx).Count(p.LikeCount))
 	}
 	bodyW := b.cw - whoW - textwidth.Width(colon) - textwidth.Width(suffix)
 	var body string
 	switch {
 	case bodyW <= 0:
 	case p.Deleted:
-		body = t.S.Deleted.Render(textwidth.Truncate(textDeleted, bodyW, "…"))
+		body = t.S.Deleted.Render(textwidth.Truncate(b.c.Feed.CardDeleted(), bodyW, "…"))
 	case p.Body != "":
 		body = t.S.Base.Render(markup.Plain(p.Body, bodyW))
 	default:
