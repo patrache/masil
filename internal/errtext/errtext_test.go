@@ -45,6 +45,10 @@ func TestDescribeKOMatchesOldTable(t *testing.T) {
 		{apiErr("invalid_request", `{"fields":{"cursor":"invalid"}}`), "cursor: 형식이 맞지 않아요"},
 		{apiErr("invalid_request", `{"fields":{"path":"invalid"}}`), "ID·코드: 형식이 맞지 않아요"},
 		{apiErr("invalid_request", `{"fields":{"topic":"weird"}}`), "topic: weird"},
+		// "reason" is a real server field (admin reason, report reason); its
+		// lookup key field_reason is the line template, not a label (review).
+		{apiErr("invalid_request", `{"fields":{"reason":"too_long"}}`), "reason: 너무 길어요"},
+		{apiErr("invalid_request", `{"fields":{"reason":"invalid"}}`), "reason: 형식이 맞지 않아요"},
 		{apiErr("invalid_request", `{}`), "입력값을 확인해 주세요"},
 		{apiErr("invalid_request", ""), "입력값을 확인해 주세요"},
 		{apiErr("unauthorized", ""), "로그인이 필요해요"},
@@ -150,6 +154,9 @@ func TestDescribeENNoHangul(t *testing.T) {
 	}
 	if got := errtext.Describe(en, apiErr("limit_exceeded", `{"limit":10}`)); !strings.Contains(got, "10") {
 		t.Errorf("limit_exceeded en = %q, want 10 in it", got)
+	}
+	if got := errtext.Describe(en, apiErr("invalid_request", `{"fields":{"reason":"too_long"}}`)); got != "reason: Too long" {
+		t.Errorf("reason field en = %q, want %q", got, "reason: Too long")
 	}
 	if got := errtext.Describe(en, apiErr("teapot", "")); !strings.Contains(got, "teapot") {
 		t.Errorf("unknown code en = %q, want the code in it", got)

@@ -4,6 +4,8 @@
 package errtext
 
 import (
+	"sync"
+
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
@@ -31,11 +33,11 @@ func render(t *i18n.T, x api.Explanation) string {
 		if x.Field == "" {
 			return e.InvalidRequestGeneric()
 		}
-		label, ok := t.Lookup("errors", "field_"+x.Field, nil)
+		label, ok := plain(t, "field_"+x.Field)
 		if !ok {
 			label = x.Field
 		}
-		reason, ok := t.Lookup("errors", "reason_"+x.Reason, nil)
+		reason, ok := plain(t, "reason_"+x.Reason)
 		if !ok {
 			reason = x.Reason
 		}
@@ -53,8 +55,30 @@ func render(t *i18n.T, x api.Explanation) string {
 			return e.RateLimitedAfter(x.RetryAfterSec)
 		}
 	}
-	if s, ok := t.Lookup("errors", "code_"+x.Code, nil); ok {
+	if s, ok := plain(t, "code_"+x.Code); ok {
 		return s
 	}
 	return e.UnknownCode(x.Code)
+}
+
+// plainKeys is the set of errors-area keys that take no params. Server
+// values (code, field name, reason) only ever pick from it: the line
+// templates share the prefixes (field_reason is "{label}: {reason}"), so a
+// server field named "reason" must not find the template (review).
+var plainKeys = sync.OnceValue(func() map[string]bool {
+	out := map[string]bool{}
+	for _, e := range i18n.Entries() {
+		if e.Area == "errors" && len(e.Params) == 0 {
+			out[e.Key] = true
+		}
+	}
+	return out
+})
+
+// plain looks up a param-less errors-area key chosen by a server value.
+func plain(t *i18n.T, key string) (string, bool) {
+	if !plainKeys()[key] {
+		return "", false
+	}
+	return t.Lookup("errors", key, nil)
 }
