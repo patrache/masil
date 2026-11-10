@@ -76,20 +76,20 @@ var (
 // picker's place is free before the chosen repository opens, whatever order
 // the msgs land in.
 func TestPickerOpensOnFullSurface(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/a", "/r/b", "/r/c", "/r/d")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/a"), native("/r/b"), native("/r/c"), native("/r/d"))
 	f.SetLimit(8)
 	h := uitest.New(t)
-	for _, r := range []string{"/r/a", "/r/b", "/r/c", "/r/d"} {
+	for _, r := range []string{native("/r/a"), native("/r/b"), native("/r/c"), native("/r/d")} {
 		h.Send(ui.OpenTool("git", "git:"+r, nil)())
 	}
-	setRecent(t, h, "/r/masil") // after the launches (they push theirs)
+	setRecent(t, h, native("/r/masil")) // after the launches (they push theirs)
 	h.Send(ui.OpenTool("git", "git:pick", nil)())
 	if ids := toolIDs(h); len(ids) != 5 || !slices.Contains(ids, "git:pick") {
 		t.Fatalf("instances = %v, want 4 + the picker", ids)
 	}
 	choose(t, h, instanceOf(t, h, "git:pick"), keyEnter)
 	ids := toolIDs(h)
-	if !slices.Contains(ids, "git:/r/masil") || slices.Contains(ids, "git:pick") {
+	if !slices.Contains(ids, "git:"+native("/r/masil")) || slices.Contains(ids, "git:pick") {
 		t.Fatalf("instances = %v, want git:/r/masil in the picker's place", ids)
 	}
 }
@@ -97,19 +97,19 @@ func TestPickerOpensOnFullSurface(t *testing.T) {
 // The same for an instance that went back to picking and chooses another
 // repository.
 func TestInstancePickOtherOnFullSurface(t *testing.T) {
-	f, _ := running(t, macEnv, "/r/masil", "/r/blog", "/r/a", "/r/b", "/r/c", "/r/d")
+	f, _ := running(t, macEnv, native("/r/masil"), native("/r/blog"), native("/r/a"), native("/r/b"), native("/r/c"), native("/r/d"))
 	f.SetLimit(0) // every launch fails: the instances are picking
 	h := uitest.New(t)
-	setRecent(t, h, "/r/masil", "/r/blog")
-	for _, r := range []string{"/r/masil", "/r/a", "/r/b", "/r/c", "/r/d"} {
+	setRecent(t, h, native("/r/masil"), native("/r/blog"))
+	for _, r := range []string{native("/r/masil"), native("/r/a"), native("/r/b"), native("/r/c"), native("/r/d")} {
 		h.Send(ui.OpenTool("git", "git:"+r, nil)())
 	}
 	if ids := toolIDs(h); len(ids) != 5 {
 		t.Fatalf("instances = %v, want 5", ids)
 	}
-	choose(t, h, instanceOf(t, h, "git:/r/masil"), keyDown, keyEnter)
+	choose(t, h, instanceOf(t, h, "git:"+native("/r/masil")), keyDown, keyEnter)
 	ids := toolIDs(h)
-	if !slices.Contains(ids, "git:/r/blog") || slices.Contains(ids, "git:/r/masil") {
+	if !slices.Contains(ids, "git:"+native("/r/blog")) || slices.Contains(ids, "git:"+native("/r/masil")) {
 		t.Fatalf("instances = %v, want git:/r/blog in masil's place", ids)
 	}
 }
