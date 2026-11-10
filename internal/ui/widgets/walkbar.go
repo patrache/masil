@@ -2,6 +2,9 @@ package widgets
 
 import (
 	"strings"
+	"unicode"
+
+	"github.com/rivo/uniseg"
 
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -58,12 +61,38 @@ func (b *WalkBar) label(i int, f walkFit) string {
 		if s := textwidth.Sanitize(b.items[i].Short); s != "" {
 			return s
 		}
-		return strings.TrimRight(textwidth.Truncate(l, 2, ""), " ")
+		return shortLabel(l)
 	}
 	if f.capW > 0 {
 		return textwidth.Truncate(l, f.capW, "…")
 	}
 	return l
+}
+
+// shortLabel is the Short step's fallback for an entry without a Short: its
+// leading graphemes up to 2 cells, plus one more grapheme when that leaves only
+// an ASCII sigil ("#개발" -> "#개", "@민수" -> "@민", "#general" -> "#g"), so
+// double-width names cut at the Short step stay apart.
+func shortLabel(l string) string {
+	g := uniseg.NewGraphemes(strings.TrimLeft(l, " "))
+	out, w := "", 0
+	for g.Next() {
+		c := g.Str()
+		cw := textwidth.Width(c)
+		if strings.TrimSpace(c) == "" || (w+cw > 2 && !sigil(out)) {
+			break
+		}
+		out, w = out+c, w+cw
+		if w >= 2 && !sigil(out) {
+			break
+		}
+	}
+	return out
+}
+
+// sigil reports whether s is one ASCII punctuation or symbol mark (#, @, ...).
+func sigil(s string) bool {
+	return len(s) == 1 && (unicode.IsPunct(rune(s[0])) || unicode.IsSymbol(rune(s[0])))
 }
 
 // segment renders entry i under f and returns its width.

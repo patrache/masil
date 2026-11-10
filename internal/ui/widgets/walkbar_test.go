@@ -130,3 +130,24 @@ func TestWalkBarHitMapsTheLabel(t *testing.T) {
 		t.Errorf("zero width = %q", v)
 	}
 }
+
+// Review fix: at the Short step a label with no Short keeps its sigil and its
+// first grapheme, so double-width names stay apart ("#개발" / "#일반" must not
+// both become "#").
+func TestWalkBarShortKeepsSigilAndFirstGrapheme(t *testing.T) {
+	b := widgets.NewWalkBar()
+	b.Set([]widgets.Tab{
+		{Label: "#개발"}, {Label: "#일반"}, {Label: "#디자인"}, {Label: "@민수"}, {Label: "DM"}, {Label: "피드"},
+	}, 0)
+	got := plainWalk(t, b, 24)
+	for _, want := range []string{"#개", "#일", "#디", "@민", "DM", "피"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("width 24: missing %q in %q", want, got)
+		}
+	}
+	for i, ok := range hitAll(b, 24, 6) {
+		if !ok {
+			t.Errorf("width 24: entry %d has no cell on %q", i, got)
+		}
+	}
+}
