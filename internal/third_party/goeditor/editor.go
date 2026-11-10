@@ -15,6 +15,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/alecthomas/chroma/v2"
 	"github.com/atotto/clipboard"
 	"github.com/ionut-t/goeditor/core"
 	"github.com/ionut-t/goeditor/highlighter"
@@ -250,6 +251,7 @@ type Model struct {
 	highlighter      *highlighter.Highlighter
 	language         string
 	highlighterTheme string
+	syntaxStyle      func(chroma.TokenType) lipgloss.Style // masil: token colors from the app's theme (nil: the Chroma theme's)
 
 	searchInput   textinput.Model
 	searchOptions core.SearchOptions
@@ -619,6 +621,20 @@ func (m *Model) SetLanguage(language string, theme string) {
 	}
 
 	m.renderVisibleSlice()
+}
+
+// SetSyntaxStyle colors tokens with style instead of the Chroma theme given
+// to SetLanguage (nil: the Chroma theme's). masil patch: the app's own theme.
+func (m *Model) SetSyntaxStyle(style func(chroma.TokenType) lipgloss.Style) {
+	m.syntaxStyle = style
+	m.renderVisibleSlice()
+}
+
+// CompletionMenuVisible reports whether the completion menu is shown. masil
+// patch: the app drives the menu itself (it runs none of the Model's Cmds,
+// so the debounce timers never fire) and needs to know when it is up.
+func (m Model) CompletionMenuVisible() bool {
+	return m.completionMenuVisible && len(m.completions) > 0
 }
 
 // SetExtraWordChars allows specifying additional characters to be considered part of words for cursor movement and selection.

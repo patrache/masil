@@ -154,7 +154,7 @@ func (in *instance) openEditor(ctx *ui.Context) tea.Cmd {
 		}
 		toast = cmd // the pane limit: the built-in editor instead
 	}
-	ed, err := newGoEditor(path, themeOf(ctx).Dark)
+	ed, err := newGoEditor(path, themeOf(ctx), currentLang(ctx).Slug)
 	if err != nil {
 		return tea.Batch(toast, ui.Toast(ctx.T.Leetcode.EditorFailed(), ui.ToastError))
 	}
