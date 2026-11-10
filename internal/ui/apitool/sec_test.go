@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -105,9 +104,7 @@ func TestSaveOverwriteDoesNotFollowSymlink(t *testing.T) {
 	if b, _ := os.ReadFile(link); string(b) != "server" {
 		t.Fatalf("saved = %q", b)
 	}
-	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
-		t.Fatalf("mode = %v", fi.Mode().Perm())
-	}
+	assertPrivateMode(t, link, fi)
 }
 
 // "Share anyway" on the held question shares only the field it shows; a

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -194,12 +196,32 @@ func assertFile(t *testing.T, path, want string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Mode().Perm() != 0o600 {
-		t.Fatalf("%s mode = %v, want 0600", path, st.Mode().Perm())
-	}
+	assertPrivateMode(t, path, st)
 	b, _ := os.ReadFile(path)
 	if string(b) != want {
 		t.Fatalf("%s holds %d bytes, want %d", path, len(b), len(want))
+	}
+}
+
+// assertPrivateMode checks that a file the tool saved (fillPrivate) is
+// readable by me only, as far as the OS shows it. On Unix that is mode 0600.
+// Windows has no POSIX modes: Go reports 0666 for every writable file and
+// 0444 for a read-only one, and File.Chmod(0o600) only clears the read-only
+// attribute. There the file is protected by the NTFS ACL it inherits from its
+// folder — under %USERPROFILE% (the default Downloads folder) only the user,
+// SYSTEM and Administrators — the same as every other masil file
+// (config.WriteFileAtomic, credentials.json). So on Windows it checks what
+// masil does decide there: a plain, writable (not read-only) file.
+func assertPrivateMode(t *testing.T, path string, fi fs.FileInfo) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		if !fi.Mode().IsRegular() || fi.Mode().Perm() != 0o666 {
+			t.Fatalf("%s mode = %v, want a plain writable file (Windows reports 0666)", path, fi.Mode())
+		}
+		return
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Fatalf("%s mode = %v, want 0600", path, fi.Mode().Perm())
 	}
 }
 

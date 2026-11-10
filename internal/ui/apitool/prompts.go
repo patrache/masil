@@ -527,7 +527,10 @@ func fillPrivate(path string, overwrite bool, fill func(io.Writer) error) error 
 	return nil
 }
 
-// writeClose makes f mine only, fills and closes it.
+// writeClose makes f mine only, fills and closes it. On Windows, which has
+// no POSIX modes, Chmod(0o600) only clears the read-only attribute: the file
+// keeps the ACL it inherits from its folder (under %USERPROFILE%, the user,
+// SYSTEM and Administrators only).
 func writeClose(f *os.File, fill func(io.Writer) error) error {
 	err := f.Chmod(0o600)
 	if err == nil {
