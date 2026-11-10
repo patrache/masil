@@ -56,7 +56,7 @@
 | ac | 동료가 끈 인증서 검사가 내 보내기에 적용 | 고침 | `5f2ac6b7`, `72e81be4`(스냅숏 뒤 다시 묻기) |
 | ad | apicol 검증기 Object.prototype 이름 | 고침 | `72487efb` |
 | ae | 참가 요청 대화창이 입력 중 초점을 뺏음 | 이미 고쳐짐 `cb0d56fb`; 같은 꼴의 변조 경고 대화창 고침 | `586bb668` |
-| af | 공유 폴더 밖 무시 규칙 변경을 못 봄 (sec-p2a 도중 발견, a~ae 범위 밖) | **열림 — 일부만 완화** | `30545481` 이 폴더 안 규칙 파일·`.git/info/exclude`·디스크 병합 때 재검사를 더함 |
+| af | 공유 폴더 밖 무시 규칙 변경을 못 봄 (sec-p2a 도중 발견, a~ae 범위 밖) | 고침 — 지금 쓰는 Ignorer 가 보는 출처 범위(`.git` 없는 저장소 하위 폴더의 상위 저장소 규칙은 범위 밖, 오너 확인 1) | `30545481`(폴더 안 규칙 파일·`.git/info/exclude`·디스크 병합 재검사), `986d0f65`·`2af6c19c`·`9afe38a5`(DiskPoll 마다 참가자가 연 문서 전부 `CheckBatch` 재검사, fail closed), 병합 `5e51d51f` — `security-fixes-af.md` |
 
 - 원문 맨 위의 번호 없는 wave2/wave4 후속 6건(docs 잠금·collab-hub·keychain·logout 지우기)은 이 묶음 범위가 아니어서 보지 않았다.
 
@@ -120,9 +120,9 @@
 
 ## 오너 확인이 필요한 것
 
-1. **(af)/(v) 폴더 밖 무시 규칙**: 상위 저장소의 `.gitignore`, gitfile 워크트리의 gitdir, `core.excludesFile` 변경은 감지하지 못한다(fail-open). 안: 모든 출처 추적(`rev-parse --show-toplevel --git-dir`, `core.excludesFile`) 또는 DiskPoll 마다 참가자가 연 문서 전부를 `Check(rel, true)` 로 재검사(fail-closed, `git check-ignore` 비용).
+1. ~~**(af)/(v) 폴더 밖 무시 규칙**: 상위 저장소의 `.gitignore`, gitfile 워크트리의 gitdir, `core.excludesFile` 변경은 감지하지 못한다(fail-open).~~ — 매 폴링 재검사로 고쳤음(`feat/v013-sec-af`, 병합 `5e51d51f`). 남은 결정은 `security-fixes-af.md` 오너 확인 1~3(`.git` 없는 저장소 하위 폴더에서 상위 저장소 규칙을 쓸지, git 실패 시 대체 해석기, 매 폴링 동기 git 비용).
 2. **(v) doc_bcast 를 `SeatAll` 로**: 그 문서를 열지 않은 참가자도 받는다. 참가자가 열 수 있는 문서는 자리와 무관해 지금 새는 것은 없음. 자리별 봉인은 프로토콜 변경.
-3. **(v) 내용이 같은 파일로의 링크·폴더 교체**: 디스크 병합이 없어 재검사가 안 일어난다.
+3. ~~**(v) 내용이 같은 파일로의 링크·폴더 교체**: 디스크 병합이 없어 재검사가 안 일어난다.~~ — (af) 의 매 폴링 재검사로 고쳤음(`TestLinkRetargetedToSameContentCloses`).
 4. **(h) 무시 규칙의 비 ASCII 철자**: 참가자 새 이름에서 ASCII 로 접히는 비 ASCII 글자를 거절할지.
 5. **(n)(o) 실제 claude CLI**: 같은 플래그 두 번, 프로그램 이름 바로 뒤 위치를 실제 claude 가 어떻게 읽는지 P2 Task 25 Step 4 에서 확인.
 6. **(d) 공유 추출 허용 호스트**: 허용 호스트가 비면 추출을 거절한다 — 로그인 호스트 ≠ API 호스트인 공유 흐름은 사용자가 호스트를 더해야 함.
