@@ -4,7 +4,6 @@ import (
 	"context"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -31,22 +30,9 @@ const (
 	discoverPoll    = 30 * time.Second // discover new-posts check period
 	discoverVisible = 31 * time.Second // a check runs only if View ran this recently
 	discoverLimit   = 100              // since-page size of the check
-	bannerCap       = 100              // "새 글 100개+"
+	bannerCap       = 100              // "100+ new posts"
 	moreThreshold   = 5                // load the next page when the selection is this close to the end
 	fadeSpan        = 1200 * time.Millisecond
-)
-
-// Timeline copy.
-const (
-	textLoading       = "불러오는 중…"
-	textEmptyFollow   = "팔로우한 사람의 글이 여기 모여요"
-	hintEmptyFollow   = "1 로 전체 피드 보기"
-	textEmptyDiscover = "아직 글이 없어요"
-	hintEmptyDiscover = "c 로 첫 글을 써 보세요"
-	textFeedTitle     = "피드"
-	textFeedLoadFail  = "피드를 불러오지 못했어요"
-	textRetry         = "다시 시도"
-	errContextFeed    = "피드"
 )
 
 // Result tags (ui.Do): "feed.<action>:<target>".
@@ -217,7 +203,7 @@ func (t *timeline) retry(ctx *ui.Context, quiet bool) tea.Cmd {
 	return cmd
 }
 
-// retryHint is "피드를 불러오지 못했어요 · r 다시 시도" (the retry key is post.reply's).
+// retryHint is "<text> · r <retry>" (feed.retry_hint; the retry key is post.reply's).
 func retryHint(ctx *ui.Context, text string) string {
 	k := "r"
 	if ctx != nil && ctx.Keys != nil {
@@ -225,7 +211,7 @@ func retryHint(ctx *ui.Context, text string) string {
 			k = hk
 		}
 	}
-	return text + " · " + k + " " + textRetry
+	return cat(ctx).Feed.RetryHint(text, k)
 }
 
 // cursor is the FeedStore's next_cursor of the oldest loaded page (it outlives
@@ -396,8 +382,9 @@ func forwardResync(ctx *ui.Context, msg tea.Msg) bool {
 	return true
 }
 
-func errCmd(err error) tea.Cmd {
-	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: errContextFeed} }
+func errCmd(ctx *ui.Context, err error) tea.Cmd {
+	where := cat(ctx).Feed.ErrCtxFeed()
+	return func() tea.Msg { return ui.ErrorMsg{Err: err, Context: where} }
 }
 
 func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
@@ -433,7 +420,7 @@ func (t *timeline) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	case ui.ModeChangedMsg:
 		imagesChanged = true
 		cmds = append(cmds, t.retry(ctx, true))
-	case ui.ThemeChangedMsg:
+	case ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		imagesChanged = true
 	case ui.FocusChangedMsg:
 		if m.RouteKey == t.key {
@@ -503,7 +490,7 @@ func (t *timeline) onPage(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultM
 			if t.quietFail {
 				return nil // the retry notice is still up
 			}
-			return errCmd(m.Err)
+			return errCmd(ctx, m.Err)
 		}
 		t.loadErr = false
 		fs.SetTimelinePage(t.kind, m.Value)
@@ -518,7 +505,7 @@ func (t *timeline) onPage(ctx *ui.Context, fs *feedstore.FeedStore, m ui.ResultM
 		t.loadingMore = false
 		t.stopSpinner()
 		if m.Err != nil || m.Value == nil {
-			return errCmd(m.Err)
+			return errCmd(ctx, m.Err)
 		}
 		fs.AddOlderTimeline(t.kind, m.Value)
 	case tagDiscoverNew + t.kind:
@@ -762,11 +749,10 @@ func (t *timeline) bannerLine(ctx *ui.Context, width int) string {
 	if fs := t.fs(ctx); fs != nil {
 		n = fs.NewDiscoverCount()
 	}
-	count := strconv.Itoa(n) + "개"
+	text := cat(ctx).Feed.NewPostsBanner(n)
 	if n >= bannerCap {
-		count = strconv.Itoa(bannerCap) + "개+"
+		text = cat(ctx).Feed.NewPostsBannerCap(bannerCap)
 	}
-	text := "새 글 " + count + " · enter"
 	if t.bannerSel {
 		return th.S.Base.Foreground(th.P.Acc).Render("▎") + th.S.Selected.Render(textwidth.PadRight(" "+text, max(width-1, 0)))
 	}
@@ -775,7 +761,7 @@ func (t *timeline) bannerLine(ctx *ui.Context, width int) string {
 
 func (t *timeline) loadingLine(ctx *ui.Context, width int) string {
 	th := themeOf(ctx)
-	return fit(th, th.S.Base.Render("  ")+t.spin.View(th)+th.S.Dim.Render(" "+textLoading), width)
+	return fit(th, th.S.Base.Render("  ")+t.spin.View(th)+th.S.Dim.Render(" "+cat(ctx).Feed.Loading()), width)
 }
 
 func (t *timeline) View(ctx *ui.Context, _ bool) string {
@@ -820,11 +806,12 @@ func (t *timeline) View(ctx *ui.Context, _ bool) string {
 		case len(t.items) == 0 && t.loadingFirst:
 			out = append(out, t.loadingLine(ctx, w))
 		case len(t.items) == 0 && t.loadErr:
-			out = append(out, fit(th, th.S.Base.Render("  ")+th.S.Error.Render(retryHint(ctx, textFeedLoadFail)), w))
+			out = append(out, fit(th, th.S.Base.Render("  ")+th.S.Error.Render(retryHint(ctx, cat(ctx).Feed.FeedLoadFailed())), w))
 		case len(t.items) == 0:
-			title, hint := textEmptyFollow, hintEmptyFollow
+			c := cat(ctx)
+			title, hint := c.Feed.EmptyFollowing(), c.Feed.EmptyFollowingHint()
 			if t.kind == feedstore.KindDiscover {
-				title, hint = textEmptyDiscover, hintEmptyDiscover
+				title, hint = c.Feed.EmptyDiscover(), c.Feed.EmptyDiscoverHint()
 			}
 			out = append(out, strings.Split(widgets.Empty(th, ui.Size{W: w, H: t.listH}, "🌱", title, hint), "\n")...)
 		default:
@@ -1053,7 +1040,9 @@ func (t *timeline) HandleMouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point
 
 // ---- optional capabilities ----
 
-func (t *timeline) Title(*ui.Context) (string, ui.Badge) { return textFeedTitle, ui.Badge{} }
+func (t *timeline) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.FeedTitle(), ui.Badge{}
+}
 
 func (t *timeline) Help(ctx *ui.Context) []key.Binding {
 	relabel := func(a keymap.Action, desc string) key.Binding {
@@ -1061,14 +1050,15 @@ func (t *timeline) Help(ctx *ui.Context) []key.Binding {
 		b.SetHelp(b.Help().Key, desc)
 		return b
 	}
+	c := cat(ctx)
 	if t.loadErr && len(t.items) == 0 {
-		return []key.Binding{relabel(keymap.PostReply, textRetry), relabel(keymap.PostCompose, "새 글")}
+		return []key.Binding{relabel(keymap.PostReply, c.Feed.HelpRetry()), relabel(keymap.PostCompose, c.Feed.HelpNewPost())}
 	}
 	return []key.Binding{
-		relabel(keymap.PostLike, "좋아요"),
-		relabel(keymap.PostRepost, "리포스트"),
-		relabel(keymap.PostReply, "답글"),
-		relabel(keymap.PostCompose, "새 글"),
+		relabel(keymap.PostLike, c.Feed.HelpLike()),
+		relabel(keymap.PostRepost, c.Feed.HelpRepost()),
+		relabel(keymap.PostReply, c.Feed.HelpReply()),
+		relabel(keymap.PostCompose, c.Feed.HelpNewPost()),
 	}
 }
 

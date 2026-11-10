@@ -21,11 +21,8 @@ func init() {
 	ui.RegisterRoute(ui.RouteHashtag, newHashtag)
 }
 
-// Hashtag copy.
-const (
-	textHashtagEmpty = "이 태그의 글이 아직 없어요"
-	iconHashtagEmpty = "#"
-)
+// iconHashtagEmpty is the empty hashtag feed's icon (copy: feed.hashtag_empty).
+const iconHashtagEmpty = "#"
 
 // Hashtag result tags (ui.Do).
 const (
@@ -414,7 +411,7 @@ func (h *hashtag) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case ui.ResultMsg[*api.Page[api.Post]]:
 		cmds = append(cmds, h.onPage(ctx, m))
-	case ui.ModeChangedMsg, ui.ThemeChangedMsg:
+	case ui.ModeChangedMsg, ui.ThemeChangedMsg, ui.LocaleChangedMsg:
 		imagesChanged = true
 	default:
 		if rt := reflect.TypeOf(msg); rt != nil && rt.PkgPath() == widgetsPkg {
@@ -460,7 +457,7 @@ func (h *hashtag) onPage(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.Post]]) t
 		if !more {
 			h.err, h.loaded = m.Err, true
 		}
-		return errCmd(m.Err)
+		return errCmd(ctx, m.Err)
 	}
 	h.err, h.loaded = nil, true
 	h.cards.setPosts(ctx, m.Value.Items, more)
@@ -473,7 +470,7 @@ func (h *hashtag) onPage(ctx *ui.Context, m ui.ResultMsg[*api.Page[api.Post]]) t
 
 func (h *hashtag) loadingLine(ctx *ui.Context, w int) string {
 	t := themeOf(ctx)
-	return fit(t, t.S.Base.Render("  ")+h.spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
+	return fit(t, t.S.Base.Render("  ")+h.spin.View(t)+t.S.Dim.Render(" "+cat(ctx).Feed.Loading()), w)
 }
 
 func (h *hashtag) View(ctx *ui.Context, _ bool) string {
@@ -491,7 +488,7 @@ func (h *hashtag) View(ctx *ui.Context, _ bool) string {
 	case len(items) == 0 && h.err != nil:
 		out = strings.Split(widgets.Empty(t, h.size, "⚠", errtext.Describe(ctx.T, h.err), ""), "\n")
 	case len(items) == 0:
-		out = strings.Split(widgets.Empty(t, h.size, iconHashtagEmpty, textHashtagEmpty, ""), "\n")
+		out = strings.Split(widgets.Empty(t, h.size, iconHashtagEmpty, cat(ctx).Feed.HashtagEmpty(), ""), "\n")
 	default:
 		footer := 0
 		if h.loadingMore {
@@ -541,11 +538,12 @@ func (h *hashtag) Help(ctx *ui.Context) []key.Binding {
 		b.SetHelp(b.Help().Key, desc)
 		return b
 	}
+	c := cat(ctx)
 	return []key.Binding{
-		relabel(keymap.PostLike, "좋아요"),
-		relabel(keymap.PostRepost, "리포스트"),
-		relabel(keymap.PostReply, "답글"),
-		relabel(keymap.ListOpen, "글 열기"),
+		relabel(keymap.PostLike, c.Feed.HelpLike()),
+		relabel(keymap.PostRepost, c.Feed.HelpRepost()),
+		relabel(keymap.PostReply, c.Feed.HelpReply()),
+		relabel(keymap.ListOpen, c.Feed.HelpOpenPost()),
 	}
 }
 

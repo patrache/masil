@@ -2,13 +2,13 @@ package chat
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -521,7 +521,7 @@ func (p *msgPane) handleDrag(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) 
 	if text == "" {
 		return nil
 	}
-	return ui.Copy(ctx, text, msgCopied)
+	return ui.Copy(ctx, text, cat(ctx).Chat.MsgCopied())
 }
 
 // dragRef is the line under list row y, clamped into the list (scrolling one
@@ -742,7 +742,7 @@ func (p *msgPane) render(ctx *ui.Context, r row, selected bool, width int) []str
 	lines := renderRow(ctx, r, st)
 	if p.rootID != "" && r.ID == p.rootID && !p.rootExpanded && len(lines) > rootMaxLines {
 		t := themeOf(ctx)
-		more := []string{fit(t.S.Dim.Render(textwidth.Truncate(rootMoreText, width, "…")), width)}
+		more := []string{fit(t.S.Dim.Render(textwidth.Truncate(cat(ctx).Common.MoreTail(), width, "…")), width)}
 		if st.Selected {
 			more = paint(t, more, t.S.Cursorline, width)
 		}
@@ -772,7 +772,7 @@ func (p *msgPane) style(ctx *ui.Context, r row, selected bool, width int) msgSty
 // loadingLine is "<spinner> 불러오는 중…" centered in width cells.
 func (p *msgPane) loadingLine(ctx *ui.Context, width int) string {
 	t := themeOf(ctx)
-	text := loadingText
+	text := cat(ctx).Chat.Loading()
 	if width >= textwidth.Width(text)+2 {
 		text = " " + text
 		gap := width - 1 - textwidth.Width(text)
@@ -783,11 +783,11 @@ func (p *msgPane) loadingLine(ctx *ui.Context, width int) string {
 }
 
 // bannerText is the "new messages below" banner ("" = none).
-func (p *msgPane) bannerText() string {
+func (p *msgPane) bannerText(c *i18n.T) string {
 	if p.newBelow <= 0 {
 		return ""
 	}
-	return "새 메시지 " + strconv.Itoa(p.newBelow) + "개 ↓"
+	return c.Chat.NewBelow(p.newBelow)
 }
 
 // view draws the list and, while messages wait below, the banner line under it:
@@ -804,7 +804,7 @@ func (p *msgPane) view(ctx *ui.Context, size ui.Size, focused bool) string {
 		p.repaint()
 	}
 	t := themeOf(ctx)
-	banner := p.bannerText()
+	banner := p.bannerText(cat(ctx))
 	lh := size.H
 	if banner != "" && size.H > 1 {
 		lh--

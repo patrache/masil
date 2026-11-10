@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/palette"
 )
@@ -16,12 +17,16 @@ func init() {
 	ui.RegisterOverlay(overlaySpaceCreate, newSpaceCreate)
 	ui.RegisterOverlay(overlaySpaceJoin, newSpaceJoin)
 	palette.Register(palette.Command{
-		ID: "space.create", Title: "방 만들기", Keywords: []string{"space", "create", "new", "방", "새 방", "만들기"}, Group: palette.GroupCommand,
-		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlaySpaceCreate, args) },
+		ID: "space.create", Label: func(t *i18n.T) string { return t.Chat.CmdSpaceCreate() }, Group: palette.GroupCommand,
+		Keywords:   []string{"space", "create", "new"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwSpaceCreate()) },
+		Run:        func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlaySpaceCreate, args) },
 	})
 	palette.Register(palette.Command{
-		ID: "space.join", Title: "초대 코드로 방 참여", Keywords: []string{"space", "join", "invite", "code", "참여", "초대 코드", "입장"}, Group: palette.GroupCommand,
-		Run: func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlaySpaceJoin, args) },
+		ID: "space.join", Label: func(t *i18n.T) string { return t.Chat.CmdSpaceJoin() }, Group: palette.GroupCommand,
+		Keywords:   []string{"space", "join", "invite", "code"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Chat.KwSpaceJoin()) },
+		Run:        func(_ *ui.Context, args string) tea.Cmd { return ui.OpenRegisteredOverlay(overlaySpaceJoin, args) },
 	})
 }
 
@@ -31,42 +36,40 @@ const (
 	overlaySpaceJoin   = "chat.space_join"
 )
 
-// Space dialog texts and limits (api.md 0.3: name 1..50, description 0..200).
+// Space dialog limits (api.md 0.3: name 1..50, description 0..200); the texts
+// are chat.toml keys.
 const (
-	spaceCreateTitle   = "방 만들기"
-	spaceCreateSubmit  = "만들기"
-	spaceJoinTitle     = "방 참여"
-	spaceJoinSubmit    = "미리 보기"
-	spaceNameMax       = 50
-	spaceDescMax       = 200
-	inviteCodeLen      = 8
-	inviteInputMax     = 64
-	spaceNameRequired  = "이름을 입력해 주세요"
-	spaceNameTooLong   = "이름은 50자까지예요"
-	spaceDescTooLong   = "설명은 200자까지예요"
-	inviteCodeRequired = "초대 코드를 입력해 주세요"
-	inviteCodeBad      = "초대 코드는 8자예요"
-	iconNone           = "없음"
-	tagSpaceCreate     = "chat.space_create:new"
+	spaceNameMax   = 50
+	spaceDescMax   = 200
+	inviteCodeLen  = 8
+	inviteInputMax = 64
+	tagSpaceCreate = "chat.space_create:new"
 )
 
-// spaceIcons are the icon choices of space.create ("없음" = no icon).
-var spaceIcons = []string{iconNone, "🚀", "🍚", "🎮", "🎧", "💼", "🐱", "🌱", "☕", "📚"}
+// spaceIcons are the emoji choices of space.create (spaceIconChoices puts "없음" first).
+var spaceIcons = []string{"🚀", "🍚", "🎮", "🎧", "💼", "🐱", "🌱", "☕", "📚"}
+
+// spaceIconChoices are the icon choices in c's language: 없음 (no icon), then spaceIcons.
+func spaceIconChoices(c *i18n.T) []string {
+	return append([]string{c.Chat.IconNone()}, spaceIcons...)
+}
 
 // newSpaceCreate is the space.create form: 이름 (required), 설명, 아이콘. Success
 // adopts the space, selects it on the rail and opens its default channel; an error
 // stays in the form.
-func newSpaceCreate(_ *ui.Context, args string) ui.Overlay {
+func newSpaceCreate(ctx *ui.Context, args string) ui.Overlay {
+	c := cat(ctx)
+	none := c.Chat.IconNone()
 	return newForm(formSpec{
-		Title: spaceCreateTitle, Submit: spaceCreateSubmit,
+		Title: c.Chat.CmdSpaceCreate(), Submit: c.Chat.CreateSubmit(),
 		Fields: []field{
-			{Key: "name", Label: "이름", Placeholder: "예: 노바 개발방", Value: args, Max: spaceNameMax, Validate: validSpaceName},
-			{Key: "description", Label: "설명 (선택)", Placeholder: "어떤 방인가요?", Max: spaceDescMax, Validate: validSpaceDesc},
-			{Key: "icon", Label: "아이콘", Kind: fieldChoice, Choices: spaceIcons},
+			{Key: "name", Label: c.Chat.SpaceNameLabel(), Placeholder: c.Chat.SpaceNameHolder(), Value: args, Max: spaceNameMax, Validate: validSpaceName(c)},
+			{Key: "description", Label: c.Chat.SpaceDescLabel(), Placeholder: c.Chat.SpaceDescHolder(), Max: spaceDescMax, Validate: validSpaceDesc(c)},
+			{Key: "icon", Label: c.Chat.SpaceIconLabel(), Kind: fieldChoice, Choices: spaceIconChoices(c)},
 		},
 		OnSubmit: func(ctx *ui.Context, vals map[string]string) (string, tea.Cmd) {
 			req := api.CreateSpaceRequest{Name: strings.TrimSpace(vals["name"]), Description: strings.TrimSpace(vals["description"])}
-			if icon := vals["icon"]; icon != iconNone {
+			if icon := vals["icon"]; icon != none {
 				req.IconEmoji = icon
 			}
 			return tagSpaceCreate, ui.Do(ctx, tagSpaceCreate, func(c context.Context, cl *api.Client) (*api.SpaceDetail, error) {
@@ -83,36 +86,43 @@ func newSpaceCreate(_ *ui.Context, args string) ui.Overlay {
 	})
 }
 
-func validSpaceName(v string) string {
-	switch n := utf8.RuneCountInString(strings.TrimSpace(v)); {
-	case n == 0:
-		return spaceNameRequired
-	case n > spaceNameMax:
-		return spaceNameTooLong
+// validSpaceName is the space name Validate (1..50 after trimming) in c's language.
+func validSpaceName(c *i18n.T) func(string) string {
+	return func(v string) string {
+		switch n := utf8.RuneCountInString(strings.TrimSpace(v)); {
+		case n == 0:
+			return c.Chat.SpaceNameRequired()
+		case n > spaceNameMax:
+			return c.Chat.SpaceNameTooLong()
+		}
+		return ""
 	}
-	return ""
 }
 
-func validSpaceDesc(v string) string {
-	if utf8.RuneCountInString(strings.TrimSpace(v)) > spaceDescMax {
-		return spaceDescTooLong
+// validSpaceDesc is the space description Validate (0..200) in c's language.
+func validSpaceDesc(c *i18n.T) func(string) string {
+	return func(v string) string {
+		if utf8.RuneCountInString(strings.TrimSpace(v)) > spaceDescMax {
+			return c.Chat.SpaceDescTooLong()
+		}
+		return ""
 	}
-	return ""
 }
 
 // newSpaceJoin is the space.join form: one 초대 코드 field (args prefill it). It
 // calls no API: a valid code opens its preview (RouteInvite{ID: code}).
-func newSpaceJoin(_ *ui.Context, args string) ui.Overlay {
+func newSpaceJoin(ctx *ui.Context, args string) ui.Overlay {
+	c := cat(ctx)
 	return newForm(formSpec{
-		Title: spaceJoinTitle, Submit: spaceJoinSubmit,
+		Title: c.Chat.SpaceJoinTitle(), Submit: c.Chat.SpaceJoinSubmit(),
 		Fields: []field{{
-			Key: "code", Label: "초대 코드", Placeholder: "AB12CD34 또는 masil join AB12CD34", Value: args, Max: inviteInputMax,
+			Key: "code", Label: c.Chat.InviteCodeLabel(), Placeholder: c.Chat.InviteCodeHolder(), Value: args, Max: inviteInputMax,
 			Validate: func(v string) string {
 				if strings.TrimSpace(v) == "" {
-					return inviteCodeRequired
+					return c.Chat.InviteCodeRequired()
 				}
 				if _, ok := parseInviteCode(v); !ok {
-					return inviteCodeBad
+					return c.Chat.InviteCodeBad()
 				}
 				return ""
 			},

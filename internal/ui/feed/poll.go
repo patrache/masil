@@ -30,16 +30,6 @@ const (
 	tagGetPoll     = "feed.poll:"
 )
 
-// Poll copy.
-const (
-	textPollTitle    = "투표"
-	textPollMenu     = "투표하기"
-	textPollClosed   = "마감된 투표예요"
-	textPollCloseAsk = "투표를 마감할까요?"
-	textPollCloseYes = "마감"
-	errContextPoll   = "투표"
-)
-
 // Vote overlay outer size: width (clamped to the body) and minimum height.
 const (
 	pollVoteW    = 56
@@ -93,13 +83,13 @@ func pollCall(ctx *ui.Context, p *api.Post, tag string, open bool,
 		return nil
 	}
 	if p.Deleted {
-		return ui.Toast(textDeleted, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.CardDeleted(), ui.ToastInfo)
 	}
 	if p.Poll == nil {
 		return nil
 	}
 	if !open && pollClosed(ctx, p.Poll) {
-		return ui.Toast(textPollClosed, ui.ToastInfo)
+		return ui.Toast(cat(ctx).Feed.PollClosed(), ui.ToastInfo)
 	}
 	o := &pollOutcome{pollID: p.Poll.ID, postID: p.ID}
 	return ui.Do(ctx, tag+o.pollID, func(c context.Context, a *api.Client) (*pollOutcome, error) {
@@ -170,11 +160,12 @@ func applyPoll(ctx *ui.Context, m ui.ResultMsg[*pollOutcome]) tea.Cmd {
 			if p == nil {
 				p = &api.Post{ID: o.postID, Poll: &api.Poll{ID: o.pollID}}
 			}
-			return tea.Batch(ui.Toast(textPollClosed, ui.ToastInfo), refreshPoll(ctx, p))
+			return tea.Batch(ui.Toast(cat(ctx).Feed.PollClosed(), ui.ToastInfo), refreshPoll(ctx, p))
 		case strings.HasPrefix(m.Tag, tagGetPoll):
 			return nil
 		}
-		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: errContextPoll} }
+		where := cat(ctx).Feed.ErrCtxPoll()
+		return func() tea.Msg { return ui.ErrorMsg{Err: m.Err, Context: where} }
 	}
 	if o.poll != nil && fs != nil {
 		fs.SetPoll(*o.poll)
@@ -339,21 +330,23 @@ func (v *pollVote) Bounds(body layout.Rect) layout.Rect {
 
 func (v *pollVote) Modal() bool { return true }
 
-func (v *pollVote) Title(*ui.Context) (string, ui.Badge) { return textPollTitle, ui.Badge{} }
+func (v *pollVote) Title(ctx *ui.Context) (string, ui.Badge) {
+	return cat(ctx).Feed.PollTitle(), ui.Badge{}
+}
 
 func (v *pollVote) Help(ctx *ui.Context) []key.Binding {
-	p := v.post(ctx)
-	esc := key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기"))
+	p, c := v.post(ctx), cat(ctx)
+	esc := key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", c.Common.HelpClose()))
 	if p == nil || pollClosed(ctx, p.Poll) {
 		return []key.Binding{esc}
 	}
 	out := []key.Binding{
-		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "고르기")),
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "투표")),
-		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "투표 취소")),
+		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", c.Feed.HelpPick())),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", c.Feed.HelpVote())),
+		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", c.Feed.HelpUnvote())),
 	}
 	if ctx.Store.IsMe(p.Poll.CreatorID) {
-		out = append(out, key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "마감")))
+		out = append(out, key.NewBinding(key.WithKeys("c"), key.WithHelp("c", c.Feed.HelpClosePoll())))
 	}
 	return append(out, esc)
 }
@@ -420,7 +413,8 @@ func (v *pollVote) HandleKey(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cm
 		if !ctx.Store.IsMe(pl.CreatorID) {
 			return true, nil
 		}
-		return true, ui.OpenOverlay(widgets.Confirm(textPollCloseAsk, "", textPollCloseYes, textCancel, closePoll(ctx, p)))
+		c := cat(ctx)
+		return true, ui.OpenOverlay(widgets.Confirm(c.Feed.PollCloseAsk(), "", c.Feed.PollCloseYes(), c.Feed.Cancel(), closePoll(ctx, p)))
 	default:
 		return false, nil
 	}
@@ -453,11 +447,11 @@ func (v *pollVote) View(ctx *ui.Context, _ bool) string {
 	}
 	p := v.post(ctx)
 	if p == nil {
-		return blankRows(t, []string{t.S.Deleted.Render(textwidth.Truncate(textDeleted, w, "…"))}, w, h)
+		return blankRows(t, []string{t.S.Deleted.Render(textwidth.Truncate(cat(ctx).Feed.CardDeleted(), w, "…"))}, w, h)
 	}
 	pl := *p.Poll
 	if pollClosed(ctx, &pl) {
-		out := []string{t.S.Dim.Render(textwidth.Truncate(textPollClosed, w, "…"))}
+		out := []string{t.S.Dim.Render(textwidth.Truncate(cat(ctx).Feed.PollClosed(), w, "…"))}
 		out = append(out, widgets.PollView(t, pl, w, -1)...)
 		return blankRows(t, out, w, h)
 	}

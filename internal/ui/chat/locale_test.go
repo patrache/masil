@@ -1,0 +1,243 @@
+package chat
+
+import (
+	"regexp"
+	"strings"
+	"testing"
+	"unicode"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
+	"github.com/patrache/masil/internal/textwidth"
+	"github.com/patrache/masil/internal/ui/uitest"
+)
+
+func hasHangul(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool { return unicode.Is(unicode.Hangul, r) })
+}
+
+// TestMembersCount (P5 Task 14): member counts are a ko counter (멤버 3명, the
+// pane title 멤버 3) and an en plural (1 member / 3 members).
+func TestMembersCount(t *testing.T) {
+	en, ko := i18n.For(i18n.En), i18n.KoT()
+	for _, c := range []struct{ got, want string }{
+		{ko.Chat.MemberCount(3), "멤버 3명"},
+		{en.Chat.MemberCount(1), "1 member"},
+		{en.Chat.MemberCount(3), "3 members"},
+		{membersTitleFor(ko, 3), "멤버 3"},
+		{membersTitleFor(ko, 0), "멤버"},
+		{membersTitleFor(en, 1), "1 member"},
+		{membersTitleFor(en, 3), "3 members"},
+		{membersTitleFor(en, 0), "Members"},
+	} {
+		if c.got != c.want {
+			t.Errorf("got %q, want %q", c.got, c.want)
+		}
+	}
+}
+
+// TestTypingLineJosa (P5 Task 14): the typing line keeps its ko wording and
+// reads "sam is typing…" / "sam and 민지 are typing…" in en, with Hangul only
+// in the names.
+func TestTypingLineJosa(t *testing.T) {
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	ctx := h.Context()
+	s := ctx.Store
+	minji, junho, hana := userBy(t, s, "minji"), userBy(t, s, "junho"), userBy(t, s, "hana")
+	sam := api.UserSummary{ID: "01JATYPESAM000000000000000", Handle: "sam", DisplayName: "sam"}
+	s.ObserveUser(sam)
+	enCtx := *ctx
+	enCtx.T, enCtx.Lang = i18n.For(i18n.En), i18n.En
+	for _, c := range []struct {
+		ids    []string
+		ko, en string
+	}{
+		{[]string{sam.ID}, "sam 입력 중…", "sam is typing…"},
+		{[]string{minji.ID}, "민지 입력 중…", "민지 is typing…"},
+		{[]string{sam.ID, minji.ID}, "sam, 민지 입력 중…", "sam and 민지 are typing…"},
+		{[]string{minji.ID, junho.ID, hana.ID}, "여러 명이 입력 중…", "Several people are typing…"},
+	} {
+		if got := typingText(ctx, c.ids); got != c.ko {
+			t.Errorf("ko typingText = %q, want %q", got, c.ko)
+		}
+		got := typingText(&enCtx, c.ids)
+		if got != c.en {
+			t.Errorf("en typingText = %q, want %q", got, c.en)
+		}
+		if rest := strings.NewReplacer("민지", "", "준호", "", "하나", "").Replace(got); hasHangul(rest) {
+			t.Errorf("en typingText %q: Hangul outside the names", got)
+		}
+	}
+}
+
+// TestSystemEventSentences (P5 Task 15): every SystemEvent.event keeps its ko
+// sentence; en has Hangul only in the argument values (names, topics).
+func TestSystemEventSentences(t *testing.T) {
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	ctx := h.Context()
+	minji := userBy(t, ctx.Store, "minji")
+	enCtx := *ctx
+	enCtx.T, enCtx.Lang = i18n.For(i18n.En), i18n.En
+	target := minji.ID
+	for _, c := range []struct {
+		ev     api.SystemEvent
+		ko, en string
+	}{
+		{api.SystemEvent{Event: "member_joined", ActorID: minji.ID}, "민지님이 들어왔어요", "민지 joined"},
+		{api.SystemEvent{Event: "group_member_added", ActorID: "x", TargetUserID: &target}, "민지님이 들어왔어요", "민지 joined"},
+		{api.SystemEvent{Event: "member_left", ActorID: minji.ID}, "민지님이 나갔어요", "민지 left"},
+		{api.SystemEvent{Event: "member_kicked", ActorID: "x", TargetUserID: &target}, "민지님이 내보내졌어요", "민지 was removed"},
+		{api.SystemEvent{Event: "group_member_removed", ActorID: "x", TargetUserID: &target}, "민지님이 빠졌어요", "민지 left the conversation"},
+		{api.SystemEvent{Event: "channel_created", Data: api.SystemEventData{Name: "개발"}}, "#개발 채널을 만들었어요", "Created #개발"},
+		{api.SystemEvent{Event: "channel_renamed", Data: api.SystemEventData{Name: "개발"}}, "채널 이름 변경: #개발", "Channel renamed: #개발"},
+		{api.SystemEvent{Event: "channel_topic_changed", Data: api.SystemEventData{Topic: "배포 주간"}}, "주제 변경: 배포 주간", "Topic changed: 배포 주간"},
+		{api.SystemEvent{Event: "message_pinned"}, "메시지를 고정했어요", "Pinned a message"},
+		{api.SystemEvent{Event: "group_renamed", Data: api.SystemEventData{Name: "점심팟"}}, "대화 이름 변경: 점심팟", "Conversation renamed: 점심팟"},
+	} {
+		if got := systemText(ctx, c.ev); got != c.ko {
+			t.Errorf("%s ko = %q, want %q", c.ev.Event, got, c.ko)
+		}
+		got := systemText(&enCtx, c.ev)
+		if got != c.en {
+			t.Errorf("%s en = %q, want %q", c.ev.Event, got, c.en)
+		}
+		args := strings.NewReplacer("민지", "", "개발", "", "배포 주간", "", "점심팟", "").Replace(got)
+		if hasHangul(args) {
+			t.Errorf("%s en %q: Hangul outside the arguments", c.ev.Event, got)
+		}
+	}
+}
+
+// TestRowsFollowLocaleSwitch (P5 Task 15): the day dividers and the thread's
+// replies divider are built into the rows, so a language switch rebuilds them.
+func TestRowsFollowLocaleSwitch(t *testing.T) {
+	t.Setenv("MASIL_LANG", "")
+	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
+	h := devChannel(t, uitest.Size{W: 120, H: 40})
+	if !strings.Contains(h.Screen(), "요일") {
+		t.Fatalf("no ko day divider before the switch:\n%s", h.Screen())
+	}
+	h.SetLocale("en")
+	if s := h.Screen(); strings.Contains(s, "요일") || !strings.Contains(s, "day,") {
+		t.Fatalf("day divider not rebuilt after the switch:\n%s", s)
+	}
+}
+
+// confirmText is screen s with the box drawing and white space gone, so a
+// sentence wrapped inside a dialog reads as one run.
+func confirmText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r >= 0x2500 && r <= 0x257F {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// TestDestructiveConfirmsNoTruncate (P5 Task 16): every chat confirm question
+// (*_ask) and its "what it does" sentence (*_body) is a no_truncate key, and at
+// 40x14 the whole en question and sentence of the space delete, leave and kick
+// confirms are on screen (wrapped, never cut).
+func TestDestructiveConfirmsNoTruncate(t *testing.T) {
+	seen := map[string]bool{}
+	for _, e := range i18n.Entries() {
+		if e.Area != "chat" || !strings.HasSuffix(e.Key, "_ask") && !strings.HasSuffix(e.Key, "_body") {
+			continue
+		}
+		seen[e.Key] = true
+		if !e.NoTruncate {
+			t.Errorf("chat.%s is not no_truncate", e.Key)
+		}
+	}
+	for _, k := range []string{"delete_space_ask", "delete_space_body", "leave_space_ask", "leave_space_body",
+		"space_kick_ask", "space_kick_body", "delete_channel_body", "kick_body", "leave_body",
+		"revoke_body", "transfer_body", "unban_body"} {
+		if !seen[k] {
+			t.Errorf("chat.%s missing", k)
+		}
+	}
+	en := i18n.For(i18n.En)
+	sz := uitest.Size{W: 40, H: 14}
+	open := func(role string) *uitest.Harness {
+		r := api.SpaceRole(role)
+		return openWith(t, sz, novaSettings(), settingsServer(t, r), uitest.WithSeed(settingsSeed(r)), uitest.WithLocale(i18n.En))
+	}
+	check := func(name string, h *uitest.Harness, want string) {
+		t.Helper()
+		if s := h.Screen(); !strings.Contains(confirmText(s), confirmText(want)) {
+			t.Errorf("%s: %q not whole on screen:\n%s", name, want, s)
+		}
+	}
+	h := open("owner")
+	h.Press("j", "j", "enter")
+	check("delete", h, en.Chat.DeleteSpaceAsk("노바 개발방"))
+	check("delete body", h, en.Chat.DeleteSpaceBody())
+
+	h = open("member")
+	h.Press("enter")
+	check("leave", h, en.Chat.LeaveSpaceAsk("노바 개발방"))
+	check("leave body", h, en.Chat.LeaveSpaceBody())
+
+	h = open("owner")
+	toMembers(h)
+	memberSelect(t, h, "junho")
+	h.Press("m")
+	clickOn(t, h, en.Chat.KickYes(), tea.MouseLeft)
+	check("kick", h, en.Chat.SpaceKickAsk(displayName(userBy(t, h.Context().Store, "junho"))))
+	check("kick body", h, en.Chat.SpaceKickBody())
+}
+
+// TestChannelNameRegexEscaped (P5 Task 16): the channel name rule names the
+// Hangul range by code point (\x{AC00}-\x{D7A3}), not with Hangul literals.
+func TestChannelNameRegexEscaped(t *testing.T) {
+	src := channelNameRe.String()
+	if hasHangul(src) {
+		t.Fatalf("channelNameRe has Hangul literals: %s", src)
+	}
+	if !strings.Contains(src, `\x{AC00}-\x{D7A3}`) {
+		t.Fatalf("channelNameRe lacks the escaped Hangul range: %s", src)
+	}
+}
+
+// narrowKeyRe and narrowDescRe pick the chat keys drawn in a narrow slot:
+// buttons (confirm *_yes, dialog *_submit, cancel, OK, menu items that are
+// also confirm buttons), key-hint words (help_*, the thread's "to #channel",
+// menu items shown in a help line) and tab names.
+var (
+	narrowKeyRe  = regexp.MustCompile(`^(cancel|picker_ok|help_.*|tab_.*|friends_tab_.*|thread_parent_.*|.*_yes|.*_submit)$`)
+	narrowDescRe = regexp.MustCompile(`단추[^ ]|단추$|·도움말:`)
+)
+
+// TestChatNarrowSlotsBudget (P5 Tasks 14~16, Global Constraint "좁은 자리"):
+// every chat button, key hint and tab name has a max, and every language's
+// text without arguments fits it (the generator checks the same on go
+// generate). Status lines that only name a button ("아래 줄") are not narrow.
+func TestChatNarrowSlotsBudget(t *testing.T) {
+	n := 0
+	for _, e := range i18n.Entries() {
+		if e.Area != "chat" || strings.Contains(e.Desc, "아래 줄") ||
+			!narrowKeyRe.MatchString(e.Key) && !narrowDescRe.MatchString(e.Desc) {
+			continue
+		}
+		n++
+		if e.Max == 0 {
+			t.Errorf("chat.%s (%q): narrow slot without max", e.Key, e.Desc)
+			continue
+		}
+		if len(e.Params) > 0 {
+			continue // widths with arguments are the generator's check
+		}
+		for l, f := range e.Text {
+			for _, s := range []string{f.One, f.Other, f.Short} {
+				if w := textwidth.Width(s); w > e.Max {
+					t.Errorf("chat.%s (%s) %q is %d cells > max %d", e.Key, l, s, w, e.Max)
+				}
+			}
+		}
+	}
+	if n < 50 {
+		t.Fatalf("only %d narrow chat keys found; the selection rule broke", n)
+	}
+}

@@ -41,10 +41,6 @@ const (
 	sideNewChannelID = "new-channel"
 )
 
-// sideNoSpace is the notice drawn instead of the channel section without a space
-// (before the first bootstrap: notLoaded's text instead).
-const sideNoSpace = "방이 없어요 · + 로 만들기"
-
 // sideItem is one sidebar row (rebuilt from the Store on every View; every row is
 // exactly one line, so the scroll anchor maps rows to items).
 type sideItem struct {
@@ -107,25 +103,25 @@ func sideItems(ctx *ui.Context, cw int) []sideItem {
 	switch {
 	case !command:
 		if name == "" {
-			name = "방"
+			name = cat(ctx).Chat.SpaceUnnamed()
 		}
 		items = append(items, sideItem{ID: sideHeaderID, Kind: sideHeader, Text: name, Dropdown: true},
-			sideItem{ID: sideDMsID, Kind: sideDMs, Text: dmsTitle})
+			sideItem{ID: sideDMsID, Kind: sideDMs, Text: cat(ctx).Chat.DmsTitle()})
 	case sd != nil:
 		items = append(items, sideItem{ID: sideHeaderID, Kind: sideHeader, Text: name})
 	}
 	if sd != nil {
 		if command {
-			items = append(items, sideItem{ID: "label:channels", Kind: sideLabel, Text: "─ 채널"})
+			items = append(items, sideItem{ID: "label:channels", Kind: sideLabel, Text: "─ " + cat(ctx).Chat.SideChannelsLabel()})
 		}
 		for _, ch := range s.SpaceChannels(sid) {
 			items = append(items, sideItem{ID: sideChanPrefix + ch.ID, Kind: sideChannel, Ch: ch})
 		}
 		if canManageSpace(ctx, sid) {
-			items = append(items, sideItem{ID: sideNewChannelID, Kind: sideNewChannel, Text: channelRowNew, Space: sid})
+			items = append(items, sideItem{ID: sideNewChannelID, Kind: sideNewChannel, Text: cat(ctx).Chat.ChannelRowNew(), Space: sid})
 		}
 	} else {
-		notice := sideNoSpace
+		notice := cat(ctx).Chat.SideNoSpace()
 		if title, hint, ok := notLoaded(ctx); ok {
 			notice = title
 			if hint != "" {
@@ -140,7 +136,7 @@ func sideItems(ctx *ui.Context, cw int) []sideItem {
 			items = append(items, sideItem{ID: sideNoticePrefix + string(rune('a'+i)), Kind: sideNotice, Text: l})
 		}
 	}
-	items = append(items, sideItem{ID: "label:dms", Kind: sideLabel, Text: "─ DM"})
+	items = append(items, sideItem{ID: "label:dms", Kind: sideLabel, Text: "─ " + cat(ctx).Chat.DmsTitle()})
 	for _, ch := range visibleDMs(ctx) {
 		items = append(items, sideItem{ID: sideChanPrefix + ch.ID, Kind: sideChannel, Ch: ch})
 	}
@@ -474,9 +470,10 @@ func (p *sidebarPane) open(ctx *ui.Context, it sideItem) tea.Cmd {
 // newSpaceSwitchMenu is the standard-mode space switcher (chat.space_switch): 홈, DM,
 // the spaces in SpaceOrder, 방 만들기, 초대 코드로 참여.
 func newSpaceSwitchMenu(ctx *ui.Context) ui.Overlay {
+	c := cat(ctx)
 	items := []menuItem{
-		{Label: "홈", Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return goHome(ctx), nil }},
-		{Label: dmsTitle, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) { return goDMs(), nil }},
+		{Label: c.Chat.HomeTitle(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return goHome(ctx), nil }},
+		{Label: c.Chat.DmsTitle(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) { return goDMs(), nil }},
 	}
 	if ctx != nil && ctx.Store != nil {
 		for _, id := range ctx.Store.SpaceOrder {
@@ -492,8 +489,8 @@ func newSpaceSwitchMenu(ctx *ui.Context) ui.Overlay {
 		}
 	}
 	items = append(items,
-		menuItem{Label: "방 만들기", Run: openRegistered("chat.space_create", "")},
-		menuItem{Label: "초대 코드로 참여", Run: openRegistered("chat.space_join", "")},
+		menuItem{Label: c.Chat.MenuSpaceCreate(), Run: openRegistered("chat.space_create", "")},
+		menuItem{Label: c.Chat.MenuSpaceJoin(), Run: openRegistered("chat.space_join", "")},
 	)
-	return newMenu("방 전환", items)
+	return newMenu(c.Chat.SpaceSwitchTitle(), items)
 }

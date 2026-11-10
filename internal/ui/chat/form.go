@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -143,6 +144,7 @@ type formSpec struct {
 
 // form is newForm's overlay.
 type form struct {
+	cat *i18n.T // the catalog of the last View (Cursor has no Context)
 	morph
 	spec    formSpec
 	inputs  []textinput.Model // per field (text fields only use theirs)
@@ -258,14 +260,15 @@ func (f *form) Help(ctx *ui.Context) []key.Binding {
 	if f.next != nil {
 		return f.morph.help(ctx)
 	}
+	c := cat(ctx)
 	submit := f.spec.Submit
 	if submit == "" {
-		submit = "확인"
+		submit = c.Chat.PickerOk()
 	}
 	return []key.Binding{
 		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", submit)),
-		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "다음 칸")),
-		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "닫기")),
+		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", c.Chat.HelpNextField())),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", c.Common.HelpClose())),
 	}
 }
 
@@ -394,7 +397,7 @@ func (f *form) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 }
 
 // layout builds the rows and the focused text field's cursor (relative to the inner rect).
-func (f *form) layout(t *theme.Theme) (rows []string, curX, curY int) {
+func (f *form) layout(c *i18n.T, t *theme.Theme) (rows []string, curX, curY int) {
 	w, h := f.size.W, f.size.H
 	p := overlayPad(w)
 	cw := max(1, w-2*p)
@@ -422,9 +425,9 @@ func (f *form) layout(t *theme.Theme) (rows []string, curX, curY int) {
 			}
 			val = cell(st.Render, "< "+choice+" >", vw)
 		case fieldToggle:
-			mark := "[ ] 꺼짐"
+			mark := c.Chat.FormOff()
 			if f.on[i] {
-				mark = "[x] 켜짐"
+				mark = c.Chat.FormOn()
 			}
 			if fd.Text != "" {
 				mark = "[ ] " + textwidth.Sanitize(fd.Text)
@@ -454,13 +457,13 @@ func (f *form) layout(t *theme.Theme) (rows []string, curX, curY int) {
 	case f.errMsg != "":
 		status = cell(t.S.Error.Render, "✕ "+textwidth.Sanitize(f.errMsg), cw)
 	case f.busy:
-		status = f.spinner.View(t) + cell(t.S.Dim.Render, " 보내는 중…", cw-1)
+		status = f.spinner.View(t) + cell(t.S.Dim.Render, " "+c.Common.Sending(), cw-1)
 	default:
 		submit := f.spec.Submit
 		if submit == "" {
-			submit = "확인"
+			submit = c.Chat.PickerOk()
 		}
-		status = cell(t.S.Dim.Render, "enter "+textwidth.Sanitize(submit)+" · tab 다음 칸 · esc 닫기", cw)
+		status = cell(t.S.Dim.Render, c.Chat.FormStatus(textwidth.Sanitize(submit)), cw)
 	}
 	foot := []string{"", status}
 	// The title is on the border; with spare rows (degraded to the whole body, no
@@ -502,7 +505,8 @@ func (f *form) View(ctx *ui.Context, focused bool) string {
 		return ""
 	}
 	t := themeOf(ctx)
-	rows, _, _ := f.layout(t)
+	f.cat = cat(ctx)
+	rows, _, _ := f.layout(f.cat, t)
 	return renderOverlayRows(t, rows, f.size)
 }
 
@@ -515,7 +519,7 @@ func (f *form) Cursor() *tea.Cursor {
 	if !f.onText() || f.busy || f.size.W <= 0 || f.size.H <= 0 {
 		return nil
 	}
-	_, x, y := f.layout(theme.Get(theme.Default))
+	_, x, y := f.layout(orKo(f.cat), theme.Get(theme.Default))
 	if y < 0 || y >= f.size.H || x >= f.size.W {
 		return nil
 	}

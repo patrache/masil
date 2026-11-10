@@ -29,7 +29,6 @@ const (
 	selectedMark      = "› "
 	unselectedMark    = "  "
 	hereHandle        = "here"
-	hereDetail        = "지금 접속한 사람 모두"
 	completionMention = '@'
 	completionEmoji   = ':'
 	completionCommand = '/'
@@ -54,61 +53,68 @@ type completer struct {
 	shown []widgets.Completion // the window last given to SetCompletion
 }
 
-// emojiEntry is one :emoji completion: English name, emoji, Korean name.
-type emojiEntry struct{ Name, Emoji, Ko string }
+// emojiEntry is one :emoji completion: English shortcode and emoji; its shown
+// (and searched) name is the catalog's chat.emoji_<Name> in the screen language.
+type emojiEntry struct{ Name, Emoji string }
+
+// emojiName is e's name in c's language (chat.emoji_<Name>).
+func emojiName(c *i18n.T, e emojiEntry) string {
+	s, _ := c.Lookup("chat", "emoji_"+e.Name, nil)
+	return s
+}
 
 // emojiTable is the :emoji completion set (2-cell emoji without VS16, so the
 // inserted text survives input normalization unchanged).
 var emojiTable = []emojiEntry{
-	{"thumbsup", "👍", "좋아요"},
-	{"thumbsdown", "👎", "싫어요"},
-	{"eyes", "👀", "눈"},
-	{"heart", "💖", "하트"},
-	{"tada", "🎉", "축하"},
-	{"fire", "🔥", "불"},
-	{"pray", "🙏", "부탁"},
-	{"joy", "😂", "웃음"},
-	{"rocket", "🚀", "로켓"},
-	{"rice", "🍚", "밥"},
-	{"coffee", "☕", "커피"},
-	{"check", "✅", "확인"},
-	{"x", "❌", "아니"},
-	{"smile", "😀", "미소"},
-	{"sweat", "😅", "머쓱"},
-	{"sob", "😭", "엉엉"},
-	{"angry", "😡", "화남"},
-	{"thinking", "🤔", "생각"},
-	{"clap", "👏", "박수"},
-	{"raised", "🙌", "만세"},
-	{"muscle", "💪", "힘내"},
-	{"handshake", "🤝", "악수"},
-	{"wave", "👋", "안녕"},
-	{"ok", "👌", "오케이"},
-	{"hundred", "💯", "백점"},
-	{"star", "⭐", "별"},
-	{"sparkles", "✨", "반짝"},
-	{"bulb", "💡", "아이디어"},
-	{"bug", "🐛", "버그"},
-	{"pin", "📌", "고정"},
-	{"speech", "💬", "말풍선"},
-	{"beer", "🍺", "맥주"},
-	{"cake", "🎂", "생일"},
-	{"gift", "🎁", "선물"},
-	{"cool", "😎", "멋짐"},
-	{"love", "😍", "반함"},
-	{"wink", "😉", "윙크"},
-	{"cry", "😢", "슬픔"},
-	{"sleepy", "😴", "졸림"},
-	{"party", "🥳", "파티"},
-	{"hug", "🤗", "포옹"},
-	{"zap", "⚡", "번개"},
-	{"siren", "🚨", "비상"},
-	{"hourglass", "⏳", "기다림"},
-	{"memo", "📝", "메모"},
-	{"calendar", "📅", "일정"},
-	{"chicken", "🍗", "치킨"},
-	{"pizza", "🍕", "피자"},
-	{"smoking", "🚬", "흡연"},
+	{"thumbsup", "👍"},
+	{"thumbsdown", "👎"},
+	{"eyes", "👀"},
+	{"heart", "💖"},
+	{"tada", "🎉"},
+	{"fire", "🔥"},
+	{"pray", "🙏"},
+	{"joy", "😂"},
+	{"rocket", "🚀"},
+	{"rice", "🍚"},
+	{"coffee", "☕"},
+	{"check", "✅"},
+	{"x", "❌"},
+	{"smile", "😀"},
+	{"sweat", "😅"},
+	{"sob", "😭"},
+	{"angry", "😡"},
+	{"thinking", "🤔"},
+	{"clap", "👏"},
+	{"raised", "🙌"},
+	{"muscle", "💪"},
+	{"handshake", "🤝"},
+	{"wave", "👋"},
+	{"ok", "👌"},
+	{"hundred", "💯"},
+	{"star", "⭐"},
+	{"sparkles", "✨"},
+	{"bulb", "💡"},
+	{"bug", "🐛"},
+	{"pin", "📌"},
+	{"speech", "💬"},
+	{"beer", "🍺"},
+	{"cake", "🎂"},
+	{"gift", "🎁"},
+	{"cool", "😎"},
+	{"love", "😍"},
+	{"wink", "😉"},
+	{"cry", "😢"},
+	{"sleepy", "😴"},
+	{"party", "🥳"},
+	{"hug", "🤗"},
+	{"zap", "⚡"},
+	{"siren", "🚨"},
+	{"hourglass", "⏳"},
+	{"memo", "📝"},
+	{"calendar", "📅"},
+	{"chicken", "🍗"},
+	{"pizza", "🍕"},
+	{"smoking", "🚬"},
 }
 
 // completionToken is the token the popup completes: '/' when the whole value is
@@ -202,24 +208,26 @@ func mentionCandidates(ctx *ui.Context, ch *api.Channel, members []api.UserSumma
 		out = append(out, widgets.Completion{Label: label, Detail: "@" + c.u.Handle, Insert: "@" + c.u.Handle + " "})
 	}
 	if here {
-		out = append(out, widgets.Completion{Label: "@" + hereHandle, Detail: hereDetail, Insert: "@" + hereHandle + " "})
+		out = append(out, widgets.Completion{Label: "@" + hereHandle, Detail: cat(ctx).Chat.HereDetail(), Insert: "@" + hereHandle + " "})
 	}
 	return out
 }
 
-// emojiCandidates are the :emoji items for prefix (without ':'): English name
-// prefix or Korean name substring, table order, at most maxEmojiItems.
-func emojiCandidates(prefix string) []widgets.Completion {
+// emojiCandidates are the :emoji items for prefix (without ':'): shortcode
+// prefix or a substring of the name in c's language, table order, at most
+// maxEmojiItems.
+func emojiCandidates(c *i18n.T, prefix string) []widgets.Completion {
 	p := strings.ToLower(prefix)
 	if p == "" {
 		return nil
 	}
 	var out []widgets.Completion
 	for _, e := range emojiTable {
-		if !strings.HasPrefix(e.Name, p) && !strings.Contains(e.Ko, prefix) {
+		name := emojiName(c, e)
+		if !strings.HasPrefix(e.Name, p) && !strings.Contains(name, prefix) && !strings.Contains(strings.ToLower(name), p) {
 			continue
 		}
-		out = append(out, widgets.Completion{Label: e.Emoji + " " + e.Name, Detail: e.Ko, Insert: e.Emoji + " "})
+		out = append(out, widgets.Completion{Label: e.Emoji + " " + e.Name, Detail: name, Insert: e.Emoji + " "})
 		if len(out) == maxEmojiItems {
 			break
 		}
@@ -275,7 +283,7 @@ func (cc *chatComposer) candidates(ctx *ui.Context) []widgets.Completion {
 	case completionMention:
 		return mentionCandidates(ctx, cc.channel(ctx), cc.comp.members, cc.comp.token[1:])
 	case completionEmoji:
-		return emojiCandidates(cc.comp.token[1:])
+		return emojiCandidates(cat(ctx), cc.comp.token[1:])
 	case completionCommand:
 		return commandCandidates(ctx.T, cc.comp.token[1:])
 	}

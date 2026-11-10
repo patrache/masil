@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -19,56 +20,19 @@ import (
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
-// Space members / bans texts and limits.
+// Space members / bans limits and tags (the texts are chat.toml keys).
 const (
 	memberFilterDebounce = 300 * time.Millisecond
 	memberFilterMax      = 100 // the search query limit (api.md 0.3)
 	banReasonMax         = 200
-	memberFilterHolder   = "이름이나 @아이디로 찾기"
-	memberFilterIdle     = "/ 눌러 멤버 찾기"
-	spaceMembersLoading  = "불러오는 중…"
-	spaceMembersFailed   = "멤버를 불러오지 못했어요"
-	spaceMembersNone     = "멤버가 없어요"
-	spaceMembersNoMatch  = "찾는 멤버가 없어요"
-	memberMoreText       = "더 보기"
-	memberMoreLoading    = "더 불러오는 중…"
 	memberMoreRowID      = "more"
-
-	itemMakeAdmin   = "관리자로 지정"
-	itemUnmakeAdmin = "관리자 해제"
-	itemSpaceKick   = "내보내기"
-	itemBan         = "차단(밴)"
-
-	madeAdminSuffix   = "님을 관리자로 지정했어요"
-	unmadeAdminSuffix = "님의 관리자 역할을 해제했어요"
-	roleFailed        = "역할을 바꾸지 못했어요"
-	spaceKickAsk      = "님을 방에서 내보낼까요?"
-	spaceKickBody     = "다시 초대하면 들어올 수 있어요"
-	kickedMemberSfx   = "님을 내보냈어요"
-	spaceKickFailed   = "내보내지 못했어요"
-	banTitleSuffix    = " 차단(밴)"
-	banSubmit         = "차단"
-	banReasonLabel    = "사유 (선택)"
-	banReasonHolder   = "예: 도배"
-	banReasonTooLong  = "사유는 200자까지예요"
-	bannedSuffix      = "님을 방에서 차단했어요"
-
-	bansLoading      = "불러오는 중…"
-	bansFailed       = "차단 목록을 불러오지 못했어요"
-	bansNone         = "차단한 사람이 없어요"
-	unbanAskSuffix   = "님의 차단을 풀까요?"
-	unbanBody        = "차단을 풀어도 다시 초대해야 들어올 수 있어요"
-	unbanYes         = "풀기"
-	unbannedSuffix   = "님의 차단을 풀었어요"
-	unbanFailed      = "차단을 풀지 못했어요"
-	tagSpaceBans     = "chat.space_bans:"
-	tagSpaceRole     = "chat.space_role:"
-	tagSpaceKick     = "chat.space_kick:"
-	tagSpaceBan      = "chat.space_ban:"
-	tagSpaceUnban    = "chat.space_unban:"
-	tagSpacePresence = "chat.presence:"
-	bannedByPrefix   = "차단: "
-	memberLineInset  = 1 // the filter row above the list
+	tagSpaceBans         = "chat.space_bans:"
+	tagSpaceRole         = "chat.space_role:"
+	tagSpaceKick         = "chat.space_kick:"
+	tagSpaceBan          = "chat.space_ban:"
+	tagSpaceUnban        = "chat.space_unban:"
+	tagSpacePresence     = "chat.presence:"
+	memberLineInset      = 1 // the filter row above the list
 )
 
 // spaceMemberMsg tells the settings of SpaceID that a member changed after one
@@ -107,39 +71,41 @@ func memberRowActions(ctx *ui.Context, spaceID string, m api.SpaceMember) []menu
 	}
 	name := textwidth.Sanitize(displayName(u))
 	me := myRole(ctx, spaceID)
+	c := cat(ctx)
 	var items []menuItem
 	if me == api.RoleOwner {
 		switch m.Role {
 		case api.RoleMember:
-			items = append(items, menuItem{Label: itemMakeAdmin, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			items = append(items, menuItem{Label: c.Chat.ItemMakeAdmin(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return setRoleCmd(ctx, spaceID, u, api.RoleAdmin), nil
 			}})
 		case api.RoleAdmin:
-			items = append(items, menuItem{Label: itemUnmakeAdmin, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+			items = append(items, menuItem{Label: c.Chat.ItemUnmakeAdmin(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 				return setRoleCmd(ctx, spaceID, u, api.RoleMember), nil
 			}})
 		}
 	}
 	if me == api.RoleOwner && m.Role != api.RoleOwner || me == api.RoleAdmin && m.Role == api.RoleMember {
 		items = append(items,
-			menuItem{Label: itemSpaceKick, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
-				return nil, widgets.Confirm(name+spaceKickAsk, spaceKickBody, itemSpaceKick, cancelText, kickCmd(ctx, spaceID, u))
+			menuItem{Label: c.Chat.KickYes(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+				c := cat(ctx)
+				return nil, widgets.Confirm(c.Chat.SpaceKickAsk(name), c.Chat.SpaceKickBody(), c.Chat.KickYes(), c.Chat.Cancel(), kickCmd(ctx, spaceID, u))
 			}},
-			menuItem{Label: itemBan, Danger: true, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
-				return nil, banForm(spaceID, u)
+			menuItem{Label: c.Chat.ItemBan(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+				return nil, banForm(cat(ctx), spaceID, u)
 			}},
 		)
 	}
 	items = append(items,
-		menuItem{Label: itemSendDM, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		menuItem{Label: cat(ctx).Chat.ItemSendDm(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return openDMCmd(ctx, []api.UserRef{userRef(u)}, ""), nil
 		}},
-		menuItem{Label: itemReportUser, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+		menuItem{Label: cat(ctx).Chat.ItemReportUser(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.ReportDialog("user", u.ID, name)
 		}},
 	)
 	if !ctx.Store.IsBlocked(u.ID) {
-		items = append(items, menuItem{Label: itemBlockUser, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: cat(ctx).Chat.ItemBlockUser(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, blockConfirm(ctx, u)
 		}})
 	}
@@ -153,15 +119,15 @@ func setRoleCmd(ctx *ui.Context, spaceID string, u api.UserSummary, role api.Spa
 		return cl.SetSpaceMemberRole(c, spaceID, userRef(u), role)
 	}, func(ctx *ui.Context, got *api.SpaceMember, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, roleFailed)
+			return errorCmd(err, cat(ctx).Chat.RoleFailed())
 		}
 		m := api.SpaceMember{User: u, Role: role}
 		if got != nil && got.User.ID == u.ID {
 			m = *got
 		}
-		text := name + madeAdminSuffix
+		text := cat(ctx).Chat.MadeAdmin(name)
 		if m.Role != api.RoleAdmin {
-			text = name + unmadeAdminSuffix
+			text = cat(ctx).Chat.UnmadeAdmin(name)
 		}
 		return tea.Batch(memberChanged(spaceID, m), ui.Toast(text, ui.ToastSuccess))
 	})
@@ -172,26 +138,26 @@ func kickCmd(ctx *ui.Context, spaceID string, u api.UserSummary) tea.Cmd {
 	name := textwidth.Sanitize(displayName(u))
 	return doAction(ctx, tagSpaceKick+u.ID, func(c context.Context, cl *api.Client) (struct{}, error) {
 		return struct{}{}, cl.RemoveSpaceMember(c, spaceID, userRef(u), api.RemoveMemberOpts{})
-	}, func(_ *ui.Context, _ struct{}, err error) tea.Cmd {
+	}, func(ctx *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, spaceKickFailed)
+			return errorCmd(err, cat(ctx).Chat.SpaceKickFailed())
 		}
-		return tea.Batch(memberGone(spaceID, u.ID), ui.Toast(name+kickedMemberSfx, ui.ToastSuccess))
+		return tea.Batch(memberGone(spaceID, u.ID), ui.Toast(cat(ctx).Chat.Kicked(name), ui.ToastSuccess))
 	})
 }
 
 // banForm asks the ban reason (0..200, optional), then bans u
 // (DELETE members/{user}?ban=true&reason=); an error stays in the form.
-func banForm(spaceID string, u api.UserSummary) ui.Overlay {
+func banForm(c *i18n.T, spaceID string, u api.UserSummary) ui.Overlay {
 	name := textwidth.Sanitize(displayName(u))
 	tag := tagSpaceBan + u.ID
 	return newForm(formSpec{
-		Title: name + banTitleSuffix, Submit: banSubmit,
+		Title: c.Chat.BanTitle(name), Submit: c.Chat.BanSubmit(),
 		Fields: []field{{
-			Key: "reason", Label: banReasonLabel, Placeholder: banReasonHolder, Max: banReasonMax,
+			Key: "reason", Label: c.Chat.BanReasonLabel(), Placeholder: c.Chat.BanReasonHolder(), Max: banReasonMax,
 			Validate: func(v string) string {
 				if utf8.RuneCountInString(strings.TrimSpace(v)) > banReasonMax {
-					return banReasonTooLong
+					return c.Chat.BanReasonTooLong()
 				}
 				return ""
 			},
@@ -202,8 +168,8 @@ func banForm(spaceID string, u api.UserSummary) ui.Overlay {
 				return struct{}{}, cl.RemoveSpaceMember(c, spaceID, userRef(u), opts)
 			})
 		},
-		OnDone: func(*ui.Context, tea.Msg) (tea.Cmd, ui.Overlay) {
-			return tea.Batch(memberGone(spaceID, u.ID), ui.Toast(name+bannedSuffix, ui.ToastSuccess)), nil
+		OnDone: func(ctx *ui.Context, _ tea.Msg) (tea.Cmd, ui.Overlay) {
+			return tea.Batch(memberGone(spaceID, u.ID), ui.Toast(cat(ctx).Chat.Banned(name), ui.ToastSuccess)), nil
 		},
 	})
 }
@@ -438,7 +404,7 @@ func (s *memberTab) update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		s.loading = false
 		if m.Err != nil {
 			s.failed = !s.loaded || !m.Value.more
-			return errorCmd(m.Err, spaceMembersFailed)
+			return errorCmd(m.Err, cat(ctx).Chat.MembersFailed())
 		}
 		s.failed = false
 		s.loaded = true
@@ -644,13 +610,13 @@ func (s *memberTab) view(ctx *ui.Context, t *theme.Theme, size ui.Size) string {
 	switch {
 	case s.filtering:
 		var col int
-		line, col = inputLine(t, s.filter, memberFilterHolder, iw)
+		line, col = inputLine(t, s.filter, cat(ctx).Chat.MemberFilterHolder(), iw)
 		line = blank(t, p) + t.S.Title.Render("/ ") + line + blank(t, p)
 		s.curX = p + 2 + col
 	case s.filter.Value() != "":
 		line = blank(t, p) + t.S.Dim.Render("/ ") + cell(t.S.Base.Render, textwidth.Sanitize(s.filter.Value()), iw) + blank(t, p)
 	default:
-		line = blank(t, p) + cell(t.S.Dim.Render, memberFilterIdle, iw+2) + blank(t, p)
+		line = blank(t, p) + cell(t.S.Dim.Render, cat(ctx).Chat.MemberFilterIdle(), iw+2) + blank(t, p)
 	}
 	if w < 2*p+2 {
 		line = blank(t, w)
@@ -663,13 +629,13 @@ func (s *memberTab) view(ctx *ui.Context, t *theme.Theme, size ui.Size) string {
 		case len(s.rows) > 0:
 			out = s.list.View(ctx, body)
 		case s.failed:
-			out = widgets.Empty(t, body, "⚠", spaceMembersFailed, "")
+			out = widgets.Empty(t, body, "⚠", cat(ctx).Chat.MembersFailed(), "")
 		case !s.loaded:
-			out = widgets.Empty(t, body, "", spaceMembersLoading, "")
+			out = widgets.Empty(t, body, "", cat(ctx).Chat.Loading(), "")
 		case s.query != "":
-			out = widgets.Empty(t, body, "🔍", spaceMembersNoMatch, "")
+			out = widgets.Empty(t, body, "🔍", cat(ctx).Chat.MembersNoMatch(), "")
 		default:
-			out = widgets.Empty(t, body, "👥", spaceMembersNone, "")
+			out = widgets.Empty(t, body, "👥", cat(ctx).Chat.SpaceMembersNone(), "")
 		}
 		lines = append(lines, strings.Split(out, "\n")...)
 	}
@@ -695,9 +661,9 @@ func (s *memberTab) render(ctx *ui.Context, r spaceMemberRow, selected bool, wid
 		cw, margin = cw-1, blank(t, 1)
 	}
 	if r.more {
-		text := memberMoreText
+		text := cat(ctx).Chat.MemberMore()
 		if s.loading {
-			text = memberMoreLoading
+			text = cat(ctx).Chat.MemberMoreLoading()
 		}
 		return []string{cur + cell(t.S.Dim.Render, text, cw) + margin}
 	}
@@ -707,13 +673,13 @@ func (s *memberTab) render(ctx *ui.Context, r spaceMemberRow, selected bool, wid
 			u = *cu
 		}
 	}
-	return []string{cur + memberLine(t, userPresence(ctx, u.ID), u, r.member.Role, cw) + margin}
+	return []string{cur + memberLine(cat(ctx), t, userPresence(ctx, u.ID), u, r.member.Role, cw) + margin}
 }
 
 // memberLine is "<dot> 이름 @handle … 방장" in exactly cw cells: the role label
 // stays whole (dropped only when nothing else would fit), the handle gives way
 // first, then the name.
-func memberLine(t *theme.Theme, st api.PresenceStatus, u api.UserSummary, role api.SpaceRole, cw int) string {
+func memberLine(c *i18n.T, t *theme.Theme, st api.PresenceStatus, u api.UserSummary, role api.SpaceRole, cw int) string {
 	lead, leadW := "", 0
 	if cw > 2 {
 		lead, leadW = widgets.PresenceDot(t, st)+t.S.Base.Render(" "), 2
@@ -722,9 +688,9 @@ func memberLine(t *theme.Theme, st api.PresenceStatus, u api.UserSummary, role a
 	label, labelSt := "", t.S.Dim
 	switch role {
 	case api.RoleOwner:
-		label, labelSt = roleOwnerLabel, t.S.Title
+		label, labelSt = c.Chat.RoleOwner(), t.S.Title
 	case api.RoleAdmin:
-		label = roleAdminLabel
+		label = c.Chat.RoleAdmin()
 	}
 	lw := textwidth.Width(label)
 	if lw > 0 && room >= lw+2 {
@@ -792,11 +758,11 @@ func (b *banTab) fetch(ctx *ui.Context) tea.Cmd {
 	})
 }
 
-func (b *banTab) sync() {
+func (b *banTab) sync(ctx *ui.Context) {
 	rows := make([]friendItem, 0, len(b.items))
 	for _, ban := range b.items {
 		detail := strings.TrimSpace(textwidth.Sanitize(ban.Reason))
-		by := bannedByPrefix + strings.TrimSpace(textwidth.Sanitize(displayName(ban.BannedBy)))
+		by := cat(ctx).Chat.BannedBy(strings.TrimSpace(textwidth.Sanitize(displayName(ban.BannedBy))))
 		if detail != "" {
 			detail += " · " + by
 		} else {
@@ -833,7 +799,8 @@ func (b *banTab) update(_ *ui.Context, msg tea.Msg) tea.Cmd {
 
 // unban asks before lifting the ban of the row.
 func (b *banTab) unban(ctx *ui.Context, it friendItem) tea.Cmd {
-	return ui.OpenOverlay(widgets.Confirm(it.Label+unbanAskSuffix, unbanBody, unbanYes, cancelText, unbanCmd(ctx, b.v.spaceID, it.user)))
+	c := cat(ctx)
+	return ui.OpenOverlay(widgets.Confirm(c.Chat.UnbanAsk(it.Label), c.Chat.UnbanBody(), c.Chat.UnbanYes(), c.Chat.Cancel(), unbanCmd(ctx, b.v.spaceID, it.user)))
 }
 
 // unbanCmd lifts u's ban (DELETE bans/{user}); the row leaves at once.
@@ -843,15 +810,15 @@ func unbanCmd(ctx *ui.Context, spaceID string, u api.UserSummary) tea.Cmd {
 		return struct{}{}, cl.Unban(c, spaceID, userRef(u))
 	}, func(_ *ui.Context, _ struct{}, err error) tea.Cmd {
 		if err != nil {
-			return errorCmd(err, unbanFailed)
+			return errorCmd(err, cat(ctx).Chat.UnbanFailed())
 		}
 		gone := func() tea.Msg { return spaceBanGoneMsg{SpaceID: spaceID, UserID: u.ID} }
-		return tea.Batch(gone, ui.Toast(name+unbannedSuffix, ui.ToastSuccess))
+		return tea.Batch(gone, ui.Toast(cat(ctx).Chat.Unbanned(name), ui.ToastSuccess))
 	})
 }
 
 func (b *banTab) key(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
-	b.sync()
+	b.sync(ctx)
 	if ctx.Keys.Matches(msg, keymap.ListOpen) || ctx.Keys.Matches(msg, keymap.MsgActions) {
 		it, ok := b.list.Selected()
 		if !ok {
@@ -863,7 +830,7 @@ func (b *banTab) key(ctx *ui.Context, msg tea.KeyPressMsg) (bool, tea.Cmd) {
 }
 
 func (b *banTab) mouse(ctx *ui.Context, msg tea.MouseMsg, local ui.Point) tea.Cmd {
-	b.sync()
+	b.sync(ctx)
 	click, ok := msg.(tea.MouseClickMsg)
 	if !ok {
 		return b.list.HandleMouse(ctx, msg, local)
@@ -905,14 +872,14 @@ func (b *banTab) render(ctx *ui.Context, it friendItem, selected bool, width int
 
 // view draws the bans (or their state) in exactly size.
 func (b *banTab) view(ctx *ui.Context, t *theme.Theme, size ui.Size) string {
-	b.sync()
+	b.sync(ctx)
 	switch {
 	case len(b.rows) > 0:
 		return b.list.View(ctx, size)
 	case b.failed:
-		return widgets.Empty(t, size, "⚠", bansFailed, "")
+		return widgets.Empty(t, size, "⚠", cat(ctx).Chat.BansFailed(), "")
 	case !b.loaded:
-		return widgets.Empty(t, size, "", bansLoading, "")
+		return widgets.Empty(t, size, "", cat(ctx).Chat.Loading(), "")
 	}
-	return widgets.Empty(t, size, "🙂", bansNone, "")
+	return widgets.Empty(t, size, "🙂", cat(ctx).Chat.BansNone(), "")
 }

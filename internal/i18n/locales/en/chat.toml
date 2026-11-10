@@ -1,5 +1,1226 @@
 # Chat area: channels, DMs, threads, the composer and slash commands.
 
+[accept_failed]
+other = "Couldn't accept the friend request"
+
+[actions_title]
+other = "Message"
+
+[add_submit]
+other = "Add"
+
+[anchor_not_found]
+other = "Reply not found"
+
+[bad_channel_name]
+other = "Channel names are 1–32 lowercase letters, digits, Hangul, _ or -"
+
+[ban_reason_holder]
+other = "e.g. spam"
+
+[ban_reason_label]
+other = "Reason (optional)"
+
+[ban_reason_too_long]
+other = "Reasons can be up to 200 characters"
+
+[ban_submit]
+other = "Ban"
+
+[ban_title]
+other = "Ban {name}"
+
+[banned]
+other = "Banned {name} from the space"
+
+[banned_by]
+other = "Banned by {name}"
+
+[bans_failed]
+other = "Couldn't load the ban list"
+
+[bans_none]
+other = "No one is banned"
+
+[block_ask]
+other = "Block {name}?"
+
+[block_body]
+other = "Their messages fold away and you can't DM each other"
+
+[block_failed]
+other = "Couldn't block"
+
+[block_yes]
+other = "Block"
+
+[blocked_msg]
+other = "Message from a blocked user"
+
+[blocked_user]
+other = "Blocked {name}"
+
+[cancel]
+other = "Cancel"
+
+[cancel_failed]
+other = "Couldn't cancel the friend request"
+
+[cant_edit]
+other = "This message can't be edited"
+
+[change_submit]
+other = "Save"
+
+[channel_created]
+other = "Created {title}"
+
+[channel_deleted]
+other = "Deleted {title}"
+
+[channel_name_holder]
+other = "e.g. deploys"
+
+[channel_name_rule]
+other = "Lowercase letters, digits, Hangul, _ or -, 1–32 chars"
+
+[channel_row_new]
+other = "＋ New channel"
+
+[channel_title]
+other = "Channel"
+
+[cmd_channel_create]
+other = "Create channel"
+
+[cmd_channel_prefs]
+other = "Channel settings"
+
+[cmd_dm_new]
+other = "New conversation (DM, group DM)"
+
+[cmd_friend_add]
+other = "Add friend"
+
+[cmd_friends]
+other = "Friends"
+
+[cmd_invite_create]
+other = "Create invite link"
+
+[cmd_invite_direct]
+other = "Invite a friend to the space"
+
+[cmd_invites_inbox]
+other = "Space invites"
+
+[cmd_pins]
+other = "Pinned messages"
+
+[cmd_search]
+other = "Search messages"
+
+[cmd_space_create]
+other = "Create space"
+
+[cmd_space_join]
+other = "Join a space with an invite code"
+
+[cmd_space_leave]
+other = "Leave space"
+
+[cmd_space_settings]
+other = "Space settings"
+
+[create_submit]
+other = "Create"
+
+[date_with_year]
+other = "{date}, {year}"
+
+[decline_failed]
+other = "Couldn't decline the friend request"
+
+[default_chan_hint]
+other = "default"
+
+[delete_body]
+other = "Delete this message?"
+
+[delete_channel_ask]
+other = "Delete {title}?"
+
+[delete_channel_body]
+other = "Its messages go with it. This can't be undone."
+
+[delete_channel_failed]
+other = "Couldn't delete the channel"
+
+[delete_failed]
+other = "Couldn't delete the message"
+
+[delete_space_ask]
+other = "Delete the space {name}?"
+
+[delete_space_body]
+other = "All its channels and messages go with it. This can't be undone."
+
+[delete_space_yes]
+other = "Delete"
+
+[delete_title]
+other = "Delete message"
+
+[delete_yes]
+other = "Delete"
+
+[dm_new_submit]
+other = "Start chat"
+
+[dm_new_title]
+other = "New conversation"
+
+[dm_open_failed]
+other = "Couldn't open the DM"
+
+[dms_deleted]
+other = "Deleted message"
+
+[dms_empty_hint]
+other = "Press ctrl+k to find a friend and start chatting"
+
+[dms_empty_title]
+other = "No DMs yet"
+
+[dms_mine]
+other = "Me: {body}"
+
+[dms_title]
+other = "DMs"
+
+[edit_channel_title]
+other = "Channel name and topic"
+
+[edit_failed]
+other = "Couldn't edit the message"
+
+[edit_label]
+other = "Editing · esc to cancel"
+
+[edited]
+other = "(edited)"
+
+[emoji_angry]
+other = "angry"
+
+[emoji_beer]
+other = "beer"
+
+[emoji_bug]
+other = "bug"
+
+[emoji_bulb]
+other = "idea"
+
+[emoji_cake]
+other = "birthday"
+
+[emoji_calendar]
+other = "schedule"
+
+[emoji_check]
+other = "check"
+
+[emoji_chicken]
+other = "chicken"
+
+[emoji_clap]
+other = "clap"
+
+[emoji_coffee]
+other = "coffee"
+
+[emoji_cool]
+other = "cool"
+
+[emoji_cry]
+other = "sad"
+
+[emoji_eyes]
+other = "eyes"
+
+[emoji_fire]
+other = "fire"
+
+[emoji_gift]
+other = "gift"
+
+[emoji_handshake]
+other = "handshake"
+
+[emoji_heart]
+other = "heart"
+
+[emoji_hourglass]
+other = "waiting"
+
+[emoji_hug]
+other = "hug"
+
+[emoji_hundred]
+other = "hundred"
+
+[emoji_joy]
+other = "laughing"
+
+[emoji_love]
+other = "in love"
+
+[emoji_memo]
+other = "memo"
+
+[emoji_muscle]
+other = "strong"
+
+[emoji_ok]
+other = "okay"
+
+[emoji_party]
+other = "party"
+
+[emoji_pin]
+other = "pin"
+
+[emoji_pizza]
+other = "pizza"
+
+[emoji_pray]
+other = "please"
+
+[emoji_raised]
+other = "hooray"
+
+[emoji_rice]
+other = "rice"
+
+[emoji_rocket]
+other = "rocket"
+
+[emoji_siren]
+other = "alert"
+
+[emoji_sleepy]
+other = "sleepy"
+
+[emoji_smile]
+other = "smile"
+
+[emoji_smoking]
+other = "smoking"
+
+[emoji_sob]
+other = "sobbing"
+
+[emoji_sparkles]
+other = "sparkles"
+
+[emoji_speech]
+other = "speech"
+
+[emoji_star]
+other = "star"
+
+[emoji_sweat]
+other = "awkward"
+
+[emoji_tada]
+other = "celebrate"
+
+[emoji_thinking]
+other = "thinking"
+
+[emoji_thumbsdown]
+other = "thumbs down"
+
+[emoji_thumbsup]
+other = "thumbs up"
+
+[emoji_wave]
+other = "hello"
+
+[emoji_wink]
+other = "wink"
+
+[emoji_x]
+other = "no"
+
+[emoji_zap]
+other = "lightning"
+
+[form_off]
+other = "[ ] Off"
+
+[form_on]
+other = "[x] On"
+
+[form_status]
+other = "enter {submit} · tab next field · esc close"
+
+[friend_accepted]
+other = "You and {name} are now friends"
+
+[friend_add_label]
+other = "＋ Add friend"
+
+[friend_add_submit]
+other = "Send request"
+
+[friend_add_title]
+other = "Add friend"
+
+[friend_canceled]
+other = "Friend request canceled"
+
+[friend_declined]
+other = "Friend request declined"
+
+[friends_tab_friends]
+other = "Friends {n}"
+
+[friends_tab_incoming]
+other = "Received {n}"
+
+[friends_tab_outgoing]
+other = "Sent {n}"
+
+[friends_title]
+other = "Friends"
+
+[gone_hint]
+other = "esc to go back"
+
+[gone_title]
+other = "This channel was deleted or isn't available"
+
+[group_dm_refused]
+other = "Some of these people can't be in a conversation together"
+
+[group_full_hint]
+other = "10 max"
+
+[help_copy]
+other = "copy"
+
+[help_find]
+other = "search"
+
+[help_find_member]
+other = "find member"
+
+[help_jump]
+other = "jump"
+
+[help_menu]
+other = "menu"
+
+[help_more]
+other = "more"
+
+[help_name_field]
+other = "name field"
+
+[help_new_channel]
+other = "new channel"
+
+[help_next_field]
+other = "next field"
+
+[help_open]
+other = "open"
+
+[help_pick_then]
+other = "pick·{submit}"
+
+[help_retry]
+other = "retry"
+
+[help_run]
+other = "run"
+
+[help_scope]
+other = "scope"
+
+[help_search]
+other = "search"
+
+[help_settings]
+other = "settings"
+
+[help_stop_find]
+other = "stop"
+
+[help_tabs]
+other = "tabs"
+
+[help_unban]
+other = "unban"
+
+[help_unpin]
+other = "unpin"
+
+[here_detail]
+other = "Everyone online now"
+
+[home_empty_hint]
+other = "Press ctrl+k to find commands"
+
+[home_empty_title]
+other = "No conversations yet"
+
+[home_feed]
+other = "Open feed"
+
+[home_friends]
+other = "Friends"
+
+[home_invites]
+other = "Space invites {n}"
+
+[home_more]
+other = "…{n} more"
+
+[home_online_label]
+other = "Friends online"
+
+[home_requests]
+other = "Friend requests {n}"
+
+[home_space_join]
+other = "Join a space with a code"
+
+[home_space_new]
+other = "＋ Create a space"
+
+[home_title]
+other = "Home"
+
+[icon_none]
+other = "None"
+
+[invite_accept_failed]
+other = "Couldn't accept the invite"
+
+[invite_accepting]
+other = "Accepting…"
+
+[invite_close_hint]
+other = "esc close"
+
+[invite_code_bad]
+other = "Invite codes are 8 characters"
+
+[invite_code_holder]
+other = "AB12CD34 or masil join AB12CD34"
+
+[invite_code_label]
+other = "Invite code"
+
+[invite_code_required]
+other = "Enter an invite code"
+
+[invite_copied]
+other = "Copied"
+
+[invite_created_title]
+other = "Invite link"
+
+[invite_days]
+one = "{n} day"
+other = "{n} days"
+
+[invite_decline_failed]
+other = "Couldn't decline the invite"
+
+[invite_declined]
+other = "Invite declined"
+
+[invite_declining]
+other = "Declining…"
+
+[invite_direct_actions]
+other = "enter accept · d decline · m more"
+
+[invite_direct_none]
+other = "No friends to invite"
+
+[invite_direct_submit]
+other = "Invite"
+
+[invite_direct_title]
+other = "Invite a friend"
+
+[invite_exhausted]
+other = "This invite has been used up"
+
+[invite_expired]
+other = "Expired"
+
+[invite_expired_err]
+other = "This invite has expired"
+
+[invite_expires]
+other = "Expires {when}"
+
+[invite_expires_on]
+other = "Expires {date}"
+
+[invite_expiry_label]
+other = "Expires"
+
+[invite_failed]
+other = "Couldn't invite"
+
+[invite_forever]
+other = "Never"
+
+[invite_gone]
+other = "This invite is no longer valid"
+
+[invite_hint]
+other = "y copy · esc close"
+
+[invite_hours]
+one = "{n} hour"
+other = "{n} hours"
+
+[invite_inviter]
+other = "Invited by {name}"
+
+[invite_joining]
+other = "Joining…"
+
+[invite_link_actions]
+other = "enter join · m more · esc close"
+
+[invite_link_failed]
+other = "Couldn't create an invite link"
+
+[invite_loading]
+other = "Loading the invite…"
+
+[invite_max_uses]
+one = "Up to {n} use"
+other = "Up to {n} uses"
+
+[invite_member_actions]
+other = "You're already in this space · enter open"
+
+[invite_no_expiry]
+other = "No expiry"
+
+[invite_none]
+other = "No space invites"
+
+[invite_none_hint]
+other = "Invites from friends show up here"
+
+[invite_not_found]
+other = "No such invite code"
+
+[invite_retry_hint]
+other = "r retry · esc close"
+
+[invite_revoked]
+other = "This invite was revoked"
+
+[invite_row_direct]
+other = "＋ Invite a friend directly"
+
+[invite_row_new]
+other = "＋ New invite link"
+
+[invite_space_only]
+other = "You can only invite from a space channel"
+
+[invite_space_title]
+other = "Invite to which space?"
+
+[invite_title]
+other = "Space invite"
+
+[invite_unlimited]
+other = "Unlimited uses"
+
+[invite_until]
+other = "Until {when}"
+
+[invite_uses_label]
+other = "Max uses"
+
+[invite_uses_n]
+one = "{n} use"
+other = "{n} uses"
+
+[invite_uses_no_limit]
+other = "No limit"
+
+[invite_uses_of]
+other = "{used}/{max} uses"
+
+[invited]
+other = "Invited {who} to {space}"
+
+[invites_failed]
+other = "Couldn't load invite links"
+
+[invites_none]
+other = "No invite links yet"
+
+[item_accept]
+other = "Accept"
+
+[item_add_members]
+other = "Add members"
+
+[item_author]
+other = "Author · {name}"
+
+[item_ban]
+other = "Ban"
+
+[item_block_author]
+other = "Block author"
+
+[item_block_user]
+other = "Block"
+
+[item_cancel_request]
+other = "Cancel request"
+
+[item_close_poll]
+other = "Close poll"
+
+[item_copy]
+other = "Copy"
+
+[item_decline]
+other = "Decline"
+
+[item_delete]
+other = "Delete"
+
+[item_delete_channel]
+other = "Delete channel"
+
+[item_delete_space]
+other = "Delete space"
+
+[item_edit]
+other = "Edit"
+
+[item_edit_channel]
+other = "Edit name and topic"
+
+[item_edit_space]
+other = "Edit space info"
+
+[item_invite_to_space]
+other = "Invite to a space"
+
+[item_join]
+other = "Join"
+
+[item_kick]
+other = "Remove a member"
+
+[item_leave]
+other = "Leave"
+
+[item_make_admin]
+other = "Make admin"
+
+[item_mute]
+other = "Mute"
+
+[item_notify]
+other = "Notifications: {level}"
+
+[item_open_space]
+other = "Open"
+
+[item_pin]
+other = "Pin"
+
+[item_profile]
+other = "View profile"
+
+[item_react]
+other = "React"
+
+[item_react_users]
+other = "Reactions"
+
+[item_rename]
+other = "Rename"
+
+[item_report]
+other = "Report"
+
+[item_report_space]
+other = "Report space"
+
+[item_report_user]
+other = "Report user"
+
+[item_retract]
+other = "Retract vote"
+
+[item_revoke_invite]
+other = "Revoke"
+
+[item_send_dm]
+other = "Send DM"
+
+[item_thread]
+other = "Reply in thread"
+
+[item_transfer_space]
+other = "Transfer ownership"
+
+[item_unfriend]
+other = "Unfriend"
+
+[item_unmake_admin]
+other = "Remove admin"
+
+[item_unmute]
+other = "Unmute"
+
+[item_unpin]
+other = "Unpin"
+
+[item_vote]
+other = "Vote: {option}"
+
+[kick_ask]
+other = "Remove {name}?"
+
+[kick_body]
+other = "Someone will have to add them back."
+
+[kick_failed]
+other = "Couldn't remove the member"
+
+[kick_yes]
+other = "Remove"
+
+[kicked]
+other = "Removed {name}"
+
+[kw_channel_create]
+other = "new channel"
+
+[kw_channel_prefs]
+other = "notifications"
+
+[kw_dm_new]
+other = "conversation, chat, send message"
+
+[kw_friend_add]
+other = "send friend request"
+
+[kw_friends]
+other = "friend requests"
+
+[kw_invite_create]
+other = "invite link"
+
+[kw_invite_direct]
+other = "invite friend"
+
+[kw_invites_inbox]
+other = "space invites"
+
+[kw_pins]
+other = "pin"
+
+[kw_search]
+other = "find"
+
+[kw_space_create]
+other = "new space"
+
+[kw_space_join]
+other = "invite code"
+
+[kw_space_leave]
+other = "leave space"
+
+[kw_space_settings]
+other = "space settings"
+
+[leave_ask]
+other = "Leave {name}?"
+
+[leave_body]
+other = "A member will have to add you back."
+
+[leave_failed]
+other = "Couldn't leave the conversation"
+
+[leave_space_ask]
+other = "Leave {name}?"
+
+[leave_space_body]
+other = "You'll need a new invite to come back."
+
+[leaving_space]
+other = "Leaving…"
+
+[left_conversation]
+other = "You left the conversation"
+
+[load_failed]
+other = "Couldn't load messages"
+
+[loading]
+other = "Loading…"
+
+[made_admin]
+other = "{name} is now an admin"
+
+[me]
+other = "Me"
+
+[member_count]
+one = "{n} member"
+other = "{n} members"
+
+[member_filter_holder]
+other = "Search by name or @handle"
+
+[member_filter_idle]
+other = "Press / to find members"
+
+[member_more]
+other = "Show more"
+
+[member_more_loading]
+other = "Loading more…"
+
+[members_added]
+other = "Members added"
+
+[members_failed]
+other = "Couldn't load members"
+
+[members_load_title]
+other = "Loading members"
+
+[members_more]
+other = "+ {n} more"
+
+[members_no_match]
+other = "No matching members"
+
+[members_none]
+other = "Open a conversation to see its members"
+
+[members_title]
+other = "Members"
+
+[members_title_n]
+one = "{n} member"
+other = "{n} members"
+
+[menu_space_create]
+other = "Create a space"
+
+[menu_space_join]
+other = "Join with a code"
+
+[meta_replies]
+other = "💬 Replies {n}"
+
+[msg_copied]
+other = "Copied"
+
+[msg_deleted]
+other = "Deleted message"
+
+[muted]
+other = "Muted"
+
+[name_label]
+other = "Channel name"
+
+[new_below]
+one = "{n} new message ↓"
+other = "{n} new messages ↓"
+
+[no_delete_perm]
+other = "You can't delete this"
+
+[no_incoming]
+other = "No friend requests"
+
+[no_kickable]
+other = "No one to remove"
+
+[no_outgoing]
+other = "No sent friend requests"
+
+[no_outgoing_hint]
+other = "Send one with ＋ Add friend on the Friends tab"
+
+[no_pin_perm]
+other = "You can't pin here"
+
+[not_mine_edit]
+other = "You can only edit your own messages"
+
+[notify_all]
+other = "all"
+
+[notify_mentions]
+other = "mentions only"
+
+[notify_none]
+other = "off"
+
+[notify_set]
+other = "Notifications: {level}"
+
+[now_friends]
+other = "You and {name} are friends now"
+
+[offline]
+other = "Can't reach the server"
+
+[out_failed]
+other = "Couldn't load sent requests"
+
+[owner_leave]
+other = "Transfer ownership before you leave"
+
+[picker_max]
+one = "You can pick up to {n} person"
+other = "You can pick up to {n} people"
+
+[picker_more_hint]
+other = "Type two or more characters to search"
+
+[picker_name_holder]
+other = "Conversation name (optional)"
+
+[picker_no_chips]
+other = "No one picked yet"
+
+[picker_no_match]
+other = "No one found"
+
+[picker_ok]
+other = "OK"
+
+[picker_placeholder]
+other = "Search by name or @handle"
+
+[picker_search_failed]
+other = "Couldn't search for people"
+
+[picker_searching]
+other = "Searching…"
+
+[picker_status]
+other = "enter pick · ↑↓ move · esc close"
+
+[picker_status_submit]
+other = "enter {submit} · esc close"
+
+[picker_type_hint]
+other = "Type a name or @handle"
+
+[pin_failed]
+other = "Couldn't change the pin"
+
+[pinned]
+other = "Message pinned"
+
+[pins_empty]
+other = "No pinned messages"
+
+[pins_failed]
+other = "Couldn't load pinned messages"
+
+[pins_title]
+other = "📌 Pinned messages"
+
+[placeholder_channel]
+other = "Message {name}"
+
+[placeholder_dm]
+other = "Message {name}"
+
+[poll_closed]
+other = "This poll is closed"
+
+[poll_closed_mark]
+other = "(closed)"
+
+[poll_head]
+other = "📊 Poll: {q}"
+
+[poll_multi]
+other = "Multiple choice"
+
+[poll_voters]
+one = "{n} voter"
+other = "{n} voters"
+
+[prefs_failed]
+other = "Couldn't change notifications"
+
+[prefs_title_channel]
+other = "Channel settings · {name}"
+
+[prefs_title_dm]
+other = "Conversation settings · {name}"
+
+[privacy_label]
+other = "Visibility"
+
+[private_members_none]
+other = "No one to add · enter creates a channel just for you"
+
+[private_members_title]
+other = "Private channel members"
+
+[private_toggle]
+other = "Private (chosen members only)"
+
+[rail_home]
+other = "⌂"
+
+[react_failed]
+other = "Couldn't change the reaction"
+
+[reaction_users_empty]
+other = "Nobody yet"
+
+[reaction_users_failed]
+other = "Couldn't load the list"
+
+[reaction_users_title]
+other = "Reacted with {emoji}"
+
+[read_only]
+other = "This conversation is read-only"
+
+[read_only_blocked]
+other = "You blocked this user"
+
+[reconnecting]
+other = "Reconnecting"
+
+[rename_holder]
+other = "Leave empty to show member names"
+
+[rename_label]
+other = "Conversation name"
+
+[rename_title]
+other = "Rename conversation"
+
+[renamed]
+other = "Renamed"
+
+[replies_label]
+other = "Replies {n}"
+
+[reply_no_pin]
+other = "Replies can't be pinned"
+
+[report_message_of]
+other = "{name}'s message"
+
+[request_sent]
+other = "Friend request sent to {name}"
+
+[revoke_ask]
+other = "Revoke invite {code}?"
+
+[revoke_body]
+other = "No one can join with this code anymore."
+
+[revoke_failed]
+other = "Couldn't revoke the invite link"
+
+[revoked]
+other = "Invite link revoked"
+
+[role_admin]
+other = "Admin"
+
+[role_failed]
+other = "Couldn't change the role"
+
+[role_member]
+other = "Member"
+
+[role_owner]
+other = "Owner"
+
+[scope_all]
+other = "Everywhere"
+
+[scope_channel]
+other = "This channel"
+
+[scope_space]
+other = "This space"
+
+[search_empty]
+other = "No results"
+
+[search_empty_hint]
+other = "Try different words"
+
+[search_idle]
+other = "Search your messages"
+
+[search_idle_hint]
+other = "Type a query and press enter"
+
+[search_loading]
+other = "Searching…"
+
+[search_more_failed]
+other = "Couldn't load more results"
+
+[search_placeholder]
+other = "Search messages — type and press enter"
+
+[search_scope_too_wide]
+other = "The search is too broad — pick a space or channel"
+
+[search_title]
+other = "Search"
+
+[send_failed]
+other = "Not sent"
+
+[send_failed_hint]
+other = "enter resend · d discard"
+
+[settings_title]
+other = "{name} settings"
+
+[side_channels_label]
+other = "Channels"
+
+[side_no_space]
+other = "No spaces · + to create one"
+
 [slash_err_dice]
 other = "Write dice like 2d6 (1–20 dice, 2–1000 sides, modifier ±1000)"
 
@@ -80,3 +1301,234 @@ other = "Usage: {usage}"
 
 [slash_usage_check]
 other = "Check the command usage"
+
+[space_add_title]
+other = "Add a space"
+
+[space_banned]
+other = "You can't join this space"
+
+[space_delete_failed]
+other = "Couldn't delete the space"
+
+[space_deleted]
+other = "Space deleted"
+
+[space_desc_holder]
+other = "What is this space about?"
+
+[space_desc_label]
+other = "Description (optional)"
+
+[space_desc_too_long]
+other = "Descriptions can be up to 200 characters"
+
+[space_gone]
+other = "You can't see this space"
+
+[space_gone_hint]
+other = "It was deleted, or you're no longer a member"
+
+[space_icon_label]
+other = "Icon"
+
+[space_info]
+other = "{count} · My role: {role}"
+
+[space_join_submit]
+other = "Preview"
+
+[space_join_title]
+other = "Join space"
+
+[space_kick_ask]
+other = "Remove {name} from the space?"
+
+[space_kick_body]
+other = "They can come back with a new invite."
+
+[space_kick_failed]
+other = "Couldn't remove them"
+
+[space_leave_failed]
+other = "Couldn't leave the space"
+
+[space_left]
+other = "You left the space"
+
+[space_members_none]
+other = "No members"
+
+[space_name_holder]
+other = "e.g. Nova devs"
+
+[space_name_label]
+other = "Name"
+
+[space_name_required]
+other = "Enter a name"
+
+[space_name_too_long]
+other = "Names can be up to 50 characters"
+
+[space_open_failed]
+other = "Couldn't open the space"
+
+[space_switch_title]
+other = "Switch space"
+
+[space_unnamed]
+other = "Space"
+
+[space_updated]
+other = "Space info updated"
+
+[sys_channel_created]
+other = "Created #{name}"
+
+[sys_channel_renamed]
+other = "Channel renamed: #{name}"
+
+[sys_group_member_removed]
+other = "{name} left the conversation"
+
+[sys_group_renamed]
+other = "Conversation renamed: {name}"
+
+[sys_member_joined]
+other = "{name} joined"
+
+[sys_member_kicked]
+other = "{name} was removed"
+
+[sys_member_left]
+other = "{name} left"
+
+[sys_message_pinned]
+other = "Pinned a message"
+
+[sys_topic_changed]
+other = "Topic changed: {topic}"
+
+[tab_bans]
+other = "Banned"
+
+[tab_channels]
+other = "Channels"
+
+[tab_invites]
+other = "Invites"
+
+[tab_members]
+other = "Members"
+
+[tab_overview]
+other = "Overview"
+
+[thread_parent_euro]
+other = "to {label}"
+
+[thread_parent_ro]
+other = "to {label}"
+
+[thread_placeholder]
+other = "› Reply"
+
+[thread_poll]
+other = "Polls can't be created in a thread"
+
+[thread_title]
+other = "Thread"
+
+[topic_holder]
+other = "Channel topic (optional)"
+
+[topic_label]
+other = "Topic"
+
+[topic_opt_label]
+other = "Topic (optional)"
+
+[topic_too_long]
+other = "Topics can be up to 250 characters"
+
+[transfer_ask]
+other = "Make {name} the owner?"
+
+[transfer_body]
+other = "You'll become an admin."
+
+[transfer_failed]
+other = "Couldn't transfer ownership"
+
+[transfer_submit]
+other = "Choose"
+
+[transfer_title]
+other = "Choose the new owner"
+
+[transfer_yes]
+other = "Transfer"
+
+[transferred]
+other = "{name} is now the owner"
+
+[typing_many]
+other = "Several people are typing…"
+
+[typing_one]
+other = "{name} is typing…"
+
+[typing_someone]
+other = "Someone"
+
+[typing_two]
+other = "{a} and {b} are typing…"
+
+[unban_ask]
+other = "Unban {name}?"
+
+[unban_body]
+other = "They'll still need an invite to come back."
+
+[unban_failed]
+other = "Couldn't unban"
+
+[unban_yes]
+other = "Unban"
+
+[unbanned]
+other = "Unbanned {name}"
+
+[unfriend_ask]
+other = "Unfriend {name}?"
+
+[unfriend_body]
+other = "Past DMs stay but may become read-only"
+
+[unfriend_failed]
+other = "Couldn't unfriend"
+
+[unfriend_yes]
+other = "Unfriend"
+
+[unfriended]
+other = "You unfriended {name}"
+
+[unknown_user]
+other = "Unknown user"
+
+[unmade_admin]
+other = "{name} is no longer an admin"
+
+[unmuted]
+other = "Unmuted"
+
+[unpinned]
+other = "Unpinned"
+
+[unread_rule]
+other = "New messages"
+
+[vote_failed]
+other = "Couldn't vote"

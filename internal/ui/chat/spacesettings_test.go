@@ -164,7 +164,7 @@ func settingsOf(t testing.TB, h *uitest.Harness) *spaceSettingsView {
 func settingsTabLabels(ctx *ui.Context, v *spaceSettingsView) []string {
 	var out []string
 	for _, tab := range v.tabSet(ctx) {
-		out = append(out, tab.label())
+		out = append(out, tab.label(koCat))
 	}
 	return out
 }

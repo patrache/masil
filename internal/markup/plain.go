@@ -7,9 +7,10 @@ import (
 )
 
 // Plain is a markdown-stripped one-line preview: markers removed, link labels
-// kept, code blocks as "‹코드 N줄›", newlines as " ", sanitized, cut to
+// kept, code blocks as codeSummary(lines) (the caller's language, e.g.
+// common.code_summary; nil = "‹N›"), newlines as " ", sanitized, cut to
 // maxCells with a trailing "…".
-func Plain(body string, maxCells int) string {
+func Plain(body string, maxCells int, codeSummary func(lines int) string) string {
 	if maxCells <= 0 {
 		return ""
 	}
@@ -19,7 +20,7 @@ func Plain(body string, maxCells int) string {
 			b.WriteByte(' ')
 		}
 		if bl.Kind == Code {
-			b.WriteString(codeSummary(bl.Code))
+			b.WriteString(summarizeCode(bl.Code, codeSummary))
 			continue
 		}
 		for _, in := range bl.Inline {

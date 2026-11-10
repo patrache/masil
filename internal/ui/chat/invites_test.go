@@ -552,3 +552,27 @@ func TestCreatePaletteAvailability(t *testing.T) {
 		t.Fatal("no current space: none available")
 	}
 }
+
+// TestInviteExpiryDateLocales pins the expiry date in ko and en, this year and
+// another year (the date is built from the time catalog, not a humanize
+// export — humanize/format.go belongs to P0 and P5 Task 5).
+func TestInviteExpiryDateLocales(t *testing.T) {
+	seoul := time.FixedZone("KST", 9*3600)
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, seoul)
+	for _, c := range []struct {
+		l    i18n.Locale
+		at   time.Time
+		want string
+	}{
+		{i18n.Ko, time.Date(2026, 11, 12, 9, 0, 0, 0, seoul), "11월 12일 만료"},
+		{i18n.Ko, time.Date(2027, 1, 3, 9, 0, 0, 0, seoul), "2027년 1월 3일 만료"},
+		{i18n.En, time.Date(2026, 11, 12, 9, 0, 0, 0, seoul), "Expires Nov 12"},
+		{i18n.En, time.Date(2027, 1, 3, 9, 0, 0, 0, seoul), "Expires Jan 3, 2027"},
+		{i18n.Ko, time.Date(2026, 11, 9, 9, 0, 0, 0, seoul), "만료됨"},
+	} {
+		ctx := &ui.Context{T: i18n.For(c.l), Loc: seoul, Now: func() time.Time { return now }}
+		if got := inviteExpiryDate(ctx, c.at); got != c.want {
+			t.Errorf("%s %s: got %q, want %q", c.l, c.at.Format("2006-01-02"), got, c.want)
+		}
+	}
+}

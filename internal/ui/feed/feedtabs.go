@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"github.com/patrache/masil/internal/i18n"
 	"strings"
 
 	"github.com/patrache/masil/internal/api"
@@ -10,7 +11,7 @@ import (
 	"github.com/patrache/masil/internal/ui/widgets"
 )
 
-// Feed surface tabs (mockup ① copy): 피드 = discover, 팔로잉 = following, #트렌드 = RouteTrends.
+// Feed surface tabs (mockup ①): discover, following, trends (= RouteTrends).
 const (
 	tabDiscover  = "discover"
 	tabFollowing = "following"
@@ -19,12 +20,13 @@ const (
 
 // feedTabRoutes is the tab order and where each tab goes.
 var feedTabRoutes = []struct {
-	key, label string
-	route      ui.Route
+	key   string
+	label func(t *i18n.T) string
+	route ui.Route
 }{
-	{tabDiscover, "피드", ui.Route{Kind: ui.RouteFeed, Arg: tabDiscover}},
-	{tabFollowing, "팔로잉", ui.Route{Kind: ui.RouteFeed, Arg: tabFollowing}},
-	{tabTrends, "#트렌드", ui.Route{Kind: ui.RouteTrends}},
+	{tabDiscover, func(t *i18n.T) string { return t.Feed.TabDiscover() }, ui.Route{Kind: ui.RouteFeed, Arg: tabDiscover}},
+	{tabFollowing, func(t *i18n.T) string { return t.Feed.TabFollowing() }, ui.Route{Kind: ui.RouteFeed, Arg: tabFollowing}},
+	{tabTrends, func(t *i18n.T) string { return t.Feed.TabTrends() }, ui.Route{Kind: ui.RouteTrends}},
 }
 
 func themeOf(ctx *ui.Context) *theme.Theme {
@@ -34,7 +36,7 @@ func themeOf(ctx *ui.Context) *theme.Theme {
 	return theme.Get(theme.Default)
 }
 
-// feedTabs is the feed surface's top tab line ("피드 / 팔로잉 / #트렌드") with
+// feedTabs is the feed surface's top tab line (feed / following / #trends) with
 // active ("discover" | "following" | "trends") highlighted, exactly width cells,
 // and a hit test mapping a column to the tab's route.
 func feedTabs(ctx *ui.Context, active string, width int) (line string, hit func(x int) (ui.Route, bool)) {
@@ -42,7 +44,7 @@ func feedTabs(ctx *ui.Context, active string, width int) (line string, hit func(
 	items := make([]widgets.Tab, len(feedTabRoutes))
 	idx := 0
 	for i, r := range feedTabRoutes {
-		items[i] = widgets.Tab{Label: r.label}
+		items[i] = widgets.Tab{Label: r.label(cat(ctx))}
 		if r.key == active {
 			idx = i
 		}
@@ -58,10 +60,8 @@ func feedTabs(ctx *ui.Context, active string, width int) (line string, hit func(
 	}
 }
 
-// Story ring copy and limits.
+// Story ring marks and limits (copy: feed.ring_mine, feed.ring_add).
 const (
-	ringMine     = "내 스토리"
-	ringAdd      = "+ " + ringMine
 	ringUnseen   = "◉"
 	ringSeen     = "○"
 	ringNameMax  = 8 // cells per name
@@ -69,10 +69,10 @@ const (
 	ringLeftEdge = gutterW
 )
 
-// storyRing is the one-line story ring: my group first ("◉/○ 내 스토리", or
-// "+ 내 스토리" when I have none), then the other groups in server order, unseen
+// storyRing is the one-line story ring: my group first ("◉/○ <my story>", or
+// "+ <my story>" when I have none), then the other groups in server order, unseen
 // "◉" (acc) and seen "○" (dim). Entries that do not fit are dropped whole. hit
-// maps a column to the group's user id; the "+ 내 스토리" entry yields ("", true),
+// maps a column to the group's user id; the "+ <my story>" entry yields ("", true),
 // meaning "write a story".
 func storyRing(ctx *ui.Context, groups []api.StoryGroup, width int) (lines []string, hit func(x int) (userID string, ok bool)) {
 	t := themeOf(ctx)
@@ -108,9 +108,9 @@ func storyRing(ctx *ui.Context, groups []api.StoryGroup, width int) (lines []str
 	}
 	var entries []entry
 	if mine != nil {
-		entries = append(entries, entry{id: mine.User.ID, text: ringMine, mark: markOf(mine.HasUnseen), unseen: mine.HasUnseen})
+		entries = append(entries, entry{id: mine.User.ID, text: cat(ctx).Feed.RingMine(), mark: markOf(mine.HasUnseen), unseen: mine.HasUnseen})
 	} else {
-		entries = append(entries, entry{id: "", text: ringAdd})
+		entries = append(entries, entry{id: "", text: cat(ctx).Feed.RingAdd()})
 	}
 	for _, g := range others {
 		name := displayName(g.User)

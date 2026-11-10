@@ -3,12 +3,63 @@
 
 package i18n
 
+import "strconv"
+
 // CommonT holds the "common" area messages (locales/*/common.toml).
 type CommonT struct{ t *T }
 
 var areaCommon = area{
 	name: "common",
 	keys: map[string]*entry{
+		"code_summary": {
+			desc:   "한 줄 요약에서 코드 블록 자리. n = 코드 줄 수",
+			params: []Param{{Name: "n", Type: "int"}},
+			count:  "n",
+			text: map[Locale]Forms{
+				Ko: {Other: "‹코드 {n}줄›"},
+				En: {One: "‹code: {n} line›", Other: "‹code: {n} lines›"},
+			},
+		},
+		"help_cancel": {
+			desc: "상태줄 키 안내: 창을 닫고 취소(esc)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "취소"},
+				En: {Other: "cancel"},
+			},
+		},
+		"help_close": {
+			desc: "상태줄 키 안내: 창 닫기(esc)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "닫기"},
+				En: {Other: "close"},
+			},
+		},
+		"help_move": {
+			desc: "상태줄 키 안내: 목록 안에서 위아래로 옮기기(j/k)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "이동"},
+				En: {Other: "move"},
+			},
+		},
+		"help_save": {
+			desc: "상태줄 키 안내: 저장(enter)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "저장"},
+				En: {Other: "save"},
+			},
+		},
+		"help_select": {
+			desc: "상태줄 키 안내: 목록에서 고르기(j/k)",
+			max:  10,
+			text: map[Locale]Forms{
+				Ko: {Other: "선택"},
+				En: {Other: "select"},
+			},
+		},
 		"lang_name_en": {
 			desc: "언어 목록의 영어 이름 — 모든 언어에서 그 언어 자신의 이름",
 			text: map[Locale]Forms{
@@ -31,6 +82,13 @@ var areaCommon = area{
 				Ko:     {Other: "简体中文"},
 				En:     {Other: "简体中文"},
 				ZhHans: {Other: "简体中文"},
+			},
+		},
+		"more_tail": {
+			desc: "줄 수를 넘긴 본문 끝(markup MaxLines)",
+			text: map[Locale]Forms{
+				Ko: {Other: "… 더 보기"},
+				En: {Other: "… more"},
 			},
 		},
 		"palette_group_command": {
@@ -57,7 +115,44 @@ var areaCommon = area{
 				ZhHans: {Other: "设置"},
 			},
 		},
+		"sending": {
+			desc: "요청을 보내는 동안 창 아래 키 안내 자리에 나오는 진행 줄",
+			text: map[Locale]Forms{
+				Ko: {Other: "보내는 중…"},
+				En: {Other: "Sending…"},
+			},
+		},
 	},
+}
+
+// CodeSummary: 한 줄 요약에서 코드 블록 자리. n = 코드 줄 수
+func (a_ CommonT) CodeSummary(n int) string {
+	return a_.t.render(&areaCommon, "code_summary", false, n, "n", strconv.Itoa(n))
+}
+
+// HelpCancel: 상태줄 키 안내: 창을 닫고 취소(esc)
+func (a_ CommonT) HelpCancel() string {
+	return a_.t.render(&areaCommon, "help_cancel", false, 0)
+}
+
+// HelpClose: 상태줄 키 안내: 창 닫기(esc)
+func (a_ CommonT) HelpClose() string {
+	return a_.t.render(&areaCommon, "help_close", false, 0)
+}
+
+// HelpMove: 상태줄 키 안내: 목록 안에서 위아래로 옮기기(j/k)
+func (a_ CommonT) HelpMove() string {
+	return a_.t.render(&areaCommon, "help_move", false, 0)
+}
+
+// HelpSave: 상태줄 키 안내: 저장(enter)
+func (a_ CommonT) HelpSave() string {
+	return a_.t.render(&areaCommon, "help_save", false, 0)
+}
+
+// HelpSelect: 상태줄 키 안내: 목록에서 고르기(j/k)
+func (a_ CommonT) HelpSelect() string {
+	return a_.t.render(&areaCommon, "help_select", false, 0)
 }
 
 // LangNameEn: 언어 목록의 영어 이름 — 모든 언어에서 그 언어 자신의 이름
@@ -75,6 +170,11 @@ func (a_ CommonT) LangNameZh() string {
 	return a_.t.render(&areaCommon, "lang_name_zh", false, 0)
 }
 
+// MoreTail: 줄 수를 넘긴 본문 끝(markup MaxLines)
+func (a_ CommonT) MoreTail() string {
+	return a_.t.render(&areaCommon, "more_tail", false, 0)
+}
+
 // PaletteGroupCommand: 명령 팔레트의 묶음 머리: 명령
 func (a_ CommonT) PaletteGroupCommand() string {
 	return a_.t.render(&areaCommon, "palette_group_command", false, 0)
@@ -88,4 +188,9 @@ func (a_ CommonT) PaletteGroupNav() string {
 // PaletteGroupSettings: 명령 팔레트의 묶음 머리: 설정
 func (a_ CommonT) PaletteGroupSettings() string {
 	return a_.t.render(&areaCommon, "palette_group_settings", false, 0)
+}
+
+// Sending: 요청을 보내는 동안 창 아래 키 안내 자리에 나오는 진행 줄
+func (a_ CommonT) Sending() string {
+	return a_.t.render(&areaCommon, "sending", false, 0)
 }

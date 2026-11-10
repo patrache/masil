@@ -578,7 +578,7 @@ type commandSource struct{}
 func (commandSource) Items(ctx *ui.Context, q string) []Item {
 	var out []Item
 	for _, c := range availableCommands(ctx) {
-		s, ok := matchCommand(q, c.TitleIn(ctxT(ctx)), c.ID, commandKeywords(c)...)
+		s, ok := matchCommand(q, c.TitleIn(ctxT(ctx)), c.ID, commandKeywords(c, ctxT(ctx))...)
 		if !ok {
 			continue
 		}
@@ -605,11 +605,19 @@ func ctxT(ctx *ui.Context) *i18n.T {
 	return ctx.T
 }
 
-// commandKeywords are c's keywords plus its English label, so a command is
-// found by its English name on any screen (i18n spec 6.4.4).
-func commandKeywords(c Command) []string {
-	if c.Label == nil {
-		return c.Keywords
+// commandKeywords are c's keywords, its KeywordsIn(t) words in the screen's
+// language, plus its English label, so a command is found by its English name
+// on any screen (i18n spec 6.4.4).
+func commandKeywords(c Command, t *i18n.T) []string {
+	kw := slices.Clone(c.Keywords)
+	if c.KeywordsIn != nil {
+		if t == nil {
+			t = i18n.KoT()
+		}
+		kw = append(kw, c.KeywordsIn(t)...)
 	}
-	return append(slices.Clone(c.Keywords), c.Label(i18n.For(i18n.En)))
+	if c.Label != nil {
+		kw = append(kw, c.Label(i18n.For(i18n.En)))
+	}
+	return kw
 }

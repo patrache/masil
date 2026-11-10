@@ -9,6 +9,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/features"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/leetcode"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/textwidth"
@@ -75,7 +76,11 @@ func bodyLines(ctx *ui.Context, m *api.Message, width int) []string {
 	}
 	o := markup.RenderOptions{Width: width, Hyperlinks: true}
 	if oneLine(ctx) {
-		o.Compact, o.MaxLines = true, 1
+		c := ctx.T
+		if c == nil {
+			c = i18n.KoT()
+		}
+		o.Compact, o.MaxLines, o.MoreTail, o.CodeSummary = true, 1, c.Common.MoreTail(), c.Common.CodeSummary
 	}
 	return markup.Render(markup.Parse(m.Body, markup.ParseOptions{}), th, o)
 }

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -28,21 +28,10 @@ func init() {
 
 // Members pane constants.
 const (
-	presenceEvery  = 60 * time.Second // presence re-poll while the pane is shown
-	presenceChunk  = 100              // GET /v1/presence takes at most this many ids
-	membersTitle   = "멤버"
-	membersLoading = "불러오는 중…"
-	membersFailed  = "멤버를 불러오지 못했어요"
-	membersNone    = "대화를 열면 멤버가 보여요"
-	roleOwnerText  = "방장"
-	memberMoreID   = "more"
-	memberNoteID   = "note"
-
-	itemSendDM     = "DM 보내기"
-	itemProfile    = "프로필 보기"
-	itemReportUser = "사용자 신고"
-	itemBlockUser  = "차단"
-	dmOpenFailed   = "DM을 열지 못했어요"
+	presenceEvery = 60 * time.Second // presence re-poll while the pane is shown
+	presenceChunk = 100              // GET /v1/presence takes at most this many ids
+	memberMoreID  = "more"
+	memberNoteID  = "note"
 )
 
 // presencePollMsg is the presence re-poll tick of one polling generation.
@@ -441,7 +430,7 @@ func (p *membersPane) memberItems(ctx *ui.Context) []memberItem {
 	}
 	ch := viewedChannel(ctx)
 	if ch == nil {
-		return []memberItem{{ID: memberNoteID, Text: membersNone}}
+		return []memberItem{{ID: memberNoteID, Text: cat(ctx).Chat.MembersNone()}}
 	}
 	var users []api.UserSummary
 	more := 0
@@ -454,9 +443,9 @@ func (p *membersPane) memberItems(ctx *ui.Context) []memberItem {
 				more = max(n, 0)
 			}
 		case p.failed[ch.ID]:
-			return []memberItem{{ID: memberNoteID, Text: membersFailed}}
+			return []memberItem{{ID: memberNoteID, Text: cat(ctx).Chat.MembersFailed()}}
 		default:
-			return []memberItem{{ID: memberNoteID, Text: membersLoading}}
+			return []memberItem{{ID: memberNoteID, Text: cat(ctx).Chat.Loading()}}
 		}
 	} else {
 		users = ch.Members
@@ -478,7 +467,7 @@ func (p *membersPane) memberItems(ctx *ui.Context) []memberItem {
 		}
 		it := memberItem{ID: u.ID, User: &u, Status: userPresence(ctx, u.ID)}
 		if owner != "" && u.ID == owner {
-			it.Role = roleOwnerText
+			it.Role = cat(ctx).Chat.RoleOwner()
 		}
 		items = append(items, it)
 	}
@@ -490,7 +479,7 @@ func (p *membersPane) memberItems(ctx *ui.Context) []memberItem {
 		)
 	})
 	if more > 0 {
-		items = append(items, memberItem{ID: memberMoreID, Text: "+ " + strconv.Itoa(more) + "명 더"})
+		items = append(items, memberItem{ID: memberMoreID, Text: cat(ctx).Chat.MembersMore(more)})
 	}
 	return items
 }
@@ -591,7 +580,7 @@ func (p *membersPane) View(ctx *ui.Context, focused bool) string {
 	if viewedChannel(ctx) == nil { // home and other non-conversation routes
 		p.items = nil
 		p.list.SetItems(nil)
-		return widgets.Empty(themeOf(ctx), p.size, "", membersNone, "")
+		return widgets.Empty(themeOf(ctx), p.size, "", cat(ctx).Chat.MembersNone(), "")
 	}
 	p.sync(ctx)
 	lines := strings.Split(p.list.View(ctx, p.size), "\n")
@@ -600,10 +589,16 @@ func (p *membersPane) View(ctx *ui.Context, focused bool) string {
 
 // Title is "멤버 N" ("멤버" while the count is unknown).
 func (p *membersPane) Title(ctx *ui.Context) (string, ui.Badge) {
-	if n := p.memberCount(viewedChannel(ctx)); n > 0 {
-		return membersTitle + " " + strconv.Itoa(n), ui.Badge{}
+	return membersTitleFor(cat(ctx), p.memberCount(viewedChannel(ctx))), ui.Badge{}
+}
+
+// membersTitleFor is the members pane title for n members (0 = unknown): ko
+// "멤버 3", en "3 members".
+func membersTitleFor(c *i18n.T, n int) string {
+	if n > 0 {
+		return c.Chat.MembersTitleN(n)
 	}
-	return membersTitle, ui.Badge{}
+	return c.Chat.MembersTitle()
 }
 
 func (p *membersPane) Help(ctx *ui.Context) []key.Binding {
@@ -679,21 +674,22 @@ func (p *membersPane) openMenu(ctx *ui.Context, it memberItem) tea.Cmd {
 // memberActions is a member's menu: DM 보내기, 프로필 보기, 사용자 신고, 차단 (not
 // for a user I already blocked); my own row has only 프로필 보기.
 func memberActions(ctx *ui.Context, u api.UserSummary) []menuItem {
-	profile := menuItem{Label: itemProfile, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+	c := cat(ctx)
+	profile := menuItem{Label: c.Chat.ItemProfile(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 		return ui.Navigate(ui.Route{Kind: ui.RouteProfile, ID: u.ID}), nil
 	}}
 	if isMe(ctx, u.ID) {
 		return []menuItem{profile}
 	}
 	items := []menuItem{
-		{Label: itemSendDM, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return openDMCmd(ctx, []api.UserRef{userRef(u)}, ""), nil }},
+		{Label: c.Chat.ItemSendDm(), Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) { return openDMCmd(ctx, []api.UserRef{userRef(u)}, ""), nil }},
 		profile,
-		{Label: itemReportUser, Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
+		{Label: c.Chat.ItemReportUser(), Run: func(*ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, widgets.ReportDialog("user", u.ID, textwidth.Sanitize(displayName(u)))
 		}},
 	}
 	if ctx == nil || ctx.Store == nil || !ctx.Store.IsBlocked(u.ID) {
-		items = append(items, menuItem{Label: itemBlockUser, Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
+		items = append(items, menuItem{Label: c.Chat.ItemBlockUser(), Danger: true, Run: func(ctx *ui.Context) (tea.Cmd, ui.Overlay) {
 			return nil, blockConfirm(ctx, u)
 		}})
 	}
@@ -723,7 +719,7 @@ func openDMCmd(ctx *ui.Context, users []api.UserRef, name string) tea.Cmd {
 		return ch, err
 	}, func(ctx *ui.Context, ch *api.Channel, err error) tea.Cmd {
 		if err != nil || ch == nil {
-			return errorCmd(err, dmOpenFailed)
+			return errorCmd(err, cat(ctx).Chat.DmOpenFailed())
 		}
 		if ctx.Store != nil {
 			ctx.Store.ObserveChannel(*ch)

@@ -17,6 +17,8 @@ type T struct {
 	Common     CommonT
 	Daemon     DaemonT
 	Errors     ErrorsT
+	Feed       FeedT
+	Fun        FunT
 	Lazygit    LazygitT
 	Leetcode   LeetcodeT
 	Settings   SettingsT
@@ -38,6 +40,8 @@ func newT(l Locale) *T {
 	t.Common = CommonT{t}
 	t.Daemon = DaemonT{t}
 	t.Errors = ErrorsT{t}
+	t.Feed = FeedT{t}
+	t.Fun = FunT{t}
 	t.Lazygit = LazygitT{t}
 	t.Leetcode = LeetcodeT{t}
 	t.Settings = SettingsT{t}
@@ -60,6 +64,8 @@ var areas = map[string]*area{
 	"common":     &areaCommon,
 	"daemon":     &areaDaemon,
 	"errors":     &areaErrors,
+	"feed":       &areaFeed,
+	"fun":        &areaFun,
 	"lazygit":    &areaLazygit,
 	"leetcode":   &areaLeetcode,
 	"settings":   &areaSettings,

@@ -1,7 +1,7 @@
 package feed
 
 import (
-	"fmt"
+	"github.com/patrache/masil/internal/i18n"
 	"strings"
 	"unicode/utf8"
 
@@ -15,12 +15,6 @@ import (
 // Palette commands of ui/feed (CA 5.6 sns-fun ui/feed row) and the palette
 // "#tag" source. Every command runs through the app's ui.RunCommandMsg
 // dispatch (CR-B); Run only navigates or opens a registered overlay.
-
-// Palette copy.
-const (
-	textHashtagOpen  = "태그 피드 열기"
-	textTrendRankFmt = "트렌드 %d위"
-)
 
 // Palette groups (palette.Command.Group).
 const (
@@ -46,40 +40,47 @@ func init() {
 	hasMe := func(ctx *ui.Context) bool { return ctx != nil && ctx.Me() != nil }
 
 	palette.Register(palette.Command{
-		ID: "post.new", Title: "새 글 쓰기", Group: groupCommand, KeyHint: "c",
-		Keywords: []string{"post", "new", "write", "compose", "글쓰기", "작성"},
-		Run:      nav(ui.Route{Kind: ui.RouteCompose, Arg: modePost}),
+		ID: "post.new", Label: func(t *i18n.T) string { return t.Feed.CmdPostNew() }, Group: groupCommand, KeyHint: "c",
+		Keywords:   []string{"post", "new", "write", "compose"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwPostNew()) },
+		Run:        nav(ui.Route{Kind: ui.RouteCompose, Arg: modePost}),
 	})
 	palette.Register(palette.Command{
-		ID: "story.new", Title: "새 스토리 올리기", Group: groupCommand,
-		Keywords: []string{"story", "new", "스토리"},
-		Run:      nav(ui.Route{Kind: ui.RouteCompose, Arg: modeStory}),
+		ID: "story.new", Label: func(t *i18n.T) string { return t.Feed.CmdStoryNew() }, Group: groupCommand,
+		Keywords:   []string{"story", "new"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwStoryNew()) },
+		Run:        nav(ui.Route{Kind: ui.RouteCompose, Arg: modeStory}),
 	})
 	palette.Register(palette.Command{
-		ID: "feed.following", Title: "피드: 팔로잉", Group: groupGo, KeyHint: "f",
-		Keywords: []string{"feed", "following", "timeline", "타임라인"},
-		Run:      nav(ui.Route{Kind: ui.RouteFeed, Arg: "following"}),
+		ID: "feed.following", Label: func(t *i18n.T) string { return t.Feed.CmdFeedFollowing() }, Group: groupGo, KeyHint: "f",
+		Keywords:   []string{"feed", "following", "timeline"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwFeedFollowing()) },
+		Run:        nav(ui.Route{Kind: ui.RouteFeed, Arg: "following"}),
 	})
 	palette.Register(palette.Command{
-		ID: "feed.discover", Title: "피드: 전체(발견)", Group: groupGo,
-		Keywords: []string{"feed", "discover", "explore", "all", "발견"},
-		Run:      nav(ui.Route{Kind: ui.RouteFeed, Arg: "discover"}),
+		ID: "feed.discover", Label: func(t *i18n.T) string { return t.Feed.CmdFeedDiscover() }, Group: groupGo,
+		Keywords:   []string{"feed", "discover", "explore", "all"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwFeedDiscover()) },
+		Run:        nav(ui.Route{Kind: ui.RouteFeed, Arg: "discover"}),
 	})
 	palette.Register(palette.Command{
-		ID: "trends", Title: "트렌드 Top 10", Group: groupGo,
-		Keywords: []string{"trends", "hashtag", "search", "해시태그", "검색"},
-		Run:      nav(ui.Route{Kind: ui.RouteTrends}),
+		ID: "trends", Label: func(t *i18n.T) string { return t.Feed.CmdTrends() }, Group: groupGo,
+		Keywords:   []string{"trends", "hashtag", "search"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwTrends()) },
+		Run:        nav(ui.Route{Kind: ui.RouteTrends}),
 	})
 	palette.Register(palette.Command{
-		ID: "notifications", Title: "알림함", Group: groupGo, KeyHint: "ctrl+n",
-		Keywords: []string{"notifications", "inbox", "알림"},
-		Run:      nav(ui.Route{Kind: ui.RouteNotifications}),
-		Badge:    inboxBadge,
+		ID: "notifications", Label: func(t *i18n.T) string { return t.Feed.CmdNotifications() }, Group: groupGo, KeyHint: "ctrl+n",
+		Keywords:   []string{"notifications", "inbox"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwNotifications()) },
+		Run:        nav(ui.Route{Kind: ui.RouteNotifications}),
+		Badge:      inboxBadge,
 	})
 	palette.Register(palette.Command{
-		ID: "profile.me", Title: "내 프로필", Group: groupGo,
-		Keywords:  []string{"profile", "me", "프로필"},
-		Available: hasMe,
+		ID: "profile.me", Label: func(t *i18n.T) string { return t.Feed.CmdProfileMe() }, Group: groupGo,
+		Keywords:   []string{"profile", "me"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwProfileMe()) },
+		Available:  hasMe,
 		Run: func(ctx *ui.Context, _ string) tea.Cmd {
 			if !hasMe(ctx) {
 				return nil
@@ -88,15 +89,17 @@ func init() {
 		},
 	})
 	palette.Register(palette.Command{
-		ID: "profile.edit", Title: "프로필 편집", Group: groupSetting,
-		Keywords:  []string{"profile", "edit", "bio", "avatar", "이름", "소개"},
-		Available: hasMe,
-		Run:       open(overlayProfileEdit),
+		ID: "profile.edit", Label: func(t *i18n.T) string { return t.Feed.CmdProfileEdit() }, Group: groupSetting,
+		Keywords:   []string{"profile", "edit", "bio", "avatar"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwProfileEdit()) },
+		Available:  hasMe,
+		Run:        open(overlayProfileEdit),
 	})
 	palette.Register(palette.Command{
-		ID: "follow_requests", Title: "팔로우 요청", Group: groupCommand,
-		Keywords: []string{"follow", "requests", "private", "팔로우"},
-		Run:      open(overlayFollowRequests),
+		ID: "follow_requests", Label: func(t *i18n.T) string { return t.Feed.CmdFollowRequests() }, Group: groupCommand,
+		Keywords:   []string{"follow", "requests", "private"},
+		KeywordsIn: func(t *i18n.T) []string { return palette.Words(t.Feed.KwFollowRequests()) },
+		Run:        open(overlayFollowRequests),
 	})
 	palette.RegisterSource(hashtagSource{})
 }
@@ -129,17 +132,15 @@ func (hashtagSource) Items(ctx *ui.Context, query string) []palette.Item {
 					continue
 				}
 				exact = exact || strings.EqualFold(tr.Tag, rest)
-				out = append(out, tagItem(tr.Tag, trendSubtitle(tr.Rank), scoreTrendBase-tr.Rank))
+				out = append(out, tagItem(tr.Tag, cat(ctx).Feed.PaletteTrendRank(tr.Rank), scoreTrendBase-tr.Rank))
 			}
 		}
 	}
 	if !exact {
-		out = append(out, tagItem(rest, textHashtagOpen, scoreOpenTag))
+		out = append(out, tagItem(rest, cat(ctx).Feed.PaletteHashtagOpen(), scoreOpenTag))
 	}
 	return out
 }
-
-func trendSubtitle(rank int) string { return fmt.Sprintf(textTrendRankFmt, rank) }
 
 // tagItem is a route item opening RouteHashtag{ID: tag}.
 func tagItem(tag, subtitle string, score int) palette.Item {

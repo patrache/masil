@@ -1,0 +1,302 @@
+# Fun area: status messages, presence, focus mode and its summary, the
+# guestbook write dialog (internal/ui/fun).
+
+[cmd_focus_start]
+desc = "명령 팔레트 줄: 집중 모드 시작(/focus)"
+other = "집중 모드 시작"
+
+[cmd_focus_stop]
+desc = "명령 팔레트 줄: 집중 모드 끝내기"
+other = "집중 모드 끝내기"
+
+[cmd_presence_set]
+desc = "명령 팔레트 줄: 접속 상태(자동·자리비움·방해금지) 바꾸기"
+other = "접속 상태 바꾸기"
+
+[cmd_status_clear]
+desc = "명령 팔레트 줄: 내 상태 메시지 지우기"
+other = "상태 메시지 지우기"
+
+[cmd_status_set]
+desc = "명령 팔레트 줄: 내 상태 메시지 설정(/status)"
+other = "상태 메시지 설정"
+
+[expiry_1h]
+desc = "상태 메시지 유지 시간 고르기: 1시간"
+max = 10
+other = "1시간"
+
+[expiry_1w]
+desc = "상태 메시지 유지 시간 고르기: 1주"
+max = 10
+other = "1주"
+
+[expiry_30m]
+desc = "상태 메시지 유지 시간 고르기: 30분"
+max = 10
+other = "30분"
+
+[expiry_4h]
+desc = "상태 메시지 유지 시간 고르기: 4시간"
+max = 10
+other = "4시간"
+
+[expiry_none]
+desc = "상태 메시지 유지 시간 고르기: 끝 없음(지울 때까지)"
+max = 10
+other = "없음"
+
+[expiry_today]
+desc = "상태 메시지 유지 시간 고르기: 오늘 밤 23:59 까지"
+max = 10
+other = "오늘"
+
+[focus_err_format]
+desc = "집중 모드 시작 오류 토스트: 시간 형식을 못 읽음. 25m · 1h30m · 90 은 입력 예라 그대로"
+no_truncate = true
+other = "집중 시간은 25m · 1h30m · 90(분)처럼 적어 주세요"
+
+[focus_err_range]
+desc = "집중 모드 시작 오류 토스트: 시간 범위(1분~12시간)"
+no_truncate = true
+other = "집중 시간은 1분~12시간이에요"
+
+[focus_not_focusing]
+desc = "집중 모드 끝내기를 했는데 이미 집중 모드가 아닐 때 토스트"
+other = "집중 모드가 아니에요"
+
+[focus_started]
+desc = "집중 모드를 시작한 뒤 토스트(dur = 남은 시간, 예: 25분·1시간 30분)"
+params = { dur = "string" }
+other = "🎯 집중 모드 — {dur} 동안 알림을 모아 둘게요"
+
+[guestbook_empty]
+desc = "방명록 쓰기 오류 토스트: 내용이 비었음"
+other = "내용을 입력해 주세요"
+
+[guestbook_hint]
+desc = "방명록 쓰기 입력창이 비었을 때 흐린 안내"
+other = "주인에게 한마디 남겨 보세요"
+
+[guestbook_keys]
+desc = "방명록 쓰기 창 맨 아래 키 안내(키 이름은 그대로)"
+other = "enter 남기기 · tab 이동 · space 비밀글"
+
+[guestbook_secret]
+desc = "방명록 쓰기 창의 켜고 끄는 칸: 주인만 보는 비밀글로 남기기"
+other = "비밀글로 남기기"
+
+[guestbook_title]
+desc = "방명록 쓰기 창 제목"
+other = "방명록 남기기"
+
+[guestbook_title_owner]
+desc = "방명록 쓰기 창 제목, 주인을 알 때(owner = @아이디 그대로)"
+params = { owner = "string" }
+other = "방명록 남기기 · {owner}"
+
+[guestbook_written]
+desc = "방명록을 남긴 뒤 토스트"
+other = "방명록을 남겼어요"
+
+[help_change]
+desc = "상태줄 키 안내: 고른 접속 상태로 바꾸기(enter)"
+max = 10
+other = "바꾸기"
+
+[help_clear]
+desc = "상태줄 키 안내: 상태 메시지 지우기(ctrl+x)"
+max = 10
+other = "지우기"
+
+[help_expiry]
+desc = "상태줄 키 안내: 유지 시간 줄로 가기(tab)"
+max = 12
+other = "유지 시간"
+
+[help_go]
+desc = "상태줄 키 안내: 고른 알림이 가리키는 곳으로 가기(enter)"
+max = 10
+other = "이동"
+
+[help_leave]
+desc = "상태줄 키 안내: 방명록 남기기(enter)"
+max = 10
+other = "남기기"
+
+[help_secret]
+desc = "상태줄 키 안내: 비밀글 켜고 끄기(space)"
+max = 10
+other = "비밀글"
+
+[help_switch]
+desc = "상태줄 키 안내: 입력창과 비밀글 칸 사이 옮기기(tab)"
+max = 10
+other = "이동"
+
+[kw_focus_start]
+desc = "search keywords, comma separated: 명령 팔레트에서 집중 모드 시작을 찾는 말(화면에 안 나옴)"
+other = "집중, 방해금지"
+
+[kw_focus_stop]
+desc = "search keywords, comma separated: 명령 팔레트에서 집중 모드 끝내기를 찾는 말(화면에 안 나옴)"
+other = "집중"
+
+[kw_presence_set]
+desc = "search keywords, comma separated: 명령 팔레트에서 접속 상태 바꾸기를 찾는 말(화면에 안 나옴)"
+other = "자리비움, 방해금지, 접속"
+
+[kw_status_clear]
+desc = "search keywords, comma separated: 명령 팔레트에서 상태 메시지 지우기를 찾는 말(화면에 안 나옴)"
+other = "상태"
+
+[kw_status_set]
+desc = "search keywords, comma separated: 명령 팔레트에서 상태 메시지 설정을 찾는 말(화면에 안 나옴)"
+other = "상태, 듣는 중, 배포 중"
+
+[now_label]
+desc = "상태·접속 상태 창에서 지금 값을 가리키는 짧은 이름표"
+max = 8
+other = "지금"
+
+[presence_alias_online]
+desc = "/presence 뒤에 적으면 '자동' 으로 알아듣는 다른 말(입력으로만 씀, 화면에 안 나옴)"
+other = "온라인"
+
+[presence_auto]
+desc = "접속 상태 이름: 자동(앱을 쓰면 온라인). /presence 뒤에 적어도 알아들음"
+max = 16
+other = "자동"
+
+[presence_away]
+desc = "접속 상태 이름: 자리비움. /presence 뒤에 적어도 알아들음"
+max = 16
+other = "자리비움"
+
+[presence_changed]
+desc = "접속 상태를 바꾼 뒤 토스트"
+other = "접속 상태를 바꿨어요"
+
+[presence_dnd]
+desc = "접속 상태 이름: 방해금지(알림 안 띄움). /presence 뒤에 적어도 알아들음"
+max = 16
+other = "방해금지"
+
+[presence_invalid]
+desc = "/presence 뒤에 모르는 값을 적었을 때 토스트. auto·away·dnd 는 명령 값이라 그대로"
+no_truncate = true
+other = "auto · away · dnd 중 하나를 골라 주세요"
+
+[presence_keys]
+desc = "접속 상태 창 맨 아래 키 안내(키 이름은 그대로)"
+other = "enter 바꾸기 · j/k 이동"
+
+[presence_title]
+desc = "접속 상태 창 제목"
+other = "접속 상태"
+
+[preset_deploying]
+desc = "상태 메시지 미리 만든 줄(🔨 뒤): 배포 중. 고르면 이 글이 내 상태로 저장되어 남에게도 보임"
+max = 24
+other = "배포 중"
+
+[preset_listening]
+desc = "상태 메시지 미리 만든 줄(🎧 뒤): 음악 듣는 중. 고르면 이 글이 내 상태로 저장되어 남에게도 보임"
+max = 24
+other = "듣는 중"
+
+[preset_lunch]
+desc = "상태 메시지 미리 만든 줄(🍚 뒤): 점심 먹는 중. 고르면 이 글이 내 상태로 저장되어 남에게도 보임"
+max = 24
+other = "점심 먹는 중"
+
+[preset_sick]
+desc = "상태 메시지 미리 만든 줄(🤒 뒤): 아픔. 고르면 이 글이 내 상태로 저장되어 남에게도 보임"
+max = 24
+other = "아파요"
+
+[preset_vacation]
+desc = "상태 메시지 미리 만든 줄(🏖 뒤): 휴가 중. 고르면 이 글이 내 상태로 저장되어 남에게도 보임"
+max = 24
+other = "휴가 중"
+
+[status_changed]
+desc = "상태 메시지를 바꾼 뒤 토스트"
+other = "상태를 바꿨어요"
+
+[status_chip]
+desc = "상태 메시지 창의 직접 입력 줄 앞 이모지 고르기 칸(화면이 [ ] 로 감쌈)"
+max = 8
+other = "이모지"
+
+[status_cleared]
+desc = "상태 메시지를 지운 뒤 토스트"
+other = "상태 메시지를 지웠어요"
+
+[status_custom]
+desc = "상태 메시지 창의 직접 입력 칸이 비었을 때 흐린 안내"
+other = "직접 입력…"
+
+[status_empty]
+desc = "상태 메시지 저장 오류 토스트: 이모지도 글도 없음"
+other = "상태 메시지를 입력해 주세요"
+
+[status_expiry]
+desc = "상태 메시지 창의 유지 시간 줄 이름표(뒤에 없음 · 30분 · … 이 이어짐)"
+max = 8
+other = "유지"
+
+[status_keys]
+desc = "상태 메시지 창 맨 아래 키 안내(키 이름은 그대로)"
+other = "enter 저장 · tab 유지 시간 · ctrl+x 지우기"
+
+[status_none]
+desc = "상태 메시지 창 맨 위: 지금 설정된 상태가 없을 때"
+other = "설정된 상태가 없어요"
+
+[status_title]
+desc = "상태 메시지 창 제목"
+other = "상태 메시지"
+
+[status_too_long]
+desc = "상태 메시지 저장 오류 토스트: 글이 64자보다 김"
+no_truncate = true
+other = "상태 메시지는 64자까지예요"
+
+[summary_close]
+desc = "집중 모드 요약 창 맨 아래 키 안내(놓친 알림이 없을 때)"
+max = 20
+other = "esc 닫기"
+
+[summary_counts]
+desc = "집중 모드 요약 창: 놓친 알림 종류별 수(멘션·DM·스레드 답글·초대·친구 요청·기타)"
+params = { mention = "int", dm = "int", thread = "int", invite = "int", friend = "int", other = "int" }
+other = "멘션 {mention} · DM {dm} · 스레드 {thread} · 초대 {invite} · 친구 요청 {friend} · 기타 {other}"
+
+[summary_empty]
+desc = "집중 모드 요약 창: 놓친 알림이 없을 때"
+other = "놓친 알림이 없어요"
+
+[summary_focused]
+desc = "집중 모드 요약 창 첫 줄(dur = 집중한 시간, from·to = 시작·끝 시각)"
+params = { dur = "string", from = "string", to = "string" }
+other = "{dur} 집중했어요 ({from}–{to})"
+
+[summary_keys]
+desc = "집중 모드 요약 창 맨 아래 키 안내(키 이름은 그대로)"
+other = "enter 이동 · j/k 선택 · esc 닫기"
+
+[summary_loading]
+desc = "집중 모드 요약 창: 요약을 불러오는 동안"
+other = "요약을 불러오는 중…"
+
+[summary_title]
+desc = "집중 모드 요약 창 제목(요약이 오기 전 첫 줄에도 씀)"
+other = "집중 모드 끝"
+
+[too_long]
+desc = "방명록 쓰기 오류 토스트: 글이 n 자(코드 포인트)를 넘음"
+params = { n = "int" }
+count = "n"
+no_truncate = true
+other = "{n}자를 넘었어요"
