@@ -5,27 +5,9 @@ import (
 	"time"
 
 	"github.com/patrache/masil/internal/config"
-	"github.com/patrache/masil/internal/lazygit"
 	"github.com/patrache/masil/internal/termhost"
 	"github.com/patrache/masil/internal/ui"
 )
-
-// SetEnvForTest makes the tool find lazygit, run git and read the OS in e
-// instead of the real system; the returned func restores it. The hub's
-// cached lookup is dropped both ways.
-func SetEnvForTest(e lazygit.Env) (restore func()) {
-	envMu.Lock()
-	saved := envCur
-	envCur, probe, probing = e, probeResult{}, false
-	probeGen++
-	envMu.Unlock()
-	return func() {
-		envMu.Lock()
-		envCur, probe, probing = saved, probeResult{}, false
-		probeGen++
-		envMu.Unlock()
-	}
-}
 
 // SetTermEnvForTest makes the instance predict its open mode in e (Tiny from
 // the layout, ToolOpen from the config) instead of termhost.CurrentEnv —

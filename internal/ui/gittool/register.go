@@ -69,7 +69,7 @@ func init() {
 	ui.RegisterOverlay(OverlayInstall, newInstall)
 }
 
-// ---- environment (tests swap it: export_test.go) ----
+// ---- environment (tests swap it: testhooks.go) ----
 
 var (
 	envMu    sync.Mutex

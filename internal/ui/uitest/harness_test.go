@@ -176,6 +176,10 @@ func TestBlockingCmdFails(t *testing.T) {
 	if rec.fatals != 1 || len(rec.errs) != 1 || !strings.Contains(rec.errs[0], want) {
 		t.Fatalf("fatals=%d reports=%v, want one Fatal containing %q", rec.fatals, rec.errs, want)
 	}
+	// v0.1.3-1: the report names the Cmd (where to look).
+	if !strings.Contains(rec.errs[0], "uitest.TestBlockingCmdFails") {
+		t.Fatalf("report %q does not name the blocked Cmd", rec.errs[0])
+	}
 	if el := time.Since(start); el > blockLimit+400*time.Millisecond {
 		t.Fatalf("the watchdog fired after %v, want ~1s", el)
 	}
