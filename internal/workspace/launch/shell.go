@@ -2,13 +2,18 @@ package launch
 
 import "path/filepath"
 
-// LoginShellScript is the -c script ViaLoginShell runs: it clears the screen
-// and its scrollback (whatever the rc files printed — a powerlevel10k instant
-// prompt, a greeting — must not stay above claude in the pane), then runs
-// claude by name with the args as given ("$@"; $0 is "claude"), so a shell
-// function or alias named claude applies. Never exec or command claude: both
-// skip functions. The script is a constant: the args are data, never code.
-const LoginShellScript = `printf '\033[3J\033[H\033[2J'; claude "$@"`
+// LoginShellScript is the -c script ViaLoginShell runs. It first turns job
+// control off (set +m): -i turns it on, and a claude FUNCTION's real claude
+// would then run in its own process group, out of reach of the pane's
+// SIGHUP/SIGKILL to the shell's group (a claude that hangs on close was left
+// an orphan). The rc files have already run, so functions and aliases still
+// apply. It then clears the screen and its scrollback (whatever the rc files
+// printed — a powerlevel10k instant prompt, a greeting — must not stay above
+// claude in the pane), then runs claude by name with the args as given ("$@";
+// $0 is "claude"), so a shell function or alias named claude applies. Never
+// exec or command claude: both skip functions. The script is a constant: the
+// args are data, never code.
+const LoginShellScript = `set +m; printf '\033[3J\033[H\033[2J'; claude "$@"`
 
 // loginShells are the $SHELL base names claude is started through.
 var loginShells = []string{"zsh", "bash"}
