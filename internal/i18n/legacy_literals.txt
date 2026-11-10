@@ -18,5 +18,4 @@ internal/ui/fun 85
 internal/ui/keymap 43
 internal/ui/layout 5
 internal/ui/palette 11
-internal/ui/settings 90
 internal/ui/widgets 96

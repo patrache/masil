@@ -17,6 +17,7 @@ type T struct {
 	Errors     ErrorsT
 	Lazygit    LazygitT
 	Leetcode   LeetcodeT
+	Settings   SettingsT
 	Termpane   TermpaneT
 	Testonly   TestonlyT
 	Time       TimeT
@@ -35,6 +36,7 @@ func newT(l Locale) *T {
 	t.Errors = ErrorsT{t}
 	t.Lazygit = LazygitT{t}
 	t.Leetcode = LeetcodeT{t}
+	t.Settings = SettingsT{t}
 	t.Termpane = TermpaneT{t}
 	t.Testonly = TestonlyT{t}
 	t.Time = TimeT{t}
@@ -54,6 +56,7 @@ var areas = map[string]*area{
 	"errors":     &areaErrors,
 	"lazygit":    &areaLazygit,
 	"leetcode":   &areaLeetcode,
+	"settings":   &areaSettings,
 	"termpane":   &areaTermpane,
 	"testonly":   &areaTestonly,
 	"time":       &areaTime,

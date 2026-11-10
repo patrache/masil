@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/patrache/masil/internal/i18n"
 )
 
 // Name is a theme id.
@@ -28,7 +30,10 @@ type Palette struct{ BG, FG, Dim, Line, Acc, Acc2, Acc3, Acc4, Chip, SelBG, Code
 type Theme struct {
 	Name   Name
 	Letter string // "A".."D"
-	Label  string // "Charm 보라", "미드나잇 블루", "크림 파스텔", "레트로 앰버"
+	// Label is the 0.1.2 Korean name, kept only for the palette's theme.set
+	// Title until palette commands move to Label (Task 18); screens use the
+	// package func Label(t, n).
+	Label  string
 	Dark   bool
 	P      Palette
 	Border lipgloss.Border // RoundedBorder / NormalBorder / RoundedBorder / DoubleBorder
@@ -37,6 +42,25 @@ type Theme struct {
 
 func newTheme(n Name, letter, label string, dark bool, p Palette, border lipgloss.Border) *Theme {
 	return &Theme{Name: n, Letter: letter, Label: label, Dark: dark, P: p, Border: border, S: newStyles(p, border)}
+}
+
+// Label is theme n's name in t's language ("Charm 보라", "Retro amber"); an
+// unknown name is itself. nil t = ko.
+func Label(t *i18n.T, n Name) string {
+	if t == nil {
+		t = i18n.KoT()
+	}
+	switch n {
+	case Charm:
+		return t.Settings.ThemeCharm()
+	case Midnight:
+		return t.Settings.ThemeMidnight()
+	case Cream:
+		return t.Settings.ThemeCream()
+	case Amber:
+		return t.Settings.ThemeAmber()
+	}
+	return string(n)
 }
 
 // themes is built once; themes are read-only after init.

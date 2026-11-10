@@ -258,9 +258,9 @@ func TestThemeRowPreviewAndApply(t *testing.T) {
 		t.Fatalf("the theme row must be selected first:\n%s", h.Screen())
 	}
 	for _, th := range theme.All() {
-		l := lineWith(h, th.Label)
+		l := lineWith(h, theme.Label(nil, th.Name))
 		if l == "" || !strings.Contains(l, th.Letter+" ") {
-			t.Fatalf("swatch %s %q missing:\n%s", th.Letter, th.Label, h.Screen())
+			t.Fatalf("swatch %s %q missing:\n%s", th.Letter, theme.Label(nil, th.Name), h.Screen())
 		}
 	}
 	h.Press("right")
