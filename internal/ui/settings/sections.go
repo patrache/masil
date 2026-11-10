@@ -232,7 +232,9 @@ func (s *screen) rows(ctx *ui.Context) []row {
 	st := cat.Settings
 	var out []row
 	add := func(r row) {
-		r.err = s.rowErr[r.id]
+		if f := s.rowErr[r.id]; f != nil {
+			r.err = f(cat) // rendered when drawn: follows a language switch
+		}
 		out = append(out, r)
 	}
 	// theme
@@ -250,8 +252,8 @@ func (s *screen) rows(ctx *ui.Context) []row {
 		value: clockChoices[choiceIndex(clockChoices, cfg.UI.Clock)].label(cat)})
 	// notify: local master switch, then the server switches
 	add(row{id: rowDesktop, sec: secNotify, kind: kindToggle, label: st.RowDesktop(), on: cfg.Notify.Desktop, sub: st.RowDesktopSub()})
-	if s.settingsErr != "" {
-		add(row{id: rowSettingsErr, sec: secNotify, kind: kindAction, info: st.SettingsLoadFailed(s.settingsErr), bad: true})
+	if s.settingsErr != nil {
+		add(row{id: rowSettingsErr, sec: secNotify, kind: kindAction, info: st.SettingsLoadFailed(s.settingsErr(cat)), bad: true})
 	}
 	for _, n := range notifyRows {
 		add(row{id: n.id, sec: secNotify, kind: kindToggle, label: n.label(cat), on: *n.get(&s.settings.Notify)})
@@ -265,8 +267,8 @@ func (s *screen) rows(ctx *ui.Context) []row {
 		value: st.FocusMinutes(s.settings.FocusDefaultMin), field: s.num})
 	// blocks
 	switch {
-	case s.blocks.err != "":
-		add(row{id: rowBlocksState, sec: secBlocks, kind: kindAction, info: s.blocks.err, bad: true})
+	case s.blocks.err != nil:
+		add(row{id: rowBlocksState, sec: secBlocks, kind: kindAction, info: s.blocks.err(cat), bad: true})
 	case !s.blocks.loaded:
 		add(row{id: rowBlocksState, sec: secBlocks, kind: kindInfo, info: st.Loading()})
 	case len(s.blocks.items) == 0:
@@ -283,8 +285,8 @@ func (s *screen) rows(ctx *ui.Context) []row {
 	}
 	// sessions
 	switch {
-	case s.sessions.err != "":
-		add(row{id: rowSessState, sec: secSessions, kind: kindAction, info: s.sessions.err, bad: true})
+	case s.sessions.err != nil:
+		add(row{id: rowSessState, sec: secSessions, kind: kindAction, info: s.sessions.err(cat), bad: true})
 	case !s.sessions.loaded:
 		add(row{id: rowSessState, sec: secSessions, kind: kindInfo, info: st.Loading()})
 	case len(s.sessions.items) == 0:
@@ -446,10 +448,10 @@ func (s *screen) saveLocal(ctx *ui.Context, id string, apply func(*config.Config
 	apply(ctx.Config)
 	delete(s.rowErr, id)
 	if err := config.Save(ctx.Paths, ctx.Config); errors.Is(err, config.ErrNotLoaded) {
-		s.rowErr[id] = catOf(ctx).Settings.FixConfig() // config.toml did not load: never overwrite it
+		s.rowErr[id] = func(t *i18n.T) string { return t.Settings.FixConfig() } // config.toml did not load: never overwrite it
 	} else if err != nil {
 		slog.Warn("save config", "err", err)
-		s.rowErr[id] = catOf(ctx).Settings.SaveFailed()
+		s.rowErr[id] = func(t *i18n.T) string { return t.Settings.SaveFailed() }
 	}
 	return nil
 }
@@ -473,7 +475,7 @@ func (s *screen) act(ctx *ui.Context, r row) tea.Cmd {
 	case strings.HasPrefix(r.id, rowToolPrefix):
 		return s.confirmForget(ctx, r)
 	case r.id == rowSettingsErr:
-		s.settingsErr = ""
+		s.settingsErr = nil
 		return s.fetchSettings(ctx)
 	case r.id == rowBlocksState:
 		return s.fetchBlocks(ctx)
@@ -531,8 +533,8 @@ func (s *screen) confirmRevoke(ctx *ui.Context, id string) tea.Cmd {
 type listState[T any] struct {
 	items  []T
 	loaded bool
-	err    string
-	gen    int // generation of the latest fetch (stale results are dropped)
+	err    label // load error line (nil = none), rendered when drawn
+	gen    int   // generation of the latest fetch (stale results are dropped)
 }
 
 func (s *screen) fetchSettings(ctx *ui.Context) tea.Cmd {
@@ -563,19 +565,29 @@ func describe(t *i18n.T, err error) string {
 	return errtext.Describe(t, &api.Error{Code: "internal_error"})
 }
 
+// describeErr is err's error line, rendered in the shown language when drawn.
+func describeErr(err error) label {
+	return func(t *i18n.T) string { return describe(t, err) }
+}
+
+// retryErr is a list load error line with the retry hint.
+func retryErr(err error) label {
+	return func(t *i18n.T) string { return describe(t, err) + " · " + t.Settings.Retry() }
+}
+
 // onSettings handles GET/PATCH /v1/me/settings results.
 func (s *screen) onSettings(ctx *ui.Context, m ui.ResultMsg[*api.Settings]) {
 	id, isUpdate := strings.CutPrefix(m.Tag, tagUpdate)
 	if m.Err != nil || m.Value == nil {
 		if isUpdate {
 			s.settings = ctx.Store.Settings // revert to the last known server state
-			s.rowErr[id] = describe(ctx.T, m.Err)
+			s.rowErr[id] = describeErr(m.Err)
 		} else {
-			s.settingsErr = describe(ctx.T, m.Err)
+			s.settingsErr = describeErr(m.Err)
 		}
 		return
 	}
-	s.settingsErr = ""
+	s.settingsErr = nil
 	s.settings = *m.Value
 	ctx.Store.Settings = *m.Value
 	if ctx.Store.Me != nil {
@@ -592,10 +604,10 @@ func (s *screen) onBlocks(ctx *ui.Context, m ui.ResultMsg[[]api.BlockEntry]) {
 		return
 	}
 	if m.Err != nil {
-		s.blocks.err = describe(ctx.T, m.Err) + " · " + catOf(ctx).Settings.Retry()
+		s.blocks.err = retryErr(m.Err)
 		return
 	}
-	s.blocks.items, s.blocks.loaded, s.blocks.err = m.Value, true, ""
+	s.blocks.items, s.blocks.loaded, s.blocks.err = m.Value, true, nil
 	if ctx.Store.Blocks == nil {
 		return
 	}
@@ -618,7 +630,7 @@ func (s *screen) onBlocks(ctx *ui.Context, m ui.ResultMsg[[]api.BlockEntry]) {
 func (s *screen) onUnblock(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 	userID := strings.TrimPrefix(m.Tag, tagUnblock)
 	if m.Err != nil {
-		s.rowErr[rowBlockPrefix+userID] = describe(ctx.T, m.Err)
+		s.rowErr[rowBlockPrefix+userID] = describeErr(m.Err)
 		return
 	}
 	s.blocks.items = slices.DeleteFunc(slices.Clone(s.blocks.items), func(b api.BlockEntry) bool { return b.User.ID == userID })
@@ -632,7 +644,7 @@ func (s *screen) onSessions(ctx *ui.Context, m ui.ResultMsg[[]api.Session]) {
 		return
 	}
 	if m.Err != nil {
-		s.sessions.err = describe(ctx.T, m.Err) + " · " + catOf(ctx).Settings.Retry()
+		s.sessions.err = retryErr(m.Err)
 		return
 	}
 	items := slices.Clone(m.Value)
@@ -645,14 +657,14 @@ func (s *screen) onSessions(ctx *ui.Context, m ui.ResultMsg[[]api.Session]) {
 		}
 		return 1
 	})
-	s.sessions.items, s.sessions.loaded, s.sessions.err = items, true, ""
+	s.sessions.items, s.sessions.loaded, s.sessions.err = items, true, nil
 }
 
 // onRevoke handles a RevokeSession result.
 func (s *screen) onRevoke(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 	id := strings.TrimPrefix(m.Tag, tagRevoke)
 	if m.Err != nil {
-		s.rowErr[rowSessPrefix+id] = describe(ctx.T, m.Err)
+		s.rowErr[rowSessPrefix+id] = describeErr(m.Err)
 		return
 	}
 	s.sessions.items = slices.DeleteFunc(slices.Clone(s.sessions.items), func(se api.Session) bool { return se.ID == id })
@@ -692,7 +704,7 @@ func (s *screen) editedField() *field {
 func (s *screen) commitNumber(ctx *ui.Context) tea.Cmd {
 	v, err := strconv.Atoi(s.num.value())
 	if err != nil || v < focusMinLo || v > focusMinHi {
-		s.rowErr[rowFocusMin] = catOf(ctx).Settings.FocusRange()
+		s.rowErr[rowFocusMin] = func(t *i18n.T) string { return t.Settings.FocusRange() }
 		return nil
 	}
 	s.stopEdit()
@@ -712,27 +724,26 @@ func (s *screen) submitPassword(ctx *ui.Context) tea.Cmd {
 		delete(s.rowErr, id)
 	}
 	cur, next, confirm := s.pw[0].value(), s.pw[1].value(), s.pw[2].value()
-	fail := func(id, text string) tea.Cmd {
+	fail := func(id string, text label) tea.Cmd {
 		s.rowErr[id] = text
 		s.selectID(id)
 		s.startEdit(id)
 		return nil
 	}
 	n := utf8.RuneCountInString(next)
-	st := catOf(ctx).Settings
 	switch {
 	case cur == "":
-		return fail(rowPwCurrent, st.PwCurEmpty())
+		return fail(rowPwCurrent, func(t *i18n.T) string { return t.Settings.PwCurEmpty() })
 	case n == 0:
-		return fail(rowPwNew, st.PwNewEmpty())
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwNewEmpty() })
 	case n < passwordMin:
-		return fail(rowPwNew, st.PwShort())
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwShort() })
 	case n > passwordMax:
-		return fail(rowPwNew, st.PwLong())
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwLong() })
 	case next == cur:
-		return fail(rowPwNew, st.PwSame())
+		return fail(rowPwNew, func(t *i18n.T) string { return t.Settings.PwSame() })
 	case confirm != next:
-		return fail(rowPwConfirm, st.PwMismatch())
+		return fail(rowPwConfirm, func(t *i18n.T) string { return t.Settings.PwMismatch() })
 	}
 	s.stopEdit()
 	s.pwBusy = true
@@ -749,10 +760,9 @@ func (s *screen) onPassword(ctx *ui.Context, m ui.ResultMsg[struct{}]) tea.Cmd {
 	}
 	s.pwBusy = false
 	if m.Err != nil {
-		text := describe(ctx.T, m.Err)
-		id := rowPwSubmit
+		text, id := describeErr(m.Err), rowPwSubmit
 		if api.CodeOf(m.Err) == "invalid_credentials" {
-			text, id = catOf(ctx).Settings.PwWrong(), rowPwCurrent
+			text, id = func(t *i18n.T) string { return t.Settings.PwWrong() }, rowPwCurrent
 			s.pw[0].clear()
 		}
 		s.rowErr[id] = text

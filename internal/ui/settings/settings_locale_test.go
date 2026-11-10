@@ -1,6 +1,7 @@
 package settings_test
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
@@ -121,5 +122,38 @@ func TestAnchorRow(t *testing.T) {
 	open(h, "nope.clock") // unknown section: ignored
 	if l := selectedLine(h); !strings.Contains(l, "마우스") {
 		t.Fatalf("Anchor nope.clock moved the selection to %q", l)
+	}
+}
+
+// TestErrorsFollowLocaleSwitch: error lines made when something failed (load
+// errors, inline row errors) are rendered when drawn, so a language switch
+// redraws them in the new language at once (P5 Review Focus 1, Task 9 M4).
+func TestErrorsFollowLocaleSwitch(t *testing.T) {
+	t.Setenv("MASIL_LANG", "")
+	i18n.SetOpenForTest(t, i18n.Ko, i18n.En)
+	h := uitest.New(t)
+	h.API.Error("GET /v1/me/settings", http.StatusInternalServerError, "internal_error")
+	h.API.Error("GET /v1/blocks", http.StatusInternalServerError, "internal_error")
+	h.API.Error("GET /v1/auth/sessions", http.StatusInternalServerError, "internal_error")
+	open(h, "password")
+	selectRow(t, h, "비밀번호 바꾸기")
+	h.Press("enter") // empty form: inline row error
+	if !strings.Contains(h.Screen(), "현재 비밀번호를 입력해 주세요") {
+		t.Fatalf("ko row error missing:\n%s", h.Screen())
+	}
+	gets := len(h.API.Requests())
+	h.SetLocale("en")
+	for _, sec := range []string{"password", "notify", "blocks", "sessions"} {
+		open(h, sec)
+		pane := uitest.PseudoRegions(h)["pane/main/settings"]
+		if _, body, ok := strings.Cut(pane, "\n"); ok { // the shell's border title (Task 19)
+			pane = body
+		}
+		if strings.ContainsFunc(pane, func(r rune) bool { return r >= 0xAC00 && r <= 0xD7A3 }) {
+			t.Errorf("en %s after the switch: Korean left in the settings pane:\n%s", sec, pane)
+		}
+	}
+	if n := len(h.API.Requests()); n != gets {
+		t.Fatalf("the switch or the section moves refetched (%d -> %d requests): the check would not see stale text", gets, n)
 	}
 }

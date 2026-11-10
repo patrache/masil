@@ -38,10 +38,10 @@ type screen struct {
 	size ui.Size
 
 	settings    api.Settings // shown server settings (Store.Settings + optimistic changes)
-	settingsErr string       // GET /v1/me/settings failed
+	settingsErr label        // GET /v1/me/settings failed (nil = no error)
 	blocks      listState[api.BlockEntry]
 	sessions    listState[api.Session]
-	rowErr      map[string]string // inline error per row id
+	rowErr      map[string]label // inline error per row id, rendered when drawn
 
 	num     *field    // focus default minutes
 	pw      [3]*field // current, new, confirm
@@ -77,7 +77,7 @@ var (
 // newScreen builds the screen for r (Anchor = section id to open on).
 func newScreen(ctx *ui.Context, r ui.Route) *screen {
 	s := &screen{
-		rowErr: map[string]string{},
+		rowErr: map[string]label{},
 		num:    newNumberField(),
 		pw:     [3]*field{newPasswordField(), newPasswordField(), newPasswordField()},
 		navRow: map[int]string{},
