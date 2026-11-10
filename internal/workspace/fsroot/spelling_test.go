@@ -78,3 +78,42 @@ func TestCheckSpellingAliasIgnored(t *testing.T) {
 		t.Errorf("ReadText(DOCS/open.txt) = %q, %v", text, err)
 	}
 }
+
+// Names that do not exist yet have no stored name to compare, so the deny
+// list itself must fold the way APFS and NTFS do: U+017F "ſ" is "s", U+212A
+// KELVIN SIGN is "k". Otherwise a participant creates "ſecrets.json" and the
+// owner's tools later write "secrets.json" into that same entry (v0.1.3
+// security (h) follow-up).
+func TestDeniedFoldsUnicodeCase(t *testing.T) {
+	for _, rel := range []string{
+		"ſecrets.json", "credentialſ.json", "id_rſa", ".git-credentialſ", "x.Key",
+		"x.Key", "a/.Kube/../.ſſh/config", ".ſsh/config", "ſub/.ENV",
+	} {
+		if !Denied(rel) {
+			t.Errorf("Denied(%q) = false, want true", rel)
+		}
+	}
+	for _, rel := range []string{"ſecret.go", "Key.go", "straße.md"} {
+		if Denied(rel) {
+			t.Errorf("Denied(%q) = true, want false", rel)
+		}
+	}
+}
+
+func TestCreateFoldedDeniedName(t *testing.T) {
+	proj := t.TempDir()
+	r := openRoot(t, proj)
+	for _, rel := range []string{"ſecrets.json", "id_rſa", "x.Key", "x.Key"} {
+		if _, err := r.Check(rel, true); !isReason(err, ReasonDenied) {
+			t.Errorf("Check(%q, peer) err = %v, want Denied", rel, err)
+		}
+		if err := r.Create(rel); !isReason(err, ReasonDenied) {
+			t.Errorf("Create(%q) err = %v, want Denied", rel, err)
+		}
+	}
+}
+
+func isReason(err error, want Reason) bool {
+	reason, ok := reasonOf(err)
+	return ok && reason == want
+}
