@@ -103,3 +103,13 @@ Deviations:
 - 내 판단: a click on a chat-side entry always moves the focus to Main (`followMain`), as clicks did before. A key does that only when Main had the focus.
 - The old claim "with no tool open the shell is 0.1.2 byte for byte" no longer holds, because standard/command gained the bar and every bar gained the marks. The tools.go comment says so now.
 - `TestHostileScreens/channel` looked for the head of the hostile long message at 120x40. With one row less, that head scrolls above the view, so the test now checks the same message's tail (`x`×60).
+
+### 7. 리뷰 반영
+
+| 지적 | 결과 | Commit |
+|---|---|---|
+| (minor) `tabbar.go` 채널 탭에 `Short` 가 없어 Short 단계에서 `#개발`·`#일반` 이 모두 `#` 가 됨 | 고침. `rootTab` 대신 `WalkBar` 의 기본값을 고쳐 모든 Short 없는 항목에 적용: 앞 글자를 2칸까지, 앞이 `#`·`@` 같은 ASCII 기호뿐이면 다음 한 글자 더(`#개발`→`#개`, `#general`→`#g`, `DM`→`DM`, `피드`→`피`). 시험 `TestWalkBarShortKeepsSigilAndFirstGrapheme`(24칸, `#개`/`#일`/`#디`/`@민` 모두 다르게, 모든 항목 클릭 가능) — 먼저 빨강 확인. | a055a8a3 |
+| (minor) `focus.go` 창이 하나뿐인 화면에서 `tab`/`shift+tab` 이 늘 대화 쪽 순서(`switchTab`)를 걸어, 컴팩트 도구 표면에서 탭 줄(열린 도구)과 어긋남 | 고침. `cycleFocus` 가 `walkStep` 을 부른다(`[ / ]`·탭 줄과 같은 범위). 쓰이지 않게 된 `switchTab` 삭제. 시험 `TestWalkBarAgreesWithTabKeyCompact`(컴팩트, 도구 표면·대화 쪽, tab·shift+tab 한 바퀴) — 먼저 빨강 확인(shift+tab 이 도구 표면을 떠남). `arch` 의 `TestCanvasLeavesGlobalsAlone` 은 옛 동작("tab 이 도구 표면을 떠난다")을 적고 있어, tab 이 `]` 처럼 다음 캔버스로 간다고 고쳐 적음. | 5d896a41 |
+| (minor) `client-architecture.md` 가 코드와 어긋남(SlotTabs 는 컴팩트·위젯·초소형만, 지휘소·표준 높이 B, `‹ ›` 스크롤, 도구 표면 순서·`[ ]` 표시 없음) | 고침. SlotTabs 주석, `Compute` 기하(TooSmall 뺀 모든 모드 y=0 탭 줄, 지휘소·표준 y=1·높이 B-1, 200×60 → top 31/bottom 27, 120×40 → 높이 38·스레드 22/16 — 실제 `Compute` 출력으로 확인), "탭(SlotTabs)" 절(`walkPlaces` 단일 순서, 범위별 순서, `WalkBar` 표시·줄이기 단계, 스크롤 없음, 클릭, 한 창 화면의 tab/shift+tab), v0.1.3 탭 줄 항목에 도구 표면 걷기 한 줄. | 2c06ac53 |
+
+검증: 전체 `go test ./...`(no -short) PASS, `GOOS=windows go vet ./...` OK, `go vet ./...` OK.
