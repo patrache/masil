@@ -91,8 +91,10 @@ func (f Formatter) Relative(now, t time.Time) string {
 		return c.RelativeYesterday()
 	case now.Year() == t.Year():
 		return f.monthDay(t)
+	case f.rules() == i18n.Ko:
+		return f.fullDate(t) // ko keeps 0.1.2 ("2025. 11. 30.", wider than 8)
 	default:
-		return f.fullDate(t)
+		return c.RelativePastYear(fmt.Sprintf("%02d", t.Year()%100), strconv.Itoa(int(t.Month())), strconv.Itoa(t.Day()))
 	}
 }
 

@@ -183,6 +183,12 @@ desc = "상대 시각: 1분 안"
 max = 8
 other = "방금"
 
+[relative_past_year]
+desc = "상대 시각: 지난해 이전 날짜(좁은 자리 — 8칸, 예: en 11/30/25). yy = 연도 끝 두 자리, mon = 달(숫자), day = 일(숫자). ko 화면은 0.1.2 그대로 full_date 를 쓰고 이 ko 문구는 원문 참고용"
+params = { yy = "string", mon = "string", day = "string" }
+max = 8
+other = "{yy}. {mon}. {day}."
+
 [relative_yesterday]
 desc = "상대 시각: 어제(좁은 자리 — 8칸)"
 max = 8

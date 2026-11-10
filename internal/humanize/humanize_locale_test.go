@@ -82,30 +82,37 @@ func TestHumanizeZH(t *testing.T) {
 	}
 }
 
-// TestRelativeWidthBudget: Relative fits 8 cells in en and zh-Hans (i18n
-// 6.7). ko keeps its 0.1.2 output, which is already wider in two places —
+// TestRelativeWidthBudget: Relative fits 8 cells in en and zh-Hans for every
+// age (i18n 6.7), previous years included ("11/30/25", "25/11/30"). ko keeps
+// its 0.1.2 output (TestHumanizeKOUnchanged), which is wider in two places —
 // "10월 31일" (9 cells) and the previous-year full date ("2025. 10. 1.") — so
-// ko's budget this year is 9, and for a previous-year instant no language may
-// be wider than ko for that same instant.
+// ko alone is held to 9 cells this year and to its 0.1.2 value before.
 func TestRelativeWidthBudget(t *testing.T) {
 	n := now.In(seoul)
-	ko := For(i18n.Ko)
-	budget := map[i18n.Locale]int{i18n.Ko: 9, i18n.En: 8, i18n.ZhHans: 8}
 	for _, l := range []i18n.Locale{i18n.Ko, i18n.En, i18n.ZhHans} {
 		f := For(l)
 		for d := time.Duration(0); d <= 400*24*time.Hour; d += time.Minute {
 			at := n.Add(-d)
 			got := f.Relative(n, at)
 			w := textwidth.Width(got)
-			if at.In(seoul).Year() != n.Year() {
-				if kw := textwidth.Width(ko.Relative(n, at)); w > kw {
-					t.Fatalf("%s Relative(-%v) = %q is %d cells, wider than ko (%d)", l, d, got, w, kw)
+			if l == i18n.Ko {
+				if at.In(seoul).Year() != n.Year() {
+					continue // 0.1.2 full date, held by TestHumanizeKOUnchanged
+				}
+				if w > 9 {
+					t.Fatalf("ko Relative(-%v) = %q is %d cells, budget 9", d, got, w)
 				}
 				continue
 			}
-			if w > budget[l] {
-				t.Fatalf("%s Relative(-%v) = %q is %d cells, budget %d", l, d, got, w, budget[l])
+			if w > 8 {
+				t.Fatalf("%s Relative(-%v) = %q is %d cells, budget 8", l, d, got, w)
 			}
+		}
+	}
+	old := kst(2025, 11, 30, 11, 5)
+	for l, want := range map[i18n.Locale]string{i18n.Ko: "2025. 11. 30.", i18n.En: "11/30/25", i18n.ZhHans: "25/11/30"} {
+		if got := For(l).Relative(n, old); got != want {
+			t.Errorf("%s Relative(2025-11-30) = %q, want %q", l, got, want)
 		}
 	}
 }

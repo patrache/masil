@@ -123,6 +123,9 @@ other = "{n}m"
 [relative_now]
 other = "now"
 
+[relative_past_year]
+other = "{mon}/{day}/{yy}"
+
 [relative_yesterday]
 other = "1d"
 

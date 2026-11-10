@@ -356,6 +356,16 @@ var areaTime = area{
 				ZhHans: {Other: "刚刚"},
 			},
 		},
+		"relative_past_year": {
+			desc:   "상대 시각: 지난해 이전 날짜(좁은 자리 — 8칸, 예: en 11/30/25). yy = 연도 끝 두 자리, mon = 달(숫자), day = 일(숫자). ko 화면은 0.1.2 그대로 full_date 를 쓰고 이 ko 문구는 원문 참고용",
+			params: []Param{{Name: "yy", Type: "string"}, {Name: "mon", Type: "string"}, {Name: "day", Type: "string"}},
+			max:    8,
+			text: map[Locale]Forms{
+				Ko:     {Other: "{yy}. {mon}. {day}."},
+				En:     {Other: "{mon}/{day}/{yy}"},
+				ZhHans: {Other: "{yy}/{mon}/{day}"},
+			},
+		},
 		"relative_yesterday": {
 			desc: "상대 시각: 어제(좁은 자리 — 8칸)",
 			max:  8,
@@ -636,6 +646,11 @@ func (a_ TimeT) RelativeMinutes(n int) string {
 // RelativeNow: 상대 시각: 1분 안
 func (a_ TimeT) RelativeNow() string {
 	return a_.t.render(&areaTime, "relative_now", false, 0)
+}
+
+// RelativePastYear: 상대 시각: 지난해 이전 날짜(좁은 자리 — 8칸, 예: en 11/30/25). yy = 연도 끝 두 자리, mon = 달(숫자), day = 일(숫자). ko 화면은 0.1.2 그대로 full_date 를 쓰고 이 ko 문구는 원문 참고용
+func (a_ TimeT) RelativePastYear(yy string, mon string, day string) string {
+	return a_.t.render(&areaTime, "relative_past_year", false, 0, "yy", yy, "mon", mon, "day", day)
 }
 
 // RelativeYesterday: 상대 시각: 어제(좁은 자리 — 8칸)

@@ -123,6 +123,9 @@ other = "{n}分钟"
 [relative_now]
 other = "刚刚"
 
+[relative_past_year]
+other = "{yy}/{mon}/{day}"
+
 [relative_yesterday]
 other = "昨天"
 
