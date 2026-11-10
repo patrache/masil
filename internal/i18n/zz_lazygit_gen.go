@@ -32,6 +32,22 @@ var areaLazygit = area{
 				En: {Other: "x close"},
 			},
 		},
+		"hint_close": {
+			desc: "상태줄 키 설명: lazygit 이 끝난 뒤 x 로 도구 탭을 닫는다(키 이름은 앞에 따로 붙으니 넣지 않음)",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "닫기"},
+				En: {Other: "close"},
+			},
+		},
+		"hint_reopen": {
+			desc: "상태줄 키 설명: lazygit 이 끝난 뒤 enter 로 다시 연다(키 이름은 앞에 따로 붙으니 넣지 않음)",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "다시 열기"},
+				En: {Other: "reopen"},
+			},
+		},
 		"hub_installed": {
 			desc:   "도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 있을 때. version = lazygit 버전(0.66.3 꼴), recent = 최근 저장소 폴더 이름(사용자 이름, 번역하지 않음)",
 			params: []Param{{Name: "version", Type: "string"}, {Name: "recent", Type: "string"}},
@@ -230,6 +246,16 @@ func (a_ LazygitT) Exited() string {
 // ExitedClose: lazygit 도구 화면: 끝난 뒤 x 로 도구 탭을 닫는다는 안내(x 는 키 이름)
 func (a_ LazygitT) ExitedClose() string {
 	return a_.t.render(&areaLazygit, "exited_close", false, 0)
+}
+
+// HintClose: 상태줄 키 설명: lazygit 이 끝난 뒤 x 로 도구 탭을 닫는다(키 이름은 앞에 따로 붙으니 넣지 않음)
+func (a_ LazygitT) HintClose() string {
+	return a_.t.render(&areaLazygit, "hint_close", false, 0)
+}
+
+// HintReopen: 상태줄 키 설명: lazygit 이 끝난 뒤 enter 로 다시 연다(키 이름은 앞에 따로 붙으니 넣지 않음)
+func (a_ LazygitT) HintReopen() string {
+	return a_.t.render(&areaLazygit, "hint_reopen", false, 0)
 }
 
 // HubInstalled: 도구 허브 lazygit 줄의 상태: 설치돼 있고 최근 연 저장소가 있을 때. version = lazygit 버전(0.66.3 꼴), recent = 최근 저장소 폴더 이름(사용자 이름, 번역하지 않음)

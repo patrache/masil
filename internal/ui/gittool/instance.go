@@ -298,10 +298,10 @@ func (in *instance) Help(ctx *ui.Context) []key.Binding {
 	switch {
 	case in.view != nil:
 		return in.view.Help(ctx)
-	case in.state == stateExited:
+	case in.state == stateExited: // the descriptions carry no key: the status line puts it in front ("x 닫기", not "x x 닫기")
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", ctx.T.Lazygit.Exited())),
-			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", ctx.T.Lazygit.ExitedClose())),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", ctx.T.Lazygit.HintReopen())),
+			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", ctx.T.Lazygit.HintClose())),
 		}
 	}
 	return nil

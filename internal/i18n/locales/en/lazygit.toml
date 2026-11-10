@@ -7,6 +7,12 @@ other = "Exited · enter to reopen"
 [exited_close]
 other = "x close"
 
+[hint_close]
+other = "close"
+
+[hint_reopen]
+other = "reopen"
+
 [hub_installed]
 other = "Installed v{version} · recent {recent}"
 
