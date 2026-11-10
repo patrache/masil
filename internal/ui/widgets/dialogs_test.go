@@ -225,7 +225,7 @@ func TestReportDialogSubmit(t *testing.T) {
 	// and values reach the inline error line without any escape sequence.
 	// The app's lipgloss Compositor already drops OSC 52, OSC 0/2 and CSI 2J,
 	// so each case also carries what it lets through (APC kitty graphics, DCS,
-	// SOS, PM, 8-bit C1 CSI, OSC 8): with api.Describe's and the dialog's
+	// SOS, PM, 8-bit C1 CSI, OSC 8): with errtext.Describe's and the dialog's
 	// Sanitize both removed this test fails; either one alone keeps it green
 	// (TestDescribeSanitizesServerStrings and TestReportErrorLineSanitized pin
 	// each layer on its own). FormatSoup adds the invisible format characters

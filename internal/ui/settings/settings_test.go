@@ -15,6 +15,8 @@ import (
 	"github.com/patrache/masil/internal/api/apitest"
 	"github.com/patrache/masil/internal/auth"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/termcaps"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -553,7 +555,7 @@ func TestBlocksEmptyAndError(t *testing.T) {
 	}
 	h.API.Error("GET /v1/blocks", http.StatusInternalServerError, "internal_error")
 	h.Event("block.updated", map[string]any{"user_id": fixtures.UserMinji, "blocked": true})
-	if !strings.Contains(h.Screen(), api.Describe(&api.Error{Code: "internal_error"})) {
+	if !strings.Contains(h.Screen(), errtext.Describe(i18n.KoT(), &api.Error{Code: "internal_error"})) {
 		t.Fatalf("load error missing:\n%s", h.Screen())
 	}
 	h.Check()

@@ -12,6 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -151,7 +153,7 @@ func TestFormValidationAndDone(t *testing.T) {
 	}
 	h.Type("a")
 	h.Press("enter")
-	if submits != 1 || !strings.Contains(h.Screen(), api.Describe(&api.Error{Code: "conflict"})) || len(h.Model.Frame().Overlays) != 1 || dones != 0 {
+	if submits != 1 || !strings.Contains(h.Screen(), errtext.Describe(i18n.KoT(), &api.Error{Code: "conflict"})) || len(h.Model.Frame().Overlays) != 1 || dones != 0 {
 		t.Fatalf("409: submits=%d dones=%d\n%s", submits, dones, h.Screen())
 	}
 	srv.JSON("POST /v1/spaces", http.StatusCreated, map[string]any{"space": api.SpaceDetail{Space: api.Space{SpacePreview: api.SpacePreview{ID: "01JBNEW0000000000000000001", Name: "a"}}}})

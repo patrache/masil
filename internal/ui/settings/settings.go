@@ -244,14 +244,14 @@ func (s *screen) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		}
 	case ui.ResultMsg[[]api.Session]:
 		if strings.HasPrefix(m.Tag, tagSessions) {
-			s.onSessions(m)
+			s.onSessions(ctx, m)
 		}
 	case ui.ResultMsg[struct{}]:
 		switch {
 		case strings.HasPrefix(m.Tag, tagUnblock):
 			s.onUnblock(ctx, m)
 		case strings.HasPrefix(m.Tag, tagRevoke):
-			s.onRevoke(m)
+			s.onRevoke(ctx, m)
 		case m.Tag == tagPassword:
 			return s.onPassword(ctx, m)
 		}

@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -103,7 +104,7 @@ func (o *reactionUsers) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 	}
 	o.loading = false
 	if m.Err != nil || m.Value.page == nil {
-		o.failed = reactionUsersFailed + ": " + api.Describe(m.Err)
+		o.failed = reactionUsersFailed + ": " + errtext.Describe(ctx.T, m.Err)
 		return nil
 	}
 	o.failed = ""

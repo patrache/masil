@@ -312,7 +312,7 @@ func (f *followReqs) View(ctx *ui.Context, _ bool) string {
 	}
 	switch {
 	case len(f.shown) == 0 && (f.loading || f.err != nil):
-		return blankRows(t, []string{statusLine(t, f.spin, f.loading, f.err, w)}, w, h)
+		return blankRows(t, []string{statusLine(ctx, t, f.spin, f.loading, f.err, w)}, w, h)
 	case len(f.shown) == 0:
 		return widgets.Empty(t, f.size, "", textNoFollowReqs, "")
 	}
@@ -322,7 +322,7 @@ func (f *followReqs) View(ctx *ui.Context, _ bool) string {
 	}
 	out := strings.Split(f.list.View(ctx, ui.Size{W: w, H: listH}), "\n")
 	if f.loadingMore {
-		out = append(out, statusLine(t, f.spin, true, nil, w))
+		out = append(out, statusLine(ctx, t, f.spin, true, nil, w))
 	}
 	return blankRows(t, out, w, h)
 }

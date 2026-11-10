@@ -10,7 +10,9 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/store/chatstore"
 	"github.com/patrache/masil/internal/textwidth"
@@ -543,7 +545,7 @@ func alignRight(t *theme.Theme, lines []string, width int) []string {
 // ---- pending sends ----
 
 // renderPending: my optimistic send, dim body + " · 보내는 중…", or the failed
-// state in S.Error with the reason (api.Describe) — its own line(s) in the
+// state in S.Error with the reason (errtext.Describe) — its own line(s) in the
 // multi-line densities, inside the status of the one-line ones while it fits.
 func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage, st msgStyle) []string {
 	var me api.UserSummary
@@ -575,7 +577,7 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 		// (with reason + hint → with reason → bare) until it does.
 		room := st.Width - textwidth.Width(head) - textwidth.Width(status)
 		if p.Failed != nil {
-			reason := failedReason(p)
+			reason := failedReason(ctx, p)
 			for _, alt := range []string{failedShort + ": " + reason + failedHint, failedShort + ": " + reason, failedShort} {
 				status = stStyle.Render(alt)
 				room = st.Width - textwidth.Width(head) - textwidth.Width(status)
@@ -604,7 +606,7 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 			out = append(out, stStyle.Render(l))
 		}
 		if p.Failed != nil {
-			for _, l := range textwidth.Wrap(failedReason(p), st.Width) {
+			for _, l := range textwidth.Wrap(failedReason(ctx, p), st.Width) {
 				out = append(out, stStyle.Render(l))
 			}
 		}
@@ -618,7 +620,7 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 	bw := st.Width - ind
 	lines := appendSuffix(dimWrap(t, body, bw), statusPlain(p), stStyle, bw)
 	if p.Failed != nil {
-		for _, l := range textwidth.Wrap(failedReason(p), max(1, bw)) {
+		for _, l := range textwidth.Wrap(failedReason(ctx, p), max(1, bw)) {
 			lines = append(lines, stStyle.Render(l))
 		}
 	}
@@ -629,8 +631,8 @@ func renderPending(ctx *ui.Context, t *theme.Theme, p *chatstore.PendingMessage,
 }
 
 // failedReason is the user-facing reason of a failed send (sanitized for display).
-func failedReason(p *chatstore.PendingMessage) string {
-	return textwidth.Sanitize(api.Describe(p.Failed))
+func failedReason(ctx *ui.Context, p *chatstore.PendingMessage) string {
+	return errtext.Describe(tOf(ctx), p.Failed)
 }
 
 func statusPlain(p *chatstore.PendingMessage) string {
@@ -875,4 +877,12 @@ func recolorBG(s string, from, to color.Color) string {
 		b.WriteString("\x1b[" + strings.Join(out, ";") + "m")
 		s = s[j+1:]
 	}
+}
+
+// tOf is ctx.T (nil when ctx is nil — errtext then says it in ko).
+func tOf(ctx *ui.Context) *i18n.T {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.T
 }

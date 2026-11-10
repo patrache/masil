@@ -61,7 +61,7 @@ const (
 	ToastAlert
 )
 
-// ErrorMsg becomes a ToastError with api.Describe(err).
+// ErrorMsg becomes a ToastError with errtext.Describe(ctx.T, err).
 type ErrorMsg struct {
 	Err     error
 	Context string

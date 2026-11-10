@@ -14,6 +14,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -329,16 +330,16 @@ func (s *screen) submit(ctx *ui.Context) tea.Cmd {
 }
 
 // done applies a submit result of this screen's current generation.
-func (s *screen) done(_ *ui.Context, m doneMsg) tea.Cmd {
+func (s *screen) done(ctx *ui.Context, m doneMsg) tea.Cmd {
 	if m.id != s.id || m.gen != s.gen || !s.busy {
 		return nil
 	}
 	s.busy = false
 	s.spin.Stop()
 	if m.err != nil || m.creds == nil {
-		s.errMsg = api.Describe(m.err)
+		s.errMsg = errtext.Describe(ctx.T, m.err)
 		if s.errMsg == "" {
-			s.errMsg = api.Describe(&api.Error{Code: "internal_error"})
+			s.errMsg = errtext.Describe(ctx.T, &api.Error{Code: "internal_error"})
 		}
 		switch api.CodeOf(m.err) {
 		case "invalid_credentials":

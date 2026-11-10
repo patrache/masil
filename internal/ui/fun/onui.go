@@ -52,7 +52,7 @@ func onUI(fn func(*ui.Context)) tea.Msg {
 
 // doApply runs call off the UI goroutine. On success apply(ctx, value) runs on
 // the UI goroutine and the success toast shows; an error becomes ui.ErrorMsg
-// (api.Describe toast; a 401 ends the session instead).
+// (errtext.Describe toast; a 401 ends the session instead).
 func doApply[T any](ctx *ui.Context, call func(context.Context, *api.Client) (T, error), apply func(*ui.Context, T), success string) tea.Cmd {
 	var client *api.Client
 	if ctx != nil {

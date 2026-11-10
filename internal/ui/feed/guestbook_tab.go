@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/markup"
 	"github.com/patrache/masil/internal/textwidth"
@@ -396,7 +397,7 @@ func (p *profile) guestbookView(ctx *ui.Context, w, rest, top int) []string {
 	case len(g.items) == 0 && (g.loading || !g.loaded):
 		return []string{p.loadingLine(ctx, w)}
 	case len(g.items) == 0 && g.err != nil:
-		return empty("⚠", textwidth.Sanitize(api.Describe(g.err)), "")
+		return empty("⚠", errtext.Describe(ctx.T, g.err), "")
 	case len(g.items) == 0:
 		return empty("📖", textGuestbookEmpty, hintGuestbookEmpty)
 	}

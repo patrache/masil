@@ -8,6 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
@@ -665,11 +667,11 @@ func (l *userList) renderRow(ctx *ui.Context, u api.UserSummary, selected bool, 
 }
 
 // statusLine is the spinner / error line shown instead of an empty list.
-func statusLine(t *theme.Theme, spin *widgets.Spinner, loading bool, err error, w int) string {
+func statusLine(ctx *ui.Context, t *theme.Theme, spin *widgets.Spinner, loading bool, err error, w int) string {
 	if loading {
 		return fit(t, t.S.Base.Render("  ")+spin.View(t)+t.S.Dim.Render(" "+textLoading), w)
 	}
-	return fit(t, t.S.Base.Render("  ")+t.S.Error.Render(textwidth.Sanitize(api.Describe(err))), w)
+	return fit(t, t.S.Base.Render("  ")+t.S.Error.Render(errtext.Describe(tOf(ctx), err)), w)
 }
 
 func (l *userList) View(ctx *ui.Context, _ bool) string {
@@ -680,7 +682,7 @@ func (l *userList) View(ctx *ui.Context, _ bool) string {
 	}
 	switch {
 	case len(l.shown) == 0 && (l.loading || l.err != nil):
-		return blankRows(t, []string{statusLine(t, l.spin, l.loading, l.err, w)}, w, h)
+		return blankRows(t, []string{statusLine(ctx, t, l.spin, l.loading, l.err, w)}, w, h)
 	case len(l.shown) == 0:
 		return widgets.Empty(t, l.size, "", textNobody, "")
 	}
@@ -690,7 +692,7 @@ func (l *userList) View(ctx *ui.Context, _ bool) string {
 	}
 	out := strings.Split(l.list.View(ctx, ui.Size{W: w, H: listH}), "\n")
 	if l.loadingMore {
-		out = append(out, statusLine(t, l.spin, true, nil, w))
+		out = append(out, statusLine(ctx, t, l.spin, true, nil, w))
 	}
 	return blankRows(t, out, w, h)
 }
@@ -892,7 +894,7 @@ func (q *quotes) View(ctx *ui.Context, _ bool) string {
 	}
 	switch {
 	case len(q.shown) == 0 && (q.loading || q.err != nil):
-		return blankRows(t, []string{statusLine(t, q.spin, q.loading, q.err, w)}, w, h)
+		return blankRows(t, []string{statusLine(ctx, t, q.spin, q.loading, q.err, w)}, w, h)
 	case len(q.shown) == 0:
 		return widgets.Empty(t, q.size, "", textNoQuotes, "")
 	}
@@ -902,7 +904,15 @@ func (q *quotes) View(ctx *ui.Context, _ bool) string {
 	}
 	out := strings.Split(q.list.View(ctx, ui.Size{W: w, H: listH}), "\n")
 	if q.loadingMore {
-		out = append(out, statusLine(t, q.spin, true, nil, w))
+		out = append(out, statusLine(ctx, t, q.spin, true, nil, w))
 	}
 	return blankRows(t, out, w, h)
+}
+
+// tOf is ctx.T (nil when ctx is nil — errtext then says it in ko).
+func tOf(ctx *ui.Context) *i18n.T {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.T
 }

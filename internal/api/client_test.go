@@ -326,8 +326,8 @@ func TestRateLimitCooldown(t *testing.T) {
 	if n := len(s.Requests()); n != 1 {
 		t.Fatalf("requests = %d, want 1 (cooldown must not hit the network)", n)
 	}
-	if !strings.Contains(api.Describe(err), "20초") {
-		t.Errorf("Describe = %q", api.Describe(err))
+	if got := api.Explain(err).RetryAfterSec; got != 20 {
+		t.Errorf("Explain RetryAfterSec = %d, want 20", got)
 	}
 
 	if _, err := c.Like(ctx, "P"); err != nil {

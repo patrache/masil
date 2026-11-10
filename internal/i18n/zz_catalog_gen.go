@@ -12,6 +12,7 @@ type T struct {
 	Apitest    ApitestT
 	Archcanvas ArchcanvasT
 	Common     CommonT
+	Errors     ErrorsT
 	Lazygit    LazygitT
 	Leetcode   LeetcodeT
 	Termpane   TermpaneT
@@ -27,6 +28,7 @@ func newT(l Locale) *T {
 	t.Apitest = ApitestT{t}
 	t.Archcanvas = ArchcanvasT{t}
 	t.Common = CommonT{t}
+	t.Errors = ErrorsT{t}
 	t.Lazygit = LazygitT{t}
 	t.Leetcode = LeetcodeT{t}
 	t.Termpane = TermpaneT{t}
@@ -43,6 +45,7 @@ var areas = map[string]*area{
 	"apitest":    &areaApitest,
 	"archcanvas": &areaArchcanvas,
 	"common":     &areaCommon,
+	"errors":     &areaErrors,
 	"lazygit":    &areaLazygit,
 	"leetcode":   &areaLeetcode,
 	"termpane":   &areaTermpane,

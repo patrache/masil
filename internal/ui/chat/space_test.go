@@ -13,6 +13,8 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/realtime"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/textwidth"
@@ -135,13 +137,13 @@ func TestInviteErrorText(t *testing.T) {
 		{details("invite_invalid", "expired"), "만료된 초대예요"},
 		{details("invite_invalid", "exhausted"), "사용 횟수가 다 찬 초대예요"},
 		{details("invite_invalid", "revoked"), "취소된 초대예요"},
-		{details("invite_invalid", "other"), api.Describe(&api.Error{Code: "invite_invalid"})},
-		{&api.Error{Code: "invite_invalid"}, api.Describe(&api.Error{Code: "invite_invalid"})},
+		{details("invite_invalid", "other"), errtext.Describe(i18n.KoT(), &api.Error{Code: "invite_invalid"})},
+		{&api.Error{Code: "invite_invalid"}, errtext.Describe(i18n.KoT(), &api.Error{Code: "invite_invalid"})},
 		{&api.Error{Code: "not_found"}, "없는 초대 코드예요"},
 		{&api.Error{Code: "banned_from_space"}, "이 방에 들어갈 수 없어요"},
-		{&api.Error{Code: "internal_error"}, api.Describe(&api.Error{Code: "internal_error"})},
+		{&api.Error{Code: "internal_error"}, errtext.Describe(i18n.KoT(), &api.Error{Code: "internal_error"})},
 	} {
-		if got := inviteErrorText(tc.err); got != tc.want {
+		if got := inviteErrorText(nil, tc.err); got != tc.want {
 			t.Errorf("inviteErrorText(%v) = %q, want %q", tc.err, got, tc.want)
 		}
 	}
@@ -210,7 +212,7 @@ func TestSpaceCreateError(t *testing.T) {
 	if overlays(h) != 1 {
 		t.Fatal("the form stays open on an error")
 	}
-	mustContain(t, overlayText(t, h), api.Describe(&api.Error{Code: "limit_exceeded"}))
+	mustContain(t, overlayText(t, h), errtext.Describe(i18n.KoT(), &api.Error{Code: "limit_exceeded"}))
 	if top(h).Kind != ui.RouteHome {
 		t.Fatalf("no navigation on an error: %+v", top(h))
 	}
@@ -500,7 +502,7 @@ func TestInviteRetry(t *testing.T) {
 	srv := newAPI(t)
 	srv.Error("GET /v1/invites/"+testInviteCode, http.StatusServiceUnavailable, "service_unavailable")
 	h := openInvite(t, uitest.Size{W: 120, H: 40}, testInviteCode, srv)
-	mustContain(t, paneText(t, h, layout.SlotMain), api.Describe(&api.Error{Code: "service_unavailable"}), "r 다시 시도")
+	mustContain(t, paneText(t, h, layout.SlotMain), errtext.Describe(i18n.KoT(), &api.Error{Code: "service_unavailable"}), "r 다시 시도")
 	srv.JSON("GET /v1/invites/"+testInviteCode, http.StatusOK, map[string]any{"invite": invitePreview(testInviteCode)})
 	h.Press("r")
 	mustContain(t, paneText(t, h, layout.SlotMain), "노바 개발방", "enter 참여하기")

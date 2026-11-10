@@ -12,6 +12,8 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/api/apitest"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/store"
 	"github.com/patrache/masil/internal/ui"
 	"github.com/patrache/masil/internal/ui/layout"
@@ -245,7 +247,7 @@ func TestDMNewNotAllowed(t *testing.T) {
 	if overlays(h) != 1 {
 		t.Fatal("the dialog stays open on an error")
 	}
-	mustContain(t, overlayText(t, h), api.Describe(&api.Error{Code: "dm_not_allowed"}))
+	mustContain(t, overlayText(t, h), errtext.Describe(i18n.KoT(), &api.Error{Code: "dm_not_allowed"}))
 	if h.Model.Frame().Toast != nil {
 		t.Fatalf("the error shows in the dialog only, not as a toast too:\n%s", h.Screen())
 	}
@@ -267,7 +269,7 @@ func TestDMNewGroupBlockedPair(t *testing.T) {
 		name, details, want string
 	}{
 		{"block pair", `{}`, groupDMRefusedText},
-		{"can_dm failure", `{"user_ids":["` + fixtures.UserJunho + `"]}`, api.Describe(&api.Error{Code: "dm_not_allowed"})},
+		{"can_dm failure", `{"user_ids":["` + fixtures.UserJunho + `"]}`, errtext.Describe(i18n.KoT(), &api.Error{Code: "dm_not_allowed"})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := newAPI(t)
@@ -301,7 +303,7 @@ func TestDMNewOneToOneNotAllowedKeepsText(t *testing.T) {
 	h.Type("minji")
 	h.Press("enter", "enter")
 	box := overlayText(t, h)
-	mustContain(t, box, api.Describe(&api.Error{Code: "dm_not_allowed"}))
+	mustContain(t, box, errtext.Describe(i18n.KoT(), &api.Error{Code: "dm_not_allowed"}))
 	if strings.Contains(box, groupDMRefusedText) {
 		t.Fatalf("a 1:1 refusal is not about participants:\n%s", box)
 	}

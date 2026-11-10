@@ -14,6 +14,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/config"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/termcaps"
@@ -455,7 +456,7 @@ func (s *screen) saveLocal(ctx *ui.Context, id string, apply func(*config.Config
 
 // patch sends one server setting (only that Opt filled) after applying it
 // optimistically; the response replaces Store.Settings, a failure reverts the rows to
-// Store.Settings and shows api.Describe under the row.
+// Store.Settings and shows errtext.Describe under the row.
 func (s *screen) patch(ctx *ui.Context, id string, req api.UpdateSettingsRequest, optimistic func(*api.Settings)) tea.Cmd {
 	optimistic(&s.settings)
 	delete(s.rowErr, id)
@@ -552,12 +553,12 @@ func (s *screen) fetchSessions(ctx *ui.Context) tea.Cmd {
 	})
 }
 
-// describe is api.Describe with a fallback for a nil-coded error.
-func describe(err error) string {
-	if d := api.Describe(err); d != "" {
+// describe is errtext.Describe with a fallback for a nil error.
+func describe(t *i18n.T, err error) string {
+	if d := errtext.Describe(t, err); d != "" {
 		return d
 	}
-	return api.Describe(&api.Error{Code: "internal_error"})
+	return errtext.Describe(t, &api.Error{Code: "internal_error"})
 }
 
 // onSettings handles GET/PATCH /v1/me/settings results.
@@ -566,9 +567,9 @@ func (s *screen) onSettings(ctx *ui.Context, m ui.ResultMsg[*api.Settings]) {
 	if m.Err != nil || m.Value == nil {
 		if isUpdate {
 			s.settings = ctx.Store.Settings // revert to the last known server state
-			s.rowErr[id] = describe(m.Err)
+			s.rowErr[id] = describe(ctx.T, m.Err)
 		} else {
-			s.settingsErr = describe(m.Err)
+			s.settingsErr = describe(ctx.T, m.Err)
 		}
 		return
 	}
@@ -589,7 +590,7 @@ func (s *screen) onBlocks(ctx *ui.Context, m ui.ResultMsg[[]api.BlockEntry]) {
 		return
 	}
 	if m.Err != nil {
-		s.blocks.err = describe(m.Err) + " · " + textRetry
+		s.blocks.err = describe(ctx.T, m.Err) + " · " + textRetry
 		return
 	}
 	s.blocks.items, s.blocks.loaded, s.blocks.err = m.Value, true, ""
@@ -615,7 +616,7 @@ func (s *screen) onBlocks(ctx *ui.Context, m ui.ResultMsg[[]api.BlockEntry]) {
 func (s *screen) onUnblock(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 	userID := strings.TrimPrefix(m.Tag, tagUnblock)
 	if m.Err != nil {
-		s.rowErr[rowBlockPrefix+userID] = describe(m.Err)
+		s.rowErr[rowBlockPrefix+userID] = describe(ctx.T, m.Err)
 		return
 	}
 	s.blocks.items = slices.DeleteFunc(slices.Clone(s.blocks.items), func(b api.BlockEntry) bool { return b.User.ID == userID })
@@ -624,12 +625,12 @@ func (s *screen) onUnblock(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 }
 
 // onSessions handles a ListSessions result (the current session first).
-func (s *screen) onSessions(m ui.ResultMsg[[]api.Session]) {
+func (s *screen) onSessions(ctx *ui.Context, m ui.ResultMsg[[]api.Session]) {
 	if strings.TrimPrefix(m.Tag, tagSessions) != strconv.Itoa(s.sessions.gen) {
 		return
 	}
 	if m.Err != nil {
-		s.sessions.err = describe(m.Err) + " · " + textRetry
+		s.sessions.err = describe(ctx.T, m.Err) + " · " + textRetry
 		return
 	}
 	items := slices.Clone(m.Value)
@@ -646,10 +647,10 @@ func (s *screen) onSessions(m ui.ResultMsg[[]api.Session]) {
 }
 
 // onRevoke handles a RevokeSession result.
-func (s *screen) onRevoke(m ui.ResultMsg[struct{}]) {
+func (s *screen) onRevoke(ctx *ui.Context, m ui.ResultMsg[struct{}]) {
 	id := strings.TrimPrefix(m.Tag, tagRevoke)
 	if m.Err != nil {
-		s.rowErr[rowSessPrefix+id] = describe(m.Err)
+		s.rowErr[rowSessPrefix+id] = describe(ctx.T, m.Err)
 		return
 	}
 	s.sessions.items = slices.DeleteFunc(slices.Clone(s.sessions.items), func(se api.Session) bool { return se.ID == id })
@@ -745,7 +746,7 @@ func (s *screen) onPassword(ctx *ui.Context, m ui.ResultMsg[struct{}]) tea.Cmd {
 	}
 	s.pwBusy = false
 	if m.Err != nil {
-		text := describe(m.Err)
+		text := describe(ctx.T, m.Err)
 		id := rowPwSubmit
 		if api.CodeOf(m.Err) == "invalid_credentials" {
 			text, id = textPwWrong, rowPwCurrent

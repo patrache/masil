@@ -2289,7 +2289,7 @@ type FocusChangedMsg struct{ Slot layout.SlotID; RouteKey string }
 type ToastMsg struct{ Text string; Kind ToastKind; Route *Route } // shown 4s (ui.After) as a bordered box at the body's top-right (status line in tiny); rect reported in app.FrameInfo.Toast
 type ToastKind int
 const (ToastInfo ToastKind = iota; ToastSuccess; ToastError; ToastAlert)
-type ErrorMsg struct{ Err error; Context string }        // => ToastError with api.Describe(err)
+type ErrorMsg struct{ Err error; Context string }        // => ToastError with errtext.Describe(ctx.T, err)
 type OpenOverlayMsg struct{ Overlay Overlay; ID, Args string } // Overlay != nil => push it; else build RegisterOverlay(ID) with Args (unknown ID => ignored + debug log)
 type CloseOverlayMsg struct{}
 type RunCommandMsg struct{ ID string; Args string }      // palette command by id
@@ -2311,7 +2311,7 @@ type ResultMsg[T any] struct{ Tag string; Value T; Err error }
 func Do[T any](c *Context, tag string, fn func(ctx context.Context, api *api.Client) (T, error)) tea.Cmd
 ```
 - **태그 규칙**: `"<계획>.<동작>:<대상ID>"`, 예 `"chat.history:01JB…"`, `"feed.like:01JD…"`. 각 계획은 자기 접두사(`core.`, `chat.`, `feed.`, `fun.`)만 쓴다.
-- 오류는 컴포넌트가 처리하지 않으면 `ErrorMsg` 를 돌려 앱이 토스트로 띄운다(`api.Describe`).
+- 오류는 컴포넌트가 처리하지 않으면 `ErrorMsg` 를 돌려 앱이 토스트로 띄운다(`errtext.Describe`).
 
 #### 5.3.5 포커스 관리
 
@@ -2757,7 +2757,7 @@ func (f *Fade) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd
 
 ### 5.8 core 화면
 
-- `internal/ui/authui`: 로그인·가입 화면(`RouteLogin`). 서버 주소 표시, handle/비밀번호/표시 이름, 오류는 `api.Describe`. 성공 시 `auth.Save` + `LoggedInMsg{Credentials, Me}` → 앱이 API 토큰 설정·realtime 시작.
+- `internal/ui/authui`: 로그인·가입 화면(`RouteLogin`). 서버 주소 표시, handle/비밀번호/표시 이름, 오류는 `errtext.Describe`. 성공 시 `auth.Save` + `LoggedInMsg{Credentials, Me}` → 앱이 API 토큰 설정·realtime 시작.
 - `internal/ui/settings`(`RouteSettings`): 테마(미리보기 4종), 레이아웃 고정, 마우스·이미지·애니메이션, 데스크톱 알림(로컬 스위치 + 서버 `notify.*` 토글), DM 정책, 비공개 계정, 집중 기본 시간, **차단 목록**(`ListBlocks` 로 표시 — `Store.Blocks` 와 같은 집합, 항목마다 `Unblock` + `widgets.Confirm`, `block.updated` 이벤트로 갱신; 팔레트 `blocks` 가 이 섹션으로 연다), 세션 목록·폐기, 비밀번호 변경, 로그아웃.
 - **v0.1.3 `도구 로그인` 묶음** (P0 Task 23, v0.1.3 A9.4): 로그아웃 바로 앞. 줄 = `<도구 이름> · <계정> · <보관 위치> · [지우기]`(값은 안 보임, 보관 위치는 `Store.Where` — OS 를 부르지 않음). 도구는 `settings.RegisterToolLogin(tool, describe func(*ui.Context) (account string, ok bool), forget func(*ui.Context) tea.Cmd)` 로 init() 에서 등록한다(P1 LeetCode, P4 API 시험). 그 도구가 등록돼 있고 기능 플래그가 켜져 있고 `describe` 가 ok 일 때만 줄이 생기고, 줄이 없으면 묶음 자체가 안 보인다(0.1.2 화면 그대로). [지우기] → 확인 대화상자 → `forget`(nil 이면 그 도구의 `SecretScope` 범위 값 전부 `Delete`).
 - **v0.1.3 로그아웃 선택지** (P0 Task 23, A9.4): 기능 플래그가 하나라도 켜졌을 때 로그아웃 확인은 `widgets.ConfirmCheck` 로 `이 기기의 도구 로그인도 지우기`(기본 꺼짐)를 보인다(모두 꺼짐 = 0.1.2 `Confirm`). 켜고 확인하면 `ctx.Secrets.DeleteAll(SecretScope())` 를 **자기 ctx(30초)로, POST /v1/auth/logout 보다 먼저** 부른다(서버가 늦어도 지우기는 끝까지). 범위는 세션이 끝나기 전에 읽는다. 실패는 로그만.

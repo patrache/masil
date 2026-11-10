@@ -340,7 +340,7 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if api.CodeOf(msg.Err) == "unauthorized" { // the session ends instead (takeFlags)
 			return m, nil
 		}
-		return m, m.toasts.push(m.ctx, errorToast(msg))
+		return m, m.toasts.push(m.ctx, errorToast(m.ctx.T, msg))
 	case toastExpireMsg:
 		m.toasts.remove(msg.id)
 		return m, nil

@@ -8,7 +8,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -131,7 +131,7 @@ type field struct {
 
 // formSpec describes a form. OnSubmit gets the values by Key and returns the ui.Do
 // tag it started (and the Cmd); the form then waits for the ResultMsg with that tag:
-// an error is shown (api.Describe) and the form stays, success calls OnDone with the
+// an error is shown (errtext.Describe) and the form stays, success calls OnDone with the
 // ResultMsg. tag "" means nothing to wait for: OnDone(ctx, nil) runs right away.
 // OnDone may return an overlay to morph into; else the form closes.
 type formSpec struct {
@@ -385,7 +385,7 @@ func (f *form) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		f.busy = false
 		f.spinner.Stop()
 		if err != nil {
-			f.errMsg = api.Describe(err)
+			f.errMsg = errtext.Describe(ctx.T, err)
 			return nil
 		}
 		return f.done(ctx, msg)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/patrache/masil/internal/api"
 	"github.com/patrache/masil/internal/auth"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/ui"
@@ -220,7 +221,7 @@ func cmdLogin(ctx context.Context, env *Env, args []string) error {
 	defer cancel()
 	res, err := client.Login(c, api.LoginRequest{Handle: handle, Password: password, Client: clientName, DeviceName: deviceName()})
 	if err != nil {
-		fmt.Fprintln(env.Stderr, textwidth.Sanitize(api.Describe(err)))
+		fmt.Fprintln(env.Stderr, errtext.Describe(i18n.KoT(), err))
 		return err
 	}
 	cr := &auth.Credentials{
@@ -273,7 +274,7 @@ func cmdLogout(ctx context.Context, env *Env, args []string) error {
 	defer cancel()
 	if err := newClient(env, cr.Server, api.WithToken(cr.Token)).Logout(c); err != nil && api.CodeOf(err) != "unauthorized" {
 		slog.Warn("server logout failed", "err", err)
-		fmt.Fprintf(env.Stderr, "서버에 로그아웃을 알리지 못했어요 (%s). 이 기기의 로그인 정보는 지울게요\n", textwidth.Sanitize(api.Describe(err)))
+		fmt.Fprintf(env.Stderr, "서버에 로그아웃을 알리지 못했어요 (%s). 이 기기의 로그인 정보는 지울게요\n", errtext.Describe(i18n.KoT(), err))
 	}
 	if err := auth.Clear(env.Paths); err != nil {
 		fmt.Fprintln(env.Stderr, "로그인 정보를 지우지 못했어요")

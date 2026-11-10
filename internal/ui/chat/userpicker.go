@@ -13,6 +13,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
+	"github.com/patrache/masil/internal/i18n"
 	"github.com/patrache/masil/internal/textwidth"
 	"github.com/patrache/masil/internal/theme"
 	"github.com/patrache/masil/internal/ui"
@@ -66,8 +68,8 @@ type pickerSpec struct {
 	OnPick        func(ctx *ui.Context, users []api.UserSummary, name string) (tag string, cmd tea.Cmd)
 	OnDone        func(ctx *ui.Context, result tea.Msg) (tea.Cmd, ui.Overlay)
 	// DescribeErr words a failed OnPick for the dialog (picked = the chips sent);
-	// nil = api.Describe.
-	DescribeErr func(err error, picked []api.UserSummary) string
+	// nil = errtext.Describe.
+	DescribeErr func(t *i18n.T, err error, picked []api.UserSummary) string
 }
 
 // pickerSearchMsg is the debounce tick of one picker's query (gen = the query generation).
@@ -483,9 +485,9 @@ func (p *userPicker) Update(ctx *ui.Context, msg tea.Msg) tea.Cmd {
 		p.spinner.Stop()
 		if err != nil {
 			if p.spec.DescribeErr != nil {
-				p.errMsg = p.spec.DescribeErr(err, p.chips)
+				p.errMsg = p.spec.DescribeErr(ctx.T, err, p.chips)
 			} else {
-				p.errMsg = api.Describe(err)
+				p.errMsg = errtext.Describe(ctx.T, err)
 			}
 			return landed
 		}

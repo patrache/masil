@@ -6,7 +6,6 @@
 cmd/masil 85
 # permanent: operator CLI stays Korean (i18n 1.3)
 internal/admincli 77
-internal/api 47
 internal/autostart 7
 internal/markup 3
 internal/slash 25

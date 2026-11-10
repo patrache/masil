@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/patrache/masil/internal/api"
+	"github.com/patrache/masil/internal/errtext"
 	"github.com/patrache/masil/internal/humanize"
 	"github.com/patrache/masil/internal/store/feedstore"
 	"github.com/patrache/masil/internal/textwidth"
@@ -1245,7 +1246,7 @@ func (p *profile) View(ctx *ui.Context, _ bool) string {
 	case len(l.items) == 0 && (l.loading || !l.loaded):
 		out = append(out, p.loadingLine(ctx, w))
 	case len(l.items) == 0 && l.err != nil:
-		out = append(out, strings.Split(widgets.Empty(t, ui.Size{W: w, H: rest}, "⚠", textwidth.Sanitize(api.Describe(l.err)), ""), "\n")...)
+		out = append(out, strings.Split(widgets.Empty(t, ui.Size{W: w, H: rest}, "⚠", errtext.Describe(ctx.T, l.err), ""), "\n")...)
 	case len(l.items) == 0:
 		text := textNoProfilePosts
 		switch l.filter {
