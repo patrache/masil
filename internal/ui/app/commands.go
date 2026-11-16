@@ -43,6 +43,7 @@ var themeKeywords = map[theme.Name][]string{
 	theme.Midnight: {"theme", "midnight", "blue", "블루"},
 	theme.Cream:    {"theme", "cream", "pastel", "light", "파스텔"},
 	theme.Amber:    {"theme", "amber", "retro", "레트로"},
+	theme.Stealth:  {"theme", "stealth", "claude", "plain", "gray"},
 }
 
 // pinCommands are the layout.pin.<mode> commands in ctrl+w digit order.
@@ -130,7 +131,7 @@ func init() {
 	})
 }
 
-// nextTheme is the theme after t in A → B → C → D → A order.
+// nextTheme is the theme after t in A → B → C → D → E → A order.
 func nextTheme(t *theme.Theme) theme.Name {
 	all := theme.All()
 	for i, o := range all {

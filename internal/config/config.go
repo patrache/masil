@@ -138,10 +138,10 @@ func Defaults() *Config {
 	}
 }
 
-// Accepted enum values (CA 3.3). Theme letters a–d alias the four themes;
+// Accepted enum values (CA 3.3). Theme letters a–e alias the five themes;
 // config does not import theme, so the list is duplicated here.
 var (
-	validThemes = []string{"charm", "midnight", "cream", "amber", "a", "b", "c", "d"}
+	validThemes = []string{"charm", "midnight", "cream", "amber", "stealth", "a", "b", "c", "d", "e"}
 	validPins   = []string{"auto", "command", "standard", "compact", "widget", "tiny"}
 	validImages = []string{"auto", "kitty", "iterm2", "halfblock", "off"}
 	validClocks = []string{"24h", "12h"}

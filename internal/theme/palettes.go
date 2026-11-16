@@ -2,7 +2,7 @@ package theme
 
 import "charm.land/lipgloss/v2"
 
-// Hex palettes for the four themes (CA 5.1 table, mockup CSS variables).
+// Hex palettes for the themes (CA 5.1 table, mockup CSS variables).
 var (
 	charmPalette = Palette{
 		BG: lipgloss.Color("#1a1b26"), FG: lipgloss.Color("#e4e2f5"), Dim: lipgloss.Color("#7a7896"),
@@ -27,5 +27,15 @@ var (
 		Line: lipgloss.Color("#504945"), Acc: lipgloss.Color("#fabd2f"), Acc2: lipgloss.Color("#fb4934"),
 		Acc3: lipgloss.Color("#b8bb26"), Acc4: lipgloss.Color("#83a598"), Chip: lipgloss.Color("#32302f"),
 		SelBG: lipgloss.Color("#3c3836"), CodeBG: lipgloss.Color("#282828"),
+	}
+	// stealthPalette (v0.1.3-2) looks like Claude Code's dark mode from across the
+	// room: a near-black screen, plain light-grey text, grey rules and one muted
+	// orange accent; the other accents are Claude Code's own soft red, green and
+	// periwinkle so nothing pops like a chat app.
+	stealthPalette = Palette{
+		BG: lipgloss.Color("#1a1a1a"), FG: lipgloss.Color("#d4d4d4"), Dim: lipgloss.Color("#808080"),
+		Line: lipgloss.Color("#3a3a3a"), Acc: lipgloss.Color("#d77757"), Acc2: lipgloss.Color("#e5737f"),
+		Acc3: lipgloss.Color("#7fb07f"), Acc4: lipgloss.Color("#a5abd9"), Chip: lipgloss.Color("#242424"),
+		SelBG: lipgloss.Color("#2b2522"), CodeBG: lipgloss.Color("#212121"),
 	}
 )

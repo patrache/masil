@@ -21,6 +21,7 @@ var paletteTable = map[Name][11]string{
 	Midnight: {"#0f1419", "#c9d1d9", "#5c6773", "#1f2a35", "#59c2ff", "#ffb454", "#aad94c", "#d2a6ff", "#151d26", "#13283a", "#121a22"},
 	Cream:    {"#fdf6ec", "#3a3226", "#9a8b74", "#e2d3bb", "#e0607e", "#5b8def", "#2f9e6e", "#8e6bbf", "#f3e6d2", "#fbe3e8", "#f5ead8"},
 	Amber:    {"#1d2021", "#ebdbb2", "#928374", "#504945", "#fabd2f", "#fb4934", "#b8bb26", "#83a598", "#32302f", "#3c3836", "#282828"},
+	Stealth:  {"#1a1a1a", "#d4d4d4", "#808080", "#3a3a3a", "#d77757", "#e5737f", "#7fb07f", "#a5abd9", "#242424", "#2b2522", "#212121"},
 }
 
 var tokenNames = [11]string{"BG", "FG", "Dim", "Line", "Acc", "Acc2", "Acc3", "Acc4", "Chip", "SelBG", "CodeBG"}
@@ -55,13 +56,13 @@ func TestPalettesExact(t *testing.T) {
 
 func TestMeta(t *testing.T) {
 	all := All()
-	wantNames := []Name{Charm, Midnight, Cream, Amber}
-	wantLetters := []string{"A", "B", "C", "D"}
-	wantLabels := []string{"Charm 보라", "미드나잇 블루", "크림 파스텔", "레트로 앰버"}
-	wantDark := []bool{true, true, false, true}
-	wantBorder := []lipgloss.Border{lipgloss.RoundedBorder(), lipgloss.NormalBorder(), lipgloss.RoundedBorder(), lipgloss.DoubleBorder()}
-	if len(all) != 4 {
-		t.Fatalf("All() len = %d, want 4", len(all))
+	wantNames := []Name{Charm, Midnight, Cream, Amber, Stealth}
+	wantLetters := []string{"A", "B", "C", "D", "E"}
+	wantLabels := []string{"Charm 보라", "미드나잇 블루", "크림 파스텔", "레트로 앰버", "스텔스"}
+	wantDark := []bool{true, true, false, true, true}
+	wantBorder := []lipgloss.Border{lipgloss.RoundedBorder(), lipgloss.NormalBorder(), lipgloss.RoundedBorder(), lipgloss.DoubleBorder(), lipgloss.RoundedBorder()}
+	if len(all) != 5 {
+		t.Fatalf("All() len = %d, want 5", len(all))
 	}
 	for i, th := range all {
 		if th.Name != wantNames[i] || th.Letter != wantLetters[i] || Label(i18n.KoT(), th.Name) != wantLabels[i] || th.Dark != wantDark[i] {
@@ -95,6 +96,7 @@ func TestParse(t *testing.T) {
 	ok := map[string]Name{
 		"AMBER": Amber, "d": Amber, "Cream": Cream, "b": Midnight, "charm": Charm,
 		"A": Charm, "midnight": Midnight, "c": Cream, " amber ": Amber,
+		"stealth": Stealth, "E": Stealth,
 	}
 	for in, want := range ok {
 		got, valid := Parse(in)
@@ -102,7 +104,7 @@ func TestParse(t *testing.T) {
 			t.Errorf("Parse(%q) = %q,%v want %q,true", in, got, valid, want)
 		}
 	}
-	for _, in := range []string{"neon", "", "e", "amberx"} {
+	for _, in := range []string{"neon", "", "f", "amberx"} {
 		if got, valid := Parse(in); valid {
 			t.Errorf("Parse(%q) = %q,true want not ok", in, got)
 		}

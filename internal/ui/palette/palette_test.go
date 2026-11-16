@@ -92,8 +92,8 @@ func TestRanking(t *testing.T) {
 			}
 		}
 	}
-	if themeCmds != 4 {
-		t.Fatalf("query theme: %d 테마: … commands, want 4 (%q)", themeCmds, titles(items))
+	if themeCmds != 5 {
+		t.Fatalf("query theme: %d 테마: … commands, want 5 (%q)", themeCmds, titles(items))
 	}
 
 	avail := false
