@@ -37,5 +37,6 @@ var (
 		Line: lipgloss.Color("#3a3a3a"), Acc: lipgloss.Color("#d77757"), Acc2: lipgloss.Color("#e5737f"),
 		Acc3: lipgloss.Color("#7fb07f"), Acc4: lipgloss.Color("#a5abd9"), Chip: lipgloss.Color("#242424"),
 		SelBG: lipgloss.Color("#2b2522"), CodeBG: lipgloss.Color("#212121"),
+		Edge: lipgloss.Color("#707070"), // focused borders: plain grey, no accent
 	}
 )

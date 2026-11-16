@@ -9,7 +9,7 @@ import (
 // Styles are derived from Base (fg+bg).
 type Styles struct {
 	Base, Dim, Bold, Title, Subtitle lipgloss.Style
-	PaneFocused, PaneBlurred         lipgloss.Style // border styles (acc / line)
+	PaneFocused, PaneBlurred         lipgloss.Style // border styles (edge=acc unless P.Edge / line)
 	Selected, Cursorline             lipgloss.Style // selbg bg + acc fg
 	Badge, BadgeMention              lipgloss.Style // acc2 bg + bg fg
 	Pill                             lipgloss.Style // acc bg + bg fg + bold (status mode pill, active tab)
@@ -30,6 +30,10 @@ type Styles struct {
 
 // newStyles derives every style from base (fg+bg) so no cell is ever unstyled.
 func newStyles(p Palette, border lipgloss.Border) Styles {
+	edge := p.Acc
+	if p.Edge != nil {
+		edge = p.Edge
+	}
 	base := lipgloss.NewStyle().Foreground(p.FG).Background(p.BG)
 	boxed := func(edge lipgloss.Style, c color.Color) lipgloss.Style {
 		return edge.Border(border).BorderForeground(c).BorderBackground(p.BG)
@@ -46,7 +50,7 @@ func newStyles(p Palette, border lipgloss.Border) Styles {
 		Bold:          base.Bold(true),
 		Title:         base.Foreground(p.Acc).Bold(true),
 		Subtitle:      dim,
-		PaneFocused:   boxed(base, p.Acc),
+		PaneFocused:   boxed(base, edge),
 		PaneBlurred:   boxed(base, p.Line),
 		Selected:      selected,
 		Cursorline:    selected,
@@ -70,7 +74,7 @@ func newStyles(p Palette, border lipgloss.Border) Styles {
 		System:        dim,
 		Deleted:       dim.Italic(true),
 		Input:         boxed(base, p.Line),
-		InputFocused:  boxed(base, p.Acc),
+		InputFocused:  boxed(base, edge),
 		Placeholder:   dim,
 		Online:        base.Foreground(p.Acc3),
 		Away:          base.Foreground(p.Acc),
@@ -82,6 +86,6 @@ func newStyles(p Palette, border lipgloss.Border) Styles {
 		NewHighlight:  base.Background(p.SelBG),
 		TextSelect:    base.Foreground(p.BG).Background(p.FG),
 		Overlay:       base,
-		OverlayBorder: boxed(base, p.Acc),
+		OverlayBorder: boxed(base, edge),
 	}
 }

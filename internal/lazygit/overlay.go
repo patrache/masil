@@ -61,7 +61,7 @@ func OverlayColorsFrom(t *theme.Theme) OverlayColors {
 		t = theme.Get(theme.Default)
 	}
 	return OverlayColors{
-		ActiveBorder:   hexOf(t.P.Acc),
+		ActiveBorder:   hexOf(t.FocusEdge()),
 		InactiveBorder: hexOf(t.P.Line),
 		SelectedLineBg: hexOf(t.P.SelBG),
 		OptionsText:    hexOf(t.P.Acc2),
