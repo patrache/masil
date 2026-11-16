@@ -520,7 +520,7 @@ func bubble(t *theme.Theme, lines []string, pad int) []string {
 	out := make([]string, len(lines))
 	for i, l := range lines {
 		fill := inner - textwidth.Width(l) + pad
-		out[i] = spaces(st, pad) + recolorBG(l, t.P.BG, st.GetBackground()) + spaces(st, fill)
+		out[i] = spaces(st, pad) + recolorBG(l, t.BaseBG(), st.GetBackground()) + spaces(st, fill)
 	}
 	return out
 }
@@ -805,7 +805,7 @@ func paint(t *theme.Theme, lines []string, st lipgloss.Style, width int) []strin
 		return lines
 	}
 	for i, l := range lines {
-		l = recolorBG(l, t.P.BG, bg)
+		l = recolorBG(l, t.BaseBG(), bg)
 		lines[i] = l + spaces(st, width-textwidth.Width(l))
 	}
 	return lines
@@ -818,10 +818,18 @@ func bgSGR(c color.Color) string {
 }
 
 // recolorBG rewrites every truecolor SGR background equal to from into to; other
-// escapes (OSC 8 links, foregrounds, other backgrounds) are kept verbatim.
+// escapes (OSC 8 links, foregrounds, other backgrounds) are kept verbatim. A nil
+// from is a Clear theme's base (no background): to is laid under the whole line
+// and restored after every reset / default-background SGR instead.
 func recolorBG(s string, from, to color.Color) string {
-	if from == nil || to == nil {
+	if to == nil {
 		return s
+	}
+	if _, none := to.(lipgloss.NoColor); none {
+		return s
+	}
+	if from == nil {
+		return underlayBG(s, to)
 	}
 	src := strings.Split(bgSGR(from), ";")
 	dst := bgSGR(to)
@@ -866,6 +874,62 @@ func recolorBG(s string, from, to color.Color) string {
 			case (p == "38" || p == "48" || p == "58") && k+2 < len(params) && params[k+1] == "5":
 				out = append(out, params[k:k+3]...)
 				k += 3
+			default:
+				out = append(out, p)
+				k++
+			}
+		}
+		b.WriteString("\x1b[" + strings.Join(out, ";") + "m")
+		s = s[j+1:]
+	}
+}
+
+// underlayBG gives every cell of s without its own background the background
+// to: s starts on it, and each SGR reset (0 / empty) or default background (49)
+// switches back to it. Cells with their own 48;… background keep it.
+func underlayBG(s string, to color.Color) string {
+	dst := bgSGR(to)
+	var b strings.Builder
+	b.Grow(len(s) + 32)
+	b.WriteString("\x1b[" + dst + "m")
+	for {
+		i := strings.Index(s, "\x1b[")
+		if i < 0 {
+			b.WriteString(s + "\x1b[m") // never leave to set past the line
+			return b.String()
+		}
+		b.WriteString(s[:i])
+		s = s[i:]
+		j := 2
+		for j < len(s) && (s[j] < 0x40 || s[j] > 0x7e) {
+			j++
+		}
+		if j >= len(s) {
+			b.WriteString(s + "\x1b[m")
+			return b.String()
+		}
+		if s[j] != 'm' {
+			b.WriteString(s[:j+1])
+			s = s[j+1:]
+			continue
+		}
+		params := strings.Split(s[2:j], ";")
+		out := make([]string, 0, len(params)+5)
+		for k := 0; k < len(params); {
+			p := params[k]
+			switch {
+			case (p == "38" || p == "48" || p == "58") && k+4 < len(params) && params[k+1] == "2":
+				out = append(out, params[k:k+5]...)
+				k += 5
+			case (p == "38" || p == "48" || p == "58") && k+2 < len(params) && params[k+1] == "5":
+				out = append(out, params[k:k+3]...)
+				k += 3
+			case p == "" || p == "0":
+				out = append(out, "0", dst)
+				k++
+			case p == "49":
+				out = append(out, dst)
+				k++
 			default:
 				out = append(out, p)
 				k++

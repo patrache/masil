@@ -28,15 +28,24 @@ type Styles struct {
 	Overlay, OverlayBorder           lipgloss.Style
 }
 
-// newStyles derives every style from base (fg+bg) so no cell is ever unstyled.
-func newStyles(p Palette, border lipgloss.Border) Styles {
+// newStyles derives every style from base (fg+bg) so no cell is ever unstyled;
+// clear leaves the base background (and border background) unset so the
+// terminal's own background shows.
+func newStyles(p Palette, border lipgloss.Border, clear bool) Styles {
 	edge := p.Acc
 	if p.Edge != nil {
 		edge = p.Edge
 	}
-	base := lipgloss.NewStyle().Foreground(p.FG).Background(p.BG)
+	base := lipgloss.NewStyle().Foreground(p.FG)
+	if !clear {
+		base = base.Background(p.BG)
+	}
 	boxed := func(edge lipgloss.Style, c color.Color) lipgloss.Style {
-		return edge.Border(border).BorderForeground(c).BorderBackground(p.BG)
+		st := edge.Border(border).BorderForeground(c)
+		if !clear {
+			st = st.BorderBackground(p.BG)
+		}
+		return st
 	}
 	selected := base.Background(p.SelBG).Foreground(p.Acc)
 	badge := base.Background(p.Acc2).Foreground(p.BG)

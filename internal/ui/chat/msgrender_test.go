@@ -526,3 +526,22 @@ func TestSystemLineNamesUserFromHistory(t *testing.T) {
 		t.Fatalf("system line shows %q:\n%s", unknownUser, s)
 	}
 }
+
+// TestUnderlayBG: a Clear theme's line (no base background) gets to under every
+// cell without its own background, keeps a chip's own background, and ends reset.
+func TestUnderlayBG(t *testing.T) {
+	sel := lipgloss.Color("#2b2522")
+	chip := "\x1b[38;2;1;2;3;48;2;9;9;9mchip\x1b[m"
+	in := "\x1b[38;2;200;200;200mhi\x1b[m " + chip + " \x1b[49mx"
+	out := recolorBG(in, nil, sel)
+	want := "\x1b[48;2;43;37;34m" +
+		"\x1b[38;2;200;200;200mhi\x1b[0;48;2;43;37;34m " +
+		"\x1b[38;2;1;2;3;48;2;9;9;9mchip\x1b[0;48;2;43;37;34m " +
+		"\x1b[48;2;43;37;34mx\x1b[m"
+	if out != want {
+		t.Fatalf("underlay:\n got %q\nwant %q", out, want)
+	}
+	if got := recolorBG("plain", nil, lipgloss.NoColor{}); got != "plain" {
+		t.Fatalf("NoColor target changed the line: %q", got)
+	}
+}
