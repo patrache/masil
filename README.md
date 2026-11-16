@@ -204,7 +204,7 @@ Main keys in `config.toml`:
 
 ```toml
 server = "https://…"       # server to connect to
-theme = "amber"            # charm | midnight | cream | amber
+theme = "amber"            # charm | midnight | cream | amber | stealth
 
 [notify]
 desktop = true             # OS desktop notifications (masil and the notification daemon)

@@ -657,6 +657,14 @@ var areaSettings = area{
 				En: {Other: "Midnight blue"},
 			},
 		},
+		"theme_stealth": {
+			desc: "테마 이름(설정 테마 줄·미리보기·팔레트). Claude Code 다크처럼 수수한 테마",
+			max:  20,
+			text: map[Locale]Forms{
+				Ko: {Other: "스텔스"},
+				En: {Other: "Stealth"},
+			},
+		},
 		"unblock_body": {
 			desc:       "확인 대화상자 본문: 차단을 풀면 생기는 일. handle = 상대 아이디(번역하지 않음)",
 			params:     []Param{{Name: "handle", Type: "string"}},
@@ -1172,6 +1180,11 @@ func (a_ SettingsT) ThemeCream() string {
 // ThemeMidnight: 테마 이름(설정 테마 줄·미리보기·팔레트)
 func (a_ SettingsT) ThemeMidnight() string {
 	return a_.t.render(&areaSettings, "theme_midnight", false, 0)
+}
+
+// ThemeStealth: 테마 이름(설정 테마 줄·미리보기·팔레트). Claude Code 다크처럼 수수한 테마
+func (a_ SettingsT) ThemeStealth() string {
+	return a_.t.render(&areaSettings, "theme_stealth", false, 0)
 }
 
 // UnblockBody: 확인 대화상자 본문: 차단을 풀면 생기는 일. handle = 상대 아이디(번역하지 않음)

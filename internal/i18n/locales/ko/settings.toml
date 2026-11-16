@@ -400,6 +400,11 @@ desc = "테마 이름(설정 테마 줄·미리보기·팔레트)"
 max = 20
 other = "미드나잇 블루"
 
+[theme_stealth]
+desc = "테마 이름(설정 테마 줄·미리보기·팔레트). Claude Code 다크처럼 수수한 테마"
+max = 20
+other = "스텔스"
+
 [unblock_body]
 desc = "확인 대화상자 본문: 차단을 풀면 생기는 일. handle = 상대 아이디(번역하지 않음)"
 params = { handle = "string" }

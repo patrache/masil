@@ -63,9 +63,9 @@ func TestThemeCommandsPersist(t *testing.T) {
 	}
 	h.Check()
 
-	// theme.cycle: A → B → C → D → A.
-	runCmd(h, "theme.set.amber")
-	for _, want := range []theme.Name{theme.Charm, theme.Midnight, theme.Cream, theme.Amber, theme.Charm} {
+	// theme.cycle: A → B → C → D → E → A.
+	runCmd(h, "theme.set.stealth")
+	for _, want := range []theme.Name{theme.Charm, theme.Midnight, theme.Cream, theme.Amber, theme.Stealth, theme.Charm} {
 		runCmd(h, "theme.cycle")
 		if n := h.Context().Theme.Name; n != want {
 			t.Fatalf("theme.cycle: %v, want %v", n, want)

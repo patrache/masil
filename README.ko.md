@@ -202,7 +202,7 @@ masil 알림 데몬
 
 ```toml
 server = "https://…"       # 접속할 서버
-theme = "amber"            # charm | midnight | cream | amber
+theme = "amber"            # charm | midnight | cream | amber | stealth
 
 [notify]
 desktop = true             # OS 데스크톱 알림 (masil 과 알림 데몬 모두)

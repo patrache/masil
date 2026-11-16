@@ -246,6 +246,9 @@ other = "Cream pastel"
 [theme_midnight]
 other = "Midnight blue"
 
+[theme_stealth]
+other = "Stealth"
+
 [unblock_body]
 other = "@{handle} will be able to DM you and see your posts again."
 
