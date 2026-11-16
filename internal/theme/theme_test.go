@@ -54,6 +54,31 @@ func TestPalettesExact(t *testing.T) {
 	}
 }
 
+// edgeOf is the focused-border color: P.Edge, else Acc.
+func edgeOf(p Palette) color.Color {
+	if p.Edge != nil {
+		return p.Edge
+	}
+	return p.Acc
+}
+
+// TestStealthBordersPlain: Stealth's focused borders are grey, never the accent;
+// the other themes keep the accent.
+func TestStealthBordersPlain(t *testing.T) {
+	for _, th := range All() {
+		got := th.FocusEdge()
+		if th.Name == Stealth {
+			if sameColor(got, th.P.Acc) || !sameColor(got, lipgloss.Color("#707070")) {
+				t.Errorf("stealth FocusEdge = %v, want #707070", got)
+			}
+			continue
+		}
+		if !sameColor(got, th.P.Acc) {
+			t.Errorf("%s FocusEdge = %v, want Acc", th.Name, got)
+		}
+	}
+}
+
 func TestMeta(t *testing.T) {
 	all := All()
 	wantNames := []Name{Charm, Midnight, Cream, Amber, Stealth}
@@ -234,11 +259,11 @@ func TestStylesInheritBase(t *testing.T) {
 		"TextSelect": func(p Palette) color.Color { return p.FG },
 	}
 	borderFG := map[string]func(p Palette) color.Color{
-		"PaneFocused":   func(p Palette) color.Color { return p.Acc },
+		"PaneFocused":   edgeOf,
 		"PaneBlurred":   func(p Palette) color.Color { return p.Line },
 		"Input":         func(p Palette) color.Color { return p.Line },
-		"InputFocused":  func(p Palette) color.Color { return p.Acc },
-		"OverlayBorder": func(p Palette) color.Color { return p.Acc },
+		"InputFocused":  edgeOf,
+		"OverlayBorder": edgeOf,
 	}
 	for _, th := range All() {
 		fields := styleFields(th.S)

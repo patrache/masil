@@ -24,8 +24,12 @@ const (
 	Default       = Amber
 )
 
-// Palette is the 11 color tokens.
-type Palette struct{ BG, FG, Dim, Line, Acc, Acc2, Acc3, Acc4, Chip, SelBG, CodeBG color.Color }
+// Palette is the 11 color tokens, plus Edge: the focused-border color (nil =
+// Acc; v0.1.3-2 Stealth sets a plain grey so no border is colored).
+type Palette struct {
+	BG, FG, Dim, Line, Acc, Acc2, Acc3, Acc4, Chip, SelBG, CodeBG color.Color
+	Edge                                                          color.Color
+}
 
 // Theme is a palette with derived styles.
 type Theme struct {
@@ -102,6 +106,14 @@ func Parse(s string) (Name, bool) {
 		}
 	}
 	return "", false
+}
+
+// FocusEdge is the focused pane / input / overlay border color: P.Edge, or Acc.
+func (t *Theme) FocusEdge() color.Color {
+	if t.P.Edge != nil {
+		return t.P.Edge
+	}
+	return t.P.Acc
 }
 
 // UserColor: self => Acc; others FNV-1a(userID) % 3 over [Acc2, Acc3, Acc4].

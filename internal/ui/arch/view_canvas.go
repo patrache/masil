@@ -30,6 +30,7 @@ const (
 	sErr
 	sOK
 	sLine
+	sEdge   // a focused frame: the theme's FocusEdge
 	sRemote // + n: the n-th collaborator's colour
 )
 
@@ -187,6 +188,8 @@ func lipStyle(th *theme.Theme, s sty) lipgloss.Style {
 		return th.S.Success
 	case sLine:
 		return fg(th.P.Line)
+	case sEdge:
+		return fg(th.FocusEdge())
 	case sRemote:
 		return fg(th.P.Acc2)
 	case sRemote + 1:

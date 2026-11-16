@@ -129,17 +129,17 @@ func (m *canvasModel) drawMenu(ctx *ui.Context, b *buf) {
 	}
 	b.fill(r, sBase)
 	for x := r.X; x < r.X+r.W; x++ {
-		b.set(x, r.Y, "─", 1, sAcc)
-		b.set(x, r.Y+r.H-1, "─", 1, sAcc)
+		b.set(x, r.Y, "─", 1, sEdge)
+		b.set(x, r.Y+r.H-1, "─", 1, sEdge)
 	}
 	for y := r.Y; y < r.Y+r.H; y++ {
-		b.set(r.X, y, "│", 1, sAcc)
-		b.set(r.X+r.W-1, y, "│", 1, sAcc)
+		b.set(r.X, y, "│", 1, sEdge)
+		b.set(r.X+r.W-1, y, "│", 1, sEdge)
 	}
-	b.set(r.X, r.Y, "┌", 1, sAcc)
-	b.set(r.X+r.W-1, r.Y, "┐", 1, sAcc)
-	b.set(r.X, r.Y+r.H-1, "└", 1, sAcc)
-	b.set(r.X+r.W-1, r.Y+r.H-1, "┘", 1, sAcc)
+	b.set(r.X, r.Y, "┌", 1, sEdge)
+	b.set(r.X+r.W-1, r.Y, "┐", 1, sEdge)
+	b.set(r.X, r.Y+r.H-1, "└", 1, sEdge)
+	b.set(r.X+r.W-1, r.Y+r.H-1, "┘", 1, sEdge)
 	for i, a := range m.menu.actions {
 		if 1+i >= r.H-1 {
 			break
