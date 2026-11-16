@@ -35,6 +35,15 @@ func sameColor(a, b color.Color) bool {
 	return ar == br && ag == bg && ab == bb && aa == ba
 }
 
+// bgIs: got is want, or — want nil — no background at all (nil / NoColor).
+func bgIs(got, want color.Color) bool {
+	if want == nil {
+		_, none := got.(lipgloss.NoColor)
+		return got == nil || none
+	}
+	return sameColor(got, want)
+}
+
 func tokens(p Palette) [11]color.Color {
 	return [11]color.Color{p.BG, p.FG, p.Dim, p.Line, p.Acc, p.Acc2, p.Acc3, p.Acc4, p.Chip, p.SelBG, p.CodeBG}
 }
@@ -271,11 +280,11 @@ func TestStylesInheritBase(t *testing.T) {
 			t.Fatalf("Styles has %d fields, test expects 42", len(fields))
 		}
 		for _, f := range fields {
-			want := th.P.BG
+			want := th.BaseBG() // nil for a Clear theme: no background
 			if o, ok := bgOwner[f.Name]; ok {
 				want = o(th.P)
 			}
-			if !sameColor(f.Style.GetBackground(), want) {
+			if !bgIs(f.Style.GetBackground(), want) {
 				t.Errorf("%s S.%s bg = %v, want %v", th.Name, f.Name, f.Style.GetBackground(), want)
 			}
 			if f.Style.GetForeground() == nil {
@@ -288,7 +297,7 @@ func TestStylesInheritBase(t *testing.T) {
 				if !sameColor(f.Style.GetBorderTopForeground(), bf(th.P)) || !sameColor(f.Style.GetBorderLeftForeground(), bf(th.P)) {
 					t.Errorf("%s S.%s border fg = %v", th.Name, f.Name, f.Style.GetBorderTopForeground())
 				}
-				if !sameColor(f.Style.GetBorderTopBackground(), th.P.BG) || !sameColor(f.Style.GetBorderBottomBackground(), th.P.BG) {
+				if !bgIs(f.Style.GetBorderTopBackground(), th.BaseBG()) || !bgIs(f.Style.GetBorderBottomBackground(), th.BaseBG()) {
 					t.Errorf("%s S.%s border bg = %v, want BG", th.Name, f.Name, f.Style.GetBorderTopBackground())
 				}
 			} else if f.Style.GetBorderStyle() != (lipgloss.Border{}) {
@@ -423,6 +432,28 @@ func TestEditorTokenStyle(t *testing.T) {
 			if fg := th.EditorTokenStyle(tt).GetForeground(); fg != th.P.FG {
 				t.Errorf("%s %s fg = %v, want FG", th.Name, tt, fg)
 			}
+		}
+	}
+}
+
+// TestStealthClear: only Stealth is Clear — its base and border styles carry no
+// background (the terminal's own shows), BaseBG is nil, and P.BG is still a
+// real color for text on accents; the other themes paint BG as before.
+func TestStealthClear(t *testing.T) {
+	for _, th := range All() {
+		bg := th.S.Base.GetBackground()
+		_, none := bg.(lipgloss.NoColor)
+		if th.Name == Stealth {
+			if !th.Clear || th.BaseBG() != nil || !(none || bg == nil) {
+				t.Errorf("stealth: Clear=%v BaseBG=%v base bg=%v, want clear", th.Clear, th.BaseBG(), bg)
+			}
+			if th.P.BG == nil || !sameColor(th.S.Badge.GetForeground(), th.P.BG) {
+				t.Error("stealth: text on accents lost its P.BG color")
+			}
+			continue
+		}
+		if th.Clear || !sameColor(th.BaseBG(), th.P.BG) || !sameColor(bg, th.P.BG) {
+			t.Errorf("%s: Clear=%v base bg=%v, want P.BG", th.Name, th.Clear, bg)
 		}
 	}
 }

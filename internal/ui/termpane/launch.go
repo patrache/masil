@@ -96,7 +96,7 @@ func launch(ctx *ui.Context, req termhost.Request, opts Options) (Launched, tea.
 			OnNotify: func(kind string) { post.Post(NotifyMsg{InstanceID: id, Kind: kind}) },
 		}
 		if ctx.Theme != nil {
-			po.FG, po.BG = ctx.Theme.P.FG, ctx.Theme.P.BG
+			po.FG, po.BG = ctx.Theme.P.FG, ctx.Theme.BaseBG() // nil BG: the terminal's own
 		}
 		p, err := startPane(req, paneStartSize, po)
 		if errors.Is(err, termhost.ErrPaneLimit) {

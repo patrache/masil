@@ -37,12 +37,30 @@ type Theme struct {
 	Letter string // "A".."E" (the name in a language: Label(t, Name))
 	Dark   bool
 	P      Palette
+	// Clear (v0.1.3-4 Stealth): no cell gets the BG background, so the terminal's
+	// own background (Warp's color, image, transparency) shows through, like
+	// Claude Code. P.BG stays a real color for text on accents, images and fades.
+	Clear  bool
 	Border lipgloss.Border // Rounded / Normal / Rounded / Double / Rounded
 	S      Styles
 }
 
 func newTheme(n Name, letter string, dark bool, p Palette, border lipgloss.Border) *Theme {
-	return &Theme{Name: n, Letter: letter, Dark: dark, P: p, Border: border, S: newStyles(p, border)}
+	return &Theme{Name: n, Letter: letter, Dark: dark, P: p, Border: border, S: newStyles(p, border, false)}
+}
+
+// newClearTheme is newTheme with Clear set (no base background).
+func newClearTheme(n Name, letter string, dark bool, p Palette, border lipgloss.Border) *Theme {
+	return &Theme{Name: n, Letter: letter, Dark: dark, Clear: true, P: p, Border: border, S: newStyles(p, border, true)}
+}
+
+// BaseBG is the background base cells carry: P.BG, or nil for a Clear theme
+// (the terminal's default background).
+func (t *Theme) BaseBG() color.Color {
+	if t.Clear {
+		return nil
+	}
+	return t.P.BG
 }
 
 // Label is theme n's name in t's language ("Charm 보라", "Retro amber"); an
@@ -72,7 +90,7 @@ var themes = []*Theme{
 	newTheme(Midnight, "B", true, midnightPalette, lipgloss.NormalBorder()),
 	newTheme(Cream, "C", false, creamPalette, lipgloss.RoundedBorder()),
 	newTheme(Amber, "D", true, amberPalette, lipgloss.DoubleBorder()),
-	newTheme(Stealth, "E", true, stealthPalette, lipgloss.RoundedBorder()),
+	newClearTheme(Stealth, "E", true, stealthPalette, lipgloss.RoundedBorder()),
 }
 
 // Get returns the theme by name; an unknown name yields the Default theme.

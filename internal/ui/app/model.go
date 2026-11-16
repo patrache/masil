@@ -577,7 +577,7 @@ func (m *Model) View() tea.View {
 	}
 	v.Cursor = m.cursor()
 	v.WindowTitle = "masil · " + m.currentTitle()
-	if m.ctx.Config.UI.PaintBackground {
+	if m.ctx.Config.UI.PaintBackground && !m.ctx.Theme.Clear { // a Clear theme keeps the terminal's colors
 		v.BackgroundColor = m.ctx.Theme.P.BG
 		v.ForegroundColor = m.ctx.Theme.P.FG
 	}
