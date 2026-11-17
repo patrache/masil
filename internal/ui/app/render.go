@@ -24,6 +24,9 @@ func (m *Model) render() string {
 	if !m.sized || w <= 0 || h <= 0 {
 		return ""
 	}
+	if m.boss != nil { // ctrl+g decoy: nothing of masil (toasts included) is drawn
+		return strings.Join(m.boss.lines(w, h), "\n")
+	}
 	if m.lay.Mode == layout.ModeTooSmall {
 		return m.renderTooSmall()
 	}

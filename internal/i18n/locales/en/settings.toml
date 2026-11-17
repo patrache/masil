@@ -3,6 +3,9 @@
 [blocked_ago]
 other = "Blocked · {ago}"
 
+[boss_key]
+other = "Decoy screen (again: back)"
+
 [cancel]
 other = "Cancel"
 

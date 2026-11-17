@@ -19,6 +19,14 @@ var areaSettings = area{
 				En: {Other: "Blocked · {ago}"},
 			},
 		},
+		"boss_key": {
+			desc: "단축키 도움말: ctrl+g 위장 화면(코딩 에이전트가 작업 중인 것처럼 보이는 화면). 다시 누르면 돌아온다",
+			max:  30,
+			text: map[Locale]Forms{
+				Ko: {Other: "위장 화면 (다시 누르면 복귀)"},
+				En: {Other: "Decoy screen (again: back)"},
+			},
+		},
 		"cancel": {
 			desc: "확인 대화상자 단추: 취소",
 			max:  16,
@@ -775,6 +783,11 @@ var areaSettings = area{
 // BlockedAgo: 차단 목록 줄 뒤: 언제 차단했는지. ago = 상대 시각(3분, 어제…)
 func (a_ SettingsT) BlockedAgo(ago string) string {
 	return a_.t.render(&areaSettings, "blocked_ago", false, 0, "ago", ago)
+}
+
+// BossKey: 단축키 도움말: ctrl+g 위장 화면(코딩 에이전트가 작업 중인 것처럼 보이는 화면). 다시 누르면 돌아온다
+func (a_ SettingsT) BossKey() string {
+	return a_.t.render(&areaSettings, "boss_key", false, 0)
 }
 
 // Cancel: 확인 대화상자 단추: 취소

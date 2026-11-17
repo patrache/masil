@@ -21,7 +21,7 @@ var paletteTable = map[Name][11]string{
 	Midnight: {"#0f1419", "#c9d1d9", "#5c6773", "#1f2a35", "#59c2ff", "#ffb454", "#aad94c", "#d2a6ff", "#151d26", "#13283a", "#121a22"},
 	Cream:    {"#fdf6ec", "#3a3226", "#9a8b74", "#e2d3bb", "#e0607e", "#5b8def", "#2f9e6e", "#8e6bbf", "#f3e6d2", "#fbe3e8", "#f5ead8"},
 	Amber:    {"#1d2021", "#ebdbb2", "#928374", "#504945", "#fabd2f", "#fb4934", "#b8bb26", "#83a598", "#32302f", "#3c3836", "#282828"},
-	Stealth:  {"#1a1a1a", "#d4d4d4", "#808080", "#3a3a3a", "#d77757", "#e5737f", "#7fb07f", "#a5abd9", "#242424", "#2b2522", "#212121"},
+	Stealth:  {"#1a1a1a", "#d4d4d4", "#808080", "#3a3a3a", "#c8c8c8", "#b89a9a", "#9aae9a", "#a2a6bf", "#262626", "#2a2a2a", "#212121"},
 }
 
 var tokenNames = [11]string{"BG", "FG", "Dim", "Line", "Acc", "Acc2", "Acc3", "Acc4", "Chip", "SelBG", "CodeBG"}
@@ -34,6 +34,9 @@ func sameColor(a, b color.Color) bool {
 	br, bg, bb, ba := b.RGBA()
 	return ar == br && ag == bg && ab == bb && aa == ba
 }
+
+// onAccent are the styles that fill with an accent (a chip on a Clear theme).
+var onAccent = map[string]bool{"Badge": true, "BadgeMention": true, "Pill": true, "TabActive": true}
 
 // bgIs: got is want, or — want nil — no background at all (nil / NoColor).
 func bgIs(got, want color.Color) bool {
@@ -284,6 +287,9 @@ func TestStylesInheritBase(t *testing.T) {
 			if o, ok := bgOwner[f.Name]; ok {
 				want = o(th.P)
 			}
+			if th.Clear && onAccent[f.Name] { // a Clear theme's tab/badges sit on a chip
+				want = th.P.Chip
+			}
 			if !bgIs(f.Style.GetBackground(), want) {
 				t.Errorf("%s S.%s bg = %v, want %v", th.Name, f.Name, f.Style.GetBackground(), want)
 			}
@@ -305,6 +311,10 @@ func TestStylesInheritBase(t *testing.T) {
 			}
 		}
 		s := th.S
+		onFG := th.P.BG // text on an accent fill; a Clear theme's chips carry FG
+		if th.Clear {
+			onFG = th.P.FG
+		}
 		checks := []struct {
 			name string
 			got  color.Color
@@ -316,10 +326,10 @@ func TestStylesInheritBase(t *testing.T) {
 			{"Subtitle.fg", s.Subtitle.GetForeground(), th.P.Dim},
 			{"Selected.fg", s.Selected.GetForeground(), th.P.Acc},
 			{"Cursorline.fg", s.Cursorline.GetForeground(), th.P.Acc},
-			{"Badge.fg", s.Badge.GetForeground(), th.P.BG},
-			{"BadgeMention.fg", s.BadgeMention.GetForeground(), th.P.BG},
-			{"Pill.fg", s.Pill.GetForeground(), th.P.BG},
-			{"TabActive.fg", s.TabActive.GetForeground(), th.P.BG},
+			{"Badge.fg", s.Badge.GetForeground(), onFG},
+			{"BadgeMention.fg", s.BadgeMention.GetForeground(), onFG},
+			{"Pill.fg", s.Pill.GetForeground(), onFG},
+			{"TabActive.fg", s.TabActive.GetForeground(), onFG},
 			{"Tab.fg", s.Tab.GetForeground(), th.P.Dim},
 			{"StatusBar.fg", s.StatusBar.GetForeground(), th.P.FG},
 			{"StatusHint.fg", s.StatusHint.GetForeground(), th.P.Dim},
@@ -447,8 +457,8 @@ func TestStealthClear(t *testing.T) {
 			if !th.Clear || th.BaseBG() != nil || !(none || bg == nil) {
 				t.Errorf("stealth: Clear=%v BaseBG=%v base bg=%v, want clear", th.Clear, th.BaseBG(), bg)
 			}
-			if th.P.BG == nil || !sameColor(th.S.Badge.GetForeground(), th.P.BG) {
-				t.Error("stealth: text on accents lost its P.BG color")
+			if th.P.BG == nil || !sameColor(th.S.Badge.GetForeground(), th.P.FG) || !sameColor(th.S.Pill.GetBackground(), th.P.Chip) {
+				t.Error("stealth: the active tab / badges must sit quietly on a chip")
 			}
 			continue
 		}
