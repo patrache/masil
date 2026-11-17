@@ -70,6 +70,8 @@ type Model struct {
 	escGen    int         // generation of the pending escapeArmMsg
 	quitArmed bool        // the first ctrl+c armed quitting (CA 5.5 app.quit)
 	quitGen   int         // generation of the pending quitArmMsg
+	boss      *bossScreen // the ctrl+g decoy screen while it shows (boss.go)
+	bossGen   int         // generation of the decoy's ticks
 	quitAsk   ui.Overlay  // the open "panes still run" quit question (quit.go), nil = none
 
 	cols, rows int
@@ -328,7 +330,15 @@ func (m *Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if cmd, ok := m.grabMsg(msg); ok { // key grabbing: ctrl+\ timeout, shell actions (keys.go)
 		return m, cmd
 	}
+	if m.boss != nil { // the decoy swallows the mouse and pastes (boss.go)
+		switch msg.(type) {
+		case tea.MouseMsg, tea.PasteMsg:
+			return m, nil
+		}
+	}
 	switch msg := msg.(type) {
+	case bossTickMsg:
+		return m, m.onBossTick(msg)
 	case statusTickMsg:
 		if msg.gen == m.tickGen {
 			m.tickArmed = false
@@ -577,6 +587,12 @@ func (m *Model) View() tea.View {
 	}
 	v.Cursor = m.cursor()
 	v.WindowTitle = "masil · " + m.currentTitle()
+	if m.boss != nil { // the decoy: a plain title, the terminal's own colors, no cursor
+		v.WindowTitle = "claude"
+		v.Cursor = nil
+		v.MouseMode = tea.MouseModeNone
+		return v
+	}
 	if m.ctx.Config.UI.PaintBackground && !m.ctx.Theme.Clear { // a Clear theme keeps the terminal's colors
 		v.BackgroundColor = m.ctx.Theme.P.BG
 		v.ForegroundColor = m.ctx.Theme.P.FG

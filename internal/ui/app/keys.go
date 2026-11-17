@@ -96,6 +96,19 @@ func (m *Model) routeKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.prefix = prefixNone
 		return m.escapeKey(msg)
 	}
+	// ctrl+g toggles the decoy screen from anywhere — over overlays, a running
+	// pane, the login screen — and, while it shows, is the only way back: every
+	// other key is swallowed except ctrl+c (quit) (boss.go).
+	if keys.MatchesBossToggle(msg) {
+		m.prefix = prefixNone
+		return m.toggleBoss()
+	}
+	if m.boss != nil {
+		if keys.Matches(msg, keymap.AppQuit) {
+			return m.quitKey(msg)
+		}
+		return nil
+	}
 	// A component that grabs the keyboard (a running termpane) gets every key —
 	// ctrl+c and the hard globals included — unless an overlay is above it.
 	if cmd, ok := m.grabbedKey(msg); ok {

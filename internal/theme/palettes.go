@@ -28,15 +28,16 @@ var (
 		Acc3: lipgloss.Color("#b8bb26"), Acc4: lipgloss.Color("#83a598"), Chip: lipgloss.Color("#32302f"),
 		SelBG: lipgloss.Color("#3c3836"), CodeBG: lipgloss.Color("#282828"),
 	}
-	// stealthPalette (v0.1.3-2) looks like Claude Code's dark mode from across the
-	// room: a near-black screen, plain light-grey text, grey rules and one muted
-	// orange accent; the other accents are Claude Code's own soft red, green and
-	// periwinkle so nothing pops like a chat app.
+	// stealthPalette (v0.1.3-5) looks like a plain Claude Code dark session from
+	// across the room: no own background (Theme.Clear), light-grey text, grey
+	// rules and a soft white accent like a border — nothing colored stands out.
+	// The other accents are only faint tints so names stay distinguishable.
+	// BG stays a real color for text on accents, images and fades.
 	stealthPalette = Palette{
 		BG: lipgloss.Color("#1a1a1a"), FG: lipgloss.Color("#d4d4d4"), Dim: lipgloss.Color("#808080"),
-		Line: lipgloss.Color("#3a3a3a"), Acc: lipgloss.Color("#d77757"), Acc2: lipgloss.Color("#e5737f"),
-		Acc3: lipgloss.Color("#7fb07f"), Acc4: lipgloss.Color("#a5abd9"), Chip: lipgloss.Color("#242424"),
-		SelBG: lipgloss.Color("#2b2522"), CodeBG: lipgloss.Color("#212121"),
+		Line: lipgloss.Color("#3a3a3a"), Acc: lipgloss.Color("#c8c8c8"), Acc2: lipgloss.Color("#b89a9a"),
+		Acc3: lipgloss.Color("#9aae9a"), Acc4: lipgloss.Color("#a2a6bf"), Chip: lipgloss.Color("#262626"),
+		SelBG: lipgloss.Color("#2a2a2a"), CodeBG: lipgloss.Color("#212121"),
 		Edge: lipgloss.Color("#707070"), // focused borders: plain grey, no accent
 	}
 )

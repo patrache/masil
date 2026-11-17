@@ -50,6 +50,10 @@ func newStyles(p Palette, border lipgloss.Border, clear bool) Styles {
 	selected := base.Background(p.SelBG).Foreground(p.Acc)
 	badge := base.Background(p.Acc2).Foreground(p.BG)
 	pill := base.Background(p.Acc).Foreground(p.BG).Bold(true)
+	if clear { // a Clear theme fills nothing brightly: the active tab and badges sit on a chip
+		badge = base.Background(p.Chip).Foreground(p.FG)
+		pill = base.Background(p.Chip).Foreground(p.FG).Bold(true)
+	}
 	dim := base.Foreground(p.Dim)
 	mention := base.Background(p.SelBG).Foreground(p.Acc)
 	chip := base.Background(p.Chip)

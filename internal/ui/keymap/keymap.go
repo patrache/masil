@@ -72,6 +72,9 @@ const (
 	// bound; MatchesEscape also takes the raw code). It is read only by a
 	// focused pane, and by the shell while a kill switch is active.
 	TermhostEscape Action = "termhost.escape"
+	// BossToggle (v0.1.3-5): ctrl+g shows the decoy screen; ctrl+g again
+	// returns. Read before everything but the pane prefix, everywhere.
+	BossToggle Action = "boss.toggle"
 )
 
 // Keymap maps actions to bindings.
@@ -149,6 +152,7 @@ var defaults = map[Action]spec{
 	// so its help label names the prefix too.
 	ToolsZoom:      {keys: []string{"z"}, helpKey: "ctrl+w z", Desc: func(t *i18n.T) string { return t.Tools.KeyZoom() }},
 	TermhostEscape: {keys: []string{"ctrl+\\", "ctrl+4"}, helpKey: "ctrl+\\", Desc: func(t *i18n.T) string { return t.Termpane.HelpEscape() }},
+	BossToggle:     {keys: []string{"ctrl+g"}, Desc: func(t *i18n.T) string { return t.Settings.BossKey() }},
 }
 
 // descIn is the row description in t (ko when t is nil).
@@ -370,6 +374,12 @@ func (k *Keymap) MatchesToolsToggle(msg tea.KeyPressMsg) bool {
 	return k.Matches(msg, ToolsToggle) || k.matchesLayout(msg, ToolsToggle)
 }
 
+// MatchesBossToggle reports whether msg is boss.toggle, in any spelling a
+// Korean layout gives ctrl+g (ㅎ on that key).
+func (k *Keymap) MatchesBossToggle(msg tea.KeyPressMsg) bool {
+	return k.Matches(msg, BossToggle) || k.matchesLayout(msg, BossToggle)
+}
+
 // layoutAlias is how a ctrl key may arrive on a non-US layout: ctrl + the
 // rune that layout puts on the key (Code), or the US key in BaseCode (kitty
 // keyboard protocol, Windows console).
@@ -385,6 +395,7 @@ type layoutAlias struct {
 var layoutAliases = map[string]layoutAlias{
 	"ctrl+t":  {base: 't', runes: []rune{'ㅅ'}},
 	"ctrl+\\": {base: '\\', runes: []rune{'₩', '￦'}},
+	"ctrl+g":  {base: 'g', runes: []rune{'ㅎ'}}, // the decoy screen (v0.1.3-5)
 }
 
 // matchesLayout reports whether msg is ctrl + an alias of one of a's keys
